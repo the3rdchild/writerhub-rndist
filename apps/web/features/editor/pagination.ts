@@ -22,11 +22,24 @@ interface PaginationState {
 	spacers: Spacer[]
 	decorations: DecorationSet
 	pageCount: number
+	/**
+	 * Geometri disimpan di state plugin, bukan sekadar dibaca dari opsi, karena
+	 * daftar ekstensi hanya dibuat sekali sementara margin bisa diseret kapan
+	 * saja lewat penggaris. Perubahannya dikirim sebagai meta transaksi.
+	 */
+	geometry: PageGeometry
 }
 
 export interface PaginationOptions {
 	geometry: PageGeometry
 	onPageCountChange?: (pageCount: number) => void
+}
+
+/** Meta untuk memberi tahu plugin bahwa ukuran lembar atau margin berubah. */
+export interface PaginationMeta {
+	spacers?: Spacer[]
+	pageCount?: number
+	geometry?: PageGeometry
 }
 
 /**
@@ -63,7 +76,7 @@ function measureBlocks(view: EditorView, spacers: readonly Spacer[]): Measuremen
 /** Tentukan di mana halaman dipenggal — murni aritmetika atas hasil pengukuran. */
 function computeSpacers(
 	blocks: readonly Measurement[],
-	{ contentHeight, margin, gap }: PageGeometry,
+	{ contentHeight, margins, gap }: PageGeometry,
 ): { spacers: Spacer[]; pageCount: number } {
 	const spacers: Spacer[] = []
 	let pageStart = 0
@@ -77,7 +90,10 @@ function computeSpacers(
 			// Dorong blok ke awal halaman berikutnya: sisa ruang halaman ini,
 			// lalu margin bawah + celah antar lembar + margin atas.
 			const remaining = pageStart + contentHeight - block.top
-			spacers.push({ pos: block.pos, height: remaining + margin + gap + margin })
+			spacers.push({
+				pos: block.pos,
+				height: remaining + margins.bottom + gap + margins.top,
+			})
 			pageStart = block.top
 			pageCount += 1
 		}
@@ -149,17 +165,27 @@ export const Pagination = Extension.create<PaginationOptions>({
 				key: paginationKey,
 
 				state: {
-					init: () => ({ spacers: [], decorations: DecorationSet.empty, pageCount: 1 }),
+					init: () => ({
+						spacers: [],
+						decorations: DecorationSet.empty,
+						pageCount: 1,
+						geometry,
+					}),
 
 					apply(tr, current, _old, newState) {
-						const incoming = tr.getMeta(paginationKey) as
-							| { spacers: Spacer[]; pageCount: number }
-							| undefined
+						const incoming = tr.getMeta(paginationKey) as PaginationMeta | undefined
 
 						if (incoming) {
+							// Geometri baru saja tersimpan; spacer-nya menyusul dari
+							// pengukuran berikutnya yang dipicu oleh view.update.
+							if (!incoming.spacers) {
+								return { ...current, geometry: incoming.geometry ?? current.geometry }
+							}
+
 							return {
+								geometry: incoming.geometry ?? current.geometry,
 								spacers: incoming.spacers,
-								pageCount: incoming.pageCount,
+								pageCount: incoming.pageCount ?? current.pageCount,
 								decorations: buildDecorations(newState.doc, incoming.spacers),
 							}
 						}
@@ -187,7 +213,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 						if (!state) return
 
 						const blocks = measureBlocks(view, state.spacers)
-						const { spacers, pageCount } = computeSpacers(blocks, geometry)
+						const { spacers, pageCount } = computeSpacers(blocks, state.geometry)
 
 						// Koordinat alami stabil, jadi perhitungan kedua atas dokumen yang
 						// sama menghasilkan spacer identik — di sinilah loop berhenti.
@@ -216,7 +242,11 @@ export const Pagination = Extension.create<PaginationOptions>({
 
 					return {
 						update: (_updatedView, previous) => {
-							if (!previous.doc.eq(view.state.doc)) schedule()
+							const before = paginationKey.getState(previous)
+							const after = paginationKey.getState(view.state)
+							if (!previous.doc.eq(view.state.doc) || before?.geometry !== after?.geometry) {
+								schedule()
+							}
 						},
 						destroy: () => {
 							if (frame) cancelAnimationFrame(frame)

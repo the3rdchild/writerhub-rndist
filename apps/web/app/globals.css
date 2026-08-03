@@ -182,6 +182,133 @@ a {
   pointer-events: none;
 }
 
+/* ── penggaris ─────────────────────────────────────────────────────────── */
+
+/*
+ * Posisi setiap elemen penggaris datang dari komponen sebagai style inline
+ * hasil perhitungan piksel dokumen × zoom. Di sini hanya rupanya — supaya satu
+ * sumber angka yang sama dipakai penggaris, paginasi, dan cetak.
+ */
+.document-ruler-bar {
+  background: var(--canvas);
+  padding: 12px 0 10px;
+}
+
+.document-ruler {
+  position: relative;
+  background: var(--surface-raised);
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  user-select: none;
+  touch-action: none;
+}
+
+.document-ruler--dragging {
+  cursor: col-resize;
+}
+
+/* Area di luar batas tulis. */
+.document-ruler__margin {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+}
+
+.document-ruler__tick {
+  position: absolute;
+  top: 50%;
+  width: 1px;
+  height: 4px;
+  transform: translate(-0.5px, -50%);
+  background: var(--foreground-faint);
+  opacity: 0.5;
+}
+.document-ruler__tick--major {
+  height: 8px;
+  opacity: 0.75;
+}
+
+.document-ruler__label {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--foreground-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Batas margin: garis tegak yang bisa diseret. */
+.document-ruler__margin-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 11px;
+  margin-left: -5.5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+.document-ruler__margin-handle::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--foreground-faint);
+  transition: background-color 0.15s ease;
+}
+.document-ruler__margin-handle:hover::before,
+.document-ruler__margin-handle:focus-visible::before {
+  background: var(--accent);
+}
+
+/* Marker indentasi paragraf: segitiga di tepi atas & bawah penggaris. */
+.document-ruler__indent {
+  position: absolute;
+  width: 14px;
+  height: 9px;
+  margin-left: -7px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+.document-ruler__indent::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--foreground-subtle);
+  transition: background-color 0.15s ease;
+}
+.document-ruler__indent:hover::before,
+.document-ruler__indent:focus-visible::before {
+  background: var(--accent);
+}
+
+.document-ruler__indent--first-line {
+  top: -1px;
+}
+.document-ruler__indent--first-line::before {
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.document-ruler__indent--left,
+.document-ruler__indent--right {
+  bottom: -1px;
+}
+.document-ruler__indent--left::before,
+.document-ruler__indent--right::before {
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
 /* ── badan dokumen (ProseMirror) ───────────────────────────────────────── */
 
 .document-body {
@@ -426,6 +553,7 @@ html.light .range-highlight {
   nav,
   aside,
   .document-canvas ~ *,
+  .document-ruler-bar,
   .page-break-spacer,
   .document-sheet {
     display: none !important;

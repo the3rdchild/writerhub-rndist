@@ -79,18 +79,19 @@ export function ProofreaderPanel() {
 			<div className="min-h-0 flex-1 overflow-y-auto bg-surface-inset">
 				{!hasResults && !isRunning ? (
 					<div className="flex h-full flex-col items-center justify-center px-6 text-center">
-						<p className="text-sm font-medium text-foreground">Belum ada yang diperiksa</p>
-						<p className="mt-1 text-xs text-subtle">Mulai dengan menulis atau mengunggah dokumen</p>
+						<p className="text-sm font-medium text-foreground">Nothing checked yet</p>
+						<p className="mt-1 text-xs text-subtle">Start by writing or uploading a document</p>
 					</div>
 				) : (
 					<div className="flex flex-col gap-2 p-3">
 						{isRunning && state.suggestions.length === 0 && (
-							<p className="py-10 text-center text-sm text-subtle">Menganalisis teks...</p>
+							<p className="py-10 text-center text-sm text-subtle">Analyzing text...</p>
 						)}
 
 						{visible.length > 0 && (
 							<p className="mb-1 px-1 text-sm text-muted">
-								<span className="font-semibold text-accent">{visible.length}</span> saran
+								<span className="font-semibold text-accent">{visible.length}</span>{' '}
+								{visible.length === 1 ? 'suggestion' : 'suggestions'}
 							</p>
 						)}
 
@@ -109,7 +110,7 @@ export function ProofreaderPanel() {
 						))}
 
 						{hasResults && !isRunning && visible.length === 0 && (
-							<div className="py-10 text-center text-xs text-subtle">Semua saran sudah selesai ✓</div>
+							<div className="py-10 text-center text-xs text-subtle">All suggestions resolved ✓</div>
 						)}
 					</div>
 				)}
@@ -134,7 +135,7 @@ export function ProofreaderPanel() {
 						)}
 					>
 						{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-						{copied ? 'Tersalin!' : 'Salin Hasil'}
+						{copied ? 'Copied!' : 'Copy Result'}
 					</button>
 				)}
 
@@ -174,8 +175,8 @@ export function ProofreaderPanel() {
 							onClick={() => runCheck()}
 							disabled={!canRun}
 							isRunning={isRunning}
-							runningLabel="Mengecek..."
-							label={hasResults ? 'Cek Ulang' : 'Cek Grammar'}
+							runningLabel="Checking..."
+							label={hasResults ? 'Check Again' : 'Check Grammar'}
 						/>
 					</div>
 				</div>

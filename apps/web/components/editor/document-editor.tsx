@@ -62,7 +62,7 @@ export function DocumentEditor() {
 	return (
 		<div
 			ref={containerRef}
-			className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-line bg-surface-sunken"
+			className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-surface-sunken"
 		>
 			{error && (
 				<div className="mx-4 mt-3 shrink-0 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">
@@ -72,7 +72,7 @@ export function DocumentEditor() {
 
 			{state.file ? (
 				<div className="flex flex-1 items-center justify-center px-6">
-					<div className="flex max-w-full items-center gap-3 rounded-2xl border border-line bg-surface-raised px-5 py-4 shadow-[var(--page-shadow)]">
+					<div className="flex max-w-full items-center gap-3 rounded-2xl bg-surface-raised px-5 py-4 shadow-[var(--page-shadow)]">
 						<FileText className="h-6 w-6 shrink-0 text-accent" />
 						<div className="min-w-0">
 							<p className="truncate text-sm text-foreground">{state.file.name}</p>
@@ -94,10 +94,10 @@ export function DocumentEditor() {
 				<DocumentCanvas containerRef={containerRef} onReady={setEditor} />
 			)}
 
-			<div className="flex shrink-0 items-center gap-3 border-t border-line bg-surface px-4 py-1.5">
+			<div className="flex shrink-0 items-center gap-3 bg-surface px-4 py-1.5">
 				{settings.showWordCount && !state.file && (
 					<span className="text-xs text-subtle">
-						{countWords(state.text)} kata · {state.text.length} karakter
+						{countWords(state.text)} words · {state.text.length} characters
 					</span>
 				)}
 

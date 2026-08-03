@@ -1,6 +1,6 @@
 'use client'
 
-import { Focus, Settings as SettingsIcon, Share2 } from 'lucide-react'
+import { Focus, PanelLeft, Settings as SettingsIcon, Share2 } from 'lucide-react'
 import { EditorToolbar } from '@/components/editor/editor-toolbar'
 import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
@@ -20,13 +20,13 @@ import { NavMenu } from './nav-menu'
 export function TopBar() {
 	const { state, dispatch } = useDocument()
 	const { editor } = useEditorInstance()
-	const { settings, toggleFocusMode, setSettingsOpen } = useSettings()
+	const { settings, update, toggleFocusMode, setSettingsOpen } = useSettings()
 	const { isRunning } = useGrammarCheck()
 
 	return (
 		<header
 			className={cn(
-				'group/topbar relative z-20 shrink-0 border-b border-line bg-surface',
+				'group/topbar relative z-20 shrink-0 bg-surface',
 				settings.focusMode && 'h-2 overflow-hidden hover:h-auto hover:overflow-visible',
 			)}
 		>
@@ -54,6 +54,12 @@ export function TopBar() {
 						{isRunning && (
 							<span className="mr-1 hidden text-xs text-subtle sm:inline">Memeriksa…</span>
 						)}
+						<HeaderButton
+							icon={PanelLeft}
+							label="Tab dokumen"
+							active={settings.showDocumentTabs}
+							onClick={() => update({ showDocumentTabs: !settings.showDocumentTabs })}
+						/>
 						<HeaderButton
 							icon={Focus}
 							label="Mode fokus"

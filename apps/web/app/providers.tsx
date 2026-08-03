@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { type ReactNode, useState } from 'react'
 import { PanelProvider } from '@/features/analysis/panel-context'
 import { DocumentProvider } from '@/features/document/document-context'
+import { EditorInstanceProvider } from '@/features/editor/editor-context'
 import { SessionProvider } from '@/features/sessions/session-context'
 import { SettingsProvider } from '@/features/settings/settings-context'
 
@@ -31,9 +32,13 @@ export function Providers({ children }: { children: ReactNode }) {
 		<QueryClientProvider client={queryClient}>
 			<SettingsProvider>
 				<DocumentProvider>
-					<SessionProvider>
-						<PanelProvider>{children}</PanelProvider>
-					</SessionProvider>
+					{/* Sesi memulihkan naskah lengkap dengan formatnya, jadi ia harus
+					    berada di dalam jangkauan instance editor. */}
+					<EditorInstanceProvider>
+						<SessionProvider>
+							<PanelProvider>{children}</PanelProvider>
+						</SessionProvider>
+					</EditorInstanceProvider>
 				</DocumentProvider>
 			</SettingsProvider>
 		</QueryClientProvider>

@@ -6,7 +6,12 @@ import { Dropdown, DropdownItem, DropdownLabel, DropdownSeparator } from '@/comp
 import { usePanels } from '@/features/analysis/panel-context'
 import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
-import { PAGE_SIZES, type PageSizeId, ZOOM_LEVELS } from '@/features/editor/page-geometry'
+import {
+	DEFAULT_MARGINS,
+	PAGE_SIZES,
+	type PageSizeId,
+	ZOOM_LEVELS,
+} from '@/features/editor/page-geometry'
 import { LINE_HEIGHTS, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
@@ -112,6 +117,20 @@ export function MenuBar() {
 							Mode fokus
 						</Item>
 						<Item
+							active={settings.showRuler}
+							onSelect={() => run(close, () => update({ showRuler: !settings.showRuler }))}
+						>
+							Penggaris
+						</Item>
+						<Item
+							active={settings.showDocumentTabs}
+							onSelect={() =>
+								run(close, () => update({ showDocumentTabs: !settings.showDocumentTabs }))
+							}
+						>
+							Tab dokumen
+						</Item>
+						<Item
 							active={settings.showPageNumbers}
 							onSelect={() =>
 								run(close, () => update({ showPageNumbers: !settings.showPageNumbers }))
@@ -124,6 +143,9 @@ export function MenuBar() {
 							onSelect={() => run(close, () => update({ showWordCount: !settings.showWordCount }))}
 						>
 							Jumlah kata
+						</Item>
+						<Item onSelect={() => run(close, () => update({ pageMargins: DEFAULT_MARGINS }))}>
+							Setel ulang margin
 						</Item>
 						<DropdownSeparator />
 						<DropdownLabel>Perbesaran</DropdownLabel>
@@ -241,7 +263,7 @@ export function MenuBar() {
 				)}
 			</Menu>
 
-			<Menu label="Alat">
+			<Menu label="Tools">
 				{({ close }) => (
 					<>
 						<Item onSelect={() => run(close, () => setActivePanel('proofreader'))}>Proofreader</Item>
@@ -253,10 +275,10 @@ export function MenuBar() {
 						</Item>
 						<DropdownSeparator />
 						<Item disabled>
-							{countWords(state.text)} kata · {state.text.length} karakter
+							{countWords(state.text)} words · {state.text.length} characters
 						</Item>
 						<DropdownSeparator />
-						<Item onSelect={() => run(close, () => setSettingsOpen(true))}>Pengaturan…</Item>
+						<Item onSelect={() => run(close, () => setSettingsOpen(true))}>Settings…</Item>
 					</>
 				)}
 			</Menu>

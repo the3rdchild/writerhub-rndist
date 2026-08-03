@@ -30,7 +30,7 @@ export function PlagiarismPanel() {
 		<>
 			<PanelScroll>
 				{isStale && <StaleNotice />}
-				{isRunning && <PanelLoading label="Memeriksa..." />}
+				{isRunning && <PanelLoading label="Checking..." />}
 				{error && !isRunning && <PanelError message={error.message} />}
 
 				{!isRunning && !error && result && (
@@ -42,13 +42,14 @@ export function PlagiarismPanel() {
 							<span className={cn('text-sm font-medium', uniquenessColor(result.uniqueness_score))}>
 								{result.label}
 							</span>
-							<span className="text-[11px] text-subtle">Skor keunikan</span>
+							<span className="text-[11px] text-subtle">Uniqueness score</span>
 						</div>
 
 						{result.flagged_phrases.length > 0 ? (
 							<div className="flex flex-col gap-2">
 								<p className="text-[11px] text-subtle">
-									{result.flagged_phrases.length} frasa ditandai
+									{result.flagged_phrases.length}{' '}
+									{result.flagged_phrases.length === 1 ? 'flagged phrase' : 'flagged phrases'}
 								</p>
 								{result.flagged_phrases.map((phrase) => (
 									<div
@@ -58,20 +59,20 @@ export function PlagiarismPanel() {
 									>
 										<p className="text-xs leading-relaxed text-foreground">&ldquo;{phrase.text}&rdquo;</p>
 										<p className="mt-1.5 text-[10px] text-orange-400/80">
-											{Math.round(phrase.similarity * 100)}% mirip frasa yang umum dipakai
+											{Math.round(phrase.similarity * 100)}% similar to commonly used phrasing
 										</p>
 									</div>
 								))}
 							</div>
 						) : (
 							<p className="py-2 text-center text-xs text-subtle">
-								Tidak ada frasa umum terdeteksi ✓
+								No common phrasing detected ✓
 							</p>
 						)}
 
 						<p className="flex items-start gap-1.5 rounded-xl bg-[var(--overlay-hover)] px-3 py-2 text-[10px] text-subtle">
 							<TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" />
-							Pemeriksaan heuristik — bukan pengganti layanan plagiarisme penuh
+							Heuristic check — not a replacement for a full plagiarism service
 						</p>
 					</>
 				)}
@@ -79,8 +80,8 @@ export function PlagiarismPanel() {
 				{!isRunning && !error && !result && (
 					<PanelEmptyState
 						icon={Search}
-						title="Periksa keunikan teks"
-						description="Menandai frasa yang sangat mirip konten umum di internet"
+						title="Check text uniqueness"
+						description="Flags phrasing that closely matches common content on the web"
 					/>
 				)}
 			</PanelScroll>
@@ -90,7 +91,7 @@ export function PlagiarismPanel() {
 					onClick={run}
 					disabled={!canRun}
 					isRunning={isRunning}
-					runningLabel="Memeriksa..."
+					runningLabel="Checking..."
 					label={result ? 'Check Again' : 'Check Plagiarism'}
 				/>
 			</PanelFooter>

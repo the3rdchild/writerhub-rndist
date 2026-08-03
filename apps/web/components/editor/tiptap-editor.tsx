@@ -15,8 +15,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useDocument } from '@/features/document/document-context'
 import { suggestionHighlightKey, SuggestionHighlight } from '@/features/document/suggestion-highlight'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
+import { BlockIndentExtension } from '@/features/editor/indent'
 import { type PageGeometry, pageGeometry } from '@/features/editor/page-geometry'
-import { Pagination } from '@/features/editor/pagination'
+import { Pagination, paginationKey } from '@/features/editor/pagination'
+import { editorPlainText, textToParagraphs } from '@/features/editor/text-content'
 import { useSettings, type FontSize } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
 import { type PopoverPosition, SuggestionPopover } from './suggestion-popover'
@@ -28,11 +30,6 @@ const FONT_SIZE_CLASS: Record<FontSize, string> = {
 }
 
 const POPOVER_HIDE_DELAY_MS = 180
-
-/** Teks polos yang dikirim ke API — pemisah blok harus cocok dengan buildTextIndex. */
-export function editorPlainText(editor: Editor): string {
-	return editor.getText({ blockSeparator: '\n' })
-}
 
 export function TiptapEditor({
 	containerRef,
@@ -75,6 +72,7 @@ export function TiptapEditor({
 			Image.configure({ inline: false }),
 			Placeholder.configure({ placeholder: 'Mulai menulis, atau tempel draf Anda di sini…' }),
 			SuggestionHighlight,
+			BlockIndentExtension,
 			Pagination.configure({
 				geometry,
 				onPageCountChange: (pageCount) => pageCountRef.current?.(pageCount),
@@ -96,6 +94,15 @@ export function TiptapEditor({
 		onReady?.(editor)
 	}, [editor, onReady])
 
+	// Daftar ekstensi hanya dibuat sekali, sedangkan margin bisa diseret kapan
+	// saja lewat penggaris — geometri barunya dikirim sebagai meta transaksi.
+	useEffect(() => {
+		if (!editor) return
+		const transaction = editor.state.tr.setMeta(paginationKey, { geometry })
+		transaction.setMeta('addToHistory', false)
+		editor.view.dispatch(transaction)
+	}, [editor, geometry])
+
 	// Isi editor dari state saat teks datang dari luar: muat sesi, tempel, unggah,
 	// atau teks hasil ekstraksi dokumen dari worker.
 	useEffect(() => {
@@ -106,13 +113,7 @@ export function TiptapEditor({
 		}
 		if (editorPlainText(editor) === state.text) return
 
-		editor.commands.setContent(
-			state.text
-				.split('\n')
-				.map((line) => `<p>${line ? escapeHtml(line) : '<br>'}</p>`)
-				.join(''),
-			{ emitUpdate: false },
-		)
+		editor.commands.setContent(textToParagraphs(state.text), { emitUpdate: false })
 	}, [editor, state.text])
 
 	// Kirim daftar suggestion ke plugin dekorasi.
@@ -248,8 +249,4 @@ export function TiptapEditor({
 			<EditorContent editor={editor} />
 		</>
 	)
-}
-
-function escapeHtml(value: string): string {
-	return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }

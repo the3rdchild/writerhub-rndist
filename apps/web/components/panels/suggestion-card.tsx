@@ -46,7 +46,7 @@ export function SuggestionCard({
 				<div className="flex shrink-0 items-center gap-0.5">
 					<button
 						type="button"
-						aria-label="Terima saran"
+						aria-label="Accept suggestion"
 						onClick={(event) => {
 							event.stopPropagation()
 							clearHover()
@@ -58,7 +58,7 @@ export function SuggestionCard({
 					</button>
 					<button
 						type="button"
-						aria-label="Tolak saran"
+						aria-label="Dismiss suggestion"
 						onClick={(event) => {
 							event.stopPropagation()
 							clearHover()

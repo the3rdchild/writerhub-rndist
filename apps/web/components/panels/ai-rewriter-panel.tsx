@@ -8,12 +8,12 @@ export function AiRewriterPanel() {
 		<ChangeListPanel
 			feature="ai_rewriter"
 			icon={RefreshCw}
-			emptyTitle="Tulis ulang teks Anda"
-			emptyDescription="Perbaiki kejelasan dan gaya — terima atau tolak tiap perubahan"
+			emptyTitle="Rewrite your text"
+			emptyDescription="Improve clarity and style — accept or dismiss each change"
 			runLabel="Rewrite Text"
 			rerunLabel="Rewrite Again"
-			runningLabel="Menulis ulang..."
-			noChangesLabel={() => 'Semua perubahan sudah diterapkan ✓'}
+			runningLabel="Rewriting..."
+			noChangesLabel={() => 'All changes applied ✓'}
 		/>
 	)
 }

@@ -1,7 +1,13 @@
 'use client'
 
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react'
-import { DEFAULT_PAGE_SIZE, type PageSizeId } from '@/features/editor/page-geometry'
+import {
+	clampMargins,
+	DEFAULT_MARGINS,
+	DEFAULT_PAGE_SIZE,
+	type PageMargins,
+	type PageSizeId,
+} from '@/features/editor/page-geometry'
 import { usePersistentState } from '@/lib/use-persistent-state'
 
 export const SETTINGS_STORAGE_KEY = 'writer-hub-settings'
@@ -24,10 +30,16 @@ export interface Settings {
 	/** Perbesaran lembar dokumen; 1 = 100%. */
 	zoom: number
 	pageSize: PageSizeId
+	/** Margin lembar, dalam piksel 96 dpi; diubah lewat penggaris. */
+	pageMargins: PageMargins
 	/** Sembunyikan menu & toolbar sampai kursor mendekat, untuk menulis tanpa gangguan. */
 	focusMode: boolean
-	/** Tampilkan penggaris halaman & nomor halaman. */
+	/** Tampilkan nomor halaman di sudut lembar. */
 	showPageNumbers: boolean
+	/** Tampilkan penggaris di atas lembar. */
+	showRuler: boolean
+	/** Tampilkan sidebar tab dokumen & kerangka heading. */
+	showDocumentTabs: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -38,8 +50,11 @@ export const DEFAULT_SETTINGS: Settings = {
 	showWordCount: true,
 	zoom: 1,
 	pageSize: DEFAULT_PAGE_SIZE,
+	pageMargins: DEFAULT_MARGINS,
 	focusMode: false,
 	showPageNumbers: true,
+	showRuler: true,
+	showDocumentTabs: true,
 }
 
 function resolveTheme(theme: Theme): 'dark' | 'light' {
@@ -60,6 +75,8 @@ export function applyTheme(theme: Theme): void {
 interface SettingsContextValue {
 	settings: Settings
 	update: (patch: Partial<Settings>) => void
+	/** Ubah sebagian margin; nilainya selalu dipangkas ke ukuran kertas aktif. */
+	setPageMargins: (patch: Partial<PageMargins>) => void
 	updateProfile: (patch: Partial<UserProfile>) => void
 	toggleFocusMode: () => void
 	settingsOpen: boolean
@@ -89,7 +106,18 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 	const value = useMemo<SettingsContextValue>(
 		() => ({
 			settings,
-			update: (patch) => setSettings((current) => ({ ...current, ...patch })),
+			update: (patch) =>
+				setSettings((current) => {
+					// Margin diperiksa ulang setiap pengaturan berubah: berganti ukuran
+					// kertas bisa membuat margin lama tidak menyisakan area teks lagi.
+					const next = { ...current, ...patch }
+					return { ...next, pageMargins: clampMargins(next.pageMargins, next.pageSize) }
+				}),
+			setPageMargins: (patch) =>
+				setSettings((current) => ({
+					...current,
+					pageMargins: clampMargins({ ...current.pageMargins, ...patch }, current.pageSize),
+				})),
 			updateProfile: (patch) =>
 				setSettings((current) => ({ ...current, profile: { ...current.profile, ...patch } })),
 			toggleFocusMode: () => setSettings((current) => ({ ...current, focusMode: !current.focusMode })),

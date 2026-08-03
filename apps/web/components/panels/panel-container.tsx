@@ -44,14 +44,14 @@ export function PanelContainer({ panel }: { panel: PanelId }) {
 	}, [panel, dispatch])
 
 	return (
-		<div className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-2xl border border-line bg-surface">
-			<div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-2.5">
+		<div className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-2xl bg-surface">
+			<div className="flex shrink-0 items-center justify-between px-4 py-2.5">
 				<h2 className="text-sm font-semibold text-foreground">{PANEL_TITLES[panel]}</h2>
 				<button
 					type="button"
 					onClick={() => setActivePanel(null)}
-					aria-label="Tutup panel"
-					title="Tutup panel"
+					aria-label="Close panel"
+					title="Close panel"
 					className="rounded-md p-1 text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 				>
 					<X className="h-4 w-4" />

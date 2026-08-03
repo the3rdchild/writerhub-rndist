@@ -111,7 +111,7 @@ export function AiDetectorPanel() {
 		<>
 			<PanelScroll>
 				{isStale && <StaleNotice />}
-				{isRunning && <PanelLoading label="Menganalisis..." />}
+				{isRunning && <PanelLoading label="Analyzing..." />}
 				{error && !isRunning && <PanelError message={error.message} />}
 
 				{!isRunning && !error && result && (
@@ -147,7 +147,7 @@ export function AiDetectorPanel() {
 								{sentence.suggestion && !sentence.dismissed && (
 									<div className="mt-2 flex flex-col gap-2 rounded-lg border border-accent/20 bg-accent/10 px-2.5 py-2">
 										<div>
-											<p className="mb-1 text-[10px] font-medium text-accent/70">Usulan revisi</p>
+											<p className="mb-1 text-[10px] font-medium text-accent/70">Suggested revision</p>
 											<p className="text-xs leading-relaxed text-foreground">{sentence.suggestion}</p>
 										</div>
 										<AcceptDismissRow
@@ -165,8 +165,8 @@ export function AiDetectorPanel() {
 				{!isRunning && !error && !result && (
 					<PanelEmptyState
 						icon={Bot}
-						title="Deteksi teks buatan AI"
-						description="Lihat seberapa besar kemungkinan teks ditulis AI, per kalimat"
+						title="Detect AI-written text"
+						description="See how likely each sentence was written by AI"
 					/>
 				)}
 			</PanelScroll>
@@ -187,7 +187,7 @@ export function AiDetectorPanel() {
 							<span className="text-sm font-medium" style={{ color: riskColor(overallScore) }}>
 								{result.label}
 							</span>
-							<span className="text-[11px] text-subtle">Probabilitas teks buatan AI</span>
+							<span className="text-[11px] text-subtle">AI-written probability</span>
 						</div>
 					</div>
 				)}
@@ -196,7 +196,7 @@ export function AiDetectorPanel() {
 					onClick={run}
 					disabled={!canRun}
 					isRunning={isRunning}
-					runningLabel="Menganalisis..."
+					runningLabel="Analyzing..."
 					label={result ? 'Run Again' : 'Run Detection'}
 				/>
 			</PanelFooter>

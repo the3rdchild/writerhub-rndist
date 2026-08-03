@@ -9,7 +9,20 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * pertama identik; isi tersimpan baru dimuat setelah mount. `hydrated`
  * memberi tahu pemanggil kapan nilai sudah bisa dipercaya, sehingga UI bisa
  * menahan tampilan daftar kosong yang menipu.
+ *
+ * Isi tersimpan digabung di atas `initialValue`: data dari versi aplikasi
+ * sebelumnya tidak punya field yang baru ditambahkan, dan tanpa penggabungan
+ * ini pengguna lama akan menerima `undefined` di tempat nilai bawaan.
  */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function withDefaults<T>(stored: unknown, initialValue: T): T {
+	if (!isPlainObject(stored) || !isPlainObject(initialValue)) return stored as T
+	return { ...initialValue, ...stored } as T
+}
+
 export function usePersistentState<T>(
 	key: string,
 	initialValue: T,
@@ -19,10 +32,15 @@ export function usePersistentState<T>(
 	const keyRef = useRef(key)
 	keyRef.current = key
 
+	// Nilai bawaan dibaca lewat ref supaya pemanggil boleh menuliskannya inline
+	// tanpa memicu pemuatan ulang tiap render.
+	const initialRef = useRef(initialValue)
+	initialRef.current = initialValue
+
 	useEffect(() => {
 		try {
 			const raw = window.localStorage.getItem(key)
-			if (raw !== null) setValue(JSON.parse(raw) as T)
+			if (raw !== null) setValue(withDefaults(JSON.parse(raw), initialRef.current))
 		} catch {
 			// storage tidak tersedia atau isinya rusak — pakai nilai awal
 		}

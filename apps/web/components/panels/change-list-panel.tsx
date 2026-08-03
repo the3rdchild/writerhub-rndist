@@ -62,7 +62,7 @@ export function ChangeListPanel({
 						{pending.length > 0 ? (
 							<div className="flex flex-col gap-2">
 								<p className="px-1 text-[11px] text-subtle">
-									{pending.length} perubahan
+									{pending.length} {pending.length === 1 ? 'change' : 'changes'}
 								</p>
 								{pending.map((change, index) => (
 									<ChangeCard

@@ -4,6 +4,8 @@ import type { GrammarScores } from '@writer-hub/shared'
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
 import { useDocument } from '@/features/document/document-context'
 import type { EditorSuggestion } from '@/features/document/suggestions'
+import { useEditorInstance } from '@/features/editor/editor-context'
+import { editorPlainText, textToParagraphs } from '@/features/editor/text-content'
 import { useSettings } from '@/features/settings/settings-context'
 import { usePersistentState } from '@/lib/use-persistent-state'
 
@@ -12,10 +14,24 @@ export const SESSIONS_STORAGE_KEY = 'writer-hub-sessions'
 const MAX_SESSIONS = 50
 const AUTOSAVE_DEBOUNCE_MS = 400
 
+/**
+ * Satu sesi = satu naskah = satu tab dokumen.
+ *
+ * Ketiganya sengaja tidak dipisah: memisahkan "tab" dari "sesi" berarti dua
+ * lapisan penyimpanan menulis naskah yang sama, dan pemulihan saat halaman
+ * dimuat akan saling menimpa.
+ *
+ * `text` tetap dipegang karena pipeline analisis bekerja di atas teks polos,
+ * sedangkan `html` yang membuat format bertahan saat berpindah tab. Keduanya
+ * disimpan dari keadaan editor yang sama pada saat yang sama.
+ */
 export interface Session {
 	id: string
 	title: string
 	text: string
+	html: string
+	/** Ikon opsional di depan nama tab. */
+	emoji: string | null
 	suggestions: EditorSuggestion[]
 	scores: GrammarScores | null
 	updatedAt: number
@@ -33,11 +49,13 @@ function createId(): string {
 	return `s_${Date.now()}_${Math.random().toString(36).slice(2)}`
 }
 
-function createSession(): Session {
+function createSession(title = 'Untitled document'): Session {
 	return {
 		id: createId(),
-		title: 'Untitled document',
+		title,
 		text: '',
+		html: '',
+		emoji: null,
 		suggestions: [],
 		scores: null,
 		updatedAt: Date.now(),
@@ -60,6 +78,9 @@ interface SessionContextValue {
 	newSession: () => void
 	selectSession: (id: string) => void
 	deleteSession: (id: string) => void
+	renameSession: (id: string, title: string) => void
+	duplicateSession: (id: string) => void
+	setSessionEmoji: (id: string, emoji: string | null) => void
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null)
@@ -67,6 +88,7 @@ const SessionContext = createContext<SessionContextValue | null>(null)
 export function SessionProvider({ children }: { children: ReactNode }) {
 	const [store, setStore, hydrated] = usePersistentState<PersistedSessions>(SESSIONS_STORAGE_KEY, EMPTY)
 	const { state, dispatch } = useDocument()
+	const { editor } = useEditorInstance()
 	const { settings } = useSettings()
 
 	/**
@@ -78,11 +100,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	const loadIntoEditor = useCallback(
 		(session: Session) => {
 			loadingRef.current = true
+
+			// Isi editor dipasang lebih dulu, teks polosnya baru dibaca dari hasil
+			// itu. Dengan urutan ini effect penyelaras di TiptapEditor mendapati
+			// editor dan state sudah sama, jadi ia tidak menimpa format yang baru
+			// dimuat dengan paragraf polos.
+			let text = session.text
+			if (editor) {
+				editor.commands.setContent(session.html || textToParagraphs(session.text), {
+					emitUpdate: false,
+				})
+				text = editorPlainText(editor)
+			}
+
 			dispatch({
 				type: 'load',
 				document: {
 					title: session.title,
-					text: session.text,
+					text,
 					suggestions: session.suggestions,
 					scores: session.scores,
 				},
@@ -91,13 +126,36 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 				loadingRef.current = false
 			})
 		},
-		[dispatch],
+		[dispatch, editor],
+	)
+
+	/** Potret naskah yang sedang dibuka — dipakai sebelum berpindah atau menutup tab. */
+	const snapshot = useCallback(
+		(sessions: Session[], activeId: string | null): Session[] => {
+			if (!activeId) return sessions
+			return sessions.map((session) =>
+				session.id === activeId
+					? {
+							...session,
+							title: state.title || 'Untitled document',
+							text: state.text,
+							html: editor ? editor.getHTML() : session.html,
+							suggestions: state.suggestions,
+							scores: state.scores,
+							updatedAt: Date.now(),
+						}
+					: session,
+			)
+		},
+		[editor, state.title, state.text, state.suggestions, state.scores],
 	)
 
 	// Sesi pertama dibuat dari isi editor saat itu, bukan dokumen kosong.
 	const bootstrappedRef = useRef(false)
 	useEffect(() => {
-		if (!hydrated || bootstrappedRef.current) return
+		// Menunggu editor siap: memulihkan naskah sebelum ia ada berarti hanya
+		// teks polosnya yang kembali dan seluruh formatnya hilang.
+		if (!hydrated || !editor || bootstrappedRef.current) return
 		bootstrappedRef.current = true
 
 		if (store.sessions.length > 0) {
@@ -109,7 +167,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
 		const first: Session = { ...createSession(), title: state.title, text: state.text }
 		setStore({ sessions: [first], activeId: first.id })
-	}, [hydrated, store, setStore, loadIntoEditor, state.title, state.text])
+	}, [hydrated, editor, store, setStore, loadIntoEditor, state.title, state.text])
 
 	// Autosave editor → sesi aktif (debounced, satu arah).
 	useEffect(() => {
@@ -118,69 +176,114 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		const timer = setTimeout(() => {
 			setStore((current) => ({
 				...current,
-				sessions: current.sessions.map((session) =>
-					session.id === current.activeId
-						? {
-								...session,
-								title: state.title || 'Untitled document',
-								text: state.text,
-								suggestions: state.suggestions,
-								scores: state.scores,
-								updatedAt: Date.now(),
-							}
-						: session,
-				),
+				sessions: snapshot(current.sessions, current.activeId),
 			}))
 		}, AUTOSAVE_DEBOUNCE_MS)
 
 		return () => clearTimeout(timer)
-	}, [
-		hydrated,
-		settings.autoSave,
-		store.activeId,
-		setStore,
-		state.title,
-		state.text,
-		state.suggestions,
-		state.scores,
-	])
+	}, [hydrated, settings.autoSave, store.activeId, setStore, snapshot])
 
 	const newSession = useCallback(() => {
 		const session = createSession()
 		setStore((current) => ({
-			sessions: [session, ...current.sessions].slice(0, MAX_SESSIONS),
+			// Ditambahkan di akhir: sebagai tab, yang baru dibuat berdiri di
+			// sebelah kanan yang sudah ada, bukan menyerobot ke depan.
+			sessions: [...snapshot(current.sessions, current.activeId), session].slice(-MAX_SESSIONS),
 			activeId: session.id,
 		}))
 		loadIntoEditor(session)
-	}, [setStore, loadIntoEditor])
+	}, [setStore, snapshot, loadIntoEditor])
 
 	const selectSession = useCallback(
 		(id: string) => {
-			setStore((current) => {
-				const target = current.sessions.find((s) => s.id === id)
-				if (!target || id === current.activeId) return current
-				loadIntoEditor(target)
-				return { ...current, activeId: id }
-			})
+			const target = store.sessions.find((s) => s.id === id)
+			if (!target || id === store.activeId) return
+
+			setStore((current) => ({
+				sessions: snapshot(current.sessions, current.activeId),
+				activeId: id,
+			}))
+			loadIntoEditor(target)
 		},
-		[setStore, loadIntoEditor],
+		[store, setStore, snapshot, loadIntoEditor],
 	)
 
 	const deleteSession = useCallback(
 		(id: string) => {
-			setStore((current) => {
-				const sessions = current.sessions.filter((s) => s.id !== id)
-				if (current.activeId !== id) return { ...current, sessions }
+			const at = store.sessions.findIndex((s) => s.id === id)
+			if (at === -1) return
 
-				const next = sessions[0] ?? createSession()
-				loadIntoEditor(next)
+			const remaining = store.sessions.filter((s) => s.id !== id)
+			const isActive = id === store.activeId
+			// Editor tidak punya keadaan "tanpa dokumen": kalau yang terakhir
+			// ditutup, tempatnya langsung diisi naskah kosong.
+			const fallback =
+				remaining.length > 0 ? (remaining[at] ?? remaining[remaining.length - 1]) : createSession()
+
+			setStore((current) => {
+				// Yang sedang dibuka hanya perlu dipotret kalau ia bukan yang dihapus.
+				const kept = (isActive ? current.sessions : snapshot(current.sessions, current.activeId)).filter(
+					(s) => s.id !== id,
+				)
+				if (kept.length === 0) return { sessions: [fallback], activeId: fallback.id }
+				return { sessions: kept, activeId: isActive ? fallback.id : current.activeId }
+			})
+
+			if (isActive) loadIntoEditor(fallback)
+		},
+		[store, setStore, snapshot, loadIntoEditor],
+	)
+
+	const renameSession = useCallback(
+		(id: string, title: string) => {
+			setStore((current) => ({
+				...current,
+				sessions: current.sessions.map((s) =>
+					s.id === id ? { ...s, title, updatedAt: Date.now() } : s,
+				),
+			}))
+			// Judul di kepala aplikasi dan nama tab aktif adalah hal yang sama —
+			// autosave juga menulis judul, jadi keduanya harus digerakkan bersama.
+			if (id === store.activeId) dispatch({ type: 'setTitle', title })
+		},
+		[setStore, store.activeId, dispatch],
+	)
+
+	const duplicateSession = useCallback(
+		(id: string) => {
+			if (!store.sessions.some((s) => s.id === id)) return
+
+			setStore((current) => {
+				// Salinan diambil setelah potret: menggandakan tab yang sedang dibuka
+				// harus ikut membawa suntingan yang belum sempat tersimpan.
+				const sessions = snapshot(current.sessions, current.activeId)
+				const at = sessions.findIndex((s) => s.id === id)
+				const copy: Session = {
+					...sessions[at],
+					id: createId(),
+					title: `${sessions[at].title} (salinan)`,
+					updatedAt: Date.now(),
+				}
+
 				return {
-					sessions: sessions.length > 0 ? sessions : [next],
-					activeId: next.id,
+					...current,
+					sessions: [...sessions.slice(0, at + 1), copy, ...sessions.slice(at + 1)].slice(
+						-MAX_SESSIONS,
+					),
 				}
 			})
 		},
-		[setStore, loadIntoEditor],
+		[store.sessions, setStore, snapshot],
+	)
+
+	const setSessionEmoji = useCallback(
+		(id: string, emoji: string | null) => {
+			setStore((current) => ({
+				...current,
+				sessions: current.sessions.map((s) => (s.id === id ? { ...s, emoji } : s)),
+			}))
+		},
+		[setStore],
 	)
 
 	const value = useMemo<SessionContextValue>(
@@ -191,8 +294,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			newSession,
 			selectSession,
 			deleteSession,
+			renameSession,
+			duplicateSession,
+			setSessionEmoji,
 		}),
-		[store.sessions, store.activeId, hydrated, newSession, selectSession, deleteSession],
+		[
+			store.sessions,
+			store.activeId,
+			hydrated,
+			newSession,
+			selectSession,
+			deleteSession,
+			renameSession,
+			duplicateSession,
+			setSessionEmoji,
+		],
 	)
 
 	return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
