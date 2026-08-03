@@ -1,0 +1,129 @@
+'use client'
+
+import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react'
+import { cn } from '@/lib/utils'
+
+/**
+ * Popup ringan untuk menu bar dan pemilih di toolbar.
+ *
+ * Ditulis sendiri, bukan memakai pustaka menu, karena kebutuhannya sempit —
+ * satu lapis, ditutup lewat klik di luar atau Escape — dan supaya tidak ada
+ * dependensi baru hanya demi ini.
+ */
+
+interface DropdownProps {
+	/** Diberi `open` supaya pemicu bisa menandai keadaannya sendiri. */
+	trigger: (props: { open: boolean; toggle: () => void; id: string }) => ReactNode
+	children: (props: { close: () => void }) => ReactNode
+	align?: 'start' | 'end'
+	/** Ditempel di atas pemicu, dipakai toolbar yang berada di dekat dasar layar. */
+	side?: 'bottom' | 'top'
+	className?: string
+	menuClassName?: string
+}
+
+export function Dropdown({
+	trigger,
+	children,
+	align = 'start',
+	side = 'bottom',
+	className,
+	menuClassName,
+}: DropdownProps) {
+	const [open, setOpen] = useState(false)
+	const containerRef = useRef<HTMLDivElement>(null)
+	const id = useId()
+
+	const close = useCallback(() => setOpen(false), [])
+	const toggle = useCallback(() => setOpen((current) => !current), [])
+
+	useEffect(() => {
+		if (!open) return
+
+		const onPointerDown = (event: PointerEvent) => {
+			if (!containerRef.current?.contains(event.target as Node)) close()
+		}
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') close()
+		}
+
+		document.addEventListener('pointerdown', onPointerDown)
+		document.addEventListener('keydown', onKeyDown)
+		return () => {
+			document.removeEventListener('pointerdown', onPointerDown)
+			document.removeEventListener('keydown', onKeyDown)
+		}
+	}, [open, close])
+
+	return (
+		<div ref={containerRef} className={cn('relative', className)}>
+			{trigger({ open, toggle, id })}
+			{open && (
+				<div
+					id={id}
+					role="menu"
+					className={cn(
+						'absolute z-50 min-w-[200px] overflow-hidden rounded-xl border border-line-strong bg-surface-raised py-1 shadow-[var(--menu-shadow)]',
+						'animate-in fade-in zoom-in-95 duration-100',
+						side === 'bottom' ? 'top-full mt-1' : 'bottom-full mb-1',
+						align === 'start' ? 'left-0' : 'right-0',
+						menuClassName,
+					)}
+				>
+					{children({ close })}
+				</div>
+			)}
+		</div>
+	)
+}
+
+interface DropdownItemProps {
+	onSelect?: () => void
+	icon?: ReactNode
+	/** Pintasan papan tik; hanya ditampilkan, tidak didaftarkan di sini. */
+	shortcut?: string
+	active?: boolean
+	disabled?: boolean
+	children: ReactNode
+}
+
+export function DropdownItem({
+	onSelect,
+	icon,
+	shortcut,
+	active,
+	disabled,
+	children,
+}: DropdownItemProps) {
+	return (
+		<button
+			type="button"
+			role="menuitem"
+			disabled={disabled}
+			onClick={onSelect}
+			className={cn(
+				'flex w-full items-center gap-3 px-3 py-1.5 text-left text-sm transition-colors',
+				disabled
+					? 'cursor-not-allowed text-faint'
+					: 'text-foreground hover:bg-[var(--overlay-hover)]',
+				active && !disabled && 'text-accent',
+			)}
+		>
+			<span className="flex h-4 w-4 shrink-0 items-center justify-center text-subtle">{icon}</span>
+			<span className="flex-1 truncate">{children}</span>
+			{shortcut && <span className="shrink-0 text-xs text-faint">{shortcut}</span>}
+		</button>
+	)
+}
+
+export function DropdownSeparator() {
+	return <div role="separator" className="my-1 h-px bg-line" />
+}
+
+export function DropdownLabel({ children }: { children: ReactNode }) {
+	return (
+		<div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-faint">
+			{children}
+		</div>
+	)
+}

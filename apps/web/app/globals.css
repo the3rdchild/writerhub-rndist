@@ -35,6 +35,8 @@ html.light {
   --scrollbar-thumb-hover: #9ca3af;
 
   --page-shadow: 0 1px 3px rgba(15, 23, 42, 0.1), 0 8px 24px rgba(15, 23, 42, 0.06);
+  --menu-shadow: 0 4px 12px rgba(15, 23, 42, 0.12), 0 2px 4px rgba(15, 23, 42, 0.08);
+  --canvas: #f1f3f4;
   --glow-inner: transparent;
   --glow-outer: transparent;
 }
@@ -62,6 +64,8 @@ html.dark {
   --scrollbar-thumb-hover: #444;
 
   --page-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
+  --menu-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.4);
+  --canvas: #18191b;
   --glow-inner: rgba(123, 108, 246, 0.6);
   --glow-outer: rgba(72, 63, 144, 0.6);
 }
@@ -133,23 +137,6 @@ a {
   background-repeat: no-repeat;
 }
 
-.sidebar-glow {
-  position: absolute;
-  top: 50%;
-  left: 70%;
-  width: 150px;
-  height: 356px;
-  background: #383c46;
-  filter: blur(104px);
-  transform: translate(-50%, -50%) rotate(15.25deg);
-  pointer-events: none;
-  z-index: 0;
-}
-
-html.light .sidebar-glow {
-  display: none;
-}
-
 /* ── scrollbar ─────────────────────────────────────────────────────────── */
 
 ::-webkit-scrollbar {
@@ -166,28 +153,33 @@ html.light .sidebar-glow {
   background: var(--scrollbar-thumb-hover);
 }
 
-/* ── kanvas halaman ────────────────────────────────────────────────────── */
+/* ── kanvas & lembar halaman ───────────────────────────────────────────── */
 
 /*
- * Halaman dokumen: lebar dikunci pada ukuran baris yang nyaman dibaca
- * (~80 karakter), bukan A4 sungguhan — konten mengalir menerus tanpa
- * pemenggalan halaman, jadi tinggi dibiarkan tumbuh mengikuti isi.
+ * Ukuran lembar tidak ditulis di sini: seluruh angkanya berasal dari
+ * features/editor/page-geometry.ts dan dipasang sebagai style inline, supaya
+ * perhitungan pemenggalan halaman dan tampilannya tidak pernah berbeda.
  */
-.document-page {
-  width: 100%;
-  max-width: 816px;              /* 8.5in @ 96dpi, selebar halaman Google Docs */
-  min-height: 480px;
-  padding: 72px 96px;            /* margin 0.75in atas-bawah, 1in kiri-kanan */
+.document-canvas {
+  background: var(--canvas);
+}
+
+.document-sheet {
   background: var(--surface-raised);
   border: 1px solid var(--border-subtle);
   border-radius: 2px;
   box-shadow: var(--page-shadow);
 }
 
-@media (max-width: 900px) {
-  .document-page {
-    padding: 40px 32px;
-  }
+/*
+ * Jarak yang mendorong satu blok ke lembar berikutnya. Dibuat tidak bisa
+ * diseleksi supaya menyeret kursor melintasi batas halaman tidak ikut
+ * menangkap ruang kosong ini.
+ */
+.page-break-spacer {
+  display: block;
+  user-select: none;
+  pointer-events: none;
 }
 
 /* ── badan dokumen (ProseMirror) ───────────────────────────────────────── */
@@ -363,5 +355,109 @@ html.light .range-highlight {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* ── elemen dokumen tambahan ───────────────────────────────────────────── */
+
+.document-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+.document-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75em 0;
+  table-layout: fixed;
+  overflow: hidden;
+}
+
+.document-body th,
+.document-body td {
+  border: 1px solid var(--border-strong);
+  padding: 0.4em 0.6em;
+  vertical-align: top;
+}
+
+.document-body th {
+  background: var(--overlay-hover);
+  font-weight: 600;
+  text-align: left;
+}
+
+/* Daftar centang: penanda bawaan disembunyikan, kotaknya dari checkbox asli. */
+.document-body ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 0.25em;
+}
+
+.document-body ul[data-type='taskList'] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+}
+
+.document-body ul[data-type='taskList'] li > label {
+  margin-top: 0.2em;
+  user-select: none;
+}
+
+.document-body ul[data-type='taskList'] li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.document-body ul[data-type='taskList'] li[data-checked='true'] > div {
+  color: var(--foreground-subtle);
+  text-decoration: line-through;
+}
+
+/* ── cetak ─────────────────────────────────────────────────────────────── */
+
+/*
+ * Saat mencetak, browser membuat halamannya sendiri. Spacer paginasi dan
+ * lembar latar harus dihilangkan agar tidak menghasilkan halaman kosong
+ * berganda, dan seluruh perkakas disembunyikan.
+ */
+@media print {
+  header,
+  nav,
+  aside,
+  .document-canvas ~ *,
+  .page-break-spacer,
+  .document-sheet {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #fff;
+    height: auto;
+  }
+
+  .document-canvas {
+    overflow: visible !important;
+    padding: 0 !important;
+    background: #fff;
+  }
+
+  /* Zoom layar tidak boleh ikut memengaruhi hasil cetak. */
+  .document-canvas > div,
+  .document-canvas > div > div {
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    transform: none !important;
+    padding: 0 !important;
+  }
+
+  .document-body {
+    color: #000;
+  }
+
+  @page {
+    margin: 25mm;
   }
 }

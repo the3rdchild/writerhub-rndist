@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react'
+import { DEFAULT_PAGE_SIZE, type PageSizeId } from '@/features/editor/page-geometry'
 import { usePersistentState } from '@/lib/use-persistent-state'
 
 export const SETTINGS_STORAGE_KEY = 'writer-hub-settings'
@@ -20,7 +21,13 @@ export interface Settings {
 	editorFontSize: FontSize
 	autoSave: boolean
 	showWordCount: boolean
-	sidebarOpen: boolean
+	/** Perbesaran lembar dokumen; 1 = 100%. */
+	zoom: number
+	pageSize: PageSizeId
+	/** Sembunyikan menu & toolbar sampai kursor mendekat, untuk menulis tanpa gangguan. */
+	focusMode: boolean
+	/** Tampilkan penggaris halaman & nomor halaman. */
+	showPageNumbers: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -29,7 +36,10 @@ export const DEFAULT_SETTINGS: Settings = {
 	editorFontSize: 'medium',
 	autoSave: true,
 	showWordCount: true,
-	sidebarOpen: true,
+	zoom: 1,
+	pageSize: DEFAULT_PAGE_SIZE,
+	focusMode: false,
+	showPageNumbers: true,
 }
 
 function resolveTheme(theme: Theme): 'dark' | 'light' {
@@ -51,7 +61,7 @@ interface SettingsContextValue {
 	settings: Settings
 	update: (patch: Partial<Settings>) => void
 	updateProfile: (patch: Partial<UserProfile>) => void
-	toggleSidebar: () => void
+	toggleFocusMode: () => void
 	settingsOpen: boolean
 	setSettingsOpen: (open: boolean) => void
 }
@@ -82,7 +92,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 			update: (patch) => setSettings((current) => ({ ...current, ...patch })),
 			updateProfile: (patch) =>
 				setSettings((current) => ({ ...current, profile: { ...current.profile, ...patch } })),
-			toggleSidebar: () => setSettings((current) => ({ ...current, sidebarOpen: !current.sidebarOpen })),
+			toggleFocusMode: () => setSettings((current) => ({ ...current, focusMode: !current.focusMode })),
 			settingsOpen,
 			setSettingsOpen,
 		}),

@@ -1,10 +1,13 @@
 'use client'
 
 import Highlight from '@tiptap/extension-highlight'
+import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
+import { TaskItem, TaskList } from '@tiptap/extension-list'
 import Placeholder from '@tiptap/extension-placeholder'
 import { TableKit } from '@tiptap/extension-table'
 import TextAlign from '@tiptap/extension-text-align'
+import { TextStyleKit } from '@tiptap/extension-text-style'
 import Typography from '@tiptap/extension-typography'
 import { EditorContent, useEditor, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -12,7 +15,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useDocument } from '@/features/document/document-context'
 import { suggestionHighlightKey, SuggestionHighlight } from '@/features/document/suggestion-highlight'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
-import type { FontSize } from '@/features/settings/settings-context'
+import { type PageGeometry, pageGeometry } from '@/features/editor/page-geometry'
+import { Pagination } from '@/features/editor/pagination'
+import { useSettings, type FontSize } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
 import { type PopoverPosition, SuggestionPopover } from './suggestion-popover'
 
@@ -30,16 +35,24 @@ export function editorPlainText(editor: Editor): string {
 }
 
 export function TiptapEditor({
-	fontSize,
 	containerRef,
 	onReady,
+	geometry = pageGeometry(),
+	onPageCountChange,
 }: {
-	fontSize: FontSize
 	containerRef: React.RefObject<HTMLDivElement | null>
 	onReady?: (editor: Editor | null) => void
+	geometry?: PageGeometry
+	onPageCountChange?: (pageCount: number) => void
 }) {
 	const { state, dispatch } = useDocument()
+	const { settings } = useSettings()
 	const [popover, setPopover] = useState<PopoverPosition | null>(null)
+
+	// Ekstensi hanya dibuat sekali, jadi callback dilewatkan lewat ref agar
+	// pemanggil tetap boleh mengirim fungsi baru tiap render.
+	const pageCountRef = useRef(onPageCountChange)
+	pageCountRef.current = onPageCountChange
 
 	/**
 	 * Perubahan yang berasal dari editor sendiri tidak boleh dipantulkan balik
@@ -53,15 +66,23 @@ export function TiptapEditor({
 			StarterKit.configure({ link: false }),
 			Link.configure({ openOnClick: false, autolink: true }),
 			TextAlign.configure({ types: ['heading', 'paragraph'] }),
-			Highlight,
+			TextStyleKit,
+			Highlight.configure({ multicolor: true }),
 			Typography,
 			TableKit.configure({ table: { resizable: true } }),
+			TaskList,
+			TaskItem.configure({ nested: true }),
+			Image.configure({ inline: false }),
 			Placeholder.configure({ placeholder: 'Mulai menulis, atau tempel draf Anda di sini…' }),
 			SuggestionHighlight,
+			Pagination.configure({
+				geometry,
+				onPageCountChange: (pageCount) => pageCountRef.current?.(pageCount),
+			}),
 		],
 		editorProps: {
 			attributes: {
-				class: cn('document-body focus:outline-none', FONT_SIZE_CLASS[fontSize]),
+				class: cn('document-body focus:outline-none', FONT_SIZE_CLASS[settings.editorFontSize]),
 				spellcheck: 'false',
 			},
 		},
