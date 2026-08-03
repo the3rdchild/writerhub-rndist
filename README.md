@@ -43,38 +43,52 @@ State di web dibagi tegas: **server state** (submit job, streaming hasil) memaka
 
 ## Menjalankan secara lokal
 
-Prasyarat: [Bun](https://bun.sh) ≥ 1.2, Python 3.12, PostgreSQL, dan Redis.
-
-```bash
-bun install
-
-cp apps/api/.env.example      apps/api/.env
-cp apps/web/.env.example      apps/web/.env
-cp services/worker/.env.example services/worker/.env
-
-bun run db:migrate      # siapkan skema database
-
-bun run dev:api         # http://localhost:8080
-bun run dev:web         # http://localhost:3000
-
-cd services/worker && pip install -r requirements.txt && python entry.py
-```
-
-Atau seluruh stack sekaligus (Postgres + Redis + ketiga service):
+Prasyarat: Docker. Tidak ada lagi.
 
 ```bash
 bun run docker:up
 ```
 
+Perintah itu menyalakan Postgres, Redis, api, worker, dan web sekaligus; skema
+database disiapkan otomatis sebelum api naik. Buka http://localhost:3000.
+
+Mode lokal berjalan **tanpa kredensial apa pun** — tanpa HMAC, tanpa
+pp-extended, tanpa S3. Berkas `.env` di tiap app sudah terisi nilai yang siap
+pakai (`AUTH_MODE=none`, `STORAGE_DRIVER=local`).
+
+Kode di-bind mount, jadi mengubah berkas langsung terlihat: web memakai
+`next dev`, api memakai `bun --hot`, worker di-restart otomatis oleh watchmedo.
+Rebuild image hanya perlu saat dependensi berubah.
+
+### Apa yang jalan tanpa API key
+
+| Modul | Tanpa key | Catatan |
+| --- | --- | --- |
+| Grammar `standard` / `advanced` | ✅ | Engine pure-Python: spelling, rules, POS, confusion, collocation, structure, style |
+| Plagiarism | ✅ | Heuristik, tidak memanggil LLM |
+| Grammar `ai` | ❌ | Butuh `AI_API_KEY` |
+| AI Detector, Humanizer, AI Rewriter | ❌ | Butuh `AI_API_KEY` |
+
+Untuk mengaktifkan yang butuh LLM, isi `AI_API_KEY` di `services/worker/.env`
+dengan key OpenRouter (atau endpoint apa pun yang OpenAI-compatible), lalu
+`docker compose restart worker`. Tanpa itu, keempatnya gagal dengan pesan yang
+menjelaskan penyebabnya — sisanya tetap berjalan normal.
+
+### Menjalankan di host (opsional)
+
+Kalau lebih suka app di host: `docker compose up -d postgres redis`, lalu
+`bun install`, `bun run db:push`, `bun run dev:api`, `bun run dev:web`, dan
+`cd services/worker && pip install -r requirements.txt && python entry.py`.
+
 ### Perintah
 
 | Perintah | Kegunaan |
 | --- | --- |
-| `bun run dev:web` / `dev:api` | Jalankan satu app dengan hot reload |
+| `bun run docker:up` / `docker:down` | Stack lokal lengkap |
+| `bun run dev:web` / `dev:api` | Jalankan satu app di host dengan hot reload |
 | `bun run typecheck` | Typecheck seluruh workspace |
 | `bun run build` | Build produksi |
-| `bun run db:generate` / `db:migrate` / `db:studio` | Drizzle |
-| `bun run docker:up` / `docker:down` | Stack lokal lengkap |
+| `bun run db:generate` / `db:migrate` / `db:push` / `db:studio` | Drizzle |
 
 ## Alur sebuah permintaan
 
@@ -93,6 +107,15 @@ Browser ──▶ Next route /api/*  ──▶  apps/api  ──▶  Redis (Bull
    bila stream terputus.
 
 ### Autentikasi
+
+Dikendalikan `AUTH_MODE`, dan nilainya harus sama di `apps/api` dan `apps/web`:
+
+- **`none`** (pengembangan) — seluruh pemeriksaan dilewati, proxy tidak menandatangani apa pun,
+  provider LLM diambil worker dari env-nya sendiri, kuota tidak dicatat.
+- **`pp`** (produksi) — jalur di bawah ini aktif.
+
+Kode jalur produksi tetap utuh di repo pada mode `none`; mengaktifkannya kembali cukup dengan
+mengubah env, tanpa menulis ulang apa pun.
 
 `apps/api` melindungi endpoint dengan tanda tangan HMAC (`x-pp-api-key` = HMAC-SHA256 atas
 timestamp memakai `PP_API_KEY`) plus verifikasi bearer token user ke pp-extended.
@@ -117,12 +140,19 @@ membangun image, memindainya dengan Trivy, mendorongnya ke DigitalOcean Containe
 lalu memperbarui `values.yaml` di repo deployment. `api-migrate` dijalankan sebagai
 initContainer sebelum `api` naik.
 
+### Penyimpanan dokumen
+
+Dikendalikan `STORAGE_DRIVER`. Keduanya menghasilkan URL unduh, jadi worker tidak perlu tahu
+mana yang aktif:
+
+- **`local`** (pengembangan) — ditulis ke `STORAGE_DIR`, disajikan lewat `GET /api/v1/files/<key>`.
+- **`s3`** (produksi) — diunggah ke object storage, worker memakai presigned URL.
+
 ## Catatan yang perlu diketahui
 
-- **Model grammar belum berpengaruh.** `apps/api` memaksa jalur `ai` karena provider LLM kini
-  berasal dari admin-ppe dan engine lokal standard/advanced tidak lagi dipaketkan. Pemilih model
-  di UI tetap ada dan nilainya dikirim, tapi belum mengubah engine — lihat `FORCED_MODEL` di
-  [`apps/api/src/services/grammar/service.ts`](apps/api/src/services/grammar/service.ts).
+- **Pemaksaan tier grammar.** Produksi menyetel `GRAMMAR_FORCE_MODEL=ai` karena provider LLM
+  berasal dari admin-ppe. Dikosongkan (seperti pada `.env` lokal), pilihan model dari UI dipakai
+  apa adanya dan `standard`/`advanced` berjalan tanpa LLM.
 - **Endpoint SSE tidak berautentikasi.** `EventSource` tidak bisa mengirim header kustom, dan
   klien ekstensi berlangganan langsung ke sana; pengamanannya bertumpu pada jobId berupa UUID
   acak. Jalur web sendiri sudah lewat proxy yang terautentikasi.
