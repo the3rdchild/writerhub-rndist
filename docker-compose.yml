@@ -81,7 +81,8 @@ services:
       - ./packages:/app/packages
       - node_modules:/app/node_modules
       - web_next:/app/apps/web/.next
-      # Dokumen unggahan; dibagi ke worker hanya agar mudah diperiksa saat debug.
+      # Dokumen unggahan, terlihat di host agar mudah diperiksa saat debug.
+      # Worker tidak perlu volume ini — ia mengunduh lewat /api/v1/files.
       - ./storage:/app/apps/api/storage
     command: ["bun", "run", "--hot", "src/index.ts"]
     ports:
