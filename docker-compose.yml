@@ -17,9 +17,14 @@ x-bun-dev: &bun-dev
   volumes:
     - ./apps:/app/apps
     - ./packages:/app/packages
-    # Volume bernama menjaga node_modules hasil build image agar tidak
-    # tertimpa bind mount di atasnya.
+    # Bun memasang dependensi di root DAN di tiap workspace. Bind mount di atas
+    # akan menutupi node_modules bawaan image, jadi masing-masing dilindungi
+    # volume bernama — tanpa ini container memakai node_modules milik host
+    # (bisa beda platform, atau tidak ada sama sekali pada clone baru).
     - node_modules:/app/node_modules
+    - api_node_modules:/app/apps/api/node_modules
+    - web_node_modules:/app/apps/web/node_modules
+    - shared_node_modules:/app/packages/shared/node_modules
     - web_next:/app/apps/web/.next
   depends_on:
     postgres:
@@ -80,6 +85,9 @@ services:
       - ./apps:/app/apps
       - ./packages:/app/packages
       - node_modules:/app/node_modules
+      - api_node_modules:/app/apps/api/node_modules
+      - web_node_modules:/app/apps/web/node_modules
+      - shared_node_modules:/app/packages/shared/node_modules
       - web_next:/app/apps/web/.next
       # Dokumen unggahan, terlihat di host agar mudah diperiksa saat debug.
       # Worker tidak perlu volume ini — ia mengunduh lewat /api/v1/files.
@@ -131,4 +139,7 @@ services:
 volumes:
   pgdata:
   node_modules:
+  api_node_modules:
+  web_node_modules:
+  shared_node_modules:
   web_next:
