@@ -1,7 +1,10 @@
 'use client'
 
+import type { Editor } from '@tiptap/react'
+import { useEditorState } from '@tiptap/react'
 import {
 	AlignCenter,
+	AlignJustify,
 	AlignLeft,
 	AlignRight,
 	Bold,
@@ -9,152 +12,156 @@ import {
 	Heading2,
 	Heading3,
 	Italic,
-	Link,
+	Link as LinkIcon,
 	List,
 	ListOrdered,
 	type LucideIcon,
 	Quote,
+	Redo2,
 	Strikethrough,
-	Underline,
+	Table as TableIcon,
+	Underline as UnderlineIcon,
+	Undo2,
 } from 'lucide-react'
-import { useCallback, useState } from 'react'
 import { cn } from '@/lib/utils'
 
-/**
- * Toolbar format berbasis `document.execCommand`.
- *
- * API itu memang sudah deprecated, tapi masih satu-satunya cara memformat
- * contenteditable polos tanpa engine editor. PRD menjadwalkan penggantian ke
- * Tiptap 3 (ProseMirror); saat itu berkas ini diganti perintah Tiptap.
- */
-
-type Command =
-	| 'bold'
-	| 'italic'
-	| 'underline'
-	| 'strikeThrough'
-	| 'insertUnorderedList'
-	| 'insertOrderedList'
-	| 'justifyLeft'
-	| 'justifyCenter'
-	| 'justifyRight'
-	| 'formatBlock'
-	| 'createLink'
-
 interface ToolbarItem {
-	command: Command
 	icon: LucideIcon
 	label: string
-	value?: string
+	run: (editor: Editor) => void
+	/** Kunci status aktif; dibaca dari useEditorState di bawah. */
+	activeKey?: keyof ActiveState
+	disabledWhenEmpty?: boolean
 }
 
-const TOOLBAR_GROUPS: ToolbarItem[][] = [
+interface ActiveState {
+	bold: boolean
+	italic: boolean
+	strike: boolean
+	h1: boolean
+	h2: boolean
+	h3: boolean
+	bulletList: boolean
+	orderedList: boolean
+	blockquote: boolean
+	alignLeft: boolean
+	alignCenter: boolean
+	alignRight: boolean
+	alignJustify: boolean
+	link: boolean
+	canUndo: boolean
+	canRedo: boolean
+}
+
+const GROUPS: ToolbarItem[][] = [
 	[
-		{ command: 'bold', icon: Bold, label: 'Bold' },
-		{ command: 'italic', icon: Italic, label: 'Italic' },
-		{ command: 'underline', icon: Underline, label: 'Underline' },
-		{ command: 'strikeThrough', icon: Strikethrough, label: 'Strikethrough' },
+		{ icon: Undo2, label: 'Undo', run: (e) => e.chain().focus().undo().run() },
+		{ icon: Redo2, label: 'Redo', run: (e) => e.chain().focus().redo().run() },
 	],
 	[
-		{ command: 'formatBlock', value: 'H1', icon: Heading1, label: 'Heading 1' },
-		{ command: 'formatBlock', value: 'H2', icon: Heading2, label: 'Heading 2' },
-		{ command: 'formatBlock', value: 'H3', icon: Heading3, label: 'Heading 3' },
-	],
-	[
-		{ command: 'insertUnorderedList', icon: List, label: 'Bullet List' },
-		{ command: 'insertOrderedList', icon: ListOrdered, label: 'Numbered List' },
-		{ command: 'formatBlock', value: 'BLOCKQUOTE', icon: Quote, label: 'Quote' },
-	],
-	[
-		{ command: 'justifyLeft', icon: AlignLeft, label: 'Align Left' },
-		{ command: 'justifyCenter', icon: AlignCenter, label: 'Align Center' },
-		{ command: 'justifyRight', icon: AlignRight, label: 'Align Right' },
-	],
-	[{ command: 'createLink', icon: Link, label: 'Link' }],
-]
-
-/** Perintah yang punya status aktif/tidak dan bisa ditanyakan ke browser. */
-const STATEFUL_COMMANDS: Command[] = [
-	'bold',
-	'italic',
-	'underline',
-	'strikeThrough',
-	'insertUnorderedList',
-	'insertOrderedList',
-	'justifyLeft',
-	'justifyCenter',
-	'justifyRight',
-]
-
-export function EditorToolbar({
-	disabled,
-	editorRef,
-}: {
-	disabled?: boolean
-	editorRef: React.RefObject<HTMLDivElement | null>
-}) {
-	const [active, setActive] = useState<Set<Command>>(new Set())
-
-	const refreshActive = useCallback(() => {
-		const next = new Set<Command>()
-		for (const command of STATEFUL_COMMANDS) {
-			try {
-				if (document.queryCommandState(command)) next.add(command)
-			} catch {
-				// browser menolak query untuk perintah ini — anggap tidak aktif
-			}
-		}
-		setActive(next)
-	}, [])
-
-	const run = useCallback(
-		(item: ToolbarItem) => {
-			if (disabled) return
-
-			// execCommand bekerja pada seleksi aktif, jadi fokus harus kembali dulu.
-			editorRef.current?.focus()
-
-			if (item.command === 'createLink') {
-				const url = window.prompt('Masukkan URL:')
-				if (url) document.execCommand('createLink', false, url)
-			} else {
-				document.execCommand(item.command, false, item.value)
-			}
-
-			refreshActive()
+		{ icon: Bold, label: 'Tebal', activeKey: 'bold', run: (e) => e.chain().focus().toggleBold().run() },
+		{ icon: Italic, label: 'Miring', activeKey: 'italic', run: (e) => e.chain().focus().toggleItalic().run() },
+		{
+			icon: UnderlineIcon,
+			label: 'Garis bawah',
+			run: (e) => e.chain().focus().toggleUnderline().run(),
 		},
-		[disabled, editorRef, refreshActive],
-	)
+		{
+			icon: Strikethrough,
+			label: 'Coret',
+			activeKey: 'strike',
+			run: (e) => e.chain().focus().toggleStrike().run(),
+		},
+	],
+	[
+		{ icon: Heading1, label: 'Judul 1', activeKey: 'h1', run: (e) => e.chain().focus().toggleHeading({ level: 1 }).run() },
+		{ icon: Heading2, label: 'Judul 2', activeKey: 'h2', run: (e) => e.chain().focus().toggleHeading({ level: 2 }).run() },
+		{ icon: Heading3, label: 'Judul 3', activeKey: 'h3', run: (e) => e.chain().focus().toggleHeading({ level: 3 }).run() },
+	],
+	[
+		{ icon: List, label: 'Daftar butir', activeKey: 'bulletList', run: (e) => e.chain().focus().toggleBulletList().run() },
+		{ icon: ListOrdered, label: 'Daftar nomor', activeKey: 'orderedList', run: (e) => e.chain().focus().toggleOrderedList().run() },
+		{ icon: Quote, label: 'Kutipan', activeKey: 'blockquote', run: (e) => e.chain().focus().toggleBlockquote().run() },
+	],
+	[
+		{ icon: AlignLeft, label: 'Rata kiri', activeKey: 'alignLeft', run: (e) => e.chain().focus().setTextAlign('left').run() },
+		{ icon: AlignCenter, label: 'Rata tengah', activeKey: 'alignCenter', run: (e) => e.chain().focus().setTextAlign('center').run() },
+		{ icon: AlignRight, label: 'Rata kanan', activeKey: 'alignRight', run: (e) => e.chain().focus().setTextAlign('right').run() },
+		{ icon: AlignJustify, label: 'Rata kanan-kiri', activeKey: 'alignJustify', run: (e) => e.chain().focus().setTextAlign('justify').run() },
+	],
+	[
+		{ icon: LinkIcon, label: 'Tautan', activeKey: 'link', run: setLink },
+		{
+			icon: TableIcon,
+			label: 'Tabel',
+			run: (e) => e.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
+		},
+	],
+]
+
+function setLink(editor: Editor) {
+	const previous = editor.getAttributes('link').href as string | undefined
+	const url = window.prompt('Masukkan URL:', previous ?? '')
+	if (url === null) return
+
+	if (url === '') {
+		editor.chain().focus().extendMarkRange('link').unsetLink().run()
+		return
+	}
+	editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+}
+
+export function EditorToolbar({ editor, disabled }: { editor: Editor | null; disabled?: boolean }) {
+	// useEditorState hanya me-render ulang saat nilai yang dipilih berubah —
+	// tanpa ini toolbar ikut render pada setiap ketukan tombol.
+	const active = useEditorState({
+		editor,
+		selector: ({ editor: instance }): ActiveState => ({
+			bold: !!instance?.isActive('bold'),
+			italic: !!instance?.isActive('italic'),
+			strike: !!instance?.isActive('strike'),
+			h1: !!instance?.isActive('heading', { level: 1 }),
+			h2: !!instance?.isActive('heading', { level: 2 }),
+			h3: !!instance?.isActive('heading', { level: 3 }),
+			bulletList: !!instance?.isActive('bulletList'),
+			orderedList: !!instance?.isActive('orderedList'),
+			blockquote: !!instance?.isActive('blockquote'),
+			alignLeft: !!instance?.isActive({ textAlign: 'left' }),
+			alignCenter: !!instance?.isActive({ textAlign: 'center' }),
+			alignRight: !!instance?.isActive({ textAlign: 'right' }),
+			alignJustify: !!instance?.isActive({ textAlign: 'justify' }),
+			link: !!instance?.isActive('link'),
+			canUndo: !!instance?.can().undo(),
+			canRedo: !!instance?.can().redo(),
+		}),
+	})
 
 	return (
-		<div
-			className="flex items-center gap-0.5 rounded-lg border border-line bg-surface px-1.5 py-1"
-			onMouseUp={refreshActive}
-			onClick={refreshActive}
-		>
-			{TOOLBAR_GROUPS.map((group, groupIndex) => (
+		<div className="flex flex-wrap items-center justify-center gap-0.5 rounded-xl border border-line bg-surface px-2 py-1.5">
+			{GROUPS.map((group, groupIndex) => (
 				<div key={group.map((item) => item.label).join()} className="flex items-center">
-					{groupIndex > 0 && <div className="mx-1 h-4 w-px bg-line-strong" />}
+					{groupIndex > 0 && <div className="mx-1.5 h-5 w-px bg-line-strong" />}
 					{group.map((item) => {
 						const Icon = item.icon
-						const isActive = !item.value && active.has(item.command)
+						const isActive = item.activeKey ? Boolean(active?.[item.activeKey]) : false
 						return (
 							<button
 								key={item.label}
 								type="button"
 								title={item.label}
 								aria-label={item.label}
-								disabled={disabled}
-								onClick={() => run(item)}
+								aria-pressed={isActive}
+								disabled={disabled || !editor}
+								onClick={() => editor && item.run(editor)}
 								className={cn(
 									'rounded-md p-1.5 transition-colors',
 									isActive
-										? 'bg-accent/20 text-accent'
+										? 'bg-accent/15 text-accent'
 										: 'text-muted hover:bg-[var(--overlay-hover)] hover:text-foreground',
-									disabled && 'cursor-not-allowed opacity-40',
+									(disabled || !editor) && 'cursor-not-allowed opacity-40',
 								)}
 							>
-								<Icon className="h-3.5 w-3.5" />
+								<Icon className="h-4 w-4" />
 							</button>
 						)
 					})}

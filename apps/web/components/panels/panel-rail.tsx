@@ -12,12 +12,34 @@ const PANELS: Array<{ id: PanelId; icon: LucideIcon; label: string }> = [
 	{ id: 'plagiarism', icon: Search, label: 'Plagiarism' },
 ]
 
-/** Tool rail: berpindah modul tanpa meninggalkan draf yang sedang dikerjakan. */
+const COLLAPSED_WIDTH = 56
+const EXPANDED_WIDTH = 208
+
+/**
+ * Tool rail: berpindah modul tanpa meninggalkan draf yang sedang dikerjakan.
+ *
+ * Melayang di atas konten dan hanya menampilkan ikon; label muncul saat kursor
+ * masuk dan seluruh rail melebar ke kiri. Melebarnya rail — bukan tooltip per
+ * ikon — membuat kelima label terbaca sekaligus, sehingga pengguna bisa memindai
+ * pilihan tanpa menyapu kursor satu per satu.
+ *
+ * Rail dibuat `absolute`, jadi induknya perlu menyisakan ruang di kanan
+ * (lihat WorkspacePage) agar konten tidak tertutup saat rail menyempit.
+ */
 export function PanelRail() {
 	const { activePanel, togglePanel } = usePanels()
 
 	return (
-		<div className="flex w-14 shrink-0 flex-col items-center gap-1 rounded-2xl border border-line bg-surface-raised py-3">
+		<div
+			className="group/rail absolute right-4 top-1/2 z-30 -translate-y-1/2 overflow-hidden rounded-2xl border border-line bg-surface-raised py-2 shadow-[var(--page-shadow)] transition-[width] duration-200 ease-out"
+			style={{ width: COLLAPSED_WIDTH }}
+			onMouseEnter={(event) => {
+				event.currentTarget.style.width = `${EXPANDED_WIDTH}px`
+			}}
+			onMouseLeave={(event) => {
+				event.currentTarget.style.width = `${COLLAPSED_WIDTH}px`
+			}}
+		>
 			{PANELS.map(({ id, icon: Icon, label }) => {
 				const isActive = activePanel === id
 				return (
@@ -27,15 +49,19 @@ export function PanelRail() {
 						onClick={() => togglePanel(id)}
 						aria-label={label}
 						aria-pressed={isActive}
-						title={label}
 						className={cn(
-							'flex h-11 w-full items-center justify-center border-l-2 transition-colors',
+							'flex h-11 w-full items-center gap-3 border-l-2 pl-[17px] transition-colors',
 							isActive
-								? 'border-accent bg-accent/20 text-accent'
+								? 'border-accent bg-accent/10 text-accent'
 								: 'border-transparent text-subtle hover:bg-[var(--overlay-hover)] hover:text-foreground',
 						)}
 					>
-						<Icon className="h-5 w-5" />
+						<Icon className="h-5 w-5 shrink-0" />
+						{/* Label ikut ada di DOM saat menyempit supaya tetap terbaca
+						    pembaca layar; yang disembunyikan hanya tampilannya. */}
+						<span className="whitespace-nowrap text-sm font-medium opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100">
+							{label}
+						</span>
 					</button>
 				)
 			})}

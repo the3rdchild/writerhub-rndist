@@ -24,7 +24,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-	theme: 'dark',
+	theme: 'light',
 	profile: { name: 'UserReguler', email: 'user@example.com', role: 'Premium' },
 	editorFontSize: 'medium',
 	autoSave: true,
@@ -34,7 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
 
 function resolveTheme(theme: Theme): 'dark' | 'light' {
 	if (theme !== 'system') return theme
-	if (typeof window === 'undefined') return 'dark'
+	if (typeof window === 'undefined') return 'light'
 	return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 

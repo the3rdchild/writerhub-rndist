@@ -32,7 +32,7 @@ Codebase ini berasal dari `ReacteevID/ai-grammar-checker`: backend dari branch `
 
 | Bagian | Teknologi |
 | --- | --- |
-| Web | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, TanStack Query v5, lucide-react |
+| Web | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, TanStack Query v5, Tiptap 3 (ProseMirror), lucide-react |
 | API | Bun, Hono, Drizzle ORM, PostgreSQL, BullMQ + ioredis, Zod, Pino, AWS SDK v3 (S3-compatible) |
 | Worker | Python 3.12, redis-py, psycopg2, pyspellchecker, proselint, textstat, pypdf, python-docx, langdetect |
 | Infra | Docker multi-target, GitHub Actions → DigitalOcean Container Registry → Kubernetes (Helm) |
@@ -61,7 +61,15 @@ pakai (`AUTH_MODE=none`, `STORAGE_DRIVER=local`).
 
 Kode di-bind mount, jadi mengubah berkas langsung terlihat: web memakai
 `next dev`, api memakai `bun --hot`, worker di-restart otomatis oleh watchmedo.
-Rebuild image hanya perlu saat dependensi berubah.
+
+**Setelah menambah dependensi**, `--build` saja tidak cukup. `node_modules`
+tinggal di volume bernama, dan Docker hanya mengisi volume pada pemakaian
+pertama — image baru akan diabaikan dan muncul `Module not found`. Buang
+volumenya dulu:
+
+```bash
+docker compose down -v && docker compose up --build   # atau: bun run docker:reset
+```
 
 ### Apa yang jalan tanpa API key
 
@@ -200,9 +208,14 @@ mana yang aktif:
 - **Endpoint SSE tidak berautentikasi.** `EventSource` tidak bisa mengirim header kustom, dan
   klien ekstensi berlangganan langsung ke sana; pengamanannya bertumpu pada jobId berupa UUID
   acak. Jalur web sendiri sudah lewat proxy yang terautentikasi.
-- **Editor masih `contenteditable` + `document.execCommand`.** PRD menjadwalkan penggantian ke
-  Tiptap 3 (ProseMirror) beserta unified highlight & diff engine; itu milestone berikutnya dan
-  akan menggantikan `components/editor/`.
+- **Sorotan suggestion dihitung ulang, bukan disimpan.** Alih-alih menyimpan posisi lalu
+  menggesernya tiap kali dokumen berubah, `suggestion-highlight.ts` mencari ulang tiap `original`
+  di dokumen saat itu juga. Sorotan jadi tidak pernah melenceng saat pengguna mengetik, dan
+  suggestion yang teksnya sudah hilang berhenti disorot dengan sendirinya. Offset dari API
+  hanya dipakai sebagai petunjuk memilih kemunculan terdekat.
+- **Kanvas belum berpaginasi.** Halaman dokumen memakai lebar Google Docs (816px) tapi mengalir
+  menerus tanpa pemenggalan antar halaman; pagination visual perlu perhitungan tinggi manual di
+  ProseMirror dan belum dikerjakan.
 - **Lint worker belum blocking.** Kode Python dipindahkan apa adanya dan belum pernah diformat
   ruff, jadi di CI dua langkah ruff masih advisory. Jalankan `ruff format .` sekali lalu jadikan
   blocking.
