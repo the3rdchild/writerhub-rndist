@@ -19,8 +19,9 @@ out/
 # python
 __pycache__/
 *.py[cod]
+# pola longgar: cocok untuk .venv/, venv/, py-venv/, dan varian penamaan lain
+*venv/
 .venv/
-venv/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

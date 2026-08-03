@@ -20,7 +20,7 @@ writer-hub/
 ├── packages/
 │   └── shared/       Kontrak API & tipe yang dipakai bersama api ↔ web
 ├── docs/             PRD dan dokumen produk
-├── Dockerfile        Multi-target: api | api-migrate | web | worker
+├── Dockerfile        Multi-target: api | api-migrate | web | worker (+ target dev)
 └── docker-compose.yml
 ```
 
@@ -43,14 +43,17 @@ State di web dibagi tegas: **server state** (submit job, streaming hasil) memaka
 
 ## Menjalankan secara lokal
 
-Prasyarat: Docker. Tidak ada lagi.
+Prasyarat: Docker. Tidak ada lagi — Bun dan Python hidup di dalam container.
 
 ```bash
-bun run docker:up
+docker compose up --build
 ```
 
 Perintah itu menyalakan Postgres, Redis, api, worker, dan web sekaligus; skema
 database disiapkan otomatis sebelum api naik. Buka http://localhost:3000.
+
+(`bun run docker:up` melakukan hal yang sama, tapi baru bisa dipakai kalau Bun
+sudah terpasang di host.)
 
 Mode lokal berjalan **tanpa kredensial apa pun** — tanpa HMAC, tanpa
 pp-extended, tanpa S3. Berkas `.env` di tiap app sudah terisi nilai yang siap
@@ -76,15 +79,56 @@ menjelaskan penyebabnya — sisanya tetap berjalan normal.
 
 ### Menjalankan di host (opsional)
 
-Kalau lebih suka app di host: `docker compose up -d postgres redis`, lalu
-`bun install`, `bun run db:push`, `bun run dev:api`, `bun run dev:web`, dan
-`cd services/worker && pip install -r requirements.txt && python entry.py`.
+Butuh Bun ≥ 1.2 dan Python 3.12.
+
+```bash
+docker compose up -d postgres redis   # infra saja
+bun install && bun run db:push
+bun run dev:api                       # http://localhost:8080
+bun run dev:web                       # http://localhost:3000
+
+# venv dibuat di root repo, BUKAN di dalam services/worker — lihat catatan
+python3 -m venv .venv
+. .venv/bin/activate                  # fish: source .venv/bin/activate.fish
+pip install -r services/worker/requirements.txt
+
+cd services/worker && python entry.py
+```
+
+Dua jebakan:
+
+- **Venv harus di luar `services/worker`.** Worker berjalan dengan direktori itu
+  sebagai CWD; kalau venv berada di dalamnya, `site-packages` ikut terbaca
+  sebagai modul dari CWD dan nltk ≥ 3.10 memblokirnya:
+  `ImportError: Blocked import of regex from current working directory`.
+  Menaruh venv di root repo menghilangkan masalahnya.
+- **Fish butuh berkas sendiri.** `activate` ditulis untuk bash/zsh dan fish akan
+  menolaknya dengan `'case' builtin not inside of switch block`. Pakai
+  `activate.fish`.
+
+Direktori venv bernama apa pun yang berakhiran `venv` sudah masuk `.gitignore`.
+
+**Di NixOS**, `python3 -m pip` tidak tersedia — pip hidup di dalam venv, bukan di
+interpreter sistem. Perintah venv di atas tetap jalan apa adanya (`ensurepip`
+tersedia), dan wheel biner seperti `psycopg2-binary` dan `lxml` juga berfungsi
+selama `programs.nix-ld.enable = true`.
+
+Satu paket meleset: `proselint` menarik `google-re2` yang mencari
+`libstdc++.so.6`. Kalau perlu, sediakan lewat:
+
+```bash
+export LD_LIBRARY_PATH=$(nix eval --raw nixpkgs#stdenv.cc.cc.lib)/lib
+```
+
+Membiarkannya pun tidak apa-apa — `services/checker/style.py` mengimpor proselint
+di dalam `try/except`, jadi style check tetap berjalan lewat daftar curated.
 
 ### Perintah
 
 | Perintah | Kegunaan |
 | --- | --- |
-| `bun run docker:up` / `docker:down` | Stack lokal lengkap |
+| `docker compose up --build` | Stack lokal lengkap (tanpa perlu Bun di host) |
+| `bun run docker:up` / `docker:down` | Sama, lewat script workspace |
 | `bun run dev:web` / `dev:api` | Jalankan satu app di host dengan hot reload |
 | `bun run typecheck` | Typecheck seluruh workspace |
 | `bun run build` | Build produksi |
@@ -162,3 +206,10 @@ mana yang aktif:
 - **Lint worker belum blocking.** Kode Python dipindahkan apa adanya dan belum pernah diformat
   ruff, jadi di CI dua langkah ruff masih advisory. Jalankan `ruff format .` sekali lalu jadikan
   blocking.
+- **Integrasi proselint sudah mati diam-diam.** `services/worker/requirements.txt` tidak memasang
+  batas versi sama sekali, sehingga `pip install` kini mengambil proselint 0.16 yang menghapus
+  `tools.lint()` — persis fungsi yang dipanggil `services/checker/style.py`. Panggilannya
+  melempar `AttributeError`, tertangkap `try/except`, dan hasilnya kosong. Jadi paruh proselint
+  dari style checker tidak pernah berkontribusi apa pun, di semua platform, termasuk di dalam
+  image Docker. Perlu diputuskan: sematkan versi lama, sesuaikan ke API baru, atau lepaskan
+  proselint sekalian. Memasang pin versi di seluruh `requirements.txt` juga layak dilakukan.

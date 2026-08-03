@@ -17,6 +17,9 @@ x-bun-dev: &bun-dev
   volumes:
     - ./apps:/app/apps
     - ./packages:/app/packages
+    # Di-extends oleh tsconfig tiap workspace; ikut di-mount supaya perubahannya
+    # terasa tanpa rebuild image.
+    - ./tsconfig.base.json:/app/tsconfig.base.json:ro
     # Bun memasang dependensi di root DAN di tiap workspace. Bind mount di atas
     # akan menutupi node_modules bawaan image, jadi masing-masing dilindungi
     # volume bernama — tanpa ini container memakai node_modules milik host
@@ -84,6 +87,7 @@ services:
     volumes:
       - ./apps:/app/apps
       - ./packages:/app/packages
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
       - node_modules:/app/node_modules
       - api_node_modules:/app/apps/api/node_modules
       - web_node_modules:/app/apps/web/node_modules

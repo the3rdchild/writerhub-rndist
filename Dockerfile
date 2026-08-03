@@ -49,6 +49,9 @@ USER 65534:65534
 FROM bun-base AS bun-deps
 
 COPY --chown=65534:65534 package.json bun.lock ./
+# tsconfig tiap workspace meng-extends berkas ini; tanpa dia Next gagal dengan
+# "extends: ../../tsconfig.base.json doesn't resolve correctly".
+COPY --chown=65534:65534 tsconfig.base.json ./
 COPY --chown=65534:65534 packages/shared/package.json ./packages/shared/
 COPY --chown=65534:65534 apps/api/package.json ./apps/api/
 COPY --chown=65534:65534 apps/web/package.json ./apps/web/
@@ -148,6 +151,13 @@ ENV NODE_ENV=development \
     NEXT_TELEMETRY_DISABLED=1
 
 RUN bun install --frozen-lockfile
+
+# Docker mengisi volume bernama dari isi image pada path yang sama, termasuk
+# kepemilikannya. Kalau path-nya tidak ada di image, volume dibuat milik root
+# dan container (UID 65534) tidak bisa menulis ke sana — `next dev` gagal dengan
+# EACCES saat membuat .next/dev. Direktori-direktori berikut sengaja dibuat
+# lebih dulu di sini supaya volume mewarisi kepemilikan yang benar.
+RUN mkdir -p /app/apps/web/.next
 
 ENTRYPOINT ["dumb-init", "--"]
 

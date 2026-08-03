@@ -24,9 +24,43 @@ _SYSTEM = (
     '  "offset"      : 0-indexed character position where original starts in the text\n'
     '  "length"      : character length of original (must equal len(original))\n\n'
     "Respond ONLY with a JSON object: {\"suggestions\": [...]}.\n"
-    "Be precise: offset must point exactly to the original substring in the text.\n"
+    "Quote `original` verbatim from the text, long enough to be unambiguous.\n"
     "If the text has no errors, return {\"suggestions\": []}."
 )
+
+
+def _resolve_offset(text: str, original: str, hint: int | None) -> int | None:
+    """
+    Cari posisi sebenarnya `original` di dalam teks.
+
+    Model bahasa tidak bisa menghitung posisi karakter dengan andal — pada
+    pengujian, 5-6 dari 6 offset yang dikembalikan meleset. Karena itu offset
+    dari LLM hanya dipakai sebagai petunjuk untuk memilih kemunculan terdekat
+    saat `original` muncul berkali-kali; posisinya sendiri selalu dihitung ulang
+    dari teks. Mengembalikan None berarti `original` tidak ada di teks (halusinasi)
+    dan suggestion-nya dibuang.
+
+    Padanan sisi web ada di apps/web/features/document/suggestions.ts.
+    """
+    if not original:
+        return None
+
+    if hint is not None and hint >= 0 and text[hint : hint + len(original)] == original:
+        return hint
+
+    best: int | None = None
+    best_distance = float("inf")
+    start = 0
+    while True:
+        index = text.find(original, start)
+        if index == -1:
+            break
+        distance = index if hint is None else abs(index - hint)
+        if distance < best_distance:
+            best_distance, best = distance, index
+        start = index + 1
+
+    return best
 
 
 def check_ai_grammar(
@@ -77,27 +111,42 @@ def check_ai_grammar(
         return [], None
 
     out = []
+    dropped = 0
     for s in suggestions:
         try:
             original    = str(s.get("original", ""))
             replacement = str(s.get("replacement", ""))
-            offset      = int(s.get("offset", 0))
-            length      = int(s.get("length", len(original)))
             category    = s.get("category", "grammar")
             if category not in ("grammar", "spelling", "style"):
                 category = "grammar"
             if not original or original == replacement:
                 continue
+
+            try:
+                hint = int(s.get("offset"))
+            except (TypeError, ValueError):
+                hint = None
+
+            offset = _resolve_offset(text, original, hint)
+            if offset is None:
+                dropped += 1
+                continue
+
             out.append({
                 "original":    original,
                 "replacement": replacement,
                 "type":        str(s.get("type", "Grammar error")),
                 "category":    category,
                 "offset":      offset,
-                "length":      length,
+                # Selalu panjang `original`, bukan `replacement` — `_apply` memakai
+                # ini untuk memotong teks sumber.
+                "length":      len(original),
                 "prio":        0,
             })
         except Exception:
             continue
+
+    if dropped:
+        logger.warning("[ai_grammar] %d suggestion dibuang — `original` tidak ada di teks", dropped)
 
     return out, total_tokens

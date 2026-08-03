@@ -1,0 +1,46 @@
+# Dependensi milik host tidak boleh ikut ke build context.
+#
+# Bun memasang node_modules di root DAN di tiap workspace, sebagian sebagai
+# symlink ke store lokal. Kalau ikut tersalin, direktori itu menimpa hasil
+# `bun install` di dalam image dan build gagal dengan galat seperti
+# `ENOENT reading "/app/apps/web/node_modules/@tailwindcss/postcss"`.
+node_modules
+**/node_modules
+
+# Artefak build
+.next
+**/.next
+dist
+**/dist
+build
+**/build
+*.tsbuildinfo
+
+# Python
+__pycache__
+**/__pycache__
+*.py[cod]
+*venv
+**/*venv
+
+# Rahasia — jangan pernah dipanggang ke dalam image
+.env
+**/.env
+.env.*
+!**/.env.example
+
+# Dokumen unggahan saat STORAGE_DRIVER=local
+storage
+
+# Riwayat & berkas yang tidak dibutuhkan runtime
+.git
+.github
+.gitignore
+.vscode
+.idea
+docs
+README.md
+*.log
+docker-compose.yml
+Dockerfile
+.dockerignore

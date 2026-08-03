@@ -70,7 +70,12 @@ class AiPosProvider(PosProvider):
         )
         try:
             resp = requests.post(
-                AI_BASE_URL,
+                # AI_BASE_URL adalah base URL (mis. https://openrouter.ai/api/v1),
+                # sama seperti yang dipakai llm_client.py dan ai_grammar.py serta
+                # sama dengan `baseUrl` yang dikirim admin-ppe. Sebelumnya modul ini
+                # memperlakukannya sebagai URL lengkap, sehingga satu nilai env tidak
+                # mungkin benar untuk keduanya sekaligus.
+                f"{AI_BASE_URL.rstrip('/')}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {AI_API_KEY}",
                     "Content-Type": "application/json",
