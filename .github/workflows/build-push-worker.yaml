@@ -1,0 +1,29 @@
+name: Build and Push worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g., 1.0.2 or 1.0.2-dev.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: write
+  id-token: write
+  issues: read
+  pull-requests: read
+  security-events: write
+
+concurrency:
+  group: writer-hub-worker-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    uses: ./.github/workflows/_build-push-service.yaml
+    with:
+      service: worker
+      version: ${{ inputs.version }}
+    secrets: inherit

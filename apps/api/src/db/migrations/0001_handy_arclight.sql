@@ -1,0 +1,1 @@
+ALTER TABLE "pool_request" ADD COLUMN "total_tokens" integer;

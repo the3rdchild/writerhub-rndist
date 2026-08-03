@@ -1,0 +1,20 @@
+{
+  "name": "@writer-hub/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Kontrak API & tipe bersama antara apps/api dan apps/web",
+  "exports": {
+    ".": "./src/index.ts",
+    "./grammar": "./src/grammar.ts",
+    "./analysis": "./src/analysis.ts",
+    "./job": "./src/job.ts",
+    "./http": "./src/http.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

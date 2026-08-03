@@ -1,0 +1,10 @@
+redis
+python-dotenv
+psycopg2-binary
+requests
+pyspellchecker
+proselint
+textstat
+pypdf
+python-docx
+langdetect

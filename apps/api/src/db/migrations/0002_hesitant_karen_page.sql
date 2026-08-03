@@ -1,0 +1,1 @@
+ALTER TABLE "pool_request" ADD COLUMN "model_record_id" integer;

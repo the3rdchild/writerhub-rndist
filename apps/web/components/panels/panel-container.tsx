@@ -1,0 +1,65 @@
+'use client'
+
+import { X } from 'lucide-react'
+import { useEffect } from 'react'
+import { type PanelId, usePanels } from '@/features/analysis/panel-context'
+import { useDocument } from '@/features/document/document-context'
+import { AiDetectorPanel } from './ai-detector-panel'
+import { AiRewriterPanel } from './ai-rewriter-panel'
+import { HumanizerPanel } from './humanizer-panel'
+import { PlagiarismPanel } from './plagiarism-panel'
+import { ProofreaderPanel } from './proofreader-panel'
+
+const PANEL_TITLES: Record<PanelId, string> = {
+	proofreader: 'Proofreader',
+	ai_detector: 'AI Detector',
+	ai_rewriter: 'AI Rewriter',
+	humanizer: 'Humanizer',
+	plagiarism: 'Plagiarism Checker',
+}
+
+function PanelBody({ panel }: { panel: PanelId }) {
+	switch (panel) {
+		case 'proofreader':
+			return <ProofreaderPanel />
+		case 'ai_detector':
+			return <AiDetectorPanel />
+		case 'ai_rewriter':
+			return <AiRewriterPanel />
+		case 'humanizer':
+			return <HumanizerPanel />
+		case 'plagiarism':
+			return <PlagiarismPanel />
+	}
+}
+
+export function PanelContainer({ panel }: { panel: PanelId }) {
+	const { setActivePanel } = usePanels()
+	const { dispatch } = useDocument()
+
+	// Sorotan milik panel sebelumnya harus hilang saat berganti modul.
+	useEffect(() => {
+		dispatch({ type: 'setHoveredRange', range: null })
+		dispatch({ type: 'setFocusedRange', range: null })
+	}, [panel, dispatch])
+
+	return (
+		<div className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-2xl border border-line bg-surface">
+			<div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-2.5">
+				<h2 className="text-sm font-semibold text-foreground">{PANEL_TITLES[panel]}</h2>
+				<button
+					type="button"
+					onClick={() => setActivePanel(null)}
+					aria-label="Tutup panel"
+					title="Tutup panel"
+					className="rounded-md p-1 text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
+				>
+					<X className="h-4 w-4" />
+				</button>
+			</div>
+			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+				<PanelBody panel={panel} />
+			</div>
+		</div>
+	)
+}

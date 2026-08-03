@@ -1,0 +1,30 @@
+{
+  "name": "writer-hub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WritingHub — AI-powered collaborative document editor untuk Premium Portal Extended & Ransel.ai",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "dev:web": "bun run --filter @writer-hub/web dev",
+    "dev:api": "bun run --filter @writer-hub/api dev",
+    "build": "bun run --filter '*' build",
+    "typecheck": "bun run --filter '*' typecheck",
+    "lint": "bun run --filter '*' lint",
+    "db:generate": "bun run --filter @writer-hub/api db:generate",
+    "db:migrate": "bun run --filter @writer-hub/api db:migrate",
+    "db:push": "bun run --filter @writer-hub/api db:push",
+    "db:studio": "bun run --filter @writer-hub/api db:studio",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "bun": ">=1.2.0"
+  }
+}

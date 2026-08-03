@@ -1,0 +1,188 @@
+'use client'
+
+import { AlertTriangle, CheckCircle2, Loader2, type LucideIcon, X } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { cn } from '@/lib/utils'
+
+/**
+ * Potongan UI yang dipakai bersama seluruh panel modul. Sebelumnya tiap panel
+ * menyalin markup yang sama (tombol jalankan, banner basi, kartu diff), yang
+ * membuat perubahan kecil harus disunting di empat berkas sekaligus.
+ */
+
+export function PanelScroll({ children, className }: { children: ReactNode; className?: string }) {
+	return (
+		<div className={cn('flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-surface-inset p-4', className)}>
+			{children}
+		</div>
+	)
+}
+
+export function PanelFooter({ children }: { children: ReactNode }) {
+	return (
+		<div className="flex shrink-0 flex-col gap-2 border-t border-line px-4 py-3">{children}</div>
+	)
+}
+
+export function StaleNotice() {
+	return (
+		<div className="flex items-center gap-2 rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-400">
+			<AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+			Teks sudah berubah — jalankan ulang untuk hasil terbaru
+		</div>
+	)
+}
+
+export function PanelLoading({ label }: { label: string }) {
+	return (
+		<div className="flex flex-1 flex-col items-center justify-center gap-2 text-subtle">
+			<Loader2 className="h-5 w-5 animate-spin" />
+			<p className="text-sm">{label}</p>
+		</div>
+	)
+}
+
+export function PanelError({ message }: { message: string }) {
+	return <p className="rounded-xl bg-red-400/10 px-3 py-2 text-xs text-red-400">{message}</p>
+}
+
+export function PanelEmptyState({
+	icon: Icon,
+	title,
+	description,
+}: {
+	icon: LucideIcon
+	title: string
+	description: string
+}) {
+	return (
+		<div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center">
+			<Icon className="h-8 w-8 text-faint" />
+			<p className="text-sm font-medium text-foreground">{title}</p>
+			<p className="text-xs text-subtle">{description}</p>
+		</div>
+	)
+}
+
+export function RunButton({
+	onClick,
+	disabled,
+	isRunning,
+	runningLabel,
+	label,
+}: {
+	onClick: () => void
+	disabled: boolean
+	isRunning: boolean
+	runningLabel: string
+	label: string
+}) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			disabled={disabled}
+			className={cn(
+				'flex w-full items-center justify-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition-colors',
+				disabled
+					? 'cursor-not-allowed bg-accent/40 text-white/50'
+					: 'bg-accent text-accent-foreground hover:bg-accent-hover',
+			)}
+		>
+			{isRunning && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+			{isRunning ? runningLabel : label}
+		</button>
+	)
+}
+
+export function AcceptAllButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			disabled={disabled}
+			className={cn(
+				'flex w-full items-center justify-center gap-1.5 rounded-full py-2 text-sm font-medium transition-colors',
+				disabled
+					? 'cursor-not-allowed bg-green-500/5 text-green-400/30'
+					: 'bg-green-500/15 text-green-400 hover:bg-green-500/25',
+			)}
+		>
+			<CheckCircle2 className="h-3.5 w-3.5" />
+			Accept All
+		</button>
+	)
+}
+
+export function AcceptDismissRow({
+	onAccept,
+	onDismiss,
+	acceptDisabled,
+}: {
+	onAccept: () => void
+	onDismiss: () => void
+	acceptDisabled?: boolean
+}) {
+	return (
+		<div className="flex gap-1.5">
+			<button
+				type="button"
+				onClick={(event) => {
+					event.stopPropagation()
+					onAccept()
+				}}
+				disabled={acceptDisabled}
+				className={cn(
+					'flex flex-1 items-center justify-center gap-1 rounded-lg py-1.5 text-xs transition-colors',
+					acceptDisabled
+						? 'cursor-not-allowed bg-green-500/5 text-green-400/30'
+						: 'bg-green-500/15 text-green-400 hover:bg-green-500/25',
+				)}
+			>
+				<CheckCircle2 className="h-3.5 w-3.5" />
+				Accept
+			</button>
+			<button
+				type="button"
+				onClick={(event) => {
+					event.stopPropagation()
+					onDismiss()
+				}}
+				className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-line-strong py-1.5 text-xs text-muted transition-colors hover:bg-line-strong/70"
+			>
+				<X className="h-3.5 w-3.5" />
+				Dismiss
+			</button>
+		</div>
+	)
+}
+
+/** Kartu diff sebelum/sesudah — dipakai panel AI Rewriter dan Humanizer. */
+export function ChangeCard({
+	original,
+	replacement,
+	onAccept,
+	onDismiss,
+	acceptDisabled,
+	...rangeProps
+}: {
+	original: string
+	replacement: string
+	onAccept: () => void
+	onDismiss: () => void
+	acceptDisabled?: boolean
+} & React.HTMLAttributes<HTMLDivElement>) {
+	return (
+		<div
+			{...rangeProps}
+			className="flex cursor-pointer flex-col gap-2 rounded-xl border border-line bg-surface-raised p-3 transition-colors hover:border-line-strong"
+		>
+			{/* Ditumpuk, bukan berdampingan, supaya kalimat panjang tetap terbaca. */}
+			<div className="flex flex-col gap-1.5 text-xs leading-relaxed">
+				<p className="text-red-300/70 line-through decoration-red-400/40">{original}</p>
+				<p className="border-l-2 border-emerald-400/40 pl-2 text-emerald-300">{replacement}</p>
+			</div>
+			<AcceptDismissRow onAccept={onAccept} onDismiss={onDismiss} acceptDisabled={acceptDisabled} />
+		</div>
+	)
+}

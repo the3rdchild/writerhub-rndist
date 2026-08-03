@@ -1,0 +1,26 @@
+[project]
+name = "writer-hub-worker"
+version = "0.1.0"
+description = "Worker WritingHub — konsumen antrean grammar & analysis"
+requires-python = ">=3.12"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = [
+    "E501", # panjang baris diurus formatter
+    "B008", # pemanggilan fungsi di argumen default dipakai beberapa analyzer
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["core", "services", "workers"]
+
+[tool.ruff.format]
+quote-style = "double"

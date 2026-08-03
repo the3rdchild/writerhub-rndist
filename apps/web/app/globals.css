@@ -1,0 +1,287 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * Tema dijalankan lewat token semantik, bukan warna hex per komponen.
+ * Ganti nilai di :root / html.light dan seluruh UI ikut — tidak ada lagi
+ * override `!important` per utility seperti pada versi sebelumnya.
+ */
+:root {
+  color-scheme: dark;
+
+  --background: #121212;
+  --surface: #222222;         /* sidebar, panel samping */
+  --surface-raised: #1e1e1e;  /* kartu editor, popover, kartu hasil */
+  --surface-sunken: #181818;  /* area teks editor */
+  --surface-inset: #141414;   /* daftar hasil, field input */
+
+  --foreground: #f4f4f5;
+  --foreground-muted: #a1a1aa;
+  --foreground-subtle: #71717a;
+  --foreground-faint: #52525b;
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.1);
+  --overlay-hover: rgba(255, 255, 255, 0.05);
+  --overlay-active: rgba(255, 255, 255, 0.1);
+
+  --accent: #7b6cf6;
+  --accent-hover: #6a5de5;
+  --accent-foreground: #ffffff;
+
+  --scrollbar-thumb: #333;
+  --scrollbar-thumb-hover: #444;
+
+  --glow-inner: rgba(123, 108, 246, 0.6);
+  --glow-outer: rgba(72, 63, 144, 0.6);
+}
+
+html.light {
+  color-scheme: light;
+
+  --background: #f8f9fa;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f1f3f4;
+  --surface-inset: #f1f3f4;
+
+  --foreground: #1f2937;
+  --foreground-muted: #4b5563;
+  --foreground-subtle: #6b7280;
+  --foreground-faint: #9ca3af;
+
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.12);
+  --overlay-hover: rgba(0, 0, 0, 0.04);
+  --overlay-active: rgba(0, 0, 0, 0.08);
+
+  --scrollbar-thumb: #d1d5db;
+  --scrollbar-thumb-hover: #9ca3af;
+
+  --glow-inner: rgba(123, 108, 246, 0.25);
+  --glow-outer: rgba(72, 63, 144, 0.2);
+}
+
+/* Bikin token di atas tersedia sebagai utility Tailwind (bg-surface, text-muted, …) */
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-inset: var(--surface-inset);
+
+  --color-foreground: var(--foreground);
+  --color-muted: var(--foreground-muted);
+  --color-subtle: var(--foreground-subtle);
+  --color-faint: var(--foreground-faint);
+
+  --color-line: var(--border-subtle);
+  --color-line-strong: var(--border-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ── permukaan ─────────────────────────────────────────────────────────── */
+
+.content-bg {
+  background-color: var(--background);
+  background-image: radial-gradient(
+    ellipse 600px 600px at 50% 0%,
+    var(--glow-inner) 0%,
+    var(--glow-outer) 60%,
+    transparent 100%
+  );
+  background-repeat: no-repeat;
+}
+
+.sidebar-glow {
+  position: absolute;
+  top: 50%;
+  left: 70%;
+  width: 150px;
+  height: 356px;
+  background: #383c46;
+  filter: blur(104px);
+  transform: translate(-50%, -50%) rotate(15.25deg);
+  pointer-events: none;
+  z-index: 0;
+}
+
+html.light .sidebar-glow {
+  display: none;
+}
+
+/* ── scrollbar ─────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* Overlay editor: sembunyikan scrollbar tapi tetap sisakan gutter-nya */
+.overlay-scroll {
+  overflow-y: scroll;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.overlay-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── rich text di dalam contenteditable ────────────────────────────────── */
+
+.document-editor h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 1rem 0 0.5rem;
+  line-height: 1.3;
+}
+.document-editor h2 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin: 0.875rem 0 0.5rem;
+  line-height: 1.35;
+}
+.document-editor h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0.375rem;
+  line-height: 1.4;
+}
+.document-editor h1,
+.document-editor h2,
+.document-editor h3,
+.document-editor b,
+.document-editor strong {
+  color: var(--foreground);
+}
+.document-editor p,
+.document-editor div {
+  margin: 0.25rem 0;
+}
+.document-editor > div:first-child {
+  margin-top: 0;
+}
+.document-editor > div:last-child {
+  margin-bottom: 0;
+}
+.document-editor ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+.document-editor ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+.document-editor li {
+  margin: 0.125rem 0;
+}
+.document-editor blockquote {
+  border-left: 3px solid var(--border-strong);
+  padding-left: 1rem;
+  margin: 0.5rem 0;
+  color: var(--foreground-muted);
+  font-style: italic;
+}
+.document-editor a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.document-editor b,
+.document-editor strong {
+  font-weight: 700;
+}
+.document-editor i,
+.document-editor em {
+  font-style: italic;
+}
+.document-editor u {
+  text-decoration: underline;
+}
+.document-editor s,
+.document-editor strike {
+  text-decoration: line-through;
+}
+
+/* ── highlight hover dari panel kanan ──────────────────────────────────── */
+
+.range-highlight {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 6px;
+  background: linear-gradient(
+    135deg,
+    rgba(123, 108, 246, 0.32) 0%,
+    rgba(99, 102, 241, 0.22) 55%,
+    rgba(168, 85, 247, 0.26) 100%
+  );
+  box-shadow:
+    inset 0 0 0 1px rgba(123, 108, 246, 0.45),
+    0 2px 14px rgba(123, 108, 246, 0.28);
+  animation: range-highlight-in 0.18s ease-out;
+}
+
+html.light .range-highlight {
+  background: linear-gradient(
+    135deg,
+    rgba(123, 108, 246, 0.22) 0%,
+    rgba(99, 102, 241, 0.14) 55%,
+    rgba(168, 85, 247, 0.18) 100%
+  );
+  box-shadow:
+    inset 0 0 0 1px rgba(123, 108, 246, 0.35),
+    0 2px 10px rgba(123, 108, 246, 0.18);
+}
+
+@keyframes range-highlight-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

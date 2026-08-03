@@ -1,0 +1,133 @@
+name: writer-hub
+
+# Stack pengembangan lokal — semuanya berjalan di Docker.
+#
+# Kode di-bind mount, jadi mengubah berkas langsung terlihat tanpa rebuild
+# image: web memakai `next dev`, api memakai `bun --hot`, worker di-restart
+# otomatis oleh watchmedo.
+#
+# Mode ini berjalan tanpa kredensial apa pun (AUTH_MODE=none, penyimpanan di
+# disk). Produksi memakai target `api`/`web`/`worker` dari Dockerfile yang sama,
+# dibangun oleh .github/workflows.
+
+x-bun-dev: &bun-dev
+  build:
+    context: .
+    target: bun-dev
+  volumes:
+    - ./apps:/app/apps
+    - ./packages:/app/packages
+    # Volume bernama menjaga node_modules hasil build image agar tidak
+    # tertimpa bind mount di atasnya.
+    - node_modules:/app/node_modules
+    - web_next:/app/apps/web/.next
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: writer
+      POSTGRES_PASSWORD: writer
+      POSTGRES_DB: writer_hub
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U writer -d writer_hub"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # Menyiapkan skema, lalu keluar. Service lain menunggunya selesai.
+  api-migrate:
+    <<: *bun-dev
+    working_dir: /app/apps/api
+    env_file: ./apps/api/.env
+    environment:
+      DATABASE_URL: postgresql://writer:writer@postgres:5432/writer_hub
+    command: ["bun", "run", "db:push"]
+    restart: "no"
+
+  api:
+    <<: *bun-dev
+    working_dir: /app/apps/api
+    env_file: ./apps/api/.env
+    environment:
+      DATABASE_URL: postgresql://writer:writer@postgres:5432/writer_hub
+      REDIS_HOST: redis
+      # URL ini dipakai worker untuk mengunduh dokumen, jadi harus nama service
+      # di jaringan compose — bukan localhost milik browser.
+      SERVICE_URL: http://api:8080
+    volumes:
+      - ./apps:/app/apps
+      - ./packages:/app/packages
+      - node_modules:/app/node_modules
+      - web_next:/app/apps/web/.next
+      # Dokumen unggahan; dibagi ke worker hanya agar mudah diperiksa saat debug.
+      - ./storage:/app/apps/api/storage
+    command: ["bun", "run", "--hot", "src/index.ts"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  web:
+    <<: *bun-dev
+    working_dir: /app/apps/web
+    env_file: ./apps/web/.env
+    environment:
+      API_URL: http://api:8080
+      WATCHPACK_POLLING: "true" # bind mount tidak selalu meneruskan event inotify
+    command: ["bun", "run", "dev"]
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      target: worker-dev
+    working_dir: /app
+    env_file: ./services/worker/.env
+    environment:
+      DATABASE_URL: postgresql://writer:writer@postgres:5432/writer_hub
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ./services/worker:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  node_modules:
+  web_next:
