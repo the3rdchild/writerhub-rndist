@@ -21,6 +21,7 @@ import { promptForLink } from '@/features/editor/link'
 import { PageBreak } from '@/features/editor/page-break'
 import { type PageGeometry, pageGeometry } from '@/features/editor/page-geometry'
 import { Pagination, paginationKey } from '@/features/editor/pagination'
+import { SelectionHighlight } from '@/features/editor/selection-highlight'
 import { TableHeaderRepeat } from '@/features/editor/table-header-repeat'
 import { editorPlainText, textToParagraphs } from '@/features/editor/text-content'
 import { shortcutKeys } from '@/features/shortcuts/registry'
@@ -88,6 +89,7 @@ export function TiptapEditor({
 			Image.configure({ inline: false }),
 			Placeholder.configure({ placeholder: 'Mulai menulis, atau tempel draf Anda di sini…' }),
 			SuggestionHighlight,
+			SelectionHighlight,
 			BlockIndentExtension,
 			PageBreak,
 			TableHeaderRepeat,

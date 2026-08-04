@@ -90,7 +90,7 @@ export function ChangeListPanel({
 			<PanelFooter>
 				{pending.length > 0 && <AcceptAllButton onClick={acceptAll} disabled={isStale} />}
 				<RunButton
-					onClick={run}
+					onClick={() => run()}
 					disabled={!canRun}
 					isRunning={isRunning}
 					runningLabel={runningLabel}

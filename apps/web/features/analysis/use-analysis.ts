@@ -40,7 +40,7 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 
 	const currentText = state.text
 	const requested = lastRun[feature]
-	const requestedKey = requested === undefined ? null : fingerprint(requested.text)
+	const requestedKey = requested?.text != null ? fingerprint(requested.text) : null
 
 	const query = useQuery({
 		queryKey: ['analysis', feature, requestedKey, requested?.offset ?? 0],

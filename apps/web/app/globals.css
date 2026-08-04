@@ -551,11 +551,27 @@ html.dark .suggestion-mark--grammar  { text-decoration-color: #f87171; color: #f
 html.dark .suggestion-mark--spelling { text-decoration-color: #fb923c; color: #fb923c; }
 html.dark .suggestion-mark--style    { text-decoration-color: #fde047; color: #fde047; }
 
+/* Seleksi teks bawaan browser di dalam badan dokumen — diselaraskan dengan
+   dekorasi `.selection-persist` di bawah supaya transisi fokus/blur tanpa kedip. */
+.document-body ::selection {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
 /* Blok yang sedang di-hover dari panel kanan */
 .range-preview {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   border-radius: 4px;
   transition: background-color 0.18s ease;
+}
+
+/* Seleksi yang dipertahankan saat editor kehilangan fokus (mis. saat pengguna
+   berpindah ke panel kanan). Browser memudarkan seleksi bawaannya pada saat
+   itu; dekorasi ini menggambar warna yang sama sebagai penggantinya. */
+.selection-persist {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  border-radius: 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 

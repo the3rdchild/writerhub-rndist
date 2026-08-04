@@ -88,7 +88,7 @@ export function PlagiarismPanel() {
 
 			<PanelFooter>
 				<RunButton
-					onClick={run}
+					onClick={() => run()}
 					disabled={!canRun}
 					isRunning={isRunning}
 					runningLabel="Checking..."

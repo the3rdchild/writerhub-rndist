@@ -193,7 +193,7 @@ export function AiDetectorPanel() {
 				)}
 
 				<RunButton
-					onClick={run}
+					onClick={() => run()}
 					disabled={!canRun}
 					isRunning={isRunning}
 					runningLabel="Analyzing..."
