@@ -9,7 +9,7 @@ import { replaceTextRange } from '@/features/editor/apply-text'
 import { toEditorContent } from '@/features/editor/markdown'
 
 /**
- * Menjalankan alat yang diminta AI, di browser — karena editornya ada di sini.
+ * Menjalankan alat yang diminta AI, di browser - karena editornya ada di sini.
  *
  * Alat baca dijalankan langsung dan hasilnya dikembalikan ke model, jadi ia
  * bisa membaca kerangka dokumen lalu memutuskan langkah berikutnya sendiri.
@@ -126,14 +126,14 @@ export interface ToolOutcome {
 	message: string
 }
 
-/** Kalimat pendek untuk kartu aksi — apa yang akan terjadi kalau Apply ditekan. */
+/** Kalimat pendek untuk kartu aksi - apa yang akan terjadi kalau Apply ditekan. */
 export function describeToolCall(call: ToolCall): string {
 	switch (call.name) {
 		case 'insert_content': {
 			const markdown = String(call.arguments.markdown ?? '')
 			const firstLine = markdown.split('\n')[0]?.slice(0, 60) ?? ''
 			const kind = markdown.includes('|') && markdown.includes('---') ? 'table' : 'content'
-			return `Insert ${kind}${firstLine ? ` — ${firstLine}…` : ''}`
+			return `Insert ${kind}${firstLine ? ` - ${firstLine}…` : ''}`
 		}
 		case 'replace_text':
 			return `Replace “${String(call.arguments.find ?? '').slice(0, 48)}…”`

@@ -13,7 +13,7 @@ export interface DocumentLanguage {
 	label: string
 	/** Pengguna memilihnya sendiri, bukan hasil tebakan. */
 	overridden: boolean
-	/** Tebakannya lemah — UI menyarankan pengguna memilih sendiri. */
+	/** Tebakannya lemah - UI menyarankan pengguna memilih sendiri. */
 	uncertain: boolean
 	/** Tier standard/advanced tidak mendukung bahasa ini. */
 	needsAiTier: boolean
@@ -26,7 +26,7 @@ export interface DocumentLanguage {
  *
  * Hanya cuplikan awal naskah yang diperiksa. Deteksi berjalan tiap kali teks
  * berubah, dan memindai seluruh dokumen pada tiap ketikan jauh lebih mahal
- * daripada nilainya — dua ribu karakter pertama sudah lebih dari cukup untuk
+ * daripada nilainya - dua ribu karakter pertama sudah lebih dari cukup untuk
  * menebak bahasa, dan mengetik di halaman kesepuluh tidak lagi memicu apa pun.
  */
 export function useDocumentLanguage(): DocumentLanguage {

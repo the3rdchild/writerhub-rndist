@@ -84,6 +84,9 @@ interface SettingsContextValue {
 	/** Dialog daftar pintasan papan tik. */
 	shortcutsOpen: boolean
 	setShortcutsOpen: (open: boolean) => void
+	/** Dialog panduan ekspor PDF. */
+	exportOpen: boolean
+	setExportOpen: (open: boolean) => void
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null)
@@ -92,6 +95,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 	const [settings, setSettings] = usePersistentState<Settings>(SETTINGS_STORAGE_KEY, DEFAULT_SETTINGS)
 	const [settingsOpen, setSettingsOpen] = useState(false)
 	const [shortcutsOpen, setShortcutsOpen] = useState(false)
+	const [exportOpen, setExportOpen] = useState(false)
 
 	// Terapkan lagi setelah hidrasi: theme-script hanya tahu nilai tersimpan,
 	// sedangkan preferensi "system" bisa berubah selama sesi berjalan.
@@ -129,8 +133,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 			setSettingsOpen,
 			shortcutsOpen,
 			setShortcutsOpen,
+			exportOpen,
+			setExportOpen,
 		}),
-		[settings, setSettings, settingsOpen, shortcutsOpen],
+		[settings, setSettings, settingsOpen, shortcutsOpen, exportOpen],
 	)
 
 	return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>

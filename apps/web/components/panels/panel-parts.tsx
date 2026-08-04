@@ -45,7 +45,7 @@ export function StaleNotice() {
  * Apa yang akan diperiksa saat Run ditekan.
  *
  * Kedua keadaan diberi tanda, termasuk "seluruh dokumen". Versi sebelumnya
- * hanya menandai keadaan seleksi dan diam saat tidak ada — dan keheningan itu
+ * hanya menandai keadaan seleksi dan diam saat tidak ada - dan keheningan itu
  * justru terbaca sebagai "berarti seluruh dokumen", padahal ia sama saja dengan
  * "indikatornya memang tidak muncul". Pengguna tidak bisa membedakan keduanya.
  *

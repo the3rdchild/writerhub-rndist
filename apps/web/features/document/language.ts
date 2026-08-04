@@ -5,7 +5,7 @@
  * pertanyaan dengan andal: naskah ini bahasa apa, supaya AI diminta menjawab
  * dalam bahasa itu alih-alih hanyut ke bahasa prompt-nya. Untuk itu, membedakan
  * Inggris dari bukan-Inggris jauh lebih penting daripada membedakan Portugis
- * dari Spanyol — kalau pun keliru di antara keduanya, model tetap menerima nama
+ * dari Spanyol - kalau pun keliru di antara keduanya, model tetap menerima nama
  * bahasa yang masuk akal dan hasilnya tidak berpindah bahasa.
  *
  * Tebakannya bisa ditimpa pengguna, jadi kekeliruan tidak pernah jadi jalan
@@ -66,7 +66,7 @@ const SCRIPTS: ReadonlyArray<{ code: string; pattern: RegExp }> = [
 ]
 
 /**
- * Kata fungsi per bahasa — kata yang sering muncul dan jarang dipinjam bahasa
+ * Kata fungsi per bahasa - kata yang sering muncul dan jarang dipinjam bahasa
  * lain. Sengaja pendek: menambah kata umum lintas-bahasa justru mengaburkan
  * bedanya.
  */

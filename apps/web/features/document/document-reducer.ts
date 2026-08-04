@@ -105,7 +105,7 @@ export function documentReducer(state: DocumentState, action: DocumentAction): D
 			if (!target || target.dismissed) return state
 
 			// Teksnya diganti langsung di editor (lihat features/editor/apply-text)
-			// sebagai transaksi tertarget, supaya format blok — tabel, daftar, dst. —
+			// sebagai transaksi tertarget, supaya format blok - tabel, daftar, dst. -
 			// tidak ikut diratakan. Reducer hanya mencatat saran selesai dan
 			// menggeser offset saran lain yang menyusul.
 			const appliedLength = target.length ?? target.original.length

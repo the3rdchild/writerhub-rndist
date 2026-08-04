@@ -82,7 +82,7 @@ export function SelectionMenu({
 	 * pohon komponen.
 	 *
 	 * Kalau dibiarkan di dalam TiptapEditor, offsetParent-nya adalah isi halaman
-	 * — yang ikut tergulung dan ikut diperbesar `transform: scale(zoom)` —
+	 * - yang ikut tergulung dan ikut diperbesar `transform: scale(zoom)` -
 	 * sedangkan koordinatnya diukur terhadap container yang diam. Dua sistem
 	 * koordinat itu berselisih persis sejauh posisi gulungan, jadi popup
 	 * tertinggal di halaman awal begitu pengguna menggulung jauh ke bawah.
@@ -254,7 +254,7 @@ interface Anchor {
  * Letak seleksi dalam koordinat container dokumen.
  *
  * `coordsAtPos` mengembalikan koordinat viewport yang sudah memperhitungkan
- * zoom dan gulungan, jadi selisihnya terhadap rect container langsung benar —
+ * zoom dan gulungan, jadi selisihnya terhadap rect container langsung benar -
  * asalkan menu memang dipasang pada container itu, bukan pada isi yang
  * tergulung. Itulah sebabnya menu dirender lewat portal.
  */
@@ -306,7 +306,7 @@ function useSelectionAnchor(
  *
  * Container dokumen memotong isinya (`overflow-hidden`), jadi menu yang jatuh
  * di dekat tepi bawah akan terpangkas separuh. Tingginya baru diketahui setelah
- * dirender — dan karena diukur di layout effect, koreksinya terjadi sebelum
+ * dirender - dan karena diukur di layout effect, koreksinya terjadi sebelum
  * frame pertama sempat tergambar.
  */
 function useFlippedTop(

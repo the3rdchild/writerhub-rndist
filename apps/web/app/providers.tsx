@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { type ReactNode, useState } from 'react'
 import { PanelProvider } from '@/features/analysis/panel-context'
 import { ChatProvider } from '@/features/chat/chat-context'
+import { DocumentImportProvider } from '@/features/document/import-context'
 import { DocumentProvider } from '@/features/document/document-context'
 import { EditorInstanceProvider } from '@/features/editor/editor-context'
 import { SessionProvider } from '@/features/sessions/session-context'
@@ -38,7 +39,9 @@ export function Providers({ children }: { children: ReactNode }) {
 					<EditorInstanceProvider>
 						<SessionProvider>
 							<PanelProvider>
-								<ChatProvider>{children}</ChatProvider>
+								<ChatProvider>
+									<DocumentImportProvider>{children}</DocumentImportProvider>
+								</ChatProvider>
 							</PanelProvider>
 						</SessionProvider>
 					</EditorInstanceProvider>

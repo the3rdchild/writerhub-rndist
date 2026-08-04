@@ -43,7 +43,7 @@ export function AiChatPanel() {
 	 * Seleksi yang sedang aktif menempel sendiri, sama seperti panel lain yang
 	 * mengarahkan Run-nya ke potongan terpilih.
 	 *
-	 * Yang sudah dilepas pengguna diingat supaya tidak langsung menempel lagi —
+	 * Yang sudah dilepas pengguna diingat supaya tidak langsung menempel lagi -
 	 * tanpa itu tombol × tidak akan pernah berhasil selama seleksinya masih ada.
 	 */
 	const scope = useSelectionScope()

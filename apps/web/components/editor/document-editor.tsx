@@ -3,18 +3,12 @@
 import { Clipboard, FileText, Upload, X } from 'lucide-react'
 import { useRef } from 'react'
 import { useDocument } from '@/features/document/document-context'
+import { useDocumentImport } from '@/features/document/import-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
 import { useSettings } from '@/features/settings/settings-context'
 import { countWords } from '@/lib/utils'
 import { DocumentCanvas } from './document-canvas'
-
-const ACCEPTED_FILE_TYPES = '.txt,.pdf,.docx'
-
-/** TXT dibaca di browser supaya isinya langsung terlihat; PDF/DOCX diekstrak worker. */
-function isPlainTextFile(file: File): boolean {
-	return file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt')
-}
 
 /**
  * Area dokumen: kanvas berhalaman, ditambah keadaan khusus saat ada berkas
@@ -29,8 +23,9 @@ export function DocumentEditor() {
 	const { setEditor } = useEditorInstance()
 	const { error } = useGrammarCheck()
 
+	const { openImport, importing, warnings, dismissWarnings } = useDocumentImport()
+
 	const containerRef = useRef<HTMLDivElement>(null)
-	const fileInputRef = useRef<HTMLInputElement>(null)
 
 	const pasteFromClipboard = async () => {
 		try {
@@ -41,29 +36,43 @@ export function DocumentEditor() {
 		}
 	}
 
-	const handleFile = (event: React.ChangeEvent<HTMLInputElement>) => {
-		const file = event.target.files?.[0]
-		event.target.value = ''
-		if (!file) return
-
-		if (!isPlainTextFile(file)) {
-			dispatch({ type: 'setFile', file })
-			return
-		}
-
-		const reader = new FileReader()
-		reader.onload = () => {
-			const text = reader.result
-			if (typeof text === 'string') dispatch({ type: 'setText', text })
-		}
-		reader.readAsText(file)
-	}
 
 	return (
 		<div
 			ref={containerRef}
 			className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-surface-sunken"
 		>
+			{importing && (
+				<div className="mx-4 mt-3 shrink-0 rounded-lg bg-accent/10 px-3 py-2">
+					<p className="text-xs text-accent">Membaca dokumen Word…</p>
+				</div>
+			)}
+
+			{warnings.length > 0 && (
+				<div className="mx-4 mt-3 shrink-0 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-2">
+					<div className="mb-1 flex items-start justify-between gap-2">
+						<p className="text-xs font-medium text-yellow-400">
+							Sebagian isi tidak punya padanan di editor ini:
+						</p>
+						<button
+							type="button"
+							onClick={dismissWarnings}
+							aria-label="Tutup peringatan"
+							className="shrink-0 text-yellow-400/70 transition-colors hover:text-yellow-400"
+						>
+							<X className="h-3.5 w-3.5" />
+						</button>
+					</div>
+					<ul className="flex flex-col gap-0.5">
+						{warnings.slice(0, 4).map((warning) => (
+							<li key={warning} className="text-[11px] leading-relaxed text-yellow-400/80">
+								{warning}
+							</li>
+						))}
+					</ul>
+				</div>
+			)}
+
 			{error && (
 				<div className="mx-4 mt-3 shrink-0 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">
 					<p className="text-xs text-red-600">{error.message}</p>
@@ -102,18 +111,11 @@ export function DocumentEditor() {
 				)}
 
 				<div className="ml-auto flex items-center gap-1">
-					<StatusButton icon={Upload} label="Unggah dokumen" onClick={() => fileInputRef.current?.click()} />
+					<StatusButton icon={Upload} label="Unggah dokumen" onClick={() => openImport()} />
 					<StatusButton icon={Clipboard} label="Tempel teks" onClick={pasteFromClipboard} />
 				</div>
 			</div>
 
-			<input
-				ref={fileInputRef}
-				type="file"
-				accept={ACCEPTED_FILE_TYPES}
-				className="hidden"
-				onChange={handleFile}
-			/>
 		</div>
 	)
 }

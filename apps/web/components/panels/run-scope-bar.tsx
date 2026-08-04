@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
  *
  * Keduanya duduk sebaris tepat di atas tombol Run karena keduanya menjawab
  * pertanyaan yang sama: "kalau saya klik ini, apa yang terjadi?". Bahasa ikut
- * di sini, bukan di pengaturan, sebab akibatnya langsung terasa pada hasil —
+ * di sini, bukan di pengaturan, sebab akibatnya langsung terasa pada hasil -
  * dan salah bahasa adalah kekeliruan yang baru ketahuan setelah kuota terpakai.
  */
 export function RunScopeBar({ wordCount }: { wordCount: number | null }) {

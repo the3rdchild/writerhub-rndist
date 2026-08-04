@@ -128,7 +128,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	 * Satu giliran, termasuk kelanjutannya setelah alat baca dijalankan.
 	 *
 	 * Alat baca tidak mengubah apa pun, jadi hasilnya langsung dikembalikan ke
-	 * model dan percakapan berlanjut sendiri — itulah yang membuat AI bisa
+	 * model dan percakapan berlanjut sendiri - itulah yang membuat AI bisa
 	 * membaca kerangka lalu memutuskan bagian mana yang perlu dibuka. Alat tulis
 	 * berhenti di sini sebagai kartu aksi; pengguna yang memutuskan.
 	 *

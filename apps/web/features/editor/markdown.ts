@@ -3,12 +3,12 @@
  *
  * Model menjawab dalam Markdown karena itu bahasa alaminya, sementara editor
  * menerima HTML dan mem-parsing-nya lewat skema Tiptap. Tanpa terjemahan ini,
- * tabel pipe masuk ke dokumen sebagai paragraf berisi garis tegak — persis
+ * tabel pipe masuk ke dokumen sebagai paragraf berisi garis tegak - persis
  * yang terlihat saat AI diminta "buatkan tabel".
  *
  * Cakupannya sengaja sempit: hanya bentuk yang benar-benar dipakai model saat
  * menyusun isi dokumen. Menulis parser Markdown penuh berarti memelihara
- * pustaka kecil, sedangkan yang dibutuhkan hanya segelintir blok — dan apa pun
+ * pustaka kecil, sedangkan yang dibutuhkan hanya segelintir blok - dan apa pun
  * yang tidak dikenali tetap keluar sebagai paragraf, bukan hilang.
  */
 
@@ -144,7 +144,7 @@ export function markdownToHtml(markdown: string): string {
 		// ── paragraf ─────────────────────────────────────────────────────────
 		//
 		// Baris pertama selalu ditelan, apa pun bentuknya. Cabang ini juga
-		// menampung sisa yang tidak dikenali blok mana pun — misalnya deretan
+		// menampung sisa yang tidak dikenali blok mana pun - misalnya deretan
 		// pipa tanpa baris pemisah, yang bukan tabel. Kalau syarat berhenti ikut
 		// diberlakukan pada baris pertama, `index` tidak pernah maju dan
 		// perulangan luarnya menggantung selamanya.
@@ -170,7 +170,7 @@ export function markdownToHtml(markdown: string): string {
 /**
  * Bentuk yang siap diserahkan ke `insertContent`.
  *
- * Teks polos dikembalikan apa adanya — Tiptap memperlakukannya sebagai teks,
+ * Teks polos dikembalikan apa adanya - Tiptap memperlakukannya sebagai teks,
  * dan itu memang yang diinginkan untuk kalimat pengganti biasa.
  */
 export function toEditorContent(text: string): string {

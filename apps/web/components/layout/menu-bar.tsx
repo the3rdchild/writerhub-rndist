@@ -1,15 +1,19 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { Dropdown, DropdownItem, DropdownLabel, DropdownSeparator } from '@/components/ui/dropdown'
 import { usePanels } from '@/features/analysis/panel-context'
 import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import { download, safeFilename } from '@/features/document/download'
+import { exportDocx } from '@/features/document/export-docx'
+import { useDocumentImport } from '@/features/document/import-context'
 import { promptForLink } from '@/features/editor/link'
 import { isInsideTable, tableRepeatsHeader } from '@/features/editor/table-header-repeat'
 import {
 	DEFAULT_MARGINS,
+	pageGeometry,
 	PAGE_SIZES,
 	type PageSizeId,
 	ZOOM_LEVELS,
@@ -30,8 +34,10 @@ import { cn, countWords } from '@/lib/utils'
 export function MenuBar() {
 	const { editor } = useEditorInstance()
 	const { state, dispatch } = useDocument()
-	const { settings, update, toggleFocusMode, setSettingsOpen, setShortcutsOpen } = useSettings()
+	const { settings, update, toggleFocusMode, setSettingsOpen, setShortcutsOpen, setExportOpen } =
+		useSettings()
 	const { newSession, deleteSession, activeId } = useSessions()
+	const { openImport } = useDocumentImport()
 	const { setActivePanel } = usePanels()
 
 	// Label pintasan datang dari registry, bukan diketik di sini - dulu teksnya
@@ -39,13 +45,26 @@ export function MenuBar() {
 	const keys = useShortcutLabel()
 
 	const downloadText = () => {
-		const blob = new Blob([state.text], { type: 'text/plain;charset=utf-8' })
-		const url = URL.createObjectURL(blob)
-		const anchor = document.createElement('a')
-		anchor.href = url
-		anchor.download = `${state.title || 'dokumen'}.txt`
-		anchor.click()
-		URL.revokeObjectURL(url)
+		download(
+			new Blob([state.text], { type: 'text/plain;charset=utf-8' }),
+			safeFilename(state.title, 'txt'),
+		)
+	}
+
+	const [exporting, setExporting] = useState(false)
+
+	const downloadDocx = async () => {
+		if (!editor || exporting) return
+		setExporting(true)
+		try {
+			const geometry = pageGeometry(settings.pageSize, settings.pageMargins)
+			download(
+				await exportDocx(editor, { title: state.title, geometry }),
+				safeFilename(state.title, 'docx'),
+			)
+		} finally {
+			setExporting(false)
+		}
 	}
 
 	return (
@@ -56,7 +75,22 @@ export function MenuBar() {
 						<Item onSelect={() => run(close, newSession)} shortcut={keys('doc.newTab')}>
 							Tab baru
 						</Item>
-						<Item onSelect={() => run(close, downloadText)}>Unduh sebagai .txt</Item>
+						<DropdownSeparator />
+						<DropdownLabel>Impor</DropdownLabel>
+						<Item onSelect={() => run(close, () => openImport('docx'))}>
+							Word (.docx) - dengan format
+						</Item>
+						<Item onSelect={() => run(close, () => openImport('text'))}>
+							PDF atau teks - teks saja
+						</Item>
+						<DropdownSeparator />
+						<DropdownLabel>Ekspor</DropdownLabel>
+						<Item onSelect={() => run(close, () => setExportOpen(true))}>PDF…</Item>
+						<Item disabled={!editor || exporting} onSelect={() => run(close, downloadDocx)}>
+							Word (.docx)
+						</Item>
+						<Item onSelect={() => run(close, downloadText)}>Teks polos (.txt)</Item>
+						<DropdownSeparator />
 						<Item onSelect={() => run(close, () => window.print())} shortcut={keys('doc.print')}>
 							Cetak
 						</Item>

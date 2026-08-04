@@ -169,8 +169,8 @@ function buildMessages({ messages, context }: ChatBody, withTools: boolean): unk
 const TOOL_GUIDANCE = [
 	'You can operate the editor with the provided tools.',
 	'Prefer get_outline and read_section over guessing at a long document.',
-	'When the user asks for something to be put into the document — a table, a',
-	'section, a heading — call insert_content instead of writing it out in chat.',
+	'When the user asks for something to be put into the document - a table, a',
+	'section, a heading - call insert_content instead of writing it out in chat.',
 	'Editing tools are queued for the writer to approve, so state plainly what',
 	'you are proposing.',
 ].join(' ')

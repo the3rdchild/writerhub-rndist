@@ -71,7 +71,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'insert_content',
 		kind: 'write',
 		description:
-			'Insert new content into the document. Write it as Markdown — tables, headings and lists become real editor nodes, not text that looks like them.',
+			'Insert new content into the document. Write it as Markdown - tables, headings and lists become real editor nodes, not text that looks like them.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -92,7 +92,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'replace_text',
 		kind: 'write',
 		description:
-			'Replace an exact passage with new text. The find value must match the document character for character — use find_text or read_section first to copy it exactly.',
+			'Replace an exact passage with new text. The find value must match the document character for character - use find_text or read_section first to copy it exactly.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -189,7 +189,7 @@ export function toProviderTools(): unknown[] {
 export function fallbackToolPrompt(): string {
 	const list = EDITOR_TOOLS.map((tool) => {
 		const params = Object.keys(tool.parameters.properties).join(', ') || '(none)'
-		return `- ${tool.name}(${params}) — ${tool.description}`
+		return `- ${tool.name}(${params}) - ${tool.description}`
 	}).join('\n')
 
 	return [

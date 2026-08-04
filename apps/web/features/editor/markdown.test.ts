@@ -3,7 +3,7 @@ import { looksLikeMarkdown, markdownToHtml, toEditorContent } from './markdown'
 
 /**
  * Yang diuji di sini adalah bentuk yang benar-benar dikirim model saat diminta
- * menyusun isi dokumen — terutama tabel pipe, yang sebelumnya masuk ke naskah
+ * menyusun isi dokumen - terutama tabel pipe, yang sebelumnya masuk ke naskah
  * sebagai paragraf berisi garis tegak.
  */
 
