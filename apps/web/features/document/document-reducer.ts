@@ -1,7 +1,5 @@
 import type { GrammarModel, GrammarScores, GrammarSuggestion, TextRange } from '@writer-hub/shared'
 import {
-	applySuggestion,
-	applySuggestions,
 	type EditorSuggestion,
 	reconcileSuggestions,
 	shiftAfter,
@@ -106,16 +104,20 @@ export function documentReducer(state: DocumentState, action: DocumentAction): D
 			const target = state.suggestions.find((s) => s.id === action.id)
 			if (!target || target.dismissed) return state
 
-			const text = applySuggestion(state.text, target)
-			const delta = text.length - state.text.length
+			// Teksnya diganti langsung di editor (lihat features/editor/apply-text)
+			// sebagai transaksi tertarget, supaya format blok — tabel, daftar, dst. —
+			// tidak ikut diratakan. Reducer hanya mencatat saran selesai dan
+			// menggeser offset saran lain yang menyusul.
+			const appliedLength = target.length ?? target.original.length
+			const delta = target.replacement.length - appliedLength
 			const marked = state.suggestions.map((s) =>
 				s.id === action.id ? { ...s, dismissed: true } : s,
 			)
 
 			return {
 				...state,
-				text,
-				suggestions: target.offset === undefined ? marked : shiftAfter(marked, target.offset, delta),
+				suggestions:
+					target.offset !== undefined ? shiftAfter(marked, target.offset, delta) : marked,
 				hoveredRange: null,
 			}
 		}
@@ -134,9 +136,10 @@ export function documentReducer(state: DocumentState, action: DocumentAction): D
 			const pending = state.suggestions.filter((s) => !s.dismissed)
 			if (pending.length === 0) return state
 
+			// Setiap penggantian sudah diterapkan ke editor oleh panel; di sini
+			// saran cuma ditandai selesai.
 			return {
 				...state,
-				text: applySuggestions(state.text, pending),
 				suggestions: state.suggestions.map((s) => ({ ...s, dismissed: true })),
 				hoveredRange: null,
 			}

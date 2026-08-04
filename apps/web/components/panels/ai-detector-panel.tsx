@@ -5,10 +5,11 @@ import { Bot, CheckCircle2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { riskColor, ScoreRing } from '@/components/ui/score-ring'
 import { useAnalysis } from '@/features/analysis/use-analysis'
-import { useDocument } from '@/features/document/document-context'
-import { replaceRange } from '@/features/document/suggestions'
-import { useRangeHighlight } from '@/features/document/use-range-highlight'
+import { replaceTextRange } from '@/features/editor/apply-text'
+import { useEditorInstance } from '@/features/editor/editor-context'
 import { useSelectionScope } from '@/features/editor/selection'
+import { useDocument } from '@/features/document/document-context'
+import { useRangeHighlight } from '@/features/document/use-range-highlight'
 import {
 	AcceptAllButton,
 	AcceptDismissRow,
@@ -34,7 +35,8 @@ const acceptedScore = (score: number) => Math.max(5, Math.round(score * 0.25))
 
 export function AiDetectorPanel() {
 	const { result, isRunning, error, isStale, canRun, run } = useAnalysis('ai_detector')
-	const { state, dispatch } = useDocument()
+	const { dispatch } = useDocument()
+	const { editor } = useEditorInstance()
 	const { rangeProps } = useRangeHighlight()
 	const scope = useSelectionScope()
 
@@ -49,7 +51,15 @@ export function AiDetectorPanel() {
 		const suggestion = sentence?.suggestion
 		if (!suggestion) return
 
-		dispatch({ type: 'replaceText', text: replaceRange(state.text, sentence, suggestion) })
+		// Terapkan langsung ke editor supaya format (cetak tebal, tabel, dst.)
+		// tetap utuh; state.text disinkronkan otomatis lewat onUpdate editor.
+		if (editor) {
+			replaceTextRange(
+				editor,
+				{ offset: sentence.offset, length: sentence.length, expected: sentence.text },
+				suggestion,
+			)
+		}
 
 		const delta = suggestion.length - sentence.length
 		setSentences((current) =>
@@ -70,30 +80,37 @@ export function AiDetectorPanel() {
 	}
 
 	const acceptAll = () => {
-		let text = state.text
-		let drift = 0
+		// Dari offset terbesar ke terkecil, jadi satu penggantian tidak menggeser
+		// posisi rentang yang belum diproses di dalam dokumen editor.
+		const ordered = [...sentences]
+			.filter((sentence) => sentence.suggestion && !sentence.dismissed && !sentence.applied)
+			.sort((a, b) => b.offset - a.offset)
 
-		const next = sentences.map((sentence) => {
-			if (!sentence.suggestion || sentence.dismissed || sentence.applied) return sentence
-
-			const offset = sentence.offset + drift
-			const suggestion = sentence.suggestion
-			text = replaceRange(text, { offset, length: sentence.length }, suggestion)
-			drift += suggestion.length - sentence.length
-
-			return {
-				...sentence,
-				text: suggestion,
-				offset,
-				length: suggestion.length,
-				score: acceptedScore(sentence.score),
-				suggestion: null,
-				applied: true,
+		if (editor) {
+			for (const sentence of ordered) {
+				const suggestion = sentence.suggestion as string
+				replaceTextRange(
+					editor,
+					{ offset: sentence.offset, length: sentence.length, expected: sentence.text },
+					suggestion,
+				)
 			}
-		})
+		}
 
-		dispatch({ type: 'replaceText', text })
-		setSentences(next)
+		setSentences((current) =>
+			current.map((item) =>
+				item.suggestion && !item.dismissed && !item.applied
+					? {
+							...item,
+							text: item.suggestion,
+							length: item.suggestion.length,
+							score: acceptedScore(item.score),
+							suggestion: null,
+							applied: true,
+						}
+					: item,
+			),
+		)
 	}
 
 	const dismiss = (index: number) => {

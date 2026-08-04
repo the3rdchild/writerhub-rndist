@@ -2,8 +2,8 @@
 
 import type { TextChange } from '@writer-hub/shared'
 import { useCallback, useEffect, useState } from 'react'
-import { useDocument } from '@/features/document/document-context'
-import { replaceRange } from '@/features/document/suggestions'
+import { replaceTextRange } from '@/features/editor/apply-text'
+import { useEditorInstance } from '@/features/editor/editor-context'
 
 /**
  * Antrean perubahan yang bisa diterima satu per satu.
@@ -12,9 +12,12 @@ import { replaceRange } from '@/features/document/suggestions'
  * selama hasil analisis itu ditampilkan. Setiap kali satu diterima, offset
  * perubahan sesudahnya digeser sesuai selisih panjang teks - tanpa itu,
  * penerimaan kedua akan memotong teks di posisi yang salah.
+ *
+ * Penggantian diterapkan langsung ke editor lewat replaceTextRange (lihat
+ * features/editor/apply-text), supaya format dokumen tidak ikut diratakan.
  */
 export function usePendingChanges(changes: readonly TextChange[] | undefined) {
-	const { state, dispatch } = useDocument()
+	const { editor } = useEditorInstance()
 	const [pending, setPending] = useState<TextChange[]>([])
 
 	useEffect(() => {
@@ -26,7 +29,13 @@ export function usePendingChanges(changes: readonly TextChange[] | undefined) {
 			const change = pending[index]
 			if (!change) return
 
-			dispatch({ type: 'replaceText', text: replaceRange(state.text, change, change.replacement) })
+			if (editor) {
+				replaceTextRange(
+					editor,
+					{ offset: change.offset, length: change.length, expected: change.original },
+					change.replacement,
+				)
+			}
 
 			const delta = change.replacement.length - change.length
 			setPending((current) =>
@@ -37,7 +46,7 @@ export function usePendingChanges(changes: readonly TextChange[] | undefined) {
 					),
 			)
 		},
-		[pending, dispatch, state.text],
+		[pending, editor],
 	)
 
 	const dismiss = useCallback((index: number) => {
@@ -45,16 +54,20 @@ export function usePendingChanges(changes: readonly TextChange[] | undefined) {
 	}, [])
 
 	const acceptAll = useCallback(() => {
-		// Dari offset terbesar ke terkecil, jadi tidak perlu menggeser apa pun.
-		const ordered = [...pending].sort((a, b) => b.offset - a.offset)
-		const text = ordered.reduce(
-			(current, change) => replaceRange(current, change, change.replacement),
-			state.text,
-		)
-
-		dispatch({ type: 'replaceText', text })
+		// Dari offset terbesar ke terkecil, jadi tidak perlu menggeser apa pun
+		// di dalam dokumen editor.
+		if (editor) {
+			const ordered = [...pending].sort((a, b) => b.offset - a.offset)
+			for (const change of ordered) {
+				replaceTextRange(
+					editor,
+					{ offset: change.offset, length: change.length, expected: change.original },
+					change.replacement,
+				)
+			}
+		}
 		setPending([])
-	}, [pending, dispatch, state.text])
+	}, [pending, editor])
 
 	return { pending, accept, dismiss, acceptAll }
 }

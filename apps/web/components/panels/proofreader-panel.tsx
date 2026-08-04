@@ -3,10 +3,12 @@
 import { Check, Copy } from 'lucide-react'
 import { useState } from 'react'
 import { ScoreRing } from '@/components/ui/score-ring'
+import { replaceTextRange } from '@/features/editor/apply-text'
+import { useEditorInstance } from '@/features/editor/editor-context'
+import { useSelectionScope } from '@/features/editor/selection'
 import { useDocument } from '@/features/document/document-context'
 import type { SuggestionFilter } from '@/features/document/document-reducer'
 import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
-import { useSelectionScope } from '@/features/editor/selection'
 import { cn } from '@/lib/utils'
 import { ModelSelector } from './model-selector'
 import { AcceptAllButton, PanelError, PanelFooter, RunButton, SelectionScopeChip } from './panel-parts'
@@ -31,9 +33,41 @@ function qualityBadge(average: number): { text: string; className: string; bar: 
 
 export function ProofreaderPanel() {
 	const { state, dispatch, correctedText } = useDocument()
+	const { editor } = useEditorInstance()
 	const { runCheck, isRunning, error, canRun } = useGrammarCheck()
 	const scope = useSelectionScope()
 	const [copied, setCopied] = useState(false)
+
+	/** Terapkan satu saran ke editor (transaksi tertarget) lalu tandai selesai. */
+	const acceptSuggestion = (id: string) => {
+		const target = state.suggestions.find((s) => s.id === id)
+		if (target && editor) {
+			replaceTextRange(
+				editor,
+				{ offset: target.offset ?? 0, length: target.length ?? target.original.length, expected: target.original },
+				target.replacement,
+			)
+		}
+		dispatch({ type: 'acceptSuggestion', id })
+	}
+
+	/** Terapkan semua saran tertunda ke editor (offset tinggi→rendah) lalu tandai. */
+	const acceptAll = () => {
+		if (editor) {
+			const pending = state.suggestions
+				.filter((s) => !s.dismissed)
+				.slice()
+				.sort((a, b) => (b.offset ?? 0) - (a.offset ?? 0))
+			for (const suggestion of pending) {
+				replaceTextRange(
+					editor,
+					{ offset: suggestion.offset ?? 0, length: suggestion.length ?? suggestion.original.length, expected: suggestion.original },
+					suggestion.replacement,
+				)
+			}
+		}
+		dispatch({ type: 'acceptAllSuggestions' })
+	}
 
 	const visible = state.suggestions.filter(
 		(suggestion) =>
@@ -127,7 +161,7 @@ export function ProofreaderPanel() {
 				{error && <PanelError message={error.message} />}
 
 				{visible.length > 0 && (
-					<AcceptAllButton onClick={() => dispatch({ type: 'acceptAllSuggestions' })} />
+					<AcceptAllButton onClick={acceptAll} />
 				)}
 
 				{hasResults && (

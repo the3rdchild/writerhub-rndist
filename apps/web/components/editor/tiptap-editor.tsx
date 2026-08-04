@@ -232,7 +232,7 @@ export function TiptapEditor({
 		? state.suggestions.find((suggestion) => suggestion.id === popover.id)
 		: undefined
 
-	const applySuggestion = (id: string) => {
+	const  applySuggestion = (id: string) => {
 		const suggestion = state.suggestions.find((item) => item.id === id)
 		if (!editor || !suggestion) return
 
