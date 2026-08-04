@@ -97,10 +97,14 @@ export interface SelectionScope {
 	text: string
 	/** Posisi seleksi di dalam dokumen penuh - untuk menggeser offset hasil. */
 	offset: number
+	/** Panjang seleksi dalam koordinat teks polos. */
+	length: number
 	/** Selalu true; menandai bahwa ini analisis per-seleksi, bukan naskah penuh. */
 	scoped: true
 	/** Perkiraan jumlah kata; ditampilkan di chip indikator. */
 	wordCount: number
+	/** Paragraf di sekitarnya - konteks percakapan, bukan bahan analisis. */
+	surrounding: string
 }
 
 export function useSelectionScope(): SelectionScope | null {
@@ -114,8 +118,10 @@ export function useSelectionScope(): SelectionScope | null {
 		return {
 			text: selection.text,
 			offset: range.offset,
+			length: range.length,
 			scoped: true,
 			wordCount: selection.words,
+			surrounding: surroundingText(editor, selection),
 		}
 	}, [editor, selection])
 }

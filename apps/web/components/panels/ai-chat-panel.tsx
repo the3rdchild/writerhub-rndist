@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { extractProposals, stripProposals, useChat } from '@/features/chat/chat-context'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import { useSelectionScope } from '@/features/editor/selection'
 import { cn } from '@/lib/utils'
 import { PanelError } from './panel-parts'
 
@@ -23,6 +24,7 @@ export function AiChatPanel() {
 		isRunning,
 		error,
 		attachment,
+		attach,
 		clearAttachment,
 		includeDocument,
 		setIncludeDocument,
@@ -33,6 +35,32 @@ export function AiChatPanel() {
 
 	const [draft, setDraft] = useState('')
 	const scrollRef = useRef<HTMLDivElement>(null)
+
+	/*
+	 * Seleksi yang sedang aktif menempel sendiri, sama seperti panel lain yang
+	 * mengarahkan Run-nya ke potongan terpilih.
+	 *
+	 * Yang sudah dilepas pengguna diingat supaya tidak langsung menempel lagi —
+	 * tanpa itu tombol × tidak akan pernah berhasil selama seleksinya masih ada.
+	 */
+	const scope = useSelectionScope()
+	const dismissedRef = useRef<string | null>(null)
+	const selectionKey = scope ? `${scope.offset}:${scope.length}` : null
+
+	useEffect(() => {
+		if (!scope || selectionKey === null || dismissedRef.current === selectionKey) return
+		attach({
+			text: scope.text,
+			surrounding: scope.surrounding,
+			offset: scope.offset,
+			length: scope.length,
+		})
+	}, [scope, selectionKey, attach])
+
+	const dismissAttachment = () => {
+		dismissedRef.current = selectionKey
+		clearAttachment()
+	}
 
 	// Jawaban yang mengalir harus tetap terlihat tanpa pengguna menggulung.
 	useEffect(() => {
@@ -84,7 +112,7 @@ export function AiChatPanel() {
 						</p>
 						<button
 							type="button"
-							onClick={clearAttachment}
+							onClick={dismissAttachment}
 							aria-label="Remove selection"
 							className="shrink-0 text-subtle transition-colors hover:text-foreground"
 						>

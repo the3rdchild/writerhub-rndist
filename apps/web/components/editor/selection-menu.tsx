@@ -14,7 +14,8 @@ import {
 	SpellCheck,
 	UserCheck,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { type PanelId, usePanels } from '@/features/analysis/panel-context'
 import { useChat } from '@/features/chat/chat-context'
 import { useSessions } from '@/features/sessions/session-context'
@@ -70,14 +71,26 @@ export function SelectionMenu({
 		setSection(null)
 	}, [selection?.from, selection?.to])
 
-	const position = useMenuPosition(editor, selection, containerRef)
-	if (!editor || !selection || !position) return null
+	const anchor = useSelectionAnchor(editor, selection, containerRef)
+	const top = useFlippedTop(anchor, menuRef, containerRef, section)
 
-	return (
+	if (!editor || !selection || !anchor || !containerRef.current) return null
+
+	/*
+	 * Dirender lewat portal ke container dokumen, bukan di tempatnya berada di
+	 * pohon komponen.
+	 *
+	 * Kalau dibiarkan di dalam TiptapEditor, offsetParent-nya adalah isi halaman
+	 * — yang ikut tergulung dan ikut diperbesar `transform: scale(zoom)` —
+	 * sedangkan koordinatnya diukur terhadap container yang diam. Dua sistem
+	 * koordinat itu berselisih persis sejauh posisi gulungan, jadi popup
+	 * tertinggal di halaman awal begitu pengguna menggulung jauh ke bawah.
+	 */
+	return createPortal(
 		<div
 			ref={menuRef}
 			className="selection-menu absolute z-40"
-			style={{ top: position.top, left: position.left }}
+			style={{ top, left: anchor.left }}
 			// Menahan mousedown supaya seleksi di editor tidak hilang saat menu diklik.
 			onMouseDown={(event) => event.preventDefault()}
 		>
@@ -93,7 +106,8 @@ export function SelectionMenu({
 					onSection={setSection}
 				/>
 			)}
-		</div>
+		</div>,
+		containerRef.current,
 	)
 }
 
@@ -220,41 +234,99 @@ function MenuItem({
 	)
 }
 
+/** Jarak menu dari teks yang disorot. */
+const MENU_GAP = 8
+/** Popover terlebar (sitasi); dipakai menahan menu agar tidak keluar sisi kanan. */
+const MENU_MAX_WIDTH = 340
+
+interface Anchor {
+	/** Tepi atas seleksi, relatif container. */
+	top: number
+	/** Tepi bawah seleksi, relatif container. */
+	bottom: number
+	left: number
+}
+
 /**
- * Letak menu, dalam koordinat container dokumen.
+ * Letak seleksi dalam koordinat container dokumen.
  *
- * `coordsAtPos` mengembalikan koordinat layar yang sudah memperhitungkan zoom
- * dan gulungan, jadi tidak perlu mengoreksi transform kanvas sendiri.
+ * `coordsAtPos` mengembalikan koordinat viewport yang sudah memperhitungkan
+ * zoom dan gulungan, jadi selisihnya terhadap rect container langsung benar —
+ * asalkan menu memang dipasang pada container itu, bukan pada isi yang
+ * tergulung. Itulah sebabnya menu dirender lewat portal.
  */
-function useMenuPosition(
+function useSelectionAnchor(
 	editor: Editor | null,
 	selection: EditorSelection | null,
 	containerRef: React.RefObject<HTMLDivElement | null>,
-) {
-	const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
+): Anchor | null {
+	const [anchor, setAnchor] = useState<Anchor | null>(null)
 
 	useEffect(() => {
 		const container = containerRef.current
 		if (!editor || !selection || !container) {
-			setPosition(null)
+			setAnchor(null)
 			return
 		}
 
 		const update = () => {
-			const start = editor.view.coordsAtPos(selection.from)
+			const from = editor.view.coordsAtPos(selection.from)
+			const to = editor.view.coordsAtPos(selection.to)
 			const rect = container.getBoundingClientRect()
-			setPosition({
-				top: start.bottom - rect.top + container.scrollTop + 8,
-				left: Math.max(8, Math.min(start.left - rect.left, rect.width - 230)),
+
+			// Seleksi banyak baris: pakai batas terluarnya, bukan hanya baris awal.
+			setAnchor({
+				top: Math.min(from.top, to.top) - rect.top,
+				bottom: Math.max(from.bottom, to.bottom) - rect.top,
+				left: Math.max(8, Math.min(from.left - rect.left, rect.width - MENU_MAX_WIDTH - 8)),
 			})
 		}
 
 		update()
-		// Menu ikut berpindah saat kanvas digulung, bukan menggantung di tempat lama.
+
+		// Menu ikut berpindah saat kanvas digulung atau jendela diubah ukurannya,
+		// bukan menggantung di tempat lamanya.
 		const canvas = container.querySelector('.document-canvas')
-		canvas?.addEventListener('scroll', update)
-		return () => canvas?.removeEventListener('scroll', update)
+		canvas?.addEventListener('scroll', update, { passive: true })
+		window.addEventListener('resize', update)
+		return () => {
+			canvas?.removeEventListener('scroll', update)
+			window.removeEventListener('resize', update)
+		}
 	}, [editor, selection, containerRef])
 
-	return position
+	return anchor
+}
+
+/**
+ * Tinggi akhir menu: di bawah seleksi kalau muat, di atasnya kalau tidak.
+ *
+ * Container dokumen memotong isinya (`overflow-hidden`), jadi menu yang jatuh
+ * di dekat tepi bawah akan terpangkas separuh. Tingginya baru diketahui setelah
+ * dirender — dan karena diukur di layout effect, koreksinya terjadi sebelum
+ * frame pertama sempat tergambar.
+ */
+function useFlippedTop(
+	anchor: Anchor | null,
+	menuRef: React.RefObject<HTMLDivElement | null>,
+	containerRef: React.RefObject<HTMLDivElement | null>,
+	section: OpenSection,
+): number {
+	const [top, setTop] = useState(0)
+
+	useLayoutEffect(() => {
+		const menu = menuRef.current
+		const container = containerRef.current
+		if (!anchor || !menu || !container) return
+
+		const height = menu.offsetHeight
+		const below = anchor.bottom + MENU_GAP
+		const fitsBelow = below + height <= container.clientHeight - MENU_GAP
+
+		setTop(fitsBelow ? below : Math.max(MENU_GAP, anchor.top - height - MENU_GAP))
+		// `section` ikut jadi dependensi: berpindah ke AI Edit atau daftar sitasi
+		// mengubah tinggi menu, jadi keputusan atas/bawah harus dihitung ulang.
+	}, [anchor, menuRef, containerRef, section])
+
+	return top
 }
