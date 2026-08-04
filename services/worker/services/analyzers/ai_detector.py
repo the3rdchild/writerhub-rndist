@@ -93,14 +93,16 @@ def _label(score: int) -> str:
     return "AI-Generated"
 
 
-def _fill_suggestions(sentences: list[dict], provider: Provider) -> None:
+def _fill_suggestions(
+    sentences: list[dict], provider: Provider, language: str | None = None
+) -> None:
     """Isi suggested rewrite untuk kalimat ber-skor >= 50 - satu batch call
     ai model untuk semuanya; fallback per kalimat terusin ke kamus humanizer."""
     flagged = [s for s in sentences if s["score"] >= 50]
     if not flagged:
         return
 
-    via_api = rewrite_sentences([s["text"] for s in flagged], _HUMANIZE_INSTRUCTION, provider)
+    via_api = rewrite_sentences([s["text"] for s in flagged], _HUMANIZE_INSTRUCTION, provider, language)
     if via_api is not None:
         for s, rewritten in zip(flagged, via_api):
             s["suggestion"] = rewritten if rewritten != s["text"] else None
@@ -110,7 +112,7 @@ def _fill_suggestions(sentences: list[dict], provider: Provider) -> None:
         s["suggestion"] = get_suggestion(s["text"])
 
 
-def run_ai_detector(text: str, provider: Provider) -> dict:
+def run_ai_detector(text: str, provider: Provider, language: str | None = None) -> dict:
     """
     Returns AiDetectorResult:
     { overall_score: int, label: str, sentences: [{text, score, offset, length}] }
@@ -133,7 +135,7 @@ def run_ai_detector(text: str, provider: Provider) -> dict:
             "suggestion": None,
         })
 
-    _fill_suggestions(sentences, provider)
+    _fill_suggestions(sentences, provider, language)
 
     overall = round(sum(scores) / len(scores)) if scores else 0
     return {

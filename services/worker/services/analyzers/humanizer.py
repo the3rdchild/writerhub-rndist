@@ -204,7 +204,7 @@ def _humanize_local(sentence: str) -> str:
     return humanized
 
 
-def run_humanizer(text: str, provider: Provider) -> dict:
+def run_humanizer(text: str, provider: Provider, language: str | None = None) -> dict:
     """
     Returns HumanizerResult:
     { humanized_text: str, changes: [{original, replacement, offset, length}], changes_count: int }
@@ -213,7 +213,7 @@ def run_humanizer(text: str, provider: Provider) -> dict:
     spans = sentence_spans(text)
     stripped = [sent.strip() for sent, _ in spans]
 
-    humanized_all = rewrite_sentences(stripped, _INSTRUCTION, provider)
+    humanized_all = rewrite_sentences(stripped, _INSTRUCTION, provider, language)
     if humanized_all is not None:
         logger.info("[humanizer] pakai LLM (%d kalimat)", len(stripped))
     else:

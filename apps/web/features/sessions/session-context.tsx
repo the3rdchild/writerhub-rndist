@@ -48,6 +48,8 @@ export interface Session {
 	html: string
 	/** Ikon opsional di depan nama tab. */
 	emoji: string | null
+	/** Bahasa pilihan pengguna; null berarti ikut hasil deteksi. */
+	language: string | null
 	comments: CommentThread[]
 	suggestions: EditorSuggestion[]
 	scores: GrammarScores | null
@@ -73,6 +75,7 @@ function createSession(title = 'Untitled document'): Session {
 		text: '',
 		html: '',
 		emoji: null,
+		language: null,
 		comments: [],
 		suggestions: [],
 		scores: null,
@@ -99,6 +102,10 @@ interface SessionContextValue {
 	renameSession: (id: string, title: string) => void
 	duplicateSession: (id: string) => void
 	setSessionEmoji: (id: string, emoji: string | null) => void
+
+	/** Bahasa yang dipilih untuk tab aktif; null berarti otomatis. */
+	languageOverride: string | null
+	setLanguageOverride: (language: string | null) => void
 
 	/** Komentar milik tab yang sedang dibuka. */
 	comments: CommentThread[]
@@ -332,6 +339,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		[setStore],
 	)
 
+	const setLanguageOverride = useCallback(
+		(language: string | null) => {
+			setStore((current) => ({
+				...current,
+				sessions: current.sessions.map((session) =>
+					session.id === current.activeId ? { ...session, language } : session,
+				),
+			}))
+		},
+		[setStore],
+	)
+
 	const addComment = useCallback(
 		(thread: CommentThread) => updateComments((threads) => [...threads, thread]),
 		[updateComments],
@@ -371,6 +390,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			renameSession,
 			duplicateSession,
 			setSessionEmoji,
+			languageOverride: store.sessions.find((s) => s.id === store.activeId)?.language ?? null,
+			setLanguageOverride,
 			comments: store.sessions.find((s) => s.id === store.activeId)?.comments ?? [],
 			addComment,
 			replyToComment,
@@ -387,6 +408,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			renameSession,
 			duplicateSession,
 			setSessionEmoji,
+			setLanguageOverride,
 			addComment,
 			replyToComment,
 			setCommentResolved,

@@ -13,6 +13,8 @@ export interface GrammarCheckInput {
 	file: File | null
 	title: string
 	model: GrammarModel
+	/** Bahasa naskah; worker memakainya agar AI tidak berpindah bahasa. */
+	language: string
 }
 
 /** Antrekan job grammar check. Mengembalikan jobId untuk dipantau lewat SSE. */
@@ -22,6 +24,7 @@ export async function submitGrammarCheck(input: GrammarCheckInput): Promise<JobS
 	else form.append('text', input.text)
 	if (input.title) form.append('title', input.title)
 	form.append('model', input.model)
+	form.append('language', input.language)
 
 	return apiFetch<JobSubmission>('/grammar', { method: 'POST', body: form })
 }

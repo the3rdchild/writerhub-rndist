@@ -15,9 +15,9 @@ import {
 	PanelLoading,
 	PanelScroll,
 	RunButton,
-	ScopeIndicator,
 	StaleNotice,
 } from './panel-parts'
+import { RunScopeBar } from './run-scope-bar'
 
 export interface ChangeListPanelProps {
 	feature: Extract<AnalysisFeature, 'ai_rewriter' | 'humanizer'>
@@ -95,7 +95,7 @@ export function ChangeListPanel({
 			<PanelFooter>
 				{pending.length > 0 && <AcceptAllButton onClick={acceptAll} disabled={isStale} />}
 
-				<ScopeIndicator wordCount={scope?.wordCount ?? null} />
+				<RunScopeBar wordCount={scope?.wordCount ?? null} />
 
 				<RunButton
 					onClick={() => run(scope ?? undefined)}

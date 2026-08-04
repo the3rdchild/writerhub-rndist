@@ -13,12 +13,13 @@ const ANALYSIS_TIMEOUT_MS = 120_000
 export async function runAnalysis<F extends AnalysisFeature>(
 	feature: F,
 	text: string,
+	language: string,
 	signal?: AbortSignal,
 ): Promise<AnalysisResultFor<F>> {
 	const { jobId } = await apiFetch<JobSubmission>('/analyze', {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({ feature, text }),
+		body: JSON.stringify({ feature, text, language }),
 		signal,
 	})
 

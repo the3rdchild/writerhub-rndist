@@ -19,9 +19,9 @@ import {
 	PanelLoading,
 	PanelScroll,
 	RunButton,
-	ScopeIndicator,
 	StaleNotice,
 } from './panel-parts'
+import { RunScopeBar } from './run-scope-bar'
 
 type Sentence = AiDetectorResult['sentences'][number]
 
@@ -212,7 +212,7 @@ export function AiDetectorPanel() {
 					</div>
 				)}
 
-				<ScopeIndicator wordCount={scope?.wordCount ?? null} />
+				<RunScopeBar wordCount={scope?.wordCount ?? null} />
 
 				<RunButton
 					onClick={() => run(scope ?? undefined)}

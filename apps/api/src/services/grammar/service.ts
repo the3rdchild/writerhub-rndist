@@ -53,6 +53,7 @@ export default class GrammarService extends JobSubmissionService {
 				mime_type: upload?.mimeType ?? null,
 				filename: upload?.filename ?? null,
 				model,
+				language: body.language ?? null,
 				...this.providerPayload(provider),
 			})
 

@@ -23,6 +23,8 @@ export interface AnalysisRun {
 	offset: number
 	/** Benar kalau yang dikirim hanya bagian yang disorot pengguna. */
 	scoped: boolean
+	/** Bahasa naskah, supaya AI menjawab dalam bahasa yang sama. */
+	language: string
 }
 
 type LastRunMap = Partial<Record<AnalysisFeature, AnalysisRun>>

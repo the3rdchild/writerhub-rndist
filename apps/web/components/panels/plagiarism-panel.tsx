@@ -12,9 +12,9 @@ import {
 	PanelLoading,
 	PanelScroll,
 	RunButton,
-	ScopeIndicator,
 	StaleNotice,
 } from './panel-parts'
+import { RunScopeBar } from './run-scope-bar'
 
 /** Uniqueness tinggi berarti bagus, jadi skalanya kebalikan dari skor risiko. */
 function uniquenessColor(score: number): string {
@@ -90,7 +90,7 @@ export function PlagiarismPanel() {
 			</PanelScroll>
 
 			<PanelFooter>
-				<ScopeIndicator wordCount={scope?.wordCount ?? null} />
+				<RunScopeBar wordCount={scope?.wordCount ?? null} />
 
 				<RunButton
 					onClick={() => run(scope ?? undefined)}

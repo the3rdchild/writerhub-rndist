@@ -4,6 +4,7 @@ import type { GrammarModel, GrammarSuggestion } from '@writer-hub/shared'
 import { useIsMutating, useMutation, useMutationState } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { useDocument } from '@/features/document/document-context'
+import { useDocumentLanguage } from '@/features/document/use-language'
 import { streamGrammarCheck, streamTimeoutFor, submitGrammarCheck } from './api'
 
 const GRAMMAR_CHECK_KEY = ['grammar', 'check'] as const
@@ -19,6 +20,7 @@ interface GrammarCheckVars {
 	title: string
 	model: GrammarModel
 	selectionOffset: number
+	language: string
 }
 
 /** Seleksi sebagai input grammar check: teks potongan + posisinya di dokumen. */
@@ -42,6 +44,7 @@ export interface GrammarCheckScope {
  */
 export function useGrammarCheck() {
 	const { state, dispatch, hasContent } = useDocument()
+	const language = useDocumentLanguage()
 
 	const mutation = useMutation({
 		mutationKey: GRAMMAR_CHECK_KEY,
@@ -53,6 +56,7 @@ export function useGrammarCheck() {
 				file: vars.selectionOffset > 0 ? null : vars.file,
 				title: vars.title,
 				model: vars.model,
+				language: vars.language,
 			})
 
 			// Offset suggestion dari worker relatif terhadap teks yang diperiksa;
@@ -95,13 +99,32 @@ export function useGrammarCheck() {
 	 */
 	const runCheck = useCallback(
 		(scope?: GrammarCheckScope) => {
+			// Tier standard/advanced berdiri di atas model POS dan daftar kata bahasa
+			// Inggris, jadi naskah bahasa lain harus lewat tier AI - kalau tidak,
+			// hasilnya bukan sekadar sedikit, melainkan menyesatkan.
+			const model = language.needsAiTier ? 'ai' : state.model
+
 			mutation.mutate(
 				scope
-					? { text: scope.text, file: null, title: state.title, model: state.model, selectionOffset: scope.offset }
-					: { text: state.text, file: state.file, title: state.title, model: state.model, selectionOffset: 0 },
+					? {
+							text: scope.text,
+							file: null,
+							title: state.title,
+							model,
+							selectionOffset: scope.offset,
+							language: language.code,
+						}
+					: {
+							text: state.text,
+							file: state.file,
+							title: state.title,
+							model,
+							selectionOffset: 0,
+							language: language.code,
+						},
 			)
 		},
-		[mutation, state.text, state.file, state.title, state.model],
+		[mutation, state.text, state.file, state.title, state.model, language.needsAiTier, language.code],
 	)
 
 	const isRunning = useIsMutating({ mutationKey: GRAMMAR_CHECK_KEY }) > 0
@@ -117,5 +140,7 @@ export function useGrammarCheck() {
 		isRunning,
 		error: isRunning ? null : error,
 		canRun: !isRunning && hasContent,
+		/** Tier yang dipilih pengguna diabaikan karena bahasanya bukan Inggris. */
+		forcedAiTier: language.needsAiTier && state.model !== 'ai',
 	}
 }

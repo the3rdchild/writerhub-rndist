@@ -251,7 +251,7 @@ def _label(score: int) -> str:
     return "High Similarity"
 
 
-def run_plagiarism(text: str, provider: Provider | None = None) -> dict:
+def run_plagiarism(text: str, provider: Provider | None = None, language: str | None = None) -> dict:
     """
     Analisis murni heuristik - `provider` diterima agar tanda tangannya seragam
     dengan analyzer lain, tapi tidak dipakai sama sekali.

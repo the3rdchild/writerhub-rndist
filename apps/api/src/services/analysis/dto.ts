@@ -11,6 +11,8 @@ export const analysisBodySchema = z.object({
 		.trim()
 		.min(MIN_ANALYSIS_TEXT_LENGTH, `Text is too short (min ${MIN_ANALYSIS_TEXT_LENGTH} characters)`)
 		.max(MAX_TEXT_LENGTH, `Text is too long (max ${MAX_TEXT_LENGTH.toLocaleString('en-US')} characters)`),
+	/** Bahasa naskah; worker memakainya agar AI menjawab dalam bahasa yang sama. */
+	language: z.string().trim().min(2).max(12).optional(),
 })
 
 export type AnalysisBody = z.infer<typeof analysisBodySchema>

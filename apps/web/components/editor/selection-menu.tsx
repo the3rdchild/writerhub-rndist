@@ -18,6 +18,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { type PanelId, usePanels } from '@/features/analysis/panel-context'
 import { useChat } from '@/features/chat/chat-context'
+import { useDocumentLanguage } from '@/features/document/use-language'
 import { useSessions } from '@/features/sessions/session-context'
 import { COMMENT_MARK } from '@/features/comments/comment-mark'
 import {
@@ -125,6 +126,7 @@ function MenuBody({
 	const { setActivePanel, markRun } = usePanels()
 	const { attach } = useChat()
 	const { addComment } = useSessions()
+	const language = useDocumentLanguage()
 
 	const sendToChat = () => {
 		const range = selectionTextRange(editor, selection)
@@ -146,6 +148,7 @@ function MenuBody({
 				text: selection.text,
 				offset: range?.offset ?? 0,
 				scoped: true,
+				language: language.code,
 			})
 		}
 		setActivePanel(id)

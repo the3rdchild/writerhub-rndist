@@ -11,7 +11,8 @@ import type { SuggestionFilter } from '@/features/document/document-reducer'
 import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
 import { cn } from '@/lib/utils'
 import { ModelSelector } from './model-selector'
-import { AcceptAllButton, PanelError, PanelFooter, RunButton, ScopeIndicator } from './panel-parts'
+import { AcceptAllButton, PanelError, PanelFooter, RunButton } from './panel-parts'
+import { RunScopeBar } from './run-scope-bar'
 import { SuggestionCard } from './suggestion-card'
 
 const FILTERS: Array<{ key: SuggestionFilter; label: string }> = [
@@ -34,7 +35,7 @@ function qualityBadge(average: number): { text: string; className: string; bar: 
 export function ProofreaderPanel() {
 	const { state, dispatch, correctedText } = useDocument()
 	const { editor } = useEditorInstance()
-	const { runCheck, isRunning, error, canRun } = useGrammarCheck()
+	const { runCheck, isRunning, error, canRun, forcedAiTier } = useGrammarCheck()
 	const scope = useSelectionScope()
 	const [copied, setCopied] = useState(false)
 
@@ -202,7 +203,14 @@ export function ProofreaderPanel() {
 
 				{/* Tepat di atas tombolnya: inilah yang dilihat pengguna sesaat
 				    sebelum mengklik, dan tidak ikut tergulung daftar saran. */}
-				<ScopeIndicator wordCount={scope?.wordCount ?? null} />
+				<RunScopeBar wordCount={scope?.wordCount ?? null} />
+
+				{forcedAiTier && (
+					<p className="rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-[11px] leading-relaxed text-yellow-400">
+						Standard and Advanced only understand English, so this check runs on the AI tier
+						instead.
+					</p>
+				)}
 
 				<div className="flex items-center gap-2">
 					<ModelSelector

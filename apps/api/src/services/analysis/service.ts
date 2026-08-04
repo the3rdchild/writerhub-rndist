@@ -27,6 +27,7 @@ export default class AnalysisService extends JobSubmissionService {
 				request_id: requestId,
 				feature: body.feature,
 				text: body.text,
+				language: body.language ?? null,
 				...this.providerPayload(provider),
 			})
 

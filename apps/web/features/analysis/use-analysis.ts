@@ -4,6 +4,7 @@ import type { AnalysisFeature, AnalysisResultFor } from '@writer-hub/shared'
 import { useQuery } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { useDocument } from '@/features/document/document-context'
+import { useDocumentLanguage } from '@/features/document/use-language'
 import { fingerprint } from '@/lib/utils'
 import { runAnalysis } from './api'
 import { type AnalysisRun, usePanels } from './panel-context'
@@ -23,7 +24,7 @@ export interface AnalysisController<F extends AnalysisFeature> {
 	/** Hasil yang ditampilkan berasal dari bagian yang disorot, bukan seluruh naskah. */
 	isScoped: boolean
 	/** Tanpa argumen berarti seluruh dokumen. */
-	run: (scope?: AnalysisRun) => void
+	run: (scope?: { text: string; offset: number }) => void
 }
 
 /**
@@ -37,18 +38,20 @@ export interface AnalysisController<F extends AnalysisFeature> {
 export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisController<F> {
 	const { state } = useDocument()
 	const { lastRun, markRun } = usePanels()
+	const language = useDocumentLanguage()
 
 	const currentText = state.text
 	const requested = lastRun[feature]
 	const requestedKey = requested?.text != null ? fingerprint(requested.text) : null
 
 	const query = useQuery({
-		queryKey: ['analysis', feature, requestedKey, requested?.offset ?? 0],
+		queryKey: ['analysis', feature, requestedKey, requested?.offset ?? 0, requested?.language],
 		queryFn: async ({ signal }) => {
-			const raw = await runAnalysis(feature, (requested as AnalysisRun).text, signal)
+			const run = requested as AnalysisRun
+			const raw = await runAnalysis(feature, run.text, run.language, signal)
 			// Digeser di sini, sekali, supaya seluruh pemakainya tidak perlu tahu
 			// apakah hasil ini datang dari potongan atau dari naskah penuh.
-			return shiftAnalysisResult(feature, raw, (requested as AnalysisRun).offset)
+			return shiftAnalysisResult(feature, raw, run.offset)
 		},
 		enabled: requested !== undefined,
 		staleTime: Number.POSITIVE_INFINITY,
@@ -58,8 +61,10 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 	})
 
 	const run = useCallback(
-		(scope?: AnalysisRun) => {
-			const next: AnalysisRun = scope ?? { text: currentText, offset: 0, scoped: false }
+		(scope?: { text: string; offset: number }) => {
+			const next: AnalysisRun = scope
+				? { text: scope.text, offset: scope.offset, scoped: true, language: language.code }
+				: { text: currentText, offset: 0, scoped: false, language: language.code }
 			markRun(feature, next)
 
 			// Permintaan identik dengan yang terakhir: kunci query tidak berubah,
@@ -68,7 +73,7 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 				void query.refetch()
 			}
 		},
-		[markRun, feature, currentText, requested, query],
+		[markRun, feature, currentText, requested, query, language.code],
 	)
 
 	return {

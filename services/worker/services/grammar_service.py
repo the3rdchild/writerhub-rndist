@@ -77,6 +77,10 @@ def _run(job_id: str, request_id: str, payload: dict):
 
     provider = provider_from_payload(payload) if model == "ai" else None
 
+    # Bahasa dari payload menang atas GRAMMAR_LANGUAGE di env: env hanya
+    # cadangan untuk klien lama yang belum mengirim bahasanya.
+    language = payload.get("language") or GRAMMAR_LANGUAGE
+
     channel = f"grammar:stream:{job_id}"
 
     def on_checkpoint(suggestions: list):
@@ -85,7 +89,7 @@ def _run(job_id: str, request_id: str, payload: dict):
     # 3. analisa grammar - kirim snapshot per checker via Redis pub/sub
     with _svc.timed_step("grammar:analyze"):
         result = analyze_grammar(
-            text, language=GRAMMAR_LANGUAGE, model=model,
+            text, language=language, model=model,
             on_checkpoint=on_checkpoint, provider=provider,
         )
 

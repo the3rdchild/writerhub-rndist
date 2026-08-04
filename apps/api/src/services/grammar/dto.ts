@@ -21,6 +21,7 @@ export const grammarBodySchema = z
 		file: documentFileSchema.optional(),
 		title: z.string().trim().max(255).optional(),
 		model: z.enum(GRAMMAR_MODELS).optional().default('standard'),
+		language: z.string().trim().min(2).max(12).optional(),
 	})
 	.refine((data) => data.text || data.file, {
 		message: 'Either text or a file is required',
