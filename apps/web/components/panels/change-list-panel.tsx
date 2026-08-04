@@ -15,7 +15,7 @@ import {
 	PanelLoading,
 	PanelScroll,
 	RunButton,
-	SelectionScopeChip,
+	ScopeIndicator,
 	StaleNotice,
 } from './panel-parts'
 
@@ -26,6 +26,8 @@ export interface ChangeListPanelProps {
 	emptyDescription: string
 	runLabel: string
 	rerunLabel: string
+	/** Label saat Run akan bekerja pada seleksi, bukan seluruh naskah. */
+	scopedLabel: string
 	runningLabel: string
 	/** Pesan saat analisis selesai tapi tidak ada yang perlu diubah. */
 	noChangesLabel: (result: unknown) => string
@@ -43,6 +45,7 @@ export function ChangeListPanel({
 	emptyDescription,
 	runLabel,
 	rerunLabel,
+	scopedLabel,
 	runningLabel,
 	noChangesLabel,
 }: ChangeListPanelProps) {
@@ -56,8 +59,6 @@ export function ChangeListPanel({
 		<>
 			<PanelScroll>
 				{isStale && <StaleNotice />}
-				{scope && !result && <SelectionScopeChip wordCount={scope.wordCount} />}
-
 				{isRunning && <PanelLoading label={runningLabel} />}
 				{error && !isRunning && <PanelError message={error.message} />}
 
@@ -93,12 +94,15 @@ export function ChangeListPanel({
 
 			<PanelFooter>
 				{pending.length > 0 && <AcceptAllButton onClick={acceptAll} disabled={isStale} />}
+
+				<ScopeIndicator wordCount={scope?.wordCount ?? null} />
+
 				<RunButton
-				onClick={() => run(scope ?? undefined)}
+					onClick={() => run(scope ?? undefined)}
 					disabled={!canRun}
 					isRunning={isRunning}
 					runningLabel={runningLabel}
-					label={result ? rerunLabel : runLabel}
+					label={scope ? scopedLabel : result ? rerunLabel : runLabel}
 				/>
 			</PanelFooter>
 		</>

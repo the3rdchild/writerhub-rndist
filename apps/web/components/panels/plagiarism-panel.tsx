@@ -12,7 +12,7 @@ import {
 	PanelLoading,
 	PanelScroll,
 	RunButton,
-	SelectionScopeChip,
+	ScopeIndicator,
 	StaleNotice,
 } from './panel-parts'
 
@@ -33,7 +33,6 @@ export function PlagiarismPanel() {
 		<>
 			<PanelScroll>
 				{isStale && <StaleNotice />}
-				{scope && !result && <SelectionScopeChip wordCount={scope.wordCount} />}
 				{isRunning && <PanelLoading label="Checking..." />}
 				{error && !isRunning && <PanelError message={error.message} />}
 
@@ -91,12 +90,14 @@ export function PlagiarismPanel() {
 			</PanelScroll>
 
 			<PanelFooter>
+				<ScopeIndicator wordCount={scope?.wordCount ?? null} />
+
 				<RunButton
-				onClick={() => run(scope ?? undefined)}
+					onClick={() => run(scope ?? undefined)}
 					disabled={!canRun}
 					isRunning={isRunning}
 					runningLabel="Checking..."
-					label={result ? 'Check Again' : 'Check Plagiarism'}
+					label={scope ? 'Check Selection' : result ? 'Check Again' : 'Check Plagiarism'}
 				/>
 			</PanelFooter>
 		</>

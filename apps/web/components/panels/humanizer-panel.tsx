@@ -12,6 +12,7 @@ export function HumanizerPanel() {
 			emptyTitle="Make your text sound human"
 			emptyDescription="Replace stiff, AI-sounding phrasing - accept or dismiss each suggestion"
 			runLabel="Humanize Text"
+			scopedLabel="Humanize Selection"
 			rerunLabel="Humanize Again"
 			runningLabel="Humanizing..."
 			noChangesLabel={(result) =>

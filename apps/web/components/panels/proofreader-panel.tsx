@@ -11,7 +11,7 @@ import type { SuggestionFilter } from '@/features/document/document-reducer'
 import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
 import { cn } from '@/lib/utils'
 import { ModelSelector } from './model-selector'
-import { AcceptAllButton, PanelError, PanelFooter, RunButton, SelectionScopeChip } from './panel-parts'
+import { AcceptAllButton, PanelError, PanelFooter, RunButton, ScopeIndicator } from './panel-parts'
 import { SuggestionCard } from './suggestion-card'
 
 const FILTERS: Array<{ key: SuggestionFilter; label: string }> = [
@@ -113,11 +113,6 @@ export function ProofreaderPanel() {
 			</div>
 
 			<div className="min-h-0 flex-1 overflow-y-auto bg-surface-inset">
-				{scope && !hasResults && (
-					<div className="p-3">
-						<SelectionScopeChip wordCount={scope.wordCount} />
-					</div>
-				)}
 				{!hasResults && !isRunning ? (
 					<div className="flex h-full flex-col items-center justify-center px-6 text-center">
 						<p className="text-sm font-medium text-foreground">Nothing checked yet</p>
@@ -205,7 +200,11 @@ export function ProofreaderPanel() {
 					</>
 				)}
 
-				<div className="mt-2 flex items-center gap-2">
+				{/* Tepat di atas tombolnya: inilah yang dilihat pengguna sesaat
+				    sebelum mengklik, dan tidak ikut tergulung daftar saran. */}
+				<ScopeIndicator wordCount={scope?.wordCount ?? null} />
+
+				<div className="flex items-center gap-2">
 					<ModelSelector
 						value={state.model}
 						disabled={isRunning}
@@ -217,7 +216,7 @@ export function ProofreaderPanel() {
 							disabled={!canRun}
 							isRunning={isRunning}
 							runningLabel="Checking..."
-							label={hasResults ? 'Check Again' : 'Check Grammar'}
+							label={scope ? 'Check Selection' : hasResults ? 'Check Again' : 'Check Grammar'}
 						/>
 					</div>
 				</div>

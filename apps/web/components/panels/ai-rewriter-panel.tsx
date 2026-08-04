@@ -11,6 +11,7 @@ export function AiRewriterPanel() {
 			emptyTitle="Rewrite your text"
 			emptyDescription="Improve clarity and style - accept or dismiss each change"
 			runLabel="Rewrite Text"
+			scopedLabel="Rewrite Selection"
 			rerunLabel="Rewrite Again"
 			runningLabel="Rewriting..."
 			noChangesLabel={() => 'All changes applied ✓'}

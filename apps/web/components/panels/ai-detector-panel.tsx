@@ -19,7 +19,7 @@ import {
 	PanelLoading,
 	PanelScroll,
 	RunButton,
-	SelectionScopeChip,
+	ScopeIndicator,
 	StaleNotice,
 } from './panel-parts'
 
@@ -131,7 +131,6 @@ export function AiDetectorPanel() {
 		<>
 			<PanelScroll>
 				{isStale && <StaleNotice />}
-				{scope && !result && <SelectionScopeChip wordCount={scope.wordCount} />}
 				{isRunning && <PanelLoading label="Analyzing..." />}
 				{error && !isRunning && <PanelError message={error.message} />}
 
@@ -213,12 +212,14 @@ export function AiDetectorPanel() {
 					</div>
 				)}
 
+				<ScopeIndicator wordCount={scope?.wordCount ?? null} />
+
 				<RunButton
 					onClick={() => run(scope ?? undefined)}
 					disabled={!canRun}
 					isRunning={isRunning}
 					runningLabel="Analyzing..."
-					label={result ? 'Run Again' : 'Run Detection'}
+					label={scope ? 'Detect in Selection' : result ? 'Run Again' : 'Run Detection'}
 				/>
 			</PanelFooter>
 		</>

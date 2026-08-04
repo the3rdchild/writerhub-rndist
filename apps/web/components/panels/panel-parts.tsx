@@ -1,6 +1,14 @@
 'use client'
 
-import { AlertTriangle, CheckCircle2, Loader2, type LucideIcon, TextSelection, X } from 'lucide-react'
+import {
+	AlertTriangle,
+	CheckCircle2,
+	FileText,
+	Loader2,
+	type LucideIcon,
+	TextSelection,
+	X,
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
@@ -34,12 +42,26 @@ export function StaleNotice() {
 }
 
 /**
- * Indikator bahwa Run akan bekerja pada seleksi teks, bukan seluruh naskah.
+ * Apa yang akan diperiksa saat Run ditekan.
+ *
+ * Kedua keadaan diberi tanda, termasuk "seluruh dokumen". Versi sebelumnya
+ * hanya menandai keadaan seleksi dan diam saat tidak ada — dan keheningan itu
+ * justru terbaca sebagai "berarti seluruh dokumen", padahal ia sama saja dengan
+ * "indikatornya memang tidak muncul". Pengguna tidak bisa membedakan keduanya.
  *
  * Non-interaktif: seleksi tetap terlihat di editor (lihat SelectionHighlight),
  * jadi untuk kembali ke mode dokumen-penuh pengguna cukup meng-klik editor.
  */
-export function SelectionScopeChip({ wordCount }: { wordCount: number }) {
+export function ScopeIndicator({ wordCount }: { wordCount: number | null }) {
+	if (wordCount === null) {
+		return (
+			<div className="flex items-center gap-2 rounded-xl border border-line bg-[var(--overlay-hover)] px-3 py-2 text-xs text-subtle">
+				<FileText className="h-3.5 w-3.5 shrink-0" />
+				<span>Whole document</span>
+			</div>
+		)
+	}
+
 	return (
 		<div className="flex items-center gap-2 rounded-xl border border-accent/20 bg-accent/10 px-3 py-2 text-xs text-accent">
 			<TextSelection className="h-3.5 w-3.5 shrink-0" />
