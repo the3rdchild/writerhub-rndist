@@ -6,9 +6,10 @@ import { ScoreRing } from '@/components/ui/score-ring'
 import { useDocument } from '@/features/document/document-context'
 import type { SuggestionFilter } from '@/features/document/document-reducer'
 import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
+import { useSelectionScope } from '@/features/editor/selection'
 import { cn } from '@/lib/utils'
 import { ModelSelector } from './model-selector'
-import { AcceptAllButton, PanelError, PanelFooter, RunButton } from './panel-parts'
+import { AcceptAllButton, PanelError, PanelFooter, RunButton, SelectionScopeChip } from './panel-parts'
 import { SuggestionCard } from './suggestion-card'
 
 const FILTERS: Array<{ key: SuggestionFilter; label: string }> = [
@@ -31,6 +32,7 @@ function qualityBadge(average: number): { text: string; className: string; bar: 
 export function ProofreaderPanel() {
 	const { state, dispatch, correctedText } = useDocument()
 	const { runCheck, isRunning, error, canRun } = useGrammarCheck()
+	const scope = useSelectionScope()
 	const [copied, setCopied] = useState(false)
 
 	const visible = state.suggestions.filter(
@@ -77,6 +79,11 @@ export function ProofreaderPanel() {
 			</div>
 
 			<div className="min-h-0 flex-1 overflow-y-auto bg-surface-inset">
+				{scope && !hasResults && (
+					<div className="p-3">
+						<SelectionScopeChip wordCount={scope.wordCount} />
+					</div>
+				)}
 				{!hasResults && !isRunning ? (
 					<div className="flex h-full flex-col items-center justify-center px-6 text-center">
 						<p className="text-sm font-medium text-foreground">Nothing checked yet</p>
@@ -172,7 +179,7 @@ export function ProofreaderPanel() {
 					/>
 					<div className="shrink-0">
 						<RunButton
-							onClick={() => runCheck()}
+							onClick={() => runCheck(scope ?? undefined)}
 							disabled={!canRun}
 							isRunning={isRunning}
 							runningLabel="Checking..."

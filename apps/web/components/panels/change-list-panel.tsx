@@ -5,6 +5,7 @@ import type { LucideIcon } from 'lucide-react'
 import { useAnalysis } from '@/features/analysis/use-analysis'
 import { usePendingChanges } from '@/features/analysis/use-pending-changes'
 import { useRangeHighlight } from '@/features/document/use-range-highlight'
+import { useSelectionScope } from '@/features/editor/selection'
 import {
 	AcceptAllButton,
 	ChangeCard,
@@ -14,6 +15,7 @@ import {
 	PanelLoading,
 	PanelScroll,
 	RunButton,
+	SelectionScopeChip,
 	StaleNotice,
 } from './panel-parts'
 
@@ -48,11 +50,13 @@ export function ChangeListPanel({
 	const changes = (result as { changes?: TextChange[] } | undefined)?.changes
 	const { pending, accept, dismiss, acceptAll } = usePendingChanges(changes)
 	const { rangeProps } = useRangeHighlight()
+	const scope = useSelectionScope()
 
 	return (
 		<>
 			<PanelScroll>
 				{isStale && <StaleNotice />}
+				{scope && !result && <SelectionScopeChip wordCount={scope.wordCount} />}
 
 				{isRunning && <PanelLoading label={runningLabel} />}
 				{error && !isRunning && <PanelError message={error.message} />}
@@ -90,7 +94,7 @@ export function ChangeListPanel({
 			<PanelFooter>
 				{pending.length > 0 && <AcceptAllButton onClick={acceptAll} disabled={isStale} />}
 				<RunButton
-					onClick={() => run()}
+				onClick={() => run(scope ?? undefined)}
 					disabled={!canRun}
 					isRunning={isRunning}
 					runningLabel={runningLabel}

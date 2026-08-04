@@ -1,7 +1,8 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useEditorInstance } from '@/features/editor/editor-context'
 import { buildTextIndex, pmRangeToText } from '@/features/document/tiptap-offsets'
 
 /**
@@ -77,6 +78,46 @@ export function selectionTextRange(
 	selection: EditorSelection,
 ): { offset: number; length: number } | null {
 	return pmRangeToText(buildTextIndex(editor.state.doc), selection.from, selection.to)
+}
+
+/**
+ * Seleksi editor yang sedang aktif, sebagai scope analisis.
+ *
+ * Dipakai panel-panel kanan supaya tombol Run mereka bisa bekerja pada teks
+ * yang sedang disorot — sama seperti menu popup seleksi, tapi tanpa harus
+ * melewati popup-nya. Seleksi dipertahankan di state ProseMirror walau editor
+ * kehilangan fokus (lihat SelectionHighlight), jadi scope ini tetap valid
+ * begitu pengguna mengklik panel/rail di kanan.
+ *
+ * Offset teks polos baru dihitung sekali di sini (bukan tiap transaksi), jadi
+ * panel yang memangginya tidak menanggung pemindaian dokumen pada setiap ketikan.
+ */
+export interface SelectionScope {
+	/** Teks polos yang terseleksi. */
+	text: string
+	/** Posisi seleksi di dalam dokumen penuh — untuk menggeser offset hasil. */
+	offset: number
+	/** Selalu true; menandai bahwa ini analisis per-seleksi, bukan naskah penuh. */
+	scoped: true
+	/** Perkiraan jumlah kata; ditampilkan di chip indikator. */
+	wordCount: number
+}
+
+export function useSelectionScope(): SelectionScope | null {
+	const { editor } = useEditorInstance()
+	const selection = useEditorSelection(editor)
+
+	return useMemo(() => {
+		if (!editor || !selection) return null
+		const range = selectionTextRange(editor, selection)
+		if (!range) return null
+		return {
+			text: selection.text,
+			offset: range.offset,
+			scoped: true,
+			wordCount: selection.words,
+		}
+	}, [editor, selection])
 }
 
 /**

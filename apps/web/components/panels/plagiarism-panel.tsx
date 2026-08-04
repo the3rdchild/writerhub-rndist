@@ -3,6 +3,7 @@
 import { Search, TriangleAlert } from 'lucide-react'
 import { useAnalysis } from '@/features/analysis/use-analysis'
 import { useRangeHighlight } from '@/features/document/use-range-highlight'
+import { useSelectionScope } from '@/features/editor/selection'
 import { cn } from '@/lib/utils'
 import {
 	PanelEmptyState,
@@ -11,6 +12,7 @@ import {
 	PanelLoading,
 	PanelScroll,
 	RunButton,
+	SelectionScopeChip,
 	StaleNotice,
 } from './panel-parts'
 
@@ -25,11 +27,13 @@ function uniquenessColor(score: number): string {
 export function PlagiarismPanel() {
 	const { result, isRunning, error, isStale, canRun, run } = useAnalysis('plagiarism')
 	const { rangeProps } = useRangeHighlight()
+	const scope = useSelectionScope()
 
 	return (
 		<>
 			<PanelScroll>
 				{isStale && <StaleNotice />}
+				{scope && !result && <SelectionScopeChip wordCount={scope.wordCount} />}
 				{isRunning && <PanelLoading label="Checking..." />}
 				{error && !isRunning && <PanelError message={error.message} />}
 
@@ -88,7 +92,7 @@ export function PlagiarismPanel() {
 
 			<PanelFooter>
 				<RunButton
-					onClick={() => run()}
+				onClick={() => run(scope ?? undefined)}
 					disabled={!canRun}
 					isRunning={isRunning}
 					runningLabel="Checking..."

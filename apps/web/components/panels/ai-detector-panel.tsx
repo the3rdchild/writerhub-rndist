@@ -8,6 +8,7 @@ import { useAnalysis } from '@/features/analysis/use-analysis'
 import { useDocument } from '@/features/document/document-context'
 import { replaceRange } from '@/features/document/suggestions'
 import { useRangeHighlight } from '@/features/document/use-range-highlight'
+import { useSelectionScope } from '@/features/editor/selection'
 import {
 	AcceptAllButton,
 	AcceptDismissRow,
@@ -17,6 +18,7 @@ import {
 	PanelLoading,
 	PanelScroll,
 	RunButton,
+	SelectionScopeChip,
 	StaleNotice,
 } from './panel-parts'
 
@@ -34,6 +36,7 @@ export function AiDetectorPanel() {
 	const { result, isRunning, error, isStale, canRun, run } = useAnalysis('ai_detector')
 	const { state, dispatch } = useDocument()
 	const { rangeProps } = useRangeHighlight()
+	const scope = useSelectionScope()
 
 	const [sentences, setSentences] = useState<SentenceState[]>([])
 
@@ -111,6 +114,7 @@ export function AiDetectorPanel() {
 		<>
 			<PanelScroll>
 				{isStale && <StaleNotice />}
+				{scope && !result && <SelectionScopeChip wordCount={scope.wordCount} />}
 				{isRunning && <PanelLoading label="Analyzing..." />}
 				{error && !isRunning && <PanelError message={error.message} />}
 

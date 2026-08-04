@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertTriangle, CheckCircle2, Loader2, type LucideIcon, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Loader2, type LucideIcon, TextSelection, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
@@ -29,6 +29,23 @@ export function StaleNotice() {
 		<div className="flex items-center gap-2 rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-400">
 			<AlertTriangle className="h-3.5 w-3.5 shrink-0" />
 			Text has changed — run again for up-to-date results
+		</div>
+	)
+}
+
+/**
+ * Indikator bahwa Run akan bekerja pada seleksi teks, bukan seluruh naskah.
+ *
+ * Non-interaktif: seleksi tetap terlihat di editor (lihat SelectionHighlight),
+ * jadi untuk kembali ke mode dokumen-penuh pengguna cukup meng-klik editor.
+ */
+export function SelectionScopeChip({ wordCount }: { wordCount: number }) {
+	return (
+		<div className="flex items-center gap-2 rounded-xl border border-accent/20 bg-accent/10 px-3 py-2 text-xs text-accent">
+			<TextSelection className="h-3.5 w-3.5 shrink-0" />
+			<span>
+				Selection · {wordCount} {wordCount === 1 ? 'word' : 'words'}
+			</span>
 		</div>
 	)
 }
