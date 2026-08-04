@@ -25,6 +25,22 @@ const AUTOSAVE_DEBOUNCE_MS = 400
  * sedangkan `html` yang membuat format bertahan saat berpindah tab. Keduanya
  * disimpan dari keadaan editor yang sama pada saat yang sama.
  */
+export interface CommentReply {
+	author: string
+	text: string
+	at: number
+}
+
+/** Satu utas komentar; jangkarnya adalah mark bernama sama di dalam naskah. */
+export interface CommentThread {
+	id: string
+	/** Kutipan teks saat komentar dibuat — dipakai kalau mark-nya hilang. */
+	quote: string
+	replies: CommentReply[]
+	resolved: boolean
+	createdAt: number
+}
+
 export interface Session {
 	id: string
 	title: string
@@ -32,6 +48,7 @@ export interface Session {
 	html: string
 	/** Ikon opsional di depan nama tab. */
 	emoji: string | null
+	comments: CommentThread[]
 	suggestions: EditorSuggestion[]
 	scores: GrammarScores | null
 	updatedAt: number
@@ -56,6 +73,7 @@ function createSession(title = 'Untitled document'): Session {
 		text: '',
 		html: '',
 		emoji: null,
+		comments: [],
 		suggestions: [],
 		scores: null,
 		updatedAt: Date.now(),
@@ -81,6 +99,13 @@ interface SessionContextValue {
 	renameSession: (id: string, title: string) => void
 	duplicateSession: (id: string) => void
 	setSessionEmoji: (id: string, emoji: string | null) => void
+
+	/** Komentar milik tab yang sedang dibuka. */
+	comments: CommentThread[]
+	addComment: (thread: CommentThread) => void
+	replyToComment: (id: string, reply: CommentReply) => void
+	setCommentResolved: (id: string, resolved: boolean) => void
+	removeComment: (id: string) => void
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null)
@@ -286,6 +311,55 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		[setStore],
 	)
 
+	/**
+	 * Komentar selalu menempel pada tab yang sedang aktif.
+	 *
+	 * Ia tidak ikut lewat `snapshot`: autosave memotret naskah dari editor, dan
+	 * menimpa daftar komentar dari sana akan menghapus komentar yang baru saja
+	 * ditambahkan sebelum potret berikutnya sempat memuatnya.
+	 */
+	const updateComments = useCallback(
+		(change: (threads: CommentThread[]) => CommentThread[]) => {
+			setStore((current) => ({
+				...current,
+				sessions: current.sessions.map((session) =>
+					session.id === current.activeId
+						? { ...session, comments: change(session.comments ?? []) }
+						: session,
+				),
+			}))
+		},
+		[setStore],
+	)
+
+	const addComment = useCallback(
+		(thread: CommentThread) => updateComments((threads) => [...threads, thread]),
+		[updateComments],
+	)
+
+	const replyToComment = useCallback(
+		(id: string, reply: CommentReply) =>
+			updateComments((threads) =>
+				threads.map((thread) =>
+					thread.id === id ? { ...thread, replies: [...thread.replies, reply] } : thread,
+				),
+			),
+		[updateComments],
+	)
+
+	const setCommentResolved = useCallback(
+		(id: string, resolved: boolean) =>
+			updateComments((threads) =>
+				threads.map((thread) => (thread.id === id ? { ...thread, resolved } : thread)),
+			),
+		[updateComments],
+	)
+
+	const removeComment = useCallback(
+		(id: string) => updateComments((threads) => threads.filter((thread) => thread.id !== id)),
+		[updateComments],
+	)
+
 	const value = useMemo<SessionContextValue>(
 		() => ({
 			sessions: store.sessions,
@@ -297,6 +371,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			renameSession,
 			duplicateSession,
 			setSessionEmoji,
+			comments: store.sessions.find((s) => s.id === store.activeId)?.comments ?? [],
+			addComment,
+			replyToComment,
+			setCommentResolved,
+			removeComment,
 		}),
 		[
 			store.sessions,
@@ -308,6 +387,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			renameSession,
 			duplicateSession,
 			setSessionEmoji,
+			addComment,
+			replyToComment,
+			setCommentResolved,
+			removeComment,
 		],
 	)
 

@@ -4,13 +4,17 @@ import { X } from 'lucide-react'
 import { useEffect } from 'react'
 import { type PanelId, usePanels } from '@/features/analysis/panel-context'
 import { useDocument } from '@/features/document/document-context'
+import { AiChatPanel } from './ai-chat-panel'
 import { AiDetectorPanel } from './ai-detector-panel'
+import { CommentsPanel } from './comments-panel'
 import { AiRewriterPanel } from './ai-rewriter-panel'
 import { HumanizerPanel } from './humanizer-panel'
 import { PlagiarismPanel } from './plagiarism-panel'
 import { ProofreaderPanel } from './proofreader-panel'
 
 const PANEL_TITLES: Record<PanelId, string> = {
+	ai_chat: 'AI Chat',
+	comments: 'Comments',
 	proofreader: 'Proofreader',
 	ai_detector: 'AI Detector',
 	ai_rewriter: 'AI Rewriter',
@@ -20,6 +24,10 @@ const PANEL_TITLES: Record<PanelId, string> = {
 
 function PanelBody({ panel }: { panel: PanelId }) {
 	switch (panel) {
+		case 'ai_chat':
+			return <AiChatPanel />
+		case 'comments':
+			return <CommentsPanel />
 		case 'proofreader':
 			return <ProofreaderPanel />
 		case 'ai_detector':

@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { type ReactNode, useState } from 'react'
 import { PanelProvider } from '@/features/analysis/panel-context'
+import { ChatProvider } from '@/features/chat/chat-context'
 import { DocumentProvider } from '@/features/document/document-context'
 import { EditorInstanceProvider } from '@/features/editor/editor-context'
 import { SessionProvider } from '@/features/sessions/session-context'
@@ -36,7 +37,9 @@ export function Providers({ children }: { children: ReactNode }) {
 					    berada di dalam jangkauan instance editor. */}
 					<EditorInstanceProvider>
 						<SessionProvider>
-							<PanelProvider>{children}</PanelProvider>
+							<PanelProvider>
+								<ChatProvider>{children}</ChatProvider>
+							</PanelProvider>
 						</SessionProvider>
 					</EditorInstanceProvider>
 				</DocumentProvider>

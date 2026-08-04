@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useDocument } from '@/features/document/document-context'
 import { suggestionHighlightKey, SuggestionHighlight } from '@/features/document/suggestion-highlight'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
+import { CommentMark } from '@/features/comments/comment-mark'
 import { BlockIndentExtension } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
 import { PageBreak } from '@/features/editor/page-break'
@@ -25,6 +26,7 @@ import { editorPlainText, textToParagraphs } from '@/features/editor/text-conten
 import { shortcutKeys } from '@/features/shortcuts/registry'
 import { useSettings, type FontSize } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
+import { SelectionMenu } from './selection-menu'
 import { type PopoverPosition, SuggestionPopover } from './suggestion-popover'
 
 const FONT_SIZE_CLASS: Record<FontSize, string> = {
@@ -89,6 +91,7 @@ export function TiptapEditor({
 			BlockIndentExtension,
 			PageBreak,
 			TableHeaderRepeat,
+			CommentMark,
 			Pagination.configure({
 				geometry,
 				onPageCountChange: (pageCount) => pageCountRef.current?.(pageCount),
@@ -263,6 +266,7 @@ export function TiptapEditor({
 				/>
 			)}
 			<EditorContent editor={editor} />
+			<SelectionMenu editor={editor} containerRef={containerRef} />
 		</>
 	)
 }

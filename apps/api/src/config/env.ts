@@ -69,6 +69,19 @@ export const env = {
 	/** Klien `ransel-ai` (header x-ransel-ai-api-key). */
 	RANSEL_AI_API_KEY: str('RANSEL_AI_API_KEY'),
 
+	/**
+	 * Provider LLM untuk percakapan. Berbeda dari modul analisis yang
+	 * providernya dikirim ke worker lewat payload job: chat dialirkan langsung
+	 * dari sini, jadi API butuh kredensialnya sendiri.
+	 *
+	 * Pada `AUTH_MODE=pp` nilai ini hanya cadangan — yang dipakai adalah provider
+	 * hasil resolve admin-ppe per pengguna. Pada mode lokal, inilah satu-satunya
+	 * sumbernya. AI_BASE_URL adalah base URL tanpa `/chat/completions`.
+	 */
+	AI_BASE_URL: str('AI_BASE_URL', 'https://openrouter.ai/api/v1'),
+	AI_API_KEY: str('AI_API_KEY'),
+	AI_MODEL: str('AI_MODEL', 'openai/gpt-4o-mini'),
+
 	// ── admin-ppe: resolusi provider LLM & pencatatan kuota/token ──
 	PP_EXTENDED_ADMIN_URL: str('PP_EXTENDED_ADMIN_URL'),
 	PP_EXTENDED_ADMIN_HMAC_SECRET: str('PP_EXTENDED_ADMIN_HMAC_SECRET'),

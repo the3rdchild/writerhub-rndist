@@ -1,15 +1,26 @@
 'use client'
 
-import { Bot, type LucideIcon, RefreshCw, Search, SpellCheck, UserCheck } from 'lucide-react'
+import {
+	Bot,
+	type LucideIcon,
+	MessageSquare,
+	MessagesSquare,
+	RefreshCw,
+	Search,
+	SpellCheck,
+	UserCheck,
+} from 'lucide-react'
 import { type PanelId, usePanels } from '@/features/analysis/panel-context'
 import { cn } from '@/lib/utils'
 
 const PANELS: Array<{ id: PanelId; icon: LucideIcon; label: string }> = [
+	{ id: 'ai_chat', icon: MessagesSquare, label: 'AI Chat' },
 	{ id: 'proofreader', icon: SpellCheck, label: 'Proofreader' },
 	{ id: 'ai_detector', icon: Bot, label: 'AI Detector' },
 	{ id: 'ai_rewriter', icon: RefreshCw, label: 'AI Rewriter' },
 	{ id: 'humanizer', icon: UserCheck, label: 'Humanizer' },
 	{ id: 'plagiarism', icon: Search, label: 'Plagiarism' },
+	{ id: 'comments', icon: MessageSquare, label: 'Comments' },
 ]
 
 const COLLAPSED_WIDTH = 56

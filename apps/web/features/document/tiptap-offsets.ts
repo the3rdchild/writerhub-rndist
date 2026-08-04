@@ -67,6 +67,34 @@ function textPosToPM({ segments }: TextIndex, textPos: number): number | null {
 	return null
 }
 
+function pmPosToText({ segments }: TextIndex, pmPos: number): number | null {
+	for (const segment of segments) {
+		const end = segment.pmStart + segment.length
+		if (pmPos >= segment.pmStart && pmPos <= end) {
+			return segment.textStart + (pmPos - segment.pmStart)
+		}
+	}
+	return null
+}
+
+/**
+ * Arah sebaliknya: rentang ProseMirror jadi offset teks polos.
+ *
+ * Dipakai saat modul dijalankan hanya pada bagian yang disorot — hasilnya
+ * berkoordinat potongan, dan offset inilah yang mengembalikannya ke koordinat
+ * dokumen.
+ */
+export function pmRangeToText(
+	index: TextIndex,
+	from: number,
+	to: number,
+): { offset: number; length: number } | null {
+	const start = pmPosToText(index, from)
+	const end = pmPosToText(index, to)
+	if (start === null || end === null || end <= start) return null
+	return { offset: start, length: end - start }
+}
+
 /** Ubah rentang teks polos jadi rentang ProseMirror; null kalau di luar jangkauan. */
 export function textRangeToPM(
 	index: TextIndex,
