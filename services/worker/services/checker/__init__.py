@@ -36,7 +36,7 @@ def analyze_grammar(
     text: str,
     language: str = "en",
     model: str = "standard",
-    on_checkpoint=None,       # callable(suggestions: list[dict]) — dipanggil setiap checker selesai
+    on_checkpoint=None,       # callable(suggestions: list[dict]) - dipanggil setiap checker selesai
     provider=None,
 ) -> dict:
     text = text or ""

@@ -13,7 +13,7 @@
 #   - bun-dev      : dependensi Bun lengkap untuk api & web
 #   - worker-dev   : dependensi Python + auto-restart
 #
-# Build context selalu root repo — apps/api dan apps/web memakai
+# Build context selalu root repo - apps/api dan apps/web memakai
 # packages/shared, jadi konteks per-app tidak cukup.
 #
 #   docker build --target api -t writer-hub-api .
@@ -44,7 +44,7 @@ ENV BUN_INSTALL_CACHE_DIR=/tmp/bun-cache \
 USER 65534:65534
 
 # ------------------------------------------------------------------------------
-# Manifest saja — lapisan dependensi hanya dibangun ulang saat manifest berubah.
+# Manifest saja - lapisan dependensi hanya dibangun ulang saat manifest berubah.
 # ------------------------------------------------------------------------------
 FROM bun-base AS bun-deps
 
@@ -154,7 +154,7 @@ RUN bun install --frozen-lockfile
 
 # Docker mengisi volume bernama dari isi image pada path yang sama, termasuk
 # kepemilikannya. Kalau path-nya tidak ada di image, volume dibuat milik root
-# dan container (UID 65534) tidak bisa menulis ke sana — `next dev` gagal dengan
+# dan container (UID 65534) tidak bisa menulis ke sana - `next dev` gagal dengan
 # EACCES saat membuat .next/dev. Direktori-direktori berikut sengaja dibuat
 # lebih dulu di sini supaya volume mewarisi kepemilikan yang benar.
 RUN mkdir -p /app/apps/web/.next
@@ -192,7 +192,7 @@ CMD ["python", "entry.py"]
 # worker-dev
 #
 # Dependensi saja; kode di-bind mount oleh compose. `watchmedo` me-restart
-# proses tiap berkas .py berubah — worker tidak punya hot reload bawaan.
+# proses tiap berkas .py berubah - worker tidak punya hot reload bawaan.
 # ==============================================================================
 FROM python:${PYTHON_VERSION}-slim-bookworm AS worker-dev
 

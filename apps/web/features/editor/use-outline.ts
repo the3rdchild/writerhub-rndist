@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from 'react'
  *
  * Dibaca langsung dari dokumen ProseMirror, bukan disimpan terpisah, supaya
  * tidak pernah ada dua versi kebenaran saat pengguna mengetik. `pos` dipakai
- * untuk melompat — nilainya ikut berubah setiap dokumen berubah, jadi daftar
+ * untuk melompat - nilainya ikut berubah setiap dokumen berubah, jadi daftar
  * ini memang dihitung ulang pada tiap transaksi.
  */
 
@@ -35,7 +35,7 @@ function readHeadings(doc: PMNode): OutlineItem[] {
 			items.push({ pos, level: node.attrs.level ?? 1, text: node.textContent.trim() })
 		}
 		// Heading selalu blok tingkat atas pada skema ini, jadi tidak perlu turun
-		// ke anak-anaknya — pemindaian ini berjalan pada tiap ketukan tombol.
+		// ke anak-anaknya - pemindaian ini berjalan pada tiap ketukan tombol.
 		return false
 	})
 

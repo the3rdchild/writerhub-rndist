@@ -7,7 +7,7 @@ from core.provider import Provider
 
 logger = logging.getLogger(__name__)
 
-_TIMEOUT = 60  # detik — satu batch request untuk semua kalimat
+_TIMEOUT = 60  # detik - satu batch request untuk semua kalimat
 
 _last_total_tokens: int | None = None
 

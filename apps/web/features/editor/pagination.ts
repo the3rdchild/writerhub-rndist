@@ -13,7 +13,7 @@ export const paginationKey = new PluginKey<PaginationState>('pagination')
  * Di antara blok biasa sebuah `<div>` sudah cukup. Di dalam tabel tidak: `<div>`
  * bukan anak yang sah dari `<tbody>`, dan browser akan melemparnya keluar dari
  * tabel. Karena itu pemenggalan di dalam tabel memakai baris kosong tanpa
- * border — yang kebetulan juga menghasilkan potongan paling bersih, sebab tidak
+ * border - yang kebetulan juga menghasilkan potongan paling bersih, sebab tidak
  * ada garis tabel yang ikut tergambar menembus celah antar lembar.
  */
 export type SpacerKind = 'block' | 'row'
@@ -68,14 +68,14 @@ export interface PaginationMeta {
 }
 
 /**
- * Ukur tiap blok tingkat atas pada koordinat "alami" — posisi seandainya tidak
+ * Ukur tiap blok tingkat atas pada koordinat "alami" - posisi seandainya tidak
  * ada spacer sama sekali.
  *
  * Ini kunci agar perhitungan stabil. Mengukur `offsetTop` apa adanya membuat
  * hasilnya bergantung pada spacer yang baru saja disisipkan, sehingga
  * perhitungan berikutnya berbeda lagi dan editor terjebak reflow tanpa henti.
  * Karena tinggi tiap spacer kita sendiri yang menentukan, posisi alami bisa
- * dipulihkan dengan mengurangi total spacer yang mendahuluinya — dan
+ * dipulihkan dengan mengurangi total spacer yang mendahuluinya - dan
  * penggabungan margin antar blok tetap terhitung benar.
  */
 function measureBlocks(view: EditorView): Measurement[] {
@@ -200,7 +200,7 @@ function insertedHeights(view: EditorView): Map<number, number> {
 }
 
 /**
- * Tentukan di mana halaman dipenggal — murni aritmetika atas hasil pengukuran.
+ * Tentukan di mana halaman dipenggal - murni aritmetika atas hasil pengukuran.
  *
  * Diekspor demi pengujian: masuk daftar blok, keluar daftar spacer, tanpa DOM
  * sama sekali. Aritmetika inilah yang paling sering salah, dan gejalanya baru
@@ -223,14 +223,14 @@ export function computeSpacers(
 		const overflows = block.bottom > pageStart + contentHeight
 
 		if ((overflows || forceNext) && !isFirstOnPage) {
-			// Tinggi spacer dihitung dari sasaran mutlaknya — awal lembar
-			// berikutnya — bukan dari sisa ruang halaman berjalan. Selama tidak ada
+			// Tinggi spacer dihitung dari sasaran mutlaknya - awal lembar
+			// berikutnya - bukan dari sisa ruang halaman berjalan. Selama tidak ada
 			// blok yang meluber hasil keduanya sama persis; bedanya baru muncul
 			// sesudahnya, dan hanya cara ini yang mengembalikan blok ke garis lembar.
 			const target = pageCount * pageStride
 			const spacerHeight = Math.max(0, target - (block.top + cumulative))
 			// Header ulangan ikut memakan ruang di puncak lembar baru, jadi ia
-			// dihitung sebagai bagian dari sisipan — dan halaman ini menyisakan
+			// dihitung sebagai bagian dari sisipan - dan halaman ini menyisakan
 			// ruang tulis sebanyak itu lebih sedikit.
 			const headerHeight = block.headerHeight ?? 0
 
@@ -254,7 +254,7 @@ export function computeSpacers(
 		// Berapa lembar yang ia habiskan dihitung dari posisi rendernya, bukan
 		// dari tinggi area teks: isinya mengalir menembus margin bawah dan celah
 		// antar lembar alih-alih dipenggal di situ, sehingga satu lembar menampung
-		// pageStride piksel isinya — bukan contentHeight. Menghitungnya dengan
+		// pageStride piksel isinya - bukan contentHeight. Menghitungnya dengan
 		// contentHeight membuat lembar kosong bermunculan di ujung blok panjang.
 		const renderedBottom = block.bottom + cumulative
 		const sheetsUsed = Math.floor(Math.max(0, renderedBottom - 1) / pageStride) + 1
@@ -269,7 +269,7 @@ export function computeSpacers(
 		}
 	}
 
-	// Page break di baris terakhir tetap membuka lembar baru, walau masih kosong —
+	// Page break di baris terakhir tetap membuka lembar baru, walau masih kosong -
 	// itu justru yang diminta penulis saat menaruhnya di ujung dokumen. Blok
 	// raksasa di baris terakhir tidak dihitung begitu: halamannya sudah dihitung
 	// oleh perulangan di atas.
@@ -348,7 +348,7 @@ function blockSpacer(spacer: Spacer): HTMLElement {
 	return markSpacer(element, spacer)
 }
 
-/** Baris kosong tanpa border — pemenggalan di dalam tabel. */
+/** Baris kosong tanpa border - pemenggalan di dalam tabel. */
 function rowSpacer(spacer: Spacer): HTMLElement {
 	const row = document.createElement('tr')
 	row.className = 'page-break-row'
@@ -366,7 +366,7 @@ function rowSpacer(spacer: Spacer): HTMLElement {
  *
  * Digambar sebagai dekorasi, bukan disisipkan ke dokumen: ia tidak boleh ikut
  * tersimpan, tidak boleh terbawa saat disalin, dan tidak boleh menggeser
- * pemetaan offset yang dipakai sorotan grammar. Isinya teks saja — tujuannya
+ * pemetaan offset yang dipakai sorotan grammar. Isinya teks saja - tujuannya
  * mengingatkan nama kolom, bukan jadi tempat menyunting.
  */
 function repeatedHeader(header: PMNode, spacer: Spacer): HTMLElement {
@@ -390,7 +390,7 @@ function repeatedHeader(header: PMNode, spacer: Spacer): HTMLElement {
  * dipakai sorotan grammar.
  *
  * Batasan yang diketahui: satu blok yang lebih tinggi dari satu halaman penuh
- * (misalnya tabel raksasa) tetap meluber melewati batas lembar — memecahnya
+ * (misalnya tabel raksasa) tetap meluber melewati batas lembar - memecahnya
  * butuh membelah node, bukan sekadar memberi jarak.
  */
 export const Pagination = Extension.create<PaginationOptions>({
@@ -459,7 +459,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 						const { spacers, pageCount } = computeSpacers(blocks, state.geometry)
 
 						// Koordinat alami stabil, jadi perhitungan kedua atas dokumen yang
-						// sama menghasilkan spacer identik — di sinilah loop berhenti.
+						// sama menghasilkan spacer identik - di sinilah loop berhenti.
 						if (!sameSpacers(spacers, state.spacers) || pageCount !== state.pageCount) {
 							const transaction = view.state.tr.setMeta(paginationKey, { spacers, pageCount })
 							transaction.setMeta('addToHistory', false)

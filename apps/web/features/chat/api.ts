@@ -4,7 +4,7 @@ import type { ChatContext, ChatMessage, ChatStreamEvent } from '@writer-hub/shar
  * Kirim satu giliran percakapan dan alirkan jawabannya.
  *
  * Tidak memakai `streamJob`: helper itu menunggu satu event terminal lalu
- * menyelesaikan Promise — bentuk yang pas untuk job batch, tapi tidak untuk
+ * menyelesaikan Promise - bentuk yang pas untuk job batch, tapi tidak untuk
  * jawaban yang datang berkeping-keping. Di sini tiap keping diteruskan lewat
  * `onDelta` dan Promise-nya baru selesai saat giliran ditutup.
  *

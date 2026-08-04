@@ -13,7 +13,7 @@ import { PanelError } from './panel-parts'
  *
  * Berbeda dari modul lain yang menjalankan satu analisis atas seluruh dokumen,
  * panel ini bergiliran: pengguna bertanya, jawabannya mengalir masuk. Usulan
- * teks datang sebagai kartu ber-Apply — idiom yang sama dengan kartu saran di
+ * teks datang sebagai kartu ber-Apply - idiom yang sama dengan kartu saran di
  * modul lain, supaya tidak ada suntingan yang terjadi tanpa dilihat.
  */
 export function AiChatPanel() {
@@ -202,7 +202,7 @@ function Bubble({
 				</p>
 			)}
 
-			{/* Selama masih mengalir, blok usulan belum tentu utuh — tombol Apply
+			{/* Selama masih mengalir, blok usulan belum tentu utuh - tombol Apply
 			    baru muncul setelah gilirannya selesai. */}
 			{!pending &&
 				proposals.map((proposal, index) => (
@@ -223,7 +223,7 @@ function ProposalCard({ text }: { text: string }) {
 
 		if (!attachment) {
 			// Tanpa seleksi yang ditempel, tidak ada rentang yang jelas untuk
-			// diganti — usulannya disisipkan di posisi kursor.
+			// diganti - usulannya disisipkan di posisi kursor.
 			editor.chain().focus().insertContent(text).run()
 			setApplied(true)
 			return
@@ -244,7 +244,7 @@ function ProposalCard({ text }: { text: string }) {
 
 			{failed ? (
 				<p className="text-[11px] text-yellow-400">
-					Teks aslinya sudah berubah — pilih ulang bagiannya lalu coba lagi
+					Teks aslinya sudah berubah - pilih ulang bagiannya lalu coba lagi
 				</p>
 			) : (
 				<button

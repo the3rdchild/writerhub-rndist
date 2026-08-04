@@ -68,7 +68,7 @@ def _download(url: str) -> bytes:
         resp.raise_for_status()
 
         # Content-Length dipakai buat nolak lebih awal, tapi tetep dihitung ulang
-        # pas ngunduh — header bisa bohong atau gak dikirim.
+        # pas ngunduh - header bisa bohong atau gak dikirim.
         declared = resp.headers.get("Content-Length")
         if declared and declared.isdigit() and int(declared) > EXTRACT_MAX_FILE_BYTES:
             raise SourceFetchError(_too_big_msg(int(declared)))

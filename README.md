@@ -1,6 +1,6 @@
 # WritingHub
 
-Editor dokumen kolaboratif berbasis AI untuk **Premium Portal Extended (PPE)** dan **Ransel.ai** —
+Editor dokumen kolaboratif berbasis AI untuk **Premium Portal Extended (PPE)** dan **Ransel.ai** -
 satu draf sebagai *single source of truth*, dengan modul AI (grammar, paraphrase, AI detector,
 humanizer, plagiarism) bekerja di panel samping tanpa perlu berpindah aplikasi.
 
@@ -13,10 +13,10 @@ Spesifikasi produk: [`docs/PRD - WritingHub - Premium Portal Extended & Ransel.a
 ```
 writer-hub/
 ├── apps/
-│   ├── api/          Bun + Hono — REST /api/v1, enqueue job ke worker
-│   └── web/          Next.js 16 — Editor Shell (React 19, Tailwind v4, TanStack Query)
+│   ├── api/          Bun + Hono - REST /api/v1, enqueue job ke worker
+│   └── web/          Next.js 16 - Editor Shell (React 19, Tailwind v4, TanStack Query)
 ├── services/
-│   └── worker/       Python 3.12 — konsumen antrean grammar & analysis
+│   └── worker/       Python 3.12 - konsumen antrean grammar & analysis
 ├── packages/
 │   └── shared/       Kontrak API & tipe yang dipakai bersama api ↔ web
 ├── docs/             PRD dan dokumen produk
@@ -26,7 +26,7 @@ writer-hub/
 
 Codebase ini berasal dari `ReacteevID/ai-grammar-checker`: backend dari branch `main`
 (termasuk autentikasi PPE, migrasi, dan integrasi kuota admin-ppe), frontend dari branch
-`dev-ext-feature` — satu-satunya branch yang pernah memuatnya.
+`dev-ext-feature` - satu-satunya branch yang pernah memuatnya.
 
 ## Teknologi
 
@@ -43,7 +43,7 @@ State di web dibagi tegas: **server state** (submit job, streaming hasil) memaka
 
 ## Menjalankan secara lokal
 
-Prasyarat: Docker. Tidak ada lagi — Bun dan Python hidup di dalam container.
+Prasyarat: Docker. Tidak ada lagi - Bun dan Python hidup di dalam container.
 
 ```bash
 docker compose up --build
@@ -55,7 +55,7 @@ database disiapkan otomatis sebelum api naik. Buka http://localhost:3000.
 (`bun run docker:up` melakukan hal yang sama, tapi baru bisa dipakai kalau Bun
 sudah terpasang di host.)
 
-Mode lokal berjalan **tanpa kredensial apa pun** — tanpa HMAC, tanpa
+Mode lokal berjalan **tanpa kredensial apa pun** - tanpa HMAC, tanpa
 pp-extended, tanpa S3. Berkas `.env` di tiap app sudah terisi nilai yang siap
 pakai (`AUTH_MODE=none`, `STORAGE_DRIVER=local`).
 
@@ -64,7 +64,7 @@ Kode di-bind mount, jadi mengubah berkas langsung terlihat: web memakai
 
 **Setelah menambah dependensi**, `--build` saja tidak cukup. `node_modules`
 tinggal di volume bernama, dan Docker hanya mengisi volume pada pemakaian
-pertama — image baru akan diabaikan dan muncul `Module not found`. Buang
+pertama - image baru akan diabaikan dan muncul `Module not found`. Buang
 volumenya dulu:
 
 ```bash
@@ -83,7 +83,7 @@ docker compose down -v && docker compose up --build   # atau: bun run docker:res
 Untuk mengaktifkan yang butuh LLM, isi `AI_API_KEY` di `services/worker/.env`
 dengan key OpenRouter (atau endpoint apa pun yang OpenAI-compatible), lalu
 `docker compose restart worker`. Tanpa itu, keempatnya gagal dengan pesan yang
-menjelaskan penyebabnya — sisanya tetap berjalan normal.
+menjelaskan penyebabnya - sisanya tetap berjalan normal.
 
 ### Menjalankan di host (opsional)
 
@@ -95,7 +95,7 @@ bun install && bun run db:push
 bun run dev:api                       # http://localhost:8080
 bun run dev:web                       # http://localhost:3000
 
-# venv dibuat di root repo, BUKAN di dalam services/worker — lihat catatan
+# venv dibuat di root repo, BUKAN di dalam services/worker - lihat catatan
 python3 -m venv .venv
 . .venv/bin/activate                  # fish: source .venv/bin/activate.fish
 pip install -r services/worker/requirements.txt
@@ -116,7 +116,7 @@ Dua jebakan:
 
 Direktori venv bernama apa pun yang berakhiran `venv` sudah masuk `.gitignore`.
 
-**Di NixOS**, `python3 -m pip` tidak tersedia — pip hidup di dalam venv, bukan di
+**Di NixOS**, `python3 -m pip` tidak tersedia - pip hidup di dalam venv, bukan di
 interpreter sistem. Perintah venv di atas tetap jalan apa adanya (`ensurepip`
 tersedia), dan wheel biner seperti `psycopg2-binary` dan `lxml` juga berfungsi
 selama `programs.nix-ld.enable = true`.
@@ -128,7 +128,7 @@ Satu paket meleset: `proselint` menarik `google-re2` yang mencari
 export LD_LIBRARY_PATH=$(nix eval --raw nixpkgs#stdenv.cc.cc.lib)/lib
 ```
 
-Membiarkannya pun tidak apa-apa — `services/checker/style.py` mengimpor proselint
+Membiarkannya pun tidak apa-apa - `services/checker/style.py` mengimpor proselint
 di dalam `try/except`, jadi style check tetap berjalan lewat daftar curated.
 
 ### Perintah
@@ -162,9 +162,9 @@ Browser ──▶ Next route /api/*  ──▶  apps/api  ──▶  Redis (Bull
 
 Dikendalikan `AUTH_MODE`, dan nilainya harus sama di `apps/api` dan `apps/web`:
 
-- **`none`** (pengembangan) — seluruh pemeriksaan dilewati, proxy tidak menandatangani apa pun,
+- **`none`** (pengembangan) - seluruh pemeriksaan dilewati, proxy tidak menandatangani apa pun,
   provider LLM diambil worker dari env-nya sendiri, kuota tidak dicatat.
-- **`pp`** (produksi) — jalur di bawah ini aktif.
+- **`pp`** (produksi) - jalur di bawah ini aktif.
 
 Kode jalur produksi tetap utuh di repo pada mode `none`; mengaktifkannya kembali cukup dengan
 mengubah env, tanpa menulis ulang apa pun.
@@ -176,14 +176,14 @@ Secret itu **tidak boleh sampai ke browser**. Karena itu `apps/web` tidak pernah
 `apps/api` secara langsung: browser memanggil route handler same-origin di `/api/*`, dan route
 itulah yang menandatangani serta meneruskan permintaan
 (lihat [`apps/web/lib/server/upstream.ts`](apps/web/lib/server/upstream.ts)).
-Konsekuensinya `API_URL` adalah variabel sisi server — bukan `NEXT_PUBLIC_*`.
+Konsekuensinya `API_URL` adalah variabel sisi server - bukan `NEXT_PUBLIC_*`.
 
 Token user diambil dari header `Authorization` bila WritingHub disematkan di shell yang sudah
 meneruskannya, atau dari cookie `AUTH_COOKIE_NAME` bila berdiri sendiri.
 
 ## Deployment
 
-`Dockerfile` di root punya empat target — `api`, `api-migrate`, `web`, `worker` — dan selalu
+`Dockerfile` di root punya empat target - `api`, `api-migrate`, `web`, `worker` - dan selalu
 memakai root repo sebagai build context, karena `apps/api` dan `apps/web` bergantung pada
 `packages/shared`.
 
@@ -197,8 +197,8 @@ initContainer sebelum `api` naik.
 Dikendalikan `STORAGE_DRIVER`. Keduanya menghasilkan URL unduh, jadi worker tidak perlu tahu
 mana yang aktif:
 
-- **`local`** (pengembangan) — ditulis ke `STORAGE_DIR`, disajikan lewat `GET /api/v1/files/<key>`.
-- **`s3`** (produksi) — diunggah ke object storage, worker memakai presigned URL.
+- **`local`** (pengembangan) - ditulis ke `STORAGE_DIR`, disajikan lewat `GET /api/v1/files/<key>`.
+- **`s3`** (produksi) - diunggah ke object storage, worker memakai presigned URL.
 
 ## Catatan yang perlu diketahui
 
@@ -221,7 +221,7 @@ mana yang aktif:
   blocking.
 - **Integrasi proselint sudah mati diam-diam.** `services/worker/requirements.txt` tidak memasang
   batas versi sama sekali, sehingga `pip install` kini mengambil proselint 0.16 yang menghapus
-  `tools.lint()` — persis fungsi yang dipanggil `services/checker/style.py`. Panggilannya
+  `tools.lint()` - persis fungsi yang dipanggil `services/checker/style.py`. Panggilannya
   melempar `AttributeError`, tertangkap `try/except`, dan hasilnya kosong. Jadi paruh proselint
   dari style checker tidak pernah berkontribusi apa pun, di semua platform, termasuk di dalam
   image Docker. Perlu diputuskan: sematkan versi lama, sesuaikan ke API baru, atau lepaskan

@@ -3,7 +3,7 @@ import { RedisClient } from '@/config/redis'
 
 /**
  * Kanal pub/sub tempat worker mengabarkan progres sebuah job.
- * Satu-satunya tempat nama kanal ini didefinisikan — dipakai SSE stream
+ * Satu-satunya tempat nama kanal ini didefinisikan - dipakai SSE stream
  * dan pencatatan token usage.
  */
 export function jobChannel(jobId: string): string {
@@ -40,7 +40,7 @@ export async function subscribeToJob(
 		try {
 			subscriber.disconnect()
 		} catch {
-			// koneksi sudah tertutup — tidak ada yang perlu dibereskan
+			// koneksi sudah tertutup - tidak ada yang perlu dibereskan
 		}
 	}
 }

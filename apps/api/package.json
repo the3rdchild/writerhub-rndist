@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "API gateway WritingHub — Bun + Hono, enqueue job ke worker lewat BullMQ",
+  "description": "API gateway WritingHub - Bun + Hono, enqueue job ke worker lewat BullMQ",
   "scripts": {
     "dev": "bun run --hot src/index.ts",
     "start": "bun run src/index.ts",

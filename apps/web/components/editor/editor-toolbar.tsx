@@ -50,7 +50,7 @@ const DEFAULT_FONT_SIZE = 11
 /**
  * Satu tombol, dua arti.
  *
- * Di dalam daftar, indentasi adalah tingkat butir — memakai margin di sana akan
+ * Di dalam daftar, indentasi adalah tingkat butir - memakai margin di sana akan
  * merusak penomoran. Di luar daftar tidak ada tingkat apa pun untuk dinaiki,
  * jadi yang digeser adalah blok itu sendiri.
  */
@@ -92,7 +92,7 @@ interface ToolbarState {
 export function EditorToolbar({ editor, disabled }: { editor: Editor | null; disabled?: boolean }) {
 	const { settings, update } = useSettings()
 
-	// useEditorState hanya me-render ulang saat nilai terpilih berubah — tanpa ini
+	// useEditorState hanya me-render ulang saat nilai terpilih berubah - tanpa ini
 	// seluruh toolbar ikut render pada setiap ketukan tombol.
 	const active = useEditorState({
 		editor,
@@ -239,7 +239,7 @@ export function EditorToolbar({ editor, disabled }: { editor: Editor | null; dis
 			<Divider />
 
 			{/* Di dalam daftar, indentasi berarti berpindah tingkat; di luar daftar ia
-			    menggeser blok — hasil keduanya terlihat di penggaris. */}
+			    menggeser blok - hasil keduanya terlihat di penggaris. */}
 			<IconButton icon={Outdent} label="Kurangi indentasi" disabled={isOff} onClick={() => outdent(editor)} />
 			<IconButton icon={Indent} label="Tambah indentasi" disabled={isOff} onClick={() => indent(editor)} />
 			<IconButton

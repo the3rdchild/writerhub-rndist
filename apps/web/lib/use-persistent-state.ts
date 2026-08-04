@@ -42,7 +42,7 @@ export function usePersistentState<T>(
 			const raw = window.localStorage.getItem(key)
 			if (raw !== null) setValue(withDefaults(JSON.parse(raw), initialRef.current))
 		} catch {
-			// storage tidak tersedia atau isinya rusak — pakai nilai awal
+			// storage tidak tersedia atau isinya rusak - pakai nilai awal
 		}
 		setHydrated(true)
 	}, [key])
@@ -53,7 +53,7 @@ export function usePersistentState<T>(
 			try {
 				window.localStorage.setItem(keyRef.current, JSON.stringify(resolved))
 			} catch {
-				// kuota penuh atau mode privat — state di memori tetap benar
+				// kuota penuh atau mode privat - state di memori tetap benar
 			}
 			return resolved
 		})

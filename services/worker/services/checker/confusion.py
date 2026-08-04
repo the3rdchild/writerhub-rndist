@@ -1,5 +1,5 @@
 """
-Confusion-set rules (kata yang sering ketuker) via konteks POS — ala Harper.
+Confusion-set rules (kata yang sering ketuker) via konteks POS - ala Harper.
 Pure-Python + spaCy, no LLM.
 
   your  + (verb-ing/modal/adverb/determiner) → you're   ("your going" / "your the best")

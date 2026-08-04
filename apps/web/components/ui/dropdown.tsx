@@ -6,8 +6,8 @@ import { cn } from '@/lib/utils'
 /**
  * Popup ringan untuk menu bar dan pemilih di toolbar.
  *
- * Ditulis sendiri, bukan memakai pustaka menu, karena kebutuhannya sempit —
- * satu lapis, ditutup lewat klik di luar atau Escape — dan supaya tidak ada
+ * Ditulis sendiri, bukan memakai pustaka menu, karena kebutuhannya sempit -
+ * satu lapis, ditutup lewat klik di luar atau Escape - dan supaya tidak ada
  * dependensi baru hanya demi ini.
  */
 

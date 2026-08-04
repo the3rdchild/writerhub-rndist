@@ -15,7 +15,7 @@ export interface ResolvedProvider {
 
 /**
  * Resolve provider LLM (model, base URL, API key) dari admin-ppe (/api/info)
- * buat sebuah service. Dipanggil SEBELUM job di-enqueue — worker Python full
+ * buat sebuah service. Dipanggil SEBELUM job di-enqueue - worker Python full
  * bergantung ke hasil ini, gak ada fallback hardcode lagi.
  */
 export async function resolveProvider(bearerToken: string, serviceSlug: string): Promise<ResolvedProvider | null> {

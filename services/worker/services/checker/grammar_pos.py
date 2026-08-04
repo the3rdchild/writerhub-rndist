@@ -1,6 +1,6 @@
 """
 Grammar rules berbasis POS tagging (nltk averaged-perceptron tagger).
-Nangkep error yang butuh tau kelas kata — yang ga bisa di-cover regex murni.
+Nangkep error yang butuh tau kelas kata - yang ga bisa di-cover regex murni.
 
 Cakupan:
   1. Subject-verb agreement (pronoun & noun subject, present tense)
@@ -113,7 +113,7 @@ def _find_subject(tagged, i):
 
 def _prep_governed(tagged, idx):
     """True kalau noun di idx itu object of preposition (bukan subject klausa).
-    Juga True kalau didahului quantifier 'one/each/none of' — noun di sini
+    Juga True kalau didahului quantifier 'one/each/none of' - noun di sini
     bukan head subject (head-nya adalah quantifier, bukan noun jamak).
     """
     j = idx - 1

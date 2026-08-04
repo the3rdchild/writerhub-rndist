@@ -66,7 +66,7 @@ export interface RecordTokenUsageAfterCompletionParams {
  * Fire-and-forget: tunggu job selesai, lalu catat pemakaian token ke admin-ppe.
  *
  * `modelRecordId` sudah diresolve saat submit (lihat provider-resolver.ts) dan
- * tersimpan di baris pool_request, jadi di sini cukup membaca DB — tidak perlu
+ * tersimpan di baris pool_request, jadi di sini cukup membaca DB - tidak perlu
  * memanggil admin-ppe lagi. Job non-LLM tidak mengisi `total_tokens` dan
  * karenanya dilewati.
  */

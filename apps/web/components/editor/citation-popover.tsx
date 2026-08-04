@@ -10,7 +10,7 @@ import type { EditorSelection } from '@/features/editor/selection'
  * Cari referensi yang cocok dengan bagian yang disorot.
  *
  * Pencariannya lewat route Next sendiri, bukan langsung dari browser ke
- * Crossref — lihat app/api/citations/route.ts. Perlu diketahui pengguna:
+ * Crossref - lihat app/api/citations/route.ts. Perlu diketahui pengguna:
  * potongan teks yang dicari memang dikirim ke layanan luar.
  */
 export function CitationPopover({

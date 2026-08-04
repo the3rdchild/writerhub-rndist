@@ -82,7 +82,7 @@ def _run(job_id: str, request_id: str, payload: dict):
     def on_checkpoint(suggestions: list):
         _publish(channel, {"type": "checkpoint", "suggestions": suggestions})
 
-    # 3. analisa grammar — kirim snapshot per checker via Redis pub/sub
+    # 3. analisa grammar - kirim snapshot per checker via Redis pub/sub
     with _svc.timed_step("grammar:analyze"):
         result = analyze_grammar(
             text, language=GRAMMAR_LANGUAGE, model=model,

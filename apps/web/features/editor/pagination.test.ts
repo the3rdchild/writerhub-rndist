@@ -53,7 +53,7 @@ function table(rowHeights: number[], options: { headerHeight?: number; startTop?
 }
 
 /**
- * Posisi tiap blok setelah spacer disisipkan — inilah yang benar-benar dilihat
+ * Posisi tiap blok setelah spacer disisipkan - inilah yang benar-benar dilihat
  * pengguna, diukur dari puncak area teks lembar pertama.
  */
 function renderedTops(blocks: Measurement[]): number[] {
@@ -65,7 +65,7 @@ function renderedTops(blocks: Measurement[]): number[] {
 		const spacer = spacerAt.get(block.pos)
 		if (spacer) {
 			// Yang benar-benar tersisip di DOM adalah baris kosong DITAMBAH salinan
-			// header — keduanya harus dihitung, persis seperti insertedHeights().
+			// header - keduanya harus dihitung, persis seperti insertedHeights().
 			const header = spacer.headerPos === undefined ? 0 : (block.headerHeight ?? 0)
 			cumulative += spacer.height + header
 		}
@@ -199,7 +199,7 @@ describe('tabel dipenggal per baris', () => {
 		const rows = table(Array.from({ length: 14 }, () => 200), { headerHeight })
 		const tops = renderedTops(rows)
 
-		// Tiap lembar lanjutan dibuka salinan header, lalu barisnya menyusul —
+		// Tiap lembar lanjutan dibuka salinan header, lalu barisnya menyusul -
 		// jadi awal barisnya persis satu tinggi header di bawah garis lembar.
 		expectStartsPage(tops[4] - headerHeight, 2)
 		expectStartsPage(tops[8] - headerHeight, 3)

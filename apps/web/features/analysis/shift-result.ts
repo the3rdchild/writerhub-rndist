@@ -4,7 +4,7 @@ import type { AnalysisFeature, AnalysisResultFor } from '@writer-hub/shared'
  * Geser offset hasil analisis ke koordinat dokumen.
  *
  * Worker selalu menghitung offset terhadap teks yang ia terima. Saat sebuah
- * modul dijalankan hanya pada bagian yang disorot, teks itu adalah potongan —
+ * modul dijalankan hanya pada bagian yang disorot, teks itu adalah potongan -
  * dan setiap offset di hasilnya masih berpangkal nol. Menggesernya di satu
  * tempat ini membuat seluruh panel dan sorotan tetap memakai koordinat yang
  * sama seperti saat dijalankan atas seluruh naskah.

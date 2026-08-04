@@ -3,7 +3,7 @@ Registry parser: format → `parse(data: bytes) -> str`.
 
 Nambah format = bikin modul dengan `parse()`, daftarin di `_REGISTRY`.
 
-`.doc` gak didukung — udah ditolak whitelist mime di API. `detect.py` tetep
+`.doc` gak didukung - udah ditolak whitelist mime di API. `detect.py` tetep
 ngenalinnya lewat magic bytes OLE2 biar .doc yang di-rename jadi .pdf ketolak
 dengan pesan akurat, bukan kebaca jadi teks sampah.
 """

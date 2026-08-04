@@ -30,7 +30,7 @@ export type ApiResponse<T> = SuccessResponse<T> | ErrorResponse
 export const API_CLIENTS = ['pp-extended', 'ransel-ai', 'another-client'] as const
 export type ApiClient = (typeof API_CLIENTS)[number]
 
-/** Nama header auth — dipakai bareng middleware API dan proxy Next. */
+/** Nama header auth - dipakai bareng middleware API dan proxy Next. */
 export const AUTH_HEADERS = {
 	client: 'x-client',
 	ppApiKey: 'x-pp-api-key',

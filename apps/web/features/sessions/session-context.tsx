@@ -34,7 +34,7 @@ export interface CommentReply {
 /** Satu utas komentar; jangkarnya adalah mark bernama sama di dalam naskah. */
 export interface CommentThread {
 	id: string
-	/** Kutipan teks saat komentar dibuat — dipakai kalau mark-nya hilang. */
+	/** Kutipan teks saat komentar dibuat - dipakai kalau mark-nya hilang. */
 	quote: string
 	replies: CommentReply[]
 	resolved: boolean
@@ -154,7 +154,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		[dispatch, editor],
 	)
 
-	/** Potret naskah yang sedang dibuka — dipakai sebelum berpindah atau menutup tab. */
+	/** Potret naskah yang sedang dibuka - dipakai sebelum berpindah atau menutup tab. */
 	const snapshot = useCallback(
 		(sessions: Session[], activeId: string | null): Session[] => {
 			if (!activeId) return sessions
@@ -267,7 +267,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 					s.id === id ? { ...s, title, updatedAt: Date.now() } : s,
 				),
 			}))
-			// Judul di kepala aplikasi dan nama tab aktif adalah hal yang sama —
+			// Judul di kepala aplikasi dan nama tab aktif adalah hal yang sama -
 			// autosave juga menulis judul, jadi keduanya harus digerakkan bersama.
 			if (id === store.activeId) dispatch({ type: 'setTitle', title })
 		},

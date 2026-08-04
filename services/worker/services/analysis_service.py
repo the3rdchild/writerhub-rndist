@@ -31,7 +31,7 @@ _ANALYZERS = {
     "plagiarism": run_plagiarism,
 }
 
-# Plagiarism murni heuristik — tidak memanggil LLM sama sekali, jadi tetap bisa
+# Plagiarism murni heuristik - tidak memanggil LLM sama sekali, jadi tetap bisa
 # jalan tanpa provider. Sisanya butuh LLM.
 _NEEDS_PROVIDER = frozenset({"ai_detector", "ai_rewriter", "humanizer"})
 

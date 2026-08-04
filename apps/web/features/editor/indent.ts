@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { shortcutKeys } from '@/features/shortcuts/registry'
 
 /**
- * Indentasi per blok — inti dari marker penggaris.
+ * Indentasi per blok - inti dari marker penggaris.
  *
  * Angkanya dipisah dari margin halaman: margin milik lembar dan berlaku untuk
  * seluruh dokumen, indentasi milik paragraf yang sedang dipilih. Penggaris
@@ -38,7 +38,7 @@ declare module '@tiptap/core' {
 		blockIndent: {
 			/** Setel indentasi blok pada seleksi; nilai px, relatif ke margin lembar. */
 			setBlockIndent: (patch: Partial<BlockIndent>) => ReturnType
-			/** Geser indentasi kiri satu langkah — dipakai tombol toolbar dan Tab. */
+			/** Geser indentasi kiri satu langkah - dipakai tombol toolbar dan Tab. */
 			shiftBlockIndent: (delta: number) => ReturnType
 		}
 	}
@@ -138,7 +138,7 @@ export const BlockIndentExtension = Extension.create({
 
 	addKeyboardShortcuts() {
 		const shift = (delta: number) => () => {
-			// Di dalam daftar dan tabel, Tab sudah punya arti sendiri — naik tingkat
+			// Di dalam daftar dan tabel, Tab sudah punya arti sendiri - naik tingkat
 			// butir, pindah sel. Mengembalikan false menyerahkannya ke keymap mereka
 			// alih-alih merebut tombolnya.
 			if (isInsideAny(this.editor, TAB_OWNERS)) return false
@@ -188,7 +188,7 @@ function sameIndent(a: BlockIndent, b: BlockIndent): boolean {
  * Indentasi blok aktif sebagai state React.
  *
  * Penggaris ikut berpindah saat kursor pindah paragraf, jadi hook ini mengikuti
- * transaksi editor — bukan hanya perubahan dokumen.
+ * transaksi editor - bukan hanya perubahan dokumen.
  */
 export function useBlockIndent(editor: Editor | null): BlockIndent {
 	const [indent, setIndent] = useState<BlockIndent>(NO_INDENT)

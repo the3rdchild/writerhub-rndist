@@ -1,5 +1,5 @@
 """
-Scoring heuristik (NO AI) — diturunin dari densitas error + readability (textstat).
+Scoring heuristik (NO AI) - diturunin dari densitas error + readability (textstat).
 
 scores: {grammar, fluency, clarity, engagement} 0..100
 writing_quality = rata-rata; quality_label samain ambang FE.

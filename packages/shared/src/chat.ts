@@ -4,7 +4,7 @@
  * Bentuknya sengaja berbeda dari modul analisis. Analisis adalah job batch:
  * satu teks masuk, satu hasil utuh keluar lewat antrean. Percakapan harus
  * membalas sambil mengetik, jadi ia memakai jalur SSE tersendiri di apps/api
- * yang mem-proxy provider LLM langsung — tanpa antrean, tanpa worker.
+ * yang mem-proxy provider LLM langsung - tanpa antrean, tanpa worker.
  */
 
 export type ChatRole = 'user' | 'assistant'
@@ -18,7 +18,7 @@ export interface ChatMessage {
 export interface ChatContext {
 	/** Teks yang sedang disorot pengguna, kalau ada. */
 	selection?: string
-	/** Paragraf di sekitar seleksi — secukupnya untuk menjawab, tidak lebih. */
+	/** Paragraf di sekitar seleksi - secukupnya untuk menjawab, tidak lebih. */
 	surrounding?: string
 	/** Seluruh naskah; hanya dikirim kalau pengguna memintanya. */
 	document?: string

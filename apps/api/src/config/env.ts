@@ -5,9 +5,9 @@ const num = (key: string, fallback: number): number => Number(process.env[key]) 
 
 /**
  * Mode autentikasi.
- * - `pp`   : produksi — tanda tangan HMAC + verifikasi bearer ke pp-extended,
+ * - `pp`   : produksi - tanda tangan HMAC + verifikasi bearer ke pp-extended,
  *            provider LLM dan kuota diresolve dari admin-ppe.
- * - `none` : pengembangan lokal — tanpa kredensial sama sekali. Provider LLM
+ * - `none` : pengembangan lokal - tanpa kredensial sama sekali. Provider LLM
  *            diambil worker dari env-nya sendiri, kuota tidak dicatat.
  */
 export type AuthMode = 'pp' | 'none'
@@ -74,7 +74,7 @@ export const env = {
 	 * providernya dikirim ke worker lewat payload job: chat dialirkan langsung
 	 * dari sini, jadi API butuh kredensialnya sendiri.
 	 *
-	 * Pada `AUTH_MODE=pp` nilai ini hanya cadangan — yang dipakai adalah provider
+	 * Pada `AUTH_MODE=pp` nilai ini hanya cadangan - yang dipakai adalah provider
 	 * hasil resolve admin-ppe per pengguna. Pada mode lokal, inilah satu-satunya
 	 * sumbernya. AI_BASE_URL adalah base URL tanpa `/chat/completions`.
 	 */
@@ -110,7 +110,7 @@ export function validateEnv(): void {
 	}
 
 	if (isLocalAuth) {
-		console.warn('🔓 AUTH_MODE=none — endpoint terbuka tanpa autentikasi. Jangan dipakai di produksi.')
+		console.warn('🔓 AUTH_MODE=none - endpoint terbuka tanpa autentikasi. Jangan dipakai di produksi.')
 	}
 	console.info(`🔑 Environment validated | auth=${env.AUTH_MODE} | storage=${env.STORAGE_DRIVER}`)
 }

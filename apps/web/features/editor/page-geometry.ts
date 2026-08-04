@@ -1,8 +1,8 @@
 /**
  * Ukuran lembar dokumen, dalam piksel CSS pada 96 dpi.
  *
- * Semua perhitungan halaman — paginasi, nomor halaman, zoom, penggaris, dan
- * cetak — bersumber dari satu tempat ini. Mengganti ukuran kertas atau margin
+ * Semua perhitungan halaman - paginasi, nomor halaman, zoom, penggaris, dan
+ * cetak - bersumber dari satu tempat ini. Mengganti ukuran kertas atau margin
  * cukup dilakukan di sini.
  */
 
@@ -30,7 +30,7 @@ export const DEFAULT_MARGINS: PageMargins = { top: INCH, right: INCH, bottom: IN
 
 /**
  * Batas bawah area teks. Penggaris boleh diseret ke mana saja selama lembar
- * masih menyisakan ruang tulis — tanpa batas ini margin kiri dan kanan bisa
+ * masih menyisakan ruang tulis - tanpa batas ini margin kiri dan kanan bisa
  * bertemu, dan paginasi kehilangan tinggi baris untuk dihitung.
  */
 export const MIN_CONTENT_WIDTH = 96
@@ -46,7 +46,7 @@ export interface PageGeometry {
 	gap: number
 	/** Lebar area teks. */
 	contentWidth: number
-	/** Tinggi area teks per halaman — dasar perhitungan pemenggalan. */
+	/** Tinggi area teks per halaman - dasar perhitungan pemenggalan. */
 	contentHeight: number
 	/** Jarak dari awal satu halaman ke awal halaman berikutnya. */
 	pageStride: number

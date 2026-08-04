@@ -30,8 +30,8 @@ const EXPANDED_WIDTH = 208
  * Tool rail: berpindah modul tanpa meninggalkan draf yang sedang dikerjakan.
  *
  * Melayang di atas konten dan hanya menampilkan ikon; label muncul saat kursor
- * masuk dan seluruh rail melebar ke kiri. Melebarnya rail — bukan tooltip per
- * ikon — membuat kelima label terbaca sekaligus, sehingga pengguna bisa memindai
+ * masuk dan seluruh rail melebar ke kiri. Melebarnya rail - bukan tooltip per
+ * ikon - membuat kelima label terbaca sekaligus, sehingga pengguna bisa memindai
  * pilihan tanpa menyapu kursor satu per satu.
  *
  * Rail dibuat `absolute`, jadi induknya perlu menyisakan ruang di kanan

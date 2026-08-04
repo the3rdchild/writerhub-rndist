@@ -10,7 +10,7 @@ import { replaceRange } from '@/features/document/suggestions'
  *
  * Perubahan disimpan lokal (bukan di state dokumen) karena hanya bermakna
  * selama hasil analisis itu ditampilkan. Setiap kali satu diterima, offset
- * perubahan sesudahnya digeser sesuai selisih panjang teks — tanpa itu,
+ * perubahan sesudahnya digeser sesuai selisih panjang teks - tanpa itu,
  * penerimaan kedua akan memotong teks di posisi yang salah.
  */
 export function usePendingChanges(changes: readonly TextChange[] | undefined) {

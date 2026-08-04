@@ -30,7 +30,7 @@ export interface AnalysisController<F extends AnalysisFeature> {
  * Satu fitur analisis sebagai query TanStack.
  *
  * Kunci query memuat sidik jari teks yang diperiksa, jadi "hasil sudah basi"
- * jatuh sendirinya dari perbandingan kunci — versi lama harus memanggil
+ * jatuh sendirinya dari perbandingan kunci - versi lama harus memanggil
  * `markOthersStale()` secara manual di setiap handler accept, dan itu gampang
  * terlewat. Menjalankan ulang pada teks yang sama juga langsung memakai cache.
  */
@@ -76,7 +76,7 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 		isRunning: query.isFetching,
 		error: query.error,
 		// Hasil per-seleksi tidak dianggap basi hanya karena bagian lain dokumen
-		// disunting — yang diperiksa memang bukan seluruh naskah.
+		// disunting - yang diperiksa memang bukan seluruh naskah.
 		isStale:
 			query.data !== undefined && !requested?.scoped && requested?.text !== currentText,
 		canRun: !query.isFetching && currentText.trim().length >= MIN_TEXT_LENGTH,

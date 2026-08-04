@@ -1,6 +1,6 @@
 name: writer-hub
 
-# Stack pengembangan lokal — semuanya berjalan di Docker.
+# Stack pengembangan lokal - semuanya berjalan di Docker.
 #
 # Kode di-bind mount, jadi mengubah berkas langsung terlihat tanpa rebuild
 # image: web memakai `next dev`, api memakai `bun --hot`, worker di-restart
@@ -22,7 +22,7 @@ x-bun-dev: &bun-dev
     - ./tsconfig.base.json:/app/tsconfig.base.json:ro
     # Bun memasang dependensi di root DAN di tiap workspace. Bind mount di atas
     # akan menutupi node_modules bawaan image, jadi masing-masing dilindungi
-    # volume bernama — tanpa ini container memakai node_modules milik host
+    # volume bernama - tanpa ini container memakai node_modules milik host
     # (bisa beda platform, atau tidak ada sama sekali pada clone baru).
     - node_modules:/app/node_modules
     - api_node_modules:/app/apps/api/node_modules
@@ -82,7 +82,7 @@ services:
       DATABASE_URL: postgresql://writer:writer@postgres:5432/writer_hub
       REDIS_HOST: redis
       # URL ini dipakai worker untuk mengunduh dokumen, jadi harus nama service
-      # di jaringan compose — bukan localhost milik browser.
+      # di jaringan compose - bukan localhost milik browser.
       SERVICE_URL: http://api:8080
     volumes:
       - ./apps:/app/apps
@@ -94,7 +94,7 @@ services:
       - shared_node_modules:/app/packages/shared/node_modules
       - web_next:/app/apps/web/.next
       # Dokumen unggahan, terlihat di host agar mudah diperiksa saat debug.
-      # Worker tidak perlu volume ini — ia mengunduh lewat /api/v1/files.
+      # Worker tidak perlu volume ini - ia mengunduh lewat /api/v1/files.
       - ./storage:/app/apps/api/storage
     command: ["bun", "run", "--hot", "src/index.ts"]
     ports:

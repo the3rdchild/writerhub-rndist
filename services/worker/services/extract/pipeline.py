@@ -31,7 +31,7 @@ def run(payload: dict) -> str:
             "[extract] format ditolak | mime=%s | hint=%s", source.mime, source.hint
         )
         raise UnsupportedFormatError(
-            f"Format file gak didukung{f' ({source.mime})' if source.mime else ''} — "
+            f"Format file gak didukung{f' ({source.mime})' if source.mime else ''} - "
             f"pakai PDF, DOCX, atau TXT"
         )
 
@@ -55,7 +55,7 @@ def _assert_not_empty(text: str, fmt: str, hint: str) -> None:
 
     if fmt == detect.FMT_PDF:
         raise ScannedPdfError(
-            "PDF ini gak punya teks yang bisa dibaca — kemungkinan hasil scan "
+            "PDF ini gak punya teks yang bisa dibaca - kemungkinan hasil scan "
             "atau gambar. Coba PDF yang teksnya bisa diseleksi, atau salin "
             "teksnya manual."
         )

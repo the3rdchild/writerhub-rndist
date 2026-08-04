@@ -16,7 +16,7 @@ const STREAM_TIMEOUT_MS = 180_000
 const stream = createRouter().basePath('/stream')
 
 /**
- * Snapshot hasil job yang sudah selesai sebelum SSE sempat tersambung —
+ * Snapshot hasil job yang sudah selesai sebelum SSE sempat tersambung -
  * tanpa ini, job yang rampung lebih cepat dari koneksi klien akan menggantung.
  */
 async function buildSettledEvent(jobId: string): Promise<string | null> {

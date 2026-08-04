@@ -10,7 +10,7 @@ export type GrammarModel = (typeof GRAMMAR_MODELS)[number]
  * Satu usulan koreksi dari worker.
  *
  * `offset`/`length` bersifat opsional dan sering meleset 1-2 karakter pada
- * hasil LLM — web selalu menghitung ulang span dari `original`
+ * hasil LLM - web selalu menghitung ulang span dari `original`
  * (lihat `resolveSpan` di apps/web) dan memakai offset ini hanya sebagai hint.
  */
 export interface GrammarSuggestion {
@@ -48,7 +48,7 @@ export interface GrammarJobStatus extends Partial<GrammarResultPayload> {
 	error?: string
 }
 
-/** Event SSE khusus job grammar — `checkpoint` = hasil parsial saat masih jalan. */
+/** Event SSE khusus job grammar - `checkpoint` = hasil parsial saat masih jalan. */
 export type GrammarStreamEvent =
 	| { type: 'checkpoint'; suggestions: GrammarSuggestion[] }
 	| ({ type: 'done' } & GrammarResultPayload)

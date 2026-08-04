@@ -2,7 +2,7 @@
   "name": "@writer-hub/web",
   "version": "0.1.0",
   "private": true,
-  "description": "Editor Shell WritingHub — Next.js App Router",
+  "description": "Editor Shell WritingHub - Next.js App Router",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

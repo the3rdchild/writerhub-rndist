@@ -2,7 +2,7 @@
   "name": "writer-hub",
   "version": "0.1.0",
   "private": true,
-  "description": "WritingHub — AI-powered collaborative document editor untuk Premium Portal Extended & Ransel.ai",
+  "description": "WritingHub - AI-powered collaborative document editor untuk Premium Portal Extended & Ransel.ai",
   "workspaces": [
     "apps/*",
     "packages/*"

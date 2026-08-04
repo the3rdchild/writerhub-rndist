@@ -28,7 +28,7 @@ export function StaleNotice() {
 	return (
 		<div className="flex items-center gap-2 rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-400">
 			<AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-			Text has changed — run again for up-to-date results
+			Text has changed - run again for up-to-date results
 		</div>
 	)
 }
@@ -174,7 +174,7 @@ export function AcceptDismissRow({
 	)
 }
 
-/** Kartu diff sebelum/sesudah — dipakai panel AI Rewriter dan Humanizer. */
+/** Kartu diff sebelum/sesudah - dipakai panel AI Rewriter dan Humanizer. */
 export function ChangeCard({
 	original,
 	replacement,

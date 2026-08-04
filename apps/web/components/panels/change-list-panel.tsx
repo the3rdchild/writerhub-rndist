@@ -32,8 +32,8 @@ export interface ChangeListPanelProps {
 }
 
 /**
- * AI Rewriter dan Humanizer punya alur yang persis sama — daftar diff yang
- * bisa di-accept per segmen — dan hanya berbeda pada teks serta ikon. Keduanya
+ * AI Rewriter dan Humanizer punya alur yang persis sama - daftar diff yang
+ * bisa di-accept per segmen - dan hanya berbeda pada teks serta ikon. Keduanya
  * memakai komponen ini alih-alih menyalin ~180 baris markup yang sama.
  */
 export function ChangeListPanel({

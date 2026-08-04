@@ -3,7 +3,7 @@
  *
  * Menggantikan pola callback + cleanup manual di versi lama: pemanggil cukup
  * `await`, dan event antara (checkpoint) dikirim lewat `onEvent`. Stream selalu
- * ditutup — baik saat selesai, error, timeout, maupun dibatalkan.
+ * ditutup - baik saat selesai, error, timeout, maupun dibatalkan.
  */
 
 export interface StreamOptions<TEvent> {
@@ -60,7 +60,7 @@ export function streamJob<TEvent>(
 			try {
 				event = JSON.parse(message.data) as TEvent
 			} catch {
-				return // heartbeat atau frame rusak — abaikan
+				return // heartbeat atau frame rusak - abaikan
 			}
 
 			onEvent?.(event)

@@ -1,7 +1,7 @@
 """
 Provider LLM yang dipakai worker.
 
-Sumber utamanya adalah payload job — apps/api meresolvenya dari admin-ppe
+Sumber utamanya adalah payload job - apps/api meresolvenya dari admin-ppe
 (/api/info) per user. Pada pengembangan lokal apps/api berjalan tanpa
 admin-ppe, jadi payload tidak membawa provider dan worker jatuh ke konfigurasi
 AI_* di env-nya sendiri.
@@ -37,7 +37,7 @@ class Provider(NamedTuple):
 
 
 def _from_env() -> Provider | None:
-    """Provider cadangan dari env — dipakai saat berjalan tanpa admin-ppe."""
+    """Provider cadangan dari env - dipakai saat berjalan tanpa admin-ppe."""
     if not AI_API_KEY or not AI_BASE_URL:
         return None
 
@@ -65,7 +65,7 @@ def provider_from_payload(payload: dict) -> Provider:
 def resolve_provider(payload: dict) -> Provider | None:
     """
     Sama seperti `provider_from_payload`, tapi mengembalikan None alih-alih
-    melempar. Dipakai jalur yang tidak selalu butuh LLM — analyzer plagiarism
+    melempar. Dipakai jalur yang tidak selalu butuh LLM - analyzer plagiarism
     misalnya, yang murni heuristik.
     """
     if payload.get("baseUrl") and payload.get("apiKey"):

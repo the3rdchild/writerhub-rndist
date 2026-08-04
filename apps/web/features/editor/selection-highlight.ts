@@ -9,7 +9,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
  * difokuskan; begitu pengguna mengklik panel kanan, warna birunya memudar
  * meski seleksinya tetap ada di state. Ekstensi ini menggambar ulang rentang
  * yang sama sebagai dekorasi ProseMirror, jadi sorotannya bertahan terlepas
- * dari fokus — sama seperti halaman kertas yang tetap menampilkan blok yang
+ * dari fokus - sama seperti halaman kertas yang tetap menampilkan blok yang
  * di-block meski buku ditaruh di meja.
  *
  * Saat editor kembali difokuskan, dekorasi diturunkan agar tidak menumpuk

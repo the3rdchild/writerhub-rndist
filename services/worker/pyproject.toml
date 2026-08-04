@@ -1,7 +1,7 @@
 [project]
 name = "writer-hub-worker"
 version = "0.1.0"
-description = "Worker WritingHub — konsumen antrean grammar & analysis"
+description = "Worker WritingHub - konsumen antrean grammar & analysis"
 requires-python = ">=3.12"
 dynamic = ["dependencies"]
 

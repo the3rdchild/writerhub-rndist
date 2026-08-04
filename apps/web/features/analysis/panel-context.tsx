@@ -5,7 +5,7 @@ import { createContext, type ReactNode, useCallback, useContext, useMemo, useSta
 
 /**
  * Panel proofreader memakai hasil grammar check, bukan endpoint analisis, dan
- * ai_chat tidak memakai antrean sama sekali — keduanya tetap panel, jadi id-nya
+ * ai_chat tidak memakai antrean sama sekali - keduanya tetap panel, jadi id-nya
  * hidup di sini bersama fitur analisis.
  */
 export type PanelId = 'proofreader' | 'ai_chat' | 'comments' | AnalysisFeature
@@ -34,7 +34,7 @@ interface PanelContextValue {
 	togglePanel: (panel: PanelId) => void
 
 	/**
-	 * Permintaan terakhir per fitur. Disimpan di sini — bukan di dalam panel —
+	 * Permintaan terakhir per fitur. Disimpan di sini - bukan di dalam panel -
 	 * supaya hasil tidak hilang saat pengguna berpindah panel, dan supaya status
 	 * "hasil sudah basi" bisa dihitung dengan membandingkannya ke isi dokumen
 	 * sekarang.

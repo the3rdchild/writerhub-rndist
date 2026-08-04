@@ -2,12 +2,12 @@
 Rule-engine grammar (regex + heuristik, pure-Python).
 
 Sengaja konservatif: cuma rule high-confidence biar minim false-positive.
-Tinggal tambah entry di map/rule buat naikin coverage — extensible tanpa ubah kontrak.
+Tinggal tambah entry di map/rule buat naikin coverage - extensible tanpa ubah kontrak.
 
 Tiap rule balikin list dict: {offset, length, replacement, type, category:"grammar"}.
 `original` di-slice belakangan di orchestrator.
 
-Priority (prio) — kecil = menang saat overlap:
+Priority (prio) - kecil = menang saat overlap:
   -1 : compound fix (covers >1 error in one span, e.g. "dont knew" → "don't know")
    0 : core grammar rules
    1 : spelling (di file lain)

@@ -3,7 +3,7 @@ import { baseMimeType } from '@/constants/mime'
 import { getPresignedUrl, uploadFile } from '@/lib/cdn'
 import { localFileUrl, writeLocalFile } from '@/lib/storage/local'
 
-/** TTL presigned URL dokumen — worker harus sempat mengunduhnya sebelum kedaluwarsa. */
+/** TTL presigned URL dokumen - worker harus sempat mengunduhnya sebelum kedaluwarsa. */
 export const PRESIGNED_TTL_SECONDS = 24 * 60 * 60
 
 const MIME_TO_EXTENSION: Record<string, string> = {

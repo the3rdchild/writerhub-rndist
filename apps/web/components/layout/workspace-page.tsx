@@ -11,7 +11,7 @@ import { DocumentTabsSidebar } from './document-tabs'
  * Editor Shell: satu draf jadi pusatnya, modul AI bergantian di panel kanan.
  *
  * Panel adalah permukaan tersendiri di sebelah dokumen, bukan lapisan yang
- * menimpanya — kartu saran dan kalimat yang disorotnya harus terlihat
+ * menimpanya - kartu saran dan kalimat yang disorotnya harus terlihat
  * bersamaan. Saat panel tertutup, lembar kembali ke tengah kanvas.
  *
  * Antar bagian tidak ada garis pemisah: yang membedakan area hanya nada

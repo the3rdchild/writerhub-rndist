@@ -78,7 +78,7 @@ def check_spelling(text: str, language: str = "en") -> list[dict]:
         if not correction or correction == core:
             continue
 
-        # skip koreksi yang cuma beda aksen (cafe/café, resume/résumé) — bukan typo
+        # skip koreksi yang cuma beda aksen (cafe/café, resume/résumé) - bukan typo
         if _strip_accents(correction).lower() == _strip_accents(core).lower():
             continue
 

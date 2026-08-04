@@ -3,7 +3,7 @@ import type { JobStatus } from './job'
 export const ANALYSIS_FEATURES = ['ai_detector', 'ai_rewriter', 'humanizer', 'plagiarism'] as const
 export type AnalysisFeature = (typeof ANALYSIS_FEATURES)[number]
 
-/** Rentang karakter pada teks sumber — dipakai highlight & apply. */
+/** Rentang karakter pada teks sumber - dipakai highlight & apply. */
 export interface TextRange {
 	offset: number
 	length: number
@@ -59,7 +59,7 @@ export interface AnalysisJobStatus<F extends AnalysisFeature = AnalysisFeature> 
 	result?: AnalysisResultFor<F>
 }
 
-/** Event SSE job analisis — hasil datang sekaligus di event `done`. */
+/** Event SSE job analisis - hasil datang sekaligus di event `done`. */
 export type AnalysisStreamEvent<F extends AnalysisFeature = AnalysisFeature> =
 	| { type: 'done'; result: AnalysisResultFor<F> }
 	| { type: 'error'; message: string }

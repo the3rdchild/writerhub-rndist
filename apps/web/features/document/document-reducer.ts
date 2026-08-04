@@ -20,7 +20,7 @@ export interface DocumentState {
 	filter: SuggestionFilter
 	/** Rentang yang diminta panel untuk di-scroll ke tampilan; dikonsumsi sekali. */
 	focusedRange: TextRange | null
-	/** Rentang yang sedang di-hover di panel — digambar sebagai overlay. */
+	/** Rentang yang sedang di-hover di panel - digambar sebagai overlay. */
 	hoveredRange: TextRange | null
 }
 
@@ -60,7 +60,7 @@ export const initialDocumentState: DocumentState = {
 	hoveredRange: null,
 }
 
-/** Reset hasil pemeriksaan — dipakai setiap kali sumber teks berganti total. */
+/** Reset hasil pemeriksaan - dipakai setiap kali sumber teks berganti total. */
 const withClearedResults = (state: DocumentState) => ({
 	...state,
 	suggestions: [],

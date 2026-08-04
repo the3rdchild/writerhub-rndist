@@ -1,7 +1,7 @@
 """
 Text extraction pipeline (pdf/docx/txt).
 
-Fasad tipis — `resolve_text(payload)` satu-satunya pintu keluar buat
+Fasad tipis - `resolve_text(payload)` satu-satunya pintu keluar buat
 `grammar_service` dan `analysis_service`.
 """
 

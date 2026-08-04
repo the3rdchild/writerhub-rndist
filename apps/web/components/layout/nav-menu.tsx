@@ -13,7 +13,7 @@ const RECENT_SESSION_LIMIT = 6
  * Navigasi utama, dipadatkan ke satu tombol di kiri menu bar.
  *
  * Sebelumnya semua ini menempati sidebar tetap; dipindahkan ke popup agar
- * kanvas dokumen mendapat lebar penuh — dokumen yang jadi bintangnya, bukan
+ * kanvas dokumen mendapat lebar penuh - dokumen yang jadi bintangnya, bukan
  * navigasinya.
  */
 export function NavMenu() {

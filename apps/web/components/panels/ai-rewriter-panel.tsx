@@ -9,7 +9,7 @@ export function AiRewriterPanel() {
 			feature="ai_rewriter"
 			icon={RefreshCw}
 			emptyTitle="Rewrite your text"
-			emptyDescription="Improve clarity and style — accept or dismiss each change"
+			emptyDescription="Improve clarity and style - accept or dismiss each change"
 			runLabel="Rewrite Text"
 			rerunLabel="Rewrite Again"
 			runningLabel="Rewriting..."

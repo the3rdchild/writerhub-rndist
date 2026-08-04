@@ -172,7 +172,7 @@ export function extractProposals(content: string): string[] {
 	return proposals
 }
 
-/** Isi jawaban tanpa blok usulan — bagian yang dibaca sebagai penjelasan. */
+/** Isi jawaban tanpa blok usulan - bagian yang dibaca sebagai penjelasan. */
 export function stripProposals(content: string): string {
 	return content.replace(/```[\w-]*\n[\s\S]*?```/g, '').trim()
 }

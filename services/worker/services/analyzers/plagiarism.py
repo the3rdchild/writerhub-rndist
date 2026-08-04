@@ -1,8 +1,8 @@
 """
-Plagiarism / uniqueness checker — heuristik phrase-fingerprinting.
+Plagiarism / uniqueness checker - heuristik phrase-fingerprinting.
 
 Tanpa web index: n-gram teks dibandingkan dengan daftar frasa umum internet
-(COMMON_PHRASES). BUKAN plagiarism detector beneran — FE wajib menampilkan
+(COMMON_PHRASES). BUKAN plagiarism detector beneran - FE wajib menampilkan
 disclaimer.
 """
 
@@ -253,7 +253,7 @@ def _label(score: int) -> str:
 
 def run_plagiarism(text: str, provider: Provider | None = None) -> dict:
     """
-    Analisis murni heuristik — `provider` diterima agar tanda tangannya seragam
+    Analisis murni heuristik - `provider` diterima agar tanda tangannya seragam
     dengan analyzer lain, tapi tidak dipakai sama sekali.
 
     Returns PlagiarismResult:

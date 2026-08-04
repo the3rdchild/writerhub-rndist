@@ -7,7 +7,7 @@ import type { Editor } from '@tiptap/react'
  * Ctrl+K. Dipisah ke sini supaya keduanya tidak pernah berperilaku berbeda.
  *
  * `extendMarkRange` membuat kursor yang sekadar berada di dalam tautan sudah
- * cukup — pengguna tidak perlu menyeleksi seluruh tautannya lebih dulu.
+ * cukup - pengguna tidak perlu menyeleksi seluruh tautannya lebih dulu.
  */
 export function promptForLink(editor: Editor): void {
 	const previous = editor.getAttributes('link').href as string | undefined

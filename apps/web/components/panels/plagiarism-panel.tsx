@@ -76,7 +76,7 @@ export function PlagiarismPanel() {
 
 						<p className="flex items-start gap-1.5 rounded-xl bg-[var(--overlay-hover)] px-3 py-2 text-[10px] text-subtle">
 							<TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" />
-							Heuristic check — not a replacement for a full plagiarism service
+							Heuristic check - not a replacement for a full plagiarism service
 						</p>
 					</>
 				)}

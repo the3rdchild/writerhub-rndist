@@ -4,7 +4,7 @@ import { Mark, mergeAttributes } from '@tiptap/core'
  * Penanda komentar pada teks.
  *
  * Dibuat sebagai mark, bukan sebagai rentang offset yang disimpan terpisah,
- * karena mark ikut bergerak sendiri saat naskah disunting — menyisipkan
+ * karena mark ikut bergerak sendiri saat naskah disunting - menyisipkan
  * paragraf di atasnya tidak membuat komentar menunjuk kalimat yang salah.
  * Itu jangkar yang tidak perlu dipelihara.
  */

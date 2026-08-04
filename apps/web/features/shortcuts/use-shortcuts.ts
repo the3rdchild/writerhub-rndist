@@ -46,7 +46,7 @@ function stepZoom(current: number, direction: 1 | -1): number {
  *
  * Semuanya memakai Mod plus Shift atau Alt, jadi tidak pernah bertabrakan
  * dengan pengetikan biasa dan tidak perlu memeriksa elemen mana yang sedang
- * fokus. Yang cocok selalu `preventDefault` — termasuk perbesaran, yang memang
+ * fokus. Yang cocok selalu `preventDefault` - termasuk perbesaran, yang memang
  * dimaksudkan menggantikan zoom bawaan browser selama berada di aplikasi.
  */
 export function useAppShortcuts(): void {

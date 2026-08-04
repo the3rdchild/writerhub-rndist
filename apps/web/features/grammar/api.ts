@@ -30,7 +30,7 @@ export function fetchGrammarJobStatus(jobId: string): Promise<GrammarJobStatus> 
 	return apiFetch<GrammarJobStatus>(`/status/${encodeURIComponent(jobId)}`)
 }
 
-/** Batas tunggu per mode — jalur AI jauh lebih lama dari pemeriksaan lokal. */
+/** Batas tunggu per mode - jalur AI jauh lebih lama dari pemeriksaan lokal. */
 export function streamTimeoutFor(model: GrammarModel): number {
 	return model === 'standard' ? 60_000 : 180_000
 }

@@ -80,7 +80,7 @@ function pmPosToText({ segments }: TextIndex, pmPos: number): number | null {
 /**
  * Arah sebaliknya: rentang ProseMirror jadi offset teks polos.
  *
- * Dipakai saat modul dijalankan hanya pada bagian yang disorot — hasilnya
+ * Dipakai saat modul dijalankan hanya pada bagian yang disorot - hasilnya
  * berkoordinat potongan, dan offset inilah yang mengembalikannya ke koordinat
  * dokumen.
  */

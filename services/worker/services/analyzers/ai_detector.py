@@ -1,5 +1,5 @@
 """
-AI Detector — deteksi probabilitas teks dibuat AI per kalimat.
+AI Detector - deteksi probabilitas teks dibuat AI per kalimat.
 
 Primary: HuggingFace openai-community/roberta-base-openai-detector
 (lazy-load + cache, pola sama dengan gec_model). Fallback: heuristik
@@ -94,7 +94,7 @@ def _label(score: int) -> str:
 
 
 def _fill_suggestions(sentences: list[dict], provider: Provider) -> None:
-    """Isi suggested rewrite untuk kalimat ber-skor >= 50 — satu batch call
+    """Isi suggested rewrite untuk kalimat ber-skor >= 50 - satu batch call
     ai model untuk semuanya; fallback per kalimat terusin ke kamus humanizer."""
     flagged = [s for s in sentences if s["score"] >= 50]
     if not flagged:

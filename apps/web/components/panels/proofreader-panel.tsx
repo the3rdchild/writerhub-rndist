@@ -54,7 +54,7 @@ export function ProofreaderPanel() {
 			setCopied(true)
 			setTimeout(() => setCopied(false), 2000)
 		} catch {
-			// clipboard ditolak browser — abaikan, tombol tetap seperti semula
+			// clipboard ditolak browser - abaikan, tombol tetap seperti semula
 		}
 	}
 

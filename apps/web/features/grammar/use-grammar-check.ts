@@ -11,7 +11,7 @@ const GRAMMAR_CHECK_KEY = ['grammar', 'check'] as const
 /**
  * Input mutation grammar check. `selectionOffset` = 0 berarti seluruh dokumen;
  * > 0 berarti `text` adalah potongan yang terseleksi, dimulai pada offset itu
- * di dalam dokumen penuh — offset setiap suggestion digeser dengannya.
+ * di dalam dokumen penuh - offset setiap suggestion digeser dengannya.
  */
 interface GrammarCheckVars {
 	text: string
@@ -36,7 +36,7 @@ export interface GrammarCheckScope {
  * mengubahnya lewat accept/dismiss.
  *
  * Status dibaca lewat `useIsMutating`/`useMutationState`, bukan dari objek
- * mutation lokal, supaya setiap pemanggil hook ini melihat keadaan yang sama —
+ * mutation lokal, supaya setiap pemanggil hook ini melihat keadaan yang sama -
  * editor dan panel proofreader sama-sama menampilkan progres yang sedang jalan
  * meski tombolnya cuma ada di panel.
  */
@@ -46,7 +46,7 @@ export function useGrammarCheck() {
 	const mutation = useMutation({
 		mutationKey: GRAMMAR_CHECK_KEY,
 		mutationFn: async (vars: GrammarCheckVars) => {
-			// Mode seleksi: potongan teks, tanpa file — file berlaku hanya untuk
+			// Mode seleksi: potongan teks, tanpa file - file berlaku hanya untuk
 			// seluruh dokumen.
 			const { jobId } = await submitGrammarCheck({
 				text: vars.text,

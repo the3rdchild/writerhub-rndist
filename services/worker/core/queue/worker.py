@@ -11,7 +11,7 @@ def start(handler, queue_name: str = QUEUE_NAME):
     """
     Nunggu job dari Redis pake BRPOP.
     Pas ada job masuk, langsung lempar ke handler.
-    queue_name opsional — default queue grammar (backward compatible).
+    queue_name opsional - default queue grammar (backward compatible).
     """
     r = redis.from_url(REDIS_URL)
     wait_key = f"bull:{queue_name}:wait"
@@ -23,7 +23,7 @@ def start(handler, queue_name: str = QUEUE_NAME):
         try:
             result = r.brpop(wait_key, timeout=5)
         except redis.exceptions.TimeoutError:
-            continue  # idle, ga ada job (socket read timeout pas blocking) — normal
+            continue  # idle, ga ada job (socket read timeout pas blocking) - normal
         except redis.exceptions.ConnectionError as e:
             logger.warning(f"[{label}] redis connection error: {e}, retry...")
             time.sleep(1)

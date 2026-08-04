@@ -1,9 +1,9 @@
 """
-POS tagging — fasad tipis di atas provider (lihat pos_providers.py).
+POS tagging - fasad tipis di atas provider (lihat pos_providers.py).
 
 `tag(text)` milih provider aktif: spaCy (utama) → AI (fallback) → [] (kalau
 dua-duanya ga ada). Konsumen (grammar_pos / advanced / structure / confusion)
-cukup `from .pos import tag` — ga peduli provider mana yang dipakai.
+cukup `from .pos import tag` - ga peduli provider mana yang dipakai.
 
 Hasil di-cache per-teks (1 entri): dalam 1 job, ke-4 checker manggil tag() dengan
 teks yang sama → provider cuma dieksekusi sekali (penting buat AI provider yang

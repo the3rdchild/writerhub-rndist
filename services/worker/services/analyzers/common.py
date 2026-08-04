@@ -1,4 +1,4 @@
-"""Util bersama untuk analyzer — sentence split dengan offset asli di teks."""
+"""Util bersama untuk analyzer - sentence split dengan offset asli di teks."""
 
 import re
 
@@ -33,7 +33,7 @@ def apply_sentence_rewrites(
 ) -> tuple[str, list[dict]]:
     """
     Susun ulang teks dari hasil rewrite per kalimat (jaga whitespace asli),
-    plus list changes {original, replacement, offset, length} — satu per
+    plus list changes {original, replacement, offset, length} - satu per
     kalimat yang berubah, offset menunjuk kalimat stripped di teks ASLI.
     """
     parts: list[str] = []

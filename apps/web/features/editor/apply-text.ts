@@ -9,7 +9,7 @@ import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offset
  * Rentangnya disimpan sebagai offset teks polos, bukan posisi ProseMirror,
  * karena naskah bisa berubah antara saat usulan dibuat dan saat pengguna
  * menekan Apply. Kalau isi di offset itu ternyata sudah bukan yang diharapkan,
- * teks aslinya dicari ulang — dan kalau tetap tidak ketemu, lebih baik gagal
+ * teks aslinya dicari ulang - dan kalau tetap tidak ketemu, lebih baik gagal
  * daripada menimpa kalimat yang salah.
  */
 export function replaceTextRange(

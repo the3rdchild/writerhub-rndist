@@ -14,7 +14,7 @@ import { TiptapEditor } from './tiptap-editor'
  *
  * Lembar digambar sebagai lapisan latar, sementara teks mengalir di atasnya
  * sebagai satu dokumen utuh. Yang memindahkan teks melewati batas lembar adalah
- * spacer dari ekstensi Pagination — bukan pemotongan node — sehingga seleksi,
+ * spacer dari ekstensi Pagination - bukan pemotongan node - sehingga seleksi,
  * penyalinan, dan pemetaan offset untuk sorotan grammar tetap berjalan seperti
  * pada dokumen biasa.
  */
@@ -47,7 +47,7 @@ export function DocumentCanvas({
 		>
 			{settings.showRuler && (
 				// Penggaris ikut menggulung mendatar bersama lembar, tapi menempel di
-				// atas saat menggulung vertikal — ia harus tetap terbaca sepanjang
+				// atas saat menggulung vertikal - ia harus tetap terbaca sepanjang
 				// dokumen, bukan hanya di halaman pertama.
 				//
 				// z-10 harus tetap di bawah TopBar (z-20): menu yang terbuka dari sana

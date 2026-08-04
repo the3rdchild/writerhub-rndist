@@ -19,7 +19,7 @@ export const DEFAULT_PRESIGNED_TTL_SECONDS = 3600
 /**
  * Unggah objek ke bucket.
  *
- * ACL hanya dikirim kalau `S3_USE_OBJECT_ACL=true` — MinIO dan Cloudflare R2
+ * ACL hanya dikirim kalau `S3_USE_OBJECT_ACL=true` - MinIO dan Cloudflare R2
  * menolak object ACL dengan 400 InvalidArgument, jadi di sana akses publik
  * diatur lewat bucket policy.
  */
@@ -41,7 +41,7 @@ export async function uploadFile(
 	return key
 }
 
-/** URL bertanda tangan untuk akses sementara — dipakai worker buat mengunduh dokumen. */
+/** URL bertanda tangan untuk akses sementara - dipakai worker buat mengunduh dokumen. */
 export async function getPresignedUrl(key: string, expiresIn = DEFAULT_PRESIGNED_TTL_SECONDS): Promise<string> {
 	return getSignedUrl(s3Client, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn })
 }

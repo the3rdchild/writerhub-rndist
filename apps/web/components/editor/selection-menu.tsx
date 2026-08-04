@@ -33,7 +33,7 @@ import { CitationPopover } from './citation-popover'
  * Menu yang muncul di atas teks yang disorot.
  *
  * Modul di panel kanan bekerja atas seluruh naskah; menu ini menjalankan hal
- * yang sama pada satu bagian saja. Bedanya bukan sekadar kenyamanan — pada
+ * yang sama pada satu bagian saja. Bedanya bukan sekadar kenyamanan - pada
  * dokumen puluhan halaman, memeriksa satu paragraf jauh lebih cepat dan jauh
  * lebih murah daripada memeriksa semuanya.
  */
@@ -42,7 +42,7 @@ import { CitationPopover } from './citation-popover'
  * Modul yang bisa dijalankan hanya pada bagian yang disorot.
  *
  * Proofreader ikut di sini walau jalurnya berbeda: ia memakai pipeline grammar,
- * bukan endpoint analisis, jadi ia hanya dibuka — bukan diberi potongan teks.
+ * bukan endpoint analisis, jadi ia hanya dibuka - bukan diberi potongan teks.
  */
 const REVIEW_MODULES: Array<{ id: 'proofreader' | AnalysisFeature; label: string; icon: typeof Bot }> = [
 	{ id: 'proofreader', label: 'Proofreader', icon: SpellCheck },

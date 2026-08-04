@@ -24,7 +24,7 @@ export const USAGE_TOOL_NAME = 'grammar-check'
 export default abstract class JobSubmissionService extends BaseService {
 	/**
 	 * Resolve provider LLM beserta gerbang kuotanya.
-	 * Mengembalikan null pada mode lokal — bukan kegagalan.
+	 * Mengembalikan null pada mode lokal - bukan kegagalan.
 	 */
 	protected async authorizeAndResolveProvider(): Promise<ResolvedProvider | null> {
 		if (isLocalAuth) return null
@@ -64,7 +64,7 @@ export default abstract class JobSubmissionService extends BaseService {
 
 	/**
 	 * Field provider yang ikut dikirim ke worker lewat payload job.
-	 * Kosong pada mode lokal — worker jatuh ke konfigurasi env miliknya.
+	 * Kosong pada mode lokal - worker jatuh ke konfigurasi env miliknya.
 	 */
 	protected providerPayload(provider: ResolvedProvider | null) {
 		if (!provider) return {}

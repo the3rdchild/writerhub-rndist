@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
  *
  * Dua besaran berbeda hidup di satu batang yang sama: margin lembar (berlaku
  * untuk seluruh dokumen) dan indentasi paragraf yang sedang dipilih. Batas
- * margin ditandai pergantian arsiran, indentasi ditandai marker segitiga —
+ * margin ditandai pergantian arsiran, indentasi ditandai marker segitiga -
  * pembagian yang sama dipakai Word maupun Google Docs, jadi tidak perlu
  * dijelaskan ulang ke pengguna.
  *

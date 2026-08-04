@@ -8,7 +8,7 @@ export const fetchCache = 'force-no-store'
  * Pipa percakapan dari apps/api ke browser.
  *
  * Berbeda dari `/api/stream/[jobId]` yang memakai EventSource, chat dikirim
- * lewat POST karena membawa riwayat dan konteks dokumen — jadi body-nya
+ * lewat POST karena membawa riwayat dan konteks dokumen - jadi body-nya
  * diteruskan, dan responsnya dialirkan apa adanya tanpa di-buffer.
  */
 export async function POST(request: Request): Promise<Response> {

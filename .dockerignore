@@ -23,7 +23,7 @@ __pycache__
 *venv
 **/*venv
 
-# Rahasia — jangan pernah dipanggang ke dalam image
+# Rahasia - jangan pernah dipanggang ke dalam image
 .env
 **/.env
 .env.*

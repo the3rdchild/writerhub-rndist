@@ -1,8 +1,8 @@
 """
-Humanizer — bikin teks yang kaku/AI-sounding jadi lebih natural, per kalimat.
+Humanizer - bikin teks yang kaku/AI-sounding jadi lebih natural, per kalimat.
 
 Engine utama: DeepSeek API (satu batch request, prompt khusus humanize).
-Fallback (tanpa model): per kalimat —
+Fallback (tanpa model): per kalimat -
 1. Substitusi frasa formal → natural (curated dict)
 2. Kontraksi umum (do not → don't, dst.)
 3. Pecah kalimat super panjang di konjungsi
@@ -153,7 +153,7 @@ def _apply_matches(text: str, matches: list[tuple[int, int, str, str]]) -> tuple
         changes.append({
             "original": orig,
             "replacement": repl,
-            "offset": start,   # offset di teks asli — bukan teks hasil
+            "offset": start,   # offset di teks asli - bukan teks hasil
             "length": len(orig),
         })
         cursor = end

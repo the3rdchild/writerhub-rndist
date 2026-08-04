@@ -95,7 +95,7 @@ export async function callUpstream({
 		body,
 		cache: 'no-store',
 		signal,
-		// @ts-expect-error — opsi Node/undici, belum ada di tipe RequestInit standar
+		// @ts-expect-error - opsi Node/undici, belum ada di tipe RequestInit standar
 		duplex: body ? 'half' : undefined,
 	})
 }

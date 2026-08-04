@@ -34,7 +34,7 @@ export function MenuBar() {
 	const { newSession, deleteSession, activeId } = useSessions()
 	const { setActivePanel } = usePanels()
 
-	// Label pintasan datang dari registry, bukan diketik di sini — dulu teksnya
+	// Label pintasan datang dari registry, bukan diketik di sini - dulu teksnya
 	// ditulis manual dan sempat menjanjikan tombol yang tidak pernah didaftarkan.
 	const keys = useShortcutLabel()
 
@@ -323,7 +323,7 @@ export function MenuBar() {
 	)
 }
 
-/** Jalankan aksi lalu tutup menu — pola yang berulang di hampir semua butir. */
+/** Jalankan aksi lalu tutup menu - pola yang berulang di hampir semua butir. */
 function run(close: () => void, action: () => void) {
 	action()
 	close()

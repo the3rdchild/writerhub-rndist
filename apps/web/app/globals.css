@@ -3,7 +3,7 @@
 
 /*
  * Tema dijalankan lewat token semantik, bukan warna hex per komponen.
- * Ganti nilai di :root / html.light dan seluruh UI ikut — tidak ada lagi
+ * Ganti nilai di :root / html.light dan seluruh UI ikut - tidak ada lagi
  * override `!important` per utility seperti pada versi sebelumnya.
  */
 /* Terang adalah tema bawaan; gelap dipilih lewat pengaturan. */
@@ -186,7 +186,7 @@ a {
 
 /*
  * Posisi setiap elemen penggaris datang dari komponen sebagai style inline
- * hasil perhitungan piksel dokumen × zoom. Di sini hanya rupanya — supaya satu
+ * hasil perhitungan piksel dokumen × zoom. Di sini hanya rupanya - supaya satu
  * sumber angka yang sama dipakai penggaris, paginasi, dan cetak.
  */
 .document-ruler-bar {
@@ -551,7 +551,7 @@ html.dark .suggestion-mark--grammar  { text-decoration-color: #f87171; color: #f
 html.dark .suggestion-mark--spelling { text-decoration-color: #fb923c; color: #fb923c; }
 html.dark .suggestion-mark--style    { text-decoration-color: #fde047; color: #fde047; }
 
-/* Seleksi teks bawaan browser di dalam badan dokumen — diselaraskan dengan
+/* Seleksi teks bawaan browser di dalam badan dokumen - diselaraskan dengan
    dekorasi `.selection-persist` di bawah supaya transisi fokus/blur tanpa kedip. */
 .document-body ::selection {
   background: color-mix(in srgb, var(--accent) 28%, transparent);

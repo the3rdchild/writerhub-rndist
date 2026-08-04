@@ -23,12 +23,12 @@ const TAB_ICONS = ['📄', '📝', '📌', '⭐', '📊', '🔬', '💡', '🗂�
 /**
  * Sidebar tab dokumen.
  *
- * Satu tab adalah satu sesi — daftarnya datang langsung dari penyimpanan sesi,
+ * Satu tab adalah satu sesi - daftarnya datang langsung dari penyimpanan sesi,
  * bukan salinan tersendiri, supaya tidak ada dua versi naskah yang sama.
  *
  * Kerangka heading tampil bersarang di bawah tab yang sedang dibuka, bukan
  * sebagai panel terpisah: tab menjawab "naskah mana", kerangka menjawab "bagian
- * mana" — dua pertanyaan berurutan, jadi jawabannya berdekatan.
+ * mana" - dua pertanyaan berurutan, jadi jawabannya berdekatan.
  */
 export function DocumentTabsSidebar() {
 	const {
@@ -136,7 +136,7 @@ function TabRow({
 		return <TabNameInput initialValue={tab.title} onCommit={onRename} onCancel={onCancelRename} />
 	}
 
-	// Naskah yang belum diberi judul dikenali dari baris pertamanya — daftar tab
+	// Naskah yang belum diberi judul dikenali dari baris pertamanya - daftar tab
 	// berisi "Untitled document" berulang tidak membantu siapa pun.
 	const label = sessionLabel(tab)
 

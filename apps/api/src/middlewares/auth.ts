@@ -29,7 +29,7 @@ function verifyPpApiKeySignature(signatureHex: string, timestamp: string): boole
 
 export const authMiddleware = createMiddleware(async (c, next) => {
 	// Mode lokal: tidak ada kredensial yang dibagikan, jadi seluruh pemeriksaan
-	// dilewati. Jalur produksi di bawahnya sengaja dibiarkan utuh — cukup ubah
+	// dilewati. Jalur produksi di bawahnya sengaja dibiarkan utuh - cukup ubah
 	// AUTH_MODE untuk mengaktifkannya kembali.
 	if (isLocalAuth) {
 		await next()

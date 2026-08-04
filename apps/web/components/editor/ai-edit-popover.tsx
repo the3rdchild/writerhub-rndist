@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
  * Memakai jalur percakapan yang sama dengan panel AI Chat, tapi hasilnya tidak
  * masuk ke transkrip: yang diinginkan pengguna di sini bukan jawaban, melainkan
  * teks pengganti. Karena itu tampilannya kartu diff dengan Apply, sama seperti
- * modul lain — tidak ada suntingan yang terjadi tanpa dilihat lebih dulu.
+ * modul lain - tidak ada suntingan yang terjadi tanpa dilihat lebih dulu.
  */
 
 const PRESETS = ['Make it shorter', 'Make it clearer', 'More formal', 'Fix grammar only']
@@ -92,7 +92,7 @@ export function AiEditPopover({
 			setApplied(true)
 			onClose()
 		} else {
-			setError('Teks aslinya sudah berubah — pilih ulang bagiannya')
+			setError('Teks aslinya sudah berubah - pilih ulang bagiannya')
 		}
 	}
 

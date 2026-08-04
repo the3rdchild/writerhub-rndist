@@ -8,7 +8,7 @@ import type { Editor } from '@tiptap/react'
  * tidak boleh berbeda satu karakter pun dari `buildTextIndex`.
  */
 
-/** Teks polos yang dikirim ke API — pemisah blok harus cocok dengan buildTextIndex. */
+/** Teks polos yang dikirim ke API - pemisah blok harus cocok dengan buildTextIndex. */
 export function editorPlainText(editor: Editor): string {
 	return editor.getText({ blockSeparator: '\n' })
 }
@@ -20,8 +20,8 @@ function escapeHtml(value: string): string {
 /**
  * Teks polos jadi paragraf HTML.
  *
- * Dipakai saat naskah datang dari luar editor — tempelan, unggahan, atau hasil
- * ekstraksi worker — dan sebagai cadangan untuk sesi lama yang tersimpan
+ * Dipakai saat naskah datang dari luar editor - tempelan, unggahan, atau hasil
+ * ekstraksi worker - dan sebagai cadangan untuk sesi lama yang tersimpan
  * sebelum isinya ikut disimpan sebagai HTML.
  */
 export function textToParagraphs(text: string): string {

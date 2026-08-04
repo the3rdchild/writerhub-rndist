@@ -1,7 +1,7 @@
 /**
  * Daftar tunggal seluruh pintasan papan tik.
  *
- * Sebelumnya menu menampilkan `shortcut="Ctrl+Alt+N"` sebagai teks belaka —
+ * Sebelumnya menu menampilkan `shortcut="Ctrl+Alt+N"` sebagai teks belaka -
  * tidak ada yang mendaftarkannya, jadi labelnya berbohong. Di sini kombinasi
  * tombol ditulis sekali, lalu dipakai bersama oleh tiga tempat: keymap Tiptap,
  * penangan tombol level aplikasi, dan label yang tampil di menu maupun dialog
@@ -18,7 +18,7 @@ export type ShortcutCategory = 'Teks' | 'Paragraf' | 'Dokumen' | 'Tools' | 'Tamp
  * Siapa yang benar-benar mendaftarkan pintasannya.
  *
  * `tiptap` berarti binding-nya datang dari ekstensi bawaan dan baris di sini
- * hanya mendokumentasikannya — mengubah `keys` tidak akan memindahkan tombolnya.
+ * hanya mendokumentasikannya - mengubah `keys` tidak akan memindahkan tombolnya.
  * `editor` dan `app` dibaca balik oleh kode kita, jadi barisnya memang mengikat.
  */
 export type ShortcutOwner = 'tiptap' | 'editor' | 'app'
@@ -146,7 +146,7 @@ export function shortcut(id: ShortcutId): Shortcut {
 	return found
 }
 
-/** Kombinasi dalam notasi Tiptap — untuk `addKeyboardShortcuts`. */
+/** Kombinasi dalam notasi Tiptap - untuk `addKeyboardShortcuts`. */
 export function shortcutKeys(id: ShortcutId): string {
 	return shortcut(id).keys
 }
@@ -164,8 +164,8 @@ interface KeyCombo {
 /**
  * Tombol dicocokkan lewat `event.code`, posisi fisiknya, bukan `event.key`.
  *
- * `event.key` berubah begitu Shift atau Alt ditekan — Shift+1 menghasilkan "!",
- * dan Alt+huruf di macOS menghasilkan karakter lain sama sekali — sehingga
+ * `event.key` berubah begitu Shift atau Alt ditekan - Shift+1 menghasilkan "!",
+ * dan Alt+huruf di macOS menghasilkan karakter lain sama sekali - sehingga
  * "Mod-Shift-1" tidak akan pernah cocok kalau dibandingkan dengan `.key`.
  */
 function toCode(key: string): string {

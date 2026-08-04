@@ -37,7 +37,7 @@ export function DocumentEditor() {
 			const text = await navigator.clipboard.readText()
 			if (text) dispatch({ type: 'setText', text })
 		} catch {
-			// izin clipboard ditolak — pengguna masih bisa menempel manual
+			// izin clipboard ditolak - pengguna masih bisa menempel manual
 		}
 	}
 

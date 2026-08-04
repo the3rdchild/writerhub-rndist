@@ -8,7 +8,7 @@ import { createContext, type ReactNode, useContext, useMemo, useState } from 're
  * di atasnya pada pohon komponen. Context ini menjembatani keduanya tanpa
  * meneruskan prop lewat setiap lapisan tata letak.
  *
- * Bernilai null sampai editor selesai dipasang — pemanggil harus siap menerima
+ * Bernilai null sampai editor selesai dipasang - pemanggil harus siap menerima
  * itu dan menonaktifkan kontrolnya.
  */
 interface EditorInstanceContextValue {

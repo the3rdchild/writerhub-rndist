@@ -60,7 +60,7 @@ export function TiptapEditor({
 
 	/**
 	 * Perubahan yang berasal dari editor sendiri tidak boleh dipantulkan balik
-	 * ke editor sebagai `setContent` — itu akan memindahkan kursor ke awal.
+	 * ke editor sebagai `setContent` - itu akan memindahkan kursor ke awal.
 	 */
 	const selfEditRef = useRef(false)
 
@@ -116,7 +116,7 @@ export function TiptapEditor({
 	}, [editor, onReady])
 
 	// Daftar ekstensi hanya dibuat sekali, sedangkan margin bisa diseret kapan
-	// saja lewat penggaris — geometri barunya dikirim sebagai meta transaksi.
+	// saja lewat penggaris - geometri barunya dikirim sebagai meta transaksi.
 	useEffect(() => {
 		if (!editor) return
 		const transaction = editor.state.tr.setMeta(paginationKey, { geometry })

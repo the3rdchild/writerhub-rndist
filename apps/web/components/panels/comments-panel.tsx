@@ -13,7 +13,7 @@ import { PanelEmptyState } from './panel-parts'
  * Komentar pada tab yang sedang dibuka.
  *
  * Jangkarnya adalah mark di dalam naskah, jadi klik sebuah utas berarti mencari
- * mark bernama sama — bukan menyimpan posisi yang harus dipelihara sendiri
+ * mark bernama sama - bukan menyimpan posisi yang harus dipelihara sendiri
  * setiap kali teks di atasnya berubah.
  */
 export function CommentsPanel() {

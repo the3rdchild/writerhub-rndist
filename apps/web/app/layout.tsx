@@ -13,7 +13,7 @@ const ui = Inter({
 })
 
 /**
- * Badan dokumen. Serif dengan tinggi-x besar dan italic sungguhan — dirancang
+ * Badan dokumen. Serif dengan tinggi-x besar dan italic sungguhan - dirancang
  * untuk teks panjang, sehingga draf terbaca seperti naskah akademik alih-alih
  * seperti isian formulir.
  */

@@ -1,5 +1,5 @@
 """
-POS provider — abstraksi sumber POS tag biar seragam.
+POS provider - abstraksi sumber POS tag biar seragam.
 
 Dua implementasi yang interchangeable:
   - SpacyPosProvider : spaCy en_core_web_sm (lokal, akurat, cepat). Provider utama.
@@ -56,7 +56,7 @@ class AiPosProvider(PosProvider):
         tokens = self._tokenize(text)
         if not tokens or len(tokens) > self._MAX_TOKENS:
             if tokens:
-                logger.warning("[pos] AI provider skip — token kebanyakan (%d)", len(tokens))
+                logger.warning("[pos] AI provider skip - token kebanyakan (%d)", len(tokens))
             return []
 
         words = [w for (w, _o, _l) in tokens]
@@ -129,6 +129,6 @@ def resolve_provider() -> PosProvider | None:
             logger.info("[pos] aktif provider=%s", p.name)
             break
     else:
-        logger.warning("[pos] ga ada POS provider aktif — POS rules nonaktif")
+        logger.warning("[pos] ga ada POS provider aktif - POS rules nonaktif")
     _resolved_done = True
     return _resolved

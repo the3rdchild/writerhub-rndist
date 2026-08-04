@@ -10,7 +10,7 @@ export function HumanizerPanel() {
 			feature="humanizer"
 			icon={UserCheck}
 			emptyTitle="Make your text sound human"
-			emptyDescription="Replace stiff, AI-sounding phrasing — accept or dismiss each suggestion"
+			emptyDescription="Replace stiff, AI-sounding phrasing - accept or dismiss each suggestion"
 			runLabel="Humanize Text"
 			rerunLabel="Humanize Again"
 			runningLabel="Humanizing..."

@@ -8,7 +8,7 @@ import { readLocalFile } from '@/lib/storage/local'
  *
  * Worker mengunduh dokumen lewat URL (sama seperti presigned URL pada driver
  * S3), jadi berkas di disk perlu satu endpoint HTTP. Rute ini hanya aktif saat
- * `STORAGE_DRIVER=local` dan tidak diproteksi `authMiddleware` — sama seperti
+ * `STORAGE_DRIVER=local` dan tidak diproteksi `authMiddleware` - sama seperti
  * presigned URL, key acak berbasis UUID yang menjadi pengamannya.
  */
 const files = createRouter().basePath('/files')

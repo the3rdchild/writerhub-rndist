@@ -4,7 +4,7 @@ import JobSubmissionService from '@/services/job-submission.service'
 import { type ChatBody, chatBodySchema } from './dto'
 
 /**
- * `POST /api/v1/chat` — percakapan dengan AI, dialirkan token per token.
+ * `POST /api/v1/chat` - percakapan dengan AI, dialirkan token per token.
  *
  * Sengaja tidak lewat antrean seperti modul analisis. Job batch cocok untuk
  * pekerjaan berat yang boleh selesai belakangan; percakapan harus mulai
@@ -12,7 +12,7 @@ import { type ChatBody, chatBodySchema } from './dto'
  * setelah sepuluh detik terasa seperti aplikasi yang menggantung.
  *
  * Yang diwarisi dari JobSubmissionService hanya autentikasi dan resolusi
- * provider — bagian yang sama persis dengan modul lain.
+ * provider - bagian yang sama persis dengan modul lain.
  */
 export default class ChatService extends JobSubmissionService {
 	async stream(): Promise<Response> {
@@ -113,7 +113,7 @@ function buildMessages({ messages, context }: ChatBody): Array<{ role: string; c
  * Ubah stream OpenAI-compatible jadi event yang dimengerti klien.
  *
  * Bentuk aslinya (`choices[].delta.content`) tidak diteruskan mentah-mentah
- * supaya klien tidak terikat pada bentuk milik satu vendor — kalau providernya
+ * supaya klien tidak terikat pada bentuk milik satu vendor - kalau providernya
  * berganti, yang menyesuaikan cukup berkas ini.
  */
 /**
@@ -151,7 +151,7 @@ function toEventStream(body: ByteSource): ReadableStream<Uint8Array> {
 					if (value) buffer += decoder.decode(value, { stream: true })
 
 					// SSE dipisah per baris, tapi satu chunk bisa memuat potongan
-					// baris — sisanya disimpan sampai barisnya utuh.
+					// baris - sisanya disimpan sampai barisnya utuh.
 					const lines = buffer.split('\n')
 					buffer = lines.pop() ?? ''
 

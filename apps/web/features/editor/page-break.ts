@@ -5,7 +5,7 @@ import { shortcutKeys } from '@/features/shortcuts/registry'
  * Pemenggalan halaman yang diminta pengguna, bukan hasil pengukuran.
  *
  * Ekstensi Pagination memindahkan teks berdasarkan tinggi blok; node ini
- * memberinya alasan kedua untuk berpindah halaman — kehendak penulis. Karena
+ * memberinya alasan kedua untuk berpindah halaman - kehendak penulis. Karena
  * disimpan sebagai node, ia ikut tersimpan di tab, bertahan setelah dimuat
  * ulang, terbawa saat dicetak, dan bisa dihapus seperti isi dokumen lain.
  */

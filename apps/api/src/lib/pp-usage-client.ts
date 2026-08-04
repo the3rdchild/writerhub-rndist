@@ -137,7 +137,7 @@ export type ToolUsageResult =
 /**
  * Catat satu pemakaian tool. Status 429 berarti kuota user habis dan request
  * harus ditolak; kegagalan lain dianggap masalah admin-ppe sehingga request
- * tetap diteruskan (fail-open) — lihat `ensureToolQuota`.
+ * tetap diteruskan (fail-open) - lihat `ensureToolQuota`.
  */
 export async function recordToolUsage(params: RecordToolUsageParams): Promise<ToolUsageResult> {
 	if (!env.PP_EXTENDED_ADMIN_URL) {
@@ -165,7 +165,7 @@ export async function recordToolUsage(params: RecordToolUsageParams): Promise<To
 			const parsed = JSON.parse(result.body) as { message?: string; errors?: string[] }
 			message = parsed.errors?.[0] ?? parsed.message ?? message
 		} catch {
-			// body bukan JSON — pakai pesan default
+			// body bukan JSON - pakai pesan default
 		}
 		return { ok: false, reason: 'limit_exceeded', message }
 	}

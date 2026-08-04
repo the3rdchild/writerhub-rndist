@@ -1,5 +1,5 @@
 """
-AI Rewriter — tulis ulang teks untuk clarity/style.
+AI Rewriter - tulis ulang teks untuk clarity/style.
 
 Engine utama: DeepSeek API (satu batch request untuk semua kalimat).
 Fallback: coedit-large lokal (reuse model GEC tier advanced di gec_model).
@@ -27,7 +27,7 @@ def _rewrite_all(stripped: list[str], provider: Provider) -> list[str]:
         logger.info("[ai_rewriter] pakai LLM (%d kalimat)", len(stripped))
         return via_api
 
-    logger.warning("[ai_rewriter] LLM tidak tersedia — teks dikembalikan apa adanya")
+    logger.warning("[ai_rewriter] LLM tidak tersedia - teks dikembalikan apa adanya")
     return list(stripped)
 
 

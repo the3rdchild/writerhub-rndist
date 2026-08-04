@@ -21,7 +21,7 @@ def _iss(offset, length, replacement, type_="Preposition", prio=0):
     }
 
 
-# (pattern, replacement) — bentuk verba dipertahanin di replacement
+# (pattern, replacement) - bentuk verba dipertahanin di replacement
 _PAIRS = [
     (r"\bdepends\s+of\b", "depends on"),
     (r"\bdepend\s+of\b", "depend on"),

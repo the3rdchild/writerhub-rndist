@@ -10,7 +10,7 @@ import { buildTextIndex, pmRangeToText } from '@/features/document/tiptap-offset
  *
  * Offset teks polos sengaja TIDAK dihitung di sini. Memetakannya berarti
  * memindai seluruh dokumen, dan itu terjadi tiap kali kursor bergeser satu
- * karakter — pada naskah puluhan halaman ongkosnya terasa. Yang butuh offset
+ * karakter - pada naskah puluhan halaman ongkosnya terasa. Yang butuh offset
  * memanggil `selectionTextRange` saat aksinya benar-benar dijalankan.
  */
 
@@ -72,7 +72,7 @@ export function useEditorSelection(editor: Editor | null): EditorSelection | nul
 	return selection
 }
 
-/** Rentang seleksi dalam koordinat teks polos — koordinat yang dipakai API. */
+/** Rentang seleksi dalam koordinat teks polos - koordinat yang dipakai API. */
 export function selectionTextRange(
 	editor: Editor,
 	selection: EditorSelection,
@@ -84,7 +84,7 @@ export function selectionTextRange(
  * Seleksi editor yang sedang aktif, sebagai scope analisis.
  *
  * Dipakai panel-panel kanan supaya tombol Run mereka bisa bekerja pada teks
- * yang sedang disorot — sama seperti menu popup seleksi, tapi tanpa harus
+ * yang sedang disorot - sama seperti menu popup seleksi, tapi tanpa harus
  * melewati popup-nya. Seleksi dipertahankan di state ProseMirror walau editor
  * kehilangan fokus (lihat SelectionHighlight), jadi scope ini tetap valid
  * begitu pengguna mengklik panel/rail di kanan.
@@ -95,7 +95,7 @@ export function selectionTextRange(
 export interface SelectionScope {
 	/** Teks polos yang terseleksi. */
 	text: string
-	/** Posisi seleksi di dalam dokumen penuh — untuk menggeser offset hasil. */
+	/** Posisi seleksi di dalam dokumen penuh - untuk menggeser offset hasil. */
 	offset: number
 	/** Selalu true; menandai bahwa ini analisis per-seleksi, bukan naskah penuh. */
 	scoped: true
@@ -124,7 +124,7 @@ export function useSelectionScope(): SelectionScope | null {
  * Beberapa paragraf di sekitar seleksi, sebagai konteks percakapan.
  *
  * Cukup untuk menjawab "kalimat ini kaku tidak" tanpa mengirim seluruh naskah
- * tiap giliran — pada PRD puluhan halaman bedanya besar sekali.
+ * tiap giliran - pada PRD puluhan halaman bedanya besar sekali.
  */
 export function surroundingText(editor: Editor, selection: EditorSelection, radius = 1_200): string {
 	const { doc } = editor.state

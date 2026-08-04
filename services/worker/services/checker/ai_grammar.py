@@ -33,7 +33,7 @@ def _resolve_offset(text: str, original: str, hint: int | None) -> int | None:
     """
     Cari posisi sebenarnya `original` di dalam teks.
 
-    Model bahasa tidak bisa menghitung posisi karakter dengan andal — pada
+    Model bahasa tidak bisa menghitung posisi karakter dengan andal - pada
     pengujian, 5-6 dari 6 offset yang dikembalikan meleset. Karena itu offset
     dari LLM hanya dipakai sebagai petunjuk untuk memilih kemunculan terdekat
     saat `original` muncul berkali-kali; posisinya sendiri selalu dihitung ulang
@@ -138,7 +138,7 @@ def check_ai_grammar(
                 "type":        str(s.get("type", "Grammar error")),
                 "category":    category,
                 "offset":      offset,
-                # Selalu panjang `original`, bukan `replacement` — `_apply` memakai
+                # Selalu panjang `original`, bukan `replacement` - `_apply` memakai
                 # ini untuk memotong teks sumber.
                 "length":      len(original),
                 "prio":        0,
@@ -147,6 +147,6 @@ def check_ai_grammar(
             continue
 
     if dropped:
-        logger.warning("[ai_grammar] %d suggestion dibuang — `original` tidak ada di teks", dropped)
+        logger.warning("[ai_grammar] %d suggestion dibuang - `original` tidak ada di teks", dropped)
 
     return out, total_tokens

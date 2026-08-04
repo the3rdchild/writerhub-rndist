@@ -220,7 +220,7 @@ def _missing_article(tagged, text):
         if tagged[i][0].lower() not in BE_SING:
             continue
         # cuma noun yang LANGSUNG setelah be (boleh lewatin 1 adverb), JANGAN lewatin
-        # adjektiva — biar "is bright red" (red ke-tag NN) ga jadi "is a bright red"
+        # adjektiva - biar "is bright red" (red ke-tag NN) ga jadi "is a bright red"
         j = i + 1
         if j < n and tagged[j][1] == "RB":
             j += 1
@@ -320,7 +320,7 @@ def _narrative_tense(tagged, text):
     out = []
     for i, (w, t, o, l) in enumerate(tagged):
         # VBP/VBZ: present tense (3sg dan non-3sg)
-        # VB: base form — handle kalau dalam posisi finite (setelah subj atau CC)
+        # VB: base form - handle kalau dalam posisi finite (setelah subj atau CC)
         if t == "VB":
             if i == 0:
                 continue
@@ -339,7 +339,7 @@ def _narrative_tense(tagged, text):
             continue
         if w.lower() in _NARRATIVE_SKIP:
             continue
-        # skip kalau didahului negasi (don't/doesn't) — handle di rule lain
+        # skip kalau didahului negasi (don't/doesn't) - handle di rule lain
         before = text[max(0, o - 12):o].lower()
         if re.search(r"\b(do|does)n'?t\s+$", before):
             continue
@@ -356,7 +356,7 @@ def _was_base_verb(tagged, text):
     Tangkap pola 'was/were + base-verb' yang seharusnya simple past.
     Contoh: "I was enjoy it" → "I enjoyed it"
             "they were go there" → "they went there"
-    Hanya VB (base) setelah was/were copula — BUKAN VBG (gerund/progressive sudah benar).
+    Hanya VB (base) setelah was/were copula - BUKAN VBG (gerund/progressive sudah benar).
     """
     out = []
     n = len(tagged)

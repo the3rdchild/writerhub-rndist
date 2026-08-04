@@ -21,7 +21,7 @@ interface ExtendedUserPackageResponse {
 
 /**
  * Ambil paket berlangganan user dari pp-extended. Mengembalikan null (bukan
- * melempar) untuk semua kegagalan — pemanggil memperlakukan itu sebagai
+ * melempar) untuk semua kegagalan - pemanggil memperlakukan itu sebagai
  * "provider tidak tersedia" dan membalas 400 yang ramah ke user.
  */
 export async function getExtendedUserPackage(token: string): Promise<ExtendedUserPackage | null> {

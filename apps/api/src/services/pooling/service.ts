@@ -8,7 +8,7 @@ const COMPLETED_CACHE_TTL_SECONDS = 60
 
 type JobStatusResponse = GrammarJobStatus | AnalysisJobStatus
 
-/** Endpoint polling `/status/:jobId` — alternatif SSE untuk klien tanpa EventSource. */
+/** Endpoint polling `/status/:jobId` - alternatif SSE untuk klien tanpa EventSource. */
 export default class PoolingService extends BaseService {
 	async getById(): Promise<Response> {
 		try {

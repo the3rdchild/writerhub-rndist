@@ -3,7 +3,7 @@ import JobSubmissionService from '@/services/job-submission.service'
 import { analysisBodySchema } from './dto'
 
 /**
- * `POST /api/v1/analyze` — antrekan job AI detector / rewriter / humanizer /
+ * `POST /api/v1/analyze` - antrekan job AI detector / rewriter / humanizer /
  * plagiarism. Menerima JSON maupun form-data agar kompatibel dengan klien lama.
  */
 export default class AnalysisService extends JobSubmissionService {

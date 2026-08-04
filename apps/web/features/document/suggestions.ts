@@ -8,7 +8,7 @@ export interface EditorSuggestion extends GrammarSuggestion {
 /**
  * Cari posisi akurat `original` di dalam teks.
  *
- * Offset dari API — terutama yang berasal dari LLM — kerap meleset satu-dua
+ * Offset dari API - terutama yang berasal dari LLM - kerap meleset satu-dua
  * karakter, misalnya menunjuk "tuffs" untuk kata "stuffs", sehingga highlight
  * hanya menutupi sebagian kata dan accept menghasilkan "sstuff". Karena itu
  * span selalu dihitung ulang dari `original`; offset API cuma dipakai sebagai

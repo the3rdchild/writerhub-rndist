@@ -24,7 +24,7 @@ const CATEGORY_CLASS: Record<string, string> = {
  *
  * Offset yang tersimpan hanya jadi petunjuk. Karena posisinya dihitung ulang
  * setiap kali dokumen berubah, sorotan tidak pernah melenceng saat pengguna
- * mengetik — tidak ada offset tersimpan yang perlu digeser-geser, dan
+ * mengetik - tidak ada offset tersimpan yang perlu digeser-geser, dan
  * suggestion yang teksnya sudah hilang otomatis berhenti disorot.
  */
 function buildDecorations(doc: PMNode, suggestions: readonly EditorSuggestion[]): DecorationSet {
@@ -41,7 +41,7 @@ function buildDecorations(doc: PMNode, suggestions: readonly EditorSuggestion[])
 		const range = textRangeToPM(index, span.offset, span.length)
 		if (!range) continue
 
-		// Satu karakter tidak boleh masuk dua dekorasi — yang bertabrakan dilewati.
+		// Satu karakter tidak boleh masuk dua dekorasi - yang bertabrakan dilewati.
 		if (taken.some((other) => range.from < other.to && range.to > other.from)) continue
 		taken.push(range)
 

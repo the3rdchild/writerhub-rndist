@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 
 /**
  * Palet ringkas: satu baris abu-abu netral, lalu satu baris warna.
- * Sengaja terbatas — pilihan yang sedikit membuat dokumen tetap konsisten,
+ * Sengaja terbatas - pilihan yang sedikit membuat dokumen tetap konsisten,
  * dan warna sebanyak Google Docs jarang benar-benar dipakai.
  */
 const PALETTE = [
