@@ -8,8 +8,13 @@ export const chatBodySchema = z.object({
 	messages: z
 		.array(
 			z.object({
-				role: z.enum(['user', 'assistant']),
-				content: z.string().trim().min(1, 'Message cannot be empty').max(20_000),
+				role: z.enum(['user', 'assistant', 'tool']),
+				// Pesan asisten yang hanya berisi panggilan alat sah tanpa teks.
+				content: z.string().max(20_000),
+				toolCalls: z
+					.array(z.object({ id: z.string(), name: z.string(), arguments: z.string() }))
+					.optional(),
+				toolCallId: z.string().optional(),
 			}),
 		)
 		.min(1, 'Conversation needs at least one message')
@@ -23,6 +28,9 @@ export const chatBodySchema = z.object({
 			title: z.string().max(500).optional(),
 		})
 		.optional(),
+
+	/** Aktifkan tool calling; klien mematikannya saat sudah tahu provider menolak. */
+	tools: z.boolean().optional().default(true),
 })
 
 export type ChatBody = z.infer<typeof chatBodySchema>

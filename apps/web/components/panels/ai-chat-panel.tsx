@@ -1,10 +1,13 @@
 'use client'
 
-import { ArrowUp, Check, FileText, Square, Trash2, X } from 'lucide-react'
+import { ArrowUp, Check, FileText, Square, Trash2, Wand2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import type { ToolCall } from '@writer-hub/shared'
 import { extractProposals, stripProposals, useChat } from '@/features/chat/chat-context'
+import { describeToolCall } from '@/features/chat/tools'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import { toEditorContent } from '@/features/editor/markdown'
 import { useSelectionScope } from '@/features/editor/selection'
 import { cn } from '@/lib/utils'
 import { PanelError } from './panel-parts'
@@ -88,13 +91,18 @@ export function AiChatPanel() {
 					</div>
 				)}
 
-				{messages.map((message, index) => (
-					<Bubble
-						key={`${index}-${message.content.slice(0, 24)}`}
-						role={message.role}
-						content={message.content}
-					/>
-				))}
+				{messages.map((message, index) =>
+					// Pesan `tool` adalah percakapan internal antara AI dan editor -
+					// pengguna melihat hasilnya, bukan transkrip mekanismenya.
+					message.role === 'tool' ? null : (
+						<Bubble
+							key={`${index}-${message.content.slice(0, 24)}`}
+							role={message.role}
+							content={message.content}
+							actions={message.actions}
+						/>
+					),
+				)}
 
 				{streaming !== null && <Bubble role="assistant" content={streaming} pending />}
 
@@ -205,10 +213,12 @@ function Bubble({
 	role,
 	content,
 	pending,
+	actions,
 }: {
 	role: 'user' | 'assistant'
 	content: string
 	pending?: boolean
+	actions?: ToolCall[]
 }) {
 	const proposals = role === 'assistant' ? extractProposals(content) : []
 	const prose = role === 'assistant' ? stripProposals(content) : content
@@ -236,6 +246,10 @@ function Bubble({
 				proposals.map((proposal, index) => (
 					<ProposalCard key={`${index}-${proposal.slice(0, 24)}`} text={proposal} />
 				))}
+
+			{actions?.map((call) => (
+				<ActionCard key={call.id} call={call} />
+			))}
 		</div>
 	)
 }
@@ -252,7 +266,7 @@ function ProposalCard({ text }: { text: string }) {
 		if (!attachment) {
 			// Tanpa seleksi yang ditempel, tidak ada rentang yang jelas untuk
 			// diganti - usulannya disisipkan di posisi kursor.
-			editor.chain().focus().insertContent(text).run()
+			editor.chain().focus().insertContent(toEditorContent(text)).run()
 			setApplied(true)
 			return
 		}
@@ -288,6 +302,44 @@ function ProposalCard({ text }: { text: string }) {
 				>
 					<Check className="h-3.5 w-3.5" />
 					{applied ? 'Applied' : 'Apply'}
+				</button>
+			)}
+		</div>
+	)
+}
+
+/**
+ * Aksi yang diminta AI, menunggu persetujuan.
+ *
+ * Alat tulis sengaja tidak langsung berjalan: pada naskah puluhan halaman,
+ * suntingan yang tidak dilihat hampir mustahil ditelusuri kembali. Kartu ini
+ * memakai idiom yang sama dengan kartu saran di modul lain.
+ */
+function ActionCard({ call }: { call: ToolCall }) {
+	const { applyAction } = useChat()
+	const [outcome, setOutcome] = useState<{ ok: boolean; message: string } | null>(null)
+
+	return (
+		<div className="flex flex-col gap-2 rounded-xl border border-accent/20 bg-accent/5 p-3">
+			<div className="flex items-start gap-2">
+				<Wand2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
+				<p className="min-w-0 flex-1 text-xs leading-relaxed text-foreground">
+					{describeToolCall(call)}
+				</p>
+			</div>
+
+			{outcome ? (
+				<p className={cn('text-[11px]', outcome.ok ? 'text-green-400' : 'text-yellow-400')}>
+					{outcome.message}
+				</p>
+			) : (
+				<button
+					type="button"
+					onClick={() => setOutcome(applyAction(call))}
+					className="flex items-center justify-center gap-1 rounded-lg bg-green-500/15 py-1.5 text-xs text-green-400 transition-colors hover:bg-green-500/25"
+				>
+					<Check className="h-3.5 w-3.5" />
+					Apply
 				</button>
 			)}
 		</div>

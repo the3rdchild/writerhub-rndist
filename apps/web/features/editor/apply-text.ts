@@ -2,6 +2,7 @@
 
 import type { Editor } from '@tiptap/react'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
+import { toEditorContent } from './markdown'
 
 /**
  * Ganti satu rentang teks dengan teks lain.
@@ -26,6 +27,8 @@ export function replaceTextRange(
 	const range = textRangeToPM(index, start, expected.length)
 	if (!range) return false
 
-	editor.chain().focus().insertContentAt(range, replacement).run()
+	// Jawaban model kerap berbentuk Markdown; diserahkan mentah-mentah, tabel
+	// dan heading masuk ke naskah sebagai teks yang menyerupainya.
+	editor.chain().focus().insertContentAt(range, toEditorContent(replacement)).run()
 	return true
 }

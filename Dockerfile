@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 # ------------------------------------------------------------------------------
 # Dockerfile multi-target untuk monorepo writer-hub.
 #
@@ -17,6 +15,13 @@
 # packages/shared, jadi konteks per-app tidak cukup.
 #
 #   docker build --target api -t writer-hub-api .
+#
+# Sengaja TANPA arahan `# syntax=docker/dockerfile:1`. Arahan itu memaksa
+# BuildKit menarik image frontend dari Docker Hub sebelum build apa pun dimulai,
+# sedangkan berkas ini tidak memakai satu pun fitur yang membutuhkannya (tanpa
+# RUN --mount, tanpa heredoc, tanpa COPY --link). Frontend bawaan Docker sudah
+# cukup, dan build jadi tetap jalan di jaringan yang tidak bisa menjangkau
+# Docker Hub selama base image-nya sudah ada di lokal.
 # ------------------------------------------------------------------------------
 
 ARG BUN_VERSION=1.2

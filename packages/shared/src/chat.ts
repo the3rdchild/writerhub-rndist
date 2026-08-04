@@ -7,11 +7,15 @@
  * yang mem-proxy provider LLM langsung - tanpa antrean, tanpa worker.
  */
 
-export type ChatRole = 'user' | 'assistant'
+export type ChatRole = 'user' | 'assistant' | 'tool'
 
 export interface ChatMessage {
 	role: ChatRole
 	content: string
+	/** Giliran asisten yang meminta alat dijalankan. */
+	toolCalls?: Array<{ id: string; name: string; arguments: string }>
+	/** Untuk pesan `tool`: panggilan mana yang dijawabnya. */
+	toolCallId?: string
 }
 
 /** Potongan dokumen yang ikut dikirim sebagai konteks. */
@@ -28,6 +32,8 @@ export interface ChatContext {
 export interface ChatRequest {
 	messages: ChatMessage[]
 	context?: ChatContext
+	/** Minta provider mengaktifkan tool calling; klien mematikannya saat jatuh ke cadangan. */
+	tools?: boolean
 }
 
 /**
@@ -38,6 +44,10 @@ export interface ChatRequest {
  */
 export type ChatStreamEvent =
 	| { type: 'delta'; text: string }
+	/** Model meminta sebuah alat dijalankan; argumennya sudah utuh. */
+	| { type: 'tool_call'; id: string; name: string; arguments: string }
+	/** Provider menolak parameter `tools`; klien beralih ke protokol blok teks. */
+	| { type: 'tools_unsupported' }
 	| { type: 'done' }
 	| { type: 'error'; message: string }
 
