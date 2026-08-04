@@ -415,6 +415,39 @@ a {
   color: var(--foreground-faint);
 }
 
+/* ── pemenggalan tabel antar lembar ────────────────────────────────────── */
+
+/*
+ * Baris kosong yang memenggal tabel. Selnya sengaja tanpa border dan tanpa
+ * latar: di situlah batas lembar lewat, dan garis tabel tidak boleh ikut
+ * tergambar menembus celah antar halaman.
+ */
+.document-body .page-break-row td {
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.document-body .page-break-row {
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Salinan baris header di puncak lembar lanjutan; tampilannya sama persis
+   dengan header aslinya supaya tidak terbaca sebagai baris data. */
+.document-body .table-header-repeat {
+  user-select: none;
+}
+
+.document-body .table-header-repeat th {
+  border: 1px solid var(--border-strong);
+  padding: 0.4em 0.6em;
+  background: var(--overlay-hover);
+  font-weight: 600;
+  text-align: left;
+  vertical-align: top;
+}
+
 /* ── pemenggalan halaman manual ────────────────────────────────────────── */
 
 /*
@@ -633,6 +666,13 @@ html.light .range-highlight {
   }
   .document-body .page-break::after {
     display: none;
+  }
+
+  /* Saat dicetak browser yang memenggal tabel, jadi sisipan layar justru
+     mengganggu: baris kosongnya menyisakan lubang dan headernya jadi ganda. */
+  .document-body .page-break-row,
+  .document-body .table-header-repeat {
+    display: none !important;
   }
 
   @page {

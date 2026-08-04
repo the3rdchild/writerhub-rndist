@@ -20,6 +20,7 @@ import { promptForLink } from '@/features/editor/link'
 import { PageBreak } from '@/features/editor/page-break'
 import { type PageGeometry, pageGeometry } from '@/features/editor/page-geometry'
 import { Pagination, paginationKey } from '@/features/editor/pagination'
+import { TableHeaderRepeat } from '@/features/editor/table-header-repeat'
 import { editorPlainText, textToParagraphs } from '@/features/editor/text-content'
 import { shortcutKeys } from '@/features/shortcuts/registry'
 import { useSettings, type FontSize } from '@/features/settings/settings-context'
@@ -87,6 +88,7 @@ export function TiptapEditor({
 			SuggestionHighlight,
 			BlockIndentExtension,
 			PageBreak,
+			TableHeaderRepeat,
 			Pagination.configure({
 				geometry,
 				onPageCountChange: (pageCount) => pageCountRef.current?.(pageCount),

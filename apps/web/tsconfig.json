@@ -15,5 +15,6 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "//": "Berkas uji dijalankan bun, yang memakai modul bawaan 'bun:test'. Tipenya tidak dipasang di sini supaya tidak ada dependensi tambahan, jadi tsc melewatinya — `bun test` yang menjaganya.",
+  "exclude": ["node_modules", "**/*.test.ts", "**/*.test.tsx"]
 }

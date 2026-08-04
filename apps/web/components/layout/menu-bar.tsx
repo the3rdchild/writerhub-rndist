@@ -7,6 +7,7 @@ import { usePanels } from '@/features/analysis/panel-context'
 import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { promptForLink } from '@/features/editor/link'
+import { isInsideTable, tableRepeatsHeader } from '@/features/editor/table-header-repeat'
 import {
 	DEFAULT_MARGINS,
 	PAGE_SIZES,
@@ -207,6 +208,15 @@ export function MenuBar() {
 							onSelect={() => run(close, () => editor?.chain().focus().setPageBreak().run())}
 						>
 							Halaman baru
+						</Item>
+						<Item
+							disabled={!isInsideTable(editor)}
+							active={tableRepeatsHeader(editor)}
+							onSelect={() =>
+								run(close, () => editor?.chain().focus().toggleTableHeaderRepeat().run())
+							}
+						>
+							Ulang header tabel
 						</Item>
 						<DropdownSeparator />
 						<Item
