@@ -3,6 +3,7 @@
 import { Extension } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { useEffect, useState } from 'react'
+import { shortcutKeys } from '@/features/shortcuts/registry'
 
 /**
  * Indentasi per blok — inti dari marker penggaris.
@@ -134,7 +135,33 @@ export const BlockIndentExtension = Extension.create({
 				},
 		}
 	},
+
+	addKeyboardShortcuts() {
+		const shift = (delta: number) => () => {
+			// Di dalam daftar dan tabel, Tab sudah punya arti sendiri — naik tingkat
+			// butir, pindah sel. Mengembalikan false menyerahkannya ke keymap mereka
+			// alih-alih merebut tombolnya.
+			if (isInsideAny(this.editor, TAB_OWNERS)) return false
+			return this.editor.commands.shiftBlockIndent(delta)
+		}
+
+		return {
+			[shortcutKeys('para.indent')]: shift(INDENT_STEP),
+			[shortcutKeys('para.outdent')]: shift(-INDENT_STEP),
+		}
+	},
 })
+
+/** Node yang sudah memakai Tab untuk keperluannya sendiri. */
+const TAB_OWNERS = ['listItem', 'taskItem', 'tableCell', 'tableHeader']
+
+function isInsideAny(editor: Editor, types: readonly string[]): boolean {
+	const { $from } = editor.state.selection
+	for (let depth = $from.depth; depth > 0; depth -= 1) {
+		if (types.includes($from.node(depth).type.name)) return true
+	}
+	return false
+}
 
 /** Indentasi blok tempat kursor berada; NO_INDENT bila bloknya tidak mendukung. */
 export function blockIndentAt(editor: Editor): BlockIndent {

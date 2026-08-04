@@ -6,6 +6,7 @@ import { Dropdown, DropdownItem, DropdownLabel, DropdownSeparator } from '@/comp
 import { usePanels } from '@/features/analysis/panel-context'
 import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import { promptForLink } from '@/features/editor/link'
 import {
 	DEFAULT_MARGINS,
 	PAGE_SIZES,
@@ -15,6 +16,7 @@ import {
 import { LINE_HEIGHTS, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
+import { useShortcutLabel } from '@/features/shortcuts/use-shortcuts'
 import { cn, countWords } from '@/lib/utils'
 
 /**
@@ -27,9 +29,13 @@ import { cn, countWords } from '@/lib/utils'
 export function MenuBar() {
 	const { editor } = useEditorInstance()
 	const { state, dispatch } = useDocument()
-	const { settings, update, toggleFocusMode, setSettingsOpen } = useSettings()
+	const { settings, update, toggleFocusMode, setSettingsOpen, setShortcutsOpen } = useSettings()
 	const { newSession, deleteSession, activeId } = useSessions()
 	const { setActivePanel } = usePanels()
+
+	// Label pintasan datang dari registry, bukan diketik di sini — dulu teksnya
+	// ditulis manual dan sempat menjanjikan tombol yang tidak pernah didaftarkan.
+	const keys = useShortcutLabel()
 
 	const downloadText = () => {
 		const blob = new Blob([state.text], { type: 'text/plain;charset=utf-8' })
@@ -46,11 +52,11 @@ export function MenuBar() {
 			<Menu label="File">
 				{({ close }) => (
 					<>
-						<Item onSelect={() => run(close, newSession)} shortcut="Ctrl+Alt+N">
-							Sesi baru
+						<Item onSelect={() => run(close, newSession)} shortcut={keys('doc.newTab')}>
+							Tab baru
 						</Item>
 						<Item onSelect={() => run(close, downloadText)}>Unduh sebagai .txt</Item>
-						<Item onSelect={() => run(close, () => window.print())} shortcut="Ctrl+P">
+						<Item onSelect={() => run(close, () => window.print())} shortcut={keys('doc.print')}>
 							Cetak
 						</Item>
 						<DropdownSeparator />
@@ -67,9 +73,10 @@ export function MenuBar() {
 						<DropdownSeparator />
 						<Item
 							disabled={!activeId}
+							shortcut={keys('doc.closeTab')}
 							onSelect={() => run(close, () => activeId && deleteSession(activeId))}
 						>
-							Hapus sesi ini
+							Tutup tab ini
 						</Item>
 					</>
 				)}
@@ -80,21 +87,21 @@ export function MenuBar() {
 					<>
 						<Item
 							disabled={!editor?.can().undo()}
-							shortcut="Ctrl+Z"
+							shortcut={keys('doc.undo')}
 							onSelect={() => run(close, () => editor?.chain().focus().undo().run())}
 						>
 							Urungkan
 						</Item>
 						<Item
 							disabled={!editor?.can().redo()}
-							shortcut="Ctrl+Y"
+							shortcut={keys('doc.redo')}
 							onSelect={() => run(close, () => editor?.chain().focus().redo().run())}
 						>
 							Ulangi
 						</Item>
 						<DropdownSeparator />
 						<Item
-							shortcut="Ctrl+A"
+							shortcut={keys('doc.selectAll')}
 							onSelect={() => run(close, () => editor?.chain().focus().selectAll().run())}
 						>
 							Pilih semua
@@ -189,17 +196,22 @@ export function MenuBar() {
 						>
 							Garis horizontal
 						</Item>
-						<Item onSelect={() => run(close, () => editor?.chain().focus().toggleTaskList().run())}>
+						<Item
+							shortcut={keys('para.taskList')}
+							onSelect={() => run(close, () => editor?.chain().focus().toggleTaskList().run())}
+						>
 							Daftar centang
+						</Item>
+						<Item
+							shortcut={keys('doc.pageBreak')}
+							onSelect={() => run(close, () => editor?.chain().focus().setPageBreak().run())}
+						>
+							Halaman baru
 						</Item>
 						<DropdownSeparator />
 						<Item
-							onSelect={() =>
-								run(close, () => {
-									const url = window.prompt('Masukkan URL:')
-									if (url) editor?.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
-								})
-							}
+							shortcut={keys('text.link')}
+							onSelect={() => run(close, () => editor && promptForLink(editor))}
 						>
 							Tautan…
 						</Item>
@@ -211,19 +223,19 @@ export function MenuBar() {
 				{({ close }) => (
 					<>
 						<Item
-							shortcut="Ctrl+B"
+							shortcut={keys('text.bold')}
 							onSelect={() => run(close, () => editor?.chain().focus().toggleBold().run())}
 						>
 							Tebal
 						</Item>
 						<Item
-							shortcut="Ctrl+I"
+							shortcut={keys('text.italic')}
 							onSelect={() => run(close, () => editor?.chain().focus().toggleItalic().run())}
 						>
 							Miring
 						</Item>
 						<Item
-							shortcut="Ctrl+U"
+							shortcut={keys('text.underline')}
 							onSelect={() => run(close, () => editor?.chain().focus().toggleUnderline().run())}
 						>
 							Garis bawah
@@ -286,21 +298,11 @@ export function MenuBar() {
 			<Menu label="Bantuan">
 				{({ close }) => (
 					<>
-						<DropdownLabel>Pintasan</DropdownLabel>
-						<Item disabled shortcut="Ctrl+B">
-							Tebal
-						</Item>
-						<Item disabled shortcut="Ctrl+I">
-							Miring
-						</Item>
-						<Item disabled shortcut="Ctrl+U">
-							Garis bawah
-						</Item>
-						<Item disabled shortcut="Ctrl+Z">
-							Urungkan
-						</Item>
-						<Item disabled shortcut="Ctrl+P">
-							Cetak
+						<Item
+							shortcut={keys('view.shortcuts')}
+							onSelect={() => run(close, () => setShortcutsOpen(true))}
+						>
+							Pintasan papan tik…
 						</Item>
 						<DropdownSeparator />
 						<Item onSelect={() => run(close, () => setSettingsOpen(true))}>Tentang WritingHub</Item>

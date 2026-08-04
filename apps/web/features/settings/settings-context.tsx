@@ -81,6 +81,9 @@ interface SettingsContextValue {
 	toggleFocusMode: () => void
 	settingsOpen: boolean
 	setSettingsOpen: (open: boolean) => void
+	/** Dialog daftar pintasan papan tik. */
+	shortcutsOpen: boolean
+	setShortcutsOpen: (open: boolean) => void
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null)
@@ -88,6 +91,7 @@ const SettingsContext = createContext<SettingsContextValue | null>(null)
 export function SettingsProvider({ children }: { children: ReactNode }) {
 	const [settings, setSettings] = usePersistentState<Settings>(SETTINGS_STORAGE_KEY, DEFAULT_SETTINGS)
 	const [settingsOpen, setSettingsOpen] = useState(false)
+	const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
 	// Terapkan lagi setelah hidrasi: theme-script hanya tahu nilai tersimpan,
 	// sedangkan preferensi "system" bisa berubah selama sesi berjalan.
@@ -123,8 +127,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 			toggleFocusMode: () => setSettings((current) => ({ ...current, focusMode: !current.focusMode })),
 			settingsOpen,
 			setSettingsOpen,
+			shortcutsOpen,
+			setShortcutsOpen,
 		}),
-		[settings, setSettings, settingsOpen],
+		[settings, setSettings, settingsOpen, shortcutsOpen],
 	)
 
 	return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>

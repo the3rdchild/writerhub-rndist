@@ -415,6 +415,41 @@ a {
   color: var(--foreground-faint);
 }
 
+/* ── pemenggalan halaman manual ────────────────────────────────────────── */
+
+/*
+ * Node page break tidak menempati ruang teks: tingginya nol, yang terlihat
+ * hanya garisnya. Kalau ia punya tinggi sendiri, ruang itu terpotong dari
+ * halaman sebelumnya dan penulis kehilangan baris tanpa tahu sebabnya.
+ */
+.document-body .page-break {
+  position: relative;
+  height: 0;
+  margin: 1.1em 0;
+  border-top: 1px dashed var(--border-strong);
+  user-select: none;
+}
+
+.document-body .page-break::after {
+  content: 'Halaman baru';
+  position: absolute;
+  right: 0;
+  top: -0.7em;
+  padding-left: 0.6em;
+  background: var(--surface-raised);
+  font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--foreground-faint);
+}
+
+.document-body .page-break.ProseMirror-selectednode {
+  border-top-color: var(--accent);
+}
+.document-body .page-break.ProseMirror-selectednode::after {
+  color: var(--accent);
+}
+
 /* ── penanda suggestion ────────────────────────────────────────────────── */
 
 .suggestion-mark {
@@ -583,6 +618,21 @@ html.light .range-highlight {
 
   .document-body {
     color: #000;
+  }
+
+  /*
+   * Saat dicetak, page break berhenti jadi gambar dan menjadi perintah: browser
+   * yang memindahkan isinya ke lembar berikutnya, jadi garis penandanya justru
+   * harus hilang.
+   */
+  .document-body .page-break {
+    break-after: page;
+    height: 0;
+    margin: 0;
+    border: 0;
+  }
+  .document-body .page-break::after {
+    display: none;
   }
 
   @page {

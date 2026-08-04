@@ -16,9 +16,12 @@ import { useDocument } from '@/features/document/document-context'
 import { suggestionHighlightKey, SuggestionHighlight } from '@/features/document/suggestion-highlight'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
 import { BlockIndentExtension } from '@/features/editor/indent'
+import { promptForLink } from '@/features/editor/link'
+import { PageBreak } from '@/features/editor/page-break'
 import { type PageGeometry, pageGeometry } from '@/features/editor/page-geometry'
 import { Pagination, paginationKey } from '@/features/editor/pagination'
 import { editorPlainText, textToParagraphs } from '@/features/editor/text-content'
+import { shortcutKeys } from '@/features/shortcuts/registry'
 import { useSettings, type FontSize } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
 import { type PopoverPosition, SuggestionPopover } from './suggestion-popover'
@@ -61,7 +64,17 @@ export function TiptapEditor({
 		immediatelyRender: false, // dokumen dirender di klien; hindari mismatch hidrasi
 		extensions: [
 			StarterKit.configure({ link: false }),
-			Link.configure({ openOnClick: false, autolink: true }),
+			// Ctrl+K memakai alur yang sama persis dengan tombol tautan di toolbar.
+			Link.extend({
+				addKeyboardShortcuts() {
+					return {
+						[shortcutKeys('text.link')]: () => {
+							promptForLink(this.editor)
+							return true
+						},
+					}
+				},
+			}).configure({ openOnClick: false, autolink: true }),
 			TextAlign.configure({ types: ['heading', 'paragraph'] }),
 			TextStyleKit,
 			Highlight.configure({ multicolor: true }),
@@ -73,6 +86,7 @@ export function TiptapEditor({
 			Placeholder.configure({ placeholder: 'Mulai menulis, atau tempel draf Anda di sini…' }),
 			SuggestionHighlight,
 			BlockIndentExtension,
+			PageBreak,
 			Pagination.configure({
 				geometry,
 				onPageCountChange: (pageCount) => pageCountRef.current?.(pageCount),

@@ -40,6 +40,7 @@ import {
 	PARAGRAPH_STYLES,
 } from '@/features/editor/text-styles'
 import { INDENT_STEP } from '@/features/editor/indent'
+import { promptForLink } from '@/features/editor/link'
 import { ZOOM_LEVELS } from '@/features/editor/page-geometry'
 import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
@@ -214,7 +215,7 @@ export function EditorToolbar({ editor, disabled }: { editor: Editor | null; dis
 
 			<Divider />
 
-			<IconButton icon={LinkIcon} label="Tautan" active={active?.link} disabled={isOff} onClick={() => editor && setLink(editor)} />
+			<IconButton icon={LinkIcon} label="Tautan" active={active?.link} disabled={isOff} onClick={() => editor && promptForLink(editor)} />
 			<IconButton icon={ImageIcon} label="Gambar" disabled={isOff} onClick={() => editor && insertImage(editor)} />
 			<IconButton
 				icon={TableIcon}
@@ -392,18 +393,6 @@ function IconButton({
 
 function Divider() {
 	return <div className="mx-1 h-5 w-px shrink-0 bg-line-strong" />
-}
-
-function setLink(editor: Editor) {
-	const previous = editor.getAttributes('link').href as string | undefined
-	const url = window.prompt('Masukkan URL:', previous ?? '')
-	if (url === null) return
-
-	if (url === '') {
-		editor.chain().focus().extendMarkRange('link').unsetLink().run()
-		return
-	}
-	editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
 }
 
 function insertImage(editor: Editor) {

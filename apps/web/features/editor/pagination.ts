@@ -2,6 +2,7 @@ import { Extension } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
+import { PAGE_BREAK_NODE } from './page-break'
 import { type PageGeometry, pageGeometry } from './page-geometry'
 
 export const paginationKey = new PluginKey<PaginationState>('pagination')
@@ -16,6 +17,8 @@ interface Measurement {
 	pos: number
 	top: number
 	bottom: number
+	/** Blok ini adalah pemenggalan halaman yang disisipkan penulis. */
+	isBreak: boolean
 }
 
 interface PaginationState {
@@ -58,7 +61,7 @@ function measureBlocks(view: EditorView, spacers: readonly Spacer[]): Measuremen
 	const measurements: Measurement[] = []
 	let cumulativeSpacer = 0
 
-	view.state.doc.forEach((_node, offset) => {
+	view.state.doc.forEach((node, offset) => {
 		cumulativeSpacer += spacerHeightAt.get(offset) ?? 0
 
 		const dom = view.nodeDOM(offset)
@@ -67,7 +70,12 @@ function measureBlocks(view: EditorView, spacers: readonly Spacer[]): Measuremen
 		// offsetTop/offsetHeight adalah nilai layout, tidak terpengaruh transform,
 		// jadi hasilnya sama berapa pun tingkat zoom yang sedang dipakai.
 		const top = dom.offsetTop - cumulativeSpacer
-		measurements.push({ pos: offset, top, bottom: top + dom.offsetHeight })
+		measurements.push({
+			pos: offset,
+			top,
+			bottom: top + dom.offsetHeight,
+			isBreak: node.type.name === PAGE_BREAK_NODE,
+		})
 	})
 
 	return measurements
@@ -81,15 +89,17 @@ function computeSpacers(
 	const spacers: Spacer[] = []
 	let pageStart = 0
 	let pageCount = 1
+	/** Blok sebelumnya adalah page break, jadi blok ini harus mulai di halaman baru. */
+	let forced = false
 
 	for (const block of blocks) {
 		const isFirstOnPage = block.top <= pageStart + 0.5
 		const overflows = block.bottom > pageStart + contentHeight
 
-		if (overflows && !isFirstOnPage) {
+		if ((overflows || forced) && !isFirstOnPage) {
 			// Dorong blok ke awal halaman berikutnya: sisa ruang halaman ini,
 			// lalu margin bawah + celah antar lembar + margin atas.
-			const remaining = pageStart + contentHeight - block.top
+			const remaining = Math.max(0, pageStart + contentHeight - block.top)
 			spacers.push({
 				pos: block.pos,
 				height: remaining + margins.bottom + gap + margins.top,
@@ -105,7 +115,13 @@ function computeSpacers(
 			pageStart += contentHeight
 			pageCount += 1
 		}
+
+		forced = block.isBreak
 	}
+
+	// Page break di baris terakhir tetap membuka lembar baru, walau masih kosong —
+	// itu justru yang diminta penulis saat menaruhnya di ujung dokumen.
+	if (forced) pageCount += 1
 
 	return { spacers, pageCount }
 }
