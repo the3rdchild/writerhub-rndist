@@ -483,6 +483,57 @@ a {
   color: var(--accent);
 }
 
+/* ── rumus matematika ──────────────────────────────────────────────────── */
+
+/*
+ * KaTeX membawa gayanya sendiri; yang diatur di sini hanya bagaimana rumus
+ * duduk di dalam naskah - ukurannya mengikuti teks sekitarnya, bukan ukuran
+ * bawaan KaTeX yang lebih besar.
+ */
+.document-body .math-inline {
+  display: inline-block;
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0 1px;
+  transition: background-color 0.15s ease;
+}
+
+.document-body .math-inline:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.document-body .math-block {
+  display: block;
+  margin: 1em 0;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 0.4em 0;
+  transition: background-color 0.15s ease;
+}
+
+.document-body .math-block:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* Node terpilih diberi bingkai supaya jelas apa yang akan terhapus. */
+.document-body .math-inline.ProseMirror-selectednode,
+.document-body .math-block.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.document-body .katex {
+  font-size: 1.05em;
+}
+
+/* LaTeX yang belum sah tetap ditampilkan, ditandai, bukan dihilangkan. */
+.document-body .math-error,
+.document-body .katex .katex-error {
+  color: #dc2626;
+  border-bottom: 1px dotted #dc2626;
+}
+
 /* ── komentar & menu seleksi ───────────────────────────────────────────── */
 
 /*

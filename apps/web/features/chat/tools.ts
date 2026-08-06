@@ -7,6 +7,7 @@ import { COMMENT_MARK } from '@/features/comments/comment-mark'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { toEditorContent } from '@/features/editor/markdown'
+import { stripDelimiters } from '@/features/editor/math'
 
 /**
  * Menjalankan alat yang diminta AI, di browser - karena editornya ada di sini.
@@ -137,6 +138,8 @@ export function describeToolCall(call: ToolCall): string {
 		}
 		case 'replace_text':
 			return `Replace “${String(call.arguments.find ?? '').slice(0, 48)}…”`
+		case 'insert_math':
+			return `Insert formula ${String(call.arguments.latex ?? '').slice(0, 40)}`
 		case 'insert_page_break':
 			return 'Insert a page break'
 		case 'add_comment':
@@ -176,6 +179,16 @@ export function applyWriteTool(context: WriteToolContext, call: ToolCall): ToolO
 			return ok
 				? { ok: true, message: 'Replaced.' }
 				: { ok: false, message: 'That passage is no longer in the document.' }
+		}
+
+		case 'insert_math': {
+			const latex = stripDelimiters(String(call.arguments.latex ?? ''))
+			if (!latex) return { ok: false, message: 'Nothing to insert.' }
+
+			// Pembatas $ dibuang kalau model tetap mengirimnya - instruksinya sudah
+			// menyebut tanpa $, tapi model tidak selalu menurut.
+			editor.chain().focus().setMath(latex, call.arguments.display === true).run()
+			return { ok: true, message: 'Formula inserted.' }
 		}
 
 		case 'insert_page_break':

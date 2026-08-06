@@ -75,3 +75,37 @@ describe('teks biasa dibiarkan apa adanya', () => {
 		expect(toEditorContent('| a |\n|---|\n| b |')).toContain('<table>')
 	})
 })
+
+describe('rumus LaTeX', () => {
+	test('rumus inline jadi node, bukan teks', () => {
+		const html = markdownToHtml('Misalkan $x^2$ berlaku.')
+		expect(html).toContain('data-latex="x^2"')
+		expect(html).not.toContain('$x^2$')
+	})
+
+	test('penanda Markdown di dalam LaTeX tidak ikut diproses', () => {
+		// `\alpha*2` akan jadi miring kalau rumusnya tidak diamankan lebih dulu.
+		const html = markdownToHtml('Rumus $\\alpha*2*\\beta$ saja.')
+		expect(html).toContain('data-latex="\\alpha*2*\\beta"')
+		expect(html).not.toContain('<em>')
+	})
+
+	test('rumus sebaris penuh jadi blok, bukan div di dalam p', () => {
+		const html = markdownToHtml('$$\\int_0^1 f(x)dx$$')
+		expect(html).toBe('<div data-latex="\\int_0^1 f(x)dx"></div>')
+	})
+
+	test('kutip dalam LaTeX di-escape sebagai atribut', () => {
+		expect(markdownToHtml('$a"b$')).toContain('&quot;')
+	})
+
+	test('harga tidak dijadikan rumus', () => {
+		const html = markdownToHtml('Harganya $5 dan $10 saja.')
+		expect(html).not.toContain('data-latex')
+	})
+
+	test('kalimat berisi rumus dikenali sebagai Markdown', () => {
+		expect(looksLikeMarkdown('Nilai $x^2$ naik.')).toBe(true)
+		expect(looksLikeMarkdown('Biaya $5 per bulan.')).toBe(false)
+	})
+})

@@ -10,6 +10,7 @@ import { download, safeFilename } from '@/features/document/download'
 import { exportDocx } from '@/features/document/export-docx'
 import { useDocumentImport } from '@/features/document/import-context'
 import { promptForLink } from '@/features/editor/link'
+import { convertMathInDocument, convertSelectionToMath } from '@/features/editor/math'
 import { isInsideTable, tableRepeatsHeader } from '@/features/editor/table-header-repeat'
 import {
 	DEFAULT_MARGINS,
@@ -283,6 +284,26 @@ export function MenuBar() {
 							onSelect={() => run(close, () => editor?.chain().focus().toggleUnderline().run())}
 						>
 							Garis bawah
+						</Item>
+						<DropdownSeparator />
+						<DropdownLabel>Rumus</DropdownLabel>
+						<Item
+							disabled={!editor || editor.state.selection.empty}
+							onSelect={() => run(close, () => editor && convertSelectionToMath(editor, false))}
+						>
+							Jadikan rumus
+						</Item>
+						<Item
+							disabled={!editor || editor.state.selection.empty}
+							onSelect={() => run(close, () => editor && convertSelectionToMath(editor, true))}
+						>
+							Jadikan rumus blok
+						</Item>
+						<Item
+							disabled={!editor}
+							onSelect={() => run(close, () => editor && convertMathInDocument(editor))}
+						>
+							Konversi semua $rumus$ di dokumen
 						</Item>
 						<DropdownSeparator />
 						<DropdownLabel>Gaya paragraf</DropdownLabel>

@@ -71,7 +71,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'insert_content',
 		kind: 'write',
 		description:
-			'Insert new content into the document. Write it as Markdown - tables, headings and lists become real editor nodes, not text that looks like them.',
+			'Insert new content into the document, written as Markdown: # headings, | … | tables, - lists. They become real editor nodes. Mathematics goes in $…$; everything else must be Markdown, never LaTeX markup like \\section or \\begin{tabular}.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -100,6 +100,23 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 				replace: { type: 'string', description: 'Replacement, as Markdown.' },
 			},
 			required: ['find', 'replace'],
+		},
+	},
+	{
+		name: 'insert_math',
+		kind: 'write',
+		description:
+			'Insert one mathematical formula. Pass only the LaTeX of the formula itself, without $ signs and without any document markup. For headings, tables or lists use insert_content with Markdown instead.',
+		parameters: {
+			type: 'object',
+			properties: {
+				latex: { type: 'string', description: 'LaTeX source, e.g. \\frac{a}{b}.' },
+				display: {
+					type: 'boolean',
+					description: 'True for a block equation on its own line; false for inline.',
+				},
+			},
+			required: ['latex'],
 		},
 	},
 	{

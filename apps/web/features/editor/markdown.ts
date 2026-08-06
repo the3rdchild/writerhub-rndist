@@ -12,17 +12,54 @@
  * yang tidak dikenali tetap keluar sebagai paragraf, bukan hilang.
  */
 
+import { latexToMarkdown, looksLikeLatexDocument } from './latex-document'
+
 function escapeHtml(value: string): string {
 	return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+function escapeAttribute(value: string): string {
+	return escapeHtml(value).replace(/"/g, '&quot;')
+}
+
+/**
+ * Penanda sementara untuk rumus, dipakai selama teks diproses.
+ *
+ * LaTeX penuh karakter yang berarti lain di Markdown - `_`, `^`, `*`, `\\` -
+ * jadi kalau ia ikut melewati pemroses penanda inline, `\\alpha*2` berubah jadi
+ * miring dan rumusnya rusak. Rumus dicabut lebih dulu, sisanya diproses seperti
+ * biasa, lalu rumusnya dikembalikan utuh.
+ *
+ * Karakter kendali dipakai sebagai pembungkus karena ia tidak mungkin muncul
+ * di naskah yang ditulis manusia.
+ */
+const MATH_PLACEHOLDER = '\u0000math'
+
 /** Penanda inline. Dijalankan setelah escaping supaya tag hasilnya tidak ikut lolos. */
 function inline(text: string): string {
-	return escapeHtml(text)
+	// Rumus diamankan lebih dulu; lihat MATH_PLACEHOLDER.
+	const formulas: string[] = []
+	const guarded = text.replace(/\$\$?([^$\n]+?)\$\$?/g, (whole, latex: string) => {
+		const trimmed = latex.trim()
+		// Aturan spasi yang sama seperti pengenalan rumus di dokumen: tanpa itu,
+		// "$5 dan $10" ikut tertangkap sebagai rumus.
+		if (!trimmed || /^\s|\s$/.test(latex)) return whole
+		const display = whole.startsWith('$$')
+		const tag = display ? 'div' : 'span'
+		formulas.push(`<${tag} data-latex="${escapeAttribute(trimmed)}"></${tag}>`)
+		return `${MATH_PLACEHOLDER}${formulas.length - 1}\u0000`
+	})
+
+	const rendered = escapeHtml(guarded)
 		.replace(/`([^`]+)`/g, '<code>$1</code>')
 		.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
 		.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
 		.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2">$1</a>')
+
+	return rendered.replace(
+		new RegExp(`${MATH_PLACEHOLDER}(\\d+)\\u0000`, 'g'),
+		(_whole, index: string) => formulas[Number(index)] ?? '',
+	)
 }
 
 /** Baris tabel pipe jadi daftar sel, tanpa pipa pembuka/penutup. */
@@ -47,7 +84,12 @@ function isTableRow(line: string): boolean {
  * menambah risiko tanpa menambah apa pun.
  */
 export function looksLikeMarkdown(text: string): boolean {
-	return /^\s*(#{1,6}\s|[-*]\s|\d+\.\s|>\s|\|.*\|)/m.test(text) || /```/.test(text)
+	return (
+		/^\s*(#{1,6}\s|[-*]\s|\d+\.\s|>\s|\|.*\|)/m.test(text) ||
+		/```/.test(text) ||
+		// Rumus juga layak diterjemahkan walau sisanya kalimat biasa.
+		/\$\$?[^\s$][^$\n]*[^\s$]\$\$?|\$[^\s$]\$/.test(text)
+	)
 }
 
 export function markdownToHtml(markdown: string): string {
@@ -99,6 +141,17 @@ export function markdownToHtml(markdown: string): string {
 				.join('')
 
 			out.push(`<table><tbody><tr>${head}</tr>${body}</tbody></table>`)
+			continue
+		}
+
+		// ── rumus blok ───────────────────────────────────────────────────────
+		// Sebaris penuh `$$…$$` jadi node blok. Kalau dibiarkan lewat cabang
+		// paragraf, hasilnya <div> di dalam <p> - bersarang yang tidak sah dan
+		// akan dibongkar browser.
+		const blockMath = trimmed.match(/^\$\$([\s\S]+)\$\$$/)
+		if (blockMath?.[1].trim()) {
+			out.push(`<div data-latex="${escapeAttribute(blockMath[1].trim())}"></div>`)
+			index += 1
 			continue
 		}
 
@@ -174,5 +227,9 @@ export function markdownToHtml(markdown: string): string {
  * dan itu memang yang diinginkan untuk kalimat pengganti biasa.
  */
 export function toEditorContent(text: string): string {
-	return looksLikeMarkdown(text) ? markdownToHtml(text) : text
+	// Dokumen LaTeX utuh diterjemahkan dulu jadi Markdown. Tanpa ini isinya
+	// masuk apa adanya - `&` dan `\\` sebagai teks, dan seluruh barisnya
+	// menyatu jadi satu paragraf yang lebih tinggi dari satu halaman.
+	const source = looksLikeLatexDocument(text) ? latexToMarkdown(text) : text
+	return looksLikeMarkdown(source) ? markdownToHtml(source) : source
 }

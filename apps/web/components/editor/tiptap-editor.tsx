@@ -1,7 +1,6 @@
 'use client'
 
 import Highlight from '@tiptap/extension-highlight'
-import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -16,6 +15,9 @@ import { useDocument } from '@/features/document/document-context'
 import { suggestionHighlightKey, SuggestionHighlight } from '@/features/document/suggestion-highlight'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
 import { CommentMark } from '@/features/comments/comment-mark'
+import { ImageWithMarkdown, TrailingParagraph } from '@/features/editor/editor-polish'
+import { MathBlock, MathInline } from '@/features/editor/math'
+import { PasteMarkdown } from '@/features/editor/paste-markdown'
 import { BlockIndentExtension } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
 import { PageBreak } from '@/features/editor/page-break'
@@ -27,6 +29,7 @@ import { editorPlainText, textToParagraphs } from '@/features/editor/text-conten
 import { shortcutKeys } from '@/features/shortcuts/registry'
 import { useSettings, type FontSize } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
+import { MathPopover } from './math-popover'
 import { SelectionMenu } from './selection-menu'
 import { type PopoverPosition, SuggestionPopover } from './suggestion-popover'
 
@@ -86,7 +89,7 @@ export function TiptapEditor({
 			TableKit.configure({ table: { resizable: true } }),
 			TaskList,
 			TaskItem.configure({ nested: true }),
-			Image.configure({ inline: false }),
+			ImageWithMarkdown.configure({ inline: false }),
 			Placeholder.configure({ placeholder: 'Mulai menulis, atau tempel draf Anda di sini…' }),
 			SuggestionHighlight,
 			SelectionHighlight,
@@ -94,6 +97,10 @@ export function TiptapEditor({
 			PageBreak,
 			TableHeaderRepeat,
 			CommentMark,
+			MathInline,
+			MathBlock,
+			PasteMarkdown,
+			TrailingParagraph,
 			Pagination.configure({
 				geometry,
 				onPageCountChange: (pageCount) => pageCountRef.current?.(pageCount),
@@ -269,6 +276,7 @@ export function TiptapEditor({
 			)}
 			<EditorContent editor={editor} />
 			<SelectionMenu editor={editor} containerRef={containerRef} />
+			<MathPopover editor={editor} containerRef={containerRef} />
 		</>
 	)
 }
