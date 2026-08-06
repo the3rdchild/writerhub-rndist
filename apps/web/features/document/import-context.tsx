@@ -71,7 +71,7 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 
 			try {
 				const result = await importDocx(file)
-				editor.commands.setContent(result.html, { emitUpdate: false })
+				editor.commands.setContent(result.content, { emitUpdate: false })
 				dispatch({
 					type: 'load',
 					document: {

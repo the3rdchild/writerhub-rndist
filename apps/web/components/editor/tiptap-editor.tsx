@@ -18,10 +18,12 @@ import { CommentMark } from '@/features/comments/comment-mark'
 import { ImageWithMarkdown, TrailingParagraph } from '@/features/editor/editor-polish'
 import { MathBlock, MathInline } from '@/features/editor/math'
 import { PasteMarkdown } from '@/features/editor/paste-markdown'
+import { BlockSpacing } from '@/features/editor/block-spacing'
 import { BlockIndentExtension } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
 import { PageBreak } from '@/features/editor/page-break'
 import { type PageGeometry, pageGeometry } from '@/features/editor/page-geometry'
+import { TextWeight } from '@/features/editor/text-weight'
 import { Pagination, paginationKey } from '@/features/editor/pagination'
 import { SelectionHighlight } from '@/features/editor/selection-highlight'
 import { TableHeaderRepeat } from '@/features/editor/table-header-repeat'
@@ -83,7 +85,10 @@ export function TiptapEditor({
 				},
 			}).configure({ openOnClick: false, autolink: true }),
 			TextAlign.configure({ types: ['heading', 'paragraph'] }),
-			TextStyleKit,
+			// Spasi baris diurus BlockSpacing, yang menaruhnya pada bloknya alih-alih
+			// pada mark - lihat block-spacing.ts. Dua tempat untuk satu nilai hanya
+			// membuat keduanya saling menimpa.
+			TextStyleKit.configure({ lineHeight: false }),
 			Highlight.configure({ multicolor: true }),
 			Typography,
 			TableKit.configure({ table: { resizable: true } }),
@@ -94,6 +99,8 @@ export function TiptapEditor({
 			SuggestionHighlight,
 			SelectionHighlight,
 			BlockIndentExtension,
+			BlockSpacing,
+			TextWeight,
 			PageBreak,
 			TableHeaderRepeat,
 			CommentMark,
