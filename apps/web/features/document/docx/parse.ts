@@ -10,6 +10,7 @@
 import type { JSONContent } from '@tiptap/core'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import type { Numberer } from './numbering'
+import { type DocxArchive, resolvePath } from './zip'
 import {
 	type DocxStyles,
 	merge,
@@ -20,6 +21,7 @@ import {
 	type RunProps,
 } from './properties'
 import {
+	emuToPx,
 	halfPointsToPt,
 	highlightColor,
 	toCssColor,
@@ -58,6 +60,13 @@ export interface ParseContext {
 	numberer: Numberer
 	/** Elemen yang dilewati beserta jumlahnya, supaya bisa dilaporkan apa adanya. */
 	skipped: Map<string, number>
+	/**
+	 * Arsip DOCX beserta bagian utamanya. Dipakai membaca media gambar: rujukan
+	 * `r:embed` menunjuk sebuah hubungan, yang targetnya berupa jalur media
+	 * relatif terhadap direktori bagian utama.
+	 */
+	archive: DocxArchive
+	mainPart: string
 }
 
 /** Mencatat satu elemen yang tidak punya padanan, tanpa menghentikan apa pun. */
@@ -280,9 +289,120 @@ function linkTarget(hyperlink: Element, context: ParseContext): string | undefin
 	return relationship.external ? relationship.target : undefined
 }
 
+/** Tipe media dari nama berkas, untuk mengisi `data:` URL dengan benar. */
+function mediaType(path: string): string {
+	const ext = path.includes('.') ? path.slice(path.lastIndexOf('.') + 1).toLowerCase() : ''
+	switch (ext) {
+		case 'png':
+			return 'image/png'
+		case 'jpg':
+		case 'jpeg':
+			return 'image/jpeg'
+		case 'gif':
+			return 'image/gif'
+		case 'bmp':
+			return 'image/bmp'
+		case 'webp':
+			return 'image/webp'
+		case 'svg':
+			return 'image/svg+xml'
+		case 'tif':
+		case 'tiff':
+			return 'image/tiff'
+		default:
+			return 'application/octet-stream'
+	}
+}
+
+/**
+ * Membaca byte media jadi data URL base64.
+ *
+ * Data URL dipilih ketimbang object URL: ia ikut tersimpan bersama naskah,
+ * jadi gambar tetap ada setelah halaman dimuat ulang, dan selamat saat dokumen
+ * diekspor kembali ke DOCX. `btoa` butuh byte biner sebagai string - jalur
+ * konversi lewat `Uint8Array` menangani byte apa pun, termasuk yang di atas 127.
+ */
+function toDataUrl(mediaPath: string, bytes: Uint8Array): string {
+	let binary = ''
+	for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i])
+	return `data:${mediaType(mediaPath)};base64,${btoa(binary)}`
+}
+
+/**
+ * Sebuah gambar inline jadi node `image`.
+ *
+ * Ukuran tampilan diambil dari `wp:extent` (dalam EMU), bukan dari resolusi
+ * piksel berkas aslinya: sebuah gambar beresolusi tinggi kerap disimpan dalam
+ * ukuran tampil yang lebih kecil, dan memakai ukuran asli membuatnya tampil
+ * beberapa kali lebih besar dari yang dimaksudkan.
+ *
+ * Rujukan `r:embed` diubah dulu jadi jalur media melalui daftar hubungan, lalu
+ * jalur itu diselesaikan relatif terhadap direktori bagian utama. Bila media
+ * atau rujukannya hilang, gambar dilewati - bukan dijadikan naskah rusak.
+ */
+function readInlineImage(
+	drawing: Element,
+	context: ParseContext,
+): JSONContent | null {
+	const extent = descend(drawing, 'inline', 'extent')
+	const cx = extent ? Number.parseInt(attr(extent, 'cx') ?? '', 10) : NaN
+	const cy = extent ? Number.parseInt(attr(extent, 'cy') ?? '', 10) : NaN
+
+	// `a:blip` membawa rujukan ke media; `r:embed`-nya menunjuk sebuah hubungan.
+	const blip = descend(drawing, 'inline', 'graphic', 'graphicData', 'pic', 'blipFill', 'blip')
+	const embedId = blip ? attr(blip, 'embed') : undefined
+	if (!embedId) return null
+
+	const relationship = context.relationships.get(embedId)
+	if (!relationship || relationship.external) return null
+
+	const mediaPath = resolvePath(context.mainPart, relationship.target)
+	const bytes = context.archive.bytes(mediaPath)
+	if (!bytes) return null
+
+	const docPr = descend(drawing, 'inline', 'docPr')
+	const alt = docPr ? (attr(docPr, 'descr') ?? attr(docPr, 'name')) ?? undefined : undefined
+
+	const attrs: Record<string, unknown> = { src: toDataUrl(mediaPath, bytes) }
+	if (alt) attrs.alt = alt
+	if (Number.isFinite(cx)) attrs.width = emuToPx(cx)
+	if (Number.isFinite(cy)) attrs.height = emuToPx(cy)
+
+	return { type: 'image', attrs }
+}
+
+/**
+ * Mencari sebuah gambar di dalam sebuah elemen - run maupun pembungkusnya.
+ *
+ * Gambar di OOXML datang dalam dua bentuk: `w:drawing` modern dan `w:pict`
+ * warisan (VML). Keduanya ditangani, walau VAML kini langka. Yang mengambang
+ * (anchor) sengaja tidak diikutkan: editor tidak punya kanvas gambar mengambang,
+ * dan menempatkannya sebagai inline lebih baik daripada membuangnya.
+ */
+function findImage(element: Element, context: ParseContext): JSONContent | null {
+	for (const candidate of children(element)) {
+		const name = tagName(candidate)
+		if (name === 'drawing') {
+			const image = readInlineImage(candidate, context)
+			if (image) return image
+			// Drawing yang tak terbaca (mis. mengambang) bukan gambar - tapi
+			// tetap dicatat, supaya pengguna tahu sesuatu tak ikut.
+			skip(context, 'drawing')
+		} else if (name === 'pict') {
+			skip(context, 'pict')
+		}
+	}
+	return null
+}
+
 interface ParagraphBuilder {
 	blocks: JSONContent[]
 	inline: JSONContent[]
+	/**
+	 * Gambar yang ditemui selama menelusuri isi. Editor memperlakukan gambar
+	 * sebagai blok, bukan bagian teks, jadi ia tidak boleh dicampur ke `inline`.
+	 */
+	images: JSONContent[]
 	/** Format paragrafnya, dipakai ulang oleh tiap potongan hasil pemisah halaman. */
 	attrs: Record<string, unknown>
 }
@@ -317,6 +437,15 @@ function walkInline(
 					else if (type === 'end') fields.pop()
 				}
 				if (fields.includes(true)) break
+
+				// Gambar adalah blok tersendiri, bukan isi teks, jadi ia tidak ikut
+				// ke `inline` - melainkan dikumpulkan untuk dikeluarkan sebagai blok
+				// di tingkat paragraf.
+				const image = findImage(node, context)
+				if (image) {
+					builder.images.push(image)
+					break
+				}
 
 				const props = merge(inherited, readRunProps(child(node, 'rPr')))
 				const { text, pageBreak } = runText(node, context)
@@ -411,24 +540,179 @@ export function paragraphBlocks(paragraph: Element, context: ParseContext): JSON
 			)
 		}
 	}
-	const builder: ParagraphBuilder = { blocks: [], inline: [], attrs }
+	const builder: ParagraphBuilder = { blocks: [], inline: [], images: [], attrs }
 	walkInline(paragraph, context, runProps, undefined, builder, [])
 
 	const level = headingLevel(paragraphProps, style.name)
 
-	const blockAttrs = level ? { ...attrs, level } : attrs
+	// Paragraf yang isinya hanya gambar menjadi blok gambar tingkat atas, bukan
+	// paragraf - sebab gambar di editor ini adalah blok, bukan bagian teks.
+	// Paragraf yang memuat gambar bersama teks (jarang) menempatkan gambar
+	// setelah paragraf teksnya, sebagai blok terpisah.
+	const imageOnly = builder.images.length > 0 && builder.inline.length === 0
+	if (!imageOnly || level !== undefined) {
+		const blockAttrs = level ? { ...attrs, level } : attrs
 
-	builder.blocks.push({
-		type: level ? 'heading' : 'paragraph',
-		...(Object.keys(blockAttrs).length > 0 ? { attrs: blockAttrs } : {}),
-		...(builder.inline.length > 0 ? { content: builder.inline } : {}),
-	})
+		builder.blocks.push({
+			type: level ? 'heading' : 'paragraph',
+			...(Object.keys(blockAttrs).length > 0 ? { attrs: blockAttrs } : {}),
+			...(builder.inline.length > 0 ? { content: builder.inline } : {}),
+		})
+	}
+	for (const image of builder.images) builder.blocks.push(image)
 
 	// Paragraf hasil pemotongan pemisah halaman terlanjur dibuat sebagai
 	// paragraf biasa; judulnya ada di potongan terakhir, dan itu sudah benar.
 	if (paragraphProps.pageBreakBefore) builder.blocks.unshift({ type: PAGE_BREAK_NODE })
 
 	return builder.blocks
+}
+
+/**
+ * Perataan vertikal sel Word jadi padanan CSS.
+ *
+ * `vAlign` berbobot: sel tanpanya merata atas, bukan tengah, jadi diamnya
+ * berarti `top` dan tidak perlu ditulis.
+ */
+const VERTICAL_ALIGN: Record<string, string> = {
+	top: 'top',
+	center: 'middle',
+	bottom: 'bottom',
+}
+
+/**
+ * Properti sebuah sel tabel jadi atribut dan gaya node Tiptap.
+ *
+ * Arsiran (`shd`) sengaja tidak dibawa: konvensi editor memakai sel polos, dan
+ * warna latar dari Word kerap hanya penanda gaya, bukan makna. Margin sel
+ * (`tcMar`) diterjemahkan ke padding CSS; perataan vertikal (`vAlign`) ke gaya
+ * yang sama. Keduanya dinyatakan pada sel, bukan pada paragraf di dalamnya.
+ */
+function cellStyleOf(tcPr: Element | null): Record<string, unknown> {
+	if (!tcPr) return {}
+
+	const declarations: string[] = []
+
+	const vAlign = val(child(tcPr, 'vAlign'))
+	if (vAlign && VERTICAL_ALIGN[vAlign]) declarations.push(`vertical-align: ${VERTICAL_ALIGN[vAlign]}`)
+
+	// Margin sel disimpan per sisi sebagai anak elemen (`<w:top w:w="60"/>`),
+	// bukan sebagai atribut `tcMar` itu sendiri. Tiap sisi membawa `w:w` dxa.
+	const margins: string[] = []
+	const sides: Array<[string, string]> = [
+		['top', 'top'],
+		['right', 'right'],
+		['bottom', 'bottom'],
+		['left', 'left'],
+	]
+	const tcMar = child(tcPr, 'tcMar')
+	for (const [name, css] of sides) {
+		const side = tcMar ? child(tcMar, name) : null
+		const w = side ? attr(side, 'w') : undefined
+		if (w) margins.push(`${css}: ${twipsToPx(Number.parseInt(w, 10) || 0)}px`)
+	}
+	if (margins.length > 0) declarations.push(`padding: ${margins.join(' ')}`)
+
+	const attrs: Record<string, unknown> = {}
+	if (declarations.length > 0) attrs.style = declarations.join('; ')
+	return attrs
+}
+
+/**
+ * Isi sebuah sel tabel (`w:tc`) jadi deretan blok.
+ *
+ * Sel wajib berisi setidaknya satu paragraf; skema tabel Tiptap menolak sel
+ * kosong. Isinya adalah paragraf-paragraf berformat - dibaca memakai jalur yang
+ * sama dengan naskah biasa, sehingga teks ber-font Consolas dan tebal-miring
+ * di dalam tabel ikut utuh.
+ */
+function cellContent(tc: Element, context: ParseContext): JSONContent[] {
+	const blocks: JSONContent[] = []
+	for (const node of children(tc)) {
+		if (tagName(node) === 'p') blocks.push(...paragraphBlocks(node, context))
+	}
+	// Sel tanpa paragraf, atau yang isinya hanya elemen tak dikenal, tetap
+	// membutuhkan satu paragraf agar selnya sah.
+	return blocks.length > 0 ? blocks : [{ type: 'paragraph' }]
+}
+
+/**
+ * Sebuah baris tabel (`w:tr`) jadi node `tableRow`.
+ *
+ * Baris yang ditandai `tblHeader` menjadi baris judul (`tableHeader`), yang
+ * digambar ulang di puncak lembar lanjutan. Sel-selnya punya tipe berbeda
+ * (`tableHeader` vs `tableCell`) sebab Tiptap membedakan keduanya, bukan sekadar
+ * menandai barisnya.
+ */
+function tableRowBlocks(row: Element, context: ParseContext): JSONContent {
+	const isHeader = child(row, 'trPr') ? child(child(row, 'trPr'), 'tblHeader') !== null : false
+
+	const cells: JSONContent[] = []
+	for (const tc of children(row, 'tc')) {
+		const attrs = cellStyleOf(child(tc, 'tcPr'))
+		cells.push({
+			type: isHeader ? 'tableHeader' : 'tableCell',
+			...(Object.keys(attrs).length > 0 ? { attrs } : {}),
+			content: cellContent(tc, context),
+		})
+	}
+
+	// Baris tanpa sel tidak sah di skema Tiptap; lebih aman dilewati.
+	if (cells.length === 0) return { type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }
+	return { type: 'tableRow', content: cells }
+}
+
+/**
+ * Sebuah tabel Word (`w:tbl`) jadi satu blok `table`.
+ *
+ * Tabel sederhana tanpa penggabungan sel adalah kasus umum dan di sini jadi
+ * jalur utama. Penggabungan horizontal (`gridSpan`) dan vertikal (`vMerge`)
+ * belum ditangani: bila muncul, dicatat sebagai peringatan alih-alih membuat
+ * tabel yang salah.
+ */
+function tableBlocks(tbl: Element, context: ParseContext): JSONContent[] {
+	// Pemindaian manual untuk penggabungan sel: `querySelector` tidak andal di
+	// pohon dengan namespace, jadi tiap `tcPr` diperiksa langsung. Bila ada,
+	// dicatat sebagai peringatan alih-alih membuat tabel yang salah.
+	let hasMerge = false
+	for (const tr of children(tbl, 'tr')) {
+		for (const tc of children(tr, 'tc')) {
+			const tcPr = child(tc, 'tcPr')
+			if (tcPr && (child(tcPr, 'gridSpan') || child(tcPr, 'vMerge'))) {
+				hasMerge = true
+				break
+			}
+		}
+		if (hasMerge) break
+	}
+	if (hasMerge) skip(context, 'merged-cell')
+
+	const rows: JSONContent[] = []
+	for (const tr of children(tbl, 'tr')) rows.push(tableRowBlocks(tr, context))
+
+	// Atribut tabel: perataan (`jc`) menempatkan tabel di halaman; `repeatHeader`
+	// dihidupkan bila ada setidaknya satu baris judul.
+	const jc = val(child(child(tbl, 'tblPr'), 'jc'))
+	const hasHeader = rows.some((row) => row.content?.some((cell) => cell.type === 'tableHeader'))
+
+	const attrs: Record<string, unknown> = {}
+	if (jc === 'center' || jc === 'right') attrs.textAlign = jc
+	// repeatHeader berbenawa true; hanya ditulis saat dimatikan, jadi di sini
+	// tidak perlu menyebutnya bila memang hidup.
+	if (!hasHeader) attrs.repeatHeader = false
+
+	// Tabel kosong ditolak skema; pastikan ada satu sel.
+	if (rows.length === 0) {
+		return [
+			{
+				type: 'table',
+				...(Object.keys(attrs).length > 0 ? { attrs } : {}),
+				content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }],
+			},
+		]
+	}
+
+	return [{ type: 'table', ...(Object.keys(attrs).length > 0 ? { attrs } : {}), content: rows }]
 }
 
 /** Isi `w:body` jadi deretan blok tingkat atas. */
@@ -439,6 +723,10 @@ export function bodyBlocks(body: Element, context: ParseContext): JSONContent[] 
 		switch (tagName(node)) {
 			case 'p':
 				blocks.push(...paragraphBlocks(node, context))
+				break
+
+			case 'tbl':
+				blocks.push(...tableBlocks(node, context))
 				break
 
 			case 'sdt': {

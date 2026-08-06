@@ -37,3 +37,24 @@ export function openDocx(data: Uint8Array): DocxArchive {
 		paths: () => Object.keys(entries),
 	}
 }
+
+/**
+ * Jalur relatif di dalam arsip, diselesaikan terhadap direktori pemiliknya.
+ *
+ * Dipakai untuk menemukan media gambar dan bagian pendukung lain: rujukan di
+ * berkas rels bersifat relatif terhadap berkas pemiliknya, misalnya
+ * `media/logo.png` diartikan dari direktori `word/` menjadi `word/media/logo.png`.
+ */
+export function resolvePath(base: string, target: string): string {
+	if (target.startsWith('/')) return target.slice(1)
+
+	const directory = base.includes('/') ? base.slice(0, base.lastIndexOf('/')) : ''
+	const segments = directory ? directory.split('/') : []
+
+	for (const segment of target.split('/')) {
+		if (segment === '.' || segment === '') continue
+		if (segment === '..') segments.pop()
+		else segments.push(segment)
+	}
+	return segments.join('/')
+}

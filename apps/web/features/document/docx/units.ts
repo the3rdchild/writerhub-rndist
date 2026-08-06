@@ -14,6 +14,19 @@ export function twipsToPx(twips: number): number {
 	return Math.round(twips / TWIPS_PER_PX)
 }
 
+/**
+ * EMU - satuan gambar OOXML. 914.400 EMU per inci, jadi 9525 EMU per piksel
+ * di 96 dpi. `wp:extent` menyimpan ukuran tampilan gambar dalam EMU - bukan
+ * ukuran asli pikselnya, yang pada gambar ber-resolusi tinggi bisa beberapa
+ * kali lipat lebih besar. Memakai ukuran asli membuat gambar tampak mengerikan
+ * besarnya; memakai extent membuatnya tampil seperti di Word.
+ */
+const EMU_PER_PX = 9525
+
+export function emuToPx(emu: number): number {
+	return Math.round(emu / EMU_PER_PX)
+}
+
 /** `w:sz` menyimpan ukuran huruf dalam setengah poin. */
 export function halfPointsToPt(halfPoints: number): number {
 	return Math.round((halfPoints / 2) * 10) / 10

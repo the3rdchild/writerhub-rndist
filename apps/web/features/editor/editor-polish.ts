@@ -16,6 +16,27 @@ import { Plugin, PluginKey } from '@tiptap/pm/state'
 const IMAGE_INPUT = /!\[([^\]]*)\]\((\S+?)(?:\s+["']([^"']*)["'])?\)$/
 
 export const ImageWithMarkdown = Image.extend({
+	addAttributes() {
+		return {
+			// Lebar dan tinggi tampilan, dalam piksel. Dipakai hasil impor DOCX
+			// supaya gambar tampil sesuai ukuran di Word, bukan mengikuti resolusi
+			// piksel aslinya yang kerap beberapa kali lebih besar. Dituangkan ke
+			// `width`/`height` jadi atribut HTML biasa - ringan dan mengikat rasio.
+			width: {
+				default: null,
+				parseHTML: (element) => element.getAttribute('width') ?? null,
+				renderHTML: (attributes) =>
+					attributes.width ? { width: attributes.width } : {},
+			},
+			height: {
+				default: null,
+				parseHTML: (element) => element.getAttribute('height') ?? null,
+				renderHTML: (attributes) =>
+					attributes.height ? { height: attributes.height } : {},
+			},
+		}
+	},
+
 	addInputRules() {
 		return [
 			nodeInputRule({

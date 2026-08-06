@@ -17,7 +17,7 @@ import type { JSONContent } from '@tiptap/core'
 import { createNumberer, readNumbering } from './numbering'
 import { bodyBlocks, bodyOf, type ParseContext, readRelationships, readTheme } from './parse'
 import { readStyles } from './properties'
-import { type DocxArchive, openDocx } from './zip'
+import { type DocxArchive, openDocx, resolvePath } from './zip'
 import { createXmlParser, type XmlParser } from './xml'
 
 /** Yang hilang saat mengimpor, dan alasannya. */
@@ -33,21 +33,6 @@ export interface DocxImport {
 
 const OFFICE_DOCUMENT = 'officeDocument'
 const DEFAULT_MAIN_PART = 'word/document.xml'
-
-/** Jalur relatif di dalam arsip, diselesaikan terhadap direktori pemiliknya. */
-function resolvePath(base: string, target: string): string {
-	if (target.startsWith('/')) return target.slice(1)
-
-	const directory = base.includes('/') ? base.slice(0, base.lastIndexOf('/')) : ''
-	const segments = directory ? directory.split('/') : []
-
-	for (const segment of target.split('/')) {
-		if (segment === '.' || segment === '') continue
-		if (segment === '..') segments.pop()
-		else segments.push(segment)
-	}
-	return segments.join('/')
-}
 
 /** Berkas rels milik sebuah bagian. */
 function relsPathOf(part: string): string {
@@ -113,9 +98,11 @@ function partByType(
  * jelas seberapa besar yang hilang.
  */
 const SKIPPED_LABELS: Record<string, string> = {
-	tbl: 'tabel',
+	// `tbl`, `drawing`, dan `pict` kini sebagian besar terbawa; namun sisanya -
+	// penggabungan sel, gambar mengambang, VML - tetap dicatat apa adanya.
 	drawing: 'gambar',
 	pict: 'gambar',
+	'merged-cell': 'sel gabungan tabel',
 	object: 'objek tertanam',
 	oMath: 'rumus',
 	oMathPara: 'rumus',
@@ -171,6 +158,8 @@ export async function readDocx(data: Uint8Array): Promise<DocxImport> {
 		numberer: createNumberer(readNumbering(partByType(archive, parse, mainPart, 'numbering'))),
 		relationships: relationshipsSource ? readRelationships(parse(relationshipsSource)) : new Map(),
 		skipped: new Map(),
+		archive,
+		mainPart,
 	}
 
 	const blocks = bodyBlocks(body, context)

@@ -20,13 +20,22 @@ function docx({
 	rels = '',
 	theme,
 	numbering,
+	media,
 }: {
 	body: string
 	styles?: string
 	rels?: string
 	theme?: { major: string; minor: string }
 	numbering?: string
+	/** Berkas media tambahan, misalnya gambar yang dirujuk `w:drawing`. */
+	media?: Record<string, Uint8Array>
 }): Uint8Array {
+	const mediaPart = media ? Object.fromEntries(
+		Object.entries(media).map(([path, bytes]) => [
+			path.startsWith('word/') ? path : `word/${path}`,
+			bytes,
+		]),
+	) : {}
 	const numberingRel = numbering
 		? `<Relationship Id="rIdNum" Type="${REL_NS}/numbering" Target="numbering.xml"/>`
 		: ''
@@ -51,6 +60,7 @@ function docx({
 		: {}
 
 	return zipSync({
+		...mediaPart,
 		...themePart,
 		...numberingPart,
 		'_rels/.rels': strToU8(
@@ -296,18 +306,152 @@ describe('pemisah halaman', () => {
 })
 
 describe('peringatan', () => {
-	test('tabel yang dilewati dilaporkan beserta jumlahnya', async () => {
+	/**
+	 * Tabel kini terbawa, bukan dilewati. Yang masih dilaporkan hanyalah sifat
+	 * yang belum punya padanan - di sini penggabungan sel, yang membuat tabel
+	 * gagal dirender apa adanya.
+	 */
+	test('tabel bersih tidak lagi dilaporkan sebagai hilang', async () => {
 		const table = `<w:tbl><w:tr><w:tc>${p(r('sel'))}</w:tc></w:tr></w:tbl>`
 		const result = await readDocx(docx({ body: table + table }))
 
+		expect(result.warnings).toEqual([])
+	})
+
+	test('penggabungan sel tabel tetap dilaporkan apa adanya', async () => {
+		const table = `<w:tbl><w:tr><w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr>${p(r('gabung'))}</w:tc></w:tr></w:tbl>`
+		const result = await readDocx(docx({ body: table }))
+
 		expect(result.warnings.map((warning) => warning.message)).toContain(
-			'2 tabel belum ikut terbawa dan akan menyusul.',
+			'1 sel gabungan tabel belum ikut terbawa dan akan menyusul.',
 		)
 	})
 
 	test('dokumen yang bersih tidak memunculkan peringatan', async () => {
 		const result = await readDocx(docx({ body: p(r('halo')) }))
 		expect(result.warnings).toEqual([])
+	})
+})
+
+describe('tabel', () => {
+	test('tabel sederhana jadi node table dengan sel berisi paragraf', async () => {
+		const table = `<w:tbl><w:tr><w:tc>${p(r('A'))}</w:tc><w:tc>${p(r('B'))}</w:tc></w:tr></w:tbl>`
+		const block = blocks((await readDocx(docx({ body: table }))).content)[0]
+
+		expect(block?.type).toBe('table')
+		expect(block?.content?.[0]?.type).toBe('tableRow')
+		expect(block?.content?.[0]?.content?.map((cell) => cell.type)).toEqual(['tableCell', 'tableCell'])
+		expect(textOf(block?.content?.[0]?.content?.[0])).toBe('A')
+	})
+
+	/** Baris judul Word (`tblHeader`) menjadi baris `tableHeader` yang berulang. */
+	test('baris tblHeader jadi tableHeader dan repeatHeader hidup', async () => {
+		const table = `<w:tbl>
+			<w:tr><w:trPr><w:tblHeader/></w:trPr><w:tc>${p(r('judul'))}</w:tc></w:tr>
+			<w:tr><w:tc>${p(r('isi'))}</w:tc></w:tr>
+		</w:tbl>`
+		const block = blocks((await readDocx(docx({ body: table }))).content)[0]
+
+		expect(block?.content?.[0]?.type).toBe('tableRow')
+		expect(block?.content?.[0]?.content?.[0]?.type).toBe('tableHeader')
+		expect(block?.content?.[1]?.content?.[0]?.type).toBe('tableCell')
+		expect(block?.attrs?.repeatHeader).toBeUndefined()
+	})
+
+	test('tabel tanpa baris judul mematikan repeatHeader', async () => {
+		const table = `<w:tbl><w:tr><w:tc>${p(r('isi'))}</w:tc></w:tr></w:tbl>`
+		const block = blocks((await readDocx(docx({ body: table }))).content)[0]
+		expect(block?.attrs?.repeatHeader).toBe(false)
+	})
+
+	/** Format di dalam sel mengikuti jalur paragraf biasa - termasuk tebal. */
+	test('tebal di dalam sel ikut terbawa', async () => {
+		const table = `<w:tbl><w:tr><w:tc>${p(r('tegas', '<w:b/>'))}</w:tc></w:tr></w:tbl>`
+		const block = blocks((await readDocx(docx({ body: table }))).content)[0]
+		// table → row → cell → paragraf di dalamnya; marksOf membaca run pertamanya.
+		const cellParagraph = block?.content?.[0]?.content?.[0]?.content?.[0]
+		expect(marksOf(cellParagraph)).toContain('bold')
+	})
+
+	test('perataan vertikal sel jadi gaya CSS', async () => {
+		const table = `<w:tbl><w:tr><w:tc><w:tcPr><w:vAlign w:val="center"/></w:tcPr>${p(r('isi'))}</w:tc></w:tr></w:tbl>`
+		const cell = blocks((await readDocx(docx({ body: table }))).content)[0]?.content?.[0]?.content?.[0]
+		expect(String(cell?.attrs?.style)).toContain('vertical-align: middle')
+	})
+
+	test('margin sel twip jadi padding piksel', async () => {
+		const table = `<w:tbl><w:tr><w:tc><w:tcPr><w:tcMar><w:top w:w="60" w:type="dxa"/><w:left w:w="85" w:type="dxa"/></w:tcMar></w:tcPr>${p(r('isi'))}</w:tc></w:tr></w:tbl>`
+		const cell = blocks((await readDocx(docx({ body: table }))).content)[0]?.content?.[0]?.content?.[0]
+		expect(String(cell?.attrs?.style)).toContain('padding:')
+		expect(String(cell?.attrs?.style)).toContain('top: 4px')
+	})
+
+	test('tabel rata tengah membawa perataannya', async () => {
+		const table = `<w:tbl><w:tblPr><w:jc w:val="center"/></w:tblPr><w:tr><w:tc>${p(r('isi'))}</w:tc></w:tr></w:tbl>`
+		const block = blocks((await readDocx(docx({ body: table }))).content)[0]
+		expect(block?.attrs?.textAlign).toBe('center')
+	})
+})
+
+describe('gambar', () => {
+	// PNG 1x1 piksel valid terkecil, dipakai sebagai media uji.
+	const PNG_1x1 = Uint8Array.from([
+		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // tanda tangan
+		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, // IHDR
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // lebar=1, tinggi=1
+		0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89,
+		0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01,
+		0x00, 0x00, 0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4,
+		0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+	])
+
+	/** `wp:extent` 9525 EMU = 1 piksel di 96 dpi. */
+	function drawing(embedId: string, name = 'gambar', cx = 9525, cy = 9525): string {
+		return `<w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+			<wp:extent cx="${cx}" cy="${cy}"/>
+			<wp:docPr id="1" name="${name}"/>
+			<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+			<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="2" name="${name}"/><pic:cNvPicPr/></pic:nvPicPr>
+			<pic:blipFill><a:blip r:embed="${embedId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>
+			<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>
+			</a:graphicData></a:graphic></wp:inline></w:drawing>`
+	}
+
+	test('gambar inline jadi node image dengan data URL', async () => {
+		const rels = `<Relationship Id="rIdImg" Type="${REL_NS}/image" Target="media/gambar1.png"/>`
+		const run = `<w:r>${drawing('rIdImg')}</w:r>`
+		const result = await readDocx(docx({ body: p(run), rels, media: { 'media/gambar1.png': PNG_1x1 } }))
+
+		const block = blocks(result.content)[0]
+		expect(block?.type).toBe('image')
+		expect(String(block?.attrs?.src)).toMatch(/^data:image\/png;base64,/)
+		expect(block?.attrs?.alt).toBe('gambar')
+	})
+
+	/** Ukuran tampilan dari extent (EMU) dipakai, bukan resolusi piksel berkas. */
+	test('ukuran dari extent EMU jadi piksel', async () => {
+		const rels = `<Relationship Id="rIdImg" Type="${REL_NS}/image" Target="media/gambar1.png"/>`
+		const run = `<w:r>${drawing('rIdImg', 'g', 19050, 9525)}</w:r>`
+		const result = await readDocx(docx({ body: p(run), rels, media: { 'media/gambar1.png': PNG_1x1 } }))
+
+		const block = blocks(result.content)[0]
+		expect(block?.attrs?.width).toBe(2)
+		expect(block?.attrs?.height).toBe(1)
+	})
+
+	test('paragraf yang berisi hanya gambar tidak menyisakan paragraf kosong', async () => {
+		const rels = `<Relationship Id="rIdImg" Type="${REL_NS}/image" Target="media/gambar1.png"/>`
+		const run = `<w:r>${drawing('rIdImg')}</w:r>`
+		const result = await readDocx(docx({ body: p(run), rels, media: { 'media/gambar1.png': PNG_1x1 } }))
+
+		expect(blocks(result.content).map((block) => block.type)).toEqual(['image'])
+	})
+
+	/** Hubungan atau media yang hilang tidak boleh membuat naskah rusak. */
+	test('gambar tanpa media ditangani tanpa gagal', async () => {
+		const run = `<w:r>${drawing('rIdHilang')}</w:r>`
+		const result = await readDocx(docx({ body: p(r('teks') + run) }))
+		expect(blocks(result.content)[0]?.type).toBe('paragraph')
 	})
 })
 
