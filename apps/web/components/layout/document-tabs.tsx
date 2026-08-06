@@ -1,7 +1,20 @@
 'use client'
 
-import { ChevronLeft, Copy, FileText, ListTree, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react'
+import {
+	ChevronLeft,
+	Copy,
+	FileText,
+	ListTree,
+	MessageSquare,
+	MoreVertical,
+	MoveDown,
+	MoveUp,
+	Pencil,
+	Plus,
+	Trash2,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
 	Dropdown,
 	DropdownItem,
@@ -40,12 +53,23 @@ export function DocumentTabsSidebar() {
 		duplicateSession,
 		deleteSession,
 		setSessionEmoji,
+		moveSession,
 		setSessionOutlineExpanded,
 	} = useSessions()
 	const { editor } = useEditorInstance()
 	const { update } = useSettings()
 	const outline = useOutline(editor)
 	const [renamingId, setRenamingId] = useState<string | null>(null)
+	const [pendingDelete, setPendingDelete] = useState<Session | null>(null)
+
+	/**
+	 * Seret memakai DnD bawaan HTML, bukan pustaka: daftarnya satu kolom, pendek,
+	 * dan tidak ada yang perlu dipelajari peramban di luar apa yang sudah bisa.
+	 */
+	const [draggingId, setDraggingId] = useState<string | null>(null)
+	const [dragOverId, setDragOverId] = useState<string | null>(null)
+	const dragFrom = sessions.findIndex((s) => s.id === draggingId)
+	const dragTo = sessions.findIndex((s) => s.id === dragOverId)
 
 	return (
 		<aside className="flex w-[248px] shrink-0 flex-col overflow-y-auto pb-6 pl-1 pr-2">
@@ -75,13 +99,40 @@ export function DocumentTabsSidebar() {
 			</div>
 
 			<ul className="flex flex-col gap-0.5">
-				{sessions.map((tab) => (
+				{sessions.map((tab, index) => (
 					<li key={tab.id}>
 						<TabRow
 							tab={tab}
 							active={tab.id === activeId}
 							renaming={renamingId === tab.id}
 							canRemove={sessions.length > 1}
+							canMoveUp={index > 0}
+							canMoveDown={index < sessions.length - 1}
+							// Yang dihitung hanya yang belum dibereskan: lencana ini
+							// bertanya "masih ada yang perlu dijawab di tab itu?", dan
+							// utas yang sudah selesai tidak menjawab apa pun.
+							commentCount={tab.comments.filter((thread) => !thread.resolved).length}
+							dragging={draggingId === tab.id}
+							dropEdge={
+								dragOverId === tab.id && draggingId !== null && draggingId !== tab.id
+									? dragFrom < dragTo
+										? 'bottom'
+										: 'top'
+									: null
+							}
+							onDragStart={() => setDraggingId(tab.id)}
+							onDragEnterRow={() => setDragOverId(tab.id)}
+							onDrop={() => {
+								if (draggingId) moveSession(draggingId, tab.id)
+								setDraggingId(null)
+								setDragOverId(null)
+							}}
+							onDragEnd={() => {
+								setDraggingId(null)
+								setDragOverId(null)
+							}}
+							onMoveUp={() => moveSession(tab.id, sessions[index - 1].id)}
+							onMoveDown={() => moveSession(tab.id, sessions[index + 1].id)}
 							onSelect={() => {
 								// Klik tab yang sudah aktif bukan pindah lagi - ia membuka/
 								// menutup daftar isi tab itu. Klik tab lain tetap berarti
@@ -99,7 +150,7 @@ export function DocumentTabsSidebar() {
 							onStartRename={() => setRenamingId(tab.id)}
 							onCancelRename={() => setRenamingId(null)}
 							onDuplicate={() => duplicateSession(tab.id)}
-							onRemove={() => deleteSession(tab.id)}
+							onRemove={() => setPendingDelete(tab)}
 							onSetIcon={(icon) => setSessionEmoji(tab.id, icon)}
 							onToggleOutline={() =>
 								setSessionOutlineExpanded(tab.id, !tab.outlineExpanded)
@@ -116,6 +167,24 @@ export function DocumentTabsSidebar() {
 					</li>
 				))}
 			</ul>
+
+			<ConfirmDialog
+				open={pendingDelete !== null}
+				danger
+				title="Hapus tab ini?"
+				description={
+					<>
+						Naskah <strong className="text-foreground">{pendingDelete && sessionLabel(pendingDelete)}</strong>{' '}
+						ikut terhapus, termasuk komentar di dalamnya. Tidak ada jalan kembali.
+					</>
+				}
+				confirmLabel="Hapus"
+				onConfirm={() => {
+					if (pendingDelete) deleteSession(pendingDelete.id)
+					setPendingDelete(null)
+				}}
+				onCancel={() => setPendingDelete(null)}
+			/>
 		</aside>
 	)
 }
@@ -125,6 +194,11 @@ function TabRow({
 	active,
 	renaming,
 	canRemove,
+	canMoveUp,
+	canMoveDown,
+	commentCount,
+	dragging,
+	dropEdge,
 	onSelect,
 	onRename,
 	onStartRename,
@@ -133,11 +207,24 @@ function TabRow({
 	onRemove,
 	onSetIcon,
 	onToggleOutline,
+	onMoveUp,
+	onMoveDown,
+	onDragStart,
+	onDragEnterRow,
+	onDrop,
+	onDragEnd,
 }: {
 	tab: Session
 	active: boolean
 	renaming: boolean
 	canRemove: boolean
+	canMoveUp: boolean
+	canMoveDown: boolean
+	/** Komentar yang belum dibereskan di tab ini. */
+	commentCount: number
+	dragging: boolean
+	/** Sisi tempat garis penanda jatuh saat tab lain diseret ke sini. */
+	dropEdge: 'top' | 'bottom' | null
 	onSelect: () => void
 	onRename: (title: string) => void
 	onStartRename: () => void
@@ -146,6 +233,12 @@ function TabRow({
 	onRemove: () => void
 	onSetIcon: (icon: string | null) => void
 	onToggleOutline: () => void
+	onMoveUp: () => void
+	onMoveDown: () => void
+	onDragStart: () => void
+	onDragEnterRow: () => void
+	onDrop: () => void
+	onDragEnd: () => void
 }) {
 	if (renaming) {
 		return <TabNameInput initialValue={tab.title} onCommit={onRename} onCancel={onCancelRename} />
@@ -157,11 +250,31 @@ function TabRow({
 
 	return (
 		<div
+			draggable
+			onDragStart={(event) => {
+				// Firefox tidak memulai seret sama sekali kalau tidak ada muatan yang
+				// disertakan, walaupun tujuan jatuhnya ada di halaman yang sama.
+				event.dataTransfer.setData('text/plain', tab.id)
+				event.dataTransfer.effectAllowed = 'move'
+				onDragStart()
+			}}
+			onDragEnter={onDragEnterRow}
+			// Tanpa preventDefault peramban menolak jatuhnya - bawaan HTML memang
+			// menganggap tidak ada tempat yang menerima sampai dikatakan sebaliknya.
+			onDragOver={(event) => event.preventDefault()}
+			onDrop={(event) => {
+				event.preventDefault()
+				onDrop()
+			}}
+			onDragEnd={onDragEnd}
 			className={cn(
-				'group flex items-center gap-2 rounded-lg py-1.5 pl-2.5 pr-1 transition-colors',
+				'group flex items-center gap-2 rounded-lg border-y-2 border-transparent py-1 pl-2.5 pr-1 transition-colors',
 				active
 					? 'bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-accent'
 					: 'text-foreground hover:bg-[var(--overlay-hover)]',
+				dragging && 'opacity-40',
+				dropEdge === 'top' && 'border-t-accent',
+				dropEdge === 'bottom' && 'border-b-accent',
 			)}
 		>
 			<button
@@ -180,6 +293,16 @@ function TabRow({
 					{label}
 				</span>
 			</button>
+
+			{commentCount > 0 && (
+				<span
+					title={`${commentCount} komentar belum dibereskan`}
+					className="flex shrink-0 items-center gap-1 rounded-full bg-[var(--overlay-active)] px-1.5 text-[11px] leading-5 text-muted"
+				>
+					<MessageSquare className="h-3 w-3" />
+					{commentCount}
+				</span>
+			)}
 
 			<Dropdown
 				align="end"
@@ -229,6 +352,36 @@ function TabRow({
 						>
 							{tab.outlineExpanded ? 'Sembunyikan daftar isi' : 'Tampilkan daftar isi'}
 						</DropdownItem>
+
+						{/*
+						 * Naik/turun ada di samping seret, bukan menggantikannya: seret
+						 * cepat untuk yang bertetikus, sedangkan menu ini satu-satunya
+						 * jalan lewat papan tik - dan jalan yang pasti saat daftarnya
+						 * panjang dan tujuannya di luar layar.
+						 */}
+						{(canMoveUp || canMoveDown) && <DropdownSeparator />}
+						{canMoveUp && (
+							<DropdownItem
+								icon={<MoveUp className="h-4 w-4" />}
+								onSelect={() => {
+									close()
+									onMoveUp()
+								}}
+							>
+								Naikkan
+							</DropdownItem>
+						)}
+						{canMoveDown && (
+							<DropdownItem
+								icon={<MoveDown className="h-4 w-4" />}
+								onSelect={() => {
+									close()
+									onMoveDown()
+								}}
+							>
+								Turunkan
+							</DropdownItem>
+						)}
 
 						<DropdownLabel>Ikon</DropdownLabel>
 						<div className="flex flex-wrap gap-0.5 px-2 pb-1.5">

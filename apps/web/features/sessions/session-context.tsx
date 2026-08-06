@@ -119,6 +119,8 @@ interface SessionContextValue {
 	renameSession: (id: string, title: string) => void
 	duplicateSession: (id: string) => void
 	setSessionEmoji: (id: string, emoji: string | null) => void
+	/** Pindahkan tab `movedId` ke posisi tab `destId`. */
+	moveSession: (movedId: string, destId: string) => void
 	/** Buka/tutup kerangka heading (daftar isi) sebuah tab. */
 	setSessionOutlineExpanded: (id: string, expanded: boolean) => void
 
@@ -348,6 +350,32 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		[setStore],
 	)
 
+	/**
+	 * Pindahkan sebuah tab ke tempat tab lain.
+	 *
+	 * Satu operasi ini melayani dua cara memindahkan - "Naikkan/Turunkan" di menu
+	 * dan seret dengan tetikus - karena keduanya menjawab hal yang sama: tab yang
+	 * dipindahkan berakhir di posisi tab tujuan, sisanya bergeser. Menulisnya dua
+	 * kali berarti dua kesempatan untuk berbeda hasil.
+	 */
+	const moveSession = useCallback(
+		(movedId: string, destId: string) => {
+			if (movedId === destId) return
+
+			setStore((current) => {
+				const from = current.sessions.findIndex((s) => s.id === movedId)
+				const to = current.sessions.findIndex((s) => s.id === destId)
+				if (from === -1 || to === -1) return current
+
+				const sessions = [...current.sessions]
+				const [moved] = sessions.splice(from, 1)
+				sessions.splice(to, 0, moved)
+				return { ...current, sessions }
+			})
+		},
+		[setStore],
+	)
+
 	const setSessionOutlineExpanded = useCallback(
 		(id: string, expanded: boolean) => {
 			setStore((current) => ({
@@ -432,6 +460,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			renameSession,
 			duplicateSession,
 			setSessionEmoji,
+			moveSession,
 			setSessionOutlineExpanded,
 			languageOverride: store.sessions.find((s) => s.id === store.activeId)?.language ?? null,
 			setLanguageOverride,
@@ -451,6 +480,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			renameSession,
 			duplicateSession,
 			setSessionEmoji,
+			moveSession,
 			setSessionOutlineExpanded,
 			setLanguageOverride,
 			addComment,
