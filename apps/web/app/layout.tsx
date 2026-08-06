@@ -1,32 +1,13 @@
 import type { Metadata } from 'next'
-import { Inter, Source_Serif_4 } from 'next/font/google'
 import type { ReactNode } from 'react'
 import { ThemeScript } from '@/components/settings/theme-script'
+import { FONT_VARIABLES } from '@/features/editor/fonts'
 import { Providers } from './providers'
 import './globals.css'
 // Gaya KaTeX diimpor dari JS, bukan lewat @import di globals.css: pipeline
 // PostCSS Turbopack tidak me-resolve paket node_modules dari entry CSS, dan
 // lewat sini Next ikut menangani berkas fontnya.
 import 'katex/dist/katex.min.css'
-
-/** Antarmuka: sidebar, panel, toolbar. */
-const ui = Inter({
-	subsets: ['latin'],
-	variable: '--font-ui',
-	weight: ['400', '500', '600', '700'],
-})
-
-/**
- * Badan dokumen. Serif dengan tinggi-x besar dan italic sungguhan - dirancang
- * untuk teks panjang, sehingga draf terbaca seperti naskah akademik alih-alih
- * seperti isian formulir.
- */
-const document = Source_Serif_4({
-	subsets: ['latin'],
-	variable: '--font-document',
-	weight: ['400', '600', '700'],
-	style: ['normal', 'italic'],
-})
 
 export const metadata: Metadata = {
 	title: 'WritingHub',
@@ -35,11 +16,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
 	return (
-		<html
-			lang="id"
-			className={`h-full antialiased ${ui.variable} ${document.variable}`}
-			suppressHydrationWarning
-		>
+		<html lang="id" className={`h-full antialiased ${FONT_VARIABLES}`} suppressHydrationWarning>
 			<head>
 				<ThemeScript />
 			</head>

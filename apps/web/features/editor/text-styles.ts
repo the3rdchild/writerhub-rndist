@@ -44,16 +44,6 @@ export const PARAGRAPH_STYLES: ParagraphStyle[] = [
 	},
 ]
 
-/** Font web-safe agar dokumen tampil sama tanpa perlu memuat berkas font. */
-export const FONT_FAMILIES = [
-	{ value: 'Inter, sans-serif', label: 'Inter' },
-	{ value: 'Arial, Helvetica, sans-serif', label: 'Arial' },
-	{ value: 'Georgia, serif', label: 'Georgia' },
-	{ value: '"Times New Roman", Times, serif', label: 'Times New Roman' },
-	{ value: '"Courier New", Courier, monospace', label: 'Courier New' },
-	{ value: 'Verdana, Geneva, sans-serif', label: 'Verdana' },
-] as const
-
 export const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 24, 30, 36, 48, 60, 72] as const
 
 export const LINE_HEIGHTS = [

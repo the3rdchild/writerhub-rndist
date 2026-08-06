@@ -34,11 +34,12 @@ import { Dropdown, DropdownItem } from '@/components/ui/dropdown'
 import { ColorPicker } from './color-picker'
 import { ToolbarSelect } from '@/components/ui/toolbar-select'
 import {
+	DEFAULT_FONT_FAMILY,
+	FONT_CATEGORY_LABELS,
 	FONT_FAMILIES,
-	FONT_SIZES,
-	LINE_HEIGHTS,
-	PARAGRAPH_STYLES,
-} from '@/features/editor/text-styles'
+	fontFamilyLabel,
+} from '@/features/editor/font-catalog'
+import { FONT_SIZES, LINE_HEIGHTS, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
 import { INDENT_STEP } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
 import { ZOOM_LEVELS } from '@/features/editor/page-geometry'
@@ -118,7 +119,7 @@ export function EditorToolbar({ editor, disabled }: { editor: Editor | null; dis
 				alignRight: instance.isActive({ textAlign: 'right' }),
 				alignJustify: instance.isActive({ textAlign: 'justify' }),
 				style: PARAGRAPH_STYLES.find((item) => item.isActive(instance))?.id ?? 'paragraph',
-				fontFamily: String(attributes.fontFamily ?? FONT_FAMILIES[0].value),
+				fontFamily: String(attributes.fontFamily ?? DEFAULT_FONT_FAMILY),
 				fontSize: Number.isFinite(parsedSize) ? parsedSize : DEFAULT_FONT_SIZE,
 				color: attributes.color as string | undefined,
 				highlight: instance.getAttributes('highlight').color as string | undefined,
@@ -169,12 +170,18 @@ export function EditorToolbar({ editor, disabled }: { editor: Editor | null; dis
 
 			<ToolbarSelect
 				label="Jenis huruf"
-				width={132}
-				value={active?.fontFamily ?? FONT_FAMILIES[0].value}
+				width={146}
+				value={active?.fontFamily ?? DEFAULT_FONT_FAMILY}
 				disabled={isOff}
+				// Naskah impor bisa memakai huruf di luar daftar - kotaknya tetap
+				// menyebut nama huruf itu alih-alih tumpukan CSS mentahnya.
+				fallbackLabel={fontFamilyLabel(active?.fontFamily ?? DEFAULT_FONT_FAMILY)}
 				options={FONT_FAMILIES.map((font) => ({
 					value: font.value,
 					label: font.label,
+					group: FONT_CATEGORY_LABELS[font.category],
+					// Setiap nama ditulis dengan hurufnya sendiri: memilih font dari
+					// daftar nama yang seragam berarti menebak-nebak.
 					previewStyle: { fontFamily: font.value },
 				}))}
 				onChange={(value) => editor?.chain().focus().setFontFamily(value).run()}

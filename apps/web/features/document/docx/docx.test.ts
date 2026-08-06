@@ -550,6 +550,16 @@ describe('rupa huruf', () => {
 		expect(textStyle(blocks(result.content)[0])?.fontFamily).toBe('"Times New Roman", serif')
 	})
 
+	/**
+	 * Lewat variabelnya, bukan namanya: nama telanjang kehilangan font cadangan
+	 * bermetrik dan tidak cocok dengan isi katalog, jadi toolbar tidak bisa
+	 * menyebut huruf yang sedang dipakai naskah impor.
+	 */
+	test('font yang kita muat sendiri dipetakan ke variabelnya', async () => {
+		const result = await readDocx(docx({ body: p(r('isi', '<w:rFonts w:ascii="Lora"/>')) }))
+		expect(textStyle(blocks(result.content)[0])?.fontFamily).toBe('var(--font-lora), serif')
+	})
+
 	test('rujukan font tema diselesaikan lewat theme1.xml', async () => {
 		const result = await readDocx(
 			docx({

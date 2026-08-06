@@ -106,7 +106,7 @@ const SYSTEM_PROMPT = [
 	'When you propose replacement text for the document, put exactly that text',
 	'in a fenced code block and nothing else inside the fence, so the editor can',
 	'offer it as a one-click replacement. Use prose for everything else.',
-	'Write document content as Markdown. Use $…$ only for mathematics —',
+	'Write document content as Markdown. Use $…$ only for mathematics -',
 	'never write a full LaTeX document.',
 ].join(' ')
 
@@ -174,7 +174,7 @@ const TOOL_GUIDANCE = [
 	'always Markdown: # for headings, | … | for tables, - for lists.',
 	'LaTeX is ONLY for the contents of a mathematical formula. Never emit',
 	'\\documentclass, \\begin{document}, \\section, \\begin{tabular}, \\hline,',
-	'\\textbf or a standalone .tex file — that arrives in the document as raw',
+	'\\textbf or a standalone .tex file - that arrives in the document as raw',
 	'text with stray & and \\\\ characters.',
 	'Prefer get_outline and read_section over guessing at a long document.',
 	'When the user asks for something to be put into the document - a table, a',

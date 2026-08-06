@@ -1,3 +1,5 @@
+import { webfontFamily } from '@/features/editor/font-catalog'
+
 /**
  * Satuan Word diterjemahkan ke satuan editor, di satu tempat.
  *
@@ -112,6 +114,11 @@ export function toLineHeight(line: number | undefined, rule: string | undefined)
  */
 export function toFontStack(font: string | undefined): string | undefined {
 	if (!font) return undefined
+
+	// Huruf yang berkasnya kita sajikan sendiri disebut lewat variabelnya, bukan
+	// namanya - alasannya di `font-catalog.ts`.
+	const loaded = webfontFamily(font)
+	if (loaded) return loaded
 
 	const quoted = /\s/.test(font) ? `"${font}"` : font
 	if (/mono|consol|courier|code/i.test(font)) return `${quoted}, monospace`

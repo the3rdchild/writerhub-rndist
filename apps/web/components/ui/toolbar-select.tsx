@@ -1,14 +1,31 @@
 'use client'
 
 import { Check, ChevronDown } from 'lucide-react'
+import { Fragment } from 'react'
 import { cn } from '@/lib/utils'
-import { Dropdown, DropdownItem } from './dropdown'
+import { Dropdown, DropdownItem, DropdownLabel } from './dropdown'
 
 export interface SelectOption<T> {
 	value: T
 	label: string
 	/** Gaya pratinjau pada daftar, dipakai pemilih font dan gaya paragraf. */
 	previewStyle?: React.CSSProperties
+	/**
+	 * Judul kelompok. Ditulis sekali di awal rentetan pilihan yang bernilai
+	 * sama, jadi daftarnya harus sudah urut menurut kelompok.
+	 */
+	group?: string
+}
+
+/**
+ * Bawa pilihan yang sedang aktif ke tengah daftar saat menu dibuka. Pada daftar
+ * panjang - pemilih font sekarang berisi hampir tiga puluh nama - membuka menu
+ * dan mendarat di huruf A tidak memberi tahu huruf apa yang sedang dipakai.
+ */
+function centerActiveOption(node: HTMLDivElement | null): void {
+	const list = node?.parentElement
+	if (!node || !list) return
+	list.scrollTop = node.offsetTop - list.clientHeight / 2 + node.clientHeight / 2
 }
 
 interface ToolbarSelectProps<T extends string | number> {
@@ -60,20 +77,31 @@ export function ToolbarSelect<T extends string | number>({
 			)}
 		>
 			{({ close }) => (
-				<div className="max-h-[320px] overflow-y-auto">
-					{options.map((option) => (
-						<DropdownItem
-							key={String(option.value)}
-							active={option.value === value}
-							icon={option.value === value ? <Check className="h-3.5 w-3.5" /> : null}
-							onSelect={() => {
-								onChange(option.value)
-								close()
-							}}
-						>
-							<span style={option.previewStyle}>{option.label}</span>
-						</DropdownItem>
-					))}
+				// relative supaya offsetTop pilihan aktif terukur dari daftar ini,
+				// bukan dari kotak menunya.
+				<div className="relative max-h-[320px] overflow-y-auto">
+					{options.map((option, index) => {
+						const selected = option.value === value
+						const heading = option.group !== options[index - 1]?.group ? option.group : null
+
+						return (
+							<Fragment key={String(option.value)}>
+								{heading && <DropdownLabel>{heading}</DropdownLabel>}
+								<div ref={selected ? centerActiveOption : undefined}>
+									<DropdownItem
+										active={selected}
+										icon={selected ? <Check className="h-3.5 w-3.5" /> : null}
+										onSelect={() => {
+											onChange(option.value)
+											close()
+										}}
+									>
+										<span style={option.previewStyle}>{option.label}</span>
+									</DropdownItem>
+								</div>
+							</Fragment>
+						)
+					})}
 				</div>
 			)}
 		</Dropdown>
