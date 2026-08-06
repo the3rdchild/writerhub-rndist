@@ -1,34 +1,15 @@
 'use client'
 
-import Highlight from '@tiptap/extension-highlight'
-import Link from '@tiptap/extension-link'
-import { TaskItem, TaskList } from '@tiptap/extension-list'
-import Placeholder from '@tiptap/extension-placeholder'
-import { TableKit } from '@tiptap/extension-table'
-import TextAlign from '@tiptap/extension-text-align'
-import { TextStyleKit } from '@tiptap/extension-text-style'
-import Typography from '@tiptap/extension-typography'
 import { EditorContent, useEditor, type Editor } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useDocument } from '@/features/document/document-context'
-import { suggestionHighlightKey, SuggestionHighlight } from '@/features/document/suggestion-highlight'
+import { suggestionHighlightKey } from '@/features/document/suggestion-highlight'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
-import { CommentMark } from '@/features/comments/comment-mark'
-import { ImageWithMarkdown, TrailingParagraph } from '@/features/editor/editor-polish'
-import { MathBlock, MathInline } from '@/features/editor/math'
-import { PasteMarkdown } from '@/features/editor/paste-markdown'
-import { BlockSpacing } from '@/features/editor/block-spacing'
-import { BlockIndentExtension } from '@/features/editor/indent'
-import { promptForLink } from '@/features/editor/link'
-import { PageBreak } from '@/features/editor/page-break'
+import { buildEditorExtensions } from '@/features/editor/extensions'
 import { type PageGeometry, pageGeometry } from '@/features/editor/page-geometry'
-import { TextWeight } from '@/features/editor/text-weight'
-import { Pagination, paginationKey } from '@/features/editor/pagination'
-import { SelectionHighlight } from '@/features/editor/selection-highlight'
-import { TableHeaderRepeat } from '@/features/editor/table-header-repeat'
+import { paginationKey } from '@/features/editor/pagination'
 import { editorPlainText, textToParagraphs } from '@/features/editor/text-content'
-import { shortcutKeys } from '@/features/shortcuts/registry'
+import { useSessions } from '@/features/sessions/session-context'
 import { useSettings, type FontSize } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
 import { MathPopover } from './math-popover'
@@ -56,6 +37,7 @@ export function TiptapEditor({
 }) {
 	const { state, dispatch } = useDocument()
 	const { settings } = useSettings()
+	const { doc, activeId } = useSessions()
 	const [popover, setPopover] = useState<PopoverPosition | null>(null)
 
 	// Ekstensi hanya dibuat sekali, jadi callback dilewatkan lewat ref agar
@@ -69,64 +51,44 @@ export function TiptapEditor({
 	 */
 	const selfEditRef = useRef(false)
 
-	const editor = useEditor({
-		immediatelyRender: false, // dokumen dirender di klien; hindari mismatch hidrasi
-		extensions: [
-			StarterKit.configure({ link: false }),
-			// Ctrl+K memakai alur yang sama persis dengan tombol tautan di toolbar.
-			Link.extend({
-				addKeyboardShortcuts() {
-					return {
-						[shortcutKeys('text.link')]: () => {
-							promptForLink(this.editor)
-							return true
-						},
-					}
-				},
-			}).configure({ openOnClick: false, autolink: true }),
-			TextAlign.configure({ types: ['heading', 'paragraph'] }),
-			// Spasi baris diurus BlockSpacing, yang menaruhnya pada bloknya alih-alih
-			// pada mark - lihat block-spacing.ts. Dua tempat untuk satu nilai hanya
-			// membuat keduanya saling menimpa.
-			TextStyleKit.configure({ lineHeight: false }),
-			Highlight.configure({ multicolor: true }),
-			Typography,
-			TableKit.configure({ table: { resizable: true } }),
-			TaskList,
-			TaskItem.configure({ nested: true }),
-			ImageWithMarkdown.configure({ inline: false }),
-			Placeholder.configure({ placeholder: 'Mulai menulis, atau tempel draf Anda di sini…' }),
-			SuggestionHighlight,
-			SelectionHighlight,
-			BlockIndentExtension,
-			BlockSpacing,
-			TextWeight,
-			PageBreak,
-			TableHeaderRepeat,
-			CommentMark,
-			MathInline,
-			MathBlock,
-			PasteMarkdown,
-			TrailingParagraph,
-			Pagination.configure({
+	/*
+	 * Editor dibuat ulang tiap kali tab berganti - `activeId` jadi dependensinya.
+	 *
+	 * ferdocs menempuh jalan lain: menyusun ulang daftar ekstensi di tempat
+	 * supaya instance editornya bertahan, dan itu memang lebih cepat beberapa
+	 * puluh milidetik. Yang dibayar untuk itu adalah editor yang menyimpan sisa
+	 * keadaan tab sebelumnya - riwayat undo, dekorasi, plugin yang masih
+	 * memegang posisi lama. Membuat ulang memberi tiap tab editor yang bersih,
+	 * dan pada dokumen sepanjang naskah biasa selisih waktunya tidak terasa.
+	 */
+	const editor = useEditor(
+		{
+			immediatelyRender: false, // dokumen dirender di klien; hindari mismatch hidrasi
+			extensions: buildEditorExtensions({
 				geometry,
 				onPageCountChange: (pageCount) => pageCountRef.current?.(pageCount),
+				collaboration: activeId ? { document: doc, field: activeId } : null,
 			}),
-		],
-		editorProps: {
-			attributes: {
-				class: cn('document-body focus:outline-none', FONT_SIZE_CLASS[settings.editorFontSize]),
-				spellcheck: 'false',
+			editorProps: {
+				attributes: {
+					class: cn('document-body focus:outline-none', FONT_SIZE_CLASS[settings.editorFontSize]),
+					spellcheck: 'false',
+				},
+			},
+			onUpdate: ({ editor: instance }) => {
+				selfEditRef.current = true
+				dispatch({ type: 'editText', text: editorPlainText(instance) })
 			},
 		},
-		onUpdate: ({ editor: instance }) => {
-			selfEditRef.current = true
-			dispatch({ type: 'editText', text: editorPlainText(instance) })
-		},
-	})
+		[activeId],
+	)
 
+	// Instance yang ditinggalkan dicabut dari context, bukan dibiarkan menganggur
+	// di sana sampai penggantinya siap: yang membacanya di antara dua saat itu
+	// akan menemukan editor yang sudah dibubarkan.
 	useEffect(() => {
 		onReady?.(editor)
+		return () => onReady?.(null)
 	}, [editor, onReady])
 
 	// Daftar ekstensi hanya dibuat sekali, sedangkan margin bisa diseret kapan
@@ -138,10 +100,24 @@ export function TiptapEditor({
 		editor.view.dispatch(transaction)
 	}, [editor, geometry])
 
-	// Isi editor dari state saat teks datang dari luar: muat sesi, tempel, unggah,
-	// atau teks hasil ekstraksi dokumen dari worker.
+	/**
+	 * Editor yang isinya sudah pernah disamakan dengan state.
+	 *
+	 * Editor yang baru lahir - halaman baru dibuka, atau tab baru dipilih -
+	 * isinya datang dari Y.Doc, dan pada render itu state dokumen masih memuat
+	 * naskah tab sebelumnya. Tanpa penanda ini, penyamaan di bawah akan menimpa
+	 * naskah tab yang baru dibuka dengan teks tab yang baru ditinggalkan.
+	 */
+	const syncedEditorRef = useRef<Editor | null>(null)
+
+	// Isi editor dari state saat teks datang dari luar: tempel, unggah, atau
+	// teks hasil ekstraksi dokumen dari worker.
 	useEffect(() => {
 		if (!editor) return
+		if (syncedEditorRef.current !== editor) {
+			syncedEditorRef.current = editor
+			return
+		}
 		if (selfEditRef.current) {
 			selfEditRef.current = false
 			return

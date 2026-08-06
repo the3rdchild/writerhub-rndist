@@ -3,6 +3,7 @@
 import type { Editor } from '@tiptap/react'
 import { useMemo, useState } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import { useSessions } from '@/features/sessions/session-context'
 import { pageGeometry } from '@/features/editor/page-geometry'
 import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
@@ -27,6 +28,7 @@ export function DocumentCanvas({
 }) {
 	const { settings, setPageMargins } = useSettings()
 	const { editor } = useEditorInstance()
+	const { activeId } = useSessions()
 	const [pageCount, setPageCount] = useState(1)
 
 	const geometry = useMemo(
@@ -106,12 +108,22 @@ export function DocumentCanvas({
 							paddingLeft: margins.left,
 						}}
 					>
-						<TiptapEditor
-							containerRef={containerRef}
-							onReady={onReady}
-							geometry={geometry}
-							onPageCountChange={setPageCount}
-						/>
+						{/*
+						 * Editor menunggu naskah tersimpan selesai dimuat.
+						 *
+						 * Ia terikat ke fragmen Y.Doc milik tab aktif, jadi membuatnya
+						 * sebelum tab itu diketahui berarti satu editor sia-sia yang
+						 * langsung dibuang - dan lembar kosong yang berkelebat sebelum
+						 * naskah muncul.
+						 */}
+						{activeId && (
+							<TiptapEditor
+								containerRef={containerRef}
+								onReady={onReady}
+								geometry={geometry}
+								onPageCountChange={setPageCount}
+							/>
+						)}
 					</div>
 				</div>
 			</div>

@@ -1,117 +1,94 @@
 'use client'
 
-import type { GrammarScores } from '@writer-hub/shared'
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
+import {
+	createContext,
+	type ReactNode,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react'
+import { IndexeddbPersistence } from 'y-indexeddb'
+import * as Y from 'yjs'
 import { useDocument } from '@/features/document/document-context'
-import type { EditorSuggestion } from '@/features/document/suggestions'
 import { useEditorInstance } from '@/features/editor/editor-context'
-import { editorPlainText, textToParagraphs } from '@/features/editor/text-content'
-import { useSettings } from '@/features/settings/settings-context'
+import { editorPlainText } from '@/features/editor/text-content'
 import { usePersistentState } from '@/lib/use-persistent-state'
+import {
+	EMPTY_LOCAL_VIEW,
+	LOCAL_VIEW_STORAGE_KEY,
+	type LocalView,
+	patchTabView,
+	pruneTabViews,
+	tabView,
+} from './local-view'
+import { migrateLegacySessions } from './migrate-legacy'
+import type { CommentReply, CommentThread } from './types'
+import {
+	createTab,
+	deleteTab,
+	duplicateTab,
+	moveTab,
+	readTabs,
+	type TabMeta,
+	tabPreview,
+	tabsRoot,
+	touchTab,
+	updateTab,
+} from './ydoc'
 
-export const SESSIONS_STORAGE_KEY = 'writer-hub-sessions'
+export type { CommentReply, CommentThread } from './types'
 
+/**
+ * Satu tab = satu naskah, dan naskahnya hidup di dalam Y.Doc.
+ *
+ * Sebelumnya lapisan ini memotret editor ke localStorage tiap 400 ms lalu
+ * memuatnya balik saat berpindah tab. Dengan CRDT, potret dan muat-balik itu
+ * tidak ada lagi: editor terikat langsung ke `Y.XmlFragment` milik tabnya, dan
+ * Yjs sendiri yang menyimpan tiap perubahan. Yang tersisa di sini hanyalah
+ * pertanyaan "tab mana yang sedang dibuka" dan jembatan ke state dokumen yang
+ * dipakai pipeline analisis.
+ *
+ * Pembagiannya sengaja tegas: apa pun yang menjadi milik naskah ada di Y.Doc
+ * (`ydoc.ts`), apa pun yang menjadi milik satu pemakai ada di localStorage
+ * (`local-view.ts`). Pembagian itu yang nanti membuat dokumen ini bisa
+ * dibagikan tanpa ikut membagikan isi kepala orang yang membukanya.
+ */
+
+const YDOC_NAME = 'writer-hub-doc'
+
+/**
+ * Batas jumlah tab. Versi lama membuang tab tertua saat batas terlampaui;
+ * sekarang pembuatannya yang ditolak - menghapus naskah orang tanpa diminta
+ * bukan cara yang benar untuk menegakkan sebuah batas.
+ */
 const MAX_SESSIONS = 50
-const AUTOSAVE_DEBOUNCE_MS = 400
 
-/**
- * Satu sesi = satu naskah = satu tab dokumen.
- *
- * Ketiganya sengaja tidak dipisah: memisahkan "tab" dari "sesi" berarti dua
- * lapisan penyimpanan menulis naskah yang sama, dan pemulihan saat halaman
- * dimuat akan saling menimpa.
- *
- * `text` tetap dipegang karena pipeline analisis bekerja di atas teks polos,
- * sedangkan `html` yang membuat format bertahan saat berpindah tab. Keduanya
- * disimpan dari keadaan editor yang sama pada saat yang sama.
- */
-export interface CommentReply {
-	author: string
-	text: string
-	at: number
-}
+/** Jeda sebelum waktu sunting terakhir dicatat, supaya tiap ketukan tidak menulis. */
+const TOUCH_DEBOUNCE_MS = 600
 
-/** Satu utas komentar; jangkarnya adalah mark bernama sama di dalam naskah. */
-export interface CommentThread {
-	id: string
-	/** Kutipan teks saat komentar dibuat - dipakai kalau mark-nya hilang. */
-	quote: string
-	replies: CommentReply[]
-	resolved: boolean
-	createdAt: number
-}
-
-export interface Session {
-	id: string
-	title: string
-	text: string
-	html: string
-	/** Ikon opsional di depan nama tab. */
-	emoji: string | null
-	/** Bahasa pilihan pengguna; null berarti ikut hasil deteksi. */
-	language: string | null
-	comments: CommentThread[]
-	suggestions: EditorSuggestion[]
-	scores: GrammarScores | null
-	/**
-	 * Apakah kerangka heading (daftar isi) tab ini sedang terbuka. Default
-	 * tertutup, dan setiap perpindahan tab mengembalikannya ke tertutup - lihat
-	 * `collapseOutline`. Yang disimpan hanyalah keadaan tab yang ditinggalkan
-	 * saat halaman ditutup, supaya sesi yang dibuka kembali tampil sama persis.
-	 */
+export interface Session extends TabMeta {
+	/** Daftar isi tab ini sedang terbuka - keadaan milik pemakai, bukan naskah. */
 	outlineExpanded: boolean
-	updatedAt: number
+	/** Kata-kata pertama naskah; menamai tab yang belum diberi judul. */
+	preview: string
 }
 
-interface PersistedSessions {
-	sessions: Session[]
-	activeId: string | null
-}
-
-const EMPTY: PersistedSessions = { sessions: [], activeId: null }
-
-function createId(): string {
-	if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
-	return `s_${Date.now()}_${Math.random().toString(36).slice(2)}`
-}
-
-function createSession(title = 'Untitled document'): Session {
-	return {
-		id: createId(),
-		title,
-		text: '',
-		html: '',
-		emoji: null,
-		language: null,
-		comments: [],
-		suggestions: [],
-		scores: null,
-		outlineExpanded: false,
-		updatedAt: Date.now(),
-	}
-}
-
-/**
- * Tutup daftar isi satu tab. Dipakai setiap kali sebuah tab baru mendarat jadi
- * tab aktif: yang dicari saat berpindah naskah adalah naskahnya, bukan
- * kerangkanya - kerangka baru terbuka kalau tab aktif diklik sekali lagi.
- */
-function collapseOutline(sessions: Session[], id: string): Session[] {
-	return sessions.map((s) => (s.id === id ? { ...s, outlineExpanded: false } : s))
-}
-
-/** Label sidebar: pakai judul, jatuh ke baris pertama teks kalau judul default. */
+/** Label sidebar: pakai judul, jatuh ke awal naskah kalau judulnya masih bawaan. */
 export function sessionLabel(session: Session): string {
 	const title = session.title?.trim()
 	if (title && title !== 'Untitled document') return title
-
-	const firstLine = session.text?.trim().split('\n')[0]?.trim()
-	return firstLine ? firstLine.slice(0, 48) : 'Untitled document'
+	return session.preview?.slice(0, 48) || 'Untitled document'
 }
 
 interface SessionContextValue {
+	/** Dokumen bersama. Editor mengikat dirinya ke fragmen tab aktif di sini. */
+	doc: Y.Doc
 	sessions: Session[]
 	activeId: string | null
+	/** Naskah tersimpan sudah selesai dimuat; sebelum ini daftar tab belum bisa dipercaya. */
 	hydrated: boolean
 	newSession: () => void
 	selectSession: (id: string) => void
@@ -139,286 +116,245 @@ interface SessionContextValue {
 const SessionContext = createContext<SessionContextValue | null>(null)
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-	const [store, setStore, hydrated] = usePersistentState<PersistedSessions>(SESSIONS_STORAGE_KEY, EMPTY)
+	const [doc] = useState(() => new Y.Doc())
+	const [tabs, setTabs] = useState<Array<TabMeta & { preview: string }>>([])
+	const [loaded, setLoaded] = useState(false)
+	const [view, setView, viewHydrated] = usePersistentState<LocalView>(
+		LOCAL_VIEW_STORAGE_KEY,
+		EMPTY_LOCAL_VIEW,
+	)
 	const { state, dispatch } = useDocument()
 	const { editor } = useEditorInstance()
-	const { settings } = useSettings()
+
+	// ── memuat naskah tersimpan ──────────────────────────────────────────────
+
+	useEffect(() => {
+		const provider = new IndexeddbPersistence(YDOC_NAME, doc)
+
+		const onSynced = () => {
+			// Naskah dari versi localStorage dipindahkan sekali, setelah isi
+			// IndexedDB ada di tangan - kalau tidak, migrasi bisa berjalan di atas
+			// dokumen kosong dan menggandakan naskah yang sudah pindah.
+			const migrated = migrateLegacySessions(doc)
+			if (readTabs(doc).length === 0) createTab(doc)
+			if (migrated?.activeId) {
+				setView((current) => (current.activeId ? current : { ...current, activeId: migrated.activeId }))
+			}
+			setLoaded(true)
+		}
+
+		provider.on('synced', onSynced)
+		return () => {
+			provider.off('synced', onSynced)
+			provider.destroy()
+		}
+	}, [doc, setView])
+
+	// Daftar tab mengikuti Y.Doc. Yang diamati hanya wadah metanya - fragmen
+	// naskah adalah tipe tersendiri di akar dokumen, jadi mengetik tidak ikut
+	// membangun ulang daftar tab pada tiap ketukan.
+	useEffect(() => {
+		const { root } = tabsRoot(doc)
+		const rebuild = () => {
+			setTabs(readTabs(doc).map((meta) => ({ ...meta, preview: tabPreview(doc, meta.id) })))
+		}
+
+		rebuild()
+		root.observeDeep(rebuild)
+		return () => root.unobserveDeep(rebuild)
+	}, [doc])
+
+	const activeId = useMemo(() => {
+		if (tabs.length === 0) return null
+		const stored = view.activeId
+		return stored && tabs.some((tab) => tab.id === stored) ? stored : tabs[0].id
+	}, [tabs, view.activeId])
+
+	const sessions = useMemo<Session[]>(
+		() =>
+			tabs.map((tab) => ({ ...tab, outlineExpanded: tabView(view, tab.id).outlineExpanded })),
+		[tabs, view],
+	)
+
+	// ── jembatan ke state dokumen ────────────────────────────────────────────
 
 	/**
-	 * Memuat sesi ke editor akan memicu autosave dan menimpa sesi lain, jadi
-	 * penyimpanan ditahan sampai perubahan dari pemuatan itu selesai mengalir.
+	 * Naskah yang baru dipasang ke state, menunggu state benar-benar berisinya.
+	 *
+	 * Berpindah tab menyisakan satu render di mana `activeId` sudah tab baru tapi
+	 * state dokumen masih memuat naskah tab lama. Tanpa penanda ini, penulisan
+	 * balik di bawah akan menyalin judul tab lama ke tab baru pada render itu.
 	 */
-	const loadingRef = useRef(false)
+	const pendingLoad = useRef<{ id: string; title: string; text: string } | null>(null)
 
-	const loadIntoEditor = useCallback(
-		(session: Session) => {
-			loadingRef.current = true
+	/** Teks terakhir yang sudah tercatat waktunya; membedakan sunting dari sekadar pindah tab. */
+	const touchedText = useRef<string | null>(null)
 
-			// Isi editor dipasang lebih dulu, teks polosnya baru dibaca dari hasil
-			// itu. Dengan urutan ini effect penyelaras di TiptapEditor mendapati
-			// editor dan state sudah sama, jadi ia tidak menimpa format yang baru
-			// dimuat dengan paragraf polos.
-			let text = session.text
-			if (editor) {
-				editor.commands.setContent(session.html || textToParagraphs(session.text), {
-					emitUpdate: false,
-				})
-				text = editorPlainText(editor)
-			}
-
-			dispatch({
-				type: 'load',
-				document: {
-					title: session.title,
-					text,
-					suggestions: session.suggestions,
-					scores: session.scores,
-				},
-			})
-			queueMicrotask(() => {
-				loadingRef.current = false
-			})
-		},
-		[dispatch, editor],
-	)
-
-	/** Potret naskah yang sedang dibuka - dipakai sebelum berpindah atau menutup tab. */
-	const snapshot = useCallback(
-		(sessions: Session[], activeId: string | null): Session[] => {
-			if (!activeId) return sessions
-			return sessions.map((session) =>
-				session.id === activeId
-					? {
-							...session,
-							title: state.title || 'Untitled document',
-							text: state.text,
-							html: editor ? editor.getHTML() : session.html,
-							suggestions: state.suggestions,
-							scores: state.scores,
-							updatedAt: Date.now(),
-						}
-					: session,
-			)
-		},
-		[editor, state.title, state.text, state.suggestions, state.scores],
-	)
-
-	// Sesi pertama dibuat dari isi editor saat itu, bukan dokumen kosong.
-	const bootstrappedRef = useRef(false)
+	// Editor dibuat ulang tiap kali tab berganti - ia terikat ke fragmen tab itu.
+	// Begitu ia siap, isinya yang dibacakan ke state dokumen, bukan sebaliknya.
 	useEffect(() => {
-		// Menunggu editor siap: memulihkan naskah sebelum ia ada berarti hanya
-		// teks polosnya yang kembali dan seluruh formatnya hilang.
-		if (!hydrated || !editor || bootstrappedRef.current) return
-		bootstrappedRef.current = true
+		/*
+		 * `isDestroyed` bukan kehati-hatian berlebih. Berganti tab membuat
+		 * `useEditor` menghancurkan instance lama, sementara context masih
+		 * memegangnya sampai render berikutnya - dan efek induk berjalan sesudah
+		 * efek anak tapi sebelum context itu diperbarui. Membaca naskah dari
+		 * editor yang sudah dibubarkan berarti membaca skema yang sudah null.
+		 */
+		if (!loaded || !editor || editor.isDestroyed || !activeId) return
 
-		if (store.sessions.length > 0) {
-			// Sesi dari versi sebelumnya tidak punya `outlineExpanded`; tanpa
-			// ini daftar isinya bisa terbuka diam-diam karena nilainya `undefined`.
-			const sessions = store.sessions.map((s) =>
-				s.outlineExpanded === undefined ? { ...s, outlineExpanded: false } : s,
-			)
-			const active = sessions.find((s) => s.id === store.activeId) ?? sessions[0]
-			setStore({ sessions, activeId: active.id })
-			loadIntoEditor(active)
+		const meta = readTabs(doc).find((tab) => tab.id === activeId)
+		const text = editorPlainText(editor)
+		const title = meta?.title ?? 'Untitled document'
+		const local = tabView(view, activeId)
+
+		pendingLoad.current = { id: activeId, title, text }
+		touchedText.current = text
+
+		dispatch({
+			type: 'load',
+			document: { title, text, suggestions: local.suggestions, scores: local.scores },
+		})
+		// `view` sengaja tidak jadi dependensi: hasil pemeriksaan hanya perlu
+		// dibacakan saat tabnya dibuka, bukan tiap kali salah satunya berubah.
+		// biome-ignore lint/correctness/useExhaustiveDependencies: lihat di atas
+	}, [loaded, editor, activeId, doc, dispatch])
+
+	// Judul diketik di kepala aplikasi, tapi tempat tinggalnya di dalam dokumen.
+	useEffect(() => {
+		if (!loaded || !activeId) return
+
+		const pending = pendingLoad.current
+		if (pending) {
+			// Belum boleh menulis apa pun sampai state memuat naskah tab ini.
+			if (pending.id === activeId && state.title === pending.title && state.text === pending.text) {
+				pendingLoad.current = null
+			}
 			return
 		}
 
-		const first: Session = { ...createSession(), title: state.title, text: state.text }
-		setStore({ sessions: [first], activeId: first.id })
-	}, [hydrated, editor, store, setStore, loadIntoEditor, state.title, state.text])
+		const stored = readTabs(doc).find((tab) => tab.id === activeId)?.title
+		if (stored !== state.title) updateTab(doc, activeId, { title: state.title })
+	}, [loaded, activeId, doc, state.title, state.text])
 
-	// Autosave editor → sesi aktif (debounced, satu arah).
+	// Waktu sunting terakhir, untuk daftar "dokumen terakhir" - sekaligus yang
+	// menyegarkan nama tab yang belum berjudul.
 	useEffect(() => {
-		if (!hydrated || loadingRef.current || !store.activeId || !settings.autoSave) return
+		if (!loaded || !activeId || pendingLoad.current) return
+		if (state.text === touchedText.current) return
 
 		const timer = setTimeout(() => {
-			setStore((current) => ({
-				...current,
-				sessions: snapshot(current.sessions, current.activeId),
-			}))
-		}, AUTOSAVE_DEBOUNCE_MS)
+			touchedText.current = state.text
+			touchTab(doc, activeId)
+		}, TOUCH_DEBOUNCE_MS)
 
 		return () => clearTimeout(timer)
-	}, [hydrated, settings.autoSave, store.activeId, setStore, snapshot])
+	}, [loaded, activeId, doc, state.text])
+
+	// Hasil pemeriksaan disimpan per tab, di sisi pemakai.
+	useEffect(() => {
+		if (!loaded || !activeId || pendingLoad.current) return
+		setView((current) =>
+			patchTabView(current, activeId, { suggestions: state.suggestions, scores: state.scores }),
+		)
+	}, [loaded, activeId, setView, state.suggestions, state.scores])
+
+	// Catatan tab yang sudah dihapus tidak perlu ikut dimuat selamanya.
+	useEffect(() => {
+		if (!loaded || tabs.length === 0) return
+		const ids = tabs.map((tab) => tab.id)
+		setView((current) => {
+			const pruned = pruneTabViews(current, ids)
+			return Object.keys(pruned.tabs).length === Object.keys(current.tabs).length ? current : pruned
+		})
+	}, [loaded, tabs, setView])
+
+	// ── aksi ─────────────────────────────────────────────────────────────────
 
 	const newSession = useCallback(() => {
-		const session = createSession()
-		setStore((current) => ({
-			// Ditambahkan di akhir: sebagai tab, yang baru dibuat berdiri di
-			// sebelah kanan yang sudah ada, bukan menyerobot ke depan.
-			sessions: [...snapshot(current.sessions, current.activeId), session].slice(-MAX_SESSIONS),
-			activeId: session.id,
-		}))
-		loadIntoEditor(session)
-	}, [setStore, snapshot, loadIntoEditor])
+		if (readTabs(doc).length >= MAX_SESSIONS) return
+		const id = createTab(doc)
+		setView((current) => ({ ...current, activeId: id }))
+	}, [doc, setView])
 
+	/**
+	 * Pindah tab selalu mendarat dengan daftar isi tertutup: yang dicari saat
+	 * berganti naskah adalah naskahnya, bukan kerangkanya.
+	 */
 	const selectSession = useCallback(
 		(id: string) => {
-			const target = store.sessions.find((s) => s.id === id)
-			if (!target || id === store.activeId) return
-
-			setStore((current) => ({
-				sessions: collapseOutline(snapshot(current.sessions, current.activeId), id),
-				activeId: id,
-			}))
-			loadIntoEditor(target)
+			setView((current) =>
+				current.activeId === id
+					? current
+					: patchTabView({ ...current, activeId: id }, id, { outlineExpanded: false }),
+			)
 		},
-		[store, setStore, snapshot, loadIntoEditor],
+		[setView],
 	)
 
 	const deleteSession = useCallback(
 		(id: string) => {
-			const at = store.sessions.findIndex((s) => s.id === id)
+			const current = readTabs(doc)
+			const at = current.findIndex((tab) => tab.id === id)
 			if (at === -1) return
 
-			const remaining = store.sessions.filter((s) => s.id !== id)
-			const isActive = id === store.activeId
+			const remaining = current.filter((tab) => tab.id !== id)
+			deleteTab(doc, id)
+
 			// Editor tidak punya keadaan "tanpa dokumen": kalau yang terakhir
 			// ditutup, tempatnya langsung diisi naskah kosong.
-			const fallback =
-				remaining.length > 0 ? (remaining[at] ?? remaining[remaining.length - 1]) : createSession()
-
-			setStore((current) => {
-				// Yang sedang dibuka hanya perlu dipotret kalau ia bukan yang dihapus.
-				const kept = (isActive ? current.sessions : snapshot(current.sessions, current.activeId)).filter(
-					(s) => s.id !== id,
-				)
-				if (kept.length === 0) return { sessions: [fallback], activeId: fallback.id }
-				// Tab pengganti sama saja dengan tab yang baru dipilih: ia mendarat
-				// dengan daftar isi tertutup.
-				return {
-					sessions: isActive ? collapseOutline(kept, fallback.id) : kept,
-					activeId: isActive ? fallback.id : current.activeId,
-				}
-			})
-
-			if (isActive) loadIntoEditor(fallback)
+			const fallback = remaining[at]?.id ?? remaining[remaining.length - 1]?.id ?? createTab(doc)
+			setView((view) =>
+				view.activeId === id
+					? patchTabView({ ...view, activeId: fallback }, fallback, { outlineExpanded: false })
+					: view,
+			)
 		},
-		[store, setStore, snapshot, loadIntoEditor],
+		[doc, setView],
 	)
 
 	const renameSession = useCallback(
 		(id: string, title: string) => {
-			setStore((current) => ({
-				...current,
-				sessions: current.sessions.map((s) =>
-					s.id === id ? { ...s, title, updatedAt: Date.now() } : s,
-				),
-			}))
-			// Judul di kepala aplikasi dan nama tab aktif adalah hal yang sama -
-			// autosave juga menulis judul, jadi keduanya harus digerakkan bersama.
-			if (id === store.activeId) dispatch({ type: 'setTitle', title })
+			updateTab(doc, id, { title, updatedAt: Date.now() })
+			// Judul di kepala aplikasi dan nama tab aktif adalah hal yang sama.
+			if (id === activeId) dispatch({ type: 'setTitle', title })
 		},
-		[setStore, store.activeId, dispatch],
+		[doc, activeId, dispatch],
 	)
 
-	const duplicateSession = useCallback(
-		(id: string) => {
-			if (!store.sessions.some((s) => s.id === id)) return
-
-			setStore((current) => {
-				// Salinan diambil setelah potret: menggandakan tab yang sedang dibuka
-				// harus ikut membawa suntingan yang belum sempat tersimpan.
-				const sessions = snapshot(current.sessions, current.activeId)
-				const at = sessions.findIndex((s) => s.id === id)
-				const copy: Session = {
-					...sessions[at],
-					id: createId(),
-					title: `${sessions[at].title} (salinan)`,
-					outlineExpanded: false,
-					updatedAt: Date.now(),
-				}
-
-				return {
-					...current,
-					sessions: [...sessions.slice(0, at + 1), copy, ...sessions.slice(at + 1)].slice(
-						-MAX_SESSIONS,
-					),
-				}
-			})
-		},
-		[store.sessions, setStore, snapshot],
-	)
+	const duplicateSession = useCallback((id: string) => void duplicateTab(doc, id), [doc])
 
 	const setSessionEmoji = useCallback(
-		(id: string, emoji: string | null) => {
-			setStore((current) => ({
-				...current,
-				sessions: current.sessions.map((s) => (s.id === id ? { ...s, emoji } : s)),
-			}))
-		},
-		[setStore],
+		(id: string, emoji: string | null) => updateTab(doc, id, { emoji }),
+		[doc],
 	)
 
-	/**
-	 * Pindahkan sebuah tab ke tempat tab lain.
-	 *
-	 * Satu operasi ini melayani dua cara memindahkan - "Naikkan/Turunkan" di menu
-	 * dan seret dengan tetikus - karena keduanya menjawab hal yang sama: tab yang
-	 * dipindahkan berakhir di posisi tab tujuan, sisanya bergeser. Menulisnya dua
-	 * kali berarti dua kesempatan untuk berbeda hasil.
-	 */
 	const moveSession = useCallback(
-		(movedId: string, destId: string) => {
-			if (movedId === destId) return
-
-			setStore((current) => {
-				const from = current.sessions.findIndex((s) => s.id === movedId)
-				const to = current.sessions.findIndex((s) => s.id === destId)
-				if (from === -1 || to === -1) return current
-
-				const sessions = [...current.sessions]
-				const [moved] = sessions.splice(from, 1)
-				sessions.splice(to, 0, moved)
-				return { ...current, sessions }
-			})
-		},
-		[setStore],
+		(movedId: string, destId: string) => moveTab(doc, movedId, destId),
+		[doc],
 	)
 
 	const setSessionOutlineExpanded = useCallback(
 		(id: string, expanded: boolean) => {
-			setStore((current) => ({
-				...current,
-				sessions: current.sessions.map((s) =>
-					s.id === id ? { ...s, outlineExpanded: expanded } : s,
-				),
-			}))
+			setView((current) => patchTabView(current, id, { outlineExpanded: expanded }))
 		},
-		[setStore],
-	)
-
-	/**
-	 * Komentar selalu menempel pada tab yang sedang aktif.
-	 *
-	 * Ia tidak ikut lewat `snapshot`: autosave memotret naskah dari editor, dan
-	 * menimpa daftar komentar dari sana akan menghapus komentar yang baru saja
-	 * ditambahkan sebelum potret berikutnya sempat memuatnya.
-	 */
-	const updateComments = useCallback(
-		(change: (threads: CommentThread[]) => CommentThread[]) => {
-			setStore((current) => ({
-				...current,
-				sessions: current.sessions.map((session) =>
-					session.id === current.activeId
-						? { ...session, comments: change(session.comments ?? []) }
-						: session,
-				),
-			}))
-		},
-		[setStore],
+		[setView],
 	)
 
 	const setLanguageOverride = useCallback(
 		(language: string | null) => {
-			setStore((current) => ({
-				...current,
-				sessions: current.sessions.map((session) =>
-					session.id === current.activeId ? { ...session, language } : session,
-				),
-			}))
+			if (activeId) updateTab(doc, activeId, { language })
 		},
-		[setStore],
+		[doc, activeId],
+	)
+
+	/** Komentar selalu menempel pada tab yang sedang aktif. */
+	const updateComments = useCallback(
+		(change: (threads: CommentThread[]) => CommentThread[]) => {
+			if (!activeId) return
+			const current = readTabs(doc).find((tab) => tab.id === activeId)?.comments ?? []
+			updateTab(doc, activeId, { comments: change(current) })
+		},
+		[doc, activeId],
 	)
 
 	const addComment = useCallback(
@@ -449,11 +385,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		[updateComments],
 	)
 
+	const active = sessions.find((session) => session.id === activeId)
+
 	const value = useMemo<SessionContextValue>(
 		() => ({
-			sessions: store.sessions,
-			activeId: store.activeId,
-			hydrated,
+			doc,
+			sessions,
+			activeId,
+			hydrated: loaded && viewHydrated,
 			newSession,
 			selectSession,
 			deleteSession,
@@ -462,18 +401,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			setSessionEmoji,
 			moveSession,
 			setSessionOutlineExpanded,
-			languageOverride: store.sessions.find((s) => s.id === store.activeId)?.language ?? null,
+			languageOverride: active?.language ?? null,
 			setLanguageOverride,
-			comments: store.sessions.find((s) => s.id === store.activeId)?.comments ?? [],
+			comments: active?.comments ?? [],
 			addComment,
 			replyToComment,
 			setCommentResolved,
 			removeComment,
 		}),
 		[
-			store.sessions,
-			store.activeId,
-			hydrated,
+			doc,
+			sessions,
+			activeId,
+			loaded,
+			viewHydrated,
+			active,
 			newSession,
 			selectSession,
 			deleteSession,

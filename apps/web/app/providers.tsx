@@ -34,8 +34,9 @@ export function Providers({ children }: { children: ReactNode }) {
 		<QueryClientProvider client={queryClient}>
 			<SettingsProvider>
 				<DocumentProvider>
-					{/* Sesi memulihkan naskah lengkap dengan formatnya, jadi ia harus
-					    berada di dalam jangkauan instance editor. */}
+					{/* Naskah tinggal di Y.Doc milik sesi dan editor terikat langsung
+					    ke sana, tapi teks polos untuk pipeline analisis dibaca dari
+					    instance editornya - jadi sesi tetap harus berada di dalamnya. */}
 					<EditorInstanceProvider>
 						<SessionProvider>
 							<PanelProvider>
