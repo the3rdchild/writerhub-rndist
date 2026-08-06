@@ -3,23 +3,22 @@
 import { Extension } from '@tiptap/core'
 
 /**
- * Nomor otomatis sebuah blok - "BAB I", "1.2.3", butir daftar.
+ * Rupa dan penanda nomor sebuah judul - bukan nomornya sendiri.
  *
- * Nomornya disimpan sebagai atribut dan digambar lewat `::before`, bukan
- * disisipkan sebagai teks. Bedanya penting di beberapa tempat sekaligus:
+ * Nomor itu kini dihitung hidup oleh `live-numbering` dari tingkat judul dan
+ * skema penomoran dokumen, lalu digambar sebagai dekorasi. Yang tetap tersimpan
+ * pada node adalah dua hal yang memang dimiliki tiap judul sendiri:
  *
- * - Pemeriksa tata bahasa dan hitungan keterbacaan tidak melihatnya. "1.2.3"
- *   bukan kalimat, dan menghitungnya sebagai kalimat merusak seluruh statistik
- *   naskah.
- * - Kursor tidak bisa masuk ke dalamnya, jadi nomor tidak bisa terhapus
- *   sebagian - persis seperti di Word.
- * - Saat penomoran hidup menyusul, yang perlu diubah hanya nilai atributnya;
- *   naskahnya sendiri tidak ikut disentuh.
+ * - `numberStyle`: rupa nomornya, diambil dari properti tanda paragraf di Word.
+ *   Nomor bab yang tebal, misalnya, menyimpan tebalnya di sini, bukan pada teks
+ *   paragrafnya - persis seperti Word memisahkan keduanya. Dituangkan sebagai
+ *   properti kustom CSS supaya hanya mengenai nomornya.
+ * - `suppressNumber`: penanda judul yang menolak nomornya. "DAFTAR ISI" memakai
+ *   gaya heading agar masuk kerangka, namun membatalkan penomoran; tanpa
+ *   penanda ini, "PENDAHULUAN" sesudahnya menjadi "BAB 2".
  *
- * Rupa nomornya diambil dari properti tanda paragraf (`w:pPr/w:rPr`) - memang
- * di situlah Word menyimpan bagaimana nomor digambar, terpisah dari rupa teks
- * paragrafnya. Ia dikirim sebagai properti kustom CSS supaya hanya mengenai
- * nomornya dan tidak menyentuh isi paragraf.
+ * Nomor tidak ikut teks paragrafnya - itu sengaja, supaya pemeriksa tata bahasa
+ * dan hitungan keterbacaan tidak menghitung "1.2.3" sebagai kalimat.
  */
 
 const NUMBERED = ['paragraph', 'heading']
@@ -32,11 +31,18 @@ export const BlockNumber = Extension.create({
 			{
 				types: NUMBERED,
 				attributes: {
-					blockNumber: {
+					/**
+					 * Judul yang menolak nomornya tidak dihitung penomoran hidup.
+					 *
+					 * Disimpan agar tetap ada setelah halaman dimuat ulang - dekorasi
+					 * sendiri tidak ikut tersimpan. Bawaannya null (tidak menyatakan
+					 * apa-apa) supaya dokumen lama yang belum memilikinya tetap bernomor.
+					 */
+					suppressNumber: {
 						default: null,
-						parseHTML: (element) => element.getAttribute('data-number'),
+						parseHTML: (element) => element.hasAttribute('data-no-number'),
 						renderHTML: (attributes) =>
-							attributes.blockNumber ? { 'data-number': attributes.blockNumber } : {},
+							attributes.suppressNumber ? { 'data-no-number': '' } : {},
 					},
 					numberStyle: {
 						default: null,

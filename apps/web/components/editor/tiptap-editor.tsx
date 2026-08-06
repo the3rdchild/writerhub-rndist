@@ -18,7 +18,6 @@ import { CommentMark } from '@/features/comments/comment-mark'
 import { ImageWithMarkdown, TrailingParagraph } from '@/features/editor/editor-polish'
 import { MathBlock, MathInline } from '@/features/editor/math'
 import { PasteMarkdown } from '@/features/editor/paste-markdown'
-import { BlockNumber } from '@/features/editor/block-number'
 import { BlockSpacing } from '@/features/editor/block-spacing'
 import { BlockIndentExtension } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
@@ -101,7 +100,6 @@ export function TiptapEditor({
 			SelectionHighlight,
 			BlockIndentExtension,
 			BlockSpacing,
-			BlockNumber,
 			TextWeight,
 			PageBreak,
 			TableHeaderRepeat,

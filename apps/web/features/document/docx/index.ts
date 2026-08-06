@@ -152,10 +152,11 @@ export async function readDocx(data: Uint8Array): Promise<DocxImport> {
 	if (!body) throw new Error('Bagian utama DOCX ini tidak punya badan dokumen')
 
 	const relationshipsSource = archive.text(relsPathOf(mainPart))
+	const numberingRoot = partByType(archive, parse, mainPart, 'numbering')
 	const context: ParseContext = {
 		styles: readStyles(partByType(archive, parse, mainPart, 'styles')),
 		theme: readTheme(partByType(archive, parse, mainPart, 'theme')),
-		numberer: createNumberer(readNumbering(partByType(archive, parse, mainPart, 'numbering'))),
+		numberer: createNumberer(readNumbering(numberingRoot)),
 		relationships: relationshipsSource ? readRelationships(parse(relationshipsSource)) : new Map(),
 		skipped: new Map(),
 		archive,

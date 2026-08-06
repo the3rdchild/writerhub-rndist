@@ -32,21 +32,18 @@ function readHeadings(doc: PMNode): OutlineItem[] {
 
 	doc.descendants((node, pos) => {
 		if (node.type.name === 'heading') {
-			// Nomor otomatis hidup di atribut, bukan di teksnya - lihat
-			// block-number.ts. Kerangka tetap perlu menampilkannya: "1.2.1" adalah
-			// separuh cara orang mengenali bagian naskahnya.
-			const number = node.attrs.blockNumber as string | null
-			const text = node.textContent.trim()
-
+			// Nomor bab kini bagian teks heading itu sendiri (dibakar saat impor),
+			// jadi cukup dipakai apa adanya - tidak ada nomor terhitung terpisah.
 			items.push({
 				pos,
-				level: node.attrs.level ?? 1,
-				text: number ? `${number} ${text}` : text,
+				level: (node.attrs.level as number) ?? 1,
+				text: node.textContent.trim(),
 			})
+			// Heading selalu blok tingkat atas pada skema ini, jadi tidak perlu
+			// turun ke anak-anaknya - pemindaian ini berjalan pada tiap ketukan.
+			return false
 		}
-		// Heading selalu blok tingkat atas pada skema ini, jadi tidak perlu turun
-		// ke anak-anaknya - pemindaian ini berjalan pada tiap ketukan tombol.
-		return false
+		return true
 	})
 
 	return items

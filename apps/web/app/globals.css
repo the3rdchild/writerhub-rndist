@@ -321,28 +321,6 @@ a {
   margin-top: 0.75em;
 }
 
-/*
- * Nomor otomatis hasil impor DOCX - "BAB I", "1.2.3", butir daftar.
- *
- * Digambar, bukan diketik: ia tidak boleh ikut terpilih, terhapus sebagian,
- * atau terbaca sebagai kalimat oleh pemeriksa naskah.
- *
- * Lebarnya mengikuti indentasi gantung paragrafnya, karena di situlah Word
- * meletakkan nomor - baris pertama menjorok keluar, nomor mengisi ruangnya,
- * lalu teks bertemu kembali di batas paragraf. Nomor yang lebih lebar dari
- * ruang itu mendorong teksnya, sama seperti tab di Word.
- */
-.document-body [data-number]::before {
-  content: attr(data-number);
-  display: inline-block;
-  min-width: var(--number-width, 0);
-  font-family: var(--number-font, inherit);
-  font-size: var(--number-size, inherit);
-  font-weight: var(--number-weight, inherit);
-  font-style: var(--number-style, inherit);
-  padding-right: 0.35em;
-}
-
 .document-body h1,
 .document-body h2,
 .document-body h3 {

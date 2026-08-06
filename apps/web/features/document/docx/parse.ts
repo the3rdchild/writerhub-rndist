@@ -172,30 +172,6 @@ function marksOf(
 	return marks.length > 0 ? marks : undefined
 }
 
-/**
- * Rupa nomor otomatis, dikirim sebagai properti kustom CSS.
- *
- * Diambil dari properti tanda paragraf, bukan dari run pertamanya: di Word,
- * `w:pPr/w:rPr` memang khusus menggambarkan tanda paragraf berikut nomornya,
- * dan itulah satu-satunya alasan properti tersebut ada.
- */
-function numberStyleOf(props: RunProps, theme: ThemeFonts, hangingPx: number): string {
-	const declarations: string[] = []
-
-	// Nomor duduk di ruang gantung baris pertama, seperti di Word.
-	if (hangingPx > 0) declarations.push(`--number-width: ${hangingPx}px`)
-
-	const fontFamily = toFontStack(fontOf(props, theme))
-	if (fontFamily) declarations.push(`--number-font: ${fontFamily}`)
-	if (props.halfPoints !== undefined) {
-		declarations.push(`--number-size: ${halfPointsToPt(props.halfPoints)}pt`)
-	}
-	declarations.push(`--number-weight: ${props.bold ? 'bold' : 'normal'}`)
-	if (props.italic) declarations.push('--number-style: italic')
-
-	return declarations.join('; ')
-}
-
 /** Properti paragraf diterjemahkan jadi atribut node Tiptap. */
 function paragraphAttrs(props: ParagraphProps): Record<string, unknown> {
 	const attrs: Record<string, unknown> = {}
@@ -523,27 +499,31 @@ export function paragraphBlocks(paragraph: Element, context: ParseContext): JSON
 
 	const attrs = paragraphAttrs(paragraphProps)
 
+	const level = headingLevel(paragraphProps, style.name)
+
 	/*
 	 * numId 0 bukan "daftar nomor nol" - ia cara Word menyatakan bahwa paragraf
-	 * ini justru tidak bernomor, biasanya untuk membatalkan penomoran yang
-	 * datang dari gayanya. Gaya "Heading awal" di naskah nyata memakainya persis
-	 * untuk itu: judul bab tanpa nomor.
+	 * ini justru tidak bernomor. Nomor otomatis Word bukan teks, jadi tanpa
+	 * langkah ini ia hilang sama sekali. Di sini nomornya dihitung sekali saat
+	 * impor lalu dibakar sebagai teks di awal heading - bukan dihitung hidup,
+	 * sebab editor ini memperlakukan heading sebagai penanda struktural biasa.
+	 *
+	 * Rupa nomor mengikuti properti tanda paragraf (`markProps`), persis seperti
+	 * Word menggambar nomornya - terpisah dari rupa teks paragrafnya.
 	 */
-	if (paragraphProps.numId) {
-		const marker = context.numberer(paragraphProps.numId, paragraphProps.numLevel ?? 0)
-		if (marker) {
-			attrs.blockNumber = marker
-			attrs.numberStyle = numberStyleOf(
-				markProps,
-				context.theme,
-				-(Number(attrs.indentFirstLine) || 0),
-			)
-		}
-	}
 	const builder: ParagraphBuilder = { blocks: [], inline: [], images: [], attrs }
 	walkInline(paragraph, context, runProps, undefined, builder, [])
 
-	const level = headingLevel(paragraphProps, style.name)
+	if (paragraphProps.numId) {
+		const marker = context.numberer(paragraphProps.numId, paragraphProps.numLevel ?? 0)
+		if (marker) {
+			builder.inline.unshift({
+				type: 'text',
+				text: `${marker} `,
+				marks: marksOf(markProps, undefined, context.theme),
+			})
+		}
+	}
 
 	// Paragraf yang isinya hanya gambar menjadi blok gambar tingkat atas, bukan
 	// paragraf - sebab gambar di editor ini adalah blok, bukan bagian teks.
