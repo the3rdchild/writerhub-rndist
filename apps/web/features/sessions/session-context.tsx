@@ -53,6 +53,13 @@ export interface Session {
 	comments: CommentThread[]
 	suggestions: EditorSuggestion[]
 	scores: GrammarScores | null
+	/**
+	 * Apakah kerangka heading (daftar isi) tab ini sedang terbuka. Default
+	 * tertutup, dan setiap perpindahan tab mengembalikannya ke tertutup - lihat
+	 * `collapseOutline`. Yang disimpan hanyalah keadaan tab yang ditinggalkan
+	 * saat halaman ditutup, supaya sesi yang dibuka kembali tampil sama persis.
+	 */
+	outlineExpanded: boolean
 	updatedAt: number
 }
 
@@ -79,8 +86,18 @@ function createSession(title = 'Untitled document'): Session {
 		comments: [],
 		suggestions: [],
 		scores: null,
+		outlineExpanded: false,
 		updatedAt: Date.now(),
 	}
+}
+
+/**
+ * Tutup daftar isi satu tab. Dipakai setiap kali sebuah tab baru mendarat jadi
+ * tab aktif: yang dicari saat berpindah naskah adalah naskahnya, bukan
+ * kerangkanya - kerangka baru terbuka kalau tab aktif diklik sekali lagi.
+ */
+function collapseOutline(sessions: Session[], id: string): Session[] {
+	return sessions.map((s) => (s.id === id ? { ...s, outlineExpanded: false } : s))
 }
 
 /** Label sidebar: pakai judul, jatuh ke baris pertama teks kalau judul default. */
@@ -102,6 +119,8 @@ interface SessionContextValue {
 	renameSession: (id: string, title: string) => void
 	duplicateSession: (id: string) => void
 	setSessionEmoji: (id: string, emoji: string | null) => void
+	/** Buka/tutup kerangka heading (daftar isi) sebuah tab. */
+	setSessionOutlineExpanded: (id: string, expanded: boolean) => void
 
 	/** Bahasa yang dipilih untuk tab aktif; null berarti otomatis. */
 	languageOverride: string | null
@@ -191,8 +210,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		bootstrappedRef.current = true
 
 		if (store.sessions.length > 0) {
-			const active = store.sessions.find((s) => s.id === store.activeId) ?? store.sessions[0]
-			setStore({ ...store, activeId: active.id })
+			// Sesi dari versi sebelumnya tidak punya `outlineExpanded`; tanpa
+			// ini daftar isinya bisa terbuka diam-diam karena nilainya `undefined`.
+			const sessions = store.sessions.map((s) =>
+				s.outlineExpanded === undefined ? { ...s, outlineExpanded: false } : s,
+			)
+			const active = sessions.find((s) => s.id === store.activeId) ?? sessions[0]
+			setStore({ sessions, activeId: active.id })
 			loadIntoEditor(active)
 			return
 		}
@@ -232,7 +256,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			if (!target || id === store.activeId) return
 
 			setStore((current) => ({
-				sessions: snapshot(current.sessions, current.activeId),
+				sessions: collapseOutline(snapshot(current.sessions, current.activeId), id),
 				activeId: id,
 			}))
 			loadIntoEditor(target)
@@ -258,7 +282,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 					(s) => s.id !== id,
 				)
 				if (kept.length === 0) return { sessions: [fallback], activeId: fallback.id }
-				return { sessions: kept, activeId: isActive ? fallback.id : current.activeId }
+				// Tab pengganti sama saja dengan tab yang baru dipilih: ia mendarat
+				// dengan daftar isi tertutup.
+				return {
+					sessions: isActive ? collapseOutline(kept, fallback.id) : kept,
+					activeId: isActive ? fallback.id : current.activeId,
+				}
 			})
 
 			if (isActive) loadIntoEditor(fallback)
@@ -294,6 +323,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 					...sessions[at],
 					id: createId(),
 					title: `${sessions[at].title} (salinan)`,
+					outlineExpanded: false,
 					updatedAt: Date.now(),
 				}
 
@@ -313,6 +343,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			setStore((current) => ({
 				...current,
 				sessions: current.sessions.map((s) => (s.id === id ? { ...s, emoji } : s)),
+			}))
+		},
+		[setStore],
+	)
+
+	const setSessionOutlineExpanded = useCallback(
+		(id: string, expanded: boolean) => {
+			setStore((current) => ({
+				...current,
+				sessions: current.sessions.map((s) =>
+					s.id === id ? { ...s, outlineExpanded: expanded } : s,
+				),
 			}))
 		},
 		[setStore],
@@ -390,6 +432,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			renameSession,
 			duplicateSession,
 			setSessionEmoji,
+			setSessionOutlineExpanded,
 			languageOverride: store.sessions.find((s) => s.id === store.activeId)?.language ?? null,
 			setLanguageOverride,
 			comments: store.sessions.find((s) => s.id === store.activeId)?.comments ?? [],
@@ -408,6 +451,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			renameSession,
 			duplicateSession,
 			setSessionEmoji,
+			setSessionOutlineExpanded,
 			setLanguageOverride,
 			addComment,
 			replyToComment,

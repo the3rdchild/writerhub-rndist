@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronLeft, Copy, FileText, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ChevronLeft, Copy, FileText, ListTree, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import {
 	Dropdown,
@@ -40,6 +40,7 @@ export function DocumentTabsSidebar() {
 		duplicateSession,
 		deleteSession,
 		setSessionEmoji,
+		setSessionOutlineExpanded,
 	} = useSessions()
 	const { editor } = useEditorInstance()
 	const { update } = useSettings()
@@ -81,7 +82,16 @@ export function DocumentTabsSidebar() {
 							active={tab.id === activeId}
 							renaming={renamingId === tab.id}
 							canRemove={sessions.length > 1}
-							onSelect={() => selectSession(tab.id)}
+							onSelect={() => {
+								// Klik tab yang sudah aktif bukan pindah lagi - ia membuka/
+								// menutup daftar isi tab itu. Klik tab lain tetap berarti
+								// pindah dokumen, dan tab tujuan selalu mendarat tertutup.
+								if (tab.id === activeId) {
+									setSessionOutlineExpanded(tab.id, !tab.outlineExpanded)
+								} else {
+									selectSession(tab.id)
+								}
+							}}
 							onRename={(title) => {
 								renameSession(tab.id, title)
 								setRenamingId(null)
@@ -91,9 +101,12 @@ export function DocumentTabsSidebar() {
 							onDuplicate={() => duplicateSession(tab.id)}
 							onRemove={() => deleteSession(tab.id)}
 							onSetIcon={(icon) => setSessionEmoji(tab.id, icon)}
+							onToggleOutline={() =>
+								setSessionOutlineExpanded(tab.id, !tab.outlineExpanded)
+							}
 						/>
 
-						{tab.id === activeId && outline.items.length > 0 && (
+						{tab.id === activeId && tab.outlineExpanded && (
 							<OutlineTree
 								items={outline.items}
 								activePos={outline.activePos}
@@ -119,6 +132,7 @@ function TabRow({
 	onDuplicate,
 	onRemove,
 	onSetIcon,
+	onToggleOutline,
 }: {
 	tab: Session
 	active: boolean
@@ -131,6 +145,7 @@ function TabRow({
 	onDuplicate: () => void
 	onRemove: () => void
 	onSetIcon: (icon: string | null) => void
+	onToggleOutline: () => void
 }) {
 	if (renaming) {
 		return <TabNameInput initialValue={tab.title} onCommit={onRename} onCancel={onCancelRename} />
@@ -153,6 +168,9 @@ function TabRow({
 				type="button"
 				onClick={onSelect}
 				onDoubleClick={onStartRename}
+				// Pada tab aktif tombolnya merangkap pembuka daftar isi, jadi
+				// keadaannya perlu terbaca pembaca layar juga.
+				aria-expanded={active ? tab.outlineExpanded : undefined}
 				className="flex min-w-0 flex-1 items-center gap-2 text-left"
 			>
 				<span className="w-4 shrink-0 text-center text-sm leading-none">
@@ -201,6 +219,15 @@ function TabRow({
 							}}
 						>
 							Duplikat
+						</DropdownItem>
+						<DropdownItem
+							icon={<ListTree className="h-4 w-4" />}
+							onSelect={() => {
+								close()
+								onToggleOutline()
+							}}
+						>
+							{tab.outlineExpanded ? 'Sembunyikan daftar isi' : 'Tampilkan daftar isi'}
 						</DropdownItem>
 
 						<DropdownLabel>Ikon</DropdownLabel>
@@ -306,6 +333,16 @@ function OutlineTree({
 	activePos: number | null
 	onSelect: (pos: number) => void
 }) {
+	// Naskah tanpa heading tetap menjawab kliknya: tanpa baris ini daftar isi
+	// yang dibuka terlihat seperti tombol yang rusak.
+	if (items.length === 0) {
+		return (
+			<p className="mb-1 ml-4 mt-0.5 border-l border-line py-1 pl-2.5 pr-2 text-[13px] text-subtle">
+				Belum ada heading
+			</p>
+		)
+	}
+
 	return (
 		<ul className="mb-1 ml-4 mt-0.5 border-l border-line">
 			{items.map((item) => {
