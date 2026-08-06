@@ -79,7 +79,19 @@ export default class ChatService extends JobSubmissionService {
 
 			if (!upstream.ok || !upstream.body) {
 				const detail = await upstream.text().catch(() => '')
+				/*
+				 * Kredensial yang ditolak diberi nama sendiri.
+				 *
+				 * Label bawaan `this.error` adalah "Bad Request", dan itu menyesatkan
+				 * di sini: yang salah bukan permintaan yang dikirim pengguna,
+				 * melainkan kunci API yang dipakai server. Yang membaca pesannya akan
+				 * memeriksa isi percakapan lebih dulu, padahal jawabannya ada di env.
+				 */
+				const credentialsRejected = upstream.status === 401 || upstream.status === 403
 				return this.error({
+					message: credentialsRejected
+						? 'Kunci API provider AI ditolak - periksa AI_API_KEY'
+						: 'Provider AI gagal menjawab',
 					errors: [`Provider AI membalas ${upstream.status}`, detail.slice(0, 300)].filter(Boolean),
 					status: 502,
 				})
