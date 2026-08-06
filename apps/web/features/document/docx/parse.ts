@@ -9,6 +9,7 @@
 
 import type { JSONContent } from '@tiptap/core'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
+import type { Numberer } from './numbering'
 import {
 	type DocxStyles,
 	merge,
@@ -48,6 +49,13 @@ export interface ParseContext {
 	styles: DocxStyles
 	relationships: Relationships
 	theme: ThemeFonts
+	/**
+	 * Penghitung nomor otomatis.
+	 *
+	 * Ia menyimpan keadaan dan harus dipanggil menurut urutan paragraf di
+	 * dokumen - sebuah deret tidak bisa dihitung mundur.
+	 */
+	numberer: Numberer
 	/** Elemen yang dilewati beserta jumlahnya, supaya bisa dilaporkan apa adanya. */
 	skipped: Map<string, number>
 }
@@ -153,6 +161,30 @@ function marksOf(
 	if (link) marks.push({ type: 'link', attrs: { href: link } })
 
 	return marks.length > 0 ? marks : undefined
+}
+
+/**
+ * Rupa nomor otomatis, dikirim sebagai properti kustom CSS.
+ *
+ * Diambil dari properti tanda paragraf, bukan dari run pertamanya: di Word,
+ * `w:pPr/w:rPr` memang khusus menggambarkan tanda paragraf berikut nomornya,
+ * dan itulah satu-satunya alasan properti tersebut ada.
+ */
+function numberStyleOf(props: RunProps, theme: ThemeFonts, hangingPx: number): string {
+	const declarations: string[] = []
+
+	// Nomor duduk di ruang gantung baris pertama, seperti di Word.
+	if (hangingPx > 0) declarations.push(`--number-width: ${hangingPx}px`)
+
+	const fontFamily = toFontStack(fontOf(props, theme))
+	if (fontFamily) declarations.push(`--number-font: ${fontFamily}`)
+	if (props.halfPoints !== undefined) {
+		declarations.push(`--number-size: ${halfPointsToPt(props.halfPoints)}pt`)
+	}
+	declarations.push(`--number-weight: ${props.bold ? 'bold' : 'normal'}`)
+	if (props.italic) declarations.push('--number-style: italic')
+
+	return declarations.join('; ')
 }
 
 /** Properti paragraf diterjemahkan jadi atribut node Tiptap. */
@@ -355,10 +387,30 @@ export function paragraphBlocks(paragraph: Element, context: ParseContext): JSON
 
 	const paragraphProps = merge(style.paragraph, readParagraphProps(pPr))
 	// Properti run pada `w:pPr` menghias tanda paragraf, bukan isinya, jadi ia
-	// sengaja tidak ikut diwariskan ke run - persis seperti Word.
+	// sengaja tidak ikut diwariskan ke run - persis seperti Word. Yang memakainya
+	// hanya nomor otomatis, yang memang digambar bersama tanda paragraf.
 	const runProps = style.run
+	const markProps = merge(runProps, readRunProps(child(pPr, 'rPr')))
 
 	const attrs = paragraphAttrs(paragraphProps)
+
+	/*
+	 * numId 0 bukan "daftar nomor nol" - ia cara Word menyatakan bahwa paragraf
+	 * ini justru tidak bernomor, biasanya untuk membatalkan penomoran yang
+	 * datang dari gayanya. Gaya "Heading awal" di naskah nyata memakainya persis
+	 * untuk itu: judul bab tanpa nomor.
+	 */
+	if (paragraphProps.numId) {
+		const marker = context.numberer(paragraphProps.numId, paragraphProps.numLevel ?? 0)
+		if (marker) {
+			attrs.blockNumber = marker
+			attrs.numberStyle = numberStyleOf(
+				markProps,
+				context.theme,
+				-(Number(attrs.indentFirstLine) || 0),
+			)
+		}
+	}
 	const builder: ParagraphBuilder = { blocks: [], inline: [], attrs }
 	walkInline(paragraph, context, runProps, undefined, builder, [])
 

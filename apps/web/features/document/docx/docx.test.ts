@@ -19,12 +19,25 @@ function docx({
 	styles = '',
 	rels = '',
 	theme,
+	numbering,
 }: {
 	body: string
 	styles?: string
 	rels?: string
 	theme?: { major: string; minor: string }
+	numbering?: string
 }): Uint8Array {
+	const numberingRel = numbering
+		? `<Relationship Id="rIdNum" Type="${REL_NS}/numbering" Target="numbering.xml"/>`
+		: ''
+	const numberingPart = numbering
+		? {
+				'word/numbering.xml': strToU8(
+					`<?xml version="1.0"?><w:numbering ${W}>${numbering}</w:numbering>`,
+				),
+			}
+		: {}
+
 	const themeRel = theme ? `<Relationship Id="rIdTheme" Type="${REL_NS}/theme" Target="theme/theme1.xml"/>` : ''
 	const themePart = theme
 		? {
@@ -39,6 +52,7 @@ function docx({
 
 	return zipSync({
 		...themePart,
+		...numberingPart,
 		'_rels/.rels': strToU8(
 			`<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 			<Relationship Id="rId1" Type="${REL_NS}/officeDocument" Target="word/document.xml"/>
@@ -48,6 +62,7 @@ function docx({
 			`<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 			<Relationship Id="rIdStyles" Type="${REL_NS}/styles" Target="styles.xml"/>
 			${themeRel}
+			${numberingRel}
 			${rels}
 			</Relationships>`,
 		),
@@ -450,6 +465,133 @@ describe('rupa huruf', () => {
 	test('teks tebal tidak menyatakan bobot yang membantah tandanya', async () => {
 		const result = await readDocx(docx({ body: p(r('tegas', '<w:b/>')) }))
 		expect(textStyle(blocks(result.content)[0])?.fontWeight).toBeUndefined()
+	})
+})
+
+describe('penomoran otomatis', () => {
+	/** Susunan bab khas naskah ilmiah: "BAB I", lalu "1.1", lalu "1.1.1". */
+	const BERTINGKAT = `
+		<w:abstractNum w:abstractNumId="0">
+			<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="upperRoman"/><w:lvlText w:val="BAB %1"/></w:lvl>
+			<w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1.%2"/></w:lvl>
+			<w:lvl w:ilvl="2"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1.%2.%3"/></w:lvl>
+		</w:abstractNum>
+		<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>`
+
+	const numbered = (ilvl: number, numId = 1) =>
+		`<w:numPr><w:ilvl w:val="${ilvl}"/><w:numId w:val="${numId}"/></w:numPr>`
+
+	const numbersOf = (document: JSONContent) =>
+		blocks(document).map((block) => block.attrs?.blockNumber ?? null)
+
+	test('deret bertingkat menghitung seperti Word', async () => {
+		const body =
+			p(r('Satu'), numbered(0)) +
+			p(r('a'), numbered(1)) +
+			p(r('b'), numbered(1)) +
+			p(r('i'), numbered(2)) +
+			p(r('Dua'), numbered(0))
+		const result = await readDocx(docx({ numbering: BERTINGKAT, body }))
+
+		expect(numbersOf(result.content)).toEqual(['BAB I', 'I.1', 'I.2', 'I.2.1', 'BAB II'])
+	})
+
+	test('tingkat yang lebih dalam dimulai ulang oleh tingkat di atasnya', async () => {
+		const body =
+			p(r('a'), numbered(0)) +
+			p(r('a1'), numbered(1)) +
+			p(r('b'), numbered(0)) +
+			p(r('b1'), numbered(1))
+		const result = await readDocx(docx({ numbering: BERTINGKAT, body }))
+
+		expect(numbersOf(result.content)).toEqual(['BAB I', 'I.1', 'BAB II', 'II.1'])
+	})
+
+	/** Dua numId adalah dua deret terpisah, meski bentuknya satu definisi. */
+	test('deret yang berbeda menghitung sendiri-sendiri', async () => {
+		const numbering = `${BERTINGKAT}<w:num w:numId="2"><w:abstractNumId w:val="0"/></w:num>`
+		const body =
+			p(r('satu'), numbered(0, 1)) + p(r('lain'), numbered(0, 2)) + p(r('dua'), numbered(0, 1))
+		const result = await readDocx(docx({ numbering, body }))
+
+		expect(numbersOf(result.content)).toEqual(['BAB I', 'BAB I', 'BAB II'])
+	})
+
+	test('startOverride menggeser awal hitungan deretnya', async () => {
+		const numbering = `${BERTINGKAT}
+			<w:num w:numId="3"><w:abstractNumId w:val="0"/>
+				<w:lvlOverride w:ilvl="0"><w:startOverride w:val="4"/></w:lvlOverride>
+			</w:num>`
+		const result = await readDocx(docx({ numbering, body: p(r('bab'), numbered(0, 3)) }))
+
+		expect(numbersOf(result.content)).toEqual(['BAB IV'])
+	})
+
+	/**
+	 * numId 0 bukan deret bernomor nol - ia cara Word membatalkan penomoran yang
+	 * datang dari gaya paragrafnya.
+	 */
+	test('numId nol berarti justru tidak bernomor', async () => {
+		const styles = `<w:style w:type="paragraph" w:styleId="Bab">
+			<w:name w:val="Bab"/><w:pPr>${numbered(0)}<w:outlineLvl w:val="0"/></w:pPr></w:style>
+			<w:style w:type="paragraph" w:styleId="BabTanpaNomor">
+			<w:name w:val="Bab tanpa nomor"/><w:basedOn w:val="Bab"/>
+			<w:pPr><w:numPr><w:numId w:val="0"/></w:numPr></w:pPr></w:style>`
+		const body =
+			p(r('Bernomor'), '<w:pStyle w:val="Bab"/>') +
+			p(r('Daftar Pustaka'), '<w:pStyle w:val="BabTanpaNomor"/>')
+		const result = await readDocx(docx({ numbering: BERTINGKAT, styles, body }))
+
+		expect(numbersOf(result.content)).toEqual(['BAB I', null])
+		// Keduanya tetap judul: yang dibatalkan penomorannya, bukan tingkatnya.
+		expect(blocks(result.content).map((block) => block.type)).toEqual(['heading', 'heading'])
+	})
+
+	test('penomoran pada paragraf menang atas penomoran dari gayanya', async () => {
+		const numbering = `${BERTINGKAT}
+			<w:abstractNum w:abstractNumId="9">
+				<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="Bagian %1"/></w:lvl>
+			</w:abstractNum>
+			<w:num w:numId="9"><w:abstractNumId w:val="9"/></w:num>`
+		const styles = `<w:style w:type="paragraph" w:styleId="Bab"><w:name w:val="Bab"/><w:pPr>${numbered(0)}</w:pPr></w:style>`
+		const result = await readDocx(
+			docx({ numbering, styles, body: p(r('isi'), `<w:pStyle w:val="Bab"/>${numbered(0, 9)}`) }),
+		)
+
+		expect(numbersOf(result.content)).toEqual(['Bagian 1'])
+	})
+
+	test('butir Wingdings jadi bulatan, bukan kotak kosong', async () => {
+		//  hanya berarti bulatan di font Symbol, yang tidak dipunyai peramban.
+		const numbering = `
+			<w:abstractNum w:abstractNumId="5">
+				<w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val=""/></w:lvl>
+			</w:abstractNum>
+			<w:num w:numId="5"><w:abstractNumId w:val="5"/></w:num>`
+		const result = await readDocx(docx({ numbering, body: p(r('butir'), numbered(0, 5)) }))
+
+		expect(numbersOf(result.content)).toEqual(['•'])
+	})
+
+	test('nomor tidak ikut jadi teks paragrafnya', async () => {
+		const result = await readDocx(docx({ numbering: BERTINGKAT, body: p(r('Pendahuluan'), numbered(0)) }))
+		expect(textOf(blocks(result.content)[0])).toBe('Pendahuluan')
+	})
+
+	test('rupa nomor diambil dari properti tanda paragraf', async () => {
+		const body = p(r('isi'), `${numbered(0)}<w:rPr><w:b/></w:rPr><w:ind w:left="720" w:hanging="720"/>`)
+		const style = blocks((await readDocx(docx({ numbering: BERTINGKAT, body }))).content)[0]?.attrs
+			?.numberStyle as string
+
+		expect(style).toContain('--number-weight: bold')
+		expect(style).toContain('--number-width: 48px')
+	})
+
+	test('dokumen tanpa bagian penomoran tetap terbaca', async () => {
+		const result = await readDocx(docx({ body: p(r('isi'), numbered(0)) }))
+
+		expect(numbersOf(result.content)).toEqual([null])
+		expect(textOf(blocks(result.content)[0])).toBe('isi')
 	})
 })
 

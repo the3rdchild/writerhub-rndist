@@ -14,6 +14,7 @@
  */
 
 import type { JSONContent } from '@tiptap/core'
+import { createNumberer, readNumbering } from './numbering'
 import { bodyBlocks, bodyOf, type ParseContext, readRelationships, readTheme } from './parse'
 import { readStyles } from './properties'
 import { type DocxArchive, openDocx } from './zip'
@@ -167,6 +168,7 @@ export async function readDocx(data: Uint8Array): Promise<DocxImport> {
 	const context: ParseContext = {
 		styles: readStyles(partByType(archive, parse, mainPart, 'styles')),
 		theme: readTheme(partByType(archive, parse, mainPart, 'theme')),
+		numberer: createNumberer(readNumbering(partByType(archive, parse, mainPart, 'numbering'))),
 		relationships: relationshipsSource ? readRelationships(parse(relationshipsSource)) : new Map(),
 		skipped: new Map(),
 	}
