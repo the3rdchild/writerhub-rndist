@@ -13,6 +13,7 @@
  */
 
 import { latexToMarkdown, looksLikeLatexDocument } from './latex-document'
+import { wholeParagraphLatex } from './math'
 
 function escapeHtml(value: string): string {
 	return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -39,16 +40,32 @@ const MATH_PLACEHOLDER = '\u0000math'
 function inline(text: string): string {
 	// Rumus diamankan lebih dulu; lihat MATH_PLACEHOLDER.
 	const formulas: string[] = []
-	const guarded = text.replace(/\$\$?([^$\n]+?)\$\$?/g, (whole, latex: string) => {
+
+	const stash = (latex: string, display: boolean): string => {
 		const trimmed = latex.trim()
-		// Aturan spasi yang sama seperti pengenalan rumus di dokumen: tanpa itu,
-		// "$5 dan $10" ikut tertangkap sebagai rumus.
-		if (!trimmed || /^\s|\s$/.test(latex)) return whole
-		const display = whole.startsWith('$$')
+		if (!trimmed) return ''
 		const tag = display ? 'div' : 'span'
 		formulas.push(`<${tag} data-latex="${escapeAttribute(trimmed)}"></${tag}>`)
 		return `${MATH_PLACEHOLDER}${formulas.length - 1}\u0000`
-	})
+	}
+
+	// Pembatas LaTeX - \[…\], \(…\), dan lingkungan equation/align - diproses
+	// lebih dulu: isinya bisa mengandung `$` yang tidak boleh tertangkap sebagai
+	// rumus dollar di bawah. Lalu `$…$`/`$$…$$` dengan aturan spasi yang sama
+	// seperti pengenalan rumus di dokumen - tanpa itu, "$5 dan $10" ikut
+	// tertangkap sebagai rumus.
+	const guarded = text
+		.replace(
+			/\\begin\{((?:equation|align|gather|multline)\*?)\}([\s\S]*?)\\end\{\1\}/g,
+			(whole, _name, body: string) => stash(body, true) || whole,
+		)
+		.replace(/\\\[([\s\S]+?)\\\]/g, (whole, body: string) => stash(body, true) || whole)
+		.replace(/\\\(([^)\n]*?)\\\)/g, (whole, body: string) => stash(body, false) || whole)
+		.replace(/\$\$?([^$\n]+?)\$\$?/g, (whole, latex: string) => {
+			const trimmed = latex.trim()
+			if (!trimmed || /^\s|\s$/.test(latex)) return whole
+			return stash(trimmed, whole.startsWith('$$')) || whole
+		})
 
 	const rendered = escapeHtml(guarded)
 		.replace(/`([^`]+)`/g, '<code>$1</code>')
@@ -87,8 +104,10 @@ export function looksLikeMarkdown(text: string): boolean {
 	return (
 		/^\s*(#{1,6}\s|[-*]\s|\d+\.\s|>\s|\|.*\|)/m.test(text) ||
 		/```/.test(text) ||
-		// Rumus juga layak diterjemahkan walau sisanya kalimat biasa.
-		/\$\$?[^\s$][^$\n]*[^\s$]\$\$?|\$[^\s$]\$/.test(text)
+		// Rumus juga layak diterjemahkan walau sisanya kalimat biasa. Pembatas
+		// LaTeX `\[…\]`/`\(…\)` dan lingkungan equation/align ikut dikenali.
+		/\$\$?[^\s$][^$\n]*[^\s$]\$\$?|\$[^\s$]\$/.test(text) ||
+		/\\\[[\s\S]*?\\\]|\\\([^)\n]*?\\\)|\\begin\{(?:equation|align|gather|multline)\*?\}/.test(text)
 	)
 }
 
@@ -145,12 +164,12 @@ export function markdownToHtml(markdown: string): string {
 		}
 
 		// ── rumus blok ───────────────────────────────────────────────────────
-		// Sebaris penuh `$$…$$` jadi node blok. Kalau dibiarkan lewat cabang
-		// paragraf, hasilnya <div> di dalam <p> - bersarang yang tidak sah dan
-		// akan dibongkar browser.
-		const blockMath = trimmed.match(/^\$\$([\s\S]+)\$\$$/)
-		if (blockMath?.[1].trim()) {
-			out.push(`<div data-latex="${escapeAttribute(blockMath[1].trim())}"></div>`)
+		// Sebaris penuh jadi node blok - `$$…$$`, `\[…\]`, maupun lingkungan
+		// equation/align. Kalau dibiarkan lewat cabang paragraf, hasilnya <div>
+		// di dalam <p> - bersarang yang tidak sah dan akan dibongkar browser.
+		const blockLatex = wholeParagraphLatex(trimmed)
+		if (blockLatex) {
+			out.push(`<div data-latex="${escapeAttribute(blockLatex)}"></div>`)
 			index += 1
 			continue
 		}

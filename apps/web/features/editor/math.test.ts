@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { findMath, looksLikeBareLatex, stripDelimiters } from './math'
+import { findMath, looksLikeBareLatex, stripDelimiters, wholeParagraphLatex } from './math'
 
 /**
  * Yang diuji di sini pengenalan LaTeX di dalam teks - bagian yang paling mudah
@@ -14,7 +14,48 @@ describe('menemukan rumus', () => {
 		expect(found[0].latex).toBe('x^2 + y^2 = z^2')
 		expect(found[0].display).toBe(false)
 	})
+	test('pembatas LaTeX \\[…\\]', () => {
+		const found = findMath('\\[\\int_{-\\infty}^{\\infty} e^{-x^2}\\,dx = \\sqrt{\\pi}\\]')
+		expect(found).toHaveLength(1)
+		expect(found[0].latex).toBe('\\int_{-\\infty}^{\\infty} e^{-x^2}\\,dx = \\sqrt{\\pi}')
+		expect(found[0].display).toBe(true)
+	})
 
+	test('pembatas LaTeX bisa melewati baris', () => {
+		const found = findMath('\\[\n\\int_0^1 f(x)\\,dx\n\\]')
+		expect(found).toHaveLength(1)
+		expect(found[0].latex).toBe('\\int_0^1 f(x)\\,dx')
+		expect(found[0].display).toBe(true)
+	})
+
+	test('pembatas \\(…\\) inline', () => {
+		const found = findMath('Misalkan \\(x^2\\) berlaku.')
+		expect(found).toHaveLength(1)
+		expect(found[0].latex).toBe('x^2')
+		expect(found[0].display).toBe(false)
+	})
+
+	test('lingkungan equation', () => {
+		const found = findMath('\\begin{equation}E = mc^2\\end{equation}')
+		expect(found).toHaveLength(1)
+		expect(found[0].latex).toBe('E = mc^2')
+		expect(found[0].display).toBe(true)
+	})
+
+	test('lingkungan align* cocok dengan penutupnya', () => {
+		const found = findMath('\\begin{align*}a &= b \\\\ c &= d\\end{align*}')
+		expect(found).toHaveLength(1)
+		expect(found[0].latex).toBe('a &= b \\\\ c &= d')
+	})
+
+	test('campuran pembatas tidak saling memotong', () => {
+		const found = findMath('$a$ lalu \\(b\\) lalu \\[c\\]')
+		expect(found.map((item) => [item.latex, item.display])).toEqual([
+			['a', false],
+			['b', false],
+			['c', true],
+		])
+	})
 	test('blok dikenali sebagai blok, bukan dua inline', () => {
 		const found = findMath('$$\\int_0^1 f(x)\\,dx$$')
 		expect(found).toHaveLength(1)
@@ -66,7 +107,13 @@ describe('pembatas pada seleksi', () => {
 	test('dolar ganda dibuang', () => {
 		expect(stripDelimiters('$$x^2$$')).toBe('x^2')
 	})
+	test('kurung siku dibuang', () => {
+		expect(stripDelimiters('\\[x^2\\]')).toBe('x^2')
+	})
 
+	test('kurung biasa dibuang', () => {
+		expect(stripDelimiters('\\(x^2\\)')).toBe('x^2')
+	})
 	test('tanpa pembatas dibiarkan', () => {
 		expect(stripDelimiters('  x^2  ')).toBe('x^2')
 	})
@@ -87,5 +134,23 @@ describe('menebak LaTeX telanjang', () => {
 
 	test('yang sudah berpembatas bukan urusan fungsi ini', () => {
 		expect(looksLikeBareLatex('$x^2$')).toBe(false)
+	})
+})
+describe('paragraf utuh rumus blok', () => {
+	test('dolar ganda', () => {
+		expect(wholeParagraphLatex('$$x^2$$')).toBe('x^2')
+	})
+
+	test('kurung siku', () => {
+		expect(wholeParagraphLatex('\\[x^2\\]')).toBe('x^2')
+	})
+
+	test('lingkungan equation', () => {
+		expect(wholeParagraphLatex('\\begin{equation}x^2\\end{equation}')).toBe('x^2')
+	})
+
+	test('bukan paragraf utuh', () => {
+		expect(wholeParagraphLatex('teks $$x^2$$')).toBeNull()
+		expect(wholeParagraphLatex('kalimat biasa')).toBeNull()
 	})
 })

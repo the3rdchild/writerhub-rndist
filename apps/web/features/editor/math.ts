@@ -147,21 +147,39 @@ export const MathBlock = Node.create({
 // ── mengenali LaTeX di dalam teks ──────────────────────────────────────────
 
 /**
- * Rumus blok diperiksa lebih dulu: `$$…$$` juga cocok dengan pola inline kalau
- * urutannya dibalik, dan hasilnya rumus terpotong di tengah.
- */
-const BLOCK_PATTERN = /\$\$([^$]+?)\$\$/g
-
-/**
- * Rumus inline, dengan aturan spasi yang sama seperti Markdown matematika pada
- * umumnya: tidak boleh ada spasi tepat setelah `$` pembuka maupun tepat sebelum
- * `$` penutup.
+ * Pola pengenalan rumus, berurutan: blok lebih dulu, lalu inline.
  *
- * Aturan itu bukan kerapian - itu yang memisahkan rumus dari harga. Tanpa
- * `(?<!\s)`, kalimat "Harganya $5 dan $10 saja" membuat "5 dan " dibaca sebagai
- * rumus, dan naskah yang menyebut angka rupiah atau dolar akan rusak diam-diam.
+ * Urutan ini bukan kerapian. `$$…$$` dan `\[…\]` juga cocok dengan pola inline
+ * kalau diperiksa setelahnya, dan hasilnya rumus terpotong di tengah. Setiap
+ * pola tahu di grup tangkapan mana LaTeX-nya berada - lingkungan `equation`
+ * memakai grup kedua karena yang pertama menangkap nama lingkungannya.
  */
-const INLINE_PATTERN = /(?<!\$)\$(?!\s)([^$\n]*?)(?<!\s)\$(?!\$)/g
+interface MathPattern {
+	pattern: RegExp
+	display: boolean
+	/** Indeks grup tangkapan yang berisi sumber LaTeX. */
+	latexGroup: number
+}
+
+const MATH_PATTERNS: readonly MathPattern[] = [
+	// ── blok ──────────────────────────────────────────────────────────────
+	{ pattern: /\$\$([^$]+?)\$\$/g, display: true, latexGroup: 1 },
+	{ pattern: /\\\[([\s\S]+?)\\\]/g, display: true, latexGroup: 1 },
+	{
+		pattern: /\\begin\{((?:equation|align|gather|multline)\*?)\}([\s\S]*?)\\end\{\1\}/g,
+		display: true,
+		latexGroup: 2,
+	},
+	// ── inline ────────────────────────────────────────────────────────────
+	/**
+	 * Aturan spasi yang sama seperti Markdown matematika pada umumnya: tidak
+	 * boleh ada spasi tepat setelah `$` pembuka maupun tepat sebelum `$`
+	 * penutup. Aturan itu yang memisahkan rumus dari harga - tanpa `(?<!\s)`,
+	 * "Harganya $5 dan $10 saja" membuat "5 dan " dibaca sebagai rumus.
+	 */
+	{ pattern: /(?<!\$)\$(?!\s)([^$\n]*?)(?<!\s)\$(?!\$)/g, display: false, latexGroup: 1 },
+	{ pattern: /\\\(([^)\n]*?)\\\)/g, display: false, latexGroup: 1 },
+]
 
 export interface FoundMath {
 	latex: string
@@ -175,14 +193,11 @@ export interface FoundMath {
 export function findMath(text: string): FoundMath[] {
 	const found: FoundMath[] = []
 
-	for (const [pattern, display] of [
-		[BLOCK_PATTERN, true],
-		[INLINE_PATTERN, false],
-	] as const) {
+	for (const { pattern, display, latexGroup } of MATH_PATTERNS) {
 		pattern.lastIndex = 0
 		let match = pattern.exec(text)
 		while (match !== null) {
-			const latex = match[1].trim()
+			const latex = (match[latexGroup] ?? '').trim()
 			// Rumus blok sudah menelan wilayahnya; yang inline tidak boleh
 			// mengklaim potongan yang sama.
 			const overlaps = found.some((item) => match!.index < item.to && match!.index + match![0].length > item.from)
@@ -196,6 +211,31 @@ export function findMath(text: string): FoundMath[] {
 	return found.sort((a, b) => a.from - b.from)
 }
 
+/**
+ * Apakah seluruh paragraf ini satu rumus blok? Kembalikan LaTeX-nya kalau ya.
+ *
+ * Dipakai untuk membedakan rumus blok yang sah (mengisi seluruh paragraf) dari
+ * rumus yang sama mustahil jadi blok karena ia di tengah kalimat - dan karenanya
+ * diperlakukan sebagai inline. Mendukung semua pembatas blok yang dikenal:
+ * `$$…$$`, `\[…\]`, dan lingkungan `equation`/`align`/`gather`/`multline`.
+ */
+export function wholeParagraphLatex(text: string): string | null {
+	const trimmed = text.trim()
+
+	const dollar = trimmed.match(/^\$\$([\s\S]+)\$\$$/)
+	if (dollar?.[1].trim()) return dollar[1].trim()
+
+	const bracket = trimmed.match(/^\\\[([\s\S]+?)\\\]$/)
+	if (bracket?.[1].trim()) return bracket[1].trim()
+
+	const env = trimmed.match(
+		/^\\begin\{((?:equation|align|gather|multline)\*?)\}([\s\S]*?)\\end\{\1\}$/,
+	)
+	if (env?.[2].trim()) return env[2].trim()
+
+	return null
+}
+
 /** Apakah teks ini seluruhnya satu rumus, tanpa pembatas `$`. */
 export function looksLikeBareLatex(text: string): boolean {
 	const trimmed = text.trim()
@@ -205,9 +245,17 @@ export function looksLikeBareLatex(text: string): boolean {
 	return /\\[a-zA-Z]+|[\^_]\{?[^\s]/.test(trimmed)
 }
 
-/** Buang pembatas `$` di ujung, kalau pengguna ikut menyorotnya. */
+/**
+ * Buang pembatas di ujung, kalau pengguna ikut menyorotnya.
+ *
+ * Mendukung `$…$`, `$$…$$`, `\[…\]`, dan `\(…\)`.
+ */
 export function stripDelimiters(text: string): string {
-	return text.trim().replace(/^\$\$?/, '').replace(/\$\$?$/, '').trim()
+	return text
+		.trim()
+		.replace(/^(?:\$\$?|\\\[|\\\()/, '')
+		.replace(/(?:\$\$?$|\\\]|\\\))$/, '')
+		.trim()
 }
 
 // ── konversi ───────────────────────────────────────────────────────────────
@@ -250,12 +298,12 @@ export function convertMathInDocument(editor: Editor): number {
 	state.doc.descendants((node, pos) => {
 		if (!node.isTextblock) return true
 
-		const whole = node.textContent.trim().match(/^\$\$([\s\S]+)\$\$$/)
-		if (whole?.[1].trim()) {
+		const whole = wholeParagraphLatex(node.textContent)
+		if (whole) {
 			edits.push({
 				from: pos,
 				to: pos + node.nodeSize,
-				node: blockType.create({ latex: whole[1].trim() }),
+				node: blockType.create({ latex: whole }),
 			})
 			return false
 		}

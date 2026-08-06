@@ -109,3 +109,40 @@ describe('rumus LaTeX', () => {
 		expect(looksLikeMarkdown('Biaya $5 per bulan.')).toBe(false)
 	})
 })
+describe('pembatas LaTeX', () => {
+	test('\\(…\\) jadi rumus inline', () => {
+		const html = markdownToHtml('Misalkan \\(x^2\\) berlaku.')
+		expect(html).toContain('data-latex="x^2"')
+		expect(html).not.toContain('\\(')
+	})
+
+	test('\\[…\\] sebaris penuh jadi blok', () => {
+		expect(markdownToHtml('\\[\\int_0^1 f(x)dx\\]')).toBe(
+			'<div data-latex="\\int_0^1 f(x)dx"></div>',
+		)
+	})
+
+	test('\\[…\\] beberapa baris tetap dikenali', () => {
+		const html = markdownToHtml('\\[\n\\int_{-\\infty}^{\\infty} e^{-x^2}\\,dx = \\sqrt{\\pi}\n\\]')
+		expect(html).toContain(
+			'data-latex="\\int_{-\\infty}^{\\infty} e^{-x^2}\\,dx = \\sqrt{\\pi}"',
+		)
+	})
+
+	test('lingkungan equation jadi blok', () => {
+		expect(markdownToHtml('\\begin{equation}E = mc^2\\end{equation}')).toBe(
+			'<div data-latex="E = mc^2"></div>',
+		)
+	})
+
+	test('$ di dalam \\[…] tidak ikut diproses', () => {
+		const html = markdownToHtml('\\[a $ b\\]')
+		expect(html).toContain('data-latex="a $ b"')
+	})
+
+	test('dikenali sebagai Markdown', () => {
+		expect(looksLikeMarkdown('\\(x^2\\)')).toBe(true)
+		expect(looksLikeMarkdown('\\[x^2\\]')).toBe(true)
+		expect(looksLikeMarkdown('\\begin{equation}x\\end{equation}')).toBe(true)
+	})
+})
