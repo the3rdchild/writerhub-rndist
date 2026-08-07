@@ -6,6 +6,7 @@ import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
 import { useSettings } from '@/features/settings/settings-context'
+import { useShare } from '@/features/share/share-context'
 import { cn } from '@/lib/utils'
 import { MenuBar } from './menu-bar'
 import { NavMenu } from './nav-menu'
@@ -21,6 +22,7 @@ export function TopBar() {
 	const { state, dispatch } = useDocument()
 	const { editor } = useEditorInstance()
 	const { settings, update, toggleFocusMode, setSettingsOpen } = useSettings()
+	const { setShareOpen } = useShare()
 	const { isRunning } = useGrammarCheck()
 
 	return (
@@ -73,6 +75,7 @@ export function TopBar() {
 						/>
 						<button
 							type="button"
+							onClick={() => setShareOpen(true)}
 							className="ml-1 flex items-center gap-1.5 rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
 						>
 							<Share2 className="h-4 w-4" />

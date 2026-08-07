@@ -9,6 +9,7 @@ import { DocumentProvider } from '@/features/document/document-context'
 import { EditorInstanceProvider } from '@/features/editor/editor-context'
 import { SessionProvider } from '@/features/sessions/session-context'
 import { SettingsProvider } from '@/features/settings/settings-context'
+import { ShareProvider } from '@/features/share/share-context'
 
 function createQueryClient() {
 	return new QueryClient({
@@ -41,7 +42,9 @@ export function Providers({ children }: { children: ReactNode }) {
 						<SessionProvider>
 							<PanelProvider>
 								<ChatProvider>
-									<DocumentImportProvider>{children}</DocumentImportProvider>
+									<DocumentImportProvider>
+											<ShareProvider>{children}</ShareProvider>
+										</DocumentImportProvider>
 								</ChatProvider>
 							</PanelProvider>
 						</SessionProvider>

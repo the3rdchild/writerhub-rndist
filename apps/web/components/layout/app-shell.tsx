@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { SettingsDialog } from '@/components/settings/settings-dialog'
 import { ExportPdfDialog } from '@/components/settings/export-pdf-dialog'
 import { ShortcutsDialog } from '@/components/settings/shortcuts-dialog'
+import { ShareDialog } from '@/components/share/share-dialog'
 import { useAppShortcuts } from '@/features/shortcuts/use-shortcuts'
 import { TopBar } from './top-bar'
 
@@ -19,6 +20,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 			<SettingsDialog />
 			<ShortcutsDialog />
 			<ExportPdfDialog />
+			<ShareDialog />
 		</div>
 	)
 }
