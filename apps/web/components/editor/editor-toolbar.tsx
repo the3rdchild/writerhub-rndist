@@ -98,7 +98,7 @@ export function EditorToolbar({ editor, disabled }: { editor: Editor | null; dis
 	const active = useEditorState({
 		editor,
 		selector: ({ editor: instance }): ToolbarState | null => {
-			if (!instance) return null
+			if (!instance || instance.isDestroyed) return null
 
 			const attributes = instance.getAttributes('textStyle')
 			const rawSize = String(attributes.fontSize ?? '')
