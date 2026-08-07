@@ -1,3 +1,5 @@
 export * from './pool-request'
 export * from './grammar-result'
 export * from './analysis-result'
+export * from './document'
+export * from './share'

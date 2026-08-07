@@ -2,31 +2,41 @@
 
 import { ArrowLeft, FileText, Lock } from 'lucide-react'
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
 import { useEditor, EditorContent } from '@tiptap/react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { buildEditorExtensions } from '@/features/editor/extensions'
 import { pageGeometry } from '@/features/editor/page-geometry'
-import { decodeShare } from '@/features/share/share-link'
+import { fetchShare } from '@/features/share/api'
+import { SHARE_ACCESS_LABELS, SHARE_ROLE_LABELS, type SharePayload } from '@/features/share/types'
 
 /**
- * Halaman pembuka dokumen yang dibagikan lewat link lokal.
+ * Halaman pembuka dokumen yang dibagikan lewat link backend.
  *
- * Muatan dokumen diambil dari fragment hash URL, dikompres dengan gzip, dan
- * dimuat ke editor Tiptap dalam mode read-only. Karena link sepenuhnya lokal,
- * tidak ada otentikasi — siapa pun yang memiliki link dapat melihat salinan
- * dokumen yang dibagikan saat itu.
+ * Token diambil dari path `/share/<token>`, lalu konten dokumen dibaca dari
+ * `/api/shares/<token>`. Dokumen dirender dalam editor Tiptap read-only.
  */
 export default function SharePage() {
-	const [hash, setHash] = useState('')
+	const params = useParams()
+	const token = typeof params.token === 'string' ? params.token : ''
+	const [payload, setPayload] = useState<SharePayload | null>(null)
+	const [error, setError] = useState<string | null>(null)
+	const [loading, setLoading] = useState(true)
 
 	useEffect(() => {
-		setHash(window.location.hash)
-		const onHashChange = () => setHash(window.location.hash)
-		window.addEventListener('hashchange', onHashChange)
-		return () => window.removeEventListener('hashchange', onHashChange)
-	}, [])
+		if (!token) {
+			setLoading(false)
+			setError('Token share tidak valid')
+			return
+		}
 
-	const payload = useMemo(() => decodeShare(hash), [hash])
+		setLoading(true)
+		setError(null)
+		fetchShare(token)
+			.then(setPayload)
+			.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal memuat dokumen'))
+			.finally(() => setLoading(false))
+	}, [token])
 
 	const editor = useEditor({
 		immediatelyRender: false,
@@ -47,13 +57,21 @@ export default function SharePage() {
 		}
 	}, [editor, payload?.content])
 
-	if (!payload) {
+	if (loading) {
+		return (
+			<div className="flex min-h-screen items-center justify-center bg-background">
+				<div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+			</div>
+		)
+	}
+
+	if (error || !payload) {
 		return (
 			<div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 text-center">
 				<FileText className="h-12 w-12 text-faint" />
-				<h1 className="mt-4 text-lg font-medium text-foreground">Link tidak valid</h1>
-				<p className="mt-1 text-sm text-muted">
-					Link dokumen ini rusak atau sudah kedaluwarsa.
+				<h1 className="mt-4 text-lg font-medium text-foreground">Dokumen tidak ditemukan</h1>
+				<p className="mt-1 max-w-md text-sm text-muted">
+					{error || 'Link dokumen ini rusak atau sudah tidak tersedia.'}
 				</p>
 				<Link
 					href="/"
@@ -65,7 +83,8 @@ export default function SharePage() {
 		)
 	}
 
-	const accessLabel = payload.access === 'restricted' ? 'Dibatasi' : 'Siapa saja dengan link'
+	const accessLabel = SHARE_ACCESS_LABELS[payload.access]
+	const roleLabel = SHARE_ROLE_LABELS[payload.role]
 
 	return (
 		<div className="flex min-h-screen flex-col bg-background">
@@ -83,9 +102,9 @@ export default function SharePage() {
 						<h1 className="truncate text-base font-medium text-foreground">{payload.title}</h1>
 						<div className="flex items-center gap-1.5 text-xs text-muted">
 							<Lock className="h-3 w-3" />
-							<span>{accessLabel}</span>
+							<span>{accessLabel.label}</span>
 							<span>•</span>
-							<span>{SHARE_ROLE_LABELS[payload.role]}</span>
+							<span>{roleLabel}</span>
 						</div>
 					</div>
 				</div>
@@ -107,10 +126,4 @@ export default function SharePage() {
 			</main>
 		</div>
 	)
-}
-
-const SHARE_ROLE_LABELS: Record<'viewer' | 'commenter' | 'editor', string> = {
-	viewer: 'Penonton',
-	commenter: 'Komentator',
-	editor: 'Penyunting',
 }

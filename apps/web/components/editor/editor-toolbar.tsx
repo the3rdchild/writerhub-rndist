@@ -67,6 +67,14 @@ function outdent(editor: Editor | null): void {
 	else editor.chain().focus().shiftBlockIndent(-INDENT_STEP).run()
 }
 
+function safeCan(check: () => boolean): boolean {
+	try {
+		return check()
+	} catch {
+		return false
+	}
+}
+
 interface ToolbarState {
 	bold: boolean
 	italic: boolean
@@ -123,8 +131,8 @@ export function EditorToolbar({ editor, disabled }: { editor: Editor | null; dis
 				fontSize: Number.isFinite(parsedSize) ? parsedSize : DEFAULT_FONT_SIZE,
 				color: attributes.color as string | undefined,
 				highlight: instance.getAttributes('highlight').color as string | undefined,
-				canUndo: instance.can().undo(),
-				canRedo: instance.can().redo(),
+				canUndo: safeCan(() => instance.can().undo()),
+				canRedo: safeCan(() => instance.can().redo()),
 			}
 		},
 	})

@@ -1,17 +1,17 @@
 'use client'
 
 import { Check, Copy, Globe, Link2, Lock, Mail, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import { createShare } from '@/features/share/api'
+import { useShare } from '@/features/share/share-context'
 import {
-	encodeShare,
 	SHARE_ACCESS_LABELS,
 	SHARE_ROLE_LABELS,
 	type ShareAccess,
 	type ShareRole,
-} from '@/features/share/share-link'
-import { useShare } from '@/features/share/share-context'
+} from '@/features/share/types'
 import { cn } from '@/lib/utils'
 
 const ACCESS_OPTIONS: ShareAccess[] = ['restricted', 'anyone']
@@ -20,10 +20,9 @@ const ROLE_OPTIONS: ShareRole[] = ['viewer', 'commenter', 'editor']
 /**
  * Dialog bagikan ala Google Docs.
  *
- * Versi Opsi A: link dibuat dari snapshot editor (judul + JSONContent) yang
- * dikompres dan disematkan ke fragment hash URL. Belum ada backend, jadi
- * pengaturan akses dan peran disimpan bersama muatan untuk ditampilkan di
- * halaman viewer, tetapi tidak bisa ditegakkan secara nyata.
+ * Fase B: link dibuat di backend sebagai token yang merujuk snapshot dokumen
+ * di PostgreSQL. Dialog memanggil API saat dibuka, lalu menampilkan URL
+ * `/share/<token>` yang bisa disalin.
  */
 export function ShareDialog() {
 	const { shareOpen, setShareOpen } = useShare()
@@ -36,9 +35,18 @@ export function ShareDialog() {
 	const [access, setAccess] = useState<ShareAccess>('anyone')
 	const [role, setRole] = useState<ShareRole>('viewer')
 	const [link, setLink] = useState('')
+	const [loading, setLoading] = useState(false)
+	const [error, setError] = useState<string | null>(null)
 
 	useEffect(() => {
-		if (!shareOpen) return
+		if (!shareOpen) {
+			// Reset ringan saat dialog ditutup; tidak perlu menyentuh form.
+			setLink('')
+			setError(null)
+			setLoading(false)
+			setCopied(false)
+			return
+		}
 
 		document.body.style.overflow = 'hidden'
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -46,30 +54,31 @@ export function ShareDialog() {
 		}
 		window.addEventListener('keydown', onKeyDown)
 
-		// Bangun link saat dialog muncul supaya selalu mencerminkan dokumen
-		// terkini dan tidak dibuat ulang tiap render internal.
 		if (editor) {
-			const payload = {
-				version: 1 as const,
-				title: state.title || 'Dokumen tanpa judul',
+			setLoading(true)
+			setError(null)
+			createShare({
+				title: state.title.trim() || 'Dokumen tanpa judul',
 				content: editor.getJSON(),
 				access,
 				role,
-				createdAt: Date.now(),
-			}
-			setLink(`${window.location.origin}/share${encodeShare(payload)}`)
+			})
+				.then((result) => setLink(`${window.location.origin}${result.url}`))
+				.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal membuat link'))
+				.finally(() => setLoading(false))
 		}
 
 		return () => {
 			document.body.style.overflow = ''
 			window.removeEventListener('keydown', onKeyDown)
 		}
-		// biome-ignore lint/correctness/useExhaustiveDependencies: link dibangun ulang hanya saat dialog dibuka atau akses/peran berubah, bukan tiap getJSON
+		// biome-ignore lint/correctness/useExhaustiveDependencies: share dibuat ulang saat dialog dibuka atau akses/peran berubah
 	}, [shareOpen, editor, state.title, access, role])
 
 	if (!shareOpen) return null
 
 	const copyLink = async () => {
+		if (!link) return
 		try {
 			await navigator.clipboard.writeText(link)
 			setCopied(true)
@@ -155,26 +164,33 @@ export function ShareDialog() {
 						<input
 							type="text"
 							readOnly
-							value={link}
+							value={loading ? 'Membuat link…' : error ? '' : link}
 							className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none"
 						/>
 						<button
 							type="button"
 							onClick={copyLink}
+							disabled={!link || loading || Boolean(error)}
 							className={cn(
 								'flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
 								copied
 									? 'bg-green-500/15 text-green-600'
 									: 'text-accent hover:bg-accent/10',
+								(!link || loading || error) && 'cursor-not-allowed opacity-50',
 							)}
 						>
 							{copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
 							{copied ? 'Tersalin' : 'Salin'}
 						</button>
 					</div>
-					<p className="text-xs text-subtle">
-						Link berisi salinan dokumen saat ini dan dibuka di tab baru.
-					</p>
+					{error ? (
+						<p className="text-xs text-red-500">{error}</p>
+					) : (
+						<p className="text-xs text-subtle">
+							Link merujuk salinan dokumen di server. Siapa pun yang memiliki link dapat
+							membuka.
+						</p>
+					)}
 				</div>
 
 				{/* General access */}
@@ -186,11 +202,13 @@ export function ShareDialog() {
 								key={value}
 								type="button"
 								onClick={() => setAccess(value)}
+								disabled={loading}
 								className={cn(
 									'flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors',
 									access === value
 										? 'bg-accent/10 text-foreground'
 										: 'text-muted hover:bg-[var(--overlay-hover)] hover:text-foreground',
+									loading && 'cursor-not-allowed opacity-60',
 								)}
 							>
 								{value === 'anyone' ? (
@@ -219,7 +237,11 @@ export function ShareDialog() {
 						id="share-role"
 						value={role}
 						onChange={(event) => setRole(event.target.value as ShareRole)}
-						className="w-full rounded-lg border border-line-strong bg-surface-inset px-3 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-accent/50"
+						disabled={loading}
+						className={cn(
+							'w-full rounded-lg border border-line-strong bg-surface-inset px-3 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-accent/50',
+							loading && 'cursor-not-allowed opacity-60',
+						)}
 					>
 						{ROLE_OPTIONS.map((value) => (
 							<option key={value} value={value}>
@@ -243,7 +265,11 @@ export function ShareDialog() {
 						onClick={() => {
 							void copyLink()
 						}}
-						className="rounded-xl bg-accent px-5 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
+						disabled={!link || loading || Boolean(error)}
+						className={cn(
+							'rounded-xl bg-accent px-5 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover',
+							(!link || loading || error) && 'cursor-not-allowed opacity-50',
+						)}
 					>
 						Kirim
 					</button>
