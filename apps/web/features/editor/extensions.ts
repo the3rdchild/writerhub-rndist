@@ -75,7 +75,7 @@ export function buildEditorExtensions({
 		TableKit.configure({ table: { resizable: true } }),
 		TaskList,
 		TaskItem.configure({ nested: true }),
-		ImageWithMarkdown.configure({ inline: false }),
+		ImageWithMarkdown.configure({ inline: false, allowBase64: true }),
 		Placeholder.configure({ placeholder: 'Mulai menulis, atau tempel draf Anda di sini…' }),
 		SuggestionHighlight,
 		SelectionHighlight,

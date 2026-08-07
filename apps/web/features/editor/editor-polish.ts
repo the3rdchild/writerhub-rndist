@@ -18,6 +18,7 @@ const IMAGE_INPUT = /!\[([^\]]*)\]\((\S+?)(?:\s+["']([^"']*)["'])?\)$/
 export const ImageWithMarkdown = Image.extend({
 	addAttributes() {
 		return {
+			...this.parent?.(),
 			// Lebar dan tinggi tampilan, dalam piksel. Dipakai hasil impor DOCX
 			// supaya gambar tampil sesuai ukuran di Word, bukan mengikuti resolusi
 			// piksel aslinya yang kerap beberapa kali lebih besar. Dituangkan ke
