@@ -29,6 +29,8 @@ export interface CreateShareInput {
 export interface CreateShareResult {
 	token: string
 	url: string
+	/** Dokumen server yang ditautkan share ini; dipakai mencatat kaitan tab. */
+	documentId: string
 	title: string
 	access: ShareAccess
 	role: ShareRole

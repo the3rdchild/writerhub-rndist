@@ -31,6 +31,12 @@ export type CreateShareBody = z.infer<typeof createShareBodySchema>
 export interface CreateShareResponse {
 	token: string
 	url: string
+	/**
+	 * Dokumen user yang ditautkan share ini - dikirim balik supaya pemanggil
+	 * yang belum punya dokumen server (share dari tab lokal) bisa mencatat
+	 * kaitannya, alih-alih membuat dokumen baru tiap kali membagikan.
+	 */
+	documentId: string
 	title: string
 	access: 'anyone' | 'restricted'
 	role: 'viewer' | 'commenter' | 'editor'

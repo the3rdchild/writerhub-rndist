@@ -44,13 +44,13 @@ export function Providers({ children }: { children: ReactNode }) {
 							{/* Sinkronisasi butuh Y.Doc dan daftar tab dari sesi,
 							    jadi ia hidup tepat di dalamnya. */}
 							<SyncProvider>
-							<PanelProvider>
-								<ChatProvider>
-									<DocumentImportProvider>
+								<PanelProvider>
+									<ChatProvider>
+										<DocumentImportProvider>
 											<ShareProvider>{children}</ShareProvider>
 										</DocumentImportProvider>
-								</ChatProvider>
-							</PanelProvider>
+									</ChatProvider>
+								</PanelProvider>
 							</SyncProvider>
 						</SessionProvider>
 					</EditorInstanceProvider>

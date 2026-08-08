@@ -1,6 +1,7 @@
 'use client'
 
 import { useQueryClient } from '@tanstack/react-query'
+import { IndexeddbPersistence } from 'y-indexeddb'
 import {
 	createContext,
 	type ReactNode,
@@ -16,7 +17,7 @@ import type { DocumentDetail } from '@/features/documents/types'
 import { DOCUMENTS_QUERY_KEY } from '@/features/documents/use-documents'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { useSessions } from '@/features/sessions/session-context'
-import { createTab, LOCAL_ORIGIN, readTabs, updateTab } from '@/features/sessions/ydoc'
+import { createTab, readTabs, updateTab } from '@/features/sessions/ydoc'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import { fragmentToJSON, jsonToFragment } from './serialize'
 
@@ -61,6 +62,13 @@ interface SyncContextValue {
 	saveToCloud: (tabId: string) => Promise<void>
 	/** Buat tab baru dari dokumen server dan jadikan ia aktif. */
 	openFromLibrary: (serverDoc: DocumentDetail) => string | null
+	/**
+	 * Catat kaitan tab → dokumen server yang dibuat di luar context ini.
+	 * Dipakai dialog bagikan: server membuatkan dokumen untuk tab yang masih
+	 * lokal, dan tanpa dicatat di sini tiap pembagian berikutnya akan membuat
+	 * dokumen baru lagi.
+	 */
+	linkTab: (tabId: string, serverId: string) => void
 }
 
 const SyncContext = createContext<SyncContextValue | null>(null)
@@ -85,6 +93,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	>({})
 
 	const timers = useRef(new Map<string, SaveTimers>())
+	/** Hitungan suntingan per tab; dipakai agar status 'dirty' tidak hilang
+	    saat PUT yang berangkat lebih awal selesai. */
+	const revisions = useRef(new Map<string, number>())
 	// Handler Yjs didaftarkan sekali; nilai terkini dibaca lewat ref.
 	const sessionsRef = useRef(sessions)
 	sessionsRef.current = sessions
@@ -139,6 +150,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 			const meta = sessionsRef.current.find((tab) => tab.id === tabId)
 			if (!meta) return
 
+			const sentAtRevision = revisions.current.get(tabId) ?? 0
 			setStatus(tabId, 'saving')
 			try {
 				await updateDocument(linkage.serverId, {
@@ -152,7 +164,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 					...current,
 					linkage: { ...current.linkage, [tabId]: synced },
 				}))
-				setStatus(tabId, null)
+				// Pemakai bisa menyunting selagi PUT berjalan; status hanya dibersihkan
+				// bila tidak ada suntingan baru sejak PUT ini berangkat.
+				if ((revisions.current.get(tabId) ?? 0) === sentAtRevision) {
+					setStatus(tabId, null)
+				} else {
+					setStatus(tabId, 'dirty')
+				}
 				void invalidateDocuments()
 			} catch {
 				setStatus(tabId, 'error')
@@ -187,14 +205,17 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 		[clearTimers],
 	)
 
-	// Suntingan lokal pada tab terhubung menandainya kotor dan memuat ulang
-	// hitungan autosave. Hanya tab aktif yang bisa disunting (editor terikat ke
-	// fragmennya), jadi kotor selalu jatuh pada tab aktif.
+	// Suntingan pada tab terhubung menandainya kotor dan memuat ulang hitungan
+	// autosave. Origin yang diabaikan hanya dua: tulisan context ini sendiri
+	// (memuat naskah dari server) dan hidrasi IndexedDB - ketikan editor datang
+	// dengan origin ySyncPluginKey, jadi whitelist ke LOCAL_ORIGIN akan
+	// melewatkan suntingan format yang tidak mengubah teks polos.
 	useEffect(() => {
 		const onUpdate = (_update: Uint8Array, origin: unknown) => {
-			if (origin !== LOCAL_ORIGIN) return
+			if (origin === SYNC_ORIGIN || origin instanceof IndexeddbPersistence) return
 			const tabId = activeIdRef.current
 			if (!tabId || !linkageRef.current[tabId]) return
+			revisions.current.set(tabId, (revisions.current.get(tabId) ?? 0) + 1)
 			setStatus(tabId, 'dirty')
 			scheduleSave(tabId)
 		}
@@ -270,11 +291,26 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
 	const openFromLibrary = useCallback(
 		(serverDoc: DocumentDetail): string | null => {
+			// Dokumen yang sama sudah terbuka di tab lain: aktifkan tab itu saja,
+			// jangan buat tab kedua yang autosave-nya saling menimpa.
+			const opened = Object.entries(linkageRef.current).find(
+				([, linkage]) => linkage.serverId === serverDoc.id,
+			)
+			if (opened) {
+				selectSession(opened[0])
+				return opened[0]
+			}
+
 			// Batas tab yang sama dengan tombol "Tab baru" di session-context.
 			if (sessionsRef.current.length >= 50) return null
 
-			const tabId = createTab(doc, serverDoc.title)
+			// `createTab` ikut masuk ke dalam transaksi ini. Di luarnya ia menulis
+			// dengan LOCAL_ORIGIN, dan update itu akan terbaca sebagai suntingan
+			// pemakai atas tab yang sedang aktif - menandainya kotor lalu memicu
+			// PUT atas naskah yang tidak berubah sama sekali.
+			let tabId = ''
 			doc.transact(() => {
+				tabId = createTab(doc, serverDoc.title)
 				jsonToFragment(doc, tabId, serverDoc.content)
 				updateTab(doc, tabId, {
 					title: serverDoc.title,
@@ -298,6 +334,23 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 		[doc, selectSession, setStatus, setStore],
 	)
 
+	const linkTab = useCallback(
+		(tabId: string, serverId: string) => {
+			// Kaitan yang sudah ada tidak ditimpa: tab hanya boleh menunjuk satu
+			// dokumen server seumur hidupnya.
+			if (linkageRef.current[tabId]) return
+			setStore((current) => ({
+				...current,
+				linkage: {
+					...current.linkage,
+					[tabId]: { serverId, lastSyncedAt: Date.now() },
+				},
+			}))
+			setStatus(tabId, null)
+		},
+		[setStatus, setStore],
+	)
+
 	const syncStatus = useCallback(
 		(tabId: string): SyncStatus =>
 			transient[tabId] ?? (store.linkage[tabId] ? 'synced' : 'local'),
@@ -310,8 +363,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 			syncStatus,
 			saveToCloud,
 			openFromLibrary,
+			linkTab,
 		}),
-		[store.linkage, syncStatus, saveToCloud, openFromLibrary],
+		[store.linkage, syncStatus, saveToCloud, openFromLibrary, linkTab],
 	)
 
 	return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>

@@ -4,8 +4,10 @@ import { Check, Copy, Globe, Link2, Lock, Mail, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import { useSessions } from '@/features/sessions/session-context'
 import { createShare } from '@/features/share/api'
 import { useShare } from '@/features/share/share-context'
+import { useSync } from '@/features/sync/sync-context'
 import {
 	SHARE_ACCESS_LABELS,
 	SHARE_ROLE_LABELS,
@@ -28,6 +30,8 @@ export function ShareDialog() {
 	const { shareOpen, setShareOpen } = useShare()
 	const { state } = useDocument()
 	const { editor } = useEditorInstance()
+	const { activeId } = useSessions()
+	const { linkage, linkTab } = useSync()
 	const overlayRef = useRef<HTMLDivElement>(null)
 	const [copied, setCopied] = useState(false)
 	const [emails, setEmails] = useState('')
@@ -57,13 +61,24 @@ export function ShareDialog() {
 		if (editor) {
 			setLoading(true)
 			setError(null)
+			// Tab yang sudah tertaut ke dokumen server mengirim documentId supaya
+			// share menunjuk dokumen yang sama; tanpa itu tiap dialog yang dibuka
+			// membuat dokumen baru yang mengotori Library.
+			const serverId = activeId ? linkage[activeId]?.serverId : undefined
 			createShare({
+				...(serverId ? { documentId: serverId } : {}),
 				title: state.title.trim() || 'Dokumen tanpa judul',
 				content: editor.getJSON(),
 				access,
 				role,
 			})
-				.then((result) => setLink(`${window.location.origin}${result.url}`))
+				.then((result) => {
+					setLink(`${window.location.origin}${result.url}`)
+					// Tab yang tadinya lokal kini punya dokumen di server - dibuatkan
+					// oleh endpoint share. Dicatat supaya pembagian berikutnya memakai
+					// dokumen itu, dan supaya autosave ikut hidup untuk tab ini.
+					if (activeId && !serverId) linkTab(activeId, result.documentId)
+				})
 				.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal membuat link'))
 				.finally(() => setLoading(false))
 		}

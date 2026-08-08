@@ -79,6 +79,7 @@ export default class ShareService extends BaseService {
 			const result: CreateShareResponse = {
 				token: share.token,
 				url: `/share/${share.token}`,
+				documentId: documentIdToLink,
 				title: snapshotTitle,
 				access: share.access,
 				role: share.role,
