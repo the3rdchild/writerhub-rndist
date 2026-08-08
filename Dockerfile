@@ -24,7 +24,9 @@
 # Docker Hub selama base image-nya sudah ada di lokal.
 # ------------------------------------------------------------------------------
 
-ARG BUN_VERSION=1.2
+# bun.lock ditulis oleh Bun 1.3 (field configVersion); image 1.2 gagal
+# membaca formatnya pada `bun install --frozen-lockfile`.
+ARG BUN_VERSION=1.3
 ARG PYTHON_VERSION=3.12
 ARG APP_UID=65534
 

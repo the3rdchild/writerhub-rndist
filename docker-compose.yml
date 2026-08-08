@@ -10,10 +10,26 @@ name: writer-hub
 # disk). Produksi memakai target `api`/`web`/`worker` dari Dockerfile yang sama,
 # dibangun oleh .github/workflows.
 
+# Langkah RUN saat build memakai jaringan host, bukan bridge bawaan Docker.
+#
+# Alasannya DNS: container di jaringan bridge memakai resolver dari
+# /run/systemd/resolve/resolv.conf (mis. 1.1.1.1) dan menghubunginya lewat
+# UDP/53 biasa. Di jaringan yang memaksa DNS-over-TLS, port 53 keluar diblokir,
+# sehingga `apt-get update` diam-diam tidak mengunduh apa pun dan
+# `apt-get install` gagal dengan "Unable to locate package" (exit 100).
+# Dengan jaringan host, build memakai stub systemd-resolved milik host yang
+# sudah bicara DoT ke hulu.
+#
+# Aman di jaringan normal - hanya mengubah namespace jaringan langkah RUN.
+# Bisa dilepas kalau daemon Docker sudah diarahkan ke resolver yang terjangkau
+# dari bridge (lihat catatan di README/DEVELOPMENT).
+x-build-network: &build-network host
+
 x-bun-dev: &bun-dev
   build:
     context: .
     target: bun-dev
+    network: *build-network
   volumes:
     - ./apps:/app/apps
     - ./packages:/app/packages
@@ -126,6 +142,8 @@ services:
     build:
       context: .
       target: worker-dev
+      # Sama seperti bun-dev: pip juga butuh DNS saat build.
+      network: *build-network
     working_dir: /app
     env_file: ./services/worker/.env
     environment:
