@@ -12,6 +12,7 @@ import { fragmentToJSON } from '@/features/sync/serialize'
 import { cn } from '@/lib/utils'
 import { createVersion } from '@/features/versions/api'
 import { computeVersionDiff, versionPlainText } from '@/features/versions/diff'
+import { snapshotLocalVersion } from '@/features/versions/local-snapshot'
 import type { VersionSummary } from '@/features/versions/types'
 import { useVersion, useVersions, useInvalidateVersions } from '@/features/versions/use-versions'
 import { useVersionMode } from '@/features/versions/version-context'
@@ -77,8 +78,8 @@ export function VersionHistoryView() {
 	const [restoring, setRestoring] = useState(false)
 	const [actionError, setActionError] = useState<string | null>(null)
 
-	const versions = useVersions(versionMode?.documentId ?? null)
-	const detail = useVersion(versionMode?.documentId ?? null, selectedId)
+	const versions = useVersions(versionMode)
+	const detail = useVersion(versionMode, selectedId)
 	const invalidateVersions = useInvalidateVersions()
 
 	// Potret draf aktif, diambil sekali saat mode dibuka: selama mode riwayat
@@ -146,8 +147,13 @@ export function VersionHistoryView() {
 		setNameDialogOpen(false)
 		setActionError(null)
 		try {
-			await createVersion(versionMode.documentId, label)
-			await invalidateVersions(versionMode.documentId)
+			// Cloud membekukan keadaan di server; lokal memotret fragmen saat ini.
+			if (versionMode.documentId) {
+				await createVersion(versionMode.documentId, label)
+			} else {
+				await snapshotLocalVersion(doc, versionMode.tabId, 'manual', label)
+			}
+			await invalidateVersions(versionMode)
 		} catch (error) {
 			setActionError(error instanceof Error ? error.message : 'Gagal menyimpan versi')
 		}
@@ -180,7 +186,7 @@ export function VersionHistoryView() {
 					<ArrowLeft className="h-5 w-5" />
 				</button>
 				<div className="min-w-0">
-					<h1 className="truncate text-base font-medium text-foreground">{versionMode.serverTitle}</h1>
+					<h1 className="truncate text-base font-medium text-foreground">{versionMode.title}</h1>
 					<p className="text-xs text-muted">
 						{selectedVersion
 							? dateFormat.format(new Date(selectedVersion.createdAt))

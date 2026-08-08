@@ -319,3 +319,64 @@ Di sidebar mode riwayat: tombol/plus "Beri nama versi ini" → dialog input keci
 | Mode layar penuh + sidebar + preview read-only | Rendah-sedang — preseden share page |
 | Util diff + dekorasi | **Sedang** (turun dari "tertinggi" setelah §3.2 dikoreksi) — pemetaan offset → posisi PM sudah ada dan terpakai di 6 tempat (`tiptap-offsets.ts`); yang benar-benar baru hanya logika diff di atas string + pemecahan rentang di batas blok. Mitigasi tetap: util terisolasi + test unit |
 | Titik integrasi yang mudah terlewat | **Sedang** — tiga hal yang tidak kelihatan dari desain: editor lepas di mode riwayat (§3.3), `jsonToFragment` mengunci `LOCAL_ORIGIN` (§3.6), dan PUT metadata melahirkan versi kembar (§1.4). Ketiganya sudah dijawab di rencana ini |
+
+---
+
+## Iterasi 2: versi lokal + Ctrl+S (fitur C ditunda)
+
+Fitur C (File Translator) dikeluarkan sementara dari roadmap (butuh worker + parser baru);
+trigger `pre_translate` tetap disiapkan. Konsekuensinya, riwayat versi tidak boleh lagi
+menunggu cloud: iterasi ini membuat versioning bekerja **local-first**.
+
+### Keputusan (dikonfirmasi)
+
+1. **Ctrl+S cerdas sesuai status tab.** Tab terhubung cloud → flush autosave sekarang
+   (`saveToCloud`, PUT). Tab lokal → buat snapshot versi lokal (trigger `interval`,
+   tanpa label) sebagai titik simpan cepat. Versi manual berlabel tetap lewat
+   "Beri nama versi ini".
+2. **Penyimpanan versi lokal: store IndexedDB khusus** (bukan di dalam Y.Doc).
+   Database `writer-hub-versions`, object store `versions` (key `id`, index `tabId`),
+   isi snapshot ProseMirror JSON. Bentuk entri meniru `VersionSummary`/`VersionDetail`
+   server, sehingga UI riwayat yang sama dipakai untuk lokal dan cloud.
+3. **Saat "Simpan ke cloud": hanya konten terkini yang diunggah.** Riwayat versi di
+   server mulai dari nol (versi `interval` pertama dari `DocumentsService.create()`);
+   versi lokal tetap di browser sebagai arsip, tidak dihapus, tidak diunggah.
+
+### Desain
+
+- **`features/versions/local-store.ts`** (baru): wrapper IndexedDB mentah (tanpa
+  dependency; pola promise kecil di atas `indexedDB.open`). Fungsi:
+  `listLocalVersions(tabId)`, `getLocalVersion(tabId, id)`, `insertLocalVersion(entry)`,
+  `pruneLocalIntervalVersions(tabId, keep = 50)`, `deleteLocalVersionsForTab(tabId)`.
+  Test dengan fake-indexeddb bila sudah ada di dep; kalau tidak, test logika murni saja
+  (jangan menambah dependency test baru).
+- **Sumber versi terpadu** di `features/versions/`: `versionMode` diperluas jadi
+  `{ tabId, documentId: string | null, title }` — `documentId` null berarti sumber lokal.
+  Hook `useVersions`/`useVersion` bercabang: `documentId` ada → API server (sekarang);
+  null → local store. Bentuk data identik, jadi `VersionHistoryView` tidak berubah
+  kecuali alur restore dan tombol akses.
+- **Snapshot interval lokal:** di `VersionProvider`, dengar `doc.on('update')` (blacklist
+  origin yang sama dengan sync-context). Untuk tab lokal aktif: bila belum ada versi sama
+  sekali → buat versi `interval` pertama; bila versi terakhir > 10 menit dan konten
+  berubah → buat versi `interval` + prune. Konstanta sama dengan backend (10 menit).
+- **Restore lokal:** ConfirmDialog → insert versi `pre_restore` (konten fragmen saat ini)
+  → `jsonToFragment` konten versi dengan `SYNC_ORIGIN` → invalidate. Tanpa flush/cloud.
+- **Ctrl+S:** hook keydown global di workspace (Ctrl/Cmd+S, `preventDefault`), dilewatkan
+  saat mode riwayat terbuka. Tab terhubung → `saveToCloud(activeId)`; tab lokal →
+  `insertLocalVersion` trigger `interval` (selalu, tanpa penjaga 10 menit — ini aksi
+  eksplisit user).
+- **TopBar:** tombol History tidak lagi disabled untuk tab lokal; tooltip disesuaikan
+  ("Riwayat versi").
+- **Prune saat tab dihapus:** efek prune linkage di sync-context diperluas untuk ikut
+  `deleteLocalVersionsForTab`.
+
+### Yang tidak berubah
+
+- Backend (server versioning tetap seperti iterasi 1; dokumen cloud tetap memakai API).
+- Alur "Simpan ke cloud": tidak mengunggah versi lokal (keputusan 3).
+
+### Verifikasi
+
+- Typecheck + `bun test` (test store/diff yang relevan).
+- Manual browser: tab lokal → edit → tunggu/Ctrl+S → buka History → versi lokal tampil,
+  diff & restore jalan tanpa server; tab cloud tetap memakai versi server.

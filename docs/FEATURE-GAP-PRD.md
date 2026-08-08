@@ -68,6 +68,9 @@ Urutan mempertimbangkan tier PRD dan dependensi antar fitur:
    user vs snapshot beku). Bereskan dulu sebelum menumpuk CRUD/versi di atasnya — lihat §3.A.
 1. **A + B — Autosave backend & Documents CRUD** (Beta). Fondasi semua fitur dokumen-terpusat (File Library, version history, reference grounding, kolaborasi).
 2. **C — File Translator** (Beta). Satu-satunya modul Beta yang benar-benar kosong.
+   **DITUNDA (per Agustus 2026)** — butuh pekerjaan worker + parser DOCX baru; dilewati
+   sementara demi perbaikan versioning local-first (lihat `docs/VERSION-HISTORY-PLAN.md`
+   Iterasi 2). Trigger `pre_translate` di `document_versions` tetap disiapkan.
 3. **D + E — Plagiarism riil & cross-module routing** (Beta). Mengganti heuristik dengan similarity service PPE.
 4. **F — History sesi** (Beta, Core Platform). Murah setelah A+B ada.
 5. **G, H — Projects & Memory** (V1).

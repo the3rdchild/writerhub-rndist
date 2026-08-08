@@ -7,6 +7,7 @@ import { PanelRail } from '@/components/panels/panel-rail'
 import { VersionHistoryView } from '@/components/versions/version-history-view'
 import { usePanels } from '@/features/analysis/panel-context'
 import { useSettings } from '@/features/settings/settings-context'
+import { useSaveShortcut } from '@/features/versions/use-save-shortcut'
 import { useVersionMode } from '@/features/versions/version-context'
 import { DocumentTabsSidebar } from './document-tabs'
 
@@ -25,6 +26,11 @@ export function WorkspacePage() {
 	const { activePanel } = usePanels()
 	const { settings, update } = useSettings()
 	const { versionMode } = useVersionMode()
+
+	// Ctrl/Cmd+S: flush cloud untuk tab terhubung, snapshot lokal untuk yang
+	// belum. Hook tetap terpasang saat mode riwayat terbuka (early return di
+	// bawah tidak melepas komponen) - shortcut-nya sendiri yang dilewatkan.
+	useSaveShortcut()
 
 	// Mode riwayat versi menggantikan seluruh workspace (bukan overlay): editor
 	// utama ikut lepas, tapi state sesi tetap di memori sehingga kembali instan.

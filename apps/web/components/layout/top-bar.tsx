@@ -31,8 +31,8 @@ export function TopBar() {
 	const { activeId } = useSessions()
 	const { versionMode, openVersionMode } = useVersionMode()
 
-	// Riwayat versi hanya ada untuk dokumen yang tersimpan di server; tab lokal
-	// mendapat tombol mati dengan penjelasan cara mengaktifkannya.
+	// Riwayat versi tersedia untuk semua tab: dokumen cloud memakai API server,
+	// tab lokal memakai versi IndexedDB (Iterasi 2).
 	const serverId = activeId ? linkage[activeId]?.serverId : undefined
 
 	/*
@@ -101,17 +101,17 @@ export function TopBar() {
 						/>
 						<HeaderButton
 							icon={History}
-							label={
-								inVersionMode
-									? 'Riwayat versi sedang terbuka'
-									: serverId
-										? 'Riwayat versi'
-										: 'Simpan ke cloud untuk mengaktifkan riwayat versi'
-							}
+							label={inVersionMode ? 'Riwayat versi sedang terbuka' : 'Riwayat versi'}
 							active={inVersionMode}
-							disabled={!serverId || inVersionMode}
+							disabled={!activeId || inVersionMode}
 							onClick={() => {
-								if (serverId) openVersionMode({ documentId: serverId, serverTitle: state.title })
+								if (activeId) {
+									openVersionMode({
+										tabId: activeId,
+										documentId: serverId ?? null,
+										title: state.title,
+									})
+								}
 							}}
 						/>
 						<button

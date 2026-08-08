@@ -1,13 +1,29 @@
 'use client'
 
 import { useQueryClient } from '@tanstack/react-query'
-import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from 'react'
+import {
+	createContext,
+	type ReactNode,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react'
+import { IndexeddbPersistence } from 'y-indexeddb'
 import { getDocument } from '@/features/documents/api'
 import { DOCUMENTS_QUERY_KEY } from '@/features/documents/use-documents'
 import { useSessions } from '@/features/sessions/session-context'
 import { jsonToFragment } from '@/features/sync/serialize'
 import { SYNC_ORIGIN, useSync } from '@/features/sync/sync-context'
 import { restoreVersion } from './api'
+import { getLocalVersion } from './local-store'
+import {
+	maybeSnapshotLocalInterval,
+	rememberLocalSnapshot,
+	snapshotLocalVersion,
+} from './local-snapshot'
 import { VERSIONS_QUERY_KEY } from './use-versions'
 
 /**
@@ -18,11 +34,14 @@ import { VERSIONS_QUERY_KEY } from './use-versions'
  * karena state sesi tetap di memori.
  *
  * Provider ini hidup di dalam `SyncProvider`: membuka mode butuh linkage tab →
- * dokumen server, dan alur restore butuh `saveToCloud` untuk flush terakhir.
+ * dokumen server, alur restore cloud butuh `saveToCloud` untuk flush terakhir,
+ * dan snapshot interval lokal butuh linkage untuk tahu tab aktif masih lokal.
  */
 export interface VersionMode {
-	documentId: string
-	serverTitle: string
+	tabId: string
+	/** `null` = sumber lokal (IndexedDB); selain itu = API server. */
+	documentId: string | null
+	title: string
 }
 
 interface VersionContextValue {
@@ -30,9 +49,9 @@ interface VersionContextValue {
 	openVersionMode: (mode: VersionMode) => void
 	closeVersionMode: () => void
 	/**
-	 * Pulihkan tab aktif ke versi lampau, lengkap dari flush sampai menutup
-	 * mode. Melempar Error bila salah satu langkah gagal - pemanggil yang
-	 * menampilkan pesannya.
+	 * Pulihkan tab ke versi lampau, lengkap dari snapshot pre-restore sampai
+	 * menutup mode. Melempar Error bila salah satu langkah gagal - pemanggil
+	 * yang menampilkan pesannya.
 	 */
 	restoreToVersion: (versionId: string) => Promise<void>
 }
@@ -41,16 +60,66 @@ const VersionContext = createContext<VersionContextValue | null>(null)
 
 export function VersionProvider({ children }: { children: ReactNode }) {
 	const { doc, activeId } = useSessions()
-	const { saveToCloud } = useSync()
+	const { linkage, saveToCloud } = useSync()
 	const queryClient = useQueryClient()
 	const [versionMode, setVersionMode] = useState<VersionMode | null>(null)
+
+	// Handler Yjs didaftarkan sekali; nilai terkini dibaca lewat ref.
+	const activeIdRef = useRef(activeId)
+	activeIdRef.current = activeId
+	const linkageRef = useRef(linkage)
+	linkageRef.current = linkage
 
 	const openVersionMode = useCallback((mode: VersionMode) => setVersionMode(mode), [])
 	const closeVersionMode = useCallback(() => setVersionMode(null), [])
 
+	// Snapshot interval untuk tab lokal aktif (Iterasi 2). Blacklist origin sama
+	// dengan sync-context: tulisan dari sync/restore (SYNC_ORIGIN) dan hidrasi
+	// IndexedDB bukan suntingan user.
+	useEffect(() => {
+		const onUpdate = (_update: Uint8Array, origin: unknown) => {
+			if (origin === SYNC_ORIGIN || origin instanceof IndexeddbPersistence) return
+			const tabId = activeIdRef.current
+			if (!tabId || linkageRef.current[tabId]) return
+			void maybeSnapshotLocalInterval(doc, tabId)
+				.then((inserted) => {
+					if (inserted) {
+						void queryClient.invalidateQueries({
+							queryKey: [...VERSIONS_QUERY_KEY, 'local', tabId],
+						})
+					}
+				})
+				.catch(() => {})
+		}
+
+		doc.on('update', onUpdate)
+		return () => {
+			doc.off('update', onUpdate)
+		}
+	}, [doc, queryClient])
+
 	const restoreToVersion = useCallback(
 		async (versionId: string) => {
 			if (!versionMode || !activeId) return
+
+			// Jalur lokal: bekukan draf sekarang sebagai pre_restore, lalu timpa
+			// fragmen dengan naskah versi. Tanpa flush/cloud sama sekali.
+			if (versionMode.documentId === null) {
+				const target = await getLocalVersion(versionMode.tabId, versionId)
+				if (!target) throw new Error('Versi tidak ditemukan')
+
+				await snapshotLocalVersion(doc, versionMode.tabId, 'pre_restore')
+				doc.transact(() => jsonToFragment(doc, versionMode.tabId, target.content), SYNC_ORIGIN)
+				// Cache snapshot menunjuk konten hasil restore, bukan draf lama,
+				// supaya perbandingan interval berikutnya tidak keliru.
+				rememberLocalSnapshot(versionMode.tabId, Date.now(), JSON.stringify(target.content))
+
+				await queryClient.invalidateQueries({
+					queryKey: [...VERSIONS_QUERY_KEY, 'local', versionMode.tabId],
+				})
+				setVersionMode(null)
+				return
+			}
 
 			// Flush dulu: versi pre-restore yang dibuat server harus membekukan
 			// keadaan terkini, bukan autosave terakhir. Melanjutkan setelah flush

@@ -18,6 +18,7 @@ import { DOCUMENTS_QUERY_KEY } from '@/features/documents/use-documents'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { useSessions } from '@/features/sessions/session-context'
 import { createTab, readTabs, updateTab } from '@/features/sessions/ydoc'
+import { deleteLocalVersionsExcept } from '@/features/versions/local-store'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import { fragmentToJSON, jsonToFragment } from './serialize'
 
@@ -233,9 +234,14 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	}, [doc, setStatus, scheduleSave])
 
 	// Catatan kaitan tab yang sudah dihapus tidak perlu ikut dimuat selamanya.
+	// Versi lokalnya ikut dibersihkan (fire-and-forget): tab lokal tidak punya
+	// catatan linkage, jadi yang dibaca adalah tabId yang benar-benar tersimpan
+	// di store versi. Kegagalan IDB diabaikan - sisa versi yatim tidak mengganggu
+	// apa pun dan akan tersapu pada kesempatan berikutnya.
 	useEffect(() => {
 		if (!storeHydrated || sessions.length === 0) return
 		const keep = new Set(sessions.map((tab) => tab.id))
+		void deleteLocalVersionsExcept(keep).catch(() => {})
 		setStore((current) => {
 			const pruned: Record<string, SyncLinkage> = {}
 			for (const [id, linkage] of Object.entries(current.linkage)) {
