@@ -45,7 +45,7 @@ const MAX_SAVE_MS = 30_000
  * server). Tanpa pembeda ini, membuka dokumen dari library langsung menandai
  * tabnya kotor dan memicu autosave atas naskah yang baru saja dibaca.
  */
-const SYNC_ORIGIN = 'sync'
+export const SYNC_ORIGIN = 'sync'
 
 export type SyncStatus = 'local' | 'synced' | 'dirty' | 'saving' | 'error'
 
@@ -58,8 +58,12 @@ interface SyncContextValue {
 	/** Kaitan tab → dokumen server; tab tanpa entri berarti lokal saja. */
 	linkage: Record<string, SyncLinkage>
 	syncStatus: (tabId: string) => SyncStatus
-	/** Simpan sekarang: POST bila belum terhubung, PUT bila sudah. */
-	saveToCloud: (tabId: string) => Promise<void>
+	/**
+	 * Simpan sekarang: POST bila belum terhubung, PUT bila sudah.
+	 * Mengembalikan `true` bila berhasil - alur restore versi bergantung pada
+	 * kepastian ini sebelum membiarkan server membekukan versi pre-restore.
+	 */
+	saveToCloud: (tabId: string) => Promise<boolean>
 	/** Buat tab baru dari dokumen server dan jadikan ia aktif. */
 	openFromLibrary: (serverDoc: DocumentDetail) => string | null
 	/**
@@ -146,9 +150,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
 	/** PUT ke dokumen yang sudah terhubung. Dipakai autosave dan Simpan ulang. */
 	const pushToServer = useCallback(
-		async (tabId: string, linkage: SyncLinkage) => {
+		async (tabId: string, linkage: SyncLinkage): Promise<boolean> => {
 			const meta = sessionsRef.current.find((tab) => tab.id === tabId)
-			if (!meta) return
+			if (!meta) return false
 
 			const sentAtRevision = revisions.current.get(tabId) ?? 0
 			setStatus(tabId, 'saving')
@@ -172,8 +176,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 					setStatus(tabId, 'dirty')
 				}
 				void invalidateDocuments()
+				return true
 			} catch {
 				setStatus(tabId, 'error')
+				return false
 			}
 		},
 		[serializeTab, setStatus, setStore, invalidateDocuments],
@@ -254,15 +260,14 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	}, [])
 
 	const saveToCloud = useCallback(
-		async (tabId: string) => {
+		async (tabId: string): Promise<boolean> => {
 			const meta = sessionsRef.current.find((tab) => tab.id === tabId)
-			if (!meta) return
+			if (!meta) return false
 
 			const existing = linkageRef.current[tabId]
 			if (existing) {
 				clearTimers(tabId)
-				await pushToServer(tabId, existing)
-				return
+				return pushToServer(tabId, existing)
 			}
 
 			setStatus(tabId, 'saving')
@@ -282,8 +287,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				}))
 				setStatus(tabId, null)
 				void invalidateDocuments()
+				return true
 			} catch {
 				setStatus(tabId, 'error')
+				return false
 			}
 		},
 		[clearTimers, pushToServer, serializeTab, setStatus, setStore, invalidateDocuments],

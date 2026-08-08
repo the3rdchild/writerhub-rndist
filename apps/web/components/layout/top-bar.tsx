@@ -1,12 +1,15 @@
 'use client'
 
-import { Focus, PanelLeft, Settings as SettingsIcon, Share2 } from 'lucide-react'
+import { Focus, History, PanelLeft, Settings as SettingsIcon, Share2 } from 'lucide-react'
 import { EditorToolbar } from '@/components/editor/editor-toolbar'
 import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
+import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { useShare } from '@/features/share/share-context'
+import { useSync } from '@/features/sync/sync-context'
+import { useVersionMode } from '@/features/versions/version-context'
 import { cn } from '@/lib/utils'
 import { MenuBar } from './menu-bar'
 import { NavMenu } from './nav-menu'
@@ -24,6 +27,23 @@ export function TopBar() {
 	const { settings, update, toggleFocusMode, setSettingsOpen } = useSettings()
 	const { setShareOpen } = useShare()
 	const { isRunning } = useGrammarCheck()
+	const { linkage } = useSync()
+	const { activeId } = useSessions()
+	const { versionMode, openVersionMode } = useVersionMode()
+
+	// Riwayat versi hanya ada untuk dokumen yang tersimpan di server; tab lokal
+	// mendapat tombol mati dengan penjelasan cara mengaktifkannya.
+	const serverId = activeId ? linkage[activeId]?.serverId : undefined
+
+	/*
+	 * Selama mode riwayat, editor utama lepas dan `useEditorInstance().editor`
+	 * bernilai null. Kendali yang bekerja lewat editor itu karena itu dimatikan,
+	 * bukan dibiarkan tampak hidup: dialog Bagikan misalnya membangun link dari
+	 * `editor.getJSON()`, jadi tanpa ini ia terbuka dengan kotak link kosong
+	 * tanpa loading maupun pesan galat - buntu yang tidak bisa dijelaskan
+	 * pemakainya.
+	 */
+	const inVersionMode = versionMode !== null
 
 	return (
 		<header
@@ -47,7 +67,13 @@ export function TopBar() {
 							onChange={(event) => dispatch({ type: 'setTitle', title: event.target.value })}
 							placeholder="Dokumen tanpa judul"
 							aria-label="Judul dokumen"
-							className="w-full max-w-[520px] truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-lg font-medium text-foreground outline-none transition-colors placeholder:text-faint hover:border-line-strong focus:border-accent"
+							readOnly={inVersionMode}
+							className={cn(
+								'w-full max-w-[520px] truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-lg font-medium text-foreground outline-none transition-colors placeholder:text-faint',
+								inVersionMode
+									? 'cursor-default'
+									: 'hover:border-line-strong focus:border-accent',
+							)}
 						/>
 						<MenuBar />
 					</div>
@@ -73,10 +99,30 @@ export function TopBar() {
 							label="Pengaturan"
 							onClick={() => setSettingsOpen(true)}
 						/>
+						<HeaderButton
+							icon={History}
+							label={
+								inVersionMode
+									? 'Riwayat versi sedang terbuka'
+									: serverId
+										? 'Riwayat versi'
+										: 'Simpan ke cloud untuk mengaktifkan riwayat versi'
+							}
+							active={inVersionMode}
+							disabled={!serverId || inVersionMode}
+							onClick={() => {
+								if (serverId) openVersionMode({ documentId: serverId, serverTitle: state.title })
+							}}
+						/>
 						<button
 							type="button"
 							onClick={() => setShareOpen(true)}
-							className="ml-1 flex items-center gap-1.5 rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
+							disabled={inVersionMode}
+							title={inVersionMode ? 'Keluar dari riwayat versi untuk membagikan' : undefined}
+							className={cn(
+								'ml-1 flex items-center gap-1.5 rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-accent-foreground transition-colors',
+								inVersionMode ? 'cursor-not-allowed opacity-40' : 'hover:bg-accent-hover',
+							)}
 						>
 							<Share2 className="h-4 w-4" />
 							Bagikan
@@ -84,9 +130,13 @@ export function TopBar() {
 					</div>
 				</div>
 
-				<div className="flex justify-center px-3 pb-2 pt-1.5">
-					<EditorToolbar editor={editor} disabled={state.file !== null} />
-				</div>
+				{/* Tidak ada yang bisa disunting di mode riwayat - toolbar tanpa editor
+				    hanya deretan tombol yang tidak melakukan apa pun. */}
+				{!inVersionMode && (
+					<div className="flex justify-center px-3 pb-2 pt-1.5">
+						<EditorToolbar editor={editor} disabled={state.file !== null} />
+					</div>
+				)}
 			</div>
 		</header>
 	)
@@ -97,16 +147,19 @@ function HeaderButton({
 	label,
 	onClick,
 	active,
+	disabled,
 }: {
 	icon: React.ComponentType<{ className?: string }>
 	label: string
 	onClick: () => void
 	active?: boolean
+	disabled?: boolean
 }) {
 	return (
 		<button
 			type="button"
 			onClick={onClick}
+			disabled={disabled}
 			title={label}
 			aria-label={label}
 			aria-pressed={active}
@@ -115,6 +168,7 @@ function HeaderButton({
 				active
 					? 'bg-accent/15 text-accent'
 					: 'text-muted hover:bg-[var(--overlay-hover)] hover:text-foreground',
+				disabled && 'cursor-not-allowed opacity-40 hover:bg-transparent hover:text-muted',
 			)}
 		>
 			<Icon className="h-[18px] w-[18px]" />

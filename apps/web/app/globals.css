@@ -602,6 +602,35 @@ html.dark .suggestion-mark--grammar  { text-decoration-color: #f87171; color: #f
 html.dark .suggestion-mark--spelling { text-decoration-color: #fb923c; color: #fb923c; }
 html.dark .suggestion-mark--style    { text-decoration-color: #fde047; color: #fde047; }
 
+/* ── sorotan diff riwayat versi ────────────────────────────────────────── */
+
+/* Teks yang ada di versi lampau tapi hilang dari draf aktif. */
+.version-diff-removed {
+  background: color-mix(in srgb, #ef4444 16%, transparent);
+  text-decoration: line-through;
+  text-decoration-color: #dc2626;
+  border-radius: 2px;
+}
+html.dark .version-diff-removed {
+  background: color-mix(in srgb, #ef4444 24%, transparent);
+  text-decoration-color: #f87171;
+}
+
+/* Marker di titik sisip: kata-kata ini ada di draf aktif, tidak di versi. */
+.version-diff-added {
+  display: inline-block;
+  width: 3px;
+  height: 1em;
+  margin: 0 1px;
+  vertical-align: text-bottom;
+  background: #16a34a;
+  border-radius: 2px;
+  cursor: help;
+}
+html.dark .version-diff-added {
+  background: #4ade80;
+}
+
 /* Seleksi teks bawaan browser di dalam badan dokumen - diselaraskan dengan
    dekorasi `.selection-persist` di bawah supaya transisi fokus/blur tanpa kedip. */
 .document-body ::selection {

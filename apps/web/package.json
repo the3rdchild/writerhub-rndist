@@ -30,6 +30,7 @@
     "@writer-hub/shared": "workspace:*",
     "@xmldom/xmldom": "^0.9.10",
     "clsx": "^2.1.1",
+    "diff": "^9.0.0",
     "docx": "^9.7.1",
     "fflate": "^0.8.3",
     "katex": "^0.18.1",

@@ -56,7 +56,7 @@ export function buildTextIndex(doc: PMNode): TextIndex {
 	return { text, segments }
 }
 
-function textPosToPM({ segments }: TextIndex, textPos: number): number | null {
+export function textPosToPM({ segments }: TextIndex, textPos: number): number | null {
 	for (const segment of segments) {
 		const end = segment.textStart + segment.length
 		// `<=` supaya posisi tepat di ujung potongan tetap terpetakan.

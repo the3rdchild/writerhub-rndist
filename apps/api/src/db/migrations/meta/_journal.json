@@ -36,6 +36,13 @@
       "when": 1786211354764,
       "tag": "0004_flowery_wild_child",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786216329472,
+      "tag": "0005_next_maestro",
+      "breakpoints": true
     }
   ]
 }

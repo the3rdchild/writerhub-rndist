@@ -15,7 +15,7 @@ import { LOCAL_ORIGIN, tabFragment } from '@/features/sessions/ydoc'
  */
 
 /** Skema editor tanpa memasang view - aman dipanggil di luar peramban. */
-function buildSchema() {
+export function buildSchema() {
 	return getSchema(buildEditorExtensions())
 }
 

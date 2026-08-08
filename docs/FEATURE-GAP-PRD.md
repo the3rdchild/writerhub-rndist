@@ -208,7 +208,9 @@ history dokumen — melainkan log aktivitas/hasil modul per user.
 
 ### I. Document version history (V2)
 
-Lihat §4 (desain rinci).
+Desain rinci di §4. **Rencana implementasinya ada di dokumen terpisah:
+[VERSION-HISTORY-PLAN.md](VERSION-HISTORY-PLAN.md)** — ditulis setelah fondasi A+B jadi,
+jadi ia yang berlaku bila berbeda dengan §4.
 
 ### J. Analyze structure per paragraph (V2)
 

@@ -11,6 +11,7 @@ import { SessionProvider } from '@/features/sessions/session-context'
 import { SettingsProvider } from '@/features/settings/settings-context'
 import { ShareProvider } from '@/features/share/share-context'
 import { SyncProvider } from '@/features/sync/sync-context'
+import { VersionProvider } from '@/features/versions/version-context'
 
 function createQueryClient() {
 	return new QueryClient({
@@ -44,13 +45,17 @@ export function Providers({ children }: { children: ReactNode }) {
 							{/* Sinkronisasi butuh Y.Doc dan daftar tab dari sesi,
 							    jadi ia hidup tepat di dalamnya. */}
 							<SyncProvider>
-								<PanelProvider>
-									<ChatProvider>
-										<DocumentImportProvider>
-											<ShareProvider>{children}</ShareProvider>
-										</DocumentImportProvider>
-									</ChatProvider>
-								</PanelProvider>
+								{/* Mode riwayat butuh linkage tab → dokumen server dan
+								    saveToCloud untuk flush sebelum restore. */}
+								<VersionProvider>
+									<PanelProvider>
+										<ChatProvider>
+											<DocumentImportProvider>
+												<ShareProvider>{children}</ShareProvider>
+											</DocumentImportProvider>
+										</ChatProvider>
+									</PanelProvider>
+								</VersionProvider>
 							</SyncProvider>
 						</SessionProvider>
 					</EditorInstanceProvider>
