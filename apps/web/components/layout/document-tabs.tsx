@@ -2,9 +2,14 @@
 
 import {
 	ChevronLeft,
+	Cloud,
+	CloudAlert,
+	CloudOff,
+	CloudUpload,
 	Copy,
 	FileText,
 	ListTree,
+	Loader2,
 	MessageSquare,
 	MoreVertical,
 	MoveDown,
@@ -25,6 +30,7 @@ import { useEditorInstance } from '@/features/editor/editor-context'
 import { type OutlineItem, scrollToOutlineItem, useOutline } from '@/features/editor/use-outline'
 import { type Session, sessionLabel, useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
+import { type SyncStatus, useSync } from '@/features/sync/sync-context'
 import { cn } from '@/lib/utils'
 
 /**
@@ -56,6 +62,7 @@ export function DocumentTabsSidebar() {
 		moveSession,
 		setSessionOutlineExpanded,
 	} = useSessions()
+	const { syncStatus, saveToCloud } = useSync()
 	const { editor } = useEditorInstance()
 	const { update } = useSettings()
 	const outline = useOutline(editor)
@@ -112,6 +119,8 @@ export function DocumentTabsSidebar() {
 							// bertanya "masih ada yang perlu dijawab di tab itu?", dan
 							// utas yang sudah selesai tidak menjawab apa pun.
 							commentCount={tab.comments.filter((thread) => !thread.resolved).length}
+							syncState={syncStatus(tab.id)}
+							onSaveToCloud={() => void saveToCloud(tab.id)}
 							dragging={draggingId === tab.id}
 							dropEdge={
 								dragOverId === tab.id && draggingId !== null && draggingId !== tab.id
@@ -197,6 +206,7 @@ function TabRow({
 	canMoveUp,
 	canMoveDown,
 	commentCount,
+	syncState,
 	dragging,
 	dropEdge,
 	onSelect,
@@ -209,6 +219,7 @@ function TabRow({
 	onToggleOutline,
 	onMoveUp,
 	onMoveDown,
+	onSaveToCloud,
 	onDragStart,
 	onDragEnterRow,
 	onDrop,
@@ -222,6 +233,8 @@ function TabRow({
 	canMoveDown: boolean
 	/** Komentar yang belum dibereskan di tab ini. */
 	commentCount: number
+	/** Keadaan sinkronisasi tab ini ke cloud. */
+	syncState: SyncStatus
 	dragging: boolean
 	/** Sisi tempat garis penanda jatuh saat tab lain diseret ke sini. */
 	dropEdge: 'top' | 'bottom' | null
@@ -235,6 +248,7 @@ function TabRow({
 	onToggleOutline: () => void
 	onMoveUp: () => void
 	onMoveDown: () => void
+	onSaveToCloud: () => void
 	onDragStart: () => void
 	onDragEnterRow: () => void
 	onDrop: () => void
@@ -304,6 +318,8 @@ function TabRow({
 				</span>
 			)}
 
+			<SyncBadge status={syncState} />
+
 			<Dropdown
 				align="end"
 				trigger={({ open, toggle, id }) => (
@@ -342,6 +358,22 @@ function TabRow({
 							}}
 						>
 							Duplikat
+						</DropdownItem>
+						<DropdownItem
+							icon={
+								syncState === 'saving' ? (
+									<Loader2 className="h-4 w-4 animate-spin" />
+								) : (
+									<CloudUpload className="h-4 w-4" />
+								)
+							}
+							disabled={syncState === 'saving'}
+							onSelect={() => {
+								close()
+								onSaveToCloud()
+							}}
+						>
+							{syncState === 'local' ? 'Simpan ke cloud' : 'Simpan ke cloud sekarang'}
 						</DropdownItem>
 						<DropdownItem
 							icon={<ListTree className="h-4 w-4" />}
@@ -470,6 +502,56 @@ function TabNameInput({
 			aria-label="Nama tab"
 			className="w-full rounded-lg border border-accent bg-surface-raised px-2.5 py-1.5 text-sm text-foreground outline-none"
 		/>
+	)
+}
+
+/**
+ * Penanda kecil keadaan sinkronisasi sebuah tab.
+ *
+ * Tab yang belum terhubung tetap mendapat ikonnya sendiri: "belum tersimpan
+ * di cloud" adalah informasi, bukan hiasan - naskah yang hilang karena
+ * dikira sudah di cloud jauh lebih mahal daripada satu ikon tambahan.
+ */
+function SyncBadge({ status }: { status: SyncStatus }) {
+	if (status === 'saving') {
+		return (
+			<span title="Menyimpan ke cloud…" className="flex shrink-0 items-center text-subtle">
+				<Loader2 className="h-3.5 w-3.5 animate-spin" />
+			</span>
+		)
+	}
+
+	if (status === 'error') {
+		return (
+			<span title="Gagal menyimpan ke cloud" className="flex shrink-0 items-center text-red-400">
+				<CloudAlert className="h-3.5 w-3.5" />
+			</span>
+		)
+	}
+
+	if (status === 'synced') {
+		return (
+			<span title="Tersimpan di cloud" className="flex shrink-0 items-center text-subtle">
+				<Cloud className="h-3.5 w-3.5" />
+			</span>
+		)
+	}
+
+	if (status === 'dirty') {
+		return (
+			<span
+				title="Ada perubahan yang belum tersimpan ke cloud"
+				className="flex shrink-0 items-center text-subtle"
+			>
+				<CloudUpload className="h-3.5 w-3.5" />
+			</span>
+		)
+	}
+
+	return (
+		<span title="Hanya tersimpan lokal di peramban ini" className="flex shrink-0 items-center text-faint">
+			<CloudOff className="h-3.5 w-3.5" />
+		</span>
 	)
 }
 

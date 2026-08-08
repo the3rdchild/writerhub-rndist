@@ -1,7 +1,8 @@
 'use client'
 
-import { Clock, FileText, FolderOpen, Home, Menu, Pin, Plus, Settings, Trash2 } from 'lucide-react'
+import { Clock, FileText, Home, LibraryBig, Menu, Pin, Plus, Settings, Trash2 } from 'lucide-react'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { Dropdown, DropdownItem, DropdownLabel, DropdownSeparator } from '@/components/ui/dropdown'
 import { sessionLabel, useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
@@ -19,6 +20,7 @@ const RECENT_SESSION_LIMIT = 6
 export function NavMenu() {
 	const { sessions, activeId, hydrated, newSession, selectSession, deleteSession } = useSessions()
 	const { setSettingsOpen } = useSettings()
+	const router = useRouter()
 
 	const recent = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, RECENT_SESSION_LIMIT)
 
@@ -66,8 +68,24 @@ export function NavMenu() {
 					>
 						Sesi baru
 					</DropdownItem>
-					<DropdownItem icon={<Home className="h-4 w-4" />}>Beranda</DropdownItem>
-					<DropdownItem icon={<FolderOpen className="h-4 w-4" />}>Projects</DropdownItem>
+					<DropdownItem
+						icon={<Home className="h-4 w-4" />}
+						onSelect={() => {
+							router.push('/')
+							close()
+						}}
+					>
+						Beranda
+					</DropdownItem>
+					<DropdownItem
+						icon={<LibraryBig className="h-4 w-4" />}
+						onSelect={() => {
+							router.push('/library')
+							close()
+						}}
+					>
+						Library
+					</DropdownItem>
 					<DropdownItem icon={<Pin className="h-4 w-4" />}>Disematkan</DropdownItem>
 
 					<DropdownSeparator />

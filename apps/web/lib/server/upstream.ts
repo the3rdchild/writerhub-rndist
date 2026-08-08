@@ -68,7 +68,7 @@ async function buildAuthHeaders(): Promise<Headers> {
 
 export interface UpstreamRequest {
 	path: string
-	method?: 'GET' | 'POST'
+	method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
 	body?: BodyInit | null
 	contentType?: string | null
 	/** SSE perlu koneksi yang tidak di-buffer dan tidak di-cache. */

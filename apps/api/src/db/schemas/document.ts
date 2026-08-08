@@ -2,14 +2,16 @@ import { jsonb, pgTable, text, uuid, varchar } from 'drizzle-orm/pg-core'
 import { timestamps } from '@/db/utils/common-table'
 
 /**
- * Snapshot dokumen yang dibagikan. Satu dokumen bisa punya banyak share link
- * dengan akses/peran berbeda.
+ * Dokumen milik user. Konten disimpan apa adanya sebagai JSON Tiptap
+ * (ProseMirror); backend tidak perlu memahami strukturnya.
  */
 export const documents = pgTable('documents', {
 	id: uuid('id').primaryKey().defaultRandom(),
-	owner_id: varchar('owner_id', { length: 255 }),
+	owner_id: varchar('owner_id', { length: 255 }).notNull(),
 	title: text('title').notNull(),
 	content: jsonb('content').notNull().$type<Record<string, unknown>>(),
+	emoji: varchar('emoji', { length: 32 }),
+	language: varchar('language', { length: 32 }),
 
 	updated_at: timestamps.updatedAt,
 	created_at: timestamps.createdAt,

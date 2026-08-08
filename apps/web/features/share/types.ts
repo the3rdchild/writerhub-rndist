@@ -15,8 +15,13 @@ export interface SharePayload {
 }
 
 export interface CreateShareInput {
-	title: string
-	content: JSONContent
+	/**
+	 * Dokumen user yang sudah tersimpan di cloud. Tanpa ini, share dibuat dari
+	 * `title` + `content` mentah seperti sebelumnya.
+	 */
+	documentId?: string
+	title?: string
+	content?: JSONContent
 	access: ShareAccess
 	role: ShareRole
 }

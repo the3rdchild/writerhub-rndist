@@ -32,6 +32,9 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 	// dilewati. Jalur produksi di bawahnya sengaja dibiarkan utuh - cukup ubah
 	// AUTH_MODE untuk mengaktifkannya kembali.
 	if (isLocalAuth) {
+		// Fallback dev lokal: semua request dianggap milik satu user tetap supaya
+		// `owner_id` dokumen selalu terisi tanpa kredensial apa pun.
+		c.set('userId', 'local-dev')
 		await next()
 		return
 	}

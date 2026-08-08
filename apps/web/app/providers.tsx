@@ -10,6 +10,7 @@ import { EditorInstanceProvider } from '@/features/editor/editor-context'
 import { SessionProvider } from '@/features/sessions/session-context'
 import { SettingsProvider } from '@/features/settings/settings-context'
 import { ShareProvider } from '@/features/share/share-context'
+import { SyncProvider } from '@/features/sync/sync-context'
 
 function createQueryClient() {
 	return new QueryClient({
@@ -40,6 +41,9 @@ export function Providers({ children }: { children: ReactNode }) {
 					    instance editornya - jadi sesi tetap harus berada di dalamnya. */}
 					<EditorInstanceProvider>
 						<SessionProvider>
+							{/* Sinkronisasi butuh Y.Doc dan daftar tab dari sesi,
+							    jadi ia hidup tepat di dalamnya. */}
+							<SyncProvider>
 							<PanelProvider>
 								<ChatProvider>
 									<DocumentImportProvider>
@@ -47,6 +51,7 @@ export function Providers({ children }: { children: ReactNode }) {
 										</DocumentImportProvider>
 								</ChatProvider>
 							</PanelProvider>
+							</SyncProvider>
 						</SessionProvider>
 					</EditorInstanceProvider>
 				</DocumentProvider>
