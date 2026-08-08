@@ -7,6 +7,10 @@ terhadap kondisi implementasi saat ini, lalu merinci rencana implementasi untuk 
 Audit dilakukan per Agustus 2026 terhadap `apps/web`, `apps/api`, `services/worker`, `packages/shared`,
 dan referensi `ref/ferdocs` (ddoc) + `ref/google-docs-clone`.
 
+> **Status per 9 Agustus 2026** (HEAD `9686d98`). Sejak audit awal: **A, B, dan I selesai**
+> (3 dari 15 gap), **C ditunda** atas keputusan produk, 11 sisanya belum dikerjakan.
+> Verifikasi terakhir: typecheck lolos di 3 paket, `bun test` 186 pass / 0 fail.
+
 ---
 
 ## 1. Ringkasan Status
@@ -25,7 +29,8 @@ dan referensi `ref/ferdocs` (ddoc) + `ref/google-docs-clone`.
 | Writing quality score | Beta | ✅ ScoreRing (grammar/fluency/clarity/engagement) |
 | Paraphraser apply/discard per segmen | Beta | ✅ sebagai "AI Rewriter" via ChangeListPanel |
 | Unified highlight layer | Beta (cross-cutting) | ✅ ProseMirror Decoration + SuggestionHighlight |
-| Tampilan daftar perubahan | Beta (cross-cutting) | ⚠️ `ChangeListPanel` (UI) dipakai Rewriter & Humanizer, tapi **bukan** diff engine: `changes[]` dihasilkan worker/LLM, tidak ada perbandingan dua teks di klien (lihat §4) |
+| Tampilan daftar perubahan | Beta (cross-cutting) | ⚠️ `ChangeListPanel` (UI) dipakai Rewriter & Humanizer; `changes[]`-nya tetap dihasilkan worker/LLM, **bukan** hasil membandingkan dua teks |
+| Mesin diff dua naskah | (bukan PRD) | ✅ dibangun untuk fitur I: `features/versions/diff.ts` (jsdiff word-level + pemetaan offset→ProseMirror). Baru dipakai riwayat versi; Rewriter/Humanizer belum memakainya |
 | Real-time streaming result | V1 | ✅ sudah ada sejak Beta (SSE + checkpoint) |
 | Pilih quality/model AI | V1 | ✅ model-selector (standard/advanced/ai) |
 | AI Detector | V1 | ✅ per-sentence highlight + accept/dismiss |
@@ -33,25 +38,28 @@ dan referensi `ref/ferdocs` (ddoc) + `ref/google-docs-clone`.
 | Async job + SSE | V1 (cross-cutting) | ✅ BullMQ + Redis pub/sub |
 | Sharing (link read-only) | V3 | ⚠️ sudah ada lebih awal: `shares` table + share dialog, tapi berbasis snapshot, belum role editor/commenter yang hidup |
 
-### Belum ada / parsial (fokus dokumen ini)
+### Status fitur gap (A–O)
 
-| # | Fitur | Tier PRD | Status | Gap utama |
+Penomoran A–O dipertahankan apa adanya — dirujuk di §2, §3, §5, dan di
+`docs/VERSION-HISTORY-PLAN.md`. Baris yang sudah selesai ditandai di tempat, bukan dipindah.
+
+| # | Fitur | Tier PRD | Status | Keterangan |
 |---|---|---|---|---|
-| A | Autosave & draft persistence **ke backend** | Beta | ⚠️ parsial | Autosave hanya lokal (Yjs → IndexedDB). Tidak ada sinkronisasi/persistensi dokumen ke server |
-| B | Documents CRUD + File Library | Beta (Core Platform) | ❌ | Tabel `documents` hanya dipakai sebagai snapshot share; tidak ada list/get/update/delete dokumen milik user |
-| C | File Translator | Beta | ❌ | Tidak ada panel, endpoint, analyzer, maupun tipe di shared |
+| A | Autosave & draft persistence **ke backend** | Beta | ✅ **selesai** | `features/sync/sync-context.tsx` — debounce 3 dtk diam / 30 dtk maks → `PUT /documents/:id`. IndexedDB tetap sumber kebenaran lokal; last-write-wins sesuai §5.1 |
+| B | Documents CRUD + File Library | Beta (Core Platform) | ✅ **selesai** | 5 endpoint `/api/v1/documents*`, halaman `/library`, `owner_id` non-nullable, snapshot share dipindah ke tabel `share_snapshots` (migrasi 0004) |
+| C | File Translator | Beta | ⏸️ **ditunda** | Nol jejak di repo (`grep -i translator` → 0 hit). Ditunda atas keputusan produk; trigger `pre_translate` sudah disiapkan di enum `document_versions` |
 | D | Plagiarism via Similarity Service PPE | Beta | ⚠️ parsial | Implementasi saat ini heuristik n-gram vs ~200 frasa klise; PRD mewajibkan integrasi service similarity PPE |
 | E | Send to paraphraser (cross-module) | Beta | ⚠️ parsial | Ada submenu Review di selection popup, tapi belum ada routing langsung dari hasil plagiarism → paraphraser |
 | F | History (riwayat sesi lintas modul) | Beta (Core) | ❌ | Riwayat sesi Grammar/Translate terpadu (beda dengan version history) |
-| G | Projects | V1 | ❌ | Belum ada tabel/UI |
+| G | Projects | V1 | ❌ | Belum ada tabel/UI. **Tidak lagi terblokir** — tinggal `projects` + `documents.project_id` + pengelompokan di File Library yang sudah ada |
 | H | AI Memory | V1 | ❌ | Personalisasi tone; relevan untuk chat & humanizer |
-| I | Document version history | V2 | ❌ | Tidak ada snapshot/diff/restore versi (rincian di §4) |
+| I | Document version history | V2 | ✅ **selesai** | Dikerjakan lebih awal dari urutan §2 atas permintaan produk. Tabel `document_versions` + 4 endpoint, snapshot `interval`/`manual`/`pre_restore`, diff inline, restore non-destruktif, mode layar penuh. **Melebihi rencana:** versi local-first untuk tab yang belum tersimpan di cloud (IndexedDB) + pintasan Ctrl/Cmd+S. Rincian: `docs/VERSION-HISTORY-PLAN.md` |
 | J | Analyze structure per paragraph | V2 | ❌ | Butuh R&D konteks dokumen penuh |
 | K | Citation-aware plagiarism | V2 | ❌ | Sudah ada pencarian sitasi Crossref; belum ada parsing sitasi untuk mengecualikan kemiripan tersitasi |
 | L | Glossary / terminology lock | V2 | ❌ | Bergantung pada File Translator (C) |
 | M | Humanizer verify loop | V3 | ❌ | Re-check AI Detector otomatis pasca humanize |
-| N | AI Chat reference grounding | V2 | ❌ | Merujuk file di File Library — bergantung pada (B) |
-| O | Realtime collaboration | V3 | ⚠️ fondasi | Yjs + ekstensi Collaboration sudah terpasang, tapi provider hanya `y-indexeddb` lokal; belum ada Hocuspocus/presence |
+| N | AI Chat reference grounding | V2 | ❌ | Merujuk file di File Library. **Tidak lagi terblokir** — (B) sudah selesai |
+| O | Realtime collaboration | V3 | ⚠️ fondasi | Yjs + ekstensi Collaboration sudah terpasang, tapi provider hanya `y-indexeddb` lokal; nol hit `hocuspocus` di repo. **Prasyarat dokumen server-side sudah beres** lewat (A)+(B) |
 
 Catatan: `ref/google-docs-clone` tidak bisa dijadikan referensi untuk fitur-fitur di atas
 (tidak ada version history, schema-nya tidak punya tabel versi). `ref/ferdocs` (ddoc) hanya
@@ -63,26 +71,40 @@ referensi pola editor untuk **version history** (lihat §4).
 
 Urutan mempertimbangkan tier PRD dan dependensi antar fitur:
 
-0. **Pemisahan `documents` ↔ snapshot share** (prasyarat A). Saat ini `ShareService.create()` meng-`INSERT`
-   baris `documents` baru setiap kali share dibuat, jadi satu tabel menampung dua makna (dokumen milik
-   user vs snapshot beku). Bereskan dulu sebelum menumpuk CRUD/versi di atasnya — lihat §3.A.
-1. **A + B — Autosave backend & Documents CRUD** (Beta). Fondasi semua fitur dokumen-terpusat (File Library, version history, reference grounding, kolaborasi).
-2. **C — File Translator** (Beta). Satu-satunya modul Beta yang benar-benar kosong.
-   **DITUNDA (per Agustus 2026)** — butuh pekerjaan worker + parser DOCX baru; dilewati
-   sementara demi perbaikan versioning local-first (lihat `docs/VERSION-HISTORY-PLAN.md`
-   Iterasi 2). Trigger `pre_translate` di `document_versions` tetap disiapkan.
-3. **D + E — Plagiarism riil & cross-module routing** (Beta). Mengganti heuristik dengan similarity service PPE.
+0. ✅ **Pemisahan `documents` ↔ snapshot share** (prasyarat A). Selesai lewat migrasi `0004`:
+   snapshot share pindah ke tabel `share_snapshots`, `shares.document_id` kini menunjuk dokumen
+   milik user, dan `owner_id` jadi non-nullable.
+1. ✅ **A + B — Autosave backend & Documents CRUD** (Beta). Selesai. Fondasi ini yang membuka
+   G, N, dan O.
+2. ⏸️ **C — File Translator** (Beta). **DITUNDA (per Agustus 2026)** — butuh pekerjaan worker +
+   parser DOCX baru; dilewati sementara demi versioning local-first (lihat
+   `docs/VERSION-HISTORY-PLAN.md` Iterasi 2). Trigger `pre_translate` di `document_versions`
+   tetap disiapkan.
+3. ⬅️ **D + E — Plagiarism riil & cross-module routing** (Beta). **Kandidat berikutnya.**
+   Hanya D yang menunggu pihak luar (kontrak API similarity PPE, §5.3); refactor
+   `SimilarityProvider` dan E bisa dikerjakan sekarang.
 4. **F — History sesi** (Beta, Core Platform). Murah setelah A+B ada.
-5. **G, H — Projects & Memory** (V1).
-6. **I — Document version history** (V2). Detail di §4; siapkan kontrak datanya sejak A.
-7. **N — Reference grounding** (V2, setelah B). **L — Glossary** (V2, setelah C). **J, K** (V2).
+5. **G, H — Projects & Memory** (V1). G tinggal `projects` + `documents.project_id`.
+6. ✅ **I — Document version history** (V2). Selesai lebih awal dari urutan ini, atas permintaan
+   produk. Detail di §4 dan `docs/VERSION-HISTORY-PLAN.md`.
+7. **N — Reference grounding** (V2, prasyarat B sudah ada). **L — Glossary** (V2, masih menunggu C).
+   **J, K** (V2; K menunggu D).
 8. **O — Realtime collaboration** (V3). **M — Verify loop** (V3).
+
+**Sisa antrean setelah pembaruan ini:** D, E, F, G, H, J, K, L, M, N, O (11 fitur), dengan C ditunda.
 
 ---
 
 ## 3. Rencana per fitur
 
-### A. Autosave & draft persistence ke backend (Beta)
+### A. Autosave & draft persistence ke backend (Beta) — ✅ SELESAI
+
+> Terimplementasi sesuai desain di bawah. Rekaman keputusan yang berbeda dari rencana awal:
+> opsi (b) yang diambil untuk pemisahan tabel (`share_snapshots`), dan `saveToCloud`
+> mengembalikan `boolean` supaya alur restore versi bisa membatalkan diri saat flush gagal.
+> Berkas utama: `features/sync/sync-context.tsx`, `features/sync/serialize.ts`,
+> `apps/api/src/services/documents/`.
+
 
 **Gap:** PRD menyatakan "Draft otomatis tersimpan ke backend" dengan debounced autosave.
 Saat ini persistensi murni lokal: tiap tab = fragment dalam satu `Y.Doc` yang disimpan ke
@@ -113,7 +135,13 @@ IndexedDB (`apps/web/features/sessions/session-context.tsx`, `ydoc.ts`).
   - version history (I) dan diff engine akan mengonsumsi format yang sama,
   - migrasi ke Yjs di V3 tidak mengubah format snapshot.
 
-### B. Documents CRUD + File Library (Beta, Core Platform)
+### B. Documents CRUD + File Library (Beta, Core Platform) — ✅ SELESAI
+
+> Terimplementasi: halaman `/library`, 5 endpoint `/api/v1/documents*`, dan share kini dibuat
+> dari dokumen server (`documentId` dikirim balik oleh `POST /shares` supaya tab lokal yang
+> dibagikan langsung tertaut, bukan melahirkan dokumen baru tiap kali). Lapisan repository
+> (`apps/api/src/repository/document.ts`) dipertahankan sesuai mitigasi §5.4.
+
 
 **Desain:** lanjutan langsung dari A.
 
@@ -214,6 +242,13 @@ history dokumen — melainkan log aktivitas/hasil modul per user.
 Desain rinci di §4. **Rencana implementasinya ada di dokumen terpisah:
 [VERSION-HISTORY-PLAN.md](VERSION-HISTORY-PLAN.md)** — ditulis setelah fondasi A+B jadi,
 jadi ia yang berlaku bila berbeda dengan §4.
+
+> ✅ **SELESAI.** Terimplementasi termasuk Iterasi 2 (riwayat local-first untuk tab yang belum
+> tersimpan di cloud, lewat IndexedDB, plus Ctrl/Cmd+S). Penyimpangan dari §4 yang perlu
+> diingat: **mesin diff dibangun baru** (`features/versions/diff.ts` di atas jsdiff) — §4 sempat
+> mengira `ChangeListPanel` bisa dipakai ulang, padahal ia hanya penampil. Teks tambahan
+> dirender sebagai marker di titik sisip, bukan teks inline; ini batasan iterasi pertama yang
+> disepakati.
 
 ### J. Analyze structure per paragraph (V2)
 
@@ -343,6 +378,15 @@ document_versions (
 
 Empat keputusan di bawah sudah diisi dengan posisi default agar implementasi bisa jalan.
 Statusnya: **DIPUTUSKAN** = kerjakan sesuai isinya; **BLOCKING EKSTERNAL** = butuh jawaban pihak lain.
+
+Perkembangan per 9 Agustus 2026:
+
+- **5.1 sudah terbukti di kode** — `documents.content` dan `document_versions.content` sama-sama
+  ProseMirror JSON, dan diff versi bekerja di atasnya.
+- **5.2 belum diuji** — menunggu fitur C yang ditunda.
+- **5.3 masih blocking** dan kini satu-satunya penghalang eksternal yang tersisa di seluruh peta.
+- **5.4 sudah dijalankan untuk B** (File Library dibangun di writer-hub, di balik lapisan
+  repository). Untuk F belum, karena F sendiri belum dikerjakan.
 
 ### 5.1 Format konten tersimpan — **DIPUTUSKAN: ProseMirror JSON**
 
