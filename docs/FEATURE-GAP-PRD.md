@@ -280,6 +280,12 @@ jadi ia yang berlaku bila berbeda dengan §4.
 - UI glossary per dokumen/proyek (tabel `glossaries`: owner/project, entries jsonb).
 - Disuntik sebagai bagian prompt pada analyzer translator (C). Bergantung pada C.
 
+> **Rencana implementasi: [GLOSSARY-MAKER-PLAN.md](GLOSSARY-MAKER-PLAN.md)** — "Glosarium Maker",
+> panel baru di tool rail. **Tidak lagi bergantung pada C:** glosarium dibangun dari naskah lewat
+> analyzer sendiri, lalu dipakai untuk menyisipkan Daftar Istilah ke dokumen dan mengunci istilah
+> di Rewriter/Humanizer/Chat (menumpang `style_memory` dari fitur H). Saat C digarap, analyzer
+> translator tinggal membaca tabel yang sama tanpa perubahan skema.
+
 ### M. Humanizer verify loop (V3)
 
 - Setelah humanize diterapkan, otomatis jalankan ulang `ai_detector` pada teks hasil dan tampilkan
