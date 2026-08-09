@@ -6,9 +6,11 @@ import type {
 	UpdateDocumentInput,
 } from './types'
 
-/** Daftar dokumen milik user, terbaru di atas. */
-export function listDocuments(): Promise<DocumentSummary[]> {
-	return apiFetch<DocumentSummary[]>('/documents')
+/** Daftar dokumen milik user, terbaru di atas. `projectId` menyaring per
+ * proyek; nilai khusus `'none'` berarti yang belum berproyek. */
+export function listDocuments(projectId?: string): Promise<DocumentSummary[]> {
+	const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''
+	return apiFetch<DocumentSummary[]>(`/documents${query}`)
 }
 
 /** Baca satu dokumen beserta naskahnya. */

@@ -12,7 +12,9 @@ import {
 } from 'react'
 import { IndexeddbPersistence } from 'y-indexeddb'
 import * as Y from 'yjs'
+import type { GrammarScores } from '@writer-hub/shared'
 import { useDocument } from '@/features/document/document-context'
+import type { EditorSuggestion } from '@/features/document/suggestions'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { editorPlainText } from '@/features/editor/text-content'
 import { usePersistentState } from '@/lib/use-persistent-state'
@@ -104,6 +106,13 @@ interface SessionContextValue {
 	/** Bahasa yang dipilih untuk tab aktif; null berarti otomatis. */
 	languageOverride: string | null
 	setLanguageOverride: (language: string | null) => void
+
+	/**
+	 * Timpa hasil pemeriksaan tersimpan sebuah tab. Dipakai "Terapkan ulang"
+	 * Aktivitas AI: hasil lama ditulis ke tabView SEBELUM navigasi, dan efek
+	 * muat tab (yang membaca tabView) mengangkatnya ke state dokumen.
+	 */
+	setTabResults: (id: string, results: { suggestions: EditorSuggestion[]; scores: GrammarScores | null }) => void
 
 	/** Komentar milik tab yang sedang dibuka. */
 	comments: CommentThread[]
@@ -340,6 +349,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		[setView],
 	)
 
+	const setTabResults = useCallback(
+		(id: string, results: { suggestions: EditorSuggestion[]; scores: GrammarScores | null }) => {
+			setView((current) => patchTabView(current, id, results))
+		},
+		[setView],
+	)
+
 	const setLanguageOverride = useCallback(
 		(language: string | null) => {
 			if (activeId) updateTab(doc, activeId, { language })
@@ -401,6 +417,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			setSessionEmoji,
 			moveSession,
 			setSessionOutlineExpanded,
+			setTabResults,
 			languageOverride: active?.language ?? null,
 			setLanguageOverride,
 			comments: active?.comments ?? [],
@@ -424,6 +441,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			setSessionEmoji,
 			moveSession,
 			setSessionOutlineExpanded,
+			setTabResults,
 			setLanguageOverride,
 			addComment,
 			replyToComment,

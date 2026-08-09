@@ -5,6 +5,8 @@ import { useIsMutating, useMutation, useMutationState } from '@tanstack/react-qu
 import { useCallback } from 'react'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
+import { useSessions } from '@/features/sessions/session-context'
+import { useSync } from '@/features/sync/sync-context'
 import { streamGrammarCheck, streamTimeoutFor, submitGrammarCheck } from './api'
 
 const GRAMMAR_CHECK_KEY = ['grammar', 'check'] as const
@@ -21,6 +23,8 @@ interface GrammarCheckVars {
 	model: GrammarModel
 	selectionOffset: number
 	language: string
+	/** Tautan dokumen cloud untuk Aktivitas AI; tab lokal-saja: undefined. */
+	documentId?: string
 }
 
 /** Seleksi sebagai input grammar check: teks potongan + posisinya di dokumen. */
@@ -45,6 +49,8 @@ export interface GrammarCheckScope {
 export function useGrammarCheck() {
 	const { state, dispatch, hasContent } = useDocument()
 	const language = useDocumentLanguage()
+	const { linkage } = useSync()
+	const { activeId } = useSessions()
 
 	const mutation = useMutation({
 		mutationKey: GRAMMAR_CHECK_KEY,
@@ -57,6 +63,7 @@ export function useGrammarCheck() {
 				title: vars.title,
 				model: vars.model,
 				language: vars.language,
+				documentId: vars.documentId,
 			})
 
 			// Offset suggestion dari worker relatif terhadap teks yang diperiksa;
@@ -104,6 +111,9 @@ export function useGrammarCheck() {
 			// hasilnya bukan sekadar sedikit, melainkan menyesatkan.
 			const model = language.needsAiTier ? 'ai' : state.model
 
+			// Tautan dokumen cloud untuk Aktivitas AI; tab lokal-saja: undefined.
+			const documentId = activeId ? linkage[activeId]?.serverId : undefined
+
 			mutation.mutate(
 				scope
 					? {
@@ -113,6 +123,7 @@ export function useGrammarCheck() {
 							model,
 							selectionOffset: scope.offset,
 							language: language.code,
+							documentId,
 						}
 					: {
 							text: state.text,
@@ -121,10 +132,11 @@ export function useGrammarCheck() {
 							model,
 							selectionOffset: 0,
 							language: language.code,
+							documentId,
 						},
 			)
 		},
-		[mutation, state.text, state.file, state.title, state.model, language.needsAiTier, language.code],
+		[mutation, state.text, state.file, state.title, state.model, language.needsAiTier, language.code, linkage, activeId],
 	)
 
 	const isRunning = useIsMutating({ mutationKey: GRAMMAR_CHECK_KEY }) > 0

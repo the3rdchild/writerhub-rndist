@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import db from '@/db'
 import { documents } from '@/db/schemas'
 import type { NewDocument } from '@/db/schemas'
@@ -8,19 +8,28 @@ import type { NewDocument } from '@/db/schemas'
  * dokumen user lain tidak pernah terlihat lewat fungsi-fungsi ini.
  */
 
-/** Metadata list dokumen milik user, terbaru di atas. */
-export async function findDocumentsByOwner(ownerId: string) {
+/**
+ * Metadata list dokumen milik user, terbaru di atas.
+ * `projectId` menyaring per proyek; nilai khusus `'none'` berarti hanya
+ * dokumen yang belum berproyek.
+ */
+export async function findDocumentsByOwner(ownerId: string, projectId?: string) {
+	const conditions = [eq(documents.owner_id, ownerId)]
+	if (projectId === 'none') conditions.push(isNull(documents.project_id))
+	else if (projectId) conditions.push(eq(documents.project_id, projectId))
+
 	return db
 		.select({
 			id: documents.id,
 			title: documents.title,
 			emoji: documents.emoji,
 			language: documents.language,
+			projectId: documents.project_id,
 			updatedAt: documents.updated_at,
 			createdAt: documents.created_at,
 		})
 		.from(documents)
-		.where(eq(documents.owner_id, ownerId))
+		.where(and(...conditions))
 		.orderBy(desc(documents.updated_at))
 }
 

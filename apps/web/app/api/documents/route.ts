@@ -4,10 +4,11 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 /** Teruskan pembacaan daftar dokumen milik user ke apps/api. */
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
 	try {
+		const { search } = new URL(request.url)
 		return await callUpstream({
-			path: '/api/v1/documents',
+			path: `/api/v1/documents${search}`,
 			method: 'GET',
 		})
 	} catch (error) {

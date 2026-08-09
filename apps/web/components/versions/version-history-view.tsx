@@ -9,6 +9,7 @@ import { buildEditorExtensions } from '@/features/editor/extensions'
 import { pageGeometry } from '@/features/editor/page-geometry'
 import { useSessions } from '@/features/sessions/session-context'
 import { fragmentToJSON } from '@/features/sync/serialize'
+import { GROUP_ORDER, groupOf } from '@/lib/day-groups'
 import { cn } from '@/lib/utils'
 import { createVersion } from '@/features/versions/api'
 import { computeVersionDiff, versionPlainText } from '@/features/versions/diff'
@@ -29,20 +30,6 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	hour: '2-digit',
 	minute: '2-digit',
 })
-
-const DAY_MS = 24 * 60 * 60_000
-
-/** Kelompok waktu ala Google Docs: Hari ini / Kemarin / 7 hari terakhir / Lebih lama. */
-function groupOf(createdAt: number): string {
-	const now = new Date()
-	const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-	if (createdAt >= startOfToday) return 'Hari ini'
-	if (createdAt >= startOfToday - DAY_MS) return 'Kemarin'
-	if (createdAt >= startOfToday - 7 * DAY_MS) return '7 hari terakhir'
-	return 'Lebih lama'
-}
-
-const GROUP_ORDER = ['Hari ini', 'Kemarin', '7 hari terakhir', 'Lebih lama']
 
 /** Nama tampil sebuah entri: label user untuk versi manual, jenisnya untuk yang otomatis. */
 function entryLabel(version: VersionSummary): string {

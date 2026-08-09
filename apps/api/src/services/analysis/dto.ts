@@ -13,6 +13,8 @@ export const analysisBodySchema = z.object({
 		.max(MAX_TEXT_LENGTH, `Text is too long (max ${MAX_TEXT_LENGTH.toLocaleString('en-US')} characters)`),
 	/** Bahasa naskah; worker memakainya agar AI menjawab dalam bahasa yang sama. */
 	language: z.string().trim().min(2).max(12).optional(),
+	/** Tautan ke dokumen cloud untuk Aktivitas AI; tab lokal mengirim tanpa ini. */
+	documentId: z.uuid().optional(),
 })
 
 export type AnalysisBody = z.infer<typeof analysisBodySchema>

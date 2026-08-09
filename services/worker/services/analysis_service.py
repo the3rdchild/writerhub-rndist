@@ -64,6 +64,10 @@ def process(data: dict):
         # Bahasa naskah, dideteksi di web. None berarti klien lama yang
         # belum mengirimnya - analyzer jatuh ke perilaku sebelumnya.
         language = payload.get("language") or None
+        # AI Memory user, dikirim API di payload job. Cuma diterusin ke
+        # analyzer yang NULIS ULANG naskah (rewriter & humanizer) - detector
+        # dan plagiarism cuma menilai, jadi ga disentuh.
+        style_memory = payload.get("style_memory") or None
         analyzer = _ANALYZERS.get(feature)
         if not analyzer:
             raise ValueError(f"Unknown feature: {feature}")
@@ -78,7 +82,10 @@ def process(data: dict):
             )
 
         with _svc.timed_step(f"analyze:{feature}"):
-            result = analyzer(text, provider, language)
+            if feature in ("ai_rewriter", "humanizer"):
+                result = analyzer(text, provider, language, style_memory)
+            else:
+                result = analyzer(text, provider, language)
 
         update_tokens(job_id, get_last_total_tokens())
 

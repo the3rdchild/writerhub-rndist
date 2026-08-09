@@ -41,6 +41,40 @@ def language_name(code: str | None) -> str:
     return _LANGUAGE_NAMES.get(code.split("-")[0].lower(), code)
 
 
+def style_memory_instruction(memory: dict | None) -> str:
+    """
+    Ubah AI Memory user (preferensi gaya dari Pengaturan) jadi blok instruksi
+    buat ditempel di prompt LLM. Balikin string kosong kalau memorinya kosong,
+    jadi prompt persis sama kayak sebelum fitur ini ada.
+    """
+    if not memory:
+        return ""
+
+    lines: list[str] = []
+    tone = memory.get("tone")
+    if tone:
+        lines.append(f"- Tone: {tone}")
+    language = memory.get("language")
+    if language:
+        # memory.language disimpan sebagai label ("Bahasa Indonesia"), tapi
+        # klien lama bisa saja ngirim kode - dua-duanya lewat language_name.
+        lines.append(f"- Write in {language_name(language)}.")
+    glossary = memory.get("glossary") or []
+    if glossary:
+        terms = ", ".join(str(term) for term in glossary)
+        lines.append(f"- Never translate or alter these terms: {terms}")
+    notes = memory.get("notes")
+    if notes:
+        lines.append(f"- Additional style notes: {notes}")
+
+    if not lines:
+        return ""
+    return (
+        "\n\nThe user saved these writing preferences. Apply them to every "
+        "sentence you return:\n" + "\n".join(lines)
+    )
+
+
 
 def get_last_total_tokens() -> int | None:
     return _last_total_tokens

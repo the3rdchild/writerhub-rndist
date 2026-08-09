@@ -1,4 +1,5 @@
 import { AppError } from '@/lib/error'
+import type { NewDocument } from '@/db/schemas'
 import {
 	deleteDocument,
 	findDocumentById,
@@ -6,6 +7,7 @@ import {
 	insertDocument,
 	updateDocument,
 } from '@/repository/document'
+import { findProjectById } from '@/repository/project'
 import {
 	findLatestVersion,
 	insertVersion,
@@ -28,15 +30,17 @@ const INTERVAL_SNAPSHOT_MS = 10 * 60_000
  * (diisi `authMiddleware`; dev lokal memakai fallback 'local-dev').
  */
 export default class DocumentsService extends BaseService {
-	/** List metadata dokumen milik user, terbaru di atas. */
+	/** List metadata dokumen milik user, terbaru di atas. Query `projectId`
+	 * menyaring per proyek; nilai `'none'` berarti yang belum berproyek. */
 	async list(): Promise<Response> {
 		try {
-			const rows = await findDocumentsByOwner(this.ownerId())
+			const rows = await findDocumentsByOwner(this.ownerId(), this.context.req.query('projectId'))
 			const result: DocumentSummary[] = rows.map((row) => ({
 				id: row.id,
 				title: row.title,
 				emoji: row.emoji,
 				language: row.language,
+				projectId: row.projectId,
 				updatedAt: row.updatedAt.getTime(),
 				createdAt: row.createdAt.getTime(),
 			}))
@@ -85,7 +89,19 @@ export default class DocumentsService extends BaseService {
 				return this.error({ errors: body.error.issues.map((issue) => issue.message) })
 			}
 
-			const document = await updateDocument(this.documentId(), this.ownerId(), body.data)
+			const { projectId, ...rest } = body.data
+			const values: Partial<NewDocument> = { ...rest }
+			if (projectId !== undefined) {
+				// `null` = keluarkan dari proyek; selain itu proyek tujuan harus
+				// benar-benar milik user ini.
+				if (projectId !== null) {
+					const project = await findProjectById(projectId, this.ownerId())
+					if (!project) throw AppError.badRequest('Proyek tidak ditemukan')
+				}
+				values.project_id = projectId
+			}
+
+			const document = await updateDocument(this.documentId(), this.ownerId(), values)
 			if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
 
 			await this.snapshotInterval(document, body.data.content ?? document.content)
@@ -157,6 +173,7 @@ export default class DocumentsService extends BaseService {
 		content: Record<string, unknown>
 		emoji: string | null
 		language: string | null
+		project_id: string | null
 		updated_at: Date
 		created_at: Date
 	}): DocumentDetail {
@@ -166,6 +183,7 @@ export default class DocumentsService extends BaseService {
 			content: document.content,
 			emoji: document.emoji,
 			language: document.language,
+			projectId: document.project_id,
 			updatedAt: document.updated_at.getTime(),
 			createdAt: document.created_at.getTime(),
 		}

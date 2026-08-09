@@ -213,6 +213,11 @@ Pola yang sama nanti dipakai "Send to humanizer" (AI Detector → Humanizer, V2)
 
 ### F. History sesi lintas modul (Beta, Core Platform)
 
+> **Rencana implementasi: [HISTORY-PROJECTS-MEMORY-PLAN.md](HISTORY-PROJECTS-MEMORY-PLAN.md)**
+> (bersama G dan H). Di UI fitur ini dinamai **"Aktivitas AI"** — "Riwayat" sudah dipakai daftar
+> sesi terakhir, dan "Riwayat versi" oleh fitur I.
+
+
 **Gap:** PRD menyebut "History menggabungkan sesi Grammar dan Translate". Ini **bukan** version
 history dokumen — melainkan log aktivitas/hasil modul per user.
 
@@ -226,10 +231,19 @@ history dokumen — melainkan log aktivitas/hasil modul per user.
 
 ### G. Projects (V1)
 
+> **Rencana implementasi: [HISTORY-PROJECTS-MEMORY-PLAN.md](HISTORY-PROJECTS-MEMORY-PLAN.md)**
+> (bersama F dan H).
+
+
 - Tabel `projects` (id, owner_id, name, timestamps) + kolom `project_id` nullable di `documents`.
 - UI: pengelompokan di File Library (B). Tidak ada kebutuhan teknis khusus.
 
 ### H. AI Memory (V1)
+
+> **Rencana implementasi: [HISTORY-PROJECTS-MEMORY-PLAN.md](HISTORY-PROJECTS-MEMORY-PLAN.md)**
+> (bersama F dan G). Menyimpang dari sketsa di bawah dalam satu hal: tabelnya satu baris per user
+> dengan kolom `preferences` jsonb, bukan key/value.
+
 
 - PRD: personalisasi tone pengguna. Implementasi paling sederhana: tabel `user_memories`
   (owner_id, key, value) yang ditulis dari preferensi eksplisit user (bukan inferensi diam-diam),

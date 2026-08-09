@@ -1,0 +1,29 @@
+import { callUpstream, configErrorResponse } from '@/lib/server/upstream'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+/** Teruskan pembacaan daftar Aktivitas AI milik user ke apps/api. */
+export async function GET(request: Request): Promise<Response> {
+	try {
+		const { search } = new URL(request.url)
+		return await callUpstream({
+			path: `/api/v1/history${search}`,
+			method: 'GET',
+		})
+	} catch (error) {
+		return configErrorResponse(error)
+	}
+}
+
+/** Teruskan "Hapus semua aktivitas" ke apps/api. */
+export async function DELETE(): Promise<Response> {
+	try {
+		return await callUpstream({
+			path: '/api/v1/history',
+			method: 'DELETE',
+		})
+	} catch (error) {
+		return configErrorResponse(error)
+	}
+}

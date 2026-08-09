@@ -22,6 +22,8 @@ export const grammarBodySchema = z
 		title: z.string().trim().max(255).optional(),
 		model: z.enum(GRAMMAR_MODELS).optional().default('standard'),
 		language: z.string().trim().min(2).max(12).optional(),
+		/** Tautan ke dokumen cloud untuk Aktivitas AI; tab lokal mengirim tanpa ini. */
+		documentId: z.uuid().optional(),
 	})
 	.refine((data) => data.text || data.file, {
 		message: 'Either text or a file is required',

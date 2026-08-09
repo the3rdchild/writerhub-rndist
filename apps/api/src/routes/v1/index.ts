@@ -4,8 +4,11 @@ import documents from './documents.route'
 import files from './files.route'
 import grammar from './grammar.route'
 import health from './health.route'
+import history from './history.route'
+import memory from './memory.route'
+import projects from './projects.route'
 import share from './share.route'
 import status from './status.route'
 import stream from './stream.route'
 
-export const v1Routes = [health, grammar, analysis, chat, status, stream, files, share, documents]
+export const v1Routes = [health, grammar, analysis, chat, status, stream, files, share, documents, projects, memory, history]

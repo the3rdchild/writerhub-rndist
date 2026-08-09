@@ -13,7 +13,7 @@ import logging
 import re
 
 from services.analyzers.common import apply_sentence_rewrites, sentence_spans
-from services.analyzers.llm_client import rewrite_sentences
+from services.analyzers.llm_client import rewrite_sentences, style_memory_instruction
 from core.provider import Provider
 
 logger = logging.getLogger(__name__)
@@ -204,16 +204,24 @@ def _humanize_local(sentence: str) -> str:
     return humanized
 
 
-def run_humanizer(text: str, provider: Provider, language: str | None = None) -> dict:
+def run_humanizer(
+    text: str,
+    provider: Provider,
+    language: str | None = None,
+    style_memory: dict | None = None,
+) -> dict:
     """
     Returns HumanizerResult:
     { humanized_text: str, changes: [{original, replacement, offset, length}], changes_count: int }
     Satu change per kalimat yang berubah (bukan per frasa).
+    `style_memory` = AI Memory user; cuma ngaruh ke jalur LLM - fallback kamus
+    lokal sengaja dibiarkan, heuristik ga bisa nurutin preferensi gaya.
     """
     spans = sentence_spans(text)
     stripped = [sent.strip() for sent, _ in spans]
 
-    humanized_all = rewrite_sentences(stripped, _INSTRUCTION, provider, language)
+    instruction = _INSTRUCTION + style_memory_instruction(style_memory)
+    humanized_all = rewrite_sentences(stripped, instruction, provider, language)
     if humanized_all is not None:
         logger.info("[humanizer] pakai LLM (%d kalimat)", len(stripped))
     else:

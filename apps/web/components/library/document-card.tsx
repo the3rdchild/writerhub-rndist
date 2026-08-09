@@ -4,6 +4,9 @@ import {
 	Check,
 	Copy,
 	FileText,
+	Folder,
+	FolderInput,
+	Inbox,
 	Link2,
 	Loader2,
 	MoreVertical,
@@ -19,6 +22,7 @@ import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropd
 import { getDocument, updateDocument } from '@/features/documents/api'
 import type { DocumentSummary } from '@/features/documents/types'
 import { useInvalidateDocuments } from '@/features/documents/use-documents'
+import { useProjects } from '@/features/projects/use-projects'
 import { createShare } from '@/features/share/api'
 import { useSync } from '@/features/sync/sync-context'
 import { cn } from '@/lib/utils'
@@ -48,10 +52,12 @@ export function DocumentCard({
 	const router = useRouter()
 	const { openFromLibrary } = useSync()
 	const invalidate = useInvalidateDocuments()
+	const { data: projects } = useProjects()
 
 	const [renaming, setRenaming] = useState(false)
 	const [opening, setOpening] = useState(false)
 	const [shareOpen, setShareOpen] = useState(false)
+	const [movingOpen, setMovingOpen] = useState(false)
 	const [actionError, setActionError] = useState<string | null>(null)
 
 	const open = () => {
@@ -79,6 +85,16 @@ export function DocumentCard({
 			.then(() => void invalidate())
 			.catch((cause) =>
 				setActionError(cause instanceof Error ? cause.message : 'Gagal mengganti nama'),
+			)
+	}
+
+	/** Pindahkan ke proyek lain; `null` mengeluarkannya ke "Tanpa proyek". */
+	const moveToProject = (projectId: string | null) => {
+		setActionError(null)
+		updateDocument(document.id, { projectId })
+			.then(() => void invalidate())
+			.catch((cause) =>
+				setActionError(cause instanceof Error ? cause.message : 'Gagal memindahkan dokumen'),
 			)
 	}
 
@@ -157,6 +173,58 @@ export function DocumentCard({
 							>
 								Bagikan
 							</DropdownItem>
+							{/* Kartu library selalu dokumen server, jadi pemindahan proyek
+							    selalu bekerja; tab lokal-saja memang tidak muncul di sini. */}
+							<DropdownItem
+								icon={<FolderInput className="h-4 w-4" />}
+								onSelect={() => setMovingOpen((current) => !current)}
+							>
+								Pindahkan ke proyek
+							</DropdownItem>
+							{movingOpen && (
+								<div className="border-l border-line ml-5 flex flex-col">
+									<DropdownItem
+										icon={
+											document.projectId === null ? (
+												<Check className="h-4 w-4" />
+											) : (
+												<Inbox className="h-4 w-4" />
+											)
+										}
+										onSelect={() => {
+											close()
+											setMovingOpen(false)
+											if (document.projectId !== null) moveToProject(null)
+										}}
+									>
+										Tanpa proyek
+									</DropdownItem>
+									{projects?.map((project) => (
+										<DropdownItem
+											key={project.id}
+											icon={
+												document.projectId === project.id ? (
+													<Check className="h-4 w-4" />
+												) : (
+													<Folder className="h-4 w-4" />
+												)
+											}
+											onSelect={() => {
+												close()
+												setMovingOpen(false)
+												if (document.projectId !== project.id) moveToProject(project.id)
+											}}
+										>
+											{project.name}
+										</DropdownItem>
+									))}
+									{projects?.length === 0 && (
+										<p className="px-3 py-1.5 text-xs text-faint">
+											Belum ada proyek. Buat dari sidebar Library.
+										</p>
+									)}
+								</div>
+							)}
 							<DropdownSeparator />
 							<DropdownItem
 								icon={<Trash2 className="h-4 w-4" />}

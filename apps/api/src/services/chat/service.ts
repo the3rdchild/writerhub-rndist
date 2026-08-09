@@ -2,10 +2,12 @@ import {
 	type ChatContext,
 	type ChatMessage,
 	type ChatStreamEvent,
+	type StyleMemory,
 	fallbackToolPrompt,
 	toProviderTools,
 } from '@writer-hub/shared'
 import { env } from '@/config/env'
+import { findMemoryByOwner } from '@/repository/memory'
 import JobSubmissionService from '@/services/job-submission.service'
 import { type ChatBody, chatBodySchema } from './dto'
 
@@ -29,6 +31,12 @@ export default class ChatService extends JobSubmissionService {
 			}
 
 			const provider = await this.authorizeAndResolveProvider()
+
+			// AI Memory dibaca di server dari userId - klien TIDAK mengirimnya,
+			// supaya preferensi tidak bisa dipalsukan per request. `buildMessages`
+			// tetap fungsi murni; pengambilan dari DB terjadi di sini.
+			const userId = this.context.get('userId')
+			const memory = userId ? ((await findMemoryByOwner(userId))?.preferences ?? null) : null
 
 			// Mode lokal tidak punya provider dari admin-ppe; kredensial di env API
 			// yang dipakai. Kalau itu pun kosong, lebih baik bilang sekarang
@@ -56,7 +64,7 @@ export default class ChatService extends JobSubmissionService {
 						model,
 						stream: true,
 						temperature: 0.4,
-						messages: buildMessages(parsed.data, withTools),
+						messages: buildMessages(parsed.data, withTools, memory),
 						...(withTools ? { tools: toProviderTools(), tool_choice: 'auto' } : {}),
 					}),
 					signal: this.context.req.raw.signal,
@@ -163,14 +171,19 @@ function toProviderMessage(message: ChatBody['messages'][number]): Record<string
 	return { role: message.role, content: message.content }
 }
 
-function buildMessages({ messages, context }: ChatBody, withTools: boolean): unknown[] {
+function buildMessages({ messages, context }: ChatBody, withTools: boolean, memory: StyleMemory | null): unknown[] {
 	const contextPart = contextMessage(context)
 
 	// Saat provider menolak `tools`, protokolnya dijelaskan lewat prompt supaya
 	// kemampuannya tidak hilang sama sekali - hanya jalurnya yang berbeda.
-	const system = withTools
+	let system = withTools
 		? `${SYSTEM_PROMPT}\n\n${TOOL_GUIDANCE}`
 		: `${SYSTEM_PROMPT}\n\n${fallbackToolPrompt()}`
+
+	// Preferensi gaya dari AI Memory ditempel sesudah panduan tool; bloknya
+	// kosong (prompt persis seperti sebelumnya) bila user belum mengisinya.
+	const memoryBlock = memoryPrompt(memory)
+	if (memoryBlock) system = `${system}\n\n${memoryBlock}`
 
 	return [
 		{ role: 'system', content: system },
@@ -178,6 +191,29 @@ function buildMessages({ messages, context }: ChatBody, withTools: boolean): unk
 		...(contextPart ? [contextPart] : []),
 		...messages.map(toProviderMessage),
 	]
+}
+
+/**
+ * Rangkai AI Memory user jadi blok instruksi gaya untuk system prompt.
+ * Bahasanya mengikuti prompt yang sudah ada (Inggris).
+ */
+function memoryPrompt(memory: StyleMemory | null): string {
+	if (!memory) return ''
+
+	const lines: string[] = []
+	if (memory.tone) lines.push(`- Tone: ${memory.tone}`)
+	if (memory.language) lines.push(`- Reply in ${memory.language} by default.`)
+	if (memory.glossary?.length) {
+		lines.push(`- Never translate or alter these terms: ${memory.glossary.join(', ')}`)
+	}
+	if (memory.notes) lines.push(`- Additional style notes: ${memory.notes}`)
+
+	if (lines.length === 0) return ''
+	return [
+		'The user saved these writing preferences. Apply them to everything you',
+		'write for them:',
+		...lines,
+	].join('\n')
 }
 
 const TOOL_GUIDANCE = [

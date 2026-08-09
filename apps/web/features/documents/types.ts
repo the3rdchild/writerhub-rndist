@@ -9,6 +9,8 @@ export interface DocumentSummary {
 	title: string
 	emoji: string | null
 	language: string | null
+	/** ID proyek tempat dokumen bernaung; null berarti "Tanpa proyek". */
+	projectId: string | null
 	/** Epoch milidetik (server mengirim `Date.getTime()`). */
 	updatedAt: number
 	createdAt: number
@@ -31,4 +33,6 @@ export interface UpdateDocumentInput {
 	content?: JSONContent
 	emoji?: string | null
 	language?: string | null
+	/** ID proyek tujuan; `null` mengeluarkan dokumen dari proyeknya. */
+	projectId?: string | null
 }

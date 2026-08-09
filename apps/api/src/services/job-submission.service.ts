@@ -4,7 +4,12 @@ import { poolRequest } from '@/db/schemas'
 import { AppError } from '@/lib/error'
 import { recordTokenUsageAfterCompletion } from '@/lib/job-usage-wait'
 import { ensureToolQuota, resolveProvider, type ResolvedProvider } from '@/lib/provider-resolver'
+import { findDocumentById } from '@/repository/document'
+import { pruneOldHistory } from '@/repository/history'
 import BaseService from '@/services/base.service'
+import LoggerClient from '@/utils/logger'
+
+const log = LoggerClient.getInstance()
 
 /**
  * Slug service & nama tool di admin-ppe. Keduanya dipakai grammar maupun
@@ -48,7 +53,23 @@ export default abstract class JobSubmissionService extends BaseService {
 		jobId: string,
 		provider: ResolvedProvider | null,
 		params: Record<string, unknown>,
+		meta?: { documentId?: string | null; feature?: string },
 	): Promise<string> {
+		// user_id diambil dari context (diisi authMiddleware di kedua mode auth),
+		// BUKAN dari provider - provider bernilai null pada AUTH_MODE=none, dan
+		// memakainya berarti aktivitas tidak tercatat sama sekali di dev lokal.
+		const userId = this.context.get('userId') ?? null
+
+		// Tautan dokumen hanya dicatat bila dokumennya memang milik user ini.
+		// documentId dikirim klien dan bisa basi (dokumen sudah dihapus) atau
+		// menunjuk dokumen orang lain - keduanya cukup diperlakukan sebagai
+		// "tanpa tautan", bukan menggagalkan job.
+		let documentId: string | null = null
+		if (meta?.documentId && userId) {
+			const document = await findDocumentById(meta.documentId, userId)
+			documentId = document?.id ?? null
+		}
+
 		const [request] = await this.db
 			.insert(poolRequest)
 			.values({
@@ -56,8 +77,21 @@ export default abstract class JobSubmissionService extends BaseService {
 				status: 'pending',
 				model_record_id: provider?.modelRecordId ?? null,
 				params,
+				user_id: userId,
+				document_id: documentId,
+				feature: meta?.feature ?? null,
 			})
 			.returning()
+
+		// Retensi 90 hari, dipangkas saat menulis entri baru (pola
+		// pruneIntervalVersions). Kegagalan prune tidak boleh menggagalkan job.
+		if (userId) {
+			try {
+				await pruneOldHistory(userId)
+			} catch (error) {
+				log.error({ err: error, userId }, 'Gagal memangkas aktivitas AI lama')
+			}
+		}
 
 		return request.id
 	}

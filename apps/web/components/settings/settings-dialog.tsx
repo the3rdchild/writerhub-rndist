@@ -1,7 +1,8 @@
 'use client'
 
-import { Crown, Mail, Monitor, Moon, Palette, Sun, Type, User } from 'lucide-react'
+import { Brain, Crown, Mail, Monitor, Moon, Palette, Sun, Type, User } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { MemoryTab } from '@/features/memory/memory-tab'
 import { type FontSize, type Theme, useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
 
@@ -9,6 +10,7 @@ const TABS = [
 	{ key: 'profile', label: 'Profil', icon: User },
 	{ key: 'appearance', label: 'Tampilan', icon: Palette },
 	{ key: 'editor', label: 'Editor', icon: Type },
+	{ key: 'memory', label: 'AI Memory', icon: Brain },
 ] as const
 
 type TabKey = (typeof TABS)[number]['key']
@@ -202,6 +204,11 @@ export function SettingsDialog() {
 							/>
 						</div>
 					)}
+
+					{/* Satu-satunya tab yang bicara ke server: ia punya state
+					    memuat/menyimpan/gagal sendiri dan tombol Simpan eksplisit,
+					    bukan autosave localStorage seperti tab lain. */}
+					{tab === 'memory' && <MemoryTab />}
 				</div>
 			</div>
 		</div>

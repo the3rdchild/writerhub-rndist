@@ -43,6 +43,27 @@
       "when": 1786216329472,
       "tag": "0005_next_maestro",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786231770862,
+      "tag": "0006_nice_maddog",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786233052076,
+      "tag": "0007_sturdy_union_jack",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786233816922,
+      "tag": "0008_dapper_captain_stacy",
+      "breakpoints": true
     }
   ]
 }

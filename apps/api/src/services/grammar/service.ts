@@ -39,12 +39,17 @@ export default class GrammarService extends JobSubmissionService {
 					}
 				: null
 
-			const requestId = await this.createPoolRequest(jobId, provider, {
-				title: body.title ?? upload?.filename ?? 'Untitled document',
-				model,
-				...(body.text ? { text: body.text } : {}),
-				...(upload ? { filename: upload.filename, mime_type: upload.mimeType } : {}),
-			})
+			const requestId = await this.createPoolRequest(
+				jobId,
+				provider,
+				{
+					title: body.title ?? upload?.filename ?? 'Untitled document',
+					model,
+					...(body.text ? { text: body.text } : {}),
+					...(upload ? { filename: upload.filename, mime_type: upload.mimeType } : {}),
+				},
+				{ feature: 'grammar', documentId: body.documentId ?? null },
+			)
 
 			await QueueClient.enqueueGrammarJob(jobId, {
 				request_id: requestId,

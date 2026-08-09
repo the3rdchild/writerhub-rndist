@@ -3,6 +3,26 @@ import type { JobStatus } from './job'
 export const ANALYSIS_FEATURES = ['ai_detector', 'ai_rewriter', 'humanizer', 'plagiarism'] as const
 export type AnalysisFeature = (typeof ANALYSIS_FEATURES)[number]
 
+/**
+ * Preferensi gaya AI Memory - ditulis eksplisit oleh user di Pengaturan
+ * (bukan inferensi diam-diam), lalu dibaca server dan disuntikkan ke prompt
+ * AI Chat serta payload job AI Rewriter/Humanizer (`style_memory`).
+ * Klien tidak pernah mengirimnya per request.
+ */
+export interface StyleMemory {
+	/** Nada tulisan, teks bebas (mis. "formal", "santai"). */
+	tone?: string
+	/**
+	 * Bahasa default keluaran AI. Disimpan sebagai label (mis. "Bahasa
+	 * Indonesia"), bukan kode - nilainya langsung ditempel ke prompt.
+	 */
+	language?: string
+	/** Istilah yang tidak boleh diubah/diterjemahkan. */
+	glossary?: string[]
+	/** Catatan gaya bebas, maks 500 karakter. */
+	notes?: string
+}
+
 /** Rentang karakter pada teks sumber - dipakai highlight & apply. */
 export interface TextRange {
 	offset: number

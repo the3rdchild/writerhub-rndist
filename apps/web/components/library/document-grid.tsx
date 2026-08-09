@@ -15,8 +15,11 @@ import { DocumentCard } from './document-card'
  * Halaman ini hanya menampilkan dokumen server; naskah yang masih lokal-saja
  * tidak muncul di sini - ia milik tab editor, dan penandanya sudah ada di
  * sidebar tab.
+ *
+ * `projectFilter` dari query string: 'all' (semua), 'none' (belum berproyek),
+ * atau ID proyek.
  */
-export function DocumentGrid() {
+export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 	const { data: documents, isPending, isError, error } = useDocuments()
 	const invalidate = useInvalidateDocuments()
 	const [pendingDelete, setPendingDelete] = useState<DocumentSummary | null>(null)
@@ -43,7 +46,26 @@ export function DocumentGrid() {
 		)
 	}
 
-	if (documents.length === 0) {
+	const visible =
+		projectFilter === 'all'
+			? documents
+			: projectFilter === 'none'
+				? documents.filter((document) => document.projectId === null)
+				: documents.filter((document) => document.projectId === projectFilter)
+
+	if (visible.length === 0) {
+		if (documents.length > 0) {
+			return (
+				<div className="flex h-64 flex-col items-center justify-center text-center">
+					<FileText className="h-12 w-12 text-faint" />
+					<h2 className="mt-4 text-lg font-medium text-foreground">Tidak ada dokumen di sini</h2>
+					<p className="mt-1 max-w-md text-sm text-muted">
+						Pindahkan dokumen ke proyek ini lewat menu &ldquo;Pindahkan ke proyek&rdquo; di kartu
+						dokumen.
+					</p>
+				</div>
+			)
+		}
 		return (
 			<div className="flex h-64 flex-col items-center justify-center text-center">
 				<FileText className="h-12 w-12 text-faint" />
@@ -79,7 +101,7 @@ export function DocumentGrid() {
 	return (
 		<>
 			<div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-				{documents.map((document) => (
+				{visible.map((document) => (
 					<DocumentCard
 						key={document.id}
 						document={document}

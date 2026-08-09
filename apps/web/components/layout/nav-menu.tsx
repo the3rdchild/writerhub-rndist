@@ -1,6 +1,6 @@
 'use client'
 
-import { Clock, FileText, Home, LibraryBig, Menu, Pin, Plus, Settings, Trash2 } from 'lucide-react'
+import { Activity, Clock, FileText, FolderOpen, Home, LibraryBig, Menu, Pin, Plus, Settings, Trash2 } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Dropdown, DropdownItem, DropdownLabel, DropdownSeparator } from '@/components/ui/dropdown'
@@ -85,6 +85,28 @@ export function NavMenu() {
 						}}
 					>
 						Library
+					</DropdownItem>
+					{/* Aktivitas AI (fitur F): catatan pemakaian modul AI. Sengaja bukan
+					    "Riwayat" - nama itu sudah dipakai dua fitur lain. */}
+					<DropdownItem
+						icon={<Activity className="h-4 w-4" />}
+						onSelect={() => {
+							router.push('/activity')
+							close()
+						}}
+					>
+						Aktivitas AI
+					</DropdownItem>
+					{/* Projects = File Library dengan sidebar proyek; filter tinggal di
+					    query string supaya bisa di-bookmark. */}
+					<DropdownItem
+						icon={<FolderOpen className="h-4 w-4" />}
+						onSelect={() => {
+							router.push('/library?project=all')
+							close()
+						}}
+					>
+						Projects
 					</DropdownItem>
 					<DropdownItem icon={<Pin className="h-4 w-4" />}>Disematkan</DropdownItem>
 

@@ -5,6 +5,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
+import { useSessions } from '@/features/sessions/session-context'
+import { useSync } from '@/features/sync/sync-context'
 import { fingerprint } from '@/lib/utils'
 import { runAnalysis } from './api'
 import { type AnalysisRun, usePanels } from './panel-context'
@@ -39,6 +41,8 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 	const { state } = useDocument()
 	const { lastRun, markRun } = usePanels()
 	const language = useDocumentLanguage()
+	const { linkage } = useSync()
+	const { activeId } = useSessions()
 
 	const currentText = state.text
 	const requested = lastRun[feature]
@@ -48,7 +52,7 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 		queryKey: ['analysis', feature, requestedKey, requested?.offset ?? 0, requested?.language],
 		queryFn: async ({ signal }) => {
 			const run = requested as AnalysisRun
-			const raw = await runAnalysis(feature, run.text, run.language, signal)
+			const raw = await runAnalysis(feature, run.text, run.language, signal, run.documentId)
 			// Digeser di sini, sekali, supaya seluruh pemakainya tidak perlu tahu
 			// apakah hasil ini datang dari potongan atau dari naskah penuh.
 			return shiftAnalysisResult(feature, raw, run.offset)
@@ -62,9 +66,12 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 
 	const run = useCallback(
 		(scope?: { text: string; offset: number }) => {
+			// Tautan dokumen cloud ikut dicatat supaya job ini muncul di Aktivitas
+			// AI dengan tautannya; tab lokal-saja mengirim undefined.
+			const documentId = activeId ? linkage[activeId]?.serverId : undefined
 			const next: AnalysisRun = scope
-				? { text: scope.text, offset: scope.offset, scoped: true, language: language.code }
-				: { text: currentText, offset: 0, scoped: false, language: language.code }
+				? { text: scope.text, offset: scope.offset, scoped: true, language: language.code, documentId }
+				: { text: currentText, offset: 0, scoped: false, language: language.code, documentId }
 			markRun(feature, next)
 
 			// Permintaan identik dengan yang terakhir: kunci query tidak berubah,
@@ -73,7 +80,7 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 				void query.refetch()
 			}
 		},
-		[markRun, feature, currentText, requested, query, language.code],
+		[markRun, feature, currentText, requested, query, language.code, linkage, activeId],
 	)
 
 	return {

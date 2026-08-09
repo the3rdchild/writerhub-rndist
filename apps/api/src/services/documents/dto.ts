@@ -19,6 +19,9 @@ export const updateDocumentBodySchema = z.object({
 	content: z.record(z.string(), z.unknown()).optional(),
 	emoji: z.string().max(32).nullish(),
 	language: z.string().max(32).nullish(),
+	// `null` berarti keluarkan dokumen dari proyeknya; field tidak dikirim
+	// berarti jangan ubah keanggotaan proyek.
+	projectId: z.uuid().nullish(),
 })
 
 export type UpdateDocumentBody = z.infer<typeof updateDocumentBodySchema>
@@ -28,6 +31,7 @@ export interface DocumentSummary {
 	title: string
 	emoji: string | null
 	language: string | null
+	projectId: string | null
 	updatedAt: number
 	createdAt: number
 }
