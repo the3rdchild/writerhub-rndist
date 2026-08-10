@@ -1,6 +1,6 @@
 'use client'
 
-import type { AnalysisFeature, AnalysisResultFor } from '@writer-hub/shared'
+import type { AnalysisFeature, AnalysisResultFor, RewriterTone } from '@writer-hub/shared'
 import { useQuery } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { useDocument } from '@/features/document/document-context'
@@ -26,7 +26,7 @@ export interface AnalysisController<F extends AnalysisFeature> {
 	/** Hasil yang ditampilkan berasal dari bagian yang disorot, bukan seluruh naskah. */
 	isScoped: boolean
 	/** Tanpa argumen berarti seluruh dokumen. */
-	run: (scope?: { text: string; offset: number }) => void
+	run: (scope?: { text: string; offset: number }, tone?: RewriterTone) => void
 }
 
 /**
@@ -49,10 +49,17 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 	const requestedKey = requested?.text != null ? fingerprint(requested.text) : null
 
 	const query = useQuery({
-		queryKey: ['analysis', feature, requestedKey, requested?.offset ?? 0, requested?.language],
+		queryKey: [
+			'analysis',
+			feature,
+			requestedKey,
+			requested?.offset ?? 0,
+			requested?.language,
+			requested?.tone ?? null,
+		],
 		queryFn: async ({ signal }) => {
 			const run = requested as AnalysisRun
-			const raw = await runAnalysis(feature, run.text, run.language, signal, run.tabId)
+			const raw = await runAnalysis(feature, run.text, run.language, signal, run.tabId, run.tone)
 			// Digeser di sini, sekali, supaya seluruh pemakainya tidak perlu tahu
 			// apakah hasil ini datang dari potongan atau dari naskah penuh.
 			return shiftAnalysisResult(feature, raw, run.offset)
@@ -65,18 +72,18 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 	})
 
 	const run = useCallback(
-		(scope?: { text: string; offset: number }) => {
+		(scope?: { text: string; offset: number }, tone?: RewriterTone) => {
 			// Tautan tab cloud ikut dicatat supaya job ini muncul di Aktivitas
 			// AI dengan tautannya; tab lokal-saja mengirim undefined.
 			const tabId = activeId ? linkage[activeId]?.serverId : undefined
 			const next: AnalysisRun = scope
-				? { text: scope.text, offset: scope.offset, scoped: true, language: language.code, tabId }
-				: { text: currentText, offset: 0, scoped: false, language: language.code, tabId }
+				? { text: scope.text, offset: scope.offset, scoped: true, language: language.code, tabId, tone }
+				: { text: currentText, offset: 0, scoped: false, language: language.code, tabId, tone }
 			markRun(feature, next)
 
 			// Permintaan identik dengan yang terakhir: kunci query tidak berubah,
 			// jadi minta ulang eksplisit agar tombol "Run Again" tetap bekerja.
-			if (requested?.text === next.text && requested?.offset === next.offset) {
+			if (requested?.text === next.text && requested?.offset === next.offset && requested?.tone === next.tone) {
 				void query.refetch()
 			}
 		},

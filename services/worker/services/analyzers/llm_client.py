@@ -80,43 +80,22 @@ def get_last_total_tokens() -> int | None:
     return _last_total_tokens
 
 
-def rewrite_sentences(
-    sentences: list[str],
-    instruction: str,
-    provider: Provider,
-    language: str | None = None,
-) -> list[str] | None:
-    """
-    Kirim semua kalimat dalam SATU request, balikin list kalimat hasil rewrite
-    dengan jumlah elemen sama persis. None kalau gagal apapun sebabnya.
-    """
-    global _last_total_tokens
-    _last_total_tokens = None
-    if not sentences:
-        return []
-
-    # Seluruh prompt ini berbahasa Inggris, dan model cenderung ikut bahasa
-    # prompt-nya. Menitipkan "keep the original language" di dalam instruksi
-    # saja terbukti kalah - naskah Indonesia balik jadi Inggris. Karena itu
-    # bahasanya disebut namanya, sebagai perintah tersendiri di depan.
-    language_rule = ""
-    if language:
-        name = language_name(language)
-        language_rule = (
-            f"CRITICAL: every sentence you return MUST be written in {name}. "
-            f"The input is in {name}. Never translate it to English or any "
-            f"other language, not even partially.\n\n"
-        )
-
-    system = (
-        f"{language_rule}{instruction}\n\n"
-        "You will receive a JSON array of sentences. Respond ONLY with a JSON "
-        'object of the form {"sentences": [...]} containing exactly the same '
-        "number of elements, where element i is the rewritten version of input "
-        "sentence i. If a sentence needs no change, return it unchanged. Do not "
-        "merge, split, add, or drop sentences."
+def _build_language_rule(language: str | None) -> str:
+    """Perintah bahasa di depan prompt - lihat alasan di rewrite_sentences."""
+    if not language:
+        return ""
+    name = language_name(language)
+    return (
+        f"CRITICAL: every sentence you return MUST be written in {name}. "
+        f"The input is in {name}. Never translate it to English or any "
+        f"other language, not even partially.\n\n"
     )
 
+
+def _chat_json(system: str, user_payload: list[str], provider: Provider) -> object | None:
+    """Satu call chat completions (json_object); balikin JSON ter-parse atau None."""
+    global _last_total_tokens
+    _last_total_tokens = None
     try:
         resp = requests.post(
             f"{provider.base_url.rstrip('/')}/chat/completions",
@@ -128,7 +107,7 @@ def rewrite_sentences(
                 "model": provider.model,
                 "messages": [
                     {"role": "system", "content": system},
-                    {"role": "user", "content": json.dumps(sentences, ensure_ascii=False)},
+                    {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
                 ],
                 "response_format": {"type": "json_object"},
                 "temperature": 0.7,
@@ -138,12 +117,40 @@ def rewrite_sentences(
         resp.raise_for_status()
         body = resp.json()
         _last_total_tokens = (body.get("usage") or {}).get("total_tokens")
-        content = body["choices"][0]["message"]["content"]
-        parsed = json.loads(content)
-        out = parsed if isinstance(parsed, list) else parsed.get("sentences")
+        return json.loads(body["choices"][0]["message"]["content"])
     except Exception as e:
         logger.warning("[llm_client] request LLM gagal: %s", e)
         return None
+
+
+def rewrite_sentences(
+    sentences: list[str],
+    instruction: str,
+    provider: Provider,
+    language: str | None = None,
+) -> list[str] | None:
+    """
+    Kirim semua kalimat dalam SATU request, balikin list kalimat hasil rewrite
+    dengan jumlah elemen sama persis. None kalau gagal apapun sebabnya.
+    """
+    if not sentences:
+        return []
+
+    # Seluruh prompt ini berbahasa Inggris, dan model cenderung ikut bahasa
+    # prompt-nya. Menitipkan "keep the original language" di dalam instruksi
+    # saja terbukti kalah - naskah Indonesia balik jadi Inggris. Karena itu
+    # bahasanya disebut namanya, sebagai perintah tersendiri di depan.
+    system = (
+        f"{_build_language_rule(language)}{instruction}\n\n"
+        "You will receive a JSON array of sentences. Respond ONLY with a JSON "
+        'object of the form {"sentences": [...]} containing exactly the same '
+        "number of elements, where element i is the rewritten version of input "
+        "sentence i. If a sentence needs no change, return it unchanged. Do not "
+        "merge, split, add, or drop sentences."
+    )
+
+    parsed = _chat_json(system, sentences, provider)
+    out = parsed.get("sentences") if isinstance(parsed, dict) else parsed
 
     if (
         not isinstance(out, list)
@@ -158,3 +165,68 @@ def rewrite_sentences(
         return None
 
     return [s.strip() for s in out]
+
+
+def rewrite_sentences_candidates(
+    sentences: list[str],
+    instruction: str,
+    provider: Provider,
+    language: str | None = None,
+) -> list[list[str]] | None:
+    """
+    Kayak rewrite_sentences, tapi minta DUA alternatif rewrite per kalimat
+    (buat fitur pilih-kandidat di AI Rewriter). Balikin list sejajar input,
+    tiap elemen list kandidat 1-2 string; None kalau gagal apapun sebabnya.
+
+    Format respons yang diminta (dokumentasikan juga di prompt):
+
+        {"sentences": [{"candidates": ["varian A", "varian B"]}, ...]}
+
+    Kandidat pertama = rewrite paling setia, kedua = varian gaya lain. Model
+    yang bandel boleh balikin elemen string polos - dianggap satu kandidat.
+    Kandidat yang kebetulan identik dideduplikasi, jadi panjang bisa 1.
+    """
+    if not sentences:
+        return []
+
+    system = (
+        f"{_build_language_rule(language)}{instruction}\n\n"
+        "You will receive a JSON array of sentences. For each sentence, "
+        "produce TWO alternative rewrites that differ in style or wording but "
+        "keep the same meaning. Respond ONLY with a JSON object of the form "
+        '{"sentences": [{"candidates": ["...", "..."]}]} containing exactly '
+        "the same number of elements, where element i holds the candidates "
+        "for input sentence i. The first candidate should be the most "
+        "faithful rewrite; the second may vary the phrasing more freely. If "
+        "a sentence needs no change, return it unchanged as its single "
+        "candidate. Do not merge, split, add, or drop sentences."
+    )
+
+    parsed = _chat_json(system, sentences, provider)
+    out = parsed.get("sentences") if isinstance(parsed, dict) else parsed
+
+    if not isinstance(out, list) or len(out) != len(sentences):
+        logger.warning(
+            "[llm_client] respons kandidat malformed (dapat %s elemen, butuh %s)",
+            len(out) if isinstance(out, list) else "non-list",
+            len(sentences),
+        )
+        return None
+
+    result: list[list[str]] = []
+    for item in out:
+        cands: list[str] = []
+        if isinstance(item, str):
+            cands = [item.strip()] if item.strip() else []
+        elif isinstance(item, dict):
+            raw = item.get("candidates")
+            if isinstance(raw, list):
+                cands = [c.strip() for c in raw if isinstance(c, str) and c.strip()][:2]
+        if len(cands) == 2 and cands[0] == cands[1]:
+            cands = cands[:1]
+        if not cands:
+            logger.warning("[llm_client] elemen respons bukan kandidat valid: %r", item)
+            return None
+        result.append(cands)
+
+    return result

@@ -128,7 +128,15 @@ interface SessionContextValue {
 	deleteSession: (id: string) => void
 	deleteDocument: (id: string) => void
 	renameSession: (id: string, title: string) => void
-	renameDocument: (id: string, title: string) => void
+	/**
+	 * Ganti judul dokumen; judul di kepala aplikasi ikut disegarkan bila
+	 * dokumen itu yang sedang aktif.
+	 *
+	 * `origin` dipakai pemanggil yang menulis atas nama server (penyelarasan
+	 * judul di sync-context) supaya tulisannya tidak terbaca sebagai suntingan
+	 * pengguna dan tidak memicu autosave balik.
+	 */
+	renameDocument: (id: string, title: string, origin?: unknown) => void
 	duplicateSession: (id: string) => void
 	setSessionEmoji: (id: string, emoji: string | null) => void
 	/** Pindahkan tab `movedId` ke posisi tab `destId` (dalam dokumen yang sama). */
@@ -272,7 +280,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	 * balik di bawah akan menyalin judul dokumen yang basi ke dokumen baru pada
 	 * render itu.
 	 */
-	const pendingLoad = useRef<{ id: string; title: string; text: string } | null>(null)
+	const pendingLoad = useRef<{ id: string; text: string } | null>(null)
 
 	/** Teks terakhir yang sudah tercatat waktunya; membedakan sunting dari sekadar pindah tab. */
 	const touchedText = useRef<string | null>(null)
@@ -296,7 +304,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			readDocs(doc).find((dok) => dok.id === activeDocId)?.title ?? 'Untitled document'
 		const local = tabView(view, activeId)
 
-		pendingLoad.current = { id: activeId, title, text }
+		pendingLoad.current = { id: activeId, text }
 		touchedText.current = text
 
 		dispatch({
@@ -314,8 +322,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
 		const pending = pendingLoad.current
 		if (pending) {
-			// Belum boleh menulis apa pun sampai state memuat naskah tab ini.
-			if (pending.id === activeId && state.title === pending.title && state.text === pending.text) {
+			/*
+			 * Belum boleh menulis apa pun sampai state memuat naskah tab ini.
+			 *
+			 * Jabat tangannya sengaja TIDAK membandingkan judul. Judul adalah
+			 * satu-satunya field di sini yang diketik pengguna, dan dulu
+			 * syaratnya menyertakannya: begitu judul diketik sebelum jabat tangan
+			 * selesai, `state.title === pending.title` tidak akan pernah terpenuhi
+			 * lagi, penanda ini tidak pernah dibersihkan, dan judul berhenti
+			 * ditulis ke Y.Doc sampai tab berganti - termasuk mematikan pencatat
+			 * waktu sunting dan penyimpan hasil pemeriksaan yang memakai penanda
+			 * yang sama.
+			 *
+			 * Penanda basi milik tab lain juga dibersihkan, bukan ditunggu.
+			 */
+			if (pending.id !== activeId || state.text === pending.text) {
 				pendingLoad.current = null
 			}
 			return
@@ -489,11 +510,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	)
 
 	const renameDocumentAction = useCallback(
-		(id: string, title: string) => {
-			ydocRenameDocument(doc, id, title)
+		(id: string, title: string, origin?: unknown) => {
+			ydocRenameDocument(doc, id, title, origin)
 			// Judul di kepala aplikasi dan judul dokumen aktif adalah hal yang
 			// sama; tanpa ini efek tulis-balik di atas akan menimpa nama baru
 			// dengan judul lama yang masih tersimpan di state.
+			//
+			// Ini juga yang membuat judul hasil penyelarasan dari server terlihat
+			// di TopBar tanpa berpindah tab: state dokumen memegang salinannya
+			// sendiri dan hanya dibacakan ulang saat tab dimuat.
 			if (id === activeDocId) dispatch({ type: 'setTitle', title })
 		},
 		[doc, activeDocId, dispatch],

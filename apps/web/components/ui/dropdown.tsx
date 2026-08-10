@@ -82,6 +82,11 @@ interface DropdownItemProps {
 	icon?: ReactNode
 	/** Pintasan papan tik; hanya ditampilkan, tidak didaftarkan di sini. */
 	shortcut?: string
+	/**
+	 * Elemen di ujung kanan baris - mis. panah bentang atau lencana hitungan.
+	 * Dipakai bersama `shortcut` pun tidak masalah; keduanya duduk berdampingan.
+	 */
+	trailing?: ReactNode
 	active?: boolean
 	disabled?: boolean
 	children: ReactNode
@@ -91,6 +96,7 @@ export function DropdownItem({
 	onSelect,
 	icon,
 	shortcut,
+	trailing,
 	active,
 	disabled,
 	children,
@@ -112,6 +118,7 @@ export function DropdownItem({
 			<span className="flex h-4 w-4 shrink-0 items-center justify-center text-subtle">{icon}</span>
 			<span className="flex-1 truncate">{children}</span>
 			{shortcut && <span className="shrink-0 text-xs text-faint">{shortcut}</span>}
+			{trailing && <span className="flex shrink-0 items-center">{trailing}</span>}
 		</button>
 	)
 }

@@ -14,12 +14,13 @@ import {
 } from 'react'
 import {
 	createDocument,
+	createTabApi,
 	getTab,
 	updateDocument,
 	updateTab as updateTabApi,
 } from '@/features/documents/api'
 import type { DocumentDetail } from '@/features/documents/types'
-import { DOCUMENTS_QUERY_KEY } from '@/features/documents/use-documents'
+import { DOCUMENTS_QUERY_KEY, useDocuments } from '@/features/documents/use-documents'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { MAX_DOCUMENTS, useSessions } from '@/features/sessions/session-context'
 import {
@@ -33,6 +34,7 @@ import {
 import { deleteLocalVersionsExcept } from '@/features/versions/local-store'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import { fragmentToJSON, jsonToFragment } from './serialize'
+import { resolveTitle } from './title-sync'
 
 /**
  * Sinkronisasi "manual first" ke cloud.
@@ -108,6 +110,24 @@ interface SyncContextValue {
 	 * membawa id tab).
 	 */
 	linkTab: (tabId: string, serverId: string) => Promise<void>
+	/**
+	 * Id dokumen SERVER untuk sebuah dokumen lokal; `null` bila belum satu pun
+	 * tabnya tersimpan ke cloud.
+	 *
+	 * Kaitan disimpan per tab, sedangkan yang punya identitas di server adalah
+	 * dokumen induknya - jadi cukup dibaca dari kaitan tab pertama yang ketemu.
+	 * Dipakai penempatan proyek di menu WritingHub, yang bekerja atas dokumen.
+	 */
+	serverDocId: (docId: string) => string | null
+	/**
+	 * Simpan SELURUH dokumen lokal ke cloud sebagai satu dokumen server.
+	 *
+	 * Berbeda dari `saveToCloud` yang bekerja per tab: tab pertama membuat
+	 * dokumen induknya, sisanya menempel ke induk yang sama. Memanggil
+	 * `saveToCloud` berulang untuk tiap tab akan melahirkan satu dokumen server
+	 * per tab - sisa dari masa ketika tab dan dokumen masih satu hal.
+	 */
+	saveDocumentToCloud: (docId: string) => Promise<boolean>
 }
 
 const SyncContext = createContext<SyncContextValue | null>(null)
@@ -118,9 +138,15 @@ interface SaveTimers {
 }
 
 export function SyncProvider({ children }: { children: ReactNode }) {
-	const { doc, documents, activeId, selectSession } = useSessions()
+	const { doc, documents, activeId, selectSession, renameDocument } = useSessions()
 	const { editor } = useEditorInstance()
 	const queryClient = useQueryClient()
+	/*
+	 * Daftar dokumen server, dipakai menyelaraskan judul (lihat efek di bawah).
+	 * Kunci query-nya sama dengan yang dipakai Library, jadi keduanya berbagi
+	 * satu cache - bukan permintaan tambahan tiap halaman.
+	 */
+	const serverDocuments = useDocuments()
 
 	const [store, setStore, storeHydrated] = usePersistentState<{
 		linkage: Record<string, SyncLinkage>
@@ -379,6 +405,72 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 		}
 	}, [storeHydrated, documents, store.linkage, setStore, invalidateDocuments])
 
+	/*
+	 * Arah sebaliknya: judul dari server ditulis balik ke Y.Doc.
+	 *
+	 * Tanpa ini, mengganti nama dokumen dari Library atau pengelolaan proyek
+	 * hanya mengubah baris server; Riwayat di menu WritingHub dan judul di
+	 * TopBar membaca Y.Doc, jadi keduanya bertahan dengan nama lama - satu
+	 * dokumen tampak punya dua nama sendiri-sendiri.
+	 *
+	 * Pemenangnya ditentukan `resolveTitle` secara tiga arah, memakai
+	 * `lastDocTitle` sebagai leluhur bersama. Stempel waktu hanya dipakai saat
+	 * benar-benar bentrok - dan yang dibandingkan `titleUpdatedAt`, BUKAN
+	 * `updatedAt`: yang terakhir naik pada tiap ketukan, sehingga dokumen yang
+	 * sedang diketik akan selalu memenangkan judulnya dan rename dari Library
+	 * tidak pernah teradopsi.
+	 *
+	 * Berjalan setiap kali daftar dokumen server ditarik ulang - membuka
+	 * Library, kembali ke editor, selesai autosave - tanpa polling tersendiri.
+	 */
+	useEffect(() => {
+		if (!storeHydrated || !serverDocuments.data) return
+
+		const byServerId = new Map(serverDocuments.data.map((entry) => [entry.id, entry]))
+
+		for (const dok of documents) {
+			const linked = Object.entries(store.linkage).find(
+				([tabId, linkage]) => dok.tabOrder.includes(tabId) && linkage.documentId,
+			)
+			if (!linked) continue
+
+			const serverId = linked[1].documentId
+			if (!serverId) continue
+			const server = byServerId.get(serverId)
+			if (!server) continue
+
+			const verdict = resolveTitle(
+				{ title: dok.title, titleUpdatedAt: dok.titleUpdatedAt },
+				{ title: server.title, titleUpdatedAt: server.updatedAt },
+				linked[1].lastDocTitle,
+			)
+			// 'push-local' tidak dikerjakan di sini - efek lokal→server di atas yang
+			// menanganinya, lengkap dengan debounce-nya.
+			if (verdict !== 'adopt-server') continue
+
+			// Lewat aksi sesi, bukan langsung ke Y.Doc: aksi itu sekalian
+			// menyegarkan judul di TopBar, yang memegang salinannya sendiri dan
+			// biasanya hanya dibacakan ulang saat tab dimuat.
+			//
+			// Origin sinkronisasi supaya tulisannya tidak terbaca sebagai suntingan
+			// pengguna; kalau tidak, autosave langsung menembakkan PUT balik atas
+			// judul yang baru saja datang dari server.
+			renameDocument(dok.id, server.title, SYNC_ORIGIN)
+			// Judul server dicatat sebagai yang terakhir diketahui di SELURUH kaitan
+			// dokumen ini; tanpa itu efek lokal→server di atas melihat selisih dan
+			// langsung mengirimkannya balik ke server tanpa guna.
+			setStore((current) => {
+				const next = { ...current.linkage }
+				for (const [tabId, entry] of Object.entries(next)) {
+					if (entry.documentId === serverId) {
+						next[tabId] = { ...entry, lastDocTitle: server.title }
+					}
+				}
+				return { ...current, linkage: next }
+			})
+		}
+	}, [storeHydrated, serverDocuments.data, documents, store.linkage, renameDocument, setStore])
+
 	// Catatan kaitan tab yang sudah dihapus tidak perlu ikut dimuat selamanya.
 	// Versi lokalnya ikut dibersihkan (fire-and-forget): tab lokal tidak punya
 	// catatan linkage, jadi yang dibaca adalah tabId yang benar-benar tersimpan
@@ -563,10 +655,114 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 		[setStatus, setStore],
 	)
 
+	/**
+	 * Simpan seluruh dokumen lokal ke cloud sebagai SATU dokumen server: tab
+	 * pertama yang belum terhubung membuat induknya, sisanya menempel lewat
+	 * POST /documents/:id/tabs. Tab yang sudah terhubung cukup di-flush.
+	 */
+	const saveDocumentToCloud = useCallback(
+		async (docId: string): Promise<boolean> => {
+			const dok = readDocs(doc).find((entry) => entry.id === docId)
+			if (!dok) return false
+
+			// Induk server mungkin sudah ada bila salah satu tab pernah disimpan.
+			let parentId: string | null = null
+			for (const tabId of dok.tabOrder) {
+				const documentId = linkageRef.current[tabId]?.documentId
+				if (documentId) {
+					parentId = documentId
+					break
+				}
+			}
+
+			try {
+				for (const tabId of dok.tabOrder) {
+					const meta = readTabs(doc).find((tab) => tab.id === tabId)
+					if (!meta) continue
+
+					const existing = linkageRef.current[tabId]
+					if (existing) {
+						clearTimers(tabId)
+						await pushToServer(tabId, existing)
+						continue
+					}
+
+					setStatus(tabId, 'saving')
+					if (!parentId) {
+						const created = await createDocument({
+							title: dok.title,
+							content: serializeTab(tabId),
+							emoji: meta.emoji,
+							language: meta.language,
+						})
+						const serverTabId = created.tabs[0]?.id
+						if (!serverTabId) throw new Error('Respons dokumen tanpa tab')
+						parentId = created.id
+						setStore((current) => ({
+							...current,
+							linkage: {
+								...current.linkage,
+								[tabId]: {
+									serverId: serverTabId,
+									documentId: created.id,
+									lastSyncedAt: Date.now(),
+									lastDocTitle: dok.title,
+								},
+							},
+						}))
+					} else {
+						const tab = await createTabApi(parentId, {
+							title: meta.title,
+							content: serializeTab(tabId),
+							emoji: meta.emoji,
+							language: meta.language,
+						})
+						// parentId dijamin ada di cabang ini; narrowing let tidak
+						// bertahan di dalam callback setStore.
+						const serverDocId = parentId
+						setStore((current) => ({
+							...current,
+							linkage: {
+								...current.linkage,
+								[tabId]: {
+									serverId: tab.id,
+									documentId: serverDocId,
+									lastSyncedAt: Date.now(),
+								},
+							},
+						}))
+					}
+					setStatus(tabId, null)
+				}
+				void invalidateDocuments()
+				return true
+			} catch {
+				for (const tabId of dok.tabOrder) {
+					if (!linkageRef.current[tabId]) setStatus(tabId, 'error')
+				}
+				return false
+			}
+		},
+		[doc, clearTimers, pushToServer, serializeTab, setStatus, setStore, invalidateDocuments],
+	)
+
 	const syncStatus = useCallback(
 		(tabId: string): SyncStatus =>
 			transient[tabId] ?? (store.linkage[tabId] ? 'synced' : 'local'),
 		[transient, store.linkage],
+	)
+
+	const serverDocId = useCallback(
+		(docId: string): string | null => {
+			const dok = documents.find((entry) => entry.id === docId)
+			if (!dok) return null
+			for (const tabId of dok.tabOrder) {
+				const documentId = store.linkage[tabId]?.documentId
+				if (documentId) return documentId
+			}
+			return null
+		},
+		[documents, store.linkage],
 	)
 
 	const value = useMemo<SyncContextValue>(
@@ -576,8 +772,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 			saveToCloud,
 			openFromLibrary,
 			linkTab,
+			serverDocId,
+			saveDocumentToCloud,
 		}),
-		[store.linkage, syncStatus, saveToCloud, openFromLibrary, linkTab],
+		[store.linkage, syncStatus, saveToCloud, openFromLibrary, linkTab, serverDocId, saveDocumentToCloud],
 	)
 
 	return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>

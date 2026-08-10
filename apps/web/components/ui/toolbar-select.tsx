@@ -38,6 +38,8 @@ interface ToolbarSelectProps<T extends string | number> {
 	disabled?: boolean
 	/** Teks yang ditampilkan bila nilai sekarang tidak ada di daftar. */
 	fallbackLabel?: string
+	/** 'top' untuk pemilih yang duduk di footer/dekat dasar layar. */
+	side?: 'bottom' | 'top'
 }
 
 export function ToolbarSelect<T extends string | number>({
@@ -48,11 +50,13 @@ export function ToolbarSelect<T extends string | number>({
 	width = 120,
 	disabled,
 	fallbackLabel,
+	side = 'bottom',
 }: ToolbarSelectProps<T>) {
 	const selected = options.find((option) => option.value === value)
 
 	return (
 		<Dropdown
+			side={side}
 			trigger={({ open, toggle, id }) => (
 				<button
 					type="button"

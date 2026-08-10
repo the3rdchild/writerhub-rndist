@@ -19,6 +19,12 @@ export interface ProjectSummary {
 	id: string
 	name: string
 	color: string | null
+	/**
+	 * Jumlah dokumen di dalam proyek. Hanya terisi pada endpoint daftar; pada
+	 * respons create/update nilainya diturunkan dari operasi itu sendiri
+	 * (proyek baru = 0, ganti nama tidak mengubah isinya).
+	 */
+	documentCount: number
 	updatedAt: number
 	createdAt: number
 }

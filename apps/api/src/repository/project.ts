@@ -1,6 +1,6 @@
-import { and, desc, eq } from 'drizzle-orm'
+import { and, count, desc, eq } from 'drizzle-orm'
 import db from '@/db'
-import { projects } from '@/db/schemas'
+import { documents, projects } from '@/db/schemas'
 import type { NewProject } from '@/db/schemas'
 
 /**
@@ -8,12 +8,29 @@ import type { NewProject } from '@/db/schemas'
  * proyek user lain tidak pernah terlihat lewat fungsi-fungsi ini.
  */
 
-/** Daftar proyek milik user, yang terakhir diubah di atas. */
+/**
+ * Daftar proyek milik user beserta jumlah dokumen di dalamnya, yang terakhir
+ * diubah di atas.
+ *
+ * `LEFT JOIN` + `count(documents.id)`, bukan `count(*)`: proyek kosong harus
+ * tetap muncul dengan angka 0, dan `count(*)` akan menghitung baris hasil join
+ * yang tetap ada satu meski dokumennya nihil.
+ */
 export async function findProjectsByOwner(ownerId: string) {
 	return db
-		.select()
+		.select({
+			id: projects.id,
+			owner_id: projects.owner_id,
+			name: projects.name,
+			color: projects.color,
+			updated_at: projects.updated_at,
+			created_at: projects.created_at,
+			documentCount: count(documents.id),
+		})
 		.from(projects)
+		.leftJoin(documents, eq(documents.project_id, projects.id))
 		.where(eq(projects.owner_id, ownerId))
+		.groupBy(projects.id)
 		.orderBy(desc(projects.updated_at))
 }
 

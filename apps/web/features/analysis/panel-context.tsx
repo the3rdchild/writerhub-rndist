@@ -1,6 +1,6 @@
 'use client'
 
-import type { AnalysisFeature } from '@writer-hub/shared'
+import type { AnalysisFeature, RewriterTone } from '@writer-hub/shared'
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from 'react'
 
 /**
@@ -27,6 +27,8 @@ export interface AnalysisRun {
 	language: string
 	/** Tab cloud tempat job ini dijalankan, untuk Aktivitas AI. */
 	tabId?: string
+	/** Tone pilihan user untuk run ini (hanya ai_rewriter). */
+	tone?: RewriterTone
 }
 
 type LastRunMap = Partial<Record<AnalysisFeature, AnalysisRun>>

@@ -20,7 +20,7 @@ export default class ProjectsService extends BaseService {
 	async list(): Promise<Response> {
 		try {
 			const rows = await findProjectsByOwner(this.ownerId())
-			return this.success({ data: rows.map((row) => this.toSummary(row)) })
+			return this.success({ data: rows.map((row) => this.toSummary(row, row.documentCount)) })
 		} catch (error) {
 			return this.failFromError(error)
 		}
@@ -86,11 +86,12 @@ export default class ProjectsService extends BaseService {
 		return id
 	}
 
-	private toSummary(project: Project): ProjectSummary {
+	private toSummary(project: Project, documentCount = 0): ProjectSummary {
 		return {
 			id: project.id,
 			name: project.name,
 			color: project.color,
+			documentCount,
 			updatedAt: project.updated_at.getTime(),
 			createdAt: project.created_at.getTime(),
 		}

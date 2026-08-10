@@ -321,7 +321,7 @@ export function DocumentCard({
 	)
 }
 
-function CardNameInput({
+export function CardNameInput({
 	initialValue,
 	onCommit,
 	onCancel,

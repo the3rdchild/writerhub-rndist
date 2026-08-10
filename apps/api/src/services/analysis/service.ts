@@ -1,3 +1,4 @@
+import { REWRITE_TONES } from '@writer-hub/shared'
 import type { StyleMemory } from '@writer-hub/shared'
 import QueueClient from '@/lib/queue'
 import { findMemoryByOwner } from '@/repository/memory'
@@ -23,7 +24,14 @@ export default class AnalysisService extends JobSubmissionService {
 			// AI Memory dibaca di server dan ikut di PAYLOAD JOB (bukan di params
 			// pool_request - params untuk audit). Worker hanya memakainya di
 			// analyzer yang menulis ulang naskah (rewriter & humanizer).
+			// Tone pilihan user (panel AI Rewriter) meng-override tone memory
+			// untuk run ini - field memory lain (language/glossary/notes) tetap.
 			const styleMemory = await this.styleMemory()
+			const tone = body.tone ? REWRITE_TONES.find((item) => item.id === body.tone) : undefined
+			const effectiveMemory =
+				tone && body.feature === 'ai_rewriter'
+					? { ...styleMemory, tone: tone.instruction }
+					: styleMemory
 
 			const requestId = await this.createPoolRequest(
 				jobId,
@@ -40,7 +48,7 @@ export default class AnalysisService extends JobSubmissionService {
 				feature: body.feature,
 				text: body.text,
 				language: body.language ?? null,
-				style_memory: styleMemory,
+				style_memory: effectiveMemory,
 				...this.providerPayload(provider),
 			})
 

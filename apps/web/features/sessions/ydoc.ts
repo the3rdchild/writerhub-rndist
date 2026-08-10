@@ -56,7 +56,20 @@ export interface DocMeta {
 	title: string
 	/** Id tab milik dokumen ini, menurut urutan tampilnya. */
 	tabOrder: string[]
+	/**
+	 * Kapan dokumen ini terakhir DISUNTING - ikut naik tiap ketukan lewat
+	 * `touchTab`. Dipakai mengurutkan "dokumen terakhir", bukan untuk menilai
+	 * judul.
+	 */
 	updatedAt: number
+	/**
+	 * Kapan JUDULNYA terakhir diubah; 0 bila belum pernah diganti nama.
+	 *
+	 * Sengaja terpisah dari `updatedAt`: menilai judul dengan waktu sunting
+	 * membuat rename dari perangkat/halaman lain hampir selalu kalah, karena
+	 * mengetik satu huruf saja sudah menaikkan `updatedAt`.
+	 */
+	titleUpdatedAt: number
 }
 
 export function createTabId(): string {
@@ -172,6 +185,9 @@ function readDocMeta(meta: Y.Map<Y.Map<unknown>>, id: string): DocMeta {
 		title: (entry?.get('title') as string) ?? 'Untitled document',
 		tabOrder: tabOrder?.toArray() ?? [],
 		updatedAt: (entry?.get('updatedAt') as number) ?? 0,
+		// Dokumen dari sebelum field ini ada dianggap belum pernah diganti nama;
+		// judul server yang eksplisit karena itu berhak menang atasnya.
+		titleUpdatedAt: (entry?.get('titleUpdatedAt') as number) ?? 0,
 	}
 }
 
@@ -349,14 +365,26 @@ export function deleteDocument(doc: Y.Doc, id: string): void {
 	}, LOCAL_ORIGIN)
 }
 
-export function renameDocument(doc: Y.Doc, id: string, title: string): void {
+/**
+ * Ganti judul dokumen.
+ *
+ * `titleUpdatedAt` ikut dicatat supaya penyelarasan judul dengan server punya
+ * ukuran yang benar saat bentrok - `updatedAt` tidak bisa dipakai karena ia
+ * naik pada tiap ketukan, bukan hanya saat nama diubah.
+ *
+ * `origin` bisa diisi pemanggil yang menulis atas nama server (penyelarasan
+ * judul di sync-context): dengan origin sinkronisasi, tulisan ini tidak
+ * terbaca sebagai suntingan pengguna sehingga tidak memicu autosave balik.
+ */
+export function renameDocument(doc: Y.Doc, id: string, title: string, origin: unknown = LOCAL_ORIGIN): void {
 	const entry = docsRoot(doc).meta.get(id)
 	if (!entry) return
 
 	doc.transact(() => {
 		entry.set('title', title)
+		entry.set('titleUpdatedAt', Date.now())
 		entry.set('updatedAt', Date.now())
-	}, LOCAL_ORIGIN)
+	}, origin)
 }
 
 /** Pindahkan dokumen ke posisi dokumen lain; sisanya bergeser. */

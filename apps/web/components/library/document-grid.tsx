@@ -5,24 +5,30 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { deleteDocument } from '@/features/documents/api'
-import type { DocumentSummary } from '@/features/documents/types'
-import { useDocuments, useInvalidateDocuments } from '@/features/documents/use-documents'
+import { filterByProject, type MergedDocument } from '@/features/documents/merged'
+import { useInvalidateDocuments } from '@/features/documents/use-documents'
+import { useMergedDocuments } from '@/features/documents/use-merged-documents'
+import { useSessions } from '@/features/sessions/session-context'
 import { DocumentCard } from './document-card'
+import { LocalDocumentCard } from './local-document-card'
 
 /**
- * Daftar dokumen di cloud, sebagai kartu-kartu.
+ * Daftar dokumen, sebagai kartu-kartu.
  *
- * Halaman ini hanya menampilkan dokumen server; naskah yang masih lokal-saja
- * tidak muncul di sini - ia milik tab editor, dan penandanya sudah ada di
- * sidebar tab.
+ * Menampilkan dokumen server DAN dokumen yang baru ada di perangkat ini. Dulu
+ * halaman ini khusus cloud sementara Riwayat di menu khusus lokal, jadi dua
+ * daftar yang tampak setara sebenarnya berisi himpunan berbeda - dokumen yang
+ * belum disimpan hanya ada di satu tempat, dokumen lama yang sudah ditutup
+ * hanya ada di tempat lain. Aturan penggabungannya di `features/documents/merged.ts`.
  *
  * `projectFilter` dari query string: 'all' (semua), 'none' (belum berproyek),
  * atau ID proyek.
  */
 export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
-	const { data: documents, isPending, isError, error } = useDocuments()
+	const { documents, isPending, isError, error } = useMergedDocuments()
 	const invalidate = useInvalidateDocuments()
-	const [pendingDelete, setPendingDelete] = useState<DocumentSummary | null>(null)
+	const { deleteDocument: deleteLocalDocument } = useSessions()
+	const [pendingDelete, setPendingDelete] = useState<MergedDocument | null>(null)
 	const [deleteError, setDeleteError] = useState<string | null>(null)
 	const [deleting, setDeleting] = useState(false)
 
@@ -46,12 +52,7 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 		)
 	}
 
-	const visible =
-		projectFilter === 'all'
-			? documents
-			: projectFilter === 'none'
-				? documents.filter((document) => document.projectId === null)
-				: documents.filter((document) => document.projectId === projectFilter)
+	const visible = filterByProject(documents, projectFilter)
 
 	if (visible.length === 0) {
 		if (documents.length > 0) {
@@ -69,9 +70,10 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 		return (
 			<div className="flex h-64 flex-col items-center justify-center text-center">
 				<FileText className="h-12 w-12 text-faint" />
-				<h2 className="mt-4 text-lg font-medium text-foreground">Belum ada dokumen di cloud</h2>
+				<h2 className="mt-4 text-lg font-medium text-foreground">Belum ada dokumen</h2>
 				<p className="mt-1 max-w-md text-sm text-muted">
-					Buka tab dokumen di editor, lalu pilih &ldquo;Simpan ke cloud&rdquo; dari menunya.
+					Buat dokumen di editor - ia langsung muncul di sini, dan bisa disimpan ke cloud kapan
+					saja lewat tombol di kartunya.
 				</p>
 				<Link
 					href="/"
@@ -83,12 +85,22 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 		)
 	}
 
+	/**
+	 * Dokumen server dihapus lewat API; dokumen lokal-saja dihapus dari Y.Doc.
+	 * Dokumen yang sudah tersinkron dihapus di dua tempat - baris servernya dan
+	 * salinannya di perangkat ini - supaya tidak muncul lagi sebagai "lokal
+	 * saja" sesaat setelah dihapus.
+	 */
 	const confirmDelete = () => {
 		if (!pendingDelete) return
+		const { serverId, localId } = pendingDelete
 		setDeleting(true)
 		setDeleteError(null)
-		deleteDocument(pendingDelete.id)
+
+		const removeServer = serverId ? deleteDocument(serverId) : Promise.resolve()
+		removeServer
 			.then(() => {
+				if (localId) deleteLocalDocument(localId)
 				setPendingDelete(null)
 				void invalidate()
 			})
@@ -101,13 +113,28 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 	return (
 		<>
 			<div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-				{visible.map((document) => (
-					<DocumentCard
-						key={document.id}
-						document={document}
-						onDelete={() => setPendingDelete(document)}
-					/>
-				))}
+				{visible.map((document) =>
+					document.serverId ? (
+						<DocumentCard
+							key={document.key}
+							document={{
+								id: document.serverId,
+								title: document.title,
+								projectId: document.projectId,
+								tabCount: document.tabCount,
+								updatedAt: document.updatedAt,
+								createdAt: 0,
+							}}
+							onDelete={() => setPendingDelete(document)}
+						/>
+					) : (
+						<LocalDocumentCard
+							key={document.key}
+							document={document}
+							onDelete={() => setPendingDelete(document)}
+						/>
+					),
+				)}
 			</div>
 
 			<ConfirmDialog
@@ -116,9 +143,20 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 				title="Hapus dokumen ini?"
 				description={
 					<>
-						Dokumen <strong className="text-foreground">{pendingDelete?.title}</strong> beserta
-						seluruh {pendingDelete?.tabCount} tab-nya (termasuk riwayat versi dan link
-						berbagi di dalamnya) dihapus dari cloud. Tidak ada jalan kembali.
+						{pendingDelete?.serverId ? (
+							<>
+								Dokumen <strong className="text-foreground">{pendingDelete.title}</strong> beserta
+								seluruh {pendingDelete.tabCount} tab-nya (termasuk riwayat versi dan link
+								berbagi di dalamnya) dihapus dari cloud. Tidak ada jalan kembali.
+							</>
+						) : (
+							<>
+								Dokumen <strong className="text-foreground">{pendingDelete?.title}</strong> beserta
+								seluruh {pendingDelete?.tabCount} tab-nya dihapus dari perangkat ini. Dokumen ini{' '}
+								<strong className="text-foreground">belum pernah tersimpan di cloud</strong>, jadi
+								tidak ada salinan yang bisa dipulihkan.
+							</>
+						)}
 						{deleteError && <span className="mt-2 block text-red-500">{deleteError}</span>}
 					</>
 				}

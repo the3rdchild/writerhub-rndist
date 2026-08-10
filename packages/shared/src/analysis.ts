@@ -9,6 +9,24 @@ export type AnalysisFeature = (typeof ANALYSIS_FEATURES)[number]
  * AI Chat serta payload job AI Rewriter/Humanizer (`style_memory`).
  * Klien tidak pernah mengirimnya per request.
  */
+/**
+ * Pilihan tone untuk AI Rewriter - dipilih user per run di panel.
+ * `instruction` ditempel ke prompt sebagai pengganti field `tone` AI Memory
+ * (keputusan: tone pilihan panel menang atas tone memory untuk run itu).
+ */
+export const REWRITE_TONES = [
+	{ id: 'academic', label: 'Akademik', instruction: 'academic and scholarly' },
+	{ id: 'formal', label: 'Formal', instruction: 'formal and professional' },
+	{ id: 'casual', label: 'Santai', instruction: 'casual and conversational' },
+	{
+		id: 'natural',
+		label: 'Lebih natural',
+		instruction: 'natural and human-like, as if written by a person rather than an AI',
+	},
+] as const
+export type RewriterTone = (typeof REWRITE_TONES)[number]['id']
+export const REWRITE_TONE_IDS = REWRITE_TONES.map((tone) => tone.id) as [RewriterTone, ...RewriterTone[]]
+
 export interface StyleMemory {
 	/** Nada tulisan, teks bebas (mis. "formal", "santai"). */
 	tone?: string
@@ -33,6 +51,13 @@ export interface TextRange {
 export interface TextChange extends TextRange {
 	original: string
 	replacement: string
+	/**
+	 * Alternatif pengganti (AI Rewriter: 2 varian per segmen; pengguna memilih
+	 * salah satu sebelum apply). Opsional - fitur tanpa kandidat (Humanizer)
+	 * memakai `replacement` saja. Bila ada, `candidates[0]` selalu sama dengan
+	 * `replacement`, jadi pembaca lama tetap mendapat perilaku yang sama.
+	 */
+	candidates?: string[]
 }
 
 export interface AiDetectorResult {

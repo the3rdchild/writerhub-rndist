@@ -5,6 +5,8 @@ export interface ProjectSummary {
 	id: string
 	name: string
 	color: string | null
+	/** Jumlah dokumen di dalamnya; terisi pada endpoint daftar. */
+	documentCount: number
 	/** Epoch milidetik (server mengirim `Date.getTime()`). */
 	updatedAt: number
 	createdAt: number

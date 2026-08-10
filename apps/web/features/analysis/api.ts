@@ -17,11 +17,13 @@ export async function runAnalysis<F extends AnalysisFeature>(
 	signal?: AbortSignal,
 	/** Tautan tab cloud untuk Aktivitas AI; tab lokal mengirim undefined. */
 	tabId?: string,
+	/** Tone pilihan user (hanya ai_rewriter); meng-override tone AI Memory. */
+	tone?: string,
 ): Promise<AnalysisResultFor<F>> {
 	const { jobId } = await apiFetch<JobSubmission>('/analyze', {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({ feature, text, language, tabId }),
+		body: JSON.stringify({ feature, text, language, tabId, tone }),
 		signal,
 	})
 
