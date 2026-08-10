@@ -551,6 +551,16 @@ a {
   background: color-mix(in srgb, #f59e0b 34%, transparent);
 }
 
+/*
+ * Utas yang sedang dibuka di gutter. Kelasnya dipasang dari JavaScript, bukan
+ * lewat selektor: yang membedakan satu mark dari yang lain adalah nilai
+ * `data-comment-id`-nya, dan nilai itu baru diketahui saat kartunya diklik.
+ */
+.document-body .comment-mark--active {
+  background: color-mix(in srgb, #f59e0b 45%, transparent);
+  border-bottom-color: #f59e0b;
+}
+
 html.dark .document-body .comment-mark {
   background: color-mix(in srgb, #fbbf24 18%, transparent);
 }

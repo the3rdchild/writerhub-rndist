@@ -162,6 +162,7 @@ interface SessionContextValue {
 	addComment: (thread: CommentThread) => void
 	replyToComment: (id: string, reply: CommentReply) => void
 	setCommentResolved: (id: string, resolved: boolean) => void
+	updateComment: (id: string, patch: Partial<Omit<CommentThread, 'id'>>) => void
 	removeComment: (id: string) => void
 }
 
@@ -595,6 +596,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		[updateComments],
 	)
 
+	/**
+	 * Ubah beberapa field utas sekaligus.
+	 *
+	 * Ada langkah yang memang satu kejadian, bukan dua: menerima usulan mengubah
+	 * status usulannya DAN menutup utasnya. Dua tulisan terpisah berarti ada
+	 * jeda di mana utas sudah tertutup padahal usulannya masih tampak menunggu
+	 * jawaban - dan pada dokumen berbagi, jeda itu terlihat orang lain.
+	 */
+	const updateComment = useCallback(
+		(id: string, patch: Partial<Omit<CommentThread, 'id'>>) =>
+			updateComments((threads) =>
+				threads.map((thread) => (thread.id === id ? { ...thread, ...patch } : thread)),
+			),
+		[updateComments],
+	)
+
 	const removeComment = useCallback(
 		(id: string) => updateComments((threads) => threads.filter((thread) => thread.id !== id)),
 		[updateComments],
@@ -631,6 +648,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			addComment,
 			replyToComment,
 			setCommentResolved,
+			updateComment,
 			removeComment,
 		}),
 		[
@@ -660,6 +678,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			addComment,
 			replyToComment,
 			setCommentResolved,
+			updateComment,
 			removeComment,
 		],
 	)

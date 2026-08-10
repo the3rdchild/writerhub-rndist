@@ -19,8 +19,8 @@ import { createPortal } from 'react-dom'
 import { type PanelId, usePanels } from '@/features/analysis/panel-context'
 import { useChat } from '@/features/chat/chat-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
-import { useSessions } from '@/features/sessions/session-context'
 import { COMMENT_MARK } from '@/features/comments/comment-mark'
+import { useComments } from '@/features/comments/comments-context'
 import {
 	type EditorSelection,
 	selectionTextRange,
@@ -125,7 +125,7 @@ function MenuBody({
 }) {
 	const { setActivePanel, markRun } = usePanels()
 	const { attach } = useChat()
-	const { addComment } = useSessions()
+	const { startPending } = useComments()
 	const language = useDocumentLanguage()
 
 	const sendToChat = () => {
@@ -154,15 +154,19 @@ function MenuBody({
 		setActivePanel(id)
 	}
 
+	/*
+	 * Yang dibuat di sini hanya rentangnya, bukan utasnya.
+	 *
+	 * Mark dan utas menyusul saat kalimat pertama dikirim (lihat
+	 * `comments-context`): menandai naskah lebih dulu berarti naskah bisa
+	 * berakhir dengan sorotan yang tidak pernah berisi komentar apa pun, hanya
+	 * karena penggunanya berubah pikiran.
+	 */
 	const comment = () => {
-		const id = `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
-		editor.chain().focus().setComment(id).run()
-		addComment({
-			id,
+		startPending({
+			from: selection.from,
+			to: selection.to,
 			quote: selection.text.slice(0, 300),
-			replies: [],
-			resolved: false,
-			createdAt: Date.now(),
 		})
 		setActivePanel('comments')
 	}

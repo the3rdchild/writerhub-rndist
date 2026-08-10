@@ -8,6 +8,7 @@ import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offset
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { toEditorContent } from '@/features/editor/markdown'
 import { stripDelimiters } from '@/features/editor/math'
+import type { CommentThread } from '@/features/sessions/types'
 
 /**
  * Menjalankan alat yang diminta AI, di browser - karena editornya ada di sini.
@@ -111,13 +112,10 @@ export function runReadTool(editor: Editor, call: ToolCall): string {
 
 export interface WriteToolContext {
 	editor: Editor
-	addComment: (thread: {
-		id: string
-		quote: string
-		replies: []
-		resolved: boolean
-		createdAt: number
-	}) => void
+	// Bentuk utasnya diambil dari sumbernya, bukan disalin ulang di sini: salinan
+	// lama mematok `replies: []`, dan itulah yang membuat isi komentar buatan AI
+	// hilang tanpa satu pun keluhan dari pemeriksa tipe.
+	addComment: (thread: CommentThread) => void
 	openPanel: (panel: PanelId) => void
 	runModule: (feature: AnalysisFeature) => void
 }
@@ -215,12 +213,18 @@ export function applyWriteTool(context: WriteToolContext, call: ToolCall): ToolO
 				.setMark(COMMENT_MARK, { commentId: id })
 				.run()
 
+			// `body` adalah isi komentarnya - ia masuk sebagai kalimat pertama utas,
+			// bukan dibuang setelah divalidasi. Penulisnya ditulis apa adanya:
+			// pembaca berhak tahu catatan ini datang dari asisten, bukan dari rekan.
+			const at_ = Date.now()
 			context.addComment({
 				id,
 				quote: quote.slice(0, 300),
-				replies: [],
+				author: 'AI Assistant',
+				authorId: 'ai-assistant',
+				replies: [{ author: 'AI Assistant', authorId: 'ai-assistant', text: body, at: at_ }],
 				resolved: false,
-				createdAt: Date.now(),
+				createdAt: at_,
 			})
 			context.openPanel('comments')
 			return { ok: true, message: 'Comment added.' }

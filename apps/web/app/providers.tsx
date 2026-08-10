@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { type ReactNode, useState } from 'react'
 import { PanelProvider } from '@/features/analysis/panel-context'
 import { ChatProvider } from '@/features/chat/chat-context'
+import { CommentsProvider } from '@/features/comments/comments-context'
 import { DocumentImportProvider } from '@/features/document/import-context'
 import { DocumentProvider } from '@/features/document/document-context'
 import { EditorInstanceProvider } from '@/features/editor/editor-context'
@@ -49,11 +50,17 @@ export function Providers({ children }: { children: ReactNode }) {
 								    saveToCloud untuk flush sebelum restore. */}
 								<VersionProvider>
 									<PanelProvider>
-										<ChatProvider>
-											<DocumentImportProvider>
-												<ShareProvider>{children}</ShareProvider>
-											</DocumentImportProvider>
-										</ChatProvider>
+										{/* Komentar yang belum terkirim hidup di atas panel dan
+										    gutter sekaligus - keduanya menampilkan kartu yang
+										    sama, dan menutup salah satunya tidak boleh
+										    membuang ketikan yang belum selesai. */}
+										<CommentsProvider>
+											<ChatProvider>
+												<DocumentImportProvider>
+													<ShareProvider>{children}</ShareProvider>
+												</DocumentImportProvider>
+											</ChatProvider>
+										</CommentsProvider>
 									</PanelProvider>
 								</VersionProvider>
 							</SyncProvider>

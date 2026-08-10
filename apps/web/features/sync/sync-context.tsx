@@ -19,6 +19,7 @@ import {
 	updateDocument,
 	updateTab as updateTabApi,
 } from '@/features/documents/api'
+import { backupComments, restoreComments } from '@/features/comments/comment-backup'
 import type { DocumentDetail } from '@/features/documents/types'
 import { DOCUMENTS_QUERY_KEY, useDocuments } from '@/features/documents/use-documents'
 import { useEditorInstance } from '@/features/editor/editor-context'
@@ -259,6 +260,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 					emoji: meta.emoji,
 					language: meta.language,
 				})
+				// Komentar belum punya tempat di server; salinannya dititipkan di
+				// peramban ini supaya membuka dokumen yang sama lewat Library tidak
+				// kembali dengan sorotan yang utasnya sudah tidak ada. Lihat
+				// `comment-backup` untuk batas jujurnya.
+				backupComments(linkage.serverId, meta.comments)
 				// `lastDocTitle` kosong = kaitan hasil migrasi; judulnya sudah sama
 				// di kedua sisi, jadi cukup dicatat tanpa mengirim apa pun.
 				if (
@@ -609,6 +615,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 						title: serverTab.title,
 						emoji: serverTab.emoji,
 						language: serverTab.language,
+						// Mark komentar ikut di dalam naskah, jadi utasnya cukup
+						// dipulangkan dengan id yang sama untuk tersambung kembali.
+						comments: restoreComments(serverTab.id),
 						updatedAt: Date.now(),
 					})
 				}
