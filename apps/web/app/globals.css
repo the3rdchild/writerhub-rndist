@@ -429,16 +429,35 @@ a {
   display: none !important;
 }
 
+/*
+ * Kotak handle sengaja tidak menangkap tetikus - hanya tombol di dalamnya yang
+ * menangkap. Kotaknya menggantung di luar tabel (kiri untuk baris, atas untuk
+ * kolom), dan kalau ia ikut menangkap, teks di sekitar tabel jadi tak bisa
+ * diklik selama tabelnya di-hover. Yang menjaga handle tetap muncul saat
+ * tetikus menuju ke sana adalah pita KEEP_ZONE di table-handles.ts.
+ */
 .table-handle {
   display: flex;
   align-items: center;
   gap: 2px;
-  pointer-events: auto;
+  pointer-events: none;
   user-select: none;
+}
+
+/* Padding di sisi yang menghadap tabel: jarak yang terlihat antara handle dan
+   tepi tabel. */
+.table-handle--row {
+  justify-content: flex-start;
+  padding-right: 6px;
+}
+.table-handle--col {
+  justify-content: center;
+  padding-bottom: 6px;
 }
 
 .table-handle-btn {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: center;
   width: 20px;

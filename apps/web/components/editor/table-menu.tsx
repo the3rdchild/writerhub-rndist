@@ -32,7 +32,7 @@ import {
 	insertRowBefore,
 	moveColumn,
 	moveRow,
-	withCellSelection,
+	withCellTarget,
 } from '@/features/editor/table-ops'
 import { type MenuOrigin } from '@/features/editor/table-handles'
 import { cn } from '@/lib/utils'
@@ -210,7 +210,7 @@ function buildItems(editor: Editor, menu: TableMenuState, onClose: () => void): 
 		onClose()
 	}
 	/** Perintah TableKit yang bekerja atas seleksi sel. */
-	const onCell = (run: (e: Editor) => void) => wrap(() => withCellSelection(editor, target, run))
+	const onCell = (run: (e: Editor) => void) => wrap(() => withCellTarget(editor, target, run))
 
 	return [
 		{

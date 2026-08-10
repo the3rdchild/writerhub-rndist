@@ -53,11 +53,23 @@ const ICON_PLUS = `${SVG}<path d="M5 12h14"/><path d="M12 5v14"/></svg>`
 const ICON_GRIP = `${SVG}<circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>`
 const ICON_DOTS = `${SVG}<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>`
 
-/** Jarak handle dari tepi tabel, dan jarak ••• dari sudut sel. */
-const OUTSET = 6
+/** Jarak ••• dari sudut sel. */
 const INSET = 5
+/** Pita di sekitar tabel yang masih dianggap "menuju handle" - cukup lebar
+ *  untuk memuat handle di tepi kiri dan atas beserta jaraknya. */
+const KEEP_ZONE = { left: 64, top: 48, edge: 12 }
 /** Geser sejauh ini baru dianggap seret, bukan klik. */
 const DRAG_THRESHOLD = 3
+/** Lebar minimum daerah tangkap handle kolom, untuk kolom yang sangat sempit. */
+const MIN_HANDLE_SPAN = 44
+/**
+ * Tenggang sebelum handle disembunyikan setelah tetikus meninggalkan tabel.
+ *
+ * Handle berdiri DI LUAR tabel, jadi perjalanan tetikus dari sel menuju handle
+ * selalu melewati daerah yang bukan sel. Tanpa tenggang ini handle-nya keburu
+ * hilang tepat sebelum sempat diklik.
+ */
+const HIDE_DELAY = 400
 
 type HoverState = TableLocation & { cell: HTMLElement }
 
@@ -92,6 +104,7 @@ class HandleLayer {
 	private hover: HoverState | null = null
 	private drag: DragSession | null = null
 	private frame = 0
+	private hideTimer = 0
 
 	constructor(
 		private readonly view: EditorView,
@@ -168,22 +181,67 @@ class HandleLayer {
 		const target = e.target as HTMLElement | null
 		if (!target?.closest) return
 		// Tetikus berada di atas handle itu sendiri - pertahankan sel sekarang.
-		if (this.root.contains(target)) return
+		if (this.root.contains(target)) {
+			this.cancelHide()
+			return
+		}
 
 		const cell = target.closest('td, th')
 		if (!cell || !this.view.dom.contains(cell) || isPaginationRow(cell)) {
-			this.clear()
+			// Di luar sel tapi masih di sekitar tabel - tetikus sedang dalam
+			// perjalanan menuju handle di tepi kiri/atas.
+			if (this.withinKeepZone(e)) this.cancelHide()
+			else this.scheduleHide()
 			return
 		}
+		this.cancelHide()
 		if (this.hover?.cell === cell) return
 
 		const loc = this.locate(cell)
 		if (!loc) {
-			this.clear()
+			this.scheduleHide()
 			return
 		}
 		this.hover = { ...loc, cell: cell as HTMLElement }
 		this.render()
+	}
+
+	/**
+	 * Apakah tetikus masih berada di pita sekitar tabel yang di-hover?
+	 *
+	 * Diperiksa lewat koordinat, bukan lewat `pointer-events` pada kotak
+	 * handle-nya: kotak itu menggantung di luar tabel, dan kalau ia yang
+	 * menangkap tetikus, teks di atas tabel jadi tak bisa diklik selama tabelnya
+	 * di-hover.
+	 */
+	private withinKeepZone(e: MouseEvent): boolean {
+		const table = this.hover?.cell.closest('table')
+		if (!table) return false
+		const r = table.getBoundingClientRect()
+		return (
+			e.clientX >= r.left - KEEP_ZONE.left &&
+			e.clientX <= r.right + KEEP_ZONE.edge &&
+			e.clientY >= r.top - KEEP_ZONE.top &&
+			e.clientY <= r.bottom + KEEP_ZONE.edge
+		)
+	}
+
+	/** Beri tenggang sebelum menyembunyikan - lihat {@link HIDE_DELAY}. */
+	private scheduleHide(): void {
+		if (!this.hover || this.hideTimer) return
+		this.hideTimer = window.setTimeout(() => {
+			this.hideTimer = 0
+			// Menu sudah telanjur terbuka dari handle ini, atau seret dimulai:
+			// handle-nya justru harus tetap ada.
+			if (this.drag || this.opts.isFrozen?.()) return
+			this.clear()
+		}, HIDE_DELAY)
+	}
+
+	private cancelHide(): void {
+		if (!this.hideTimer) return
+		clearTimeout(this.hideTimer)
+		this.hideTimer = 0
 	}
 
 	private onReflow = () => {
@@ -202,6 +260,7 @@ class HandleLayer {
 	}
 
 	private clear(): void {
+		this.cancelHide()
 		if (!this.hover) return
 		this.hover = null
 		this.hideAll()
@@ -242,18 +301,21 @@ class HandleLayer {
 		const rowRect = row.getBoundingClientRect()
 		const tableRect = table.getBoundingClientRect()
 
+		// Kotak handle menempel rapat ke tepi tabel; jarak yang terlihat datang
+		// dari padding-nya, yang sekaligus jadi jembatan hover ke tabel. Kotaknya
+		// juga dibuat setinggi baris / selebar kolom: tombolnya kecil, tapi
+		// daerah tangkapnya sebesar baris/kolom yang diwakilinya, jadi tetikus
+		// yang bergerak lurus keluar dari sel selalu mendarat di handle.
 		this.rowHandle.hidden = false
-		place(
-			this.rowHandle,
-			tableRect.left - OUTSET - this.rowHandle.offsetWidth,
-			rowRect.top + rowRect.height / 2 - this.rowHandle.offsetHeight / 2,
-		)
+		place(this.rowHandle, tableRect.left - this.rowHandle.offsetWidth, rowRect.top, undefined, rowRect.height)
 
 		this.colHandle.hidden = false
+		const colWidth = Math.max(cellRect.width, MIN_HANDLE_SPAN)
 		place(
 			this.colHandle,
-			cellRect.left + cellRect.width / 2 - this.colHandle.offsetWidth / 2,
-			tableRect.top - OUTSET - this.colHandle.offsetHeight,
+			cellRect.left + cellRect.width / 2 - colWidth / 2,
+			tableRect.top - this.colHandle.offsetHeight,
+			colWidth,
 		)
 
 		this.cellButton.hidden = false
@@ -409,6 +471,7 @@ class HandleLayer {
 	}
 
 	destroy(): void {
+		this.cancelHide()
 		cancelAnimationFrame(this.frame)
 		document.removeEventListener('mousemove', this.onMouseMove)
 		window.removeEventListener('scroll', this.onReflow, true)

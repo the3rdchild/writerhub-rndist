@@ -8,9 +8,9 @@ import {
 	locateTable,
 	moveColumn,
 	moveRow,
-	selectCell,
 	selectColumn,
 	selectRow,
+	targetCell,
 } from '@/features/editor/table-ops'
 import {
 	type HandleAxis,
@@ -52,7 +52,7 @@ export function TableControls({ editor }: { editor: Editor | null }) {
 		// bekerja atas seleksi (gabung sel, kepala, perataan) langsung bermakna.
 		if (open.origin === 'row') selectRow(editor, open.tablePos, open.rowIndex)
 		else if (open.origin === 'col') selectColumn(editor, open.tablePos, open.colIndex)
-		else selectCell(editor, open)
+		else targetCell(editor, open)
 		setMenu(open)
 	}
 
@@ -109,7 +109,9 @@ export function TableControls({ editor }: { editor: Editor | null }) {
 			if (!loc) return
 			e.preventDefault()
 			frozenRef.current = true
-			selectCell(editor, loc)
+			// Kursor pindah ke titik yang diklik - sekadar menunjuk sel sasaran,
+			// tanpa menyorot seluruh isinya.
+			targetCell(editor, loc, editor.view.posAtCoords({ left: e.clientX, top: e.clientY })?.pos)
 			const rect = cell.getBoundingClientRect()
 			setMenu({
 				origin: 'cell',

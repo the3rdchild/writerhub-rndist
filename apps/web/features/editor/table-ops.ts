@@ -96,12 +96,23 @@ function cellPosAt(editor: Editor, tablePos: number, rowIndex: number, colIndex:
 	return tablePos + 1 + map.map[rowIndex * map.width + colIndex]
 }
 
-/** Pilih satu sel supaya perintah TableKit yang bekerja atas seleksi kursor
- *  berlaku pada baris/kolom yang dimaksud. */
-export function selectCell(editor: Editor, target: CellTarget): boolean {
-	const anchorCell = cellPosAt(editor, target.tablePos, target.rowIndex, target.colIndex)
-	if (anchorCell === null) return false
-	return editor.chain().focus().setCellSelection({ anchorCell }).run()
+/**
+ * Taruh kursor di dalam sel sasaran.
+ *
+ * Sengaja BUKAN `setCellSelection`: seleksi sel menyorot seluruh isi selnya,
+ * dan itu terbaca seperti "semua teks ini terpilih" padahal maksudnya cuma
+ * menunjuk sel mana yang jadi sasaran menu. Perintah tabel TableKit sendiri
+ * bekerja dari sel tempat kursor berada, jadi kursor saja sudah cukup.
+ *
+ * `at` boleh diisi posisi persis yang diklik supaya kursor mendarat di sana.
+ */
+export function focusCell(editor: Editor, target: CellTarget, at?: number): boolean {
+	const cellStart = cellPosAt(editor, target.tablePos, target.rowIndex, target.colIndex)
+	if (cellStart === null) return false
+	const cell = editor.state.doc.nodeAt(cellStart)
+	if (!cell) return false
+	const inside = at !== undefined && at > cellStart && at < cellStart + cell.nodeSize ? at : cellStart + 1
+	return editor.chain().focus().setTextSelection(inside).run()
 }
 
 /** Pilih seluruh baris (dipakai saat menu dibuka dari handle baris). */
@@ -141,31 +152,37 @@ function selectionCoversCell(editor: Editor, target: CellTarget): boolean {
 }
 
 /**
- * Jalankan perintah yang bekerja atas seleksi (gabung sel, kepala, perataan).
+ * Arahkan seleksi ke sel sasaran sebelum sebuah perintah dijalankan.
  *
  * Seleksi multi-sel yang sudah memuat sel sasaran dipertahankan - kalau tidak,
- * "gabungkan sel" tak akan pernah bisa dipakai, karena memilih ulang satu sel
- * membubarkan seleksinya. Di luar itu, sel sasaran dipilih lebih dulu.
+ * "gabungkan sel" tak akan pernah bisa dipakai, karena menunjuk ulang satu sel
+ * membubarkan seleksinya. Di luar itu cukup kursor yang dipindahkan.
  */
-export function withCellSelection(editor: Editor, target: CellTarget, run: (editor: Editor) => void): void {
-	if (!selectionCoversCell(editor, target)) selectCell(editor, target)
+export function targetCell(editor: Editor, target: CellTarget, at?: number): void {
+	if (selectionCoversCell(editor, target)) return
+	focusCell(editor, target, at)
+}
+
+/** Jalankan perintah yang bekerja atas seleksi (gabung sel, kepala, perataan). */
+export function withCellTarget(editor: Editor, target: CellTarget, run: (editor: Editor) => void): void {
+	targetCell(editor, target)
 	run(editor)
 }
 
 // ── operasi baris ────────────────────────────────────────────────────────
 
 export function insertRowBefore(editor: Editor, target: CellTarget): void {
-	if (!selectCell(editor, { ...target, colIndex: 0 })) return
+	if (!focusCell(editor, target)) return
 	editor.chain().focus().addRowBefore().run()
 }
 
 export function insertRowAfter(editor: Editor, target: CellTarget): void {
-	if (!selectCell(editor, { ...target, colIndex: 0 })) return
+	if (!focusCell(editor, target)) return
 	editor.chain().focus().addRowAfter().run()
 }
 
 export function deleteRowAt(editor: Editor, target: CellTarget): void {
-	if (!selectCell(editor, { ...target, colIndex: 0 })) return
+	if (!focusCell(editor, target)) return
 	editor.chain().focus().deleteRow().run()
 }
 
@@ -185,24 +202,24 @@ export function moveRow(editor: Editor, target: CellTarget, to: number): void {
 	const size = tableSize(editor, target.tablePos)
 	if (!size || to < 0 || to >= size.rowCount || to === target.rowIndex) return
 	// Perintahnya bekerja atas tabel yang memuat seleksi - arahkan dulu ke sana.
-	if (!selectCell(editor, { ...target, colIndex: 0 })) return
+	if (!focusCell(editor, target)) return
 	moveTableRow({ from: target.rowIndex, to })(editor.state, (tr) => editor.view.dispatch(tr))
 }
 
 // ── operasi kolom ────────────────────────────────────────────────────────
 
 export function insertColBefore(editor: Editor, target: CellTarget): void {
-	if (!selectCell(editor, { ...target, rowIndex: 0 })) return
+	if (!focusCell(editor, target)) return
 	editor.chain().focus().addColumnBefore().run()
 }
 
 export function insertColAfter(editor: Editor, target: CellTarget): void {
-	if (!selectCell(editor, { ...target, rowIndex: 0 })) return
+	if (!focusCell(editor, target)) return
 	editor.chain().focus().addColumnAfter().run()
 }
 
 export function deleteColAt(editor: Editor, target: CellTarget): void {
-	if (!selectCell(editor, { ...target, rowIndex: 0 })) return
+	if (!focusCell(editor, target)) return
 	editor.chain().focus().deleteColumn().run()
 }
 
@@ -210,6 +227,6 @@ export function deleteColAt(editor: Editor, target: CellTarget): void {
 export function moveColumn(editor: Editor, target: CellTarget, to: number): void {
 	const size = tableSize(editor, target.tablePos)
 	if (!size || to < 0 || to >= size.colCount || to === target.colIndex) return
-	if (!selectCell(editor, { ...target, rowIndex: 0 })) return
+	if (!focusCell(editor, target)) return
 	moveTableColumn({ from: target.colIndex, to })(editor.state, (tr) => editor.view.dispatch(tr))
 }
