@@ -10,6 +10,9 @@ import {
 	Baseline,
 	Bold,
 	CheckSquare,
+	Code2,
+	Columns2,
+	Footprints,
 	Highlighter,
 	Image as ImageIcon,
 	Indent,
@@ -18,12 +21,14 @@ import {
 	List,
 	ListOrdered,
 	type LucideIcon,
+	MessageSquareText,
 	Minus,
 	Outdent,
 	Plus,
 	Quote,
 	Redo2,
 	RemoveFormatting,
+	Search,
 	Strikethrough,
 	Table as TableIcon,
 	TextQuote,
@@ -98,7 +103,19 @@ interface ToolbarState {
 	canRedo: boolean
 }
 
-export function EditorToolbar({ editor, disabled }: { editor: Editor | null; disabled?: boolean }) {
+export function EditorToolbar({
+	editor,
+	disabled,
+	onOpenSearch,
+	onOpenToc,
+}: {
+	editor: Editor | null
+	disabled?: boolean
+	/** Membuka bilah cari & ganti. */
+	onOpenSearch?: () => void
+	/** Membuka panel daftar isi. */
+	onOpenToc?: () => void
+}) {
 	const { settings, update } = useSettings()
 
 	// useEditorState hanya me-render ulang saat nilai terpilih berubah - tanpa ini
@@ -238,6 +255,38 @@ export function EditorToolbar({ editor, disabled }: { editor: Editor | null; dis
 				disabled={isOff}
 				onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
 			/>
+			<IconButton
+				icon={Code2}
+				label="Blok kode"
+				active={editor?.isActive('codeBlock')}
+				disabled={isOff}
+				onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
+			/>
+			<IconButton
+				icon={MessageSquareText}
+				label="Callout"
+				active={editor?.isActive('callout')}
+				disabled={isOff}
+				onClick={() => editor?.chain().focus().toggleCallout('info').run()}
+			/>
+			<IconButton
+				icon={Columns2}
+				label="Dua kolom"
+				active={editor?.isActive('columns')}
+				disabled={isOff}
+				onClick={() => editor?.chain().focus().setColumns(2).run()}
+			/>
+			<IconButton
+				icon={Footprints}
+				label="Catatan kaki"
+				disabled={isOff}
+				onClick={() => editor?.chain().focus().insertFootnote(`fn-${Date.now()}`).run()}
+			/>
+
+			<Divider />
+
+			<IconButton icon={Search} label="Cari & ganti" disabled={isOff} onClick={() => onOpenSearch?.()} />
+			<IconButton icon={List} label="Daftar isi" disabled={isOff} onClick={() => onOpenToc?.()} />
 
 			<Divider />
 

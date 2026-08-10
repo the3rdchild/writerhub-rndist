@@ -16,7 +16,11 @@ import { CommentMark } from '@/features/comments/comment-mark'
 import { CandidatePreviewHighlight } from '@/features/analysis/candidate-preview'
 import { SuggestionHighlight } from '@/features/document/suggestion-highlight'
 import { BlockSpacing } from '@/features/editor/block-spacing'
-import { ImageWithMarkdown, TrailingParagraph } from '@/features/editor/editor-polish'
+import { Callout } from '@/features/editor/callout'
+import { CodeBlock } from '@/features/editor/code-block'
+import { ColumnExtension } from '@/features/editor/columns'
+import { TrailingParagraph } from '@/features/editor/editor-polish'
+import { Footnote, FootnoteRef } from '@/features/editor/footnote'
 import { BlockIndentExtension } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
 import { MathBlock, MathInline } from '@/features/editor/math'
@@ -24,8 +28,13 @@ import { PageBreak } from '@/features/editor/page-break'
 import { type PageGeometry, pageGeometry } from '@/features/editor/page-geometry'
 import { Pagination } from '@/features/editor/pagination'
 import { PasteMarkdown } from '@/features/editor/paste-markdown'
+import { type ResizableImageOptions, ResizableImage } from '@/features/editor/resizable-image'
+import { SearchAndReplace } from '@/features/editor/search-replace'
 import { SelectionHighlight } from '@/features/editor/selection-highlight'
+import type { SlashCommandOptions, SlashCommandState } from '@/features/editor/slash-command'
+import { SlashCommand } from '@/features/editor/slash-command'
 import { TableHeaderRepeat } from '@/features/editor/table-header-repeat'
+import { TableOfContentsConfigured } from '@/features/editor/table-of-contents'
 import { TextWeight } from '@/features/editor/text-weight'
 import { shortcutKeys } from '@/features/shortcuts/registry'
 
@@ -41,6 +50,7 @@ export function buildEditorExtensions({
 	geometry = pageGeometry(),
 	onPageCountChange,
 	collaboration,
+	slashCommand,
 }: {
 	geometry?: PageGeometry
 	onPageCountChange?: (pageCount: number) => void
@@ -49,12 +59,19 @@ export function buildEditorExtensions({
 	 * sementara yang hanya perlu skemanya.
 	 */
 	collaboration?: { document: Y.Doc; field: string } | null
+	/**
+	 * Menu slash ("/"). Hanya diberikan editor sungguhan - editor sementara
+	 * (migrasi naskah) tidak membutuhkan UI interaktif.
+	 */
+	slashCommand?: Pick<SlashCommandOptions, 'onOpen' | 'onUpdate' | 'onClose'>
 } = {}): Extensions {
 	return [
 		// Riwayat undo bawaan dimatikan saat naskah dipegang Yjs: keduanya
 		// mencatat pembatalan sendiri-sendiri, dan dua pencatat pada satu naskah
 		// membuat Ctrl+Z memutar balik perubahan yang bukan milik penekannya.
-		StarterKit.configure({ link: false, undoRedo: collaboration ? false : undefined }),
+		// codeBlock bawaan dimatikan: digantikan CodeBlock dengan lowlight
+		// (pewarnaan sintaks) di bawah.
+		StarterKit.configure({ link: false, codeBlock: false, undoRedo: collaboration ? false : undefined }),
 		// Ctrl+K memakai alur yang sama persis dengan tombol tautan di toolbar.
 		Link.extend({
 			addKeyboardShortcuts() {
@@ -76,7 +93,19 @@ export function buildEditorExtensions({
 		TableKit.configure({ table: { resizable: true } }),
 		TaskList,
 		TaskItem.configure({ nested: true }),
-		ImageWithMarkdown.configure({ inline: false, allowBase64: true }),
+		// Gambar dengan handle ubah-ukuran; menggantikan Image polos. Input rule
+		// `![alt](url)` dari versi sebelumnya ikut di dalamnya.
+		ResizableImage.configure({ inline: false, allowBase64: true } satisfies ResizableImageOptions),
+		// Blok kode dengan pewarnaan sintaks lowlight. Bahasa dipilih lewat
+		// slash command / toolbar.
+		CodeBlock,
+		// Blok catatan/seruan, catatan kaki, dan layout multi-kolom.
+		Callout,
+		Footnote,
+		FootnoteRef,
+		ColumnExtension,
+		// Daftar isi otomatis (data di storage; dibaca panel TOC).
+		TableOfContentsConfigured,
 		Placeholder.configure({ placeholder: 'Mulai menulis, atau tempel draf Anda di sini…' }),
 		SuggestionHighlight,
 		// Pratinjau kandidat AI Rewriter; menganggur sampai panel mengirim meta.
@@ -91,8 +120,14 @@ export function buildEditorExtensions({
 		MathInline,
 		MathBlock,
 		PasteMarkdown,
+		// Cari & ganti; dekorasi menyorot kecocokan, perintah menggerakkan indeks.
+		SearchAndReplace,
 		TrailingParagraph,
 		Pagination.configure({ geometry, onPageCountChange }),
+		// Menu slash hanya untuk editor sungguhan.
+		...(slashCommand
+			? [SlashCommand.configure({ onOpen: slashCommand.onOpen, onUpdate: slashCommand.onUpdate, onClose: slashCommand.onClose })]
+			: []),
 		...(collaboration
 			? [Collaboration.configure({ document: collaboration.document, field: collaboration.field })]
 			: []),

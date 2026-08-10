@@ -1,7 +1,10 @@
 'use client'
 
 import { Focus, History, PanelLeft, Settings as SettingsIcon, Share2 } from 'lucide-react'
+import { useState } from 'react'
 import { EditorToolbar } from '@/components/editor/editor-toolbar'
+import { SearchBar } from '@/components/editor/search-bar'
+import { TocPanel } from '@/components/editor/toc-panel'
 import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
@@ -30,6 +33,9 @@ export function TopBar() {
 	const { linkage } = useSync()
 	const { activeId, sessions } = useSessions()
 	const { versionMode, openVersionMode } = useVersionMode()
+
+	const [searchOpen, setSearchOpen] = useState(false)
+	const [tocOpen, setTocOpen] = useState(false)
 
 	// Riwayat versi tersedia untuk semua tab: tab cloud memakai API server,
 	// tab lokal memakai versi IndexedDB (Iterasi 2).
@@ -137,12 +143,29 @@ export function TopBar() {
 				{/* Tidak ada yang bisa disunting di mode riwayat - toolbar tanpa editor
 				    hanya deretan tombol yang tidak melakukan apa pun. */}
 				{!inVersionMode && (
-					<div className="flex justify-center px-3 pb-2 pt-1.5">
-						<EditorToolbar editor={editor} disabled={state.file !== null} />
-					</div>
-				)}
-			</div>
-		</header>
+				<div className="flex flex-col items-center gap-1.5 px-3 pb-2 pt-1.5">
+					<EditorToolbar
+						editor={editor}
+						disabled={state.file !== null}
+						onOpenSearch={() => setSearchOpen(true)}
+						onOpenToc={() => setTocOpen((v) => !v)}
+					/>
+					{searchOpen && editor && (
+						<div className="w-full max-w-2xl">
+							<SearchBar editor={editor} onClose={() => setSearchOpen(false)} />
+						</div>
+					)}
+				</div>
+			)}
+
+			{/* Panel daftar isi melayang di kanan, di bawah toolbar. */}
+			{tocOpen && editor && !inVersionMode && (
+				<div className="absolute right-3 top-32 z-30 h-80 w-64 overflow-hidden rounded-xl border border-line-strong bg-surface-raised shadow-[var(--menu-shadow)]">
+					<TocPanel editor={editor} onClose={() => setTocOpen(false)} />
+				</div>
+			)}
+		</div>
+	</header>
 	)
 }
 
@@ -163,7 +186,6 @@ function HeaderButton({
 		<button
 			type="button"
 			onClick={onClick}
-			disabled={disabled}
 			title={label}
 			aria-label={label}
 			aria-pressed={active}

@@ -415,6 +415,157 @@ a {
   color: var(--foreground-faint);
 }
 
+/* ── callout ───────────────────────────────────────────────────────────── */
+
+.document-body .callout-block {
+  display: flex;
+  gap: 0.6em;
+  padding: 0.8em 1em;
+  margin: 1em 0;
+  border-radius: 8px;
+  border-left: 4px solid var(--border-strong);
+  background: var(--overlay-hover);
+}
+.document-body .callout-block[data-callout-type='info'] { border-left-color: #3b82f6; background: rgba(59, 130, 246, 0.08); }
+.document-body .callout-block[data-callout-type='note'] { border-left-color: #6b7280; background: rgba(107, 114, 128, 0.08); }
+.document-body .callout-block[data-callout-type='tip'] { border-left-color: #10b981; background: rgba(16, 185, 129, 0.08); }
+.document-body .callout-block[data-callout-type='warning'] { border-left-color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
+.document-body .callout-block[data-callout-type='success'] { border-left-color: #22c55e; background: rgba(34, 197, 94, 0.08); }
+.document-body .callout-block[data-callout-type='error'] { border-left-color: #ef4444; background: rgba(239, 68, 68, 0.08); }
+.document-body .callout-block[data-emoji]::before {
+  content: attr(data-emoji);
+  font-size: 1.1em;
+  line-height: 1.4;
+}
+.document-body .callout-block > *:not([data-emoji]) { flex: 1; min-width: 0; }
+.document-body .callout-block p:first-child { margin-top: 0; }
+.document-body .callout-block p:last-child { margin-bottom: 0; }
+
+/* ── blok kode lowlight (highlight.js) ─────────────────────────────────── */
+
+.document-body pre code {
+  counter-reset: line;
+}
+.document-body pre code .hljs-comment,
+.document-body pre code .hljs-quote { color: var(--foreground-faint); font-style: italic; }
+.document-body pre code .hljs-keyword,
+.document-body pre code .hljs-selector-tag,
+.document-body pre code .hljs-built_in,
+.document-body pre code .hljs-name,
+.document-body pre code .hljs-tag { color: #7b6cf6; font-weight: 600; }
+.document-body pre code .hljs-string,
+.document-body pre code .hljs-title,
+.document-body pre code .hljs-section,
+.document-body pre code .hljs-attribute,
+.document-body pre code .hljs-literal,
+.document-body pre code .hljs-template-tag,
+.document-body pre code .hljs-template-variable,
+.document-body pre code .hljs-type,
+.document-body pre code .hljs-addition { color: #059669; }
+.document-body pre code .hljs-number,
+.document-body pre code .hljs-symbol,
+.document-body pre code .hljs-bullet,
+.document-body pre code .hljs-meta { color: #d97706; }
+.document-body pre code .hljs-attr,
+.document-body pre code .hljs-variable,
+.document-body pre code .hljs-template-variable { color: #2563eb; }
+.document-body pre code .hljs-deletion { color: #ef4444; }
+
+/* ── catatan kaki ──────────────────────────────────────────────────────── */
+
+.document-body sup[data-type='footnote-ref'] {
+  font-size: 0.72em;
+  vertical-align: super;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0 0.1em;
+}
+.document-body sup[data-type='footnote-ref'].footnote-ref--active {
+  background: var(--overlay-active);
+  border-radius: 3px;
+}
+.document-body section[data-type='footnote'] {
+  font-size: 0.85em;
+  color: var(--foreground-muted);
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 1.6em;
+  padding-top: 0.6em;
+}
+.document-body footnote {
+  font-size: 0.85em;
+  color: var(--foreground-muted);
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 1.6em;
+  padding-top: 0.6em;
+  display: block;
+}
+
+/* ── multi-kolom ───────────────────────────────────────────────────────── */
+
+.document-body div[data-type='columns'] {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 1.5em;
+  margin: 1em 0;
+}
+.document-body div[data-type='columns'][data-layout='align-left'] { grid-auto-columns: minmax(0, 1fr) 2fr; }
+.document-body div[data-type='columns'][data-layout='align-right'] { grid-auto-columns: 2fr minmax(0, 1fr); }
+.document-body div[data-type='col'] { min-width: 0; }
+
+/* ── gambar resizable ──────────────────────────────────────────────────── */
+
+.resizable-image-wrapper[data-selected] .resizable-image-figure {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+.resizable-image-figure {
+  cursor: default;
+}
+.resizable-image-handle {
+  position: absolute;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  width: 12px;
+  height: 12px;
+}
+.resizable-image-handle--br {
+  bottom: -6px;
+  right: -6px;
+  cursor: nwse-resize;
+}
+.resizable-image-delete {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--foreground);
+  color: var(--surface);
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 2px solid var(--surface);
+}
+.resizable-image-delete:hover { background: #ef4444; }
+
+/* ── sorotan cari & ganti ──────────────────────────────────────────────── */
+
+.document-body .search-result {
+  background: rgba(245, 158, 11, 0.25);
+  border-radius: 2px;
+}
+.document-body .search-result-current {
+  background: rgba(245, 158, 11, 0.6);
+  box-shadow: 0 0 0 1.5px #f59e0b;
+}
+
 /* ── pemenggalan tabel antar lembar ────────────────────────────────────── */
 
 /*

@@ -8,12 +8,14 @@ import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offset
 import { buildEditorExtensions } from '@/features/editor/extensions'
 import { type PageGeometry, pageGeometry } from '@/features/editor/page-geometry'
 import { paginationKey } from '@/features/editor/pagination'
+import { type SlashCommandState } from '@/features/editor/slash-command'
 import { editorPlainText, textToParagraphs } from '@/features/editor/text-content'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings, type FontSize } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
 import { MathPopover } from './math-popover'
 import { SelectionMenu } from './selection-menu'
+import { SlashCommandMenu } from './slash-command-menu'
 import { type PopoverPosition, SuggestionPopover } from './suggestion-popover'
 
 const FONT_SIZE_CLASS: Record<FontSize, string> = {
@@ -39,6 +41,11 @@ export function TiptapEditor({
 	const { settings } = useSettings()
 	const { doc, activeId } = useSessions()
 	const [popover, setPopover] = useState<PopoverPosition | null>(null)
+
+	// State menu slash - dipasang ke ekstensi lewat callback stabil (refs).
+	const [slashState, setSlashState] = useState<SlashCommandState | null>(null)
+	const slashStateRef = useRef(setSlashState)
+	slashStateRef.current = setSlashState
 
 	// Ekstensi hanya dibuat sekali, jadi callback dilewatkan lewat ref agar
 	// pemanggil tetap boleh mengirim fungsi baru tiap render.
@@ -68,6 +75,11 @@ export function TiptapEditor({
 				geometry,
 				onPageCountChange: (pageCount) => pageCountRef.current?.(pageCount),
 				collaboration: activeId ? { document: doc, field: activeId } : null,
+				slashCommand: {
+					onOpen: (s) => slashStateRef.current(s),
+					onUpdate: (s) => slashStateRef.current(s),
+					onClose: () => slashStateRef.current(null),
+				},
 			}),
 			editorProps: {
 				attributes: {
@@ -260,6 +272,13 @@ export function TiptapEditor({
 			<EditorContent editor={editor} />
 			<SelectionMenu editor={editor} containerRef={containerRef} />
 			<MathPopover editor={editor} containerRef={containerRef} />
+			{editor && slashState?.open && (
+				<SlashCommandMenu
+					editor={editor}
+					state={slashState}
+					onClose={() => setSlashState(null)}
+				/>
+			)}
 		</>
 	)
 }

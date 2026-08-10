@@ -9,6 +9,7 @@ import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
 import { useSettings } from '@/features/settings/settings-context'
 import { countWords } from '@/lib/utils'
 import { DocumentCanvas } from './document-canvas'
+import { TableControls } from './table-controls'
 
 /**
  * Area dokumen: kanvas berhalaman, ditambah keadaan khusus saat ada berkas
@@ -20,7 +21,7 @@ import { DocumentCanvas } from './document-canvas'
 export function DocumentEditor() {
 	const { state, dispatch } = useDocument()
 	const { settings } = useSettings()
-	const { setEditor } = useEditorInstance()
+	const { editor, setEditor } = useEditorInstance()
 	const { error } = useGrammarCheck()
 
 	const { openImport, importing, warnings, dismissWarnings } = useDocumentImport()
@@ -76,6 +77,14 @@ export function DocumentEditor() {
 			{error && (
 				<div className="mx-4 mt-3 shrink-0 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">
 					<p className="text-xs text-red-600">{error.message}</p>
+				</div>
+			)}
+
+			{/* Kontrol tabel muncul otomatis saat kursor berada di dalam tabel;
+			    tersembunyi sepenuhnya bila tidak. */}
+			{editor && (
+				<div className="flex justify-center px-4 pt-2">
+					<TableControls editor={editor} />
 				</div>
 			)}
 
