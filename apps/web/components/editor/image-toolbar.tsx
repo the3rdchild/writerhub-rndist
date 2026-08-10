@@ -48,19 +48,37 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
 				setRect(null)
 				return
 			}
-			setRect(dom.getBoundingClientRect())
+			const box = dom.getBoundingClientRect()
+			// Bilahnya `position: fixed`, jadi kalau gambarnya tergulung keluar
+			// layar bilah harus ikut hilang - bukan menggantung di tempat lama.
+			if (box.bottom < 0 || box.top > window.innerHeight) {
+				setRect(null)
+				return
+			}
+			setRect(box)
 		}
 		update()
 		editor.on('transaction', update)
+		// Menggulung tidak menghasilkan transaksi, jadi posisinya harus ikut
+		// diperbarui dari event gulir mana pun (capture: kanvas dokumen menggulung
+		// di elemennya sendiri, bukan di window) dan saat jendela diubah ukurannya.
+		window.addEventListener('scroll', update, true)
+		window.addEventListener('resize', update)
 		return () => {
 			editor.off('transaction', update)
+			window.removeEventListener('scroll', update, true)
+			window.removeEventListener('resize', update)
 		}
 	}, [editor, state])
 
 	if (!editor || !state || !rect) return null
 
+	// Mengklik perataan yang sedang tersimpan mengembalikannya ke bawaan (ikut
+	// paragraf) - tanpa ini `align` tidak punya jalan pulang ke `null` lewat UI.
 	const setAlign = (align: 'left' | 'center' | 'right') =>
-		editor.chain().focus().setImageAlign(align).run()
+		state.align === align
+			? editor.chain().focus().unsetImageAlign().run()
+			: editor.chain().focus().setImageAlign(align).run()
 
 	const buttons = [
 		{ icon: AlignLeft, label: 'Rata kiri', value: 'left' as const, active: state.align === 'left' || (!state.align) },

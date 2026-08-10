@@ -761,11 +761,9 @@ a {
   height: 12px;
   z-index: 3;
 }
-/* POJOK: lingkaran, jaga rasio. */
+/* POJOK: lingkaran, jaga rasio. Ukurannya sudah dari aturan induk. */
 .resizable-image-handle--corner {
   border-radius: 50%;
-  width: 12px;
-  height: 12px;
 }
 .resizable-image-handle--nw { top: -6px; left: -6px; cursor: nwse-resize; }
 .resizable-image-handle--ne { top: -6px; right: -6px; cursor: nesw-resize; }
