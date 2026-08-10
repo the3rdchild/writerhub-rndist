@@ -48,7 +48,7 @@ export default class GrammarService extends JobSubmissionService {
 					...(body.text ? { text: body.text } : {}),
 					...(upload ? { filename: upload.filename, mime_type: upload.mimeType } : {}),
 				},
-				{ feature: 'grammar', documentId: body.documentId ?? null },
+				{ feature: 'grammar', tabId: body.tabId ?? body.documentId ?? null },
 			)
 
 			await QueueClient.enqueueGrammarJob(jobId, {

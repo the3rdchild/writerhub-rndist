@@ -30,7 +30,7 @@ export function ShareDialog() {
 	const { shareOpen, setShareOpen } = useShare()
 	const { state } = useDocument()
 	const { editor } = useEditorInstance()
-	const { activeId } = useSessions()
+	const { activeId, sessions } = useSessions()
 	const { linkage, linkTab } = useSync()
 	const overlayRef = useRef<HTMLDivElement>(null)
 	const [copied, setCopied] = useState(false)
@@ -61,23 +61,26 @@ export function ShareDialog() {
 		if (editor) {
 			setLoading(true)
 			setError(null)
-			// Tab yang sudah tertaut ke dokumen server mengirim documentId supaya
-			// share menunjuk dokumen yang sama; tanpa itu tiap dialog yang dibuka
-			// membuat dokumen baru yang mengotori Library.
+			// Tab yang sudah tertaut ke tab server mengirim tabId supaya share
+			// menunjuk tab yang sama; tanpa itu tiap dialog yang dibuka membuat
+			// dokumen baru yang mengotori Library.
 			const serverId = activeId ? linkage[activeId]?.serverId : undefined
+			// Share membagikan SATU tab, jadi judulnya judul tab - bukan judul
+			// dokumen yang tampil di kepala aplikasi (state.title).
+			const tabTitle = sessions.find((tab) => tab.id === activeId)?.title ?? state.title
 			createShare({
-				...(serverId ? { documentId: serverId } : {}),
-				title: state.title.trim() || 'Dokumen tanpa judul',
+				...(serverId ? { tabId: serverId } : {}),
+				title: tabTitle.trim() || 'Dokumen tanpa judul',
 				content: editor.getJSON(),
 				access,
 				role,
 			})
 				.then((result) => {
 					setLink(`${window.location.origin}${result.url}`)
-					// Tab yang tadinya lokal kini punya dokumen di server - dibuatkan
+					// Tab yang tadinya lokal kini punya tab di server - dibuatkan
 					// oleh endpoint share. Dicatat supaya pembagian berikutnya memakai
-					// dokumen itu, dan supaya autosave ikut hidup untuk tab ini.
-					if (activeId && !serverId) linkTab(activeId, result.documentId)
+					// tab itu, dan supaya autosave ikut hidup untuk tab ini.
+					if (activeId && !serverId) void linkTab(activeId, result.tabId)
 				})
 				.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal membuat link'))
 				.finally(() => setLoading(false))
@@ -88,7 +91,7 @@ export function ShareDialog() {
 			window.removeEventListener('keydown', onKeyDown)
 		}
 		// biome-ignore lint/correctness/useExhaustiveDependencies: share dibuat ulang saat dialog dibuka atau akses/peran berubah
-	}, [shareOpen, editor, state.title, access, role])
+	}, [shareOpen, editor, sessions, activeId, state.title, access, role])
 
 	if (!shareOpen) return null
 
@@ -103,7 +106,9 @@ export function ShareDialog() {
 		}
 	}
 
-	const trimmedTitle = state.title.trim() || 'Dokumen tanpa judul'
+	const trimmedTitle =
+		(sessions.find((tab) => tab.id === activeId)?.title ?? state.title).trim() ||
+		'Dokumen tanpa judul'
 	const displayTitle = trimmedTitle.length > 50 ? `${trimmedTitle.slice(0, 50)}…` : trimmedTitle
 
 	return (

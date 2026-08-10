@@ -28,12 +28,16 @@ export function TopBar() {
 	const { setShareOpen } = useShare()
 	const { isRunning } = useGrammarCheck()
 	const { linkage } = useSync()
-	const { activeId } = useSessions()
+	const { activeId, sessions } = useSessions()
 	const { versionMode, openVersionMode } = useVersionMode()
 
-	// Riwayat versi tersedia untuk semua tab: dokumen cloud memakai API server,
+	// Riwayat versi tersedia untuk semua tab: tab cloud memakai API server,
 	// tab lokal memakai versi IndexedDB (Iterasi 2).
 	const serverId = activeId ? linkage[activeId]?.serverId : undefined
+	// Mode versi menampilkan riwayat SATU tab, jadi judulnya judul tab - bukan
+	// judul dokumen (state.title) yang tampil di kepala aplikasi.
+	const activeTabTitle =
+		sessions.find((tab) => tab.id === activeId)?.title ?? state.title
 
 	/*
 	 * Selama mode riwayat, editor utama lepas dan `useEditorInstance().editor`
@@ -108,8 +112,8 @@ export function TopBar() {
 								if (activeId) {
 									openVersionMode({
 										tabId: activeId,
-										documentId: serverId ?? null,
-										title: state.title,
+										serverTabId: serverId ?? null,
+										title: activeTabTitle,
 									})
 								}
 							}}

@@ -25,8 +25,8 @@ export interface AnalysisRun {
 	scoped: boolean
 	/** Bahasa naskah, supaya AI menjawab dalam bahasa yang sama. */
 	language: string
-	/** Dokumen cloud tempat job ini dijalankan, untuk Aktivitas AI. */
-	documentId?: string
+	/** Tab cloud tempat job ini dijalankan, untuk Aktivitas AI. */
+	tabId?: string
 }
 
 type LastRunMap = Partial<Record<AnalysisFeature, AnalysisRun>>

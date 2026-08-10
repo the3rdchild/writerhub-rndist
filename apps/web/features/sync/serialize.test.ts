@@ -1,13 +1,18 @@
 import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
 import * as Y from 'yjs'
-import { createTab, tabFragment, tabPreview } from '@/features/sessions/ydoc'
+import { createDocument, createTab, tabFragment, tabPreview } from '@/features/sessions/ydoc'
 import { fragmentToJSON, jsonToFragment } from './serialize'
+
+/** Tab baru di dalam dokumen baru, untuk keperluan test serialisasi. */
+function newTab(doc: Y.Doc): string {
+	return createTab(doc, createDocument(doc))
+}
 
 /** JSON → fragmen → JSON, pada dokumen baru. */
 function roundTrip(json: JSONContent): JSONContent {
 	const doc = new Y.Doc()
-	const tabId = createTab(doc)
+	const tabId = newTab(doc)
 	jsonToFragment(doc, tabId, json)
 	return fragmentToJSON(doc, tabId)
 }
@@ -61,7 +66,7 @@ describe('serialisasi naskah ke JSON', () => {
 
 	test('menulis ulang mengganti isi lama, bukan menambahinya', () => {
 		const doc = new Y.Doc()
-		const tabId = createTab(doc)
+		const tabId = newTab(doc)
 		jsonToFragment(doc, tabId, {
 			type: 'doc',
 			content: [{ type: 'paragraph', content: [{ type: 'text', text: 'naskah lama' }] }],
@@ -77,7 +82,7 @@ describe('serialisasi naskah ke JSON', () => {
 
 	test('fragmen kosong dibaca sebagai dokumen kosong yang sah', () => {
 		const doc = new Y.Doc()
-		const tabId = createTab(doc)
+		const tabId = newTab(doc)
 
 		expect(tabFragment(doc, tabId).length).toBe(0)
 		expect(fragmentToJSON(doc, tabId)).toEqual({

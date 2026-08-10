@@ -12,7 +12,7 @@ import {
 	useState,
 } from 'react'
 import { IndexeddbPersistence } from 'y-indexeddb'
-import { getDocument } from '@/features/documents/api'
+import { getTab } from '@/features/documents/api'
 import { DOCUMENTS_QUERY_KEY } from '@/features/documents/use-documents'
 import { useSessions } from '@/features/sessions/session-context'
 import { jsonToFragment } from '@/features/sync/serialize'
@@ -34,13 +34,13 @@ import { VERSIONS_QUERY_KEY } from './use-versions'
  * karena state sesi tetap di memori.
  *
  * Provider ini hidup di dalam `SyncProvider`: membuka mode butuh linkage tab →
- * dokumen server, alur restore cloud butuh `saveToCloud` untuk flush terakhir,
+ * tab server, alur restore cloud butuh `saveToCloud` untuk flush terakhir,
  * dan snapshot interval lokal butuh linkage untuk tahu tab aktif masih lokal.
  */
 export interface VersionMode {
 	tabId: string
-	/** `null` = sumber lokal (IndexedDB); selain itu = API server. */
-	documentId: string | null
+	/** `null` = sumber lokal (IndexedDB); selain itu = id tab di server (API). */
+	serverTabId: string | null
 	title: string
 }
 
@@ -104,7 +104,7 @@ export function VersionProvider({ children }: { children: ReactNode }) {
 
 			// Jalur lokal: bekukan draf sekarang sebagai pre_restore, lalu timpa
 			// fragmen dengan naskah versi. Tanpa flush/cloud sama sekali.
-			if (versionMode.documentId === null) {
+			if (versionMode.serverTabId === null) {
 				const target = await getLocalVersion(versionMode.tabId, versionId)
 				if (!target) throw new Error('Versi tidak ditemukan')
 
@@ -129,8 +129,10 @@ export function VersionProvider({ children }: { children: ReactNode }) {
 				throw new Error('Draf terkini gagal disimpan ke cloud, pemulihan dibatalkan.')
 			}
 
-			await restoreVersion(versionMode.documentId, versionId)
-			const fresh = await getDocument(versionMode.documentId)
+			await restoreVersion(versionMode.serverTabId, versionId)
+			// Konten terkini dibaca dari TAB-nya, bukan dokumen induk - versi
+			// memang melekat per tab.
+			const fresh = await getTab(versionMode.serverTabId)
 
 			// jsonToFragment mengunci LOCAL_ORIGIN di transaksinya sendiri; tanpa
 			// bungkusan ini tulisan server terbaca sebagai suntingan user dan
@@ -138,7 +140,7 @@ export function VersionProvider({ children }: { children: ReactNode }) {
 			doc.transact(() => jsonToFragment(doc, activeId, fresh.content), SYNC_ORIGIN)
 
 			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: [...VERSIONS_QUERY_KEY, versionMode.documentId] }),
+				queryClient.invalidateQueries({ queryKey: [...VERSIONS_QUERY_KEY, versionMode.serverTabId] }),
 				queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_KEY }),
 			])
 			setVersionMode(null)

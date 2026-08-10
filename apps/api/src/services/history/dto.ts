@@ -8,7 +8,8 @@ export type HistoryFeature = (typeof HISTORY_FEATURES)[number]
 
 export const historyListQuerySchema = z.object({
 	feature: z.enum(HISTORY_FEATURES).optional(),
-	documentId: z.uuid().optional(),
+	/** Filter per tab (`pool_request.tab_id`). */
+	tabId: z.uuid().optional(),
 	limit: z.coerce.number().int().min(1).max(100).optional().default(50),
 	/** Kursor keyset: epoch milidetik created_at entri terakhir halaman sebelumnya. */
 	cursor: z.coerce.number().int().positive().optional(),
@@ -19,7 +20,9 @@ export interface HistorySummary {
 	jobId: string
 	feature: HistoryFeature | null
 	status: JobStatus
-	documentId: string | null
+	/** Tab tempat job dijalankan (`pool_request.tab_id`); null bila tab dihapus. */
+	tabId: string | null
+	/** Judul DOKUMEN INDUK dari tab tersebut (join document_tabs -> documents). */
 	documentTitle: string | null
 	/** Epoch milidetik (konvensi yang sama dengan API dokumen). */
 	createdAt: number

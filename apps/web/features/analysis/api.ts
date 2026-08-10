@@ -15,13 +15,13 @@ export async function runAnalysis<F extends AnalysisFeature>(
 	text: string,
 	language: string,
 	signal?: AbortSignal,
-	/** Tautan dokumen cloud untuk Aktivitas AI; tab lokal mengirim undefined. */
-	documentId?: string,
+	/** Tautan tab cloud untuk Aktivitas AI; tab lokal mengirim undefined. */
+	tabId?: string,
 ): Promise<AnalysisResultFor<F>> {
 	const { jobId } = await apiFetch<JobSubmission>('/analyze', {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({ feature, text, language, documentId }),
+		body: JSON.stringify({ feature, text, language, tabId }),
 		signal,
 	})
 

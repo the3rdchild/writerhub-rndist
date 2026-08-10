@@ -1,8 +1,10 @@
 'use client'
 
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
-import { useEditorInstance } from '@/features/editor/editor-context'
-import { editorPlainText } from '@/features/editor/text-content'
+import type { JSONContent } from '@tiptap/core'
+import { MAX_DOCUMENTS, MAX_SESSIONS, useSessions } from '@/features/sessions/session-context'
+import { createDocument, createTab, LOCAL_ORIGIN, readDocs, readTabs } from '@/features/sessions/ydoc'
+import { jsonToFragment } from '@/features/sync/serialize'
 import { useDocument } from './document-context'
 import { importDocx, isDocx } from './import-docx'
 
@@ -14,6 +16,12 @@ import { importDocx, isDocx } from './import-docx'
  * jadi satu-satunya cara memicunya adalah ikon tanpa label di pojok bawah -
  * fungsinya ada, tapi praktis tidak ditemukan. Yang memiliki input berkas
  * sekarang context ini, sehingga pemicunya boleh ada di mana saja.
+ *
+ * Dua bentuk impor:
+ * - Satu berkas → tab baru di dokumen aktif (perilaku M0).
+ * - Banyak berkas → SATU dokumen baru berisi satu tab per berkas, urut nama
+ *   berkas (§6.1 rencana restrukturisasi). Judul dokumen diambil dari nama
+ *   berkas pertama: bisa ditebak, dan sama dengan pola penamaan impor tunggal.
  */
 
 /** Jenis berkas yang diminta; menentukan filter pada dialog pemilih. */
@@ -41,9 +49,29 @@ function isPlainTextFile(file: File): boolean {
 	return file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt')
 }
 
+/** Nama berkas tanpa ekstensi, untuk judul tab/dokumen. */
+function baseName(file: File): string {
+	return file.name.replace(/\.[^.]+$/, '')
+}
+
+/** Teks polos dipecah per baris menjadi paragraf. */
+function textToDocContent(text: string): JSONContent {
+	const paragraphs: JSONContent[] = text
+		.split('\n')
+		.map((line) =>
+			line.trim().length > 0
+				? { type: 'paragraph', content: [{ type: 'text', text: line }] }
+				: { type: 'paragraph' },
+		)
+	return {
+		type: 'doc',
+		content: paragraphs.length > 0 ? paragraphs : [{ type: 'paragraph' }],
+	}
+}
+
 export function DocumentImportProvider({ children }: { children: ReactNode }) {
 	const { dispatch } = useDocument()
-	const { editor } = useEditorInstance()
+	const { doc, activeDocId, selectSession } = useSessions()
 
 	const inputRef = useRef<HTMLInputElement>(null)
 	const [importing, setImporting] = useState(false)
@@ -57,6 +85,24 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 	}, [])
 
 	/**
+	 * Berkas selalu masuk sebagai TAB BARU di dokumen aktif, tidak pernah menimpa
+	 * tab yang sedang ditulis - sebelumnya impor memanggil setContent pada tab
+	 * aktif dan naskah pengguna hilang. Judul tab diambil dari nama berkas tanpa
+	 * ekstensi.
+	 */
+	const importToNewTab = useCallback(
+		(title: string, content: JSONContent) => {
+			if (!activeDocId) return
+			const tabId = createTab(doc, activeDocId, title)
+			doc.transact(() => {
+				jsonToFragment(doc, tabId, content)
+			}, LOCAL_ORIGIN)
+			selectSession(tabId)
+		},
+		[doc, activeDocId, selectSession],
+	)
+
+	/**
 	 * DOCX dibaca lengkap dengan formatnya, langsung di browser.
 	 *
 	 * Jalur worker (`setFile`) tetap dipakai untuk PDF: di sana yang bisa diambil
@@ -65,20 +111,12 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 	 */
 	const loadDocx = useCallback(
 		async (file: File) => {
-			if (!editor) return
 			setImporting(true)
 			setWarnings([])
 
 			try {
 				const result = await importDocx(file)
-				editor.commands.setContent(result.content, { emitUpdate: false })
-				dispatch({
-					type: 'load',
-					document: {
-						title: file.name.replace(/\.docx$/i, ''),
-						text: editorPlainText(editor),
-					},
-				})
+				importToNewTab(file.name.replace(/\.docx$/i, ''), result.content)
 				setWarnings(result.warnings.map((warning) => warning.message))
 			} catch (cause) {
 				setWarnings([cause instanceof Error ? cause.message : 'Gagal membaca berkas DOCX'])
@@ -86,33 +124,139 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 				setImporting(false)
 			}
 		},
-		[editor, dispatch],
+		[importToNewTab],
+	)
+
+	/** TXT dipecah per baris menjadi paragraf di tab baru. */
+	const loadText = useCallback(
+		(file: File) => {
+			const reader = new FileReader()
+			reader.onload = () => {
+				if (typeof reader.result !== 'string') return
+				importToNewTab(file.name.replace(/\.txt$/i, ''), textToDocContent(reader.result))
+			}
+			reader.readAsText(file)
+		},
+		[importToNewTab],
+	)
+
+	/**
+	 * Banyak berkas sekaligus → satu dokumen baru berisi satu tab per berkas.
+	 *
+	 * Hanya DOCX dan TXT yang ikut: keduanya terbaca penuh di browser, jadi
+	 * seluruh dokumen bisa dirakit dulu lalu ditulis dalam satu transaksi.
+	 * PDF dilewati dengan pesan - jalurnya (`setFile` → worker) menulis ke tab
+	 * AKTIF secara async, dan mengantre N PDF ke N tab yang baru dibuat berarti
+	 * menebak tab mana yang aktif saat tiap worker selesai; terlalu rapuh
+	 * dibanding manfaatnya. PDF tetap diimpor satu per satu lewat jalur lamanya.
+	 */
+	const importMany = useCallback(
+		async (files: File[]) => {
+			setImporting(true)
+			setWarnings([])
+
+			const sorted = [...files].sort((a, b) => a.name.localeCompare(b.name))
+			const importable = sorted.filter((file) => isDocx(file) || isPlainTextFile(file))
+			const warn: string[] = []
+			if (importable.length < sorted.length) {
+				warn.push(
+					'Berkas PDF dilewati pada impor banyak berkas - impor PDF satu per satu supaya hasilnya masuk ke tab yang benar.',
+				)
+			}
+			if (importable.length === 0) {
+				setWarnings(warn.length > 0 ? warn : ['Tidak ada berkas yang bisa diimpor.'])
+				setImporting(false)
+				return
+			}
+
+			// Dokumen baru dibatasi seperti pembuatan tab biasa: kelebihannya
+			// ditolak dengan pesan, bukan dibuang diam-diam.
+			const limited = importable.slice(0, MAX_SESSIONS)
+			if (importable.length > MAX_SESSIONS) {
+				warn.push(`Hanya ${MAX_SESSIONS} berkas pertama yang diimpor - batas tab per dokumen.`)
+			}
+			if (readDocs(doc).length >= MAX_DOCUMENTS) {
+				warn.push('Batas jumlah dokumen tercapai; impor dibatalkan.')
+				setWarnings(warn)
+				setImporting(false)
+				return
+			}
+
+			// Semua berkas dibaca dulu, baru dokumennya ditulis - kegagalan baca
+			// satu berkas tidak meninggalkan dokumen setengah jadi.
+			const parsed: Array<{ title: string; content: JSONContent }> = []
+			for (const file of limited) {
+				try {
+					if (isDocx(file)) {
+						const result = await importDocx(file)
+						warn.push(...result.warnings.map((warning) => warning.message))
+						parsed.push({ title: baseName(file), content: result.content })
+					} else {
+						parsed.push({ title: baseName(file), content: textToDocContent(await file.text()) })
+					}
+				} catch (cause) {
+					warn.push(
+						`${file.name}: ${cause instanceof Error ? cause.message : 'gagal membaca berkas'}`,
+					)
+				}
+			}
+
+			if (parsed.length === 0) {
+				setWarnings(warn)
+				setImporting(false)
+				return
+			}
+
+			// Satu transaksi untuk seluruh dokumen, pola yang sama dengan
+			// openFromLibrary: dokumen + semua tab + isinya lahir sekaligus.
+			let firstTabId = ''
+			doc.transact(() => {
+				const docId = createDocument(doc, parsed[0].title)
+				firstTabId = readTabs(doc, docId)[0]?.id ?? ''
+				if (!firstTabId) return
+				jsonToFragment(doc, firstTabId, parsed[0].content)
+				for (const item of parsed.slice(1)) {
+					jsonToFragment(doc, createTab(doc, docId, item.title), item.content)
+				}
+			}, LOCAL_ORIGIN)
+
+			if (firstTabId) selectSession(firstTabId)
+			setWarnings(warn)
+			setImporting(false)
+		},
+		[doc, selectSession],
 	)
 
 	const handleFile = useCallback(
 		(event: React.ChangeEvent<HTMLInputElement>) => {
-			const file = event.target.files?.[0]
+			const files = Array.from(event.target.files ?? [])
 			event.target.value = ''
-			if (!file) return
+			if (files.length === 0) return
 
+			if (files.length > 1) {
+				void importMany(files)
+				return
+			}
+
+			const file = files[0]
 			if (isDocx(file)) {
 				void loadDocx(file)
 				return
 			}
 
 			if (!isPlainTextFile(file)) {
+				// PDF lewat worker; ekstraksinya menulis ke tab aktif, jadi buat
+				// dan aktifkan tab kosong lebih dulu supaya naskah lain aman.
+				if (!activeDocId) return
+				const tabId = createTab(doc, activeDocId, baseName(file))
+				selectSession(tabId)
 				dispatch({ type: 'setFile', file })
 				return
 			}
 
-			const reader = new FileReader()
-			reader.onload = () => {
-				const text = reader.result
-				if (typeof text === 'string') dispatch({ type: 'setText', text })
-			}
-			reader.readAsText(file)
+			loadText(file)
 		},
-		[loadDocx, dispatch],
+		[importMany, loadDocx, loadText, doc, activeDocId, selectSession, dispatch],
 	)
 
 	const value = useMemo<ImportContextValue>(
@@ -123,7 +267,7 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 	return (
 		<ImportContext.Provider value={value}>
 			{children}
-			<input ref={inputRef} type="file" className="hidden" onChange={handleFile} />
+			<input ref={inputRef} type="file" multiple className="hidden" onChange={handleFile} />
 		</ImportContext.Provider>
 	)
 }

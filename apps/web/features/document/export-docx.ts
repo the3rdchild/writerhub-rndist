@@ -1,7 +1,7 @@
 'use client'
 
+import type { JSONContent } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
-import type { Editor } from '@tiptap/react'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import type { PageGeometry } from '@/features/editor/page-geometry'
 
@@ -44,13 +44,36 @@ const ALIGNMENT: Record<string, 'left' | 'center' | 'right' | 'both'> = {
 }
 
 /**
+ * Gabungkan naskah beberapa tab menjadi satu dokumen: urut sesuai daftar,
+ * dipisah page break di antara tab. Fungsi murni - ia sengaja tidak tahu
+ * apa-apa tentang Y.Doc maupun pustaka docx supaya bisa diuji langsung.
+ *
+ * Tab kosong tetap menyumbang page break-nya: posisi sebuah tab dalam hasil
+ * gabungan mencerminkan posisinya dalam dokumen, bukan panjang isinya.
+ */
+export function mergeTabContents(tabs: JSONContent[]): JSONContent {
+	const content: JSONContent[] = []
+	for (const [index, tab] of tabs.entries()) {
+		if (index > 0) content.push({ type: PAGE_BREAK_NODE })
+		content.push(...(tab.content ?? []))
+	}
+	// Skema mewajibkan dokumen berisi minimal satu blok.
+	if (content.length === 0) content.push({ type: 'paragraph' })
+	return { type: 'doc', content }
+}
+
+/**
  * Bangun berkas dan kembalikan sebagai Blob.
+ *
+ * Menerima root dokumen ProseMirror, bukan instance Editor: tab yang tidak
+ * sedang terbuka tidak punya editor, dan naskahnya dirakit lewat
+ * `fragmentToJSON` + `buildSchema().nodeFromJSON` (lihat dialog ekspor).
  *
  * `docx` diimpor dinamis: pustaka ini berat dan hanya dipakai saat pengguna
  * benar-benar menekan ekspor.
  */
 export async function exportDocx(
-	editor: Editor,
+	root: PMNode,
 	{ title, geometry }: { title: string; geometry: PageGeometry },
 ): Promise<Blob> {
 	const docx = await import('docx')
@@ -170,7 +193,7 @@ export async function exportDocx(
 	}
 
 	const children: unknown[] = []
-	editor.state.doc.forEach((node) => children.push(...blockOf(node)))
+	root.forEach((node) => children.push(...blockOf(node)))
 
 	const document = new Document({
 		title,

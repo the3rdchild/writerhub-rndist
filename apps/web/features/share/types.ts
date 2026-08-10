@@ -16,10 +16,11 @@ export interface SharePayload {
 
 export interface CreateShareInput {
 	/**
-	 * Dokumen user yang sudah tersimpan di cloud. Tanpa ini, share dibuat dari
-	 * `title` + `content` mentah seperti sebelumnya.
+	 * Tab user yang sudah tersimpan di cloud (share membagikan SATU tab).
+	 * Tanpa ini, share dibuat dari `title` + `content` mentah seperti
+	 * sebelumnya dan server membuatkan dokumen + tab baru.
 	 */
-	documentId?: string
+	tabId?: string
 	title?: string
 	content?: JSONContent
 	access: ShareAccess
@@ -29,8 +30,8 @@ export interface CreateShareInput {
 export interface CreateShareResult {
 	token: string
 	url: string
-	/** Dokumen server yang ditautkan share ini; dipakai mencatat kaitan tab. */
-	documentId: string
+	/** Tab server yang ditautkan share ini; dipakai mencatat kaitan tab. */
+	tabId: string
 	title: string
 	access: ShareAccess
 	role: ShareRole

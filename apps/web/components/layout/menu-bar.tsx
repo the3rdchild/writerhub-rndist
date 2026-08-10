@@ -35,9 +35,9 @@ import { cn, countWords } from '@/lib/utils'
 export function MenuBar() {
 	const { editor } = useEditorInstance()
 	const { state, dispatch } = useDocument()
-	const { settings, update, toggleFocusMode, setSettingsOpen, setShortcutsOpen, setExportOpen } =
+	const { settings, update, toggleFocusMode, setSettingsOpen, setShortcutsOpen, setExportOpen, setDocxExportOpen } =
 		useSettings()
-	const { newSession, deleteSession, activeId } = useSessions()
+	const { newSession, deleteSession, activeId, sessions } = useSessions()
 	const { openImport } = useDocumentImport()
 	const { setActivePanel } = usePanels()
 
@@ -56,11 +56,17 @@ export function MenuBar() {
 
 	const downloadDocx = async () => {
 		if (!editor || exporting) return
+		// Dokumen bertab banyak ditanyakan dulu tab mana yang ikut; dokumen satu
+		// tab langsung diekspor tanpa dialog.
+		if (sessions.length > 1) {
+			setDocxExportOpen(true)
+			return
+		}
 		setExporting(true)
 		try {
 			const geometry = pageGeometry(settings.pageSize, settings.pageMargins)
 			download(
-				await exportDocx(editor, { title: state.title, geometry }),
+				await exportDocx(editor.state.doc, { title: state.title, geometry }),
 				safeFilename(state.title, 'docx'),
 			)
 		} finally {

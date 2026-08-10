@@ -7,27 +7,21 @@ import {
 	insertDocument,
 	updateDocument,
 } from '@/repository/document'
+import { findTabsByDocument, insertTab } from '@/repository/document-tab'
 import { findProjectById } from '@/repository/project'
-import {
-	findLatestVersion,
-	insertVersion,
-	pruneIntervalVersions,
-	versionContentEquals,
-} from '@/repository/document-version'
 import BaseService from '@/services/base.service'
-import { countWords } from '@/services/versions/service'
-import LoggerClient from '@/utils/logger'
+import { snapshotIntervalTab } from '@/services/tabs/service'
 import { createDocumentBodySchema, updateDocumentBodySchema } from './dto'
-import type { DocumentDetail, DocumentSummary } from './dto'
+import type { DocumentDetail, DocumentSummary, TabSummary } from './dto'
 
-const log = LoggerClient.getInstance()
-
-/** Jarak minimal antar snapshot interval otomatis (10 menit). */
-const INTERVAL_SNAPSHOT_MS = 10 * 60_000
+/** Konten bawaan tab pertama: dokumen Tiptap kosong. */
+const EMPTY_CONTENT: Record<string, unknown> = { type: 'doc', content: [] }
 
 /**
- * CRUD dokumen milik user. Semua operasi diskop ke `userId` dari context
- * (diisi `authMiddleware`; dev lokal memakai fallback 'local-dev').
+ * CRUD dokumen INDUK milik user (judul + proyek; naskahnya tinggal di tab —
+ * lihat docs/DOCUMENT-TABS-RESTRUCTURE-PLAN.md). Semua operasi diskop ke
+ * `userId` dari context (diisi `authMiddleware`; dev lokal memakai fallback
+ * 'local-dev').
  */
 export default class DocumentsService extends BaseService {
 	/** List metadata dokumen milik user, terbaru di atas. Query `projectId`
@@ -38,9 +32,8 @@ export default class DocumentsService extends BaseService {
 			const result: DocumentSummary[] = rows.map((row) => ({
 				id: row.id,
 				title: row.title,
-				emoji: row.emoji,
-				language: row.language,
 				projectId: row.projectId,
+				tabCount: Number(row.tabCount),
 				updatedAt: row.updatedAt.getTime(),
 				createdAt: row.createdAt.getTime(),
 			}))
@@ -50,18 +43,24 @@ export default class DocumentsService extends BaseService {
 		}
 	}
 
-	/** Detail satu dokumen beserta kontennya. */
+	/** Detail satu dokumen induk beserta daftar tabnya (urut `position`). */
 	async getById(): Promise<Response> {
 		try {
 			const document = await findDocumentById(this.documentId(), this.ownerId())
 			if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
-			return this.success({ data: this.toDetail(document) })
+
+			const tabs = await findTabsByDocument(document.id)
+			return this.success({ data: this.toDetail(document, tabs) })
 		} catch (error) {
 			return this.failFromError(error)
 		}
 	}
 
-	/** Buat dokumen baru (misalnya saat "Simpan ke cloud" pertama kali). */
+	/**
+	 * Buat dokumen baru beserta satu tab awal (misalnya saat "Simpan ke cloud"
+	 * pertama kali). `content`/`emoji`/`language` di body menjadi milik tab
+	 * pertama; timeline versi tab langsung punya snapshot awal.
+	 */
 	async create(): Promise<Response> {
 		try {
 			const body = createDocumentBodySchema.safeParse(await this.context.req.json())
@@ -69,19 +68,38 @@ export default class DocumentsService extends BaseService {
 				return this.error({ errors: body.error.issues.map((issue) => issue.message) })
 			}
 
-			const document = await insertDocument({ ...body.data, owner_id: this.ownerId() })
+			const { content, emoji, language, projectId, title } = body.data
+			if (projectId) await this.ownedProject(projectId)
+
+			const document = await insertDocument({
+				owner_id: this.ownerId(),
+				title,
+				project_id: projectId ?? null,
+			})
 			if (!document) throw AppError.internalServerError('Gagal menyimpan dokumen')
 
-			// Versi interval pertama: timeline tidak pernah kosong.
-			await this.snapshotInterval(document, document.content)
+			const tab = await insertTab({
+				document_id: document.id,
+				owner_id: this.ownerId(),
+				title,
+				content: content ?? EMPTY_CONTENT,
+				emoji: emoji ?? null,
+				language: language ?? null,
+				position: 0,
+			})
+			if (!tab) throw AppError.internalServerError('Gagal menyimpan tab pertama')
 
-			return this.success({ data: this.toDetail(document), status: 201 })
+			// Versi interval pertama: timeline tidak pernah kosong.
+			await snapshotIntervalTab(tab.id, tab.content, this.ownerId())
+
+			return this.success({ data: this.toDetail(document, [tab]), status: 201 })
 		} catch (error) {
 			return this.failFromError(error)
 		}
 	}
 
-	/** Autosave: menimpa field yang dikirim saja. */
+	/** Ubah dokumen induk: judul dan/atau keanggotaan proyek. Autosave naskah
+	 * tidak lagi lewat sini — pakai `PUT /tabs/:tabId`. */
 	async update(): Promise<Response> {
 		try {
 			const body = updateDocumentBodySchema.safeParse(await this.context.req.json())
@@ -94,25 +112,31 @@ export default class DocumentsService extends BaseService {
 			if (projectId !== undefined) {
 				// `null` = keluarkan dari proyek; selain itu proyek tujuan harus
 				// benar-benar milik user ini.
-				if (projectId !== null) {
-					const project = await findProjectById(projectId, this.ownerId())
-					if (!project) throw AppError.badRequest('Proyek tidak ditemukan')
-				}
+				if (projectId !== null) await this.ownedProject(projectId)
 				values.project_id = projectId
+			}
+
+			// Field tak dikenal sudah di-strip zod; patch kosong berarti tidak
+			// ada yang bisa diupdate (drizzle melempar "No values to set").
+			if (Object.keys(values).length === 0) {
+				return this.error({ errors: ['Tidak ada field yang bisa diubah (title/projectId)'] })
 			}
 
 			const document = await updateDocument(this.documentId(), this.ownerId(), values)
 			if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
 
-			await this.snapshotInterval(document, body.data.content ?? document.content)
-
-			return this.success({ data: this.toDetail(document) })
+			const tabs = await findTabsByDocument(document.id)
+			return this.success({ data: this.toDetail(document, tabs) })
 		} catch (error) {
 			return this.failFromError(error)
 		}
 	}
 
-	/** Hard delete; share link terkait tetap hidup lewat snapshot-nya. */
+	/**
+	 * Hard delete dokumen induk: seluruh tab ikut terhapus lewat ON DELETE
+	 * CASCADE, dan versi/share/pool_request mengikuti aturan FK masing-masing
+	 * (share link tetap hidup lewat snapshot-nya).
+	 */
 	async remove(): Promise<Response> {
 		try {
 			const document = await deleteDocument(this.documentId(), this.ownerId())
@@ -129,36 +153,10 @@ export default class DocumentsService extends BaseService {
 		return userId
 	}
 
-	/**
-	 * Snapshot `interval` otomatis: dibuat bila belum ada versi sama sekali atau
-	 * versi terakhir lebih tua dari `INTERVAL_SNAPSHOT_MS`, dan dilewati bila
-	 * konten identik dengan versi terakhir (PUT metadata tidak boleh melahirkan
-	 * versi kembar). Best-effort — kegagalan snapshot tidak boleh menggagalkan
-	 * autosave; cukup dicatat.
-	 */
-	private async snapshotInterval(
-		document: { id: string; content: Record<string, unknown> },
-		content: Record<string, unknown>,
-	): Promise<void> {
-		try {
-			const latest = await findLatestVersion(document.id)
-			if (latest && Date.now() - latest.createdAt.getTime() <= INTERVAL_SNAPSHOT_MS) return
-			if (latest && (await versionContentEquals(latest.id, content))) return
-
-			await insertVersion({
-				document_id: document.id,
-				content,
-				trigger: 'interval',
-				word_count: countWords(content),
-				created_by: this.ownerId(),
-			})
-			await pruneIntervalVersions(document.id)
-		} catch (error) {
-			log.error(
-				{ err: error, documentId: document.id },
-				'Gagal membuat snapshot interval dokumen',
-			)
-		}
+	/** Proyek tujuan harus milik user; 400 bila bukan. */
+	private async ownedProject(projectId: string): Promise<void> {
+		const project = await findProjectById(projectId, this.ownerId())
+		if (!project) throw AppError.badRequest('Proyek tidak ditemukan')
 	}
 
 	private documentId(): string {
@@ -167,23 +165,41 @@ export default class DocumentsService extends BaseService {
 		return id
 	}
 
-	private toDetail(document: {
-		id: string
-		title: string
-		content: Record<string, unknown>
-		emoji: string | null
-		language: string | null
-		project_id: string | null
-		updated_at: Date
-		created_at: Date
-	}): DocumentDetail {
+	private toDetail(
+		document: {
+			id: string
+			title: string
+			project_id: string | null
+			updated_at: Date
+			created_at: Date
+		},
+		tabs: {
+			id: string
+			document_id: string
+			title: string
+			emoji: string | null
+			language: string | null
+			position: number
+			updated_at: Date
+			created_at: Date
+		}[],
+	): DocumentDetail {
+		const tabSummaries: TabSummary[] = tabs.map((tab) => ({
+			id: tab.id,
+			documentId: tab.document_id,
+			title: tab.title,
+			emoji: tab.emoji,
+			language: tab.language,
+			position: tab.position,
+			updatedAt: tab.updated_at.getTime(),
+			createdAt: tab.created_at.getTime(),
+		}))
 		return {
 			id: document.id,
 			title: document.title,
-			content: document.content,
-			emoji: document.emoji,
-			language: document.language,
 			projectId: document.project_id,
+			tabCount: tabSummaries.length,
+			tabs: tabSummaries,
 			updatedAt: document.updated_at.getTime(),
 			createdAt: document.created_at.getTime(),
 		}

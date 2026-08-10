@@ -32,7 +32,7 @@ export default class AnalysisService extends JobSubmissionService {
 					feature: body.feature,
 					text_length: body.text.length,
 				},
-				{ feature: body.feature, documentId: body.documentId ?? null },
+				{ feature: body.feature, tabId: body.tabId ?? body.documentId ?? null },
 			)
 
 			await QueueClient.enqueueAnalysisJob(jobId, {

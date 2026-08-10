@@ -7,7 +7,7 @@ import { useCallback, useState } from 'react'
 import { usePanels } from '@/features/analysis/panel-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
 import { reconcileSuggestions } from '@/features/document/suggestions'
-import { getDocument } from '@/features/documents/api'
+import { getDocument, getTab } from '@/features/documents/api'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSync } from '@/features/sync/sync-context'
 import { fingerprint } from '@/lib/utils'
@@ -15,7 +15,7 @@ import { canReapply, panelForFeature, remapResult, tabPlainText } from './reappl
 import type { HistoryDetail } from './types'
 
 export interface ReapplyController {
-	/** Dokumen tujuan entri adalah tab yang sedang aktif. */
+	/** Tab tujuan entri adalah tab yang sedang aktif. */
 	documentReady: boolean
 	/** Sedang membuka dokumen tujuan. */
 	opening: boolean
@@ -36,7 +36,7 @@ export interface ReapplyController {
  * (ChangeListPanel / apply-text). Offset lama dipetakan ulang lewat
  * resolveSpan sebelum didorong - lihat remapResult.
  *
- * Prasyarat: dokumen tujuan = tab aktif. Entri dengan documentId berbeda harus
+ * Prasyarat: tab tujuan = tab aktif. Entri dengan tabId berbeda harus
  * membuka dokumennya dulu (openTargetDocument); tidak ada penerapan lintas
  * dokumen.
  */
@@ -52,24 +52,27 @@ export function useReapply(detail: HistoryDetail | null): ReapplyController {
 	const [openError, setOpenError] = useState<string | null>(null)
 
 	const activeServerId = activeId ? linkage[activeId]?.serverId : undefined
-	// Entri tanpa tautan (tab lokal / dokumen sudah dihapus) diterapkan ke tab
-	// yang sedang aktif - tidak ada identitas dokumen lain untuk dilanggar.
-	const documentReady = !detail?.documentId || detail.documentId === activeServerId
+	// Entri tanpa tautan (tab lokal / tabnya sudah dihapus) diterapkan ke tab
+	// yang sedang aktif - tidak ada identitas tab lain untuk dilanggar.
+	const documentReady = !detail?.tabId || detail.tabId === activeServerId
 
 	const openTargetDocument = useCallback(async () => {
-		if (!detail?.documentId) return
+		if (!detail?.tabId) return
 		setOpening(true)
 		setOpenError(null)
 		try {
-			const document = await getDocument(detail.documentId)
-			const tabId = openFromLibrary(document)
+			// Entri hanya membawa id tab; induknya diambil dulu supaya seluruh
+			// tab dokumennya ikut terbuka.
+			const tab = await getTab(detail.tabId)
+			const document = await getDocument(tab.documentId)
+			const tabId = await openFromLibrary(document)
 			if (!tabId) setOpenError('Batas tab tercapai - tutup satu tab dulu.')
 		} catch {
 			setOpenError('Gagal membuka dokumen.')
 		} finally {
 			setOpening(false)
 		}
-	}, [detail?.documentId, openFromLibrary])
+	}, [detail?.tabId, openFromLibrary])
 
 	const reapply = useCallback(() => {
 		if (!detail?.result || !detail.feature || !activeId || !documentReady) return
@@ -96,7 +99,7 @@ export function useReapply(detail: HistoryDetail | null): ReapplyController {
 				offset: 0,
 				scoped: false,
 				language: language.code,
-				documentId: detail.documentId ?? undefined,
+				tabId: detail.tabId ?? undefined,
 			})
 			queryClient.setQueryData(
 				['analysis', feature, fingerprint(text), 0, language.code],

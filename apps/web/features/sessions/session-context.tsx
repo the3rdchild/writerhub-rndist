@@ -24,16 +24,26 @@ import {
 	type LocalView,
 	patchTabView,
 	pruneTabViews,
+	storedActiveTabId,
 	tabView,
 } from './local-view'
 import { migrateLegacySessions } from './migrate-legacy'
+import { migrateTabsToDocs } from './migrate-to-docs'
 import type { CommentReply, CommentThread } from './types'
 import {
+	createDocument,
 	createTab,
+	deleteDocument as ydocDeleteDocument,
 	deleteTab,
+	type DocMeta,
+	docsRoot,
 	duplicateTab,
+	findTabDoc,
+	moveDocument as ydocMoveDocument,
 	moveTab,
+	readDocs,
 	readTabs,
+	renameDocument as ydocRenameDocument,
 	type TabMeta,
 	tabPreview,
 	tabsRoot,
@@ -44,29 +54,38 @@ import {
 export type { CommentReply, CommentThread } from './types'
 
 /**
- * Satu tab = satu naskah, dan naskahnya hidup di dalam Y.Doc.
+ * Dokumen berisi tab; satu tab = satu naskah, dan naskahnya hidup di dalam
+ * Y.Doc.
  *
  * Sebelumnya lapisan ini memotret editor ke localStorage tiap 400 ms lalu
  * memuatnya balik saat berpindah tab. Dengan CRDT, potret dan muat-balik itu
  * tidak ada lagi: editor terikat langsung ke `Y.XmlFragment` milik tabnya, dan
  * Yjs sendiri yang menyimpan tiap perubahan. Yang tersisa di sini hanyalah
- * pertanyaan "tab mana yang sedang dibuka" dan jembatan ke state dokumen yang
- * dipakai pipeline analisis.
+ * pertanyaan "dokumen dan tab mana yang sedang dibuka" dan jembatan ke state
+ * dokumen yang dipakai pipeline analisis.
  *
  * Pembagiannya sengaja tegas: apa pun yang menjadi milik naskah ada di Y.Doc
  * (`ydoc.ts`), apa pun yang menjadi milik satu pemakai ada di localStorage
  * (`local-view.ts`). Pembagian itu yang nanti membuat dokumen ini bisa
  * dibagikan tanpa ikut membagikan isi kepala orang yang membukanya.
+ *
+ * API lama (`sessions`, `activeId`, `newSession`, `selectSession`, dst.)
+ * dipertahankan sebagai turunan dari model baru: `sessions` adalah tab milik
+ * dokumen aktif dan `activeId` alias dari `activeTabId`, supaya konsumen yang
+ * belum beralih ke tingkat dokumen tidak rusak.
  */
 
 const YDOC_NAME = 'writer-hub-doc'
 
 /**
- * Batas jumlah tab. Versi lama membuang tab tertua saat batas terlampaui;
- * sekarang pembuatannya yang ditolak - menghapus naskah orang tanpa diminta
- * bukan cara yang benar untuk menegakkan sebuah batas.
+ * Batas jumlah tab PER DOKUMEN. Versi lama membuang tab tertua saat batas
+ * terlampaui; sekarang pembuatannya yang ditolak - menghapus naskah orang
+ * tanpa diminta bukan cara yang benar untuk menegakkan sebuah batas.
  */
-const MAX_SESSIONS = 50
+export const MAX_SESSIONS = 50
+
+/** Batas jumlah dokumen, dengan alasan yang sama seperti batas tab. */
+export const MAX_DOCUMENTS = 100
 
 /** Jeda sebelum waktu sunting terakhir dicatat, supaya tiap ketukan tidak menulis. */
 const TOUCH_DEBOUNCE_MS = 600
@@ -88,18 +107,34 @@ export function sessionLabel(session: Session): string {
 interface SessionContextValue {
 	/** Dokumen bersama. Editor mengikat dirinya ke fragmen tab aktif di sini. */
 	doc: Y.Doc
+	/** Semua dokumen menurut urutan tampilnya. */
+	documents: DocMeta[]
+	/** Dokumen yang sedang dibuka. */
+	activeDocId: string | null
+	/** Tab yang sedang dibuka; `activeId` di bawah adalah alias lamanya. */
+	activeTabId: string | null
+	/** Tab milik dokumen aktif (bentuk lama, dipertahankan untuk konsumen lama). */
 	sessions: Session[]
+	/** Alias dari `activeTabId`. */
 	activeId: string | null
 	/** Naskah tersimpan sudah selesai dimuat; sebelum ini daftar tab belum bisa dipercaya. */
 	hydrated: boolean
+	/** Tab baru di dalam dokumen aktif. */
 	newSession: () => void
+	/** Dokumen baru, langsung berisi satu tab, dan langsung dibuka. */
+	newDocument: () => void
 	selectSession: (id: string) => void
+	selectDocument: (id: string) => void
 	deleteSession: (id: string) => void
+	deleteDocument: (id: string) => void
 	renameSession: (id: string, title: string) => void
+	renameDocument: (id: string, title: string) => void
 	duplicateSession: (id: string) => void
 	setSessionEmoji: (id: string, emoji: string | null) => void
-	/** Pindahkan tab `movedId` ke posisi tab `destId`. */
+	/** Pindahkan tab `movedId` ke posisi tab `destId` (dalam dokumen yang sama). */
 	moveSession: (movedId: string, destId: string) => void
+	/** Pindahkan dokumen `movedId` ke posisi dokumen `destId`. */
+	moveDocument: (movedId: string, destId: string) => void
 	/** Buka/tutup kerangka heading (daftar isi) sebuah tab. */
 	setSessionOutlineExpanded: (id: string, expanded: boolean) => void
 
@@ -126,6 +161,7 @@ const SessionContext = createContext<SessionContextValue | null>(null)
 
 export function SessionProvider({ children }: { children: ReactNode }) {
 	const [doc] = useState(() => new Y.Doc())
+	const [documents, setDocuments] = useState<DocMeta[]>([])
 	const [tabs, setTabs] = useState<Array<TabMeta & { preview: string }>>([])
 	const [loaded, setLoaded] = useState(false)
 	const [view, setView, viewHydrated] = usePersistentState<LocalView>(
@@ -145,9 +181,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			// IndexedDB ada di tangan - kalau tidak, migrasi bisa berjalan di atas
 			// dokumen kosong dan menggandakan naskah yang sudah pindah.
 			const migrated = migrateLegacySessions(doc)
-			if (readTabs(doc).length === 0) createTab(doc)
-			if (migrated?.activeId) {
-				setView((current) => (current.activeId ? current : { ...current, activeId: migrated.activeId }))
+			// Struktur lama (urutan tab global, sebelum dokumen ada) diangkat ke
+			// dokumen 1-tab. Aman dipanggil di setiap hidrasi: ia no-op begitu
+			// kunci lama bersih.
+			migrateTabsToDocs(doc)
+			if (readDocs(doc).length === 0) createDocument(doc)
+			const migratedTabId = migrated?.activeId ?? null
+			if (migratedTabId) {
+				setView((current) =>
+					storedActiveTabId(current)
+						? current
+						: {
+								...current,
+								activeTabId: migratedTabId,
+								activeDocId: findTabDoc(doc, migratedTabId),
+							},
+				)
 			}
 			setLoaded(true)
 		}
@@ -159,31 +208,59 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		}
 	}, [doc, setView])
 
-	// Daftar tab mengikuti Y.Doc. Yang diamati hanya wadah metanya - fragmen
-	// naskah adalah tipe tersendiri di akar dokumen, jadi mengetik tidak ikut
-	// membangun ulang daftar tab pada tiap ketukan.
+	// Daftar dokumen dan tab mengikuti Y.Doc. Yang diamati hanya wadah metanya -
+	// fragmen naskah adalah tipe tersendiri di akar dokumen, jadi mengetik tidak
+	// ikut membangun ulang daftar pada tiap ketukan.
 	useEffect(() => {
-		const { root } = tabsRoot(doc)
+		const docs = docsRoot(doc)
+		const tabsRoot_ = tabsRoot(doc)
 		const rebuild = () => {
+			setDocuments(readDocs(doc))
 			setTabs(readTabs(doc).map((meta) => ({ ...meta, preview: tabPreview(doc, meta.id) })))
 		}
 
 		rebuild()
-		root.observeDeep(rebuild)
-		return () => root.unobserveDeep(rebuild)
+		docs.root.observeDeep(rebuild)
+		tabsRoot_.root.observeDeep(rebuild)
+		return () => {
+			docs.root.unobserveDeep(rebuild)
+			tabsRoot_.root.unobserveDeep(rebuild)
+		}
 	}, [doc])
 
-	const activeId = useMemo(() => {
-		if (tabs.length === 0) return null
-		const stored = view.activeId
-		return stored && tabs.some((tab) => tab.id === stored) ? stored : tabs[0].id
-	}, [tabs, view.activeId])
+	// Tab aktif tersimpan; catatan bentuk lama (field `activeId`) ikut dibaca.
+	const storedTabId = storedActiveTabId(view)
 
-	const sessions = useMemo<Session[]>(
-		() =>
-			tabs.map((tab) => ({ ...tab, outlineExpanded: tabView(view, tab.id).outlineExpanded })),
-		[tabs, view],
-	)
+	const activeDocId = useMemo(() => {
+		if (documents.length === 0) return null
+		const stored = view.activeDocId
+		if (stored && documents.some((dok) => dok.id === stored)) return stored
+		// Tab aktif menentukan dokumennya - catatan lama bahkan hanya menyimpan
+		// tab, tanpa dokumen sama sekali.
+		if (storedTabId) {
+			const owner = documents.find((dok) => dok.tabOrder.includes(storedTabId))
+			if (owner) return owner.id
+		}
+		return documents[0].id
+	}, [documents, view.activeDocId, storedTabId])
+
+	const activeId = useMemo(() => {
+		const owner = documents.find((dok) => dok.id === activeDocId)
+		if (!owner || owner.tabOrder.length === 0) return null
+		return storedTabId && owner.tabOrder.includes(storedTabId)
+			? storedTabId
+			: owner.tabOrder[0]
+	}, [documents, activeDocId, storedTabId])
+
+	const sessions = useMemo<Session[]>(() => {
+		const owner = documents.find((dok) => dok.id === activeDocId)
+		if (!owner) return []
+		const byId = new Map(tabs.map((tab) => [tab.id, tab]))
+		return owner.tabOrder
+			.map((id) => byId.get(id))
+			.filter((tab): tab is TabMeta & { preview: string } => tab !== undefined)
+			.map((tab) => ({ ...tab, outlineExpanded: tabView(view, tab.id).outlineExpanded }))
+	}, [documents, activeDocId, tabs, view])
 
 	// ── jembatan ke state dokumen ────────────────────────────────────────────
 
@@ -192,7 +269,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	 *
 	 * Berpindah tab menyisakan satu render di mana `activeId` sudah tab baru tapi
 	 * state dokumen masih memuat naskah tab lama. Tanpa penanda ini, penulisan
-	 * balik di bawah akan menyalin judul tab lama ke tab baru pada render itu.
+	 * balik di bawah akan menyalin judul dokumen yang basi ke dokumen baru pada
+	 * render itu.
 	 */
 	const pendingLoad = useRef<{ id: string; title: string; text: string } | null>(null)
 
@@ -211,9 +289,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		 */
 		if (!loaded || !editor || editor.isDestroyed || !activeId) return
 
-		const meta = readTabs(doc).find((tab) => tab.id === activeId)
+		// Judul yang dibacakan ke state adalah judul DOKUMEN (ia yang tampil dan
+		// disunting di kepala aplikasi); judul tab tinggal di sidebar tab.
 		const text = editorPlainText(editor)
-		const title = meta?.title ?? 'Untitled document'
+		const title =
+			readDocs(doc).find((dok) => dok.id === activeDocId)?.title ?? 'Untitled document'
 		const local = tabView(view, activeId)
 
 		pendingLoad.current = { id: activeId, title, text }
@@ -226,11 +306,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		// `view` sengaja tidak jadi dependensi: hasil pemeriksaan hanya perlu
 		// dibacakan saat tabnya dibuka, bukan tiap kali salah satunya berubah.
 		// biome-ignore lint/correctness/useExhaustiveDependencies: lihat di atas
-	}, [loaded, editor, activeId, doc, dispatch])
+	}, [loaded, editor, activeId, activeDocId, doc, dispatch])
 
 	// Judul diketik di kepala aplikasi, tapi tempat tinggalnya di dalam dokumen.
 	useEffect(() => {
-		if (!loaded || !activeId) return
+		if (!loaded || !activeId || !activeDocId) return
 
 		const pending = pendingLoad.current
 		if (pending) {
@@ -241,9 +321,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			return
 		}
 
-		const stored = readTabs(doc).find((tab) => tab.id === activeId)?.title
-		if (stored !== state.title) updateTab(doc, activeId, { title: state.title })
-	}, [loaded, activeId, doc, state.title, state.text])
+		const stored = readDocs(doc).find((dok) => dok.id === activeDocId)?.title
+		if (stored !== undefined && stored !== state.title) {
+			ydocRenameDocument(doc, activeDocId, state.title)
+		}
+	}, [loaded, activeId, activeDocId, doc, state.title, state.text])
 
 	// Waktu sunting terakhir, untuk daftar "dokumen terakhir" - sekaligus yang
 	// menyegarkan nama tab yang belum berjudul.
@@ -280,41 +362,117 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	// ── aksi ─────────────────────────────────────────────────────────────────
 
 	const newSession = useCallback(() => {
-		if (readTabs(doc).length >= MAX_SESSIONS) return
-		const id = createTab(doc)
-		setView((current) => ({ ...current, activeId: id }))
+		if (!activeDocId) return
+		// Batasnya per dokumen: 50 tab di dalam SATU dokumen, bukan seluruhnya.
+		if (readTabs(doc, activeDocId).length >= MAX_SESSIONS) return
+		const id = createTab(doc, activeDocId)
+		setView((current) => ({ ...current, activeTabId: id }))
+	}, [doc, activeDocId, setView])
+
+	const newDocument = useCallback(() => {
+		if (readDocs(doc).length >= MAX_DOCUMENTS) return
+		const docId = createDocument(doc)
+		const tabId = readTabs(doc, docId)[0]?.id ?? null
+		setView((current) => ({ ...current, activeDocId: docId, activeTabId: tabId }))
 	}, [doc, setView])
 
 	/**
 	 * Pindah tab selalu mendarat dengan daftar isi tertutup: yang dicari saat
-	 * berganti naskah adalah naskahnya, bukan kerangkanya.
+	 * berganti naskah adalah naskahnya, bukan kerangkanya. Dokumen pemiliknya
+	 * ikut diaktifkan - tab tidak pernah tampil lepas dari dokumennya.
 	 */
 	const selectSession = useCallback(
 		(id: string) => {
-			setView((current) =>
-				current.activeId === id
-					? current
-					: patchTabView({ ...current, activeId: id }, id, { outlineExpanded: false }),
-			)
+			setView((current) => {
+				if (storedActiveTabId(current) === id) return current
+				const next = { ...current, activeTabId: id }
+				const owner = findTabDoc(doc, id)
+				if (owner) next.activeDocId = owner
+				return patchTabView(next, id, { outlineExpanded: false })
+			})
 		},
-		[setView],
+		[doc, setView],
+	)
+
+	const selectDocument = useCallback(
+		(id: string) => {
+			setView((current) => {
+				if (current.activeDocId === id) return current
+				const target = readDocs(doc).find((dok) => dok.id === id)
+				if (!target) return current
+				// Tab yang dibuka: tab aktif sekarang bila ia memang milik dokumen
+				// ini, kalau tidak tab pertamanya - mendarat dengan daftar isi
+				// tertutup, seperti pindah tab biasa.
+				const currentTab = storedActiveTabId(current)
+				const tabId =
+					currentTab && target.tabOrder.includes(currentTab)
+						? currentTab
+						: (target.tabOrder[0] ?? null)
+				const next = { ...current, activeDocId: id, activeTabId: tabId }
+				return tabId ? patchTabView(next, tabId, { outlineExpanded: false }) : next
+			})
+		},
+		[doc, setView],
 	)
 
 	const deleteSession = useCallback(
 		(id: string) => {
-			const current = readTabs(doc)
-			const at = current.findIndex((tab) => tab.id === id)
+			const ownerId = findTabDoc(doc, id)
+			if (!ownerId) return
+			const docTabs = readTabs(doc, ownerId)
+			const at = docTabs.findIndex((tab) => tab.id === id)
 			if (at === -1) return
+			const docAt = readDocs(doc).findIndex((dok) => dok.id === ownerId)
+			const remaining = docTabs.filter((tab) => tab.id !== id)
 
-			const remaining = current.filter((tab) => tab.id !== id)
+			// Menghapus tab terakhir sebuah dokumen sekaligus menghapus dokumennya
+			// (aturan di ydoc.ts).
 			deleteTab(doc, id)
 
-			// Editor tidak punya keadaan "tanpa dokumen": kalau yang terakhir
-			// ditutup, tempatnya langsung diisi naskah kosong.
-			const fallback = remaining[at]?.id ?? remaining[remaining.length - 1]?.id ?? createTab(doc)
+			let fallbackDoc = ownerId
+			let fallbackTab = remaining[at]?.id ?? remaining[remaining.length - 1]?.id
+			if (!fallbackTab) {
+				const docsLeft = readDocs(doc)
+				const neighbor = docsLeft[docAt] ?? docsLeft[docsLeft.length - 1]
+				if (neighbor) {
+					fallbackDoc = neighbor.id
+					fallbackTab = neighbor.tabOrder[0]
+				} else {
+					// Editor tidak punya keadaan "tanpa dokumen": kalau yang terakhir
+					// ditutup, tempatnya langsung diisi naskah kosong.
+					fallbackDoc = createDocument(doc)
+					fallbackTab = readTabs(doc, fallbackDoc)[0]?.id
+				}
+			}
+
+			setView((view) => {
+				if (storedActiveTabId(view) !== id) return view
+				const next = { ...view, activeDocId: fallbackDoc, activeTabId: fallbackTab ?? null }
+				return fallbackTab ? patchTabView(next, fallbackTab, { outlineExpanded: false }) : next
+			})
+		},
+		[doc, setView],
+	)
+
+	const deleteDocumentAction = useCallback(
+		(id: string) => {
+			const docs = readDocs(doc)
+			const at = docs.findIndex((dok) => dok.id === id)
+			if (at === -1) return
+
+			ydocDeleteDocument(doc, id)
+
+			// Sama seperti hapus tab: tidak boleh ada keadaan "tanpa dokumen".
+			const docsLeft = readDocs(doc)
+			const fallbackDoc =
+				docsLeft.length > 0
+					? (docsLeft[at] ?? docsLeft[docsLeft.length - 1]).id
+					: createDocument(doc)
+			const fallbackTab = readTabs(doc, fallbackDoc)[0]?.id ?? null
+
 			setView((view) =>
-				view.activeId === id
-					? patchTabView({ ...view, activeId: fallback }, fallback, { outlineExpanded: false })
+				view.activeDocId === id
+					? { ...view, activeDocId: fallbackDoc, activeTabId: fallbackTab }
 					: view,
 			)
 		},
@@ -323,11 +481,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
 	const renameSession = useCallback(
 		(id: string, title: string) => {
+			// Judul tab hanya milik sidebar tab; judul di kepala aplikasi adalah
+			// judul dokumen, jadi tidak ada yang perlu didorong ke state di sini.
 			updateTab(doc, id, { title, updatedAt: Date.now() })
-			// Judul di kepala aplikasi dan nama tab aktif adalah hal yang sama.
-			if (id === activeId) dispatch({ type: 'setTitle', title })
 		},
-		[doc, activeId, dispatch],
+		[doc],
+	)
+
+	const renameDocumentAction = useCallback(
+		(id: string, title: string) => {
+			ydocRenameDocument(doc, id, title)
+			// Judul di kepala aplikasi dan judul dokumen aktif adalah hal yang
+			// sama; tanpa ini efek tulis-balik di atas akan menimpa nama baru
+			// dengan judul lama yang masih tersimpan di state.
+			if (id === activeDocId) dispatch({ type: 'setTitle', title })
+		},
+		[doc, activeDocId, dispatch],
 	)
 
 	const duplicateSession = useCallback((id: string) => void duplicateTab(doc, id), [doc])
@@ -339,6 +508,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
 	const moveSession = useCallback(
 		(movedId: string, destId: string) => moveTab(doc, movedId, destId),
+		[doc],
+	)
+
+	const moveDocumentAction = useCallback(
+		(movedId: string, destId: string) => ydocMoveDocument(doc, movedId, destId),
 		[doc],
 	)
 
@@ -406,16 +580,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	const value = useMemo<SessionContextValue>(
 		() => ({
 			doc,
+			documents,
+			activeDocId,
+			activeTabId: activeId,
 			sessions,
 			activeId,
 			hydrated: loaded && viewHydrated,
 			newSession,
+			newDocument,
 			selectSession,
+			selectDocument,
 			deleteSession,
+			deleteDocument: deleteDocumentAction,
 			renameSession,
+			renameDocument: renameDocumentAction,
 			duplicateSession,
 			setSessionEmoji,
 			moveSession,
+			moveDocument: moveDocumentAction,
 			setSessionOutlineExpanded,
 			setTabResults,
 			languageOverride: active?.language ?? null,
@@ -428,18 +610,25 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		}),
 		[
 			doc,
+			documents,
+			activeDocId,
 			sessions,
 			activeId,
 			loaded,
 			viewHydrated,
 			active,
 			newSession,
+			newDocument,
 			selectSession,
+			selectDocument,
 			deleteSession,
+			deleteDocumentAction,
 			renameSession,
+			renameDocumentAction,
 			duplicateSession,
 			setSessionEmoji,
 			moveSession,
+			moveDocumentAction,
 			setSessionOutlineExpanded,
 			setTabResults,
 			setLanguageOverride,

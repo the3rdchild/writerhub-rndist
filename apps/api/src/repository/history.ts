@@ -1,6 +1,6 @@
 import { and, desc, eq, lt, sql } from 'drizzle-orm'
 import db from '@/db'
-import { analysisResult, documents, grammarResult, poolRequest } from '@/db/schemas'
+import { analysisResult, documents, documentTabs, grammarResult, poolRequest } from '@/db/schemas'
 
 /**
  * Akses tabel `pool_request` (plus join hasilnya) untuk halaman Aktivitas AI,
@@ -16,7 +16,8 @@ export const HISTORY_RETENTION_DAYS = 90
 
 export interface HistoryListFilter {
 	feature?: string
-	documentId?: string
+	/** Filter per tab (`pool_request.tab_id`). */
+	tabId?: string
 	limit: number
 	/** Keyset pagination: hanya baris dengan created_at SEBELUM kursor ini. */
 	cursor?: Date
@@ -40,15 +41,18 @@ const analysisScore = sql<string | null>`coalesce(
 export async function findHistoryByUser(userId: string, filter: HistoryListFilter) {
 	const conditions = [eq(poolRequest.user_id, userId)]
 	if (filter.feature) conditions.push(eq(poolRequest.feature, filter.feature))
-	if (filter.documentId) conditions.push(eq(poolRequest.document_id, filter.documentId))
+	if (filter.tabId) conditions.push(eq(poolRequest.tab_id, filter.tabId))
 	if (filter.cursor) conditions.push(lt(poolRequest.created_at, filter.cursor))
 
+	// Judul yang ditampilkan adalah judul DOKUMEN INDUK (plan §7 baris F):
+	// pool_request.tab_id -> document_tabs -> documents. Tab yang sudah dihapus
+	// menghasilkan judul null (tautannya di-SET NULL).
 	return db
 		.select({
 			jobId: poolRequest.job_id,
 			status: poolRequest.status,
 			feature: poolRequest.feature,
-			documentId: poolRequest.document_id,
+			tabId: poolRequest.tab_id,
 			documentTitle: documents.title,
 			createdAt: poolRequest.created_at,
 			grammarScore: grammarResult.writing_quality,
@@ -59,7 +63,8 @@ export async function findHistoryByUser(userId: string, filter: HistoryListFilte
 			analysisScore,
 		})
 		.from(poolRequest)
-		.leftJoin(documents, eq(poolRequest.document_id, documents.id))
+		.leftJoin(documentTabs, eq(poolRequest.tab_id, documentTabs.id))
+		.leftJoin(documents, eq(documentTabs.document_id, documents.id))
 		.leftJoin(grammarResult, eq(grammarResult.job_id, poolRequest.job_id))
 		.leftJoin(analysisResult, eq(analysisResult.job_id, poolRequest.job_id))
 		.where(and(...conditions))
@@ -77,7 +82,8 @@ export async function findHistoryEntry(userId: string, jobId: string) {
 			analysis: analysisResult,
 		})
 		.from(poolRequest)
-		.leftJoin(documents, eq(poolRequest.document_id, documents.id))
+		.leftJoin(documentTabs, eq(poolRequest.tab_id, documentTabs.id))
+		.leftJoin(documents, eq(documentTabs.document_id, documents.id))
 		.leftJoin(grammarResult, eq(grammarResult.job_id, poolRequest.job_id))
 		.leftJoin(analysisResult, eq(analysisResult.job_id, poolRequest.job_id))
 		.where(and(eq(poolRequest.user_id, userId), eq(poolRequest.job_id, jobId)))

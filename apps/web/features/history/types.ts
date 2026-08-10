@@ -16,8 +16,9 @@ export interface HistoryEntry {
 	jobId: string
 	feature: HistoryFeature | null
 	status: JobStatus
-	/** null berarti job dijalankan dari tab lokal, atau dokumennya sudah dihapus. */
-	documentId: string | null
+	/** null berarti job dijalankan dari tab lokal, atau tabnya sudah dihapus. */
+	tabId: string | null
+	/** Judul dokumen induk tab tempat job dijalankan. */
 	documentTitle: string | null
 	/** Epoch milidetik (server mengirim `Date.getTime()`). */
 	createdAt: number

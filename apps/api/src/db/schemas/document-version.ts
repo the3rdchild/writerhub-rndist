@@ -1,10 +1,10 @@
 import { integer, jsonb, pgEnum, pgTable, uuid, varchar } from 'drizzle-orm/pg-core'
-import { documents } from './document'
+import { documentTabs } from './document-tab'
 import { timestamps } from '@/db/utils/common-table'
 
 /**
- * Snapshot riwayat versi sebuah dokumen. Konten disimpan apa adanya sebagai
- * JSON Tiptap (ProseMirror), format sama dengan `documents.content`.
+ * Snapshot riwayat versi sebuah TAB. Konten disimpan apa adanya sebagai
+ * JSON Tiptap (ProseMirror), format sama dengan `document_tabs.content`.
  * Versi immutable — tidak ada `updated_at`.
  */
 export const versionTriggerEnum = pgEnum('version_trigger', [
@@ -16,9 +16,9 @@ export const versionTriggerEnum = pgEnum('version_trigger', [
 
 export const documentVersions = pgTable('document_versions', {
 	id: uuid('id').primaryKey().defaultRandom(),
-	document_id: uuid('document_id')
+	tab_id: uuid('tab_id')
 		.notNull()
-		.references(() => documents.id, { onDelete: 'cascade' }),
+		.references(() => documentTabs.id, { onDelete: 'cascade' }),
 	content: jsonb('content').notNull().$type<Record<string, unknown>>(),
 	trigger: versionTriggerEnum('trigger').notNull(),
 	label: varchar('label', { length: 255 }),

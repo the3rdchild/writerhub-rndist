@@ -7,6 +7,7 @@ import {
 	CloudOff,
 	CloudUpload,
 	Copy,
+	Files,
 	FileText,
 	ListTree,
 	Loader2,
@@ -29,6 +30,7 @@ import {
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { type OutlineItem, scrollToOutlineItem, useOutline } from '@/features/editor/use-outline'
 import { type Session, sessionLabel, useSessions } from '@/features/sessions/session-context'
+import type { DocMeta } from '@/features/sessions/ydoc'
 import { useSettings } from '@/features/settings/settings-context'
 import { type SyncStatus, useSync } from '@/features/sync/sync-context'
 import { cn } from '@/lib/utils'
@@ -40,21 +42,25 @@ import { cn } from '@/lib/utils'
 const TAB_ICONS = ['📄', '📝', '📌', '⭐', '📊', '🔬', '💡', '🗂️'] as const
 
 /**
- * Sidebar tab dokumen.
+ * Sidebar dua tingkat: dokumen di atas, tab milik dokumen aktif di bawah.
  *
- * Satu tab adalah satu sesi - daftarnya datang langsung dari penyimpanan sesi,
- * bukan salinan tersendiri, supaya tidak ada dua versi naskah yang sama.
- *
- * Kerangka heading tampil bersarang di bawah tab yang sedang dibuka, bukan
- * sebagai panel terpisah: tab menjawab "naskah mana", kerangka menjawab "bagian
- * mana" - dua pertanyaan berurutan, jadi jawabannya berdekatan.
+ * Satu tab adalah satu naskah - daftarnya datang langsung dari penyimpanan
+ * sesi, bukan salinan tersendiri, supaya tidak ada dua versi naskah yang sama.
+ * Dokumen menjawab "naskah ini bagian dari apa", tab menjawab "naskah mana",
+ * dan kerangka heading (bersarang di bawah tab aktif) menjawab "bagian mana".
  */
 export function DocumentTabsSidebar() {
 	const {
+		documents,
+		activeDocId,
 		sessions,
 		activeId,
 		selectSession,
 		newSession,
+		newDocument,
+		selectDocument,
+		deleteDocument,
+		renameDocument,
 		renameSession,
 		duplicateSession,
 		deleteSession,
@@ -62,12 +68,14 @@ export function DocumentTabsSidebar() {
 		moveSession,
 		setSessionOutlineExpanded,
 	} = useSessions()
-	const { syncStatus, saveToCloud } = useSync()
+	const { linkage, syncStatus, saveToCloud } = useSync()
 	const { editor } = useEditorInstance()
 	const { update } = useSettings()
 	const outline = useOutline(editor)
 	const [renamingId, setRenamingId] = useState<string | null>(null)
 	const [pendingDelete, setPendingDelete] = useState<Session | null>(null)
+	const [renamingDocId, setRenamingDocId] = useState<string | null>(null)
+	const [pendingDeleteDoc, setPendingDeleteDoc] = useState<DocMeta | null>(null)
 
 	/**
 	 * Seret memakai DnD bawaan HTML, bukan pustaka: daftarnya satu kolom, pendek,
@@ -93,7 +101,47 @@ export function DocumentTabsSidebar() {
 			</div>
 
 			<div className="flex items-center justify-between gap-1 pb-1 pl-3 pr-1">
-				<h2 className="text-sm font-medium text-muted">Document tabs</h2>
+				<h2 className="text-sm font-medium text-muted">Dokumen</h2>
+				<button
+					type="button"
+					aria-label="Dokumen baru"
+					title="Dokumen baru"
+					onClick={newDocument}
+					className="flex h-7 w-7 items-center justify-center rounded-lg text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
+				>
+					<Plus className="h-4 w-4" />
+				</button>
+			</div>
+
+			<ul className="flex flex-col gap-0.5">
+				{documents.map((dok) => (
+					<li key={dok.id}>
+						{renamingDocId === dok.id ? (
+							<TabNameInput
+								initialValue={dok.title}
+								ariaLabel="Nama dokumen"
+								onCommit={(title) => {
+									renameDocument(dok.id, title)
+									setRenamingDocId(null)
+								}}
+								onCancel={() => setRenamingDocId(null)}
+							/>
+						) : (
+							<DocRow
+								doc={dok}
+								active={dok.id === activeDocId}
+								linkedTabs={dok.tabOrder.filter((tabId) => linkage[tabId]).length}
+								onSelect={() => selectDocument(dok.id)}
+								onStartRename={() => setRenamingDocId(dok.id)}
+								onRemove={() => setPendingDeleteDoc(dok)}
+							/>
+						)}
+					</li>
+				))}
+			</ul>
+
+			<div className="flex items-center justify-between gap-1 pb-1 pl-3 pr-1 pt-4">
+				<h2 className="text-sm font-medium text-muted">Tab</h2>
 				<button
 					type="button"
 					aria-label="Tab baru"
@@ -194,7 +242,139 @@ export function DocumentTabsSidebar() {
 				}}
 				onCancel={() => setPendingDelete(null)}
 			/>
+
+			<ConfirmDialog
+				open={pendingDeleteDoc !== null}
+				danger
+				title="Hapus dokumen ini?"
+				description={
+					<>
+						Dokumen <strong className="text-foreground">{pendingDeleteDoc?.title}</strong>{' '}
+						beserta seluruh {pendingDeleteDoc?.tabOrder.length} tab-nya dihapus dari
+						perangkat ini. Salinan di cloud (bila ada) tetap tersimpan di Library.
+					</>
+				}
+				confirmLabel="Hapus"
+				onConfirm={() => {
+					if (pendingDeleteDoc) deleteDocument(pendingDeleteDoc.id)
+					setPendingDeleteDoc(null)
+				}}
+				onCancel={() => setPendingDeleteDoc(null)}
+			/>
 		</aside>
+	)
+}
+
+/**
+ * Satu baris dokumen. Tanpa seret-lepas - urutan dokumen belum bisa diubah
+ * dari sini; yang penting tingkat ini terlihat dan bisa dinavigasi.
+ */
+function DocRow({
+	doc,
+	active,
+	linkedTabs,
+	onSelect,
+	onStartRename,
+	onRemove,
+}: {
+	doc: DocMeta
+	active: boolean
+	/** Berapa tab dokumen ini yang sudah terhubung ke cloud. */
+	linkedTabs: number
+	onSelect: () => void
+	onStartRename: () => void
+	onRemove: () => void
+}) {
+	return (
+		<div
+			className={cn(
+				'group flex items-center gap-2 rounded-lg py-1 pl-2.5 pr-1 transition-colors',
+				active
+					? 'bg-[var(--overlay-active)] text-foreground'
+					: 'text-muted hover:bg-[var(--overlay-hover)] hover:text-foreground',
+			)}
+		>
+			<button
+				type="button"
+				onClick={onSelect}
+				onDoubleClick={onStartRename}
+				className="flex min-w-0 flex-1 items-center gap-2 text-left"
+			>
+				<Files className={cn('h-4 w-4 shrink-0', !active && 'text-subtle')} />
+				<span className="truncate text-sm" title={doc.title}>
+					{doc.title}
+				</span>
+				<span className="shrink-0 text-[11px] text-faint">{doc.tabOrder.length} tab</span>
+			</button>
+
+			<DocCloudBadge linked={linkedTabs} total={doc.tabOrder.length} />
+
+			<Dropdown
+				align="end"
+				trigger={({ open, toggle, id }) => (
+					<button
+						type="button"
+						onClick={toggle}
+						aria-label={`Opsi ${doc.title}`}
+						aria-expanded={open}
+						aria-controls={id}
+						className={cn(
+							'flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-[var(--overlay-active)]',
+							open || active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+						)}
+					>
+						<MoreVertical className="h-4 w-4" />
+					</button>
+				)}
+			>
+				{({ close }) => (
+					<>
+						<DropdownItem
+							icon={<Pencil className="h-4 w-4" />}
+							onSelect={() => {
+								close()
+								onStartRename()
+							}}
+						>
+							Ganti nama
+						</DropdownItem>
+						<DropdownSeparator />
+						<DropdownItem
+							icon={<Trash2 className="h-4 w-4" />}
+							onSelect={() => {
+								close()
+								onRemove()
+							}}
+						>
+							Hapus
+						</DropdownItem>
+					</>
+				)}
+			</Dropdown>
+		</div>
+	)
+}
+
+/**
+ * Indikator cloud tingkat dokumen: tampil hanya bila ada tab yang terhubung.
+ * Ikon penuh berarti semua tab tersimpan di cloud; setengah informasi (titik)
+ * berarti baru sebagian.
+ */
+function DocCloudBadge({ linked, total }: { linked: number; total: number }) {
+	if (linked === 0) return null
+	const all = linked === total
+	return (
+		<span
+			title={
+				all
+					? 'Semua tab tersimpan di cloud'
+					: `${linked} dari ${total} tab tersimpan di cloud`
+			}
+			className="flex shrink-0 items-center gap-0.5 text-subtle"
+		>
+			<Cloud className="h-3.5 w-3.5" />
+			{!all && <span className="text-[10px] leading-none">{linked}/{total}</span>}
+		</span>
 	)
 }
 
@@ -468,10 +648,12 @@ function TabRow({
 
 function TabNameInput({
 	initialValue,
+	ariaLabel = 'Nama tab',
 	onCommit,
 	onCancel,
 }: {
 	initialValue: string
+	ariaLabel?: string
 	onCommit: (value: string) => void
 	onCancel: () => void
 }) {
@@ -499,7 +681,7 @@ function TabNameInput({
 				if (event.key === 'Enter') commit()
 				else if (event.key === 'Escape') onCancel()
 			}}
-			aria-label="Nama tab"
+			aria-label={ariaLabel}
 			className="w-full rounded-lg border border-accent bg-surface-raised px-2.5 py-1.5 text-sm text-foreground outline-none"
 		/>
 	)

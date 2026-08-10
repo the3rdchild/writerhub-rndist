@@ -6,7 +6,7 @@ import type * as Y from 'yjs'
 import { buildEditorExtensions } from '@/features/editor/extensions'
 import { textToParagraphs } from '@/features/editor/text-content'
 import type { CommentThread } from './types'
-import { createTab, LOCAL_ORIGIN, tabFragment, updateTab } from './ydoc'
+import { createDocument, LOCAL_ORIGIN, readTabs, tabFragment, updateTab } from './ydoc'
 
 /**
  * Naskah dari versi localStorage dipindahkan ke Y.Doc.
@@ -97,7 +97,12 @@ export function migrateLegacySessions(doc: Y.Doc): { activeId: string | null } |
 	let activeId: string | null = null
 
 	for (const session of legacy.sessions) {
-		const tabId = createTab(doc, session.title?.trim() || 'Untitled document')
+		// Tiap sesi lama jadi satu dokumen berisi satu tab - bentuk akhir yang
+		// sama dengan migrasi struktur Y.Doc lama (`migrate-to-docs.ts`).
+		const title = session.title?.trim() || 'Untitled document'
+		const docId = createDocument(doc, title)
+		const tabId = readTabs(doc, docId)[0]?.id
+		if (!tabId) continue
 		updateTab(doc, tabId, {
 			emoji: session.emoji ?? null,
 			language: session.language ?? null,

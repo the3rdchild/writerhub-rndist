@@ -5,24 +5,25 @@ import { getLocalVersion, listLocalVersions } from './local-store'
 export const VERSIONS_QUERY_KEY = ['versions'] as const
 
 /**
- * Sumber lini masa versi (Iterasi 2): `documentId` terisi berarti dokumen
- * cloud (API server), `null` berarti tab lokal (IndexedDB `local-store`).
- * Bentuknya sengaja irisan dari `VersionMode` di version-context supaya mode
- * yang sedang terbuka bisa disodorkan apa adanya.
+ * Sumber lini masa versi (Iterasi 2): `serverTabId` terisi berarti tab cloud
+ * (API server), `null` berarti tab lokal (IndexedDB `local-store`). Bentuknya
+ * sengaja irisan dari `VersionMode` di version-context supaya mode yang sedang
+ * terbuka bisa disodorkan apa adanya.
  */
 export interface VersionSource {
 	tabId: string
-	documentId: string | null
+	/** Id tab di server (dari kaitan sync), bukan id dokumen induk. */
+	serverTabId: string | null
 }
 
 /**
- * Kunci query per sumber. Pola server tidak berubah (`['versions', docId]`);
+ * Kunci query per sumber. Pola server tidak berubah (`['versions', tabId]`);
  * lokal memakai `['versions', 'local', tabId]` supaya invalidasi dari
  * Ctrl+S/snapshot interval/restore mengenai daftar dan detail sekaligus.
  */
 function sourceKey(source: VersionSource): readonly unknown[] {
-	return source.documentId
-		? [...VERSIONS_QUERY_KEY, source.documentId]
+	return source.serverTabId
+		? [...VERSIONS_QUERY_KEY, source.serverTabId]
 		: [...VERSIONS_QUERY_KEY, 'local', source.tabId]
 }
 
@@ -32,7 +33,7 @@ export function useVersions(source: VersionSource | null) {
 		queryKey: source ? sourceKey(source) : VERSIONS_QUERY_KEY,
 		queryFn: () => {
 			if (!source) throw new Error('useVersions dipanggil tanpa sumber')
-			return source.documentId ? listVersions(source.documentId) : listLocalVersions(source.tabId)
+			return source.serverTabId ? listVersions(source.serverTabId) : listLocalVersions(source.tabId)
 		},
 		enabled: source !== null,
 		// Versi interval bisa tercipta kapan saja lewat autosave; tidak boleh abadi.
@@ -46,8 +47,8 @@ export function useVersion(source: VersionSource | null, versionId: string | nul
 		queryKey: source ? [...sourceKey(source), versionId] : VERSIONS_QUERY_KEY,
 		queryFn: async () => {
 			if (!source || !versionId) throw new Error('useVersion dipanggil tanpa sumber/versi')
-			return source.documentId
-				? getVersion(source.documentId, versionId)
+			return source.serverTabId
+				? getVersion(source.serverTabId, versionId)
 				: getLocalVersion(source.tabId, versionId)
 		},
 		enabled: source !== null && versionId !== null,

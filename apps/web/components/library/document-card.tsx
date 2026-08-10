@@ -20,7 +20,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown'
 import { getDocument, updateDocument } from '@/features/documents/api'
-import type { DocumentSummary } from '@/features/documents/types'
+import type { DocumentSummary, TabSummary } from '@/features/documents/types'
 import { useInvalidateDocuments } from '@/features/documents/use-documents'
 import { useProjects } from '@/features/projects/use-projects'
 import { createShare } from '@/features/share/api'
@@ -36,11 +36,18 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	minute: '2-digit',
 })
 
+/** Tab yang sedang menunggu dialog bagikannya dibuka. */
+interface ShareTarget {
+	tabId: string
+	title: string
+}
+
 /**
  * Satu dokumen di library.
  *
- * "Buka" mengambil naskah penuhnya dulu (kartu hanya memegang ringkasan),
- * lalu menyerahkannya ke sync context untuk dijadikan tab baru di editor.
+ * "Buka" mengambil detailnya dulu (kartu hanya memegang ringkasan), lalu
+ * menyerahkannya ke sync context untuk dijadikan dokumen baru di editor,
+ * lengkap dengan seluruh tabnya.
  */
 export function DocumentCard({
 	document,
@@ -56,7 +63,9 @@ export function DocumentCard({
 
 	const [renaming, setRenaming] = useState(false)
 	const [opening, setOpening] = useState(false)
-	const [shareOpen, setShareOpen] = useState(false)
+	const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null)
+	/** Pilihan tab untuk dibagikan; terisi hanya bila dokumennya punya >1 tab. */
+	const [shareTabs, setShareTabs] = useState<TabSummary[] | null>(null)
 	const [movingOpen, setMovingOpen] = useState(false)
 	const [actionError, setActionError] = useState<string | null>(null)
 
@@ -64,12 +73,14 @@ export function DocumentCard({
 		setOpening(true)
 		setActionError(null)
 		getDocument(document.id)
-			.then((detail) => {
-				const tabId = openFromLibrary(detail)
+			.then(async (detail) => {
+				const tabId = await openFromLibrary(detail)
 				if (tabId) {
 					router.push('/')
 				} else {
-					setActionError('Jumlah tab sudah mencapai batas. Tutup salah satu tab dulu.')
+					setActionError(
+						'Jumlah dokumen atau tab sudah mencapai batas. Tutup salah satu dulu.',
+					)
 				}
 			})
 			.catch((cause) =>
@@ -88,6 +99,30 @@ export function DocumentCard({
 			)
 	}
 
+	/**
+	 * Share tetap per TAB (keputusan 2 rencana restrukturisasi), jadi kartu
+	 * dokumen harus memilih tabnya dulu: langsung bila hanya ada satu, lewat
+	 * pilihan kecil bila lebih.
+	 */
+	const startShare = () => {
+		setActionError(null)
+		getDocument(document.id)
+			.then((detail) => {
+				if (detail.tabs.length === 0) {
+					setActionError('Dokumen ini tidak punya tab untuk dibagikan.')
+					return
+				}
+				if (detail.tabs.length === 1) {
+					setShareTarget({ tabId: detail.tabs[0].id, title: detail.tabs[0].title })
+				} else {
+					setShareTabs(detail.tabs)
+				}
+			})
+			.catch((cause) =>
+				setActionError(cause instanceof Error ? cause.message : 'Gagal membaca tab dokumen'),
+			)
+	}
+
 	/** Pindahkan ke proyek lain; `null` mengeluarkannya ke "Tanpa proyek". */
 	const moveToProject = (projectId: string | null) => {
 		setActionError(null)
@@ -102,7 +137,7 @@ export function DocumentCard({
 		<div className="flex flex-col gap-2 rounded-2xl border border-line bg-surface-raised p-4 transition-colors hover:border-line-strong">
 			<div className="flex items-start gap-3">
 				<span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--overlay-active)] text-lg leading-none">
-					{document.emoji ?? <FileText className="h-4 w-4 text-subtle" />}
+					<FileText className="h-4 w-4 text-subtle" />
 				</span>
 
 				<div className="min-w-0 flex-1">
@@ -118,7 +153,7 @@ export function DocumentCard({
 						</h3>
 					)}
 					<p className="mt-0.5 text-xs text-subtle">
-						{dateFormat.format(new Date(document.updatedAt))}
+						{document.tabCount} tab · {dateFormat.format(new Date(document.updatedAt))}
 					</p>
 				</div>
 
@@ -167,14 +202,34 @@ export function DocumentCard({
 							<DropdownItem
 								icon={<Share2 className="h-4 w-4" />}
 								onSelect={() => {
-									close()
-									setShareOpen(true)
+									if (document.tabCount <= 1) close()
+									startShare()
 								}}
 							>
 								Bagikan
 							</DropdownItem>
+							{/* Share per tab: dokumen multi-tab menawarkan pilihan tabnya
+							    sebagai submenu kecil; dokumen satu tab langsung membuka
+							    dialog (menu sudah ditutup di atas). */}
+							{shareTabs && (
+								<div className="border-l border-line ml-5 flex flex-col">
+									{shareTabs.map((tab) => (
+										<DropdownItem
+											key={tab.id}
+											icon={<FileText className="h-4 w-4" />}
+											onSelect={() => {
+												close()
+												setShareTabs(null)
+												setShareTarget({ tabId: tab.id, title: tab.title })
+											}}
+										>
+											{tab.title}
+										</DropdownItem>
+									))}
+								</div>
+							)}
 							{/* Kartu library selalu dokumen server, jadi pemindahan proyek
-							    selalu bekerja; tab lokal-saja memang tidak muncul di sini. */}
+							    selalu bekerja; dokumen lokal-saja memang tidak muncul di sini. */}
 							<DropdownItem
 								icon={<FolderInput className="h-4 w-4" />}
 								onSelect={() => setMovingOpen((current) => !current)}
@@ -255,7 +310,13 @@ export function DocumentCard({
 				Buka di editor
 			</button>
 
-			{shareOpen && <CardShareDialog document={document} onClose={() => setShareOpen(false)} />}
+			{shareTarget && (
+				<CardShareDialog
+					tabId={shareTarget.tabId}
+					title={shareTarget.title}
+					onClose={() => setShareTarget(null)}
+				/>
+			)}
 		</div>
 	)
 }
@@ -300,15 +361,18 @@ function CardNameInput({
 }
 
 /**
- * Dialog bagikan dari library: link dibuat dari `documentId`, tanpa membuka
- * editor dulu. Versi sederhana dari dialog di menu bar - akses dan perannya
- * bawaan, yang penting URL-nya sampai ke tangan pemakai.
+ * Dialog bagikan dari library: link dibuat dari `tabId`, tanpa membuka editor
+ * dulu - kontennya diambil server dari tab yang tersimpan. Versi sederhana
+ * dari dialog di menu bar: akses dan perannya bawaan, yang penting URL-nya
+ * sampai ke tangan pemakai.
  */
 function CardShareDialog({
-	document,
+	tabId,
+	title,
 	onClose,
 }: {
-	document: DocumentSummary
+	tabId: string
+	title: string
 	onClose: () => void
 }) {
 	const overlayRef = useRef<HTMLDivElement>(null)
@@ -324,7 +388,7 @@ function CardShareDialog({
 		}
 		window.addEventListener('keydown', onKeyDown)
 
-		createShare({ documentId: document.id, access: 'anyone', role: 'viewer' })
+		createShare({ tabId, access: 'anyone', role: 'viewer' })
 			.then((result) => setLink(`${window.location.origin}${result.url}`))
 			.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal membuat link'))
 			.finally(() => setLoading(false))
@@ -334,7 +398,7 @@ function CardShareDialog({
 			window.removeEventListener('keydown', onKeyDown)
 		}
 		// biome-ignore lint/correctness/useExhaustiveDependencies: dialog hanya membuat link sekali saat dibuka
-	}, [document.id])
+	}, [tabId])
 
 	const copyLink = async () => {
 		if (!link) return
@@ -352,7 +416,7 @@ function CardShareDialog({
 			ref={overlayRef}
 			role="dialog"
 			aria-modal="true"
-			aria-label="Bagikan dokumen"
+			aria-label="Bagikan tab"
 			className="fixed inset-0 z-50 flex animate-in items-center justify-center bg-black/60 backdrop-blur-sm fade-in duration-200"
 			onClick={(event) => {
 				if (event.target === overlayRef.current) onClose()
@@ -361,7 +425,7 @@ function CardShareDialog({
 			<div className="flex w-full max-w-md animate-in flex-col gap-4 rounded-2xl border border-line-strong bg-surface-raised p-5 shadow-2xl zoom-in-95 duration-200">
 				<div className="flex items-start justify-between gap-4">
 					<h2 className="text-base font-semibold text-foreground">
-						Bagikan &ldquo;{document.title}&rdquo;
+						Bagikan &ldquo;{title}&rdquo;
 					</h2>
 					<button
 						type="button"
@@ -400,7 +464,7 @@ function CardShareDialog({
 					<p className="text-xs text-red-500">{error}</p>
 				) : (
 					<p className="text-xs text-subtle">
-						Link merujuk salinan dokumen di server. Siapa pun yang memiliki link dapat membuka.
+						Link merujuk salinan tab di server. Siapa pun yang memiliki link dapat membuka.
 					</p>
 				)}
 			</div>

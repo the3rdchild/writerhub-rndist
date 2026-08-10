@@ -117,12 +117,12 @@ export default class HistoryService extends BaseService {
 			if (!query.success) {
 				return this.error({ errors: query.error.issues.map((issue) => issue.message) })
 			}
-			const { feature, documentId, limit, cursor } = query.data
+			const { feature, tabId, limit, cursor } = query.data
 
 			// Satu baris ekstra sebagai penanda halaman berikutnya (keyset).
 			const rows = await findHistoryByUser(this.ownerId(), {
 				feature,
-				documentId,
+				tabId,
 				limit: limit + 1,
 				cursor: cursor ? new Date(cursor) : undefined,
 			})
@@ -132,7 +132,7 @@ export default class HistoryService extends BaseService {
 				jobId: row.jobId,
 				feature: knownFeature(row.feature),
 				status: row.status,
-				documentId: row.documentId,
+				tabId: row.tabId,
 				documentTitle: row.documentTitle,
 				createdAt: row.createdAt.getTime(),
 				summary: summarize(row),
@@ -158,7 +158,7 @@ export default class HistoryService extends BaseService {
 				jobId: row.request.job_id,
 				feature: knownFeature(row.request.feature),
 				status: row.request.status,
-				documentId: row.request.document_id,
+				tabId: row.request.tab_id,
 				documentTitle: row.documentTitle,
 				createdAt: row.request.created_at.getTime(),
 				summary: summarize({

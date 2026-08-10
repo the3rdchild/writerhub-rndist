@@ -52,7 +52,7 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 		queryKey: ['analysis', feature, requestedKey, requested?.offset ?? 0, requested?.language],
 		queryFn: async ({ signal }) => {
 			const run = requested as AnalysisRun
-			const raw = await runAnalysis(feature, run.text, run.language, signal, run.documentId)
+			const raw = await runAnalysis(feature, run.text, run.language, signal, run.tabId)
 			// Digeser di sini, sekali, supaya seluruh pemakainya tidak perlu tahu
 			// apakah hasil ini datang dari potongan atau dari naskah penuh.
 			return shiftAnalysisResult(feature, raw, run.offset)
@@ -66,12 +66,12 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 
 	const run = useCallback(
 		(scope?: { text: string; offset: number }) => {
-			// Tautan dokumen cloud ikut dicatat supaya job ini muncul di Aktivitas
+			// Tautan tab cloud ikut dicatat supaya job ini muncul di Aktivitas
 			// AI dengan tautannya; tab lokal-saja mengirim undefined.
-			const documentId = activeId ? linkage[activeId]?.serverId : undefined
+			const tabId = activeId ? linkage[activeId]?.serverId : undefined
 			const next: AnalysisRun = scope
-				? { text: scope.text, offset: scope.offset, scoped: true, language: language.code, documentId }
-				: { text: currentText, offset: 0, scoped: false, language: language.code, documentId }
+				? { text: scope.text, offset: scope.offset, scoped: true, language: language.code, tabId }
+				: { text: currentText, offset: 0, scoped: false, language: language.code, tabId }
 			markRun(feature, next)
 
 			// Permintaan identik dengan yang terakhir: kunci query tidak berubah,

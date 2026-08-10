@@ -87,6 +87,9 @@ interface SettingsContextValue {
 	/** Dialog panduan ekspor PDF. */
 	exportOpen: boolean
 	setExportOpen: (open: boolean) => void
+	/** Dialog pilihan tab untuk ekspor DOCX. */
+	docxExportOpen: boolean
+	setDocxExportOpen: (open: boolean) => void
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null)
@@ -96,6 +99,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 	const [settingsOpen, setSettingsOpen] = useState(false)
 	const [shortcutsOpen, setShortcutsOpen] = useState(false)
 	const [exportOpen, setExportOpen] = useState(false)
+	const [docxExportOpen, setDocxExportOpen] = useState(false)
 
 	// Terapkan lagi setelah hidrasi: theme-script hanya tahu nilai tersimpan,
 	// sedangkan preferensi "system" bisa berubah selama sesi berjalan.
@@ -135,8 +139,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 			setShortcutsOpen,
 			exportOpen,
 			setExportOpen,
+			docxExportOpen,
+			setDocxExportOpen,
 		}),
-		[settings, setSettings, settingsOpen, shortcutsOpen, exportOpen],
+		[settings, setSettings, settingsOpen, shortcutsOpen, exportOpen, docxExportOpen],
 	)
 
 	return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>

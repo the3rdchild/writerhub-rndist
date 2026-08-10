@@ -1,10 +1,6 @@
 import { AppError } from '@/lib/error'
-import { findDocumentById, updateDocument } from '@/repository/document'
-import {
-	findVersionById,
-	findVersionsByDocument,
-	insertVersion,
-} from '@/repository/document-version'
+import { findTabById, updateTab } from '@/repository/document-tab'
+import { findVersionById, findVersionsByTab, insertVersion } from '@/repository/document-version'
 import BaseService from '@/services/base.service'
 import { createVersionBodySchema } from './dto'
 import type { VersionDetail, VersionSummary } from './dto'
@@ -12,7 +8,7 @@ import type { VersionDetail, VersionSummary } from './dto'
 /**
  * Hitung jumlah kata dari JSON ProseMirror: rekursi seluruh node, jumlahkan
  * kata di tiap `node.text` (dipisah spasi). Helper murni — dipakai juga oleh
- * snapshot interval di `DocumentsService`.
+ * snapshot interval di `TabsService`.
  */
 export function countWords(content: Record<string, unknown>): number {
 	let count = 0
@@ -29,15 +25,16 @@ export function countWords(content: Record<string, unknown>): number {
 }
 
 /**
- * Riwayat versi dokumen milik user. Semua operasi memverifikasi dulu bahwa
- * dokumennya milik user (via `findDocumentById`) — 404 bila bukan.
+ * Riwayat versi sebuah TAB milik user (versi tetap per tab - keputusan 2 di
+ * docs/DOCUMENT-TABS-RESTRUCTURE-PLAN.md). Semua operasi memverifikasi dulu
+ * bahwa tabnya milik user (via `findTabById`) — 404 bila bukan.
  */
 export default class VersionsService extends BaseService {
 	/** List metadata versi (tanpa konten), terbaru di atas. */
 	async list(): Promise<Response> {
 		try {
-			await this.ownedDocument()
-			const rows = await findVersionsByDocument(this.documentId())
+			await this.ownedTab()
+			const rows = await findVersionsByTab(this.tabId())
 			const result: VersionSummary[] = rows.map((row) => ({
 				id: row.id,
 				trigger: row.trigger,
@@ -54,8 +51,8 @@ export default class VersionsService extends BaseService {
 	/** Detail satu versi beserta kontennya. */
 	async getById(): Promise<Response> {
 		try {
-			await this.ownedDocument()
-			const version = await findVersionById(this.versionId(), this.documentId())
+			await this.ownedTab()
+			const version = await findVersionById(this.versionId(), this.tabId())
 			if (!version) throw AppError.notFound('Versi tidak ditemukan')
 			return this.success({ data: this.toDetail(version) })
 		} catch (error) {
@@ -63,7 +60,7 @@ export default class VersionsService extends BaseService {
 		}
 	}
 
-	/** Snapshot manual: beku dari `documents.content` saat ini, label opsional. */
+	/** Snapshot manual: beku dari `document_tabs.content` saat ini, label opsional. */
 	async create(): Promise<Response> {
 		try {
 			const body = createVersionBodySchema.safeParse(await this.context.req.json())
@@ -71,13 +68,13 @@ export default class VersionsService extends BaseService {
 				return this.error({ errors: body.error.issues.map((issue) => issue.message) })
 			}
 
-			const document = await this.ownedDocument()
+			const tab = await this.ownedTab()
 			const version = await insertVersion({
-				document_id: document.id,
-				content: document.content,
+				tab_id: tab.id,
+				content: tab.content,
 				trigger: 'manual',
 				label: body.data.label ?? null,
-				word_count: countWords(document.content),
+				word_count: countWords(tab.content),
 				created_by: this.ownerId(),
 			})
 			if (!version) throw AppError.internalServerError('Gagal menyimpan versi')
@@ -89,27 +86,27 @@ export default class VersionsService extends BaseService {
 	}
 
 	/**
-	 * Pulihkan dokumen ke versi lampau: beku dulu keadaan sekarang sebagai
-	 * versi `pre_restore`, lalu timpa `documents.content` dengan konten versi.
+	 * Pulihkan tab ke versi lampau: beku dulu keadaan sekarang sebagai
+	 * versi `pre_restore`, lalu timpa `document_tabs.content` dengan konten versi.
 	 * Idempoten — pengulangan menghasilkan pre_restore baru (tidak destructive).
 	 */
 	async restore(): Promise<Response> {
 		try {
-			const document = await this.ownedDocument()
-			const version = await findVersionById(this.versionId(), document.id)
+			const tab = await this.ownedTab()
+			const version = await findVersionById(this.versionId(), tab.id)
 			if (!version) throw AppError.notFound('Versi tidak ditemukan')
 
 			const preRestore = await insertVersion({
-				document_id: document.id,
-				content: document.content,
+				tab_id: tab.id,
+				content: tab.content,
 				trigger: 'pre_restore',
-				word_count: countWords(document.content),
+				word_count: countWords(tab.content),
 				created_by: this.ownerId(),
 			})
 			if (!preRestore) throw AppError.internalServerError('Gagal menyimpan versi pre-restore')
 
-			const updated = await updateDocument(document.id, this.ownerId(), { content: version.content })
-			if (!updated) throw AppError.internalServerError('Gagal memulihkan dokumen')
+			const updated = await updateTab(tab.id, { content: version.content })
+			if (!updated) throw AppError.internalServerError('Gagal memulihkan tab')
 
 			return this.success({
 				data: { restored: this.toSummary(version), preRestoreVersionId: preRestore.id },
@@ -119,11 +116,11 @@ export default class VersionsService extends BaseService {
 		}
 	}
 
-	/** Dokumen milik user; 404 bila bukan. */
-	private async ownedDocument() {
-		const document = await findDocumentById(this.documentId(), this.ownerId())
-		if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
-		return document
+	/** Tab milik user; 404 bila bukan. */
+	private async ownedTab() {
+		const tab = await findTabById(this.tabId(), this.ownerId())
+		if (!tab) throw AppError.notFound('Tab tidak ditemukan')
+		return tab
 	}
 
 	private ownerId(): string {
@@ -132,9 +129,9 @@ export default class VersionsService extends BaseService {
 		return userId
 	}
 
-	private documentId(): string {
-		const id = this.context.req.param('id')
-		if (!id) throw AppError.badRequest('ID dokumen tidak ada')
+	private tabId(): string {
+		const id = this.context.req.param('tabId')
+		if (!id) throw AppError.badRequest('ID tab tidak ada')
 		return id
 	}
 

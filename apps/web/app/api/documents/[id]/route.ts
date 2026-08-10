@@ -16,7 +16,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 	}
 }
 
-/** Teruskan pembaruan dokumen (autosave) ke apps/api. */
+/**
+ * Teruskan pembaruan dokumen ke apps/api. Body diteruskan apa adanya - sejak
+ * restrukturisasi dokumen/tab, PUT dokumen hanya menerima judul dan projectId;
+ * autosave konten berpindah ke PUT /tabs/:tabId.
+ */
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
 	try {
 		const { id } = await params

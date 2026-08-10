@@ -23,8 +23,8 @@ interface GrammarCheckVars {
 	model: GrammarModel
 	selectionOffset: number
 	language: string
-	/** Tautan dokumen cloud untuk Aktivitas AI; tab lokal-saja: undefined. */
-	documentId?: string
+	/** Tautan tab cloud untuk Aktivitas AI; tab lokal-saja: undefined. */
+	tabId?: string
 }
 
 /** Seleksi sebagai input grammar check: teks potongan + posisinya di dokumen. */
@@ -63,7 +63,7 @@ export function useGrammarCheck() {
 				title: vars.title,
 				model: vars.model,
 				language: vars.language,
-				documentId: vars.documentId,
+				tabId: vars.tabId,
 			})
 
 			// Offset suggestion dari worker relatif terhadap teks yang diperiksa;
@@ -111,8 +111,8 @@ export function useGrammarCheck() {
 			// hasilnya bukan sekadar sedikit, melainkan menyesatkan.
 			const model = language.needsAiTier ? 'ai' : state.model
 
-			// Tautan dokumen cloud untuk Aktivitas AI; tab lokal-saja: undefined.
-			const documentId = activeId ? linkage[activeId]?.serverId : undefined
+			// Tautan tab cloud untuk Aktivitas AI; tab lokal-saja: undefined.
+			const tabId = activeId ? linkage[activeId]?.serverId : undefined
 
 			mutation.mutate(
 				scope
@@ -123,7 +123,7 @@ export function useGrammarCheck() {
 							model,
 							selectionOffset: scope.offset,
 							language: language.code,
-							documentId,
+							tabId,
 						}
 					: {
 							text: state.text,
@@ -132,7 +132,7 @@ export function useGrammarCheck() {
 							model,
 							selectionOffset: 0,
 							language: language.code,
-							documentId,
+							tabId,
 						},
 			)
 		},

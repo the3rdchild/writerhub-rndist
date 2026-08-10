@@ -22,16 +22,30 @@ export interface TabViewState {
 }
 
 export interface LocalView {
-	activeId: string | null
+	/** Dokumen yang sedang dibuka. */
+	activeDocId: string | null
+	/** Tab yang sedang dibuka. */
+	activeTabId: string | null
 	tabs: Record<string, TabViewState>
 }
 
-export const EMPTY_LOCAL_VIEW: LocalView = { activeId: null, tabs: {} }
+export const EMPTY_LOCAL_VIEW: LocalView = { activeDocId: null, activeTabId: null, tabs: {} }
 
 export const EMPTY_TAB_VIEW: TabViewState = {
 	outlineExpanded: false,
 	suggestions: [],
 	scores: null,
+}
+
+/**
+ * Tab aktif menurut catatan tersimpan.
+ *
+ * Bentuk lama (sebelum tingkat dokumen ada) menyimpannya di field `activeId`;
+ * field itu masih terbawa di localStorage pengguna lama, jadi dibaca sebagai
+ * cadangan supaya mereka mendarat di naskah yang sama sesudah pembaruan.
+ */
+export function storedActiveTabId(view: LocalView): string | null {
+	return view.activeTabId ?? (view as LocalView & { activeId?: string | null }).activeId ?? null
 }
 
 export function tabView(view: LocalView, id: string | null): TabViewState {

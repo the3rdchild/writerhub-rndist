@@ -235,7 +235,7 @@ export function ActivityDetail({
 
 			{detail && (
 				<div className="flex shrink-0 flex-col gap-2 border-t border-line px-4 py-3">
-					{!documentReady && detail.documentId && (
+					{!documentReady && detail.tabId && (
 						<>
 							<button
 								type="button"

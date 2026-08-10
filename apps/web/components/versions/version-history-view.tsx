@@ -135,8 +135,8 @@ export function VersionHistoryView() {
 		setActionError(null)
 		try {
 			// Cloud membekukan keadaan di server; lokal memotret fragmen saat ini.
-			if (versionMode.documentId) {
-				await createVersion(versionMode.documentId, label)
+			if (versionMode.serverTabId) {
+				await createVersion(versionMode.serverTabId, label)
 			} else {
 				await snapshotLocalVersion(doc, versionMode.tabId, 'manual', label)
 			}

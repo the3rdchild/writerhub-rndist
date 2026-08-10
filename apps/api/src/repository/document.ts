@@ -1,15 +1,20 @@
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import db from '@/db'
-import { documents } from '@/db/schemas'
+import { documents, documentTabs } from '@/db/schemas'
 import type { NewDocument } from '@/db/schemas'
 
 /**
- * Akses tabel `documents` yang selalu diskop ke pemilik (`owner_id`) —
+ * Akses tabel `documents` (induk) yang selalu diskop ke pemilik (`owner_id`) —
  * dokumen user lain tidak pernah terlihat lewat fungsi-fungsi ini.
  */
 
+// Jumlah tab dihitung di SQL supaya daftar Library tidak perlu N+1 query.
+// `$count` menghasilkan subquery terkorelasi yang ter-kualifikasi tabel dengan
+// benar (sql`` manual merender kolom tanpa prefix tabel dan salah korelasi).
+const tabCountFor = () => db.$count(documentTabs, eq(documentTabs.document_id, documents.id))
+
 /**
- * Metadata list dokumen milik user, terbaru di atas.
+ * Metadata list dokumen milik user, terbaru di atas, beserta jumlah tabnya.
  * `projectId` menyaring per proyek; nilai khusus `'none'` berarti hanya
  * dokumen yang belum berproyek.
  */
@@ -22,9 +27,8 @@ export async function findDocumentsByOwner(ownerId: string, projectId?: string) 
 		.select({
 			id: documents.id,
 			title: documents.title,
-			emoji: documents.emoji,
-			language: documents.language,
 			projectId: documents.project_id,
+			tabCount: tabCountFor(),
 			updatedAt: documents.updated_at,
 			createdAt: documents.created_at,
 		})
@@ -57,6 +61,19 @@ export async function updateDocument(id: string, ownerId: string, values: Partia
 	return row ?? null
 }
 
+/**
+ * Sentuh `updated_at` induk tanpa mengubah isinya - dipakai saat salah satu
+ * tab di-autosave supaya urutan "terbaru di atas" di Library tetap benar.
+ */
+export async function touchDocument(id: string) {
+	await db.update(documents).set({ updated_at: new Date() }).where(eq(documents.id, id))
+}
+
+/**
+ * Hard delete. Tab ikut terhapus lewat ON DELETE CASCADE
+ * (`document_tabs.document_id`); versi/share/pool_request mengikuti aturan FK
+ * masing-masing di tabel mereka.
+ */
 export async function deleteDocument(id: string, ownerId: string) {
 	const [row] = await db
 		.delete(documents)

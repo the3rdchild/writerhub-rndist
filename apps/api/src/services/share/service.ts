@@ -2,14 +2,15 @@ import { randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { shares, shareSnapshots } from '@/db/schemas'
 import { AppError } from '@/lib/error'
-import { findDocumentById, insertDocument } from '@/repository/document'
+import { insertDocument } from '@/repository/document'
+import { findTabById, insertTab } from '@/repository/document-tab'
 import BaseService from '@/services/base.service'
 import { createShareBodySchema } from './dto'
 import type { CreateShareResponse, SharedDocumentResponse } from './dto'
 
 /**
- * Pembuatan dan pembacaan share link dokumen. Konten yang dibagikan dibekukan
- * di `share_snapshots` sehingga perubahan/penghapusan dokumen user tidak
+ * Pembuatan dan pembacaan share link tab. Konten yang dibagikan dibekukan
+ * di `share_snapshots` sehingga perubahan/penghapusan tab user tidak
  * memengaruhi link yang sudah tersebar.
  */
 export default class ShareService extends BaseService {
@@ -21,31 +22,41 @@ export default class ShareService extends BaseService {
 				return this.error({ errors: body.error.issues.map((issue) => issue.message) })
 			}
 
-			const { documentId, title, content, access, role } = body.data
+			const { title, content, access, role } = body.data
+			// `documentId` alias usang untuk `tabId` (id dokumen lama = id tab).
+			const requestedTabId = body.data.tabId ?? body.data.documentId
 			const userId = this.context.get('userId')
 			if (!userId) throw AppError.unauthorized('User tidak dikenal')
 
-			let documentIdToLink: string
+			let tabIdToLink: string
 			let snapshotTitle: string
 			let snapshotContent: Record<string, unknown>
 
-			if (documentId) {
-				// Dokumen sudah tersimpan: pastikan milik user, lalu pakai konten
+			if (requestedTabId) {
+				// Tab sudah tersimpan: pastikan milik user, lalu pakai konten
 				// terkini dari editor bila dikirim.
-				const document = await findDocumentById(documentId, userId)
-				if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
+				const tab = await findTabById(requestedTabId, userId)
+				if (!tab) throw AppError.notFound('Tab tidak ditemukan')
 
-				documentIdToLink = document.id
-				snapshotTitle = title ?? document.title
-				snapshotContent = content ?? document.content
+				tabIdToLink = tab.id
+				snapshotTitle = title ?? tab.title
+				snapshotContent = content ?? tab.content
 			} else {
-				// Dokumen masih lokal: buat dulu baris dokumen milik user supaya
-				// bisa di-autosave nanti.
+				// Tab masih lokal: buat dulu dokumen induk + satu tab milik user
+				// supaya bisa di-autosave nanti.
 				if (!title || !content) throw AppError.badRequest('title dan content wajib diisi')
-				const document = await insertDocument({ owner_id: userId, title, content })
+				const document = await insertDocument({ owner_id: userId, title })
 				if (!document) throw AppError.internalServerError('Gagal menyimpan dokumen')
+				const tab = await insertTab({
+					document_id: document.id,
+					owner_id: userId,
+					title,
+					content,
+					position: 0,
+				})
+				if (!tab) throw AppError.internalServerError('Gagal menyimpan tab')
 
-				documentIdToLink = document.id
+				tabIdToLink = tab.id
 				snapshotTitle = title
 				snapshotContent = content
 			}
@@ -60,7 +71,7 @@ export default class ShareService extends BaseService {
 			const [share] = await this.db
 				.insert(shares)
 				.values({
-					document_id: documentIdToLink,
+					tab_id: tabIdToLink,
 					snapshot_id: snapshot.id,
 					token,
 					access,
@@ -79,7 +90,8 @@ export default class ShareService extends BaseService {
 			const result: CreateShareResponse = {
 				token: share.token,
 				url: `/share/${share.token}`,
-				documentId: documentIdToLink,
+				tabId: tabIdToLink,
+				documentId: tabIdToLink,
 				title: snapshotTitle,
 				access: share.access,
 				role: share.role,

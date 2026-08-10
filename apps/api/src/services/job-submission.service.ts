@@ -4,7 +4,7 @@ import { poolRequest } from '@/db/schemas'
 import { AppError } from '@/lib/error'
 import { recordTokenUsageAfterCompletion } from '@/lib/job-usage-wait'
 import { ensureToolQuota, resolveProvider, type ResolvedProvider } from '@/lib/provider-resolver'
-import { findDocumentById } from '@/repository/document'
+import { findTabById } from '@/repository/document-tab'
 import { pruneOldHistory } from '@/repository/history'
 import BaseService from '@/services/base.service'
 import LoggerClient from '@/utils/logger'
@@ -53,21 +53,21 @@ export default abstract class JobSubmissionService extends BaseService {
 		jobId: string,
 		provider: ResolvedProvider | null,
 		params: Record<string, unknown>,
-		meta?: { documentId?: string | null; feature?: string },
+		meta?: { tabId?: string | null; feature?: string },
 	): Promise<string> {
 		// user_id diambil dari context (diisi authMiddleware di kedua mode auth),
 		// BUKAN dari provider - provider bernilai null pada AUTH_MODE=none, dan
 		// memakainya berarti aktivitas tidak tercatat sama sekali di dev lokal.
 		const userId = this.context.get('userId') ?? null
 
-		// Tautan dokumen hanya dicatat bila dokumennya memang milik user ini.
-		// documentId dikirim klien dan bisa basi (dokumen sudah dihapus) atau
-		// menunjuk dokumen orang lain - keduanya cukup diperlakukan sebagai
+		// Tautan tab hanya dicatat bila tabnya memang milik user ini.
+		// tabId dikirim klien dan bisa basi (tab sudah dihapus) atau
+		// menunjuk tab orang lain - keduanya cukup diperlakukan sebagai
 		// "tanpa tautan", bukan menggagalkan job.
-		let documentId: string | null = null
-		if (meta?.documentId && userId) {
-			const document = await findDocumentById(meta.documentId, userId)
-			documentId = document?.id ?? null
+		let tabId: string | null = null
+		if (meta?.tabId && userId) {
+			const tab = await findTabById(meta.tabId, userId)
+			tabId = tab?.id ?? null
 		}
 
 		const [request] = await this.db
@@ -78,7 +78,7 @@ export default abstract class JobSubmissionService extends BaseService {
 				model_record_id: provider?.modelRecordId ?? null,
 				params,
 				user_id: userId,
-				document_id: documentId,
+				tab_id: tabId,
 				feature: meta?.feature ?? null,
 			})
 			.returning()

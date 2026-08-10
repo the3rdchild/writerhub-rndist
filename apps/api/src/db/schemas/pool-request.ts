@@ -1,7 +1,7 @@
 import { index, integer, jsonb, pgEnum, pgTable, text, uuid, varchar } from 'drizzle-orm/pg-core'
 import { POOL_REQUEST_STATUS } from '@/constants/pool-request-status'
 import { timestamps } from '@/db/utils/common-table'
-import { documents } from './document'
+import { documentTabs } from './document-tab'
 
 export const poolRequestStatusEnum = pgEnum('pool_request_status', POOL_REQUEST_STATUS)
 
@@ -20,9 +20,9 @@ export const poolRequest = pgTable(
 		// tidak pernah muncul di daftar - pemiliknya tidak diketahui, dan menebak
 		// berarti membocorkan naskah orang lain (jangan di-backfill).
 		user_id: varchar('user_id', { length: 255 }),
-		// ON DELETE SET NULL: menghapus dokumen tidak boleh menghapus jejak
+		// ON DELETE SET NULL: menghapus tab tidak boleh menghapus jejak
 		// kuota/token yang sudah tercatat; entri hanya kehilangan tautannya.
-		document_id: uuid('document_id').references(() => documents.id, { onDelete: 'set null' }),
+		tab_id: uuid('tab_id').references(() => documentTabs.id, { onDelete: 'set null' }),
 		// Didenormalisasi ('grammar', 'ai_rewriter', …) supaya daftar aktivitas
 		// bisa difilter tanpa menjoin grammar_result/analysis_result dua-duanya.
 		feature: varchar('feature', { length: 50 }),

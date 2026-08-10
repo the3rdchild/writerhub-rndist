@@ -6,12 +6,12 @@ export const dynamic = 'force-dynamic'
 /** Teruskan pembacaan satu versi (beserta naskahnya) ke apps/api. */
 export async function GET(
 	_request: Request,
-	{ params }: { params: Promise<{ id: string; versionId: string }> },
+	{ params }: { params: Promise<{ tabId: string; versionId: string }> },
 ): Promise<Response> {
 	try {
-		const { id, versionId } = await params
+		const { tabId, versionId } = await params
 		return await callUpstream({
-			path: `/api/v1/documents/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}`,
+			path: `/api/v1/tabs/${encodeURIComponent(tabId)}/versions/${encodeURIComponent(versionId)}`,
 			method: 'GET',
 		})
 	} catch (error) {

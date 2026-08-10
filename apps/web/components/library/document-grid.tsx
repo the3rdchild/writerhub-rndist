@@ -116,8 +116,9 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 				title="Hapus dokumen ini?"
 				description={
 					<>
-						Dokumen <strong className="text-foreground">{pendingDelete?.title}</strong> dihapus
-						dari cloud. Tidak ada jalan kembali.
+						Dokumen <strong className="text-foreground">{pendingDelete?.title}</strong> beserta
+						seluruh {pendingDelete?.tabCount} tab-nya (termasuk riwayat versi dan link
+						berbagi di dalamnya) dihapus dari cloud. Tidak ada jalan kembali.
 						{deleteError && <span className="mt-2 block text-red-500">{deleteError}</span>}
 					</>
 				}

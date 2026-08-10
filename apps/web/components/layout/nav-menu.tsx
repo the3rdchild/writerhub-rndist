@@ -1,10 +1,10 @@
 'use client'
 
-import { Activity, Clock, FileText, FolderOpen, Home, LibraryBig, Menu, Pin, Plus, Settings, Trash2 } from 'lucide-react'
+import { Activity, Clock, FileText, FolderOpen, Home, LibraryBig, Menu, Pin, Plus, Settings } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Dropdown, DropdownItem, DropdownLabel, DropdownSeparator } from '@/components/ui/dropdown'
-import { sessionLabel, useSessions } from '@/features/sessions/session-context'
+import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
 
@@ -18,11 +18,13 @@ const RECENT_SESSION_LIMIT = 6
  * navigasinya.
  */
 export function NavMenu() {
-	const { sessions, activeId, hydrated, newSession, selectSession, deleteSession } = useSessions()
+	const { documents, activeDocId, hydrated, newDocument, selectDocument } = useSessions()
 	const { setSettingsOpen } = useSettings()
 	const router = useRouter()
 
-	const recent = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, RECENT_SESSION_LIMIT)
+	// Riwayat menampilkan DOKUMEN terakhir (urut waktu suntingnya); tab miliknya
+	// dipilih lewat sidebar tab atau saat dokumennya dibuka.
+	const recent = [...documents].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, RECENT_SESSION_LIMIT)
 
 	return (
 		<Dropdown
@@ -62,11 +64,11 @@ export function NavMenu() {
 					<DropdownItem
 						icon={<Plus className="h-4 w-4" />}
 						onSelect={() => {
-							newSession()
+							newDocument()
 							close()
 						}}
 					>
-						Sesi baru
+						Dokumen baru
 					</DropdownItem>
 					<DropdownItem
 						icon={<Home className="h-4 w-4" />}
@@ -123,31 +125,23 @@ export function NavMenu() {
 						<p className="px-3 py-2 text-sm text-faint">Belum ada riwayat</p>
 					)}
 
-					{recent.map((session) => (
-						<div key={session.id} className="group/row flex items-center">
+					{recent.map((dok) => (
+						<div key={dok.id} className="group/row flex items-center">
 							<button
 								type="button"
 								onClick={() => {
-									selectSession(session.id)
+									selectDocument(dok.id)
 									close()
 								}}
 								className={cn(
 									'flex min-w-0 flex-1 items-center gap-3 px-3 py-1.5 text-left text-sm transition-colors',
-									session.id === activeId
+									dok.id === activeDocId
 										? 'text-accent'
 										: 'text-foreground hover:bg-[var(--overlay-hover)]',
 								)}
 							>
 								<FileText className="h-4 w-4 shrink-0 text-subtle" />
-								<span className="truncate">{sessionLabel(session)}</span>
-							</button>
-							<button
-								type="button"
-								aria-label={`Hapus ${sessionLabel(session)}`}
-								onClick={() => deleteSession(session.id)}
-								className="mr-2 rounded p-1 text-subtle opacity-0 transition-opacity hover:text-red-400 group-hover/row:opacity-100"
-							>
-								<Trash2 className="h-3.5 w-3.5" />
+								<span className="truncate">{dok.title}</span>
 							</button>
 						</div>
 					))}
