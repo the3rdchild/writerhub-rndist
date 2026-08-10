@@ -1,167 +1,120 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import { useEditorState } from '@tiptap/react'
+import { useEffect, useRef, useState } from 'react'
 import {
-	Columns2,
-	GripVertical,
-	Merge,
-	Scissors,
-	Table as TableIcon,
-	Trash2,
-	type LucideIcon,
-} from 'lucide-react'
-import { useState } from 'react'
-import { cn } from '@/lib/utils'
-import { Dropdown, DropdownItem } from '@/components/ui/dropdown'
+	insertColAfter,
+	insertRowAfter,
+	locateTable,
+	moveColumn,
+	moveRow,
+	selectColumn,
+	selectRow,
+} from '@/features/editor/table-ops'
+import {
+	type HandleAxis,
+	type HandleOpen,
+	createTableHandlesPlugin,
+	tableHandlesKey,
+	type TableHandlesOptions,
+} from '@/features/editor/table-handles'
+import { TableMenu, type TableMenuState } from './table-menu'
 
 /**
- * Bilah kontrol yang muncul saat kursor berada di dalam tabel.
+ * Lapisan interaksi tabel: handle baris/kolom + menu konteks (grip, tombol •••,
+ * atau klik kanan) + seret untuk menyusun ulang.
  *
- * TableKit (Tiptap) sudah menyediakan semua perintah - menyisipkan/menghapus
- * baris & kolom, menggabung/memecah sel, mengubah kepala. Komponen ini hanya
- * menampilkannya sebagai tombol, jadi tidak ada logika tabel sendiri.
+ * Menggantikan bilah kontrol tabel yang dulu muncul di atas ruler - kini
+ * seluruh kontrol hidup DI tabel itu sendiri: handle muncul di tepi kiri
+ * (baris) dan di pojok sel baris pertama (kolom) saat hover.
  *
- * Ditempatkan sebagai portal mengambang dekat tabel (ditangani pemanggil) atau
- * di-render inline di bawah toolbar utama - keduanya bekerja.
+ * Plugin dekorasi didaftarkan dari sini, bukan dari buildEditorExtensions,
+ * supaya callback-nya (yang memperbarui state React) bisa diperbarui tiap
+ * render lewat ref tanpa membangun ulang ekstensi editor.
  */
-
-function CellAlignControl({ editor }: { editor: Editor }) {
-	return (
-		<Dropdown
-			trigger={({ toggle, open, id }) => (
-				<button
-					type="button"
-					onClick={toggle}
-					aria-label="Perataan sel"
-					title="Perataan sel"
-					aria-haspopup="menu"
-					aria-expanded={open}
-					aria-controls={id}
-					className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
-				>
-					<Columns2 className="h-4 w-4" />
-				</button>
-			)}
-		>
-			{({ close }) => (
-				<>
-					<DropdownItem onSelect={() => { editor.chain().focus().setCellAttribute('textAlign', 'left').run(); close() }}>
-						Rata kiri
-					</DropdownItem>
-					<DropdownItem onSelect={() => { editor.chain().focus().setCellAttribute('textAlign', 'center').run(); close() }}>
-						Rata tengah
-					</DropdownItem>
-					<DropdownItem onSelect={() => { editor.chain().focus().setCellAttribute('textAlign', 'right').run(); close() }}>
-						Rata kanan
-					</DropdownItem>
-				</>
-			)}
-		</Dropdown>
-	)
-}
-
-function Btn({
-	icon: Icon,
-	label,
-	onClick,
-}: {
-	icon: LucideIcon
-	label: string
-	onClick: () => void
-}) {
-	return (
-		<button
-			type="button"
-			title={label}
-			aria-label={label}
-			onClick={onClick}
-			className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
-		>
-			<Icon className="h-4 w-4" />
-		</button>
-	)
-}
-
-function Divider() {
-	return <div className="mx-1 h-5 w-px shrink-0 bg-line-strong" />
-}
-
 export function TableControls({ editor }: { editor: Editor | null }) {
-	// Hanya render saat di dalam tabel. useEditorState membatasi render ulang.
-	const inTable = useEditorState({
-		editor,
-		selector: ({ editor: instance }) => {
-			if (!instance || instance.isDestroyed) return false
-			return instance.isActive('table')
-		},
-	})
-	const [openMenus] = useState(false)
-	void openMenus
+	const [menu, setMenu] = useState<TableMenuState | null>(null)
 
-	if (!editor || !inTable) return null
+	// Callback plugin disimpan di ref agar plugin (didirikan sekali) selalu
+	// memanggil versi terbaru tanpa perlu didaftarkan ulang.
+	const openMenuRef = useRef<(open: HandleOpen) => void>(() => {})
+	openMenuRef.current = (open) => {
+		if (!editor) return
+		// Buka dari handle = pilih sekalian baris/kolomnya, supaya perintah yang
+		// bekerja atas seleksi (gabung sel, kepala, perataan) langsung bermakna.
+		if (open.axis === 'row') selectRow(editor, open.tablePos, open.rowIndex)
+		else selectColumn(editor, open.tablePos, open.colIndex)
+		setMenu(open)
+	}
 
-	return (
-		<div
-			className={cn(
-				'flex flex-wrap items-center gap-0.5 rounded-full border border-line bg-surface px-3 py-1.5 shadow-sm',
-			)}
-			// Menahan mousedown supaya seleksi sel tabel tidak hilang saat diklik.
-			onMouseDown={(e) => e.preventDefault()}
-		>
-			<span className="px-1 text-xs font-medium text-muted">
-				<TableIcon className="mr-1 inline h-3.5 w-3.5" />
-				Tabel
-			</span>
-			<Divider />
-			<Btn label="Sisipkan baris di atas" icon={GripVertical} onClick={() => editor.chain().focus().addRowBefore().run()} />
-			<Btn label="Sisipkan baris di bawah" icon={GripVertical} onClick={() => editor.chain().focus().addRowAfter().run()} />
-			<Btn label="Sisipkan kolom di kiri" icon={Columns2} onClick={() => editor.chain().focus().addColumnBefore().run()} />
-			<Btn label="Sisipkan kolom di kanan" icon={Columns2} onClick={() => editor.chain().focus().addColumnAfter().run()} />
-			<Divider />
-			<Btn label="Hapus baris" icon={Trash2} onClick={() => editor.chain().focus().deleteRow().run()} />
-			<Btn label="Hapus kolom" icon={Trash2} onClick={() => editor.chain().focus().deleteColumn().run()} />
-			<Divider />
-			<Btn label="Gabungkan sel" icon={Merge} onClick={() => editor.chain().focus().mergeCells().run()} />
-			<Btn label="Pisahkan sel" icon={Scissors} onClick={() => editor.chain().focus().splitCell().run()} />
-			<Divider />
-			<Dropdown
-				trigger={({ toggle, open, id }) => (
-					<button
-						type="button"
-						onClick={toggle}
-						aria-label="Kepala tabel"
-						title="Kepala tabel"
-						aria-haspopup="menu"
-						aria-expanded={open}
-						aria-controls={id}
-						className="flex h-7 items-center rounded-md px-2 text-xs font-medium text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
-					>
-						Kepala
-					</button>
-				)}
-			>
-				{({ close }) => (
-					<>
-						<DropdownItem onSelect={() => { editor.chain().focus().toggleHeaderRow().run(); close() }}>
-							Baris kepala
-						</DropdownItem>
-						<DropdownItem onSelect={() => { editor.chain().focus().toggleHeaderColumn().run(); close() }}>
-							Kolom kepala
-						</DropdownItem>
-						<DropdownItem onSelect={() => { editor.chain().focus().toggleHeaderCell().run(); close() }}>
-							Sel kepala
-						</DropdownItem>
-					</>
-				)}
-			</Dropdown>
-			<CellAlignControl editor={editor} />
-			<Divider />
-			<Btn
-				label="Hapus tabel"
-				icon={Trash2}
-				onClick={() => editor.chain().focus().deleteTable().run()}
-			/>
-		</div>
-	)
+	const insertRef = useRef<(axis: HandleAxis, tablePos: number, index: number) => void>(() => {})
+	insertRef.current = (axis, tablePos, index) => {
+		if (!editor) return
+		if (axis === 'row') insertRowAfter(editor, { tablePos, rowIndex: index, colIndex: 0 })
+		else insertColAfter(editor, { tablePos, rowIndex: 0, colIndex: index })
+	}
+
+	// Seret handle untuk menyusun ulang baris/kolom.
+	const moveRef = useRef<(axis: HandleAxis, tablePos: number, from: number, to: number) => void>(() => {})
+	moveRef.current = (axis, tablePos, from, to) => {
+		if (!editor) return
+		if (axis === 'row') moveRow(editor, { tablePos, rowIndex: from, colIndex: 0 }, to)
+		else moveColumn(editor, { tablePos, rowIndex: 0, colIndex: from }, to)
+	}
+
+	// Daftarkan plugin handle ke editor (sekali per instance editor).
+	useEffect(() => {
+		if (!editor) return
+		const opts: TableHandlesOptions = {
+			onMenu: (open) => openMenuRef.current(open),
+			onInsert: (axis, tablePos, index) => insertRef.current(axis, tablePos, index),
+			onMove: (axis, tablePos, from, to) => moveRef.current(axis, tablePos, from, to),
+		}
+		editor.registerPlugin(createTableHandlesPlugin(opts))
+		return () => {
+			editor.unregisterPlugin(tableHandlesKey)
+		}
+	}, [editor])
+
+	// Klik kanan pada sel tabel memunculkan menu untuk sel itu.
+	useEffect(() => {
+		if (!editor) return
+		const dom = editor.view.dom
+		const onContext = (e: MouseEvent) => {
+			const target = e.target as HTMLElement | null
+			const cell = target?.closest('td, th')
+			if (!cell || !dom.contains(cell)) return
+			// Posisi diambil dari DOM sel-nya, bukan dari koordinat penunjuk: klik
+			// di padding sel tetap menunjuk sel yang benar.
+			const inCell = editor.view.posAtDOM(cell, 0)
+			const loc = locateTable(editor, inCell)
+			if (!loc) return
+			e.preventDefault()
+			const rect = cell.getBoundingClientRect()
+			setMenu({
+				axis: 'row',
+				...loc,
+				anchor: cell as HTMLElement,
+				// Muncul di penunjuk, tapi tetap terjangkar ke selnya saat digulir.
+				offset: { x: e.clientX - rect.left, y: e.clientY - rect.top },
+			})
+		}
+		dom.addEventListener('contextmenu', onContext)
+		return () => dom.removeEventListener('contextmenu', onContext)
+	}, [editor])
+
+	// Tutup menu saat klik di luar.
+	useEffect(() => {
+		if (!menu) return
+		const onPointer = (e: PointerEvent) => {
+			const target = e.target as HTMLElement | null
+			if (!target?.closest('.table-menu')) setMenu(null)
+		}
+		document.addEventListener('pointerdown', onPointer)
+		return () => document.removeEventListener('pointerdown', onPointer)
+	}, [menu])
+
+	if (!editor) return null
+
+	return menu ? <TableMenu editor={editor} menu={menu} onClose={() => setMenu(null)} /> : null
 }

@@ -406,6 +406,101 @@ a {
   pointer-events: none;
 }
 
+/* ── handle baris/kolom tabel (in-table) ───────────────────────────────── */
+
+/*
+ * Handle dipasang sebagai widget DI DALAM sel pertama tiap baris/kolom, lalu
+ * diposisikan absolute terhadap sel itu: baris ke tepi kiri tabel, kolom ke
+ * pojok kanan sel baris pertama. Selnya jadi patokan (position: relative).
+ */
+.document-body td,
+.document-body th {
+  position: relative;
+}
+
+.document-body .table-handle {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity 0.12s ease;
+}
+
+/* Handle baris: "+" lalu grip, di luar tepi kiri tabel. */
+.document-body .table-handle--row {
+  top: 0;
+  left: -46px;
+  height: 100%;
+}
+/* Handle kolom: tombol ••• di dalam sel baris pertama. Jaraknya dari tepi
+   kanan disisakan supaya tidak menutupi pegangan ubah-lebar kolom. */
+.document-body .table-handle--col {
+  top: 50%;
+  right: 7px;
+  transform: translateY(-50%);
+}
+
+.document-body .table-handle button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--foreground-muted);
+  opacity: 0.65;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    opacity 0.12s ease;
+}
+.document-body .table-handle button:hover {
+  background: var(--overlay-hover);
+  opacity: 1;
+}
+.document-body .table-handle button svg {
+  width: 14px;
+  height: 14px;
+}
+.document-body .table-handle-grip {
+  cursor: grab;
+}
+
+/* Muncul saat barisnya (atau selnya, untuk kolom) di-hover, dan tetap terlihat
+   selama menunya terbuka. */
+.document-body tr:hover > td > .table-handle--row,
+.document-body tr:hover > th > .table-handle--row,
+.document-body td:hover > .table-handle--col,
+.document-body th:hover > .table-handle--col,
+.document-body .table-handle--open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Indikator seret untuk menyusun ulang baris/kolom. */
+.document-body .table-handle--dragging {
+  opacity: 0.4;
+}
+.document-body .table-handle--dragging .table-handle-grip {
+  cursor: grabbing;
+}
+.document-body .table-handle--drop-target {
+  opacity: 1;
+  pointer-events: auto;
+}
+.document-body .table-handle--drop-target button {
+  background: var(--accent);
+  color: var(--accent-foreground);
+  opacity: 1;
+}
+
 /* Placeholder saat dokumen kosong */
 .document-body p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
@@ -733,7 +828,8 @@ html.dark .document-body .comment-mark {
 }
 
 @media print {
-  .selection-menu {
+  .selection-menu,
+  .document-body .table-handle {
     display: none !important;
   }
   .document-body .comment-mark {

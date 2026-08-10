@@ -80,13 +80,10 @@ export function DocumentEditor() {
 				</div>
 			)}
 
-			{/* Kontrol tabel muncul otomatis saat kursor berada di dalam tabel;
-			    tersembunyi sepenuhnya bila tidak. */}
-			{editor && (
-				<div className="flex justify-center px-4 pt-2">
-					<TableControls editor={editor} />
-				</div>
-			)}
+			{/* Lapisan interaksi tabel: handle baris/kolom & menu konteks. Tidak
+			    memakan ruang - handle disematkan ke dalam tabel lewat dekorasi
+			    ProseMirror; komponen ini hanya mendaftarkan plugin + merender menu. */}
+			{editor && <TableControls editor={editor} />}
 
 			{state.file ? (
 				<div className="flex flex-1 items-center justify-center px-6">
