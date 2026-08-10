@@ -77,6 +77,10 @@ export function remapResult(
 				}),
 			}
 		}
+		case 'glossary':
+			// Hasilnya daftar istilah, bukan rentang di naskah - tidak ada yang
+			// perlu dipetakan ulang.
+			return result
 		case 'plagiarism': {
 			const typed = result as PlagiarismResult
 			return {

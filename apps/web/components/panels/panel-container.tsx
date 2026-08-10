@@ -8,6 +8,7 @@ import { AiChatPanel } from './ai-chat-panel'
 import { AiDetectorPanel } from './ai-detector-panel'
 import { CommentsPanel } from './comments-panel'
 import { AiRewriterPanel } from './ai-rewriter-panel'
+import { GlossaryPanel } from './glossary-panel'
 import { HumanizerPanel } from './humanizer-panel'
 import { PlagiarismPanel } from './plagiarism-panel'
 import { ProofreaderPanel } from './proofreader-panel'
@@ -22,6 +23,7 @@ const PANEL_TITLES: Record<PanelId, string> = {
 	humanizer: 'Humanizer',
 	plagiarism: 'Plagiarism Checker',
 	translator: 'Translator',
+	glossary: 'Glosarium',
 }
 
 function PanelBody({ panel }: { panel: PanelId }) {
@@ -42,6 +44,8 @@ function PanelBody({ panel }: { panel: PanelId }) {
 			return <PlagiarismPanel />
 		case 'translator':
 			return <TranslatorPanel />
+		case 'glossary':
+			return <GlossaryPanel />
 	}
 }
 

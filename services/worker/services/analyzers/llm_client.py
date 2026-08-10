@@ -298,3 +298,71 @@ def translate_sentences(
             result.append(source)
 
     return result
+
+
+def define_terms(
+    candidates: list[dict],
+    provider: Provider,
+    language: str | None = None,
+    style_memory: dict | None = None,
+) -> list[dict] | None:
+    """
+    Saring kandidat istilah dan tuliskan definisinya - satu request, masukan
+    berupa DAFTAR KANDIDAT, bukan naskahnya.
+
+    Itu yang membuat Glosarium sanggup memakan dokumen sepanjang apa pun:
+    bagian yang membaca seluruh naskah dikerjakan tanpa LLM di analyzer, dan
+    yang sampai ke sini hanya beberapa puluh istilah beserta satu kalimat
+    konteks masing-masing.
+
+    Balikin list {term, definition}; None kalau gagal apa pun sebabnya. Model
+    boleh MEMBUANG kandidat yang ternyata bukan istilah - jumlah keluaran
+    memang tidak harus sama dengan masukan, berbeda dari fungsi rewrite di atas.
+    """
+    if not candidates:
+        return []
+
+    system = (
+        f"{_build_language_rule(language)}"
+        "You are building a glossary (\"Daftar Istilah\") for an academic "
+        "document. You will receive candidate terms, how often each appears, "
+        "and one sentence of context.\n\n"
+        "Keep ONLY entries that are genuine domain-specific terms, acronyms, "
+        "or technical concepts a reader might not know. Drop ordinary words, "
+        "person names, place names, section labels, and anything whose meaning "
+        "is obvious. It is correct to return far fewer entries than you were "
+        "given, and correct to return none.\n\n"
+        "For each kept term write one concise definition (max 25 words) based "
+        "on how it is used in the context provided."
+        + style_memory_instruction(style_memory)
+        + "\n\nRespond ONLY with a JSON object of the form "
+        '{"entries": [{"term": "...", "definition": "..."}]}. Use each term '
+        "exactly as it was given, without changing capitalization."
+    )
+
+    parsed = _chat_json(system, [json.dumps(candidates, ensure_ascii=False)], provider)
+    if parsed is None:
+        return None
+
+    out = parsed.get("entries") if isinstance(parsed, dict) else parsed
+    if not isinstance(out, list):
+        logger.warning("[llm_client] respons glosarium malformed: bukan list")
+        return None
+
+    given = {item["term"] for item in candidates}
+    entries: list[dict] = []
+    for item in out:
+        if not isinstance(item, dict):
+            continue
+        term = item.get("term")
+        definition = item.get("definition")
+        if not isinstance(term, str) or not isinstance(definition, str):
+            continue
+        term, definition = term.strip(), definition.strip()
+        # Istilah yang tidak pernah dikirim berarti model mengarang - dibuang,
+        # supaya glosarium tidak memuat kata yang tak ada di naskah.
+        if not term or not definition or term not in given:
+            continue
+        entries.append({"term": term, "definition": definition})
+
+    return entries

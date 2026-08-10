@@ -1,4 +1,5 @@
 import {
+	BookMarked,
 	Bot,
 	Languages,
 	type LucideIcon,
@@ -16,6 +17,7 @@ export const FEATURE_META: Record<HistoryFeature, { label: string; icon: LucideI
 	ai_rewriter: { label: 'AI Rewriter', icon: RefreshCw },
 	humanizer: { label: 'Humanizer', icon: UserCheck },
 	translator: { label: 'Translator', icon: Languages },
+	glossary: { label: 'Glosarium', icon: BookMarked },
 	plagiarism: { label: 'Plagiarism', icon: Search },
 }
 

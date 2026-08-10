@@ -18,6 +18,7 @@ from services.analyzers import (
     run_plagiarism,
 )
 from services.analyzers.llm_client import get_last_total_tokens
+from services.analyzers.glossary import run_glossary
 from services.analyzers.translator import run_translator
 from core.provider import resolve_provider
 
@@ -31,11 +32,14 @@ _ANALYZERS = {
     "humanizer": run_humanizer,
     "plagiarism": run_plagiarism,
     "translator": run_translator,
+    "glossary": run_glossary,
 }
 
 # Plagiarism murni heuristik - tidak memanggil LLM sama sekali, jadi tetap bisa
 # jalan tanpa provider. Sisanya butuh LLM.
-_NEEDS_PROVIDER = frozenset({"ai_detector", "ai_rewriter", "humanizer", "translator"})
+_NEEDS_PROVIDER = frozenset(
+    {"ai_detector", "ai_rewriter", "humanizer", "translator", "glossary"}
+)
 
 
 def process(data: dict):
@@ -88,7 +92,7 @@ def process(data: dict):
         with _svc.timed_step(f"analyze:{feature}"):
             if feature == "translator":
                 result = analyzer(text, provider, language, style_memory, target_lang)
-            elif feature in ("ai_rewriter", "humanizer"):
+            elif feature in ("ai_rewriter", "humanizer", "glossary"):
                 result = analyzer(text, provider, language, style_memory)
             else:
                 result = analyzer(text, provider, language)

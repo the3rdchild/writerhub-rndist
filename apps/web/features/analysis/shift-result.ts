@@ -17,7 +17,11 @@ const RANGE_FIELDS = {
 	humanizer: 'changes',
 	plagiarism: 'flagged_phrases',
 	translator: 'changes',
-} as const satisfies Record<AnalysisFeature, string>
+	// Glosarium tidak menghasilkan rentang teks - hasilnya daftar istilah,
+	// bukan sesuatu yang menunjuk posisi di naskah. `null` menandainya sebagai
+	// "tidak ada yang perlu digeser", bukan sebagai kelalaian.
+	glossary: null,
+} as const satisfies Record<AnalysisFeature, string | null>
 
 export function shiftAnalysisResult<F extends AnalysisFeature>(
 	feature: F,
@@ -26,7 +30,9 @@ export function shiftAnalysisResult<F extends AnalysisFeature>(
 ): AnalysisResultFor<F> {
 	if (offset === 0) return result
 
-	const field = RANGE_FIELDS[feature]
+	const field: string | null = RANGE_FIELDS[feature]
+	if (field === null) return result
+
 	const ranges = (result as unknown as Record<string, unknown>)[field]
 	if (!Array.isArray(ranges)) return result
 

@@ -6,6 +6,7 @@ export const ANALYSIS_FEATURES = [
 	'humanizer',
 	'plagiarism',
 	'translator',
+	'glossary',
 ] as const
 export type AnalysisFeature = (typeof ANALYSIS_FEATURES)[number]
 
@@ -108,6 +109,25 @@ export interface TranslatorResult {
 	llm_unavailable?: boolean
 }
 
+/** Satu istilah di daftar Glosarium. */
+export interface GlossaryEntry {
+	term: string
+	definition: string
+	/** Berapa kali istilah ini muncul di naskah - bahan urut dan keyakinan. */
+	occurrences: number
+}
+
+/**
+ * Hasil Glosarium. Berbeda dari modul lain, hasilnya BUKAN rentang teks untuk
+ * disorot atau diganti, melainkan daftar istilah yang disisipkan sebagai tabel.
+ * Karena itu ia tidak menyentuh highlight layer maupun alur apply.
+ */
+export interface GlossaryResult {
+	entries: GlossaryEntry[]
+	/** Sama seperti `AiRewriterResult.llm_unavailable`. */
+	llm_unavailable?: boolean
+}
+
 export interface PlagiarismResult {
 	uniqueness_score: number
 	label: 'Unique' | 'Likely Original' | 'Possible Match' | 'High Similarity'
@@ -121,6 +141,7 @@ export interface AnalysisResultMap {
 	humanizer: HumanizerResult
 	plagiarism: PlagiarismResult
 	translator: TranslatorResult
+	glossary: GlossaryResult
 }
 
 export type AnalysisResultFor<F extends AnalysisFeature> = AnalysisResultMap[F]

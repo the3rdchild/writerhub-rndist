@@ -1,6 +1,7 @@
 'use client'
 
 import {
+	BookMarked,
 	Bot,
 	Languages,
 	type LucideIcon,
@@ -22,6 +23,7 @@ const PANELS: Array<{ id: PanelId; icon: LucideIcon; label: string }> = [
 	{ id: 'humanizer', icon: UserCheck, label: 'Humanizer' },
 	{ id: 'plagiarism', icon: Search, label: 'Plagiarism' },
 	{ id: 'translator', icon: Languages, label: 'Translator' },
+	{ id: 'glossary', icon: BookMarked, label: 'Glosarium' },
 	{ id: 'comments', icon: MessageSquare, label: 'Comments' },
 ]
 
