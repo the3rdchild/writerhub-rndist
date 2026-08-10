@@ -25,6 +25,10 @@ export function InsertImageDialog({
 	const overlayRef = useRef<HTMLDivElement>(null)
 	const urlInputRef = useRef<HTMLInputElement>(null)
 
+	// Borang dikosongkan hanya saat modal berpindah ke keadaan terbuka. `onCancel`
+	// sengaja tidak ikut jadi dependensi: pemanggilnya membuat fungsi baru tiap
+	// render, jadi mengamatinya membuat isian terhapus sendiri di tengah
+	// pengisian setiap kali menu induk kebetulan re-render.
 	useEffect(() => {
 		if (!open) return
 		setSrc('')
@@ -32,9 +36,16 @@ export function InsertImageDialog({
 		setTitle('')
 		setMode('url')
 		setError(null)
-		document.body.style.overflow = 'hidden'
 		// Fokus ke kolom URL saat modal terbuka.
-		setTimeout(() => urlInputRef.current?.focus(), 50)
+		const timer = setTimeout(() => urlInputRef.current?.focus(), 50)
+		return () => clearTimeout(timer)
+	}, [open])
+
+	// Kunci gulir latar dan tutup lewat Escape - ini memang harus mengikuti
+	// `onCancel` yang terbaru, dan aman diulang karena tidak menyentuh borang.
+	useEffect(() => {
+		if (!open) return
+		document.body.style.overflow = 'hidden'
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key === 'Escape') onCancel()
 		}
@@ -62,6 +73,15 @@ export function InsertImageDialog({
 		}
 		reader.onerror = () => setError('Gagal membaca berkas.')
 		reader.readAsDataURL(file)
+	}
+
+	// Ganti mode = ganti sumber, jadi sumber lama dibuang. `alt` & `title`
+	// tetap - keduanya sah dimiliki bersama terlepas dari asal sumber.
+	const switchMode = (next: 'url' | 'upload') => {
+		if (next === mode) return
+		setMode(next)
+		setSrc('')
+		setError(null)
 	}
 
 	const submit = () => {
@@ -93,7 +113,7 @@ export function InsertImageDialog({
 				<div className="flex gap-1 rounded-xl bg-[var(--overlay-hover)] p-1">
 					<button
 						type="button"
-						onClick={() => setMode('url')}
+						onClick={() => switchMode('url')}
 						className={
 							'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors ' +
 							(mode === 'url'
@@ -105,7 +125,7 @@ export function InsertImageDialog({
 					</button>
 					<button
 						type="button"
-						onClick={() => setMode('upload')}
+						onClick={() => switchMode('upload')}
 						className={
 							'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors ' +
 							(mode === 'upload'
@@ -145,7 +165,7 @@ export function InsertImageDialog({
 							}}
 							className="text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-accent/10 file:px-3 file:py-1.5 file:text-accent hover:file:bg-accent/20"
 						/>
-						{src && mode === 'upload' && (
+						{src && (
 							<img src={src} alt={alt} className="mt-1 max-h-32 rounded-lg border border-line object-contain" />
 						)}
 					</label>
