@@ -33,6 +33,10 @@ declare module '@tiptap/core' {
 				title?: string | null
 				width?: number | null
 			}) => ReturnType
+			/** Perataan gambar blok: kiri/tengah/kanan. */
+			setImageAlign: (align: 'left' | 'center' | 'right') => ReturnType
+			/** Kembalikan perataan ke bawaan (mengikuti paragraf). */
+			unsetImageAlign: () => ReturnType
 		}
 	}
 }
@@ -76,6 +80,17 @@ export const ResizableImage = Node.create<ResizableImageOptions>({
 				parseHTML: (element) => element.getAttribute('height') ?? null,
 				renderHTML: (attributes) => (attributes.height ? { height: attributes.height } : {}),
 			},
+			// Perataan gambar blok. `null` = ikut paragraf (bawaan). Dipakai untuk
+			// menengahkan/menggeser gambar tanpa mengubah perataan teks di sekitarnya.
+			align: {
+				default: null,
+				parseHTML: (element) => {
+					const dom = element as HTMLElement
+					return dom.getAttribute('data-align') ?? dom.style?.textAlign ?? null
+				},
+				renderHTML: (attributes) =>
+					attributes.align ? { 'data-align': attributes.align } : {},
+			},
 		}
 	},
 
@@ -93,6 +108,10 @@ export const ResizableImage = Node.create<ResizableImageOptions>({
 		]
 	},
 
+	// Wajib ada meski seluruh tampilan datang dari node view: Tiptap hanya
+	// memasang `spec.toDOM` bila `renderHTML` didefinisikan, dan ProseMirror
+	// memanggilnya untuk serialisasi (salin, ekspor, `getHTML`) - juga saat
+	// node view belum sempat terpasang.
 	renderHTML({ HTMLAttributes }) {
 		return ['img', mergeAttributes(this.options.HTMLAttributes ?? {}, HTMLAttributes)]
 	},
@@ -110,6 +129,14 @@ export const ResizableImage = Node.create<ResizableImageOptions>({
 						type: this.name,
 						attrs: options,
 					}),
+			setImageAlign:
+				(align) =>
+				({ commands }) =>
+					commands.updateAttributes(this.name, { align }),
+			unsetImageAlign:
+				() =>
+				({ commands }) =>
+					commands.resetAttributes(this.name, 'align'),
 		}
 	},
 

@@ -17,6 +17,7 @@ import { MathPopover } from './math-popover'
 import { SelectionMenu } from './selection-menu'
 import { SlashCommandMenu } from './slash-command-menu'
 import { type PopoverPosition, SuggestionPopover } from './suggestion-popover'
+import { ImageToolbar } from './image-toolbar'
 
 const FONT_SIZE_CLASS: Record<FontSize, string> = {
 	small: 'text-[15px] leading-[1.75]',
@@ -279,6 +280,7 @@ export function TiptapEditor({
 					onClose={() => setSlashState(null)}
 				/>
 			)}
+			<ImageToolbar editor={editor} />
 		</>
 	)
 }

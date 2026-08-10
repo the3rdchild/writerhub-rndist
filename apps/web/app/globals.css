@@ -757,14 +757,30 @@ a {
   position: absolute;
   background: var(--accent);
   border: 2px solid var(--surface);
+  width: 12px;
+  height: 12px;
+  z-index: 3;
+}
+/* POJOK: lingkaran, jaga rasio. */
+.resizable-image-handle--corner {
   border-radius: 50%;
   width: 12px;
   height: 12px;
 }
-.resizable-image-handle--br {
-  bottom: -6px;
-  right: -6px;
-  cursor: nwse-resize;
+.resizable-image-handle--nw { top: -6px; left: -6px; cursor: nwse-resize; }
+.resizable-image-handle--ne { top: -6px; right: -6px; cursor: nesw-resize; }
+.resizable-image-handle--se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+.resizable-image-handle--sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
+/* SISI: batang memanjang, distort rasio. */
+.resizable-image-handle--edge {
+  border-radius: 3px;
+}
+.resizable-image-handle--n { top: -4px; left: 50%; transform: translateX(-50%); width: 28px; height: 7px; cursor: ns-resize; }
+.resizable-image-handle--s { bottom: -4px; left: 50%; transform: translateX(-50%); width: 28px; height: 7px; cursor: ns-resize; }
+.resizable-image-handle--e { right: -4px; top: 50%; transform: translateY(-50%); width: 7px; height: 28px; cursor: ew-resize; }
+.resizable-image-handle--w { left: -4px; top: 50%; transform: translateY(-50%); width: 7px; height: 28px; cursor: ew-resize; }
+.resizable-image-handle:hover {
+  background: var(--accent-hover);
 }
 .resizable-image-delete {
   position: absolute;
@@ -784,6 +800,11 @@ a {
   border: 2px solid var(--surface);
 }
 .resizable-image-delete:hover { background: #ef4444; }
+
+/* Bilah alat gambar melayang (perataan + hapus). */
+.image-toolbar {
+  transform: translateX(-50%);
+}
 
 /* ── sorotan cari & ganti ──────────────────────────────────────────────── */
 
