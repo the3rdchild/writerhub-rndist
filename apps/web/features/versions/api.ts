@@ -14,11 +14,15 @@ export function getVersion(tabId: string, versionId: string): Promise<VersionDet
 }
 
 /** Bekukan keadaan tab saat ini sebagai versi manual berlabel. */
-export function createVersion(tabId: string, label?: string): Promise<VersionSummary> {
+export function createVersion(
+	tabId: string,
+	label?: string,
+	trigger?: 'manual' | 'pre_translate',
+): Promise<VersionSummary> {
 	return apiFetch<VersionSummary>(`/tabs/${encodeURIComponent(tabId)}/versions`, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify(label ? { label } : {}),
+		body: JSON.stringify({ ...(label ? { label } : {}), ...(trigger ? { trigger } : {}) }),
 	})
 }
 

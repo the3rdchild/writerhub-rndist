@@ -29,6 +29,8 @@ export interface AnalysisRun {
 	tabId?: string
 	/** Tone pilihan user untuk run ini (hanya ai_rewriter). */
 	tone?: RewriterTone
+	/** Bahasa tujuan Translator (BCP-47). */
+	targetLang?: string
 }
 
 type LastRunMap = Partial<Record<AnalysisFeature, AnalysisRun>>

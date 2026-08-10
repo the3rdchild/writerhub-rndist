@@ -237,3 +237,64 @@ def rewrite_sentences_candidates(
         result.append(cands)
 
     return result
+
+
+def translate_sentences(
+    sentences: list[str],
+    target_lang: str,
+    provider: Provider,
+    style_memory: dict | None = None,
+) -> list[str] | None:
+    """
+    Terjemahkan semua kalimat dalam SATU request ke `target_lang`. Balikin list
+    sepanjang input, atau None kalau gagal apa pun sebabnya.
+
+    Sengaja TIDAK memakai `rewrite_sentences`: aturan bahasa di sana memerintah
+    model mempertahankan bahasa asli ("keep the original language"), yang justru
+    kebalikan dari yang dibutuhkan di sini. Menitipkan terjemahan lewat
+    `instruction` saja akan beradu dengan perintah itu.
+
+    `style_memory` tetap dihormati - terutama `glossary`, yang untuk terjemahan
+    justru paling berguna: nama produk dan istilah teknis tidak ikut dialihkan.
+    """
+    if not sentences:
+        return []
+
+    target = language_name(target_lang)
+    system = (
+        f"Translate every sentence into {target}. Output must be written in "
+        f"{target} and nothing else - never keep the source language, never "
+        "add explanations or transliterations."
+        + style_memory_instruction(style_memory)
+        + "\n\nYou will receive a JSON array of sentences. Respond ONLY with a "
+        'JSON object of the form {"sentences": [...]} containing exactly the '
+        "same number of elements, where element i is the translation of input "
+        "sentence i. Preserve numbers, inline formatting cues, and proper "
+        "nouns. Do not merge, split, add, or drop sentences."
+    )
+
+    parsed = _chat_json(system, sentences, provider)
+    if parsed is None:
+        return None
+
+    out = parsed.get("sentences") if isinstance(parsed, dict) else parsed
+    if not isinstance(out, list) or len(out) != len(sentences):
+        logger.warning(
+            "[llm_client] respons terjemahan malformed (dapat %s elemen, butuh %s)",
+            len(out) if isinstance(out, list) else "non-list",
+            len(sentences),
+        )
+        return None
+
+    result: list[str] = []
+    for item, source in zip(out, sentences):
+        if isinstance(item, str) and item.strip():
+            result.append(item.strip())
+        else:
+            # Elemen yang tak terbaca dikembalikan sebagai kalimat aslinya:
+            # di hilir itu berarti "tidak ada usulan" untuk kalimat itu saja,
+            # bukan menggagalkan seluruh terjemahan.
+            logger.warning("[llm_client] elemen terjemahan tidak valid: %r", item)
+            result.append(source)
+
+    return result

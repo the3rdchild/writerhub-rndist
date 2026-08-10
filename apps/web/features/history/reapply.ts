@@ -6,6 +6,7 @@ import type {
 	HumanizerResult,
 	PlagiarismResult,
 	TextChange,
+	TranslatorResult,
 } from '@writer-hub/shared'
 import type { Doc } from 'yjs'
 import type { PanelId } from '@/features/analysis/panel-context'
@@ -60,8 +61,10 @@ export function remapResult(
 		case 'grammar':
 			return result
 		case 'ai_rewriter':
-		case 'humanizer': {
-			const typed = result as AiRewriterResult | HumanizerResult
+		case 'humanizer':
+		case 'translator': {
+			// Ketiganya berbentuk sama: satu `changes[]` berisi usulan pengganti.
+			const typed = result as AiRewriterResult | HumanizerResult | TranslatorResult
 			return { ...typed, changes: remapChanges(text, typed.changes) }
 		}
 		case 'ai_detector': {

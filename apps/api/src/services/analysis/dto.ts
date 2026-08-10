@@ -20,9 +20,17 @@ export const analysisBodySchema = z
 		documentId: z.uuid().optional(),
 		/** Tone pilihan user untuk run ini; meng-override `tone` AI Memory. */
 		tone: z.enum(REWRITE_TONE_IDS).optional(),
+		/** Bahasa tujuan Translator (BCP-47, mis. 'en'); wajib untuk fitur itu. */
+		targetLang: z.string().trim().min(2).max(12).optional(),
 	})
 	.refine((data) => !data.tone || data.feature === 'ai_rewriter', {
 		message: 'tone hanya berlaku untuk fitur ai_rewriter',
+	})
+	.refine((data) => data.feature !== 'translator' || Boolean(data.targetLang), {
+		message: 'targetLang wajib diisi untuk fitur translator',
+	})
+	.refine((data) => !data.targetLang || data.feature === 'translator', {
+		message: 'targetLang hanya berlaku untuk fitur translator',
 	})
 
 export type AnalysisBody = z.infer<typeof analysisBodySchema>

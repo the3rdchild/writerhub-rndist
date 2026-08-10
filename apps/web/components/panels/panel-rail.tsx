@@ -2,6 +2,7 @@
 
 import {
 	Bot,
+	Languages,
 	type LucideIcon,
 	MessageSquare,
 	MessagesSquare,
@@ -20,6 +21,7 @@ const PANELS: Array<{ id: PanelId; icon: LucideIcon; label: string }> = [
 	{ id: 'ai_rewriter', icon: RefreshCw, label: 'AI Rewriter' },
 	{ id: 'humanizer', icon: UserCheck, label: 'Humanizer' },
 	{ id: 'plagiarism', icon: Search, label: 'Plagiarism' },
+	{ id: 'translator', icon: Languages, label: 'Translator' },
 	{ id: 'comments', icon: MessageSquare, label: 'Comments' },
 ]
 

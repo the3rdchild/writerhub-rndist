@@ -72,7 +72,7 @@ export default class VersionsService extends BaseService {
 			const version = await insertVersion({
 				tab_id: tab.id,
 				content: tab.content,
-				trigger: 'manual',
+				trigger: body.data.trigger ?? 'manual',
 				label: body.data.label ?? null,
 				word_count: countWords(tab.content),
 				created_by: this.ownerId(),

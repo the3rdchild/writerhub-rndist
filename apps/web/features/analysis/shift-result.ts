@@ -16,6 +16,7 @@ const RANGE_FIELDS = {
 	ai_rewriter: 'changes',
 	humanizer: 'changes',
 	plagiarism: 'flagged_phrases',
+	translator: 'changes',
 } as const satisfies Record<AnalysisFeature, string>
 
 export function shiftAnalysisResult<F extends AnalysisFeature>(

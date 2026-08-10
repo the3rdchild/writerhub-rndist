@@ -6,7 +6,9 @@ import type { LucideIcon } from 'lucide-react'
 import { useAnalysis } from '@/features/analysis/use-analysis'
 import { useCandidatePreview } from '@/features/analysis/use-candidate-preview'
 import { usePendingChanges } from '@/features/analysis/use-pending-changes'
+import { usePreTranslateSnapshot } from '@/features/analysis/use-pre-translate-snapshot'
 import { useRangeHighlight } from '@/features/document/use-range-highlight'
+import { LANGUAGE_OPTIONS } from '@/features/document/language'
 import { useSelectionScope } from '@/features/editor/selection'
 import { ToolbarSelect } from '@/components/ui/toolbar-select'
 import { usePersistentState } from '@/lib/use-persistent-state'
@@ -33,8 +35,13 @@ const TONE_OPTIONS: ReadonlyArray<{ value: ToneChoice; label: string }> = [
 	...REWRITE_TONES.map((tone) => ({ value: tone.id as ToneChoice, label: tone.label })),
 ]
 
+/** Bahasa tujuan Translator - memakai ulang daftar bahasa dokumen. */
+const LANGUAGE_CHOICES: ReadonlyArray<{ value: string; label: string }> = LANGUAGE_OPTIONS.map(
+	(entry) => ({ value: entry.code, label: entry.label }),
+)
+
 export interface ChangeListPanelProps {
-	feature: Extract<AnalysisFeature, 'ai_rewriter' | 'humanizer'>
+	feature: Extract<AnalysisFeature, 'ai_rewriter' | 'humanizer' | 'translator'>
 	icon: LucideIcon
 	emptyTitle: string
 	emptyDescription: string
@@ -48,9 +55,11 @@ export interface ChangeListPanelProps {
 }
 
 /**
- * AI Rewriter dan Humanizer punya alur yang persis sama - daftar diff yang
- * bisa di-accept per segmen - dan hanya berbeda pada teks serta ikon. Keduanya
- * memakai komponen ini alih-alih menyalin ~180 baris markup yang sama.
+ * AI Rewriter, Humanizer, dan Translator punya alur yang persis sama - daftar
+ * usulan pengganti yang bisa diterima per segmen - dan hanya berbeda pada teks,
+ * ikon, serta satu kendali di kaki panel (tone untuk Rewriter, bahasa tujuan
+ * untuk Translator). Ketiganya memakai komponen ini alih-alih menyalin ~200
+ * baris markup yang sama.
  */
 export function ChangeListPanel({
 	feature,
@@ -71,17 +80,46 @@ export function ChangeListPanel({
 	const { rangeProps } = useRangeHighlight()
 	const scope = useSelectionScope()
 	const { preview, showPreview, clearPreview } = useCandidatePreview()
+	const { ensureSnapshot, reset: resetSnapshot } = usePreTranslateSnapshot()
+
+	/*
+	 * Terjemahan menimpa banyak kalimat sekaligus, jadi penerapan pertamanya
+	 * membuat versi `pre_translate` lebih dulu. Modul lain tidak: mereka
+	 * mengganti satu kalimat per klik, dan undef editor sudah cukup.
+	 */
+	const applyGuard = feature === 'translator' ? ensureSnapshot : undefined
 
 	// Pemilih tone hanya untuk AI Rewriter; pilihan terakhir diingat per browser.
 	const [tone, setTone] = usePersistentState<ToneChoice>('writer-hub-rewriter-tone', 'default')
 	const selectedTone = tone === 'default' ? undefined : tone
+
+	// Bahasa tujuan Translator, juga diingat per browser. Bawaannya Inggris:
+	// naskah di sini kebanyakan berbahasa Indonesia, jadi arah itu yang paling
+	// sering dipakai - dan pilihannya toh langsung terlihat di kaki panel.
+	const [targetLang, setTargetLang] = usePersistentState<string>(
+		'writer-hub-translator-target',
+		'en',
+	)
+
+	const runOptions =
+		feature === 'translator' ? { targetLang } : feature === 'ai_rewriter' ? { tone: selectedTone } : {}
 
 	// Mengganti tone langsung menjalankan ulang (bila sudah ada hasil) supaya
 	// perbedaannya terlihat tanpa harus menekan Rewrite Again dulu.
 	const handleToneChange = (value: ToneChoice) => {
 		setTone(value)
 		if (result && !isRunning) {
-			run(scope ?? undefined, value === 'default' ? undefined : value)
+			run(scope ?? undefined, { tone: value === 'default' ? undefined : value })
+		}
+	}
+
+	// Idem untuk bahasa tujuan: mengganti bahasa berarti minta terjemahan lain,
+	// bukan sekadar mengubah label.
+	const handleTargetLangChange = (value: string) => {
+		setTargetLang(value)
+		resetSnapshot()
+		if (result && !isRunning) {
+			run(scope ?? undefined, { targetLang: value })
 		}
 	}
 
@@ -126,8 +164,11 @@ export function ChangeListPanel({
 											original={change.original}
 											replacement={change.replacement}
 											acceptDisabled={isStale}
-											onAccept={() => accept(index)}
-											onDismiss={() => dismiss(index)}
+											onAccept={() => {
+													applyGuard?.()
+													accept(index)
+												}}
+												onDismiss={() => dismiss(index)}
 											{...rangeProps({ offset: change.offset, length: change.length })}
 										/>
 									),
@@ -172,7 +213,15 @@ export function ChangeListPanel({
 			</PanelScroll>
 
 			<PanelFooter>
-				{pending.length > 0 && <AcceptAllButton onClick={acceptAll} disabled={isStale} />}
+				{pending.length > 0 && (
+						<AcceptAllButton
+							onClick={() => {
+								applyGuard?.()
+								acceptAll()
+							}}
+							disabled={isStale}
+						/>
+					)}
 
 				{feature === 'ai_rewriter' && (
 					<div className="flex items-center gap-1.5 px-1">
@@ -189,10 +238,25 @@ export function ChangeListPanel({
 					</div>
 				)}
 
+				{feature === 'translator' && (
+					<div className="flex items-center gap-1.5 px-1">
+						<span className="text-[11px] text-subtle">Ke</span>
+						<ToolbarSelect
+							value={targetLang}
+							options={LANGUAGE_CHOICES}
+							onChange={handleTargetLangChange}
+							label="Bahasa tujuan terjemahan"
+							width={140}
+							disabled={isRunning}
+							side="top"
+						/>
+					</div>
+				)}
+
 				<RunScopeBar wordCount={scope?.wordCount ?? null} />
 
 				<RunButton
-					onClick={() => run(scope ?? undefined, selectedTone)}
+					onClick={() => run(scope ?? undefined, runOptions)}
 					disabled={!canRun}
 					isRunning={isRunning}
 					runningLabel={runningLabel}

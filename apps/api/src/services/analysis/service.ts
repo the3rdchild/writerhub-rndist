@@ -49,6 +49,8 @@ export default class AnalysisService extends JobSubmissionService {
 				text: body.text,
 				language: body.language ?? null,
 				style_memory: effectiveMemory,
+				// Hanya berarti untuk translator; analyzer lain mengabaikannya.
+				target_lang: body.targetLang ?? null,
 				...this.providerPayload(provider),
 			})
 

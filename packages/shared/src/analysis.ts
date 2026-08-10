@@ -1,6 +1,12 @@
 import type { JobStatus } from './job'
 
-export const ANALYSIS_FEATURES = ['ai_detector', 'ai_rewriter', 'humanizer', 'plagiarism'] as const
+export const ANALYSIS_FEATURES = [
+	'ai_detector',
+	'ai_rewriter',
+	'humanizer',
+	'plagiarism',
+	'translator',
+] as const
 export type AnalysisFeature = (typeof ANALYSIS_FEATURES)[number]
 
 /**
@@ -87,6 +93,21 @@ export interface HumanizerResult {
 	llm_unavailable?: boolean
 }
 
+/**
+ * Hasil Translator. Bentuknya sengaja sama dengan AI Rewriter - satu change per
+ * kalimat - supaya panel, highlight layer, dan alur apply yang sudah ada bisa
+ * dipakai ulang tanpa cabang baru. Bedanya hanya asal usulannya: terjemahan,
+ * bukan tulisan ulang.
+ */
+export interface TranslatorResult {
+	translated_text: string
+	changes: TextChange[]
+	/** Bahasa sumber yang terdeteksi model; sekadar ditampilkan di panel. */
+	detected_language?: string
+	/** Sama seperti `AiRewriterResult.llm_unavailable`. */
+	llm_unavailable?: boolean
+}
+
 export interface PlagiarismResult {
 	uniqueness_score: number
 	label: 'Unique' | 'Likely Original' | 'Possible Match' | 'High Similarity'
@@ -99,6 +120,7 @@ export interface AnalysisResultMap {
 	ai_rewriter: AiRewriterResult
 	humanizer: HumanizerResult
 	plagiarism: PlagiarismResult
+	translator: TranslatorResult
 }
 
 export type AnalysisResultFor<F extends AnalysisFeature> = AnalysisResultMap[F]

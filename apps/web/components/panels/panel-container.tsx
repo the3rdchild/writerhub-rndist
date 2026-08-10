@@ -11,6 +11,7 @@ import { AiRewriterPanel } from './ai-rewriter-panel'
 import { HumanizerPanel } from './humanizer-panel'
 import { PlagiarismPanel } from './plagiarism-panel'
 import { ProofreaderPanel } from './proofreader-panel'
+import { TranslatorPanel } from './translator-panel'
 
 const PANEL_TITLES: Record<PanelId, string> = {
 	ai_chat: 'AI Chat',
@@ -20,6 +21,7 @@ const PANEL_TITLES: Record<PanelId, string> = {
 	ai_rewriter: 'AI Rewriter',
 	humanizer: 'Humanizer',
 	plagiarism: 'Plagiarism Checker',
+	translator: 'Translator',
 }
 
 function PanelBody({ panel }: { panel: PanelId }) {
@@ -38,6 +40,8 @@ function PanelBody({ panel }: { panel: PanelId }) {
 			return <HumanizerPanel />
 		case 'plagiarism':
 			return <PlagiarismPanel />
+		case 'translator':
+			return <TranslatorPanel />
 	}
 }
 

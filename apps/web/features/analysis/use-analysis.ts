@@ -26,7 +26,15 @@ export interface AnalysisController<F extends AnalysisFeature> {
 	/** Hasil yang ditampilkan berasal dari bagian yang disorot, bukan seluruh naskah. */
 	isScoped: boolean
 	/** Tanpa argumen berarti seluruh dokumen. */
-	run: (scope?: { text: string; offset: number }, tone?: RewriterTone) => void
+	/**
+	 * `options` membawa parameter khusus fitur: `tone` untuk AI Rewriter,
+	 * `targetLang` untuk Translator. Keduanya ikut ke kunci query, jadi
+	 * mengganti salah satunya menghasilkan hasil baru, bukan hasil lama.
+	 */
+	run: (
+		scope?: { text: string; offset: number },
+		options?: { tone?: RewriterTone; targetLang?: string },
+	) => void
 }
 
 /**
@@ -56,10 +64,19 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 			requested?.offset ?? 0,
 			requested?.language,
 			requested?.tone ?? null,
+			requested?.targetLang ?? null,
 		],
 		queryFn: async ({ signal }) => {
 			const run = requested as AnalysisRun
-			const raw = await runAnalysis(feature, run.text, run.language, signal, run.tabId, run.tone)
+			const raw = await runAnalysis(
+				feature,
+				run.text,
+				run.language,
+				signal,
+				run.tabId,
+				run.tone,
+				run.targetLang,
+			)
 			// Digeser di sini, sekali, supaya seluruh pemakainya tidak perlu tahu
 			// apakah hasil ini datang dari potongan atau dari naskah penuh.
 			return shiftAnalysisResult(feature, raw, run.offset)
@@ -72,18 +89,32 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 	})
 
 	const run = useCallback(
-		(scope?: { text: string; offset: number }, tone?: RewriterTone) => {
+		(
+			scope?: { text: string; offset: number },
+			options?: { tone?: RewriterTone; targetLang?: string },
+		) => {
 			// Tautan tab cloud ikut dicatat supaya job ini muncul di Aktivitas
 			// AI dengan tautannya; tab lokal-saja mengirim undefined.
 			const tabId = activeId ? linkage[activeId]?.serverId : undefined
+			const common = {
+				language: language.code,
+				tabId,
+				tone: options?.tone,
+				targetLang: options?.targetLang,
+			}
 			const next: AnalysisRun = scope
-				? { text: scope.text, offset: scope.offset, scoped: true, language: language.code, tabId, tone }
-				: { text: currentText, offset: 0, scoped: false, language: language.code, tabId, tone }
+				? { text: scope.text, offset: scope.offset, scoped: true, ...common }
+				: { text: currentText, offset: 0, scoped: false, ...common }
 			markRun(feature, next)
 
 			// Permintaan identik dengan yang terakhir: kunci query tidak berubah,
 			// jadi minta ulang eksplisit agar tombol "Run Again" tetap bekerja.
-			if (requested?.text === next.text && requested?.offset === next.offset && requested?.tone === next.tone) {
+			if (
+				requested?.text === next.text &&
+				requested?.offset === next.offset &&
+				requested?.tone === next.tone &&
+				requested?.targetLang === next.targetLang
+			) {
 				void query.refetch()
 			}
 		},

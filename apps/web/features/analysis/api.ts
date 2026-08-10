@@ -19,11 +19,13 @@ export async function runAnalysis<F extends AnalysisFeature>(
 	tabId?: string,
 	/** Tone pilihan user (hanya ai_rewriter); meng-override tone AI Memory. */
 	tone?: string,
+	/** Bahasa tujuan (hanya translator). */
+	targetLang?: string,
 ): Promise<AnalysisResultFor<F>> {
 	const { jobId } = await apiFetch<JobSubmission>('/analyze', {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({ feature, text, language, tabId, tone }),
+		body: JSON.stringify({ feature, text, language, tabId, tone, targetLang }),
 		signal,
 	})
 

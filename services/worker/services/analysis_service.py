@@ -18,6 +18,7 @@ from services.analyzers import (
     run_plagiarism,
 )
 from services.analyzers.llm_client import get_last_total_tokens
+from services.analyzers.translator import run_translator
 from core.provider import resolve_provider
 
 _svc = BaseService("analysis_service")
@@ -29,11 +30,12 @@ _ANALYZERS = {
     "ai_rewriter": run_ai_rewriter,
     "humanizer": run_humanizer,
     "plagiarism": run_plagiarism,
+    "translator": run_translator,
 }
 
 # Plagiarism murni heuristik - tidak memanggil LLM sama sekali, jadi tetap bisa
 # jalan tanpa provider. Sisanya butuh LLM.
-_NEEDS_PROVIDER = frozenset({"ai_detector", "ai_rewriter", "humanizer"})
+_NEEDS_PROVIDER = frozenset({"ai_detector", "ai_rewriter", "humanizer", "translator"})
 
 
 def process(data: dict):
@@ -68,6 +70,8 @@ def process(data: dict):
         # analyzer yang NULIS ULANG naskah (rewriter & humanizer) - detector
         # dan plagiarism cuma menilai, jadi ga disentuh.
         style_memory = payload.get("style_memory") or None
+        # Bahasa tujuan; cuma dipakai translator, divalidasi wajib di API.
+        target_lang = payload.get("target_lang") or None
         analyzer = _ANALYZERS.get(feature)
         if not analyzer:
             raise ValueError(f"Unknown feature: {feature}")
@@ -82,7 +86,9 @@ def process(data: dict):
             )
 
         with _svc.timed_step(f"analyze:{feature}"):
-            if feature in ("ai_rewriter", "humanizer"):
+            if feature == "translator":
+                result = analyzer(text, provider, language, style_memory, target_lang)
+            elif feature in ("ai_rewriter", "humanizer"):
                 result = analyzer(text, provider, language, style_memory)
             else:
                 result = analyzer(text, provider, language)
