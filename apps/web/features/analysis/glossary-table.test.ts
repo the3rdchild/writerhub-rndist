@@ -1,7 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import { getSchema } from '@tiptap/core'
 import { buildEditorExtensions } from '@/features/editor/extensions'
-import { buildGlossarySection, findGlossarySection, GLOSSARY_HEADING } from './glossary-table'
+import {
+	buildGlossarySection,
+	findGlossarySection,
+	GLOSSARY_HEADING,
+	glossaryTermLabel,
+} from './glossary-table'
 
 const schema = getSchema(buildEditorExtensions())
 
@@ -18,7 +23,43 @@ const paragraph = (text: string) => ({
 	content: [{ type: 'text', text }],
 })
 
+describe('label kolom Istilah', () => {
+	test('singkatan ditulis bersama kepanjangannya', () => {
+		expect(
+			glossaryTermLabel({
+				term: 'DCS',
+				expansion: 'Distributed Control System',
+				definition: '…',
+				occurrences: 3,
+			}),
+		).toBe('DCS (Distributed Control System)')
+	})
+
+	test('tanpa kepanjangan, istilahnya berdiri sendiri', () => {
+		expect(glossaryTermLabel({ term: 'latensi', definition: '…', occurrences: 2 })).toBe('latensi')
+	})
+
+	test('kepanjangan kosong atau berisi spasi diperlakukan sebagai tidak ada', () => {
+		// Model kadang mengisi "" atau " " alih-alih menghilangkan fieldnya;
+		// keduanya tidak boleh menghasilkan kurung kosong di tabel.
+		expect(glossaryTermLabel({ term: 'AKD', expansion: '', definition: '…', occurrences: 1 })).toBe(
+			'AKD',
+		)
+		expect(
+			glossaryTermLabel({ term: 'AKD', expansion: '   ', definition: '…', occurrences: 1 }),
+		).toBe('AKD')
+	})
+})
+
 describe('perakitan tabel glosarium', () => {
+	test('sel Istilah memuat kepanjangan bila ada', () => {
+		const [, table] = buildGlossarySection([
+			{ term: 'DCS', expansion: 'Distributed Control System', definition: 'Sistem kendali', occurrences: 3 },
+		])
+		const firstCell = table.content?.[1]?.content?.[0]
+		expect(firstCell?.content?.[0]?.content?.[0]?.text).toBe('DCS (Distributed Control System)')
+	})
+
 	test('menghasilkan heading lalu tabel dua kolom', () => {
 		const [heading, table] = buildGlossarySection(entries)
 		expect(heading.type).toBe('heading')

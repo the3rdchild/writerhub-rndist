@@ -112,13 +112,6 @@ export interface TranslatorResult {
 /** Satu istilah di daftar Glosarium. */
 export interface GlossaryEntry {
 	term: string
-	/**
-	 * Kepanjangan singkatan, mis. "Distributed Control System" untuk "DCS".
-	 * Kosong untuk istilah yang memang bukan singkatan, dan untuk singkatan khas
-	 * satu instansi yang kepanjangannya tidak disebut di naskah - menebaknya di
-	 * dokumen akademik lebih berbahaya daripada membiarkannya kosong.
-	 */
-	expansion?: string
 	definition: string
 	/** Berapa kali istilah ini muncul di naskah - bahan urut dan keyakinan. */
 	occurrences: number

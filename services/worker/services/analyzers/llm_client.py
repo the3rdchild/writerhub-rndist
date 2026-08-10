@@ -333,10 +333,19 @@ def define_terms(
         "is obvious. It is correct to return far fewer entries than you were "
         "given, and correct to return none.\n\n"
         "For each kept term write one concise definition (max 25 words) based "
-        "on how it is used in the context provided."
+        "on how it is used in the context provided.\n\n"
+        "Also fill \"expansion\" when the term is an abbreviation: what the "
+        "letters stand for, in its original language (e.g. DCS -> "
+        "\"Distributed Control System\"). Take it from the context when the "
+        "document spells it out. Otherwise supply it ONLY for widely "
+        "established terms whose meaning is standard across the field. Leave "
+        "\"expansion\" as an empty string for ordinary words, and for "
+        "organisation- or project-specific abbreviations you cannot verify - "
+        "an invented expansion in an academic document is worse than none."
         + style_memory_instruction(style_memory)
         + "\n\nRespond ONLY with a JSON object of the form "
-        '{"entries": [{"term": "...", "definition": "..."}]}. Use each term '
+        '{"entries": [{"term": "...", "expansion": "...", "definition": "..."}]}. '
+        "Use each term "
         "exactly as it was given, without changing capitalization."
     )
 
@@ -359,10 +368,15 @@ def define_terms(
         if not isinstance(term, str) or not isinstance(definition, str):
             continue
         term, definition = term.strip(), definition.strip()
+        expansion = item.get("expansion")
+        expansion = expansion.strip() if isinstance(expansion, str) else ""
+        # Kepanjangan yang cuma mengulang istilahnya sendiri tidak berguna.
+        if expansion.lower() == term.lower():
+            expansion = ""
         # Istilah yang tidak pernah dikirim berarti model mengarang - dibuang,
         # supaya glosarium tidak memuat kata yang tak ada di naskah.
         if not term or not definition or term not in given:
             continue
-        entries.append({"term": term, "definition": definition})
+        entries.append({"term": term, "expansion": expansion, "definition": definition})
 
     return entries

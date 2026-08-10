@@ -124,6 +124,9 @@ def run_glossary(
     entries = [
         {
             "term": item["term"],
+            # Kunci `expansion` selalu ada tapi boleh kosong; web yang memutuskan
+            # menampilkannya atau tidak.
+            "expansion": item.get("expansion") or "",
             "definition": item["definition"],
             "occurrences": occurrences.get(item["term"], 1),
         }

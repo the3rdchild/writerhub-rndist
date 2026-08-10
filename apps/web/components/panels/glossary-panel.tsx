@@ -3,7 +3,11 @@
 import type { GlossaryResult } from '@writer-hub/shared'
 import { BookMarked } from 'lucide-react'
 import { useAnalysis } from '@/features/analysis/use-analysis'
-import { buildGlossarySection, findGlossarySection } from '@/features/analysis/glossary-table'
+import {
+	buildGlossarySection,
+	findGlossarySection,
+	glossaryTermLabel,
+} from '@/features/analysis/glossary-table'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import {
 	PanelEmptyState,
@@ -77,7 +81,9 @@ export function GlossaryPanel() {
 										className="flex flex-col gap-1 rounded-xl border border-line bg-surface-raised p-3"
 									>
 										<div className="flex items-baseline justify-between gap-2">
-											<span className="text-xs font-medium text-foreground">{entry.term}</span>
+											<span className="text-xs font-medium text-foreground">
+													{glossaryTermLabel(entry)}
+												</span>
 											<span className="shrink-0 text-[10px] text-faint">
 												{entry.occurrences}×
 											</span>

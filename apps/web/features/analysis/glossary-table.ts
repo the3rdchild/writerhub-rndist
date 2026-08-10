@@ -14,6 +14,18 @@ const cell = (text: string, header = false): JSONContent => ({
 })
 
 /**
+ * Label kolom Istilah: singkatan beserta kepanjangannya dalam kurung.
+ *
+ * Kepanjangan digabung ke sini, bukan jadi kolom sendiri, supaya tabel tetap
+ * dua kolom - dan supaya istilah yang memang bukan singkatan tidak menyisakan
+ * sel kosong di tiap barisnya.
+ */
+export function glossaryTermLabel(entry: GlossaryEntry): string {
+	const expansion = entry.expansion?.trim()
+	return expansion ? `${entry.term} (${expansion})` : entry.term
+}
+
+/**
  * Rakit bagian Glosarium: satu heading diikuti tabel dua kolom.
  *
  * Fungsi murni - menerima entri, mengembalikan node ProseMirror - supaya
@@ -28,7 +40,7 @@ export function buildGlossarySection(entries: readonly GlossaryEntry[]): JSONCon
 				{ type: 'tableRow', content: [cell('Istilah', true), cell('Definisi', true)] },
 				...entries.map((entry) => ({
 					type: 'tableRow',
-					content: [cell(entry.term), cell(entry.definition)],
+					content: [cell(glossaryTermLabel(entry)), cell(entry.definition)],
 				})),
 			],
 		},
