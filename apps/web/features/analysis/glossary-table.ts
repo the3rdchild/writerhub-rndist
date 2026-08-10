@@ -1,5 +1,6 @@
 import type { GlossaryEntry } from '@writer-hub/shared'
 import type { JSONContent } from '@tiptap/core'
+import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 
 /** Judul bagian yang disisipkan; juga penanda saat menggantinya nanti. */
 export const GLOSSARY_HEADING = 'Glosarium'
@@ -33,6 +34,9 @@ export function glossaryTermLabel(entry: GlossaryEntry): string {
  */
 export function buildGlossarySection(entries: readonly GlossaryEntry[]): JSONContent[] {
 	return [
+		// Daftar istilah adalah bagian tersendiri, bukan ekor bab terakhir - jadi
+		// ia selalu dibuka di halaman baru, seperti lampiran.
+		{ type: PAGE_BREAK_NODE },
 		{ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: GLOSSARY_HEADING }] },
 		{
 			type: 'table',
@@ -73,7 +77,13 @@ export function findGlossarySection(doc: {
 		if (isHeading && matches && i + 1 < doc.childCount) {
 			const next = doc.child(i + 1)
 			if (next.type.name === 'table') {
-				return { from: pos, to: pos + node.nodeSize + next.nodeSize }
+				// Page break tepat sebelum heading ikut diklaim. Tanpa ini,
+				// menjalankan ulang menyisakan break lama lalu menambah yang baru,
+				// dan tiap pemindaian ulang melahirkan satu halaman kosong.
+				const previous = i > 0 ? doc.child(i - 1) : null
+				const from =
+					previous?.type.name === PAGE_BREAK_NODE ? pos - previous.nodeSize : pos
+				return { from, to: pos + node.nodeSize + next.nodeSize }
 			}
 		}
 

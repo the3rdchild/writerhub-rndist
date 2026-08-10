@@ -53,22 +53,23 @@ describe('label kolom Istilah', () => {
 
 describe('perakitan tabel glosarium', () => {
 	test('sel Istilah memuat kepanjangan bila ada', () => {
-		const [, table] = buildGlossarySection([
+		const [, , table] = buildGlossarySection([
 			{ term: 'DCS', expansion: 'Distributed Control System', definition: 'Sistem kendali', occurrences: 3 },
 		])
 		const firstCell = table.content?.[1]?.content?.[0]
 		expect(firstCell?.content?.[0]?.content?.[0]?.text).toBe('DCS (Distributed Control System)')
 	})
 
-	test('menghasilkan heading lalu tabel dua kolom', () => {
-		const [heading, table] = buildGlossarySection(entries)
+	test('dibuka page break, lalu heading, lalu tabel', () => {
+		const [pageBreak, heading, table] = buildGlossarySection(entries)
+		expect(pageBreak.type).toBe('pageBreak')
 		expect(heading.type).toBe('heading')
 		expect(heading.content?.[0]?.text).toBe(GLOSSARY_HEADING)
 		expect(table.type).toBe('table')
 	})
 
 	test('baris pertama adalah kepala tabel, sisanya satu per istilah', () => {
-		const [, table] = buildGlossarySection(entries)
+		const [, , table] = buildGlossarySection(entries)
 		const rows = table.content ?? []
 		expect(rows).toHaveLength(entries.length + 1)
 		expect(rows[0]?.content?.[0]?.type).toBe('tableHeader')
@@ -95,8 +96,30 @@ describe('pencarian bagian glosarium yang sudah ada', () => {
 		const doc = docOf([paragraph('Pembuka.'), ...buildGlossarySection(entries)])
 		const found = findGlossarySection(doc)
 		expect(found).not.toBeNull()
-		// Rentangnya harus mulai TEPAT di heading, bukan di paragraf pembuka.
+		// Rentangnya mulai di page break pembuka bagian ini - yaitu tepat sesudah
+		// paragraf pembuka - bukan di paragraf itu sendiri.
 		expect(found?.from).toBe(doc.child(0).nodeSize)
+		expect(found?.to).toBe(doc.content.size)
+	})
+
+	test('page break pembuka ikut diklaim, jadi pindai ulang tidak menumpuknya', () => {
+		// Ini kegagalan yang paling sulit disadari: tanpa mengklaim page break,
+		// tiap pindai ulang menyisakan break lama dan menambah yang baru, dan
+		// dokumen tumbuh satu halaman kosong setiap kali.
+		const doc = docOf([paragraph('Pembuka.'), ...buildGlossarySection(entries)])
+		const found = findGlossarySection(doc)
+		if (!found) throw new Error('bagian glosarium tidak ketemu')
+
+		// Ganti seperti yang dilakukan panel, lalu pastikan page break tetap satu.
+		const replaced = docOf([
+			paragraph('Pembuka.'),
+			...buildGlossarySection([{ term: 'baru', definition: 'entri lain', occurrences: 1 }]),
+		])
+		let breaks = 0
+		replaced.forEach((node) => {
+			if (node.type.name === 'pageBreak') breaks += 1
+		})
+		expect(breaks).toBe(1)
 	})
 
 	test('heading Glosarium tanpa tabel TIDAK diklaim', () => {
@@ -112,7 +135,8 @@ describe('pencarian bagian glosarium yang sudah ada', () => {
 	test('heading lain yang diikuti tabel tidak diklaim', () => {
 		const doc = docOf([
 			{ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Lampiran' }] },
-			buildGlossarySection(entries)[1],
+			// Indeks 2 = tabelnya; indeks 0 page break, 1 heading.
+			buildGlossarySection(entries)[2],
 		])
 		expect(findGlossarySection(doc)).toBeNull()
 	})
