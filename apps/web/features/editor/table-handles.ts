@@ -1,225 +1,479 @@
 'use client'
 
 import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state'
-import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import type { EditorView } from '@tiptap/pm/view'
 import { TableMap } from '@tiptap/pm/tables'
+import { dropIndex, locateTableAt, type TableLocation } from './table-ops'
 
 /**
- * Handle baris & kolom yang muncul saat meng-hover tabel.
+ * Lapisan handle tabel yang melayang mengikuti sel di bawah tetikus.
  *
- * Per baris: tombol "+" (sisip baris di bawah) + grip seret/menu di tepi kiri.
- * Per kolom: tombol "•••" di pojok kanan sel baris pertama.
+ * Tiga elemen saja - handle baris (kiri), handle kolom (atas), dan tombol •••
+ * di sel - yang diposisikan ulang tiap kali tetikus berpindah sel, bukan satu
+ * widget per baris/kolom/sel. Sebelumnya handle dipasang sebagai dekorasi
+ * ProseMirror, dan itu punya dua batas keras: jumlah elemennya tumbuh mengikuti
+ * ukuran tabel (••• di tiap sel berarti baris × kolom widget yang dibangun
+ * ulang tiap dokumen berubah), dan "kolom yang sedang di-hover" tak bisa
+ * diungkapkan di CSS - tidak ada selector kolom.
  *
- * Widget ditempel sebagai dekorasi ProseMirror DI DALAM sel (bukan di antara
- * sel): posisi sel dari `TableMap` menunjuk ke node sel-nya, jadi widget harus
- * digeser satu ke dalam. Kalau tidak, elemen handle mendarat langsung di dalam
- * `<tr>` dan peramban membungkusnya jadi anonymous table-cell - kolom bergeser
- * dan tabel terlihat "meledak".
- *
- * Klik kanan (contextmenu) pada sel tabel juga memicu menu; ditangani komponen
- * React lewat event listener, bukan di sini.
+ * Lapisannya `position: fixed` di atas `document.body`, jadi koordinatnya
+ * langsung koordinat layar: tak perlu memperhitungkan transform zoom kanvas.
+ * Konsekuensinya posisi harus dihitung ulang saat menggulung - sama seperti
+ * menu konteksnya.
  */
 
-export const tableHandlesKey = new PluginKey<DecorationSet>('tableHandles')
+export const tableHandlesKey = new PluginKey('tableHandles')
 
+/** Sumbu yang diwakili sebuah handle. */
 export type HandleAxis = 'row' | 'col'
+/** Dari mana menu dibuka - menentukan apa yang ikut terpilih saat dibuka. */
+export type MenuOrigin = HandleAxis | 'cell'
 
-export interface HandleOpen {
-	/** Sumbu yang diwakili handle - menentukan apa yang ikut terpilih. */
-	axis: HandleAxis
-	/** Posisi tepat sebelum node tabel. */
-	tablePos: number
-	rowIndex: number
-	colIndex: number
-	rowCount: number
-	colCount: number
+export interface HandleOpen extends TableLocation {
+	origin: MenuOrigin
 	/** Elemen jangkar menu; menu mengikutinya saat halaman digulir. */
 	anchor: HTMLElement
 }
 
 export interface TableHandlesOptions {
 	onMenu: (open: HandleOpen) => void
-	/** Sisip baris/kolom baru tepat setelah `index`. */
+	/** Sisip baris/kolom baru tepat setelah `index` (bawah untuk baris, kanan
+	 *  untuk kolom). */
 	onInsert: (axis: HandleAxis, tablePos: number, index: number) => void
-	/** Pindah baris/kolom (seret untuk menyusun ulang). */
+	/** Pindah baris/kolom setelah diseret. */
 	onMove: (axis: HandleAxis, tablePos: number, fromIndex: number, toIndex: number) => void
+	/** Selama menu terbuka lapisan berhenti mengikuti tetikus, supaya jangkar
+	 *  menunya tidak lari ke sel lain. */
+	isFrozen?: () => boolean
 }
 
-/** Status seret aktif. Disimpan di modul karena dekorasi dibangun ulang saat
- *  seret berlangsung, sementara `dataTransfer` tak bisa dibaca saat dragover. */
-interface DragState {
+const SVG =
+	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+const ICON_PLUS = `${SVG}<path d="M5 12h14"/><path d="M12 5v14"/></svg>`
+const ICON_GRIP = `${SVG}<circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>`
+const ICON_DOTS = `${SVG}<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>`
+
+/** Jarak handle dari tepi tabel, dan jarak ••• dari sudut sel. */
+const OUTSET = 6
+const INSET = 5
+/** Geser sejauh ini baru dianggap seret, bukan klik. */
+const DRAG_THRESHOLD = 3
+
+type HoverState = TableLocation & { cell: HTMLElement }
+
+interface DragSession {
 	axis: HandleAxis
 	tablePos: number
 	fromIndex: number
-}
-let activeDrag: DragState | null = null
-
-const SVG_OPEN =
-	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-const ICON_PLUS = `${SVG_OPEN}<path d="M5 12h14"/><path d="M12 5v14"/></svg>`
-const ICON_GRIP = `${SVG_OPEN}<circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>`
-const ICON_DOTS = `${SVG_OPEN}<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>`
-
-interface HandleSpec {
-	axis: HandleAxis
-	tablePos: number
-	rowIndex: number
-	colIndex: number
-	rowCount: number
-	colCount: number
+	/** Koordinat tiap batas baris/kolom (count + 1 nilai). */
+	edges: number[]
+	/** Rentang layar baris/kolom sumber. */
+	span: { start: number; size: number }
+	tableRect: DOMRect
+	boundary: number
+	moved: boolean
 }
 
-/** Tombol grip: buka menu saat diklik, jadi pegangan seret saat ditarik. */
-function makeGrip(spec: HandleSpec, opts: TableHandlesOptions, wrap: HTMLElement, icon: string): HTMLElement {
-	const { axis, tablePos } = spec
-	const index = axis === 'row' ? spec.rowIndex : spec.colIndex
-
-	const grip = document.createElement('button')
-	grip.type = 'button'
-	grip.className = 'table-handle-grip'
-	grip.draggable = true
-	grip.innerHTML = icon
-	grip.setAttribute('aria-label', axis === 'row' ? `Row ${index + 1} menu` : `Column ${index + 1} menu`)
-
-	grip.addEventListener('click', (e) => {
-		e.preventDefault()
-		e.stopPropagation()
-		opts.onMenu({ ...spec, anchor: grip })
-	})
-	grip.addEventListener('dragstart', (e) => {
-		activeDrag = { axis, tablePos, fromIndex: index }
-		e.dataTransfer?.setData('text/plain', `${axis}:${index}`)
-		if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
-		wrap.classList.add('table-handle--dragging')
-	})
-	grip.addEventListener('dragend', () => {
-		activeDrag = null
-		wrap.classList.remove('table-handle--dragging')
-	})
-
-	// Handle ini juga menerima drop dari handle lain pada sumbu & tabel yang sama.
-	const accepts = () =>
-		!!activeDrag &&
-		activeDrag.axis === axis &&
-		activeDrag.tablePos === tablePos &&
-		activeDrag.fromIndex !== index
-	wrap.addEventListener('dragover', (e) => {
-		if (!accepts()) return
-		e.preventDefault()
-		wrap.classList.add('table-handle--drop-target')
-	})
-	wrap.addEventListener('dragleave', () => wrap.classList.remove('table-handle--drop-target'))
-	wrap.addEventListener('drop', (e) => {
-		e.preventDefault()
-		wrap.classList.remove('table-handle--drop-target')
-		if (!accepts() || !activeDrag) return
-		opts.onMove(axis, tablePos, activeDrag.fromIndex, index)
-		activeDrag = null
-	})
-
-	return grip
+/** Baris hasil dekorasi paginasi (spacer & salinan header) bukan bagian naskah -
+ *  hover di sana tak punya padanan posisi dokumen. */
+function isPaginationRow(cell: Element): boolean {
+	const row = cell.closest('tr')
+	return !!row && (row.hasAttribute('data-spacer-for') || row.classList.contains('table-header-repeat'))
 }
 
-/** Tombol "+" - menyisipkan baris/kolom baru setelah indeks handle. */
-function makeAddButton(spec: HandleSpec, opts: TableHandlesOptions): HTMLElement {
-	const { axis, tablePos } = spec
-	const index = axis === 'row' ? spec.rowIndex : spec.colIndex
-	const btn = document.createElement('button')
-	btn.type = 'button'
-	btn.className = 'table-handle-add'
-	btn.innerHTML = ICON_PLUS
-	btn.setAttribute('aria-label', axis === 'row' ? 'Add row below' : 'Add column right')
-	btn.addEventListener('mousedown', (e) => e.preventDefault())
-	btn.addEventListener('click', (e) => {
-		e.preventDefault()
-		e.stopPropagation()
-		opts.onInsert(axis, tablePos, index)
-	})
-	return btn
-}
+class HandleLayer {
+	private root: HTMLElement
+	private rowHandle: HTMLElement
+	private colHandle: HTMLElement
+	private cellButton: HTMLElement
+	private line: HTMLElement
+	private shade: HTMLElement
 
-/** Bungkus handle: `<div>` non-editable berisi tombol-tombolnya. */
-function makeHandle(spec: HandleSpec, opts: TableHandlesOptions): HTMLElement {
-	const wrap = document.createElement('div')
-	wrap.className = `table-handle table-handle--${spec.axis}`
-	wrap.contentEditable = 'false'
-	wrap.dataset.axis = spec.axis
-	wrap.dataset.index = String(spec.axis === 'row' ? spec.rowIndex : spec.colIndex)
+	private hover: HoverState | null = null
+	private drag: DragSession | null = null
+	private frame = 0
 
-	if (spec.axis === 'row') {
-		wrap.appendChild(makeAddButton(spec, opts))
-		wrap.appendChild(makeGrip(spec, opts, wrap, ICON_GRIP))
-	} else {
-		wrap.appendChild(makeGrip(spec, opts, wrap, ICON_DOTS))
+	constructor(
+		private readonly view: EditorView,
+		private readonly opts: TableHandlesOptions,
+	) {
+		this.root = element('div', 'table-handle-layer')
+
+		this.rowHandle = element('div', 'table-handle table-handle--row')
+		this.rowHandle.append(
+			this.makeAdd('row', 'Add row below'),
+			this.makeGrip('row', 'Row menu, drag to reorder'),
+		)
+
+		this.colHandle = element('div', 'table-handle table-handle--col')
+		this.colHandle.append(
+			this.makeGrip('col', 'Column menu, drag to reorder'),
+			this.makeAdd('col', 'Add column right'),
+		)
+
+		this.cellButton = this.makeButton('table-handle-btn table-handle-cell', ICON_DOTS, 'Cell menu')
+		this.cellButton.addEventListener('click', (e) => {
+			e.preventDefault()
+			if (!this.hover) return
+			this.opts.onMenu({ ...locationOf(this.hover), origin: 'cell', anchor: this.cellButton })
+		})
+
+		this.line = element('div', 'table-handle-line')
+		this.shade = element('div', 'table-handle-shade')
+
+		this.root.append(this.rowHandle, this.colHandle, this.cellButton, this.shade, this.line)
+		this.hideAll()
+		document.body.appendChild(this.root)
+
+		document.addEventListener('mousemove', this.onMouseMove, { passive: true })
+		window.addEventListener('scroll', this.onReflow, true)
+		window.addEventListener('resize', this.onReflow)
 	}
-	return wrap
+
+	// ── penyusunan elemen ──────────────────────────────────────────────────
+
+	private makeButton(className: string, icon: string, label: string): HTMLElement {
+		const btn = document.createElement('button')
+		btn.type = 'button'
+		btn.className = className
+		btn.innerHTML = icon
+		btn.setAttribute('aria-label', label)
+		// Menahan fokus tetap di editor: tanpa ini, seleksi sel yang baru dibuat
+		// langsung buyar begitu tombolnya ditekan.
+		btn.addEventListener('mousedown', (e) => e.preventDefault())
+		return btn
+	}
+
+	private makeAdd(axis: HandleAxis, label: string): HTMLElement {
+		const btn = this.makeButton('table-handle-btn', ICON_PLUS, label)
+		btn.addEventListener('click', (e) => {
+			e.preventDefault()
+			if (!this.hover) return
+			const index = axis === 'row' ? this.hover.rowIndex : this.hover.colIndex
+			this.opts.onInsert(axis, this.hover.tablePos, index)
+		})
+		return btn
+	}
+
+	private makeGrip(axis: HandleAxis, label: string): HTMLElement {
+		const grip = this.makeButton('table-handle-btn table-handle-grip', ICON_GRIP, label)
+		grip.addEventListener('pointerdown', (e) => this.startDrag(axis, grip, e))
+		return grip
+	}
+
+	// ── mengikuti tetikus ──────────────────────────────────────────────────
+
+	private onMouseMove = (e: MouseEvent) => {
+		if (this.drag || this.opts.isFrozen?.()) return
+		const target = e.target as HTMLElement | null
+		if (!target?.closest) return
+		// Tetikus berada di atas handle itu sendiri - pertahankan sel sekarang.
+		if (this.root.contains(target)) return
+
+		const cell = target.closest('td, th')
+		if (!cell || !this.view.dom.contains(cell) || isPaginationRow(cell)) {
+			this.clear()
+			return
+		}
+		if (this.hover?.cell === cell) return
+
+		const loc = this.locate(cell)
+		if (!loc) {
+			this.clear()
+			return
+		}
+		this.hover = { ...loc, cell: cell as HTMLElement }
+		this.render()
+	}
+
+	private onReflow = () => {
+		if (!this.hover) return
+		cancelAnimationFrame(this.frame)
+		this.frame = requestAnimationFrame(() => this.render())
+	}
+
+	/** Terjemahkan sel DOM jadi posisi dokumen + indeks grid. */
+	private locate(cell: Element): TableLocation | null {
+		try {
+			return locateTableAt(this.view.state, this.view.posAtDOM(cell, 0))
+		} catch {
+			return null
+		}
+	}
+
+	private clear(): void {
+		if (!this.hover) return
+		this.hover = null
+		this.hideAll()
+	}
+
+	private hideAll(): void {
+		this.rowHandle.hidden = true
+		this.colHandle.hidden = true
+		this.cellButton.hidden = true
+		this.line.hidden = true
+		this.shade.hidden = true
+	}
+
+	// ── penempatan ─────────────────────────────────────────────────────────
+
+	private render(): void {
+		const hover = this.hover
+		if (!hover || !hover.cell.isConnected) {
+			this.clear()
+			return
+		}
+		const cellRect = hover.cell.getBoundingClientRect()
+		const row = hover.cell.closest('tr')
+		const table = hover.cell.closest('table')
+		if (!row || !table) {
+			this.clear()
+			return
+		}
+		// Sembunyikan begitu selnya tergulung keluar dari kanvas - lapisan ini
+		// `fixed`, jadi tanpa pemeriksaan ini handle-nya melayang di atas bilah
+		// alat atau penggaris.
+		const clip = this.clipRect()
+		if (clip && (cellRect.bottom < clip.top || cellRect.top > clip.bottom)) {
+			this.hideAll()
+			return
+		}
+
+		const rowRect = row.getBoundingClientRect()
+		const tableRect = table.getBoundingClientRect()
+
+		this.rowHandle.hidden = false
+		place(
+			this.rowHandle,
+			tableRect.left - OUTSET - this.rowHandle.offsetWidth,
+			rowRect.top + rowRect.height / 2 - this.rowHandle.offsetHeight / 2,
+		)
+
+		this.colHandle.hidden = false
+		place(
+			this.colHandle,
+			cellRect.left + cellRect.width / 2 - this.colHandle.offsetWidth / 2,
+			tableRect.top - OUTSET - this.colHandle.offsetHeight,
+		)
+
+		this.cellButton.hidden = false
+		place(
+			this.cellButton,
+			cellRect.right - INSET - this.cellButton.offsetWidth,
+			cellRect.top + INSET,
+		)
+	}
+
+	/** Daerah yang boleh ditempati handle: kanvas dokumen, dikurangi penggaris. */
+	private clipRect(): { top: number; bottom: number } | null {
+		const canvas = this.view.dom.closest('.document-canvas')
+		if (!canvas) return null
+		const rect = canvas.getBoundingClientRect()
+		const ruler = canvas.querySelector('.document-ruler-bar')
+		const top = ruler ? Math.max(rect.top, ruler.getBoundingClientRect().bottom) : rect.top
+		return { top, bottom: rect.bottom }
+	}
+
+	// ── seret untuk menyusun ulang ─────────────────────────────────────────
+
+	private startDrag(axis: HandleAxis, grip: HTMLElement, e: PointerEvent): void {
+		if (e.button !== 0 || !this.hover) return
+		const hover = this.hover
+		const geom = this.geometry(axis, hover.tablePos)
+		if (!geom) return
+
+		const fromIndex = axis === 'row' ? hover.rowIndex : hover.colIndex
+		this.drag = {
+			axis,
+			tablePos: hover.tablePos,
+			fromIndex,
+			edges: geom.edges,
+			span: geom.spans[fromIndex],
+			tableRect: geom.tableRect,
+			boundary: fromIndex,
+			moved: false,
+		}
+		grip.setPointerCapture(e.pointerId)
+		const origin = axis === 'row' ? e.clientY : e.clientX
+
+		const onMove = (move: PointerEvent) => {
+			const drag = this.drag
+			if (!drag) return
+			const at = axis === 'row' ? move.clientY : move.clientX
+			if (!drag.moved && Math.abs(at - origin) < DRAG_THRESHOLD) return
+			drag.moved = true
+			drag.boundary = nearestEdge(drag.edges, at)
+			this.renderDrag()
+		}
+		const onUp = () => {
+			const drag = this.drag
+			grip.releasePointerCapture(e.pointerId)
+			grip.removeEventListener('pointermove', onMove)
+			grip.removeEventListener('pointerup', onUp)
+			grip.removeEventListener('pointercancel', onUp)
+			this.drag = null
+			this.line.hidden = true
+			this.shade.hidden = true
+			if (!drag) return
+			if (!drag.moved) {
+				// Bukan seret, melainkan klik: buka menunya.
+				if (this.hover) {
+					this.opts.onMenu({ ...locationOf(this.hover), origin: axis, anchor: grip })
+				}
+				return
+			}
+			const to = dropIndex(drag.fromIndex, drag.boundary)
+			if (to !== drag.fromIndex) this.opts.onMove(axis, drag.tablePos, drag.fromIndex, to)
+		}
+		grip.addEventListener('pointermove', onMove)
+		grip.addEventListener('pointerup', onUp)
+		grip.addEventListener('pointercancel', onUp)
+	}
+
+	/** Garis sisip di batas tujuan + baris/kolom sumber diredupkan. */
+	private renderDrag(): void {
+		const drag = this.drag
+		if (!drag) return
+		const { tableRect, span, edges, boundary, axis } = drag
+
+		this.shade.hidden = false
+		this.line.hidden = false
+		if (axis === 'row') {
+			place(this.shade, tableRect.left, span.start, tableRect.width, span.size)
+			place(this.line, tableRect.left, edges[boundary] - 1, tableRect.width, 2)
+		} else {
+			place(this.shade, span.start, tableRect.top, span.size, tableRect.height)
+			place(this.line, edges[boundary] - 1, tableRect.top, 2, tableRect.height)
+		}
+	}
+
+	/**
+	 * Koordinat batas & rentang tiap baris/kolom, diambil dari DOM sel lewat
+	 * `nodeDOM` - bukan dari `querySelectorAll('tr')`. Paginasi menyisipkan baris
+	 * semu (spacer & salinan header) sebagai dekorasi, jadi urutan baris di DOM
+	 * tidak sama dengan urutan baris di naskah.
+	 */
+	private geometry(
+		axis: HandleAxis,
+		tablePos: number,
+	): { edges: number[]; spans: Array<{ start: number; size: number }>; tableRect: DOMRect } | null {
+		const table = this.view.state.doc.nodeAt(tablePos)
+		if (!table || table.type.spec.tableRole !== 'table') return null
+		const tableDOM = this.view.nodeDOM(tablePos)
+		if (!(tableDOM instanceof HTMLElement)) return null
+		const tableEl = tableDOM.tagName === 'TABLE' ? tableDOM : tableDOM.querySelector('table')
+		if (!tableEl) return null
+
+		const map = TableMap.get(table)
+		const count = axis === 'row' ? map.height : map.width
+		const spans: Array<{ start: number; size: number }> = []
+		const edges: number[] = []
+
+		for (let i = 0; i < count; i++) {
+			const rel = startingCell(map, axis, i)
+			if (rel === null) return null
+			const dom = this.view.nodeDOM(tablePos + 1 + rel)
+			if (!(dom instanceof HTMLElement)) return null
+			const rect = dom.getBoundingClientRect()
+			const span =
+				axis === 'row'
+					? { start: rect.top, size: rect.height }
+					: { start: rect.left, size: rect.width }
+			spans.push(span)
+			edges.push(span.start)
+		}
+		const last = spans[count - 1]
+		if (!last) return null
+		edges.push(last.start + last.size)
+
+		return { edges, spans, tableRect: tableEl.getBoundingClientRect() }
+	}
+
+	// ── daur hidup ─────────────────────────────────────────────────────────
+
+	update(view: EditorView, prevState: EditorState): void {
+		if (this.drag) return
+		// Perubahan seleksi saja dibiarkan: klik di dalam sel tak boleh membuat
+		// handle-nya berkedip hilang.
+		if (prevState.doc === view.state.doc) return
+		// Menu sedang terbuka dan menjangkar ke salah satu tombol di lapisan ini:
+		// tombolnya tak boleh lenyap, cukup ikuti tata letak yang baru.
+		if (this.opts.isFrozen?.()) {
+			this.render()
+			return
+		}
+		// Naskah berubah (mengetik, undo, sunting dari kolaborator): ukuran sel
+		// ikut bergeser dan indeks bisa basi. Handle disembunyikan sampai tetikus
+		// bergerak lagi - sekaligus membuatnya tak mengganggu saat mengetik.
+		this.clear()
+	}
+
+	destroy(): void {
+		cancelAnimationFrame(this.frame)
+		document.removeEventListener('mousemove', this.onMouseMove)
+		window.removeEventListener('scroll', this.onReflow, true)
+		window.removeEventListener('resize', this.onReflow)
+		this.root.remove()
+	}
 }
 
-/** Bangun dekorasi handle untuk SEMUA tabel di dokumen. */
-function buildDecorations(state: EditorState, opts: TableHandlesOptions): DecorationSet {
-	const decorations: Decoration[] = []
+function element(tag: string, className: string): HTMLElement {
+	const el = document.createElement(tag)
+	el.className = className
+	return el
+}
 
-	state.doc.descendants((node, pos) => {
-		if (node.type.spec.tableRole !== 'table') return true
-		const map = TableMap.get(node)
-		// Awal isi tabel; offset di TableMap relatif terhadap titik ini.
-		const contentStart = pos + 1
+function place(el: HTMLElement, left: number, top: number, width?: number, height?: number): void {
+	el.style.left = `${Math.round(left)}px`
+	el.style.top = `${Math.round(top)}px`
+	if (width !== undefined) el.style.width = `${Math.round(width)}px`
+	if (height !== undefined) el.style.height = `${Math.round(height)}px`
+}
 
-		const base = { tablePos: pos, rowCount: map.height, colCount: map.width }
-
-		for (let r = 0; r < map.height; r++) {
-			const spec: HandleSpec = { ...base, axis: 'row', rowIndex: r, colIndex: 0 }
-			// +1 = MASUK ke dalam sel, supaya handle jadi anak <td>, bukan anak <tr>.
-			const inCell = contentStart + map.map[r * map.width] + 1
-			decorations.push(
-				Decoration.widget(inCell, () => makeHandle(spec, opts), {
-					side: -1,
-					key: `row-${pos}-${r}`,
-					ignoreSelection: true,
-					stopEvent: () => true,
-				}),
-			)
-		}
-
-		for (let c = 0; c < map.width; c++) {
-			const spec: HandleSpec = { ...base, axis: 'col', rowIndex: 0, colIndex: c }
-			const inCell = contentStart + map.map[c] + 1
-			decorations.push(
-				Decoration.widget(inCell, () => makeHandle(spec, opts), {
-					side: -1,
-					key: `col-${pos}-${c}`,
-					ignoreSelection: true,
-					stopEvent: () => true,
-				}),
-			)
-		}
-
-		// Tabel bersarang tidak didukung TableKit - tak perlu turun lebih dalam.
-		return false
-	})
-
-	return decorations.length ? DecorationSet.create(state.doc, decorations) : DecorationSet.empty
+function locationOf(hover: HoverState): TableLocation {
+	const { tablePos, rowIndex, colIndex, rowCount, colCount } = hover
+	return { tablePos, rowIndex, colIndex, rowCount, colCount }
 }
 
 /**
- * Pabrik plugin ProseMirror untuk handle tabel. Dipakai saat handle didaftarkan
- * secara dinamis lewat `editor.registerPlugin` (yang menerima plugin PM, bukan
- * ekstensi Tiptap), sehingga callback-nya bisa menyentuh state React.
+ * Offset sel yang BENAR-BENAR dimulai di baris/kolom `index`.
+ *
+ * Sel bergabung membuat `map.map[index * width]` bisa menunjuk sel milik baris
+ * di atasnya - kotak layarnya membentang beberapa baris, dan batas sisipnya
+ * jadi meleset satu baris. Karena itu dicari sel pertama yang titik awalnya
+ * memang di baris/kolom ini.
  */
-export function createTableHandlesPlugin(opts: TableHandlesOptions): Plugin<DecorationSet> {
-	return new Plugin<DecorationSet>({
+function startingCell(map: TableMap, axis: HandleAxis, index: number): number | null {
+	const across = axis === 'row' ? map.width : map.height
+	for (let i = 0; i < across; i++) {
+		const rel = axis === 'row' ? map.map[index * map.width + i] : map.map[i * map.width + index]
+		const rect = map.findCell(rel)
+		if ((axis === 'row' ? rect.top : rect.left) === index) return rel
+	}
+	return null
+}
+
+/** Batas sisip terdekat dari koordinat tetikus. */
+function nearestEdge(edges: number[], at: number): number {
+	let best = 0
+	let distance = Number.POSITIVE_INFINITY
+	edges.forEach((edge, index) => {
+		const d = Math.abs(edge - at)
+		if (d < distance) {
+			distance = d
+			best = index
+		}
+	})
+	return best
+}
+
+/**
+ * Plugin ProseMirror untuk lapisan handle tabel. Didaftarkan dinamis lewat
+ * `editor.registerPlugin` supaya callback-nya bisa menyentuh state React.
+ */
+export function createTableHandlesPlugin(opts: TableHandlesOptions): Plugin {
+	return new Plugin({
 		key: tableHandlesKey,
-		state: {
-			init: (_config, state) => buildDecorations(state, opts),
-			// Posisi handle hanya bergantung pada struktur dokumen; selama dokumen
-			// tak berubah, dekorasi lama tetap sahih. `newState` dipakai (bukan
-			// `view.state`, yang masih tertinggal satu transaksi saat apply).
-			apply: (tr, old, _oldState, newState) => (tr.docChanged ? buildDecorations(newState, opts) : old),
-		},
-		props: {
-			decorations(state) {
-				return tableHandlesKey.getState(state)
-			},
-		},
+		view: (view) => new HandleLayer(view, opts),
 	})
 }

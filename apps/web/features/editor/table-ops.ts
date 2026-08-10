@@ -1,5 +1,6 @@
 import { type Editor } from '@tiptap/core'
 import { type Node as PMNode } from '@tiptap/pm/model'
+import { type EditorState } from '@tiptap/pm/state'
 import { cellAround, CellSelection, findTable, moveTableColumn, moveTableRow, TableMap } from '@tiptap/pm/tables'
 
 /**
@@ -39,8 +40,13 @@ function tableNodeAt(editor: Editor, tablePos: number): PMNode | null {
 
 /** Cari tabel dan indeks baris/kolom dari posisi (default: kursor). */
 export function locateTable(editor: Editor, pos?: number): TableLocation | null {
-	const { state } = editor
-	const $pos = pos !== undefined ? state.doc.resolve(pos) : state.selection.$from
+	return locateTableAt(editor.state, pos ?? editor.state.selection.from)
+}
+
+/** Versi tingkat-state, dipakai lapisan handle yang hanya memegang EditorView. */
+export function locateTableAt(state: EditorState, pos: number): TableLocation | null {
+	if (pos < 0 || pos > state.doc.content.size) return null
+	const $pos = state.doc.resolve(pos)
 	const found = findTable($pos)
 	if (!found) return null
 
@@ -161,6 +167,17 @@ export function insertRowAfter(editor: Editor, target: CellTarget): void {
 export function deleteRowAt(editor: Editor, target: CellTarget): void {
 	if (!selectCell(editor, { ...target, colIndex: 0 })) return
 	editor.chain().focus().deleteRow().run()
+}
+
+/**
+ * Terjemahkan batas sisip hasil seret (0..count) jadi indeks tujuan.
+ *
+ * Garis sisip diberi nomor per BATAS: batas 2 berarti "di antara baris 1 dan
+ * 2". Setelah baris sumber dicabut, semua batas di sebelah kanannya bergeser
+ * satu - menjatuhkan baris 0 di batas 3 mendaratkannya di indeks 2, bukan 3.
+ */
+export function dropIndex(fromIndex: number, boundary: number): number {
+	return boundary > fromIndex ? boundary - 1 : boundary
 }
 
 /** Pindahkan baris `target.rowIndex` ke indeks `to`. */

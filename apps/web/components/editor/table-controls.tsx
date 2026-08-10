@@ -1,13 +1,14 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
 	insertColAfter,
 	insertRowAfter,
 	locateTable,
 	moveColumn,
 	moveRow,
+	selectCell,
 	selectColumn,
 	selectRow,
 } from '@/features/editor/table-ops'
@@ -21,29 +22,37 @@ import {
 import { TableMenu, type TableMenuState } from './table-menu'
 
 /**
- * Lapisan interaksi tabel: handle baris/kolom + menu konteks (grip, tombol •••,
- * atau klik kanan) + seret untuk menyusun ulang.
+ * Lapisan interaksi tabel: handle baris/kolom + tombol ••• per sel + menu
+ * konteks (juga lewat klik kanan) + seret untuk menyusun ulang.
  *
  * Menggantikan bilah kontrol tabel yang dulu muncul di atas ruler - kini
- * seluruh kontrol hidup DI tabel itu sendiri: handle muncul di tepi kiri
- * (baris) dan di pojok sel baris pertama (kolom) saat hover.
+ * seluruh kontrol hidup DI tabel itu sendiri, mengikuti sel yang di-hover.
  *
- * Plugin dekorasi didaftarkan dari sini, bukan dari buildEditorExtensions,
- * supaya callback-nya (yang memperbarui state React) bisa diperbarui tiap
- * render lewat ref tanpa membangun ulang ekstensi editor.
+ * Plugin lapisan handle didaftarkan dari sini, bukan dari
+ * buildEditorExtensions, supaya callback-nya (yang memperbarui state React)
+ * bisa diperbarui tiap render lewat ref tanpa membangun ulang ekstensi editor.
  */
 export function TableControls({ editor }: { editor: Editor | null }) {
 	const [menu, setMenu] = useState<TableMenuState | null>(null)
+
+	// Selama menu terbuka, lapisan handle berhenti mengikuti tetikus: jangkar
+	// menunya adalah tombol di lapisan itu, dan menu yang ikut lari ke sel lain
+	// saat tetikus bergerak mustahil dipakai.
+	const frozenRef = useRef(false)
 
 	// Callback plugin disimpan di ref agar plugin (didirikan sekali) selalu
 	// memanggil versi terbaru tanpa perlu didaftarkan ulang.
 	const openMenuRef = useRef<(open: HandleOpen) => void>(() => {})
 	openMenuRef.current = (open) => {
 		if (!editor) return
-		// Buka dari handle = pilih sekalian baris/kolomnya, supaya perintah yang
+		// Dibekukan lebih dulu: memilih baris/kolom di bawah ini sudah memicu
+		// transaksi, dan lapisan handle tak boleh menanggapinya.
+		frozenRef.current = true
+		// Apa yang ikut terpilih menyesuaikan asal menu, supaya perintah yang
 		// bekerja atas seleksi (gabung sel, kepala, perataan) langsung bermakna.
-		if (open.axis === 'row') selectRow(editor, open.tablePos, open.rowIndex)
-		else selectColumn(editor, open.tablePos, open.colIndex)
+		if (open.origin === 'row') selectRow(editor, open.tablePos, open.rowIndex)
+		else if (open.origin === 'col') selectColumn(editor, open.tablePos, open.colIndex)
+		else selectCell(editor, open)
 		setMenu(open)
 	}
 
@@ -54,7 +63,6 @@ export function TableControls({ editor }: { editor: Editor | null }) {
 		else insertColAfter(editor, { tablePos, rowIndex: 0, colIndex: index })
 	}
 
-	// Seret handle untuk menyusun ulang baris/kolom.
 	const moveRef = useRef<(axis: HandleAxis, tablePos: number, from: number, to: number) => void>(() => {})
 	moveRef.current = (axis, tablePos, from, to) => {
 		if (!editor) return
@@ -62,13 +70,19 @@ export function TableControls({ editor }: { editor: Editor | null }) {
 		else moveColumn(editor, { tablePos, rowIndex: 0, colIndex: from }, to)
 	}
 
-	// Daftarkan plugin handle ke editor (sekali per instance editor).
+	const closeMenu = useCallback(() => {
+		frozenRef.current = false
+		setMenu(null)
+	}, [])
+
+	// Daftarkan plugin lapisan handle ke editor (sekali per instance editor).
 	useEffect(() => {
 		if (!editor) return
 		const opts: TableHandlesOptions = {
 			onMenu: (open) => openMenuRef.current(open),
 			onInsert: (axis, tablePos, index) => insertRef.current(axis, tablePos, index),
 			onMove: (axis, tablePos, from, to) => moveRef.current(axis, tablePos, from, to),
+			isFrozen: () => frozenRef.current,
 		}
 		editor.registerPlugin(createTableHandlesPlugin(opts))
 		return () => {
@@ -86,13 +100,19 @@ export function TableControls({ editor }: { editor: Editor | null }) {
 			if (!cell || !dom.contains(cell)) return
 			// Posisi diambil dari DOM sel-nya, bukan dari koordinat penunjuk: klik
 			// di padding sel tetap menunjuk sel yang benar.
-			const inCell = editor.view.posAtDOM(cell, 0)
-			const loc = locateTable(editor, inCell)
+			let loc: ReturnType<typeof locateTable> = null
+			try {
+				loc = locateTable(editor, editor.view.posAtDOM(cell, 0))
+			} catch {
+				return
+			}
 			if (!loc) return
 			e.preventDefault()
+			frozenRef.current = true
+			selectCell(editor, loc)
 			const rect = cell.getBoundingClientRect()
 			setMenu({
-				axis: 'row',
+				origin: 'cell',
 				...loc,
 				anchor: cell as HTMLElement,
 				// Muncul di penunjuk, tapi tetap terjangkar ke selnya saat digulir.
@@ -108,13 +128,13 @@ export function TableControls({ editor }: { editor: Editor | null }) {
 		if (!menu) return
 		const onPointer = (e: PointerEvent) => {
 			const target = e.target as HTMLElement | null
-			if (!target?.closest('.table-menu')) setMenu(null)
+			if (!target?.closest('.table-menu')) closeMenu()
 		}
 		document.addEventListener('pointerdown', onPointer)
 		return () => document.removeEventListener('pointerdown', onPointer)
-	}, [menu])
+	}, [menu, closeMenu])
 
 	if (!editor) return null
 
-	return menu ? <TableMenu editor={editor} menu={menu} onClose={() => setMenu(null)} /> : null
+	return menu ? <TableMenu editor={editor} menu={menu} onClose={closeMenu} /> : null
 }

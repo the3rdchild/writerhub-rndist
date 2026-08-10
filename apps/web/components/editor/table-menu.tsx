@@ -34,7 +34,7 @@ import {
 	moveRow,
 	withCellSelection,
 } from '@/features/editor/table-ops'
-import { type HandleAxis } from '@/features/editor/table-handles'
+import { type MenuOrigin } from '@/features/editor/table-handles'
 import { cn } from '@/lib/utils'
 
 /**
@@ -47,8 +47,9 @@ import { cn } from '@/lib/utils'
  * DOM (mis. barisnya terhapus).
  */
 export interface TableMenuState {
-	/** Sumbu pemicu - hanya untuk menandai grup mana yang relevan. */
-	axis: HandleAxis
+	/** Dari mana menu dibuka - dipakai pemanggil untuk menentukan apa yang ikut
+	 *  terpilih; isi menunya sendiri sama untuk ketiganya. */
+	origin: MenuOrigin
 	tablePos: number
 	rowIndex: number
 	colIndex: number

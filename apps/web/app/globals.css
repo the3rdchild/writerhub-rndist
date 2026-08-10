@@ -389,6 +389,8 @@ a {
 }
 .document-body th,
 .document-body td {
+  /* Sel jadi patokan posisi sorotan .selectedCell yang menutupinya. */
+  position: relative;
   border: 1px solid var(--border-strong);
   padding: 0.45em 0.7em;
   vertical-align: top;
@@ -406,45 +408,36 @@ a {
   pointer-events: none;
 }
 
-/* ── handle baris/kolom tabel (in-table) ───────────────────────────────── */
+/* ── lapisan handle tabel ──────────────────────────────────────────────── */
 
 /*
- * Handle dipasang sebagai widget DI DALAM sel pertama tiap baris/kolom, lalu
- * diposisikan absolute terhadap sel itu: baris ke tepi kiri tabel, kolom ke
- * pojok kanan sel baris pertama. Selnya jadi patokan (position: relative).
+ * Handle tidak lagi disematkan ke dalam sel: satu lapisan `fixed` di atas
+ * <body> memuat tiga elemen yang diposisikan mengikuti sel yang di-hover.
+ * Koordinatnya koordinat layar, jadi transform zoom kanvas tidak ikut
+ * menggandakan ukuran tombolnya.
  */
-.document-body td,
-.document-body th {
-  position: relative;
+.table-handle-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+}
+.table-handle-layer > * {
+  position: absolute;
+}
+.table-handle-layer [hidden] {
+  display: none !important;
 }
 
-.document-body .table-handle {
-  position: absolute;
-  z-index: 5;
+.table-handle {
   display: flex;
   align-items: center;
   gap: 2px;
-  opacity: 0;
-  pointer-events: none;
+  pointer-events: auto;
   user-select: none;
-  transition: opacity 0.12s ease;
 }
 
-/* Handle baris: "+" lalu grip, di luar tepi kiri tabel. */
-.document-body .table-handle--row {
-  top: 0;
-  left: -46px;
-  height: 100%;
-}
-/* Handle kolom: tombol ••• di dalam sel baris pertama. Jaraknya dari tepi
-   kanan disisakan supaya tidak menutupi pegangan ubah-lebar kolom. */
-.document-body .table-handle--col {
-  top: 50%;
-  right: 7px;
-  transform: translateY(-50%);
-}
-
-.document-body .table-handle button {
+.table-handle-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -453,52 +446,48 @@ a {
   padding: 0;
   border: none;
   border-radius: 4px;
-  background: transparent;
+  background: var(--surface-raised);
   color: var(--foreground-muted);
-  opacity: 0.65;
+  opacity: 0.75;
   cursor: pointer;
+  pointer-events: auto;
   transition:
     background 0.12s ease,
     opacity 0.12s ease;
 }
-.document-body .table-handle button:hover {
+.table-handle-btn:hover {
   background: var(--overlay-hover);
   opacity: 1;
 }
-.document-body .table-handle button svg {
+.table-handle-btn svg {
   width: 14px;
   height: 14px;
 }
-.document-body .table-handle-grip {
+.table-handle-grip {
   cursor: grab;
 }
-
-/* Muncul saat barisnya (atau selnya, untuk kolom) di-hover, dan tetap terlihat
-   selama menunya terbuka. */
-.document-body tr:hover > td > .table-handle--row,
-.document-body tr:hover > th > .table-handle--row,
-.document-body td:hover > .table-handle--col,
-.document-body th:hover > .table-handle--col,
-.document-body .table-handle--open {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-/* Indikator seret untuk menyusun ulang baris/kolom. */
-.document-body .table-handle--dragging {
-  opacity: 0.4;
-}
-.document-body .table-handle--dragging .table-handle-grip {
+.table-handle-grip:active {
   cursor: grabbing;
 }
-.document-body .table-handle--drop-target {
-  opacity: 1;
-  pointer-events: auto;
+
+/* Tombol ••• menumpang di dalam sel, jadi ia perlu latar penuh + bayangan tipis
+   supaya tidak lebur dengan teks di bawahnya. */
+.table-handle-cell {
+  width: 18px;
+  height: 18px;
+  box-shadow: 0 0 0 1px var(--border-subtle);
 }
-.document-body .table-handle--drop-target button {
+
+/* Umpan balik seret: baris/kolom sumber diredupkan, garis tebal menandai batas
+   tempat ia akan mendarat. */
+.table-handle-shade {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  pointer-events: none;
+}
+.table-handle-line {
   background: var(--accent);
-  color: var(--accent-foreground);
-  opacity: 1;
+  border-radius: 1px;
+  pointer-events: none;
 }
 
 /* Placeholder saat dokumen kosong */
@@ -829,7 +818,7 @@ html.dark .document-body .comment-mark {
 
 @media print {
   .selection-menu,
-  .document-body .table-handle {
+  .table-handle-layer {
     display: none !important;
   }
   .document-body .comment-mark {
