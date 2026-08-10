@@ -574,6 +574,133 @@ a {
 .document-body pre code .hljs-template-variable { color: #2563eb; }
 .document-body pre code .hljs-deletion { color: #ef4444; }
 
+/* ── blok kode: node view (toolbar + mermaid) ──────────────────────────── */
+
+/*
+ * Node view blok kode memakai wrapper sendiri; bungkus gaya <pre> bawaan
+ * (di atas) jangan dipakai ganda - node view punya <pre>-nya sendiri.
+ */
+.document-body .code-block {
+  position: relative;
+  margin: 1em 0;
+}
+.document-body .code-block-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.3em 0.5em;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-subtle);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  font-size: 0.78rem;
+}
+.document-body .code-block-lang {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  padding: 0.15em 0.4em;
+  color: var(--foreground-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  outline: none;
+  cursor: pointer;
+}
+.document-body .code-block-lang:hover { border-color: var(--accent); }
+.document-body .code-block-label {
+  color: var(--foreground-faint);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.document-body .code-block-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+}
+.document-body .code-block-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  background: none;
+  border: none;
+  color: var(--foreground-muted);
+  font-size: 0.78rem;
+  padding: 0.2em 0.5em;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.document-body .code-block-action:hover {
+  background: var(--overlay-hover);
+  color: var(--foreground);
+}
+.document-body .code-block-delete {
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--foreground-faint);
+}
+.document-body .code-block-delete:hover { color: #ef4444; }
+
+/* Area kode di dalam node view. */
+.document-body .code-block-pre {
+  margin: 0;
+  border-radius: 0 0 8px 8px;
+  border-top: none;
+}
+.document-body .code-block-code {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.875em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Pratinjau diagram Mermaid. */
+.document-body .code-block-mermaid-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75em;
+  padding: 1.2em;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-subtle);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  min-height: 80px;
+}
+.document-body .code-block-mermaid-preview svg {
+  max-width: 100%;
+  height: auto;
+}
+.document-body .code-block-mermaid-error {
+  color: #ef4444;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8em;
+  white-space: pre-wrap;
+  margin: 0;
+}
+.document-body .code-block-mermaid-empty {
+  color: var(--foreground-faint);
+  font-size: 0.85em;
+  margin: 0;
+}
+.document-body .code-block-mermaid-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  color: var(--foreground-muted);
+  font-size: 0.78rem;
+  padding: 0.25em 0.6em;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.document-body .code-block-mermaid-back:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* ── catatan kaki ──────────────────────────────────────────────────────── */
 
 .document-body sup[data-type='footnote-ref'] {

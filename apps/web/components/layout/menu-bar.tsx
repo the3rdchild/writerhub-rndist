@@ -3,6 +3,7 @@
 import type { Editor } from '@tiptap/react'
 import { type ReactNode, useState } from 'react'
 import { Dropdown, DropdownItem, DropdownLabel, DropdownSeparator } from '@/components/ui/dropdown'
+import { InsertImageDialog } from '@/components/editor/insert-image-dialog'
 import { usePanels } from '@/features/analysis/panel-context'
 import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
@@ -53,6 +54,7 @@ export function MenuBar() {
 	}
 
 	const [exporting, setExporting] = useState(false)
+	const [imageDialogOpen, setImageDialogOpen] = useState(false)
 
 	const downloadDocx = async () => {
 		if (!editor || exporting) return
@@ -75,6 +77,7 @@ export function MenuBar() {
 	}
 
 	return (
+		<>
 		<nav className="flex items-center gap-0.5" aria-label="Menu dokumen">
 			<Menu label="File">
 				{({ close }) => (
@@ -214,16 +217,38 @@ export function MenuBar() {
 			<Menu label="Sisip">
 				{({ close }) => (
 					<>
-						<Item
-							onSelect={() =>
-								run(close, () => {
-									const url = window.prompt('URL gambar:')
-									if (url) editor?.chain().focus().setImage({ src: url }).run()
-								})
-							}
-						>
+						<Item onSelect={() => run(close, () => setImageDialogOpen(true))}>
 							Gambar…
 						</Item>
+						<Item
+							shortcut={keys('text.link')}
+							onSelect={() => run(close, () => editor && promptForLink(editor))}
+						>
+							Tautan…
+						</Item>
+						<DropdownSeparator />
+						<DropdownLabel>Blok</DropdownLabel>
+						<Item
+							onSelect={() => run(close, () => editor?.chain().focus().setCallout('info').run())}
+						>
+							Callout…
+						</Item>
+						<Item onSelect={() => run(close, () => editor?.chain().focus().toggleBlockquote().run())}>
+							Kutipan
+						</Item>
+						<Item onSelect={() => run(close, () => editor?.chain().focus().toggleCodeBlock({ language: 'plaintext' }).run())}>
+							Teks polos
+						</Item>
+						<Item onSelect={() => run(close, () => editor?.chain().focus().toggleCodeBlock({ language: 'javascript' }).run())}>
+							Blok kode
+						</Item>
+						<Item onSelect={() => run(close, () => editor?.chain().focus().toggleCodeBlock({ language: 'mermaid' }).run())}>
+							Diagram Mermaid…
+						</Item>
+						<Item onSelect={() => run(close, () => editor?.chain().focus().toggleCode().run())}>
+							Kode (dalam baris)
+						</Item>
+						<DropdownSeparator />
 						<Item
 							onSelect={() =>
 								run(close, () =>
@@ -258,13 +283,6 @@ export function MenuBar() {
 							}
 						>
 							Ulang header tabel
-						</Item>
-						<DropdownSeparator />
-						<Item
-							shortcut={keys('text.link')}
-							onSelect={() => run(close, () => editor && promptForLink(editor))}
-						>
-							Tautan…
 						</Item>
 					</>
 				)}
@@ -381,6 +399,16 @@ export function MenuBar() {
 				)}
 			</Menu>
 		</nav>
+
+		<InsertImageDialog
+			open={imageDialogOpen}
+			onInsert={(attrs) => {
+				editor?.chain().focus().setImage(attrs).run()
+				setImageDialogOpen(false)
+			}}
+			onCancel={() => setImageDialogOpen(false)}
+		/>
+		</>
 	)
 }
 
