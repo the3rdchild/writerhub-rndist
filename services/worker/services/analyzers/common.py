@@ -58,3 +58,52 @@ def apply_sentence_rewrites(
 
     parts.append(text[cursor:])
     return "".join(parts), changes
+
+
+def apply_sentence_candidates(
+    text: str,
+    spans: list[tuple[str, int]],
+    candidates_all: list[list[str]],
+) -> tuple[str, list[dict]]:
+    """
+    Seperti apply_sentence_rewrites, tapi tiap kalimat membawa BEBERAPA
+    alternatif. Kandidat pertama dipakai menyusun `rewritten_text` dan mengisi
+    `replacement`, sisanya ikut sebagai `candidates` supaya pengguna bisa
+    memilih di panel.
+
+    `candidates[0]` selalu sama dengan `replacement` - pembaca lama yang cuma
+    tahu `replacement` karena itu tetap mendapat perilaku yang sama persis.
+    Kalimat yang kandidatnya kosong dianggap tidak berubah.
+    """
+    parts: list[str] = []
+    changes: list[dict] = []
+    cursor = 0
+
+    for (sent, offset), candidates in zip(spans, candidates_all):
+        original = sent.strip()
+        # Kandidat kosong/None diperlakukan sebagai "tidak ada usulan": kalimat
+        # asli yang dipakai, dan tidak ada change yang dibuat untuknya.
+        usable = [c for c in (candidates or []) if isinstance(c, str) and c.strip()]
+        primary = usable[0] if usable else original
+
+        parts.append(text[cursor:offset])
+        leading = sent[: len(sent) - len(sent.lstrip())]
+        trailing = sent[len(sent.rstrip()):]
+        parts.append(leading + primary + trailing)
+        cursor = offset + len(sent)
+
+        if primary != original:
+            change = {
+                "original": original,
+                "replacement": primary,
+                "offset": offset + len(leading),
+                "length": len(original),
+            }
+            # Satu kandidat saja tidak perlu daftar - panel jatuh ke perilaku
+            # lama (satu tombol Apply) tanpa cabang tambahan.
+            if len(usable) > 1:
+                change["candidates"] = usable
+            changes.append(change)
+
+    parts.append(text[cursor:])
+    return "".join(parts), changes

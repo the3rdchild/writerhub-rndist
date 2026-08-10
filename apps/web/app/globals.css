@@ -602,6 +602,37 @@ html.dark .suggestion-mark--grammar  { text-decoration-color: #f87171; color: #f
 html.dark .suggestion-mark--spelling { text-decoration-color: #fb923c; color: #fb923c; }
 html.dark .suggestion-mark--style    { text-decoration-color: #fde047; color: #fde047; }
 
+/* ── pratinjau kandidat AI Rewriter ─────────────────────────────────────── */
+
+/* Naskah asli saat kandidat sedang dijenguk - dicoret, bukan disembunyikan,
+   supaya pengguna melihat apa yang akan hilang. */
+.candidate-preview-original {
+  background: color-mix(in srgb, #f59e0b 14%, transparent);
+  text-decoration: line-through;
+  text-decoration-color: #d97706;
+}
+html.dark .candidate-preview-original {
+  background: color-mix(in srgb, #f59e0b 22%, transparent);
+  text-decoration-color: #fbbf24;
+}
+
+/* Bayangan kandidat. Bukan isi dokumen: tidak bisa dipilih dan tidak ikut
+   tersalin, jadi tidak ada cara ia diam-diam masuk naskah. */
+.candidate-preview-ghost {
+  background: color-mix(in srgb, #10b981 16%, transparent);
+  border-bottom: 1px dashed #10b981;
+  border-radius: 2px;
+  padding: 0 2px;
+  margin-left: 4px;
+  color: #047857;
+  user-select: none;
+  -webkit-user-select: none;
+}
+html.dark .candidate-preview-ghost {
+  background: color-mix(in srgb, #10b981 24%, transparent);
+  color: #6ee7b7;
+}
+
 /* ── sorotan diff riwayat versi ────────────────────────────────────────── */
 
 /* Teks yang ada di versi lampau tapi hilang dari draf aktif. */

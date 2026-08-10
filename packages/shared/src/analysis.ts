@@ -69,12 +69,22 @@ export interface AiDetectorResult {
 export interface AiRewriterResult {
 	rewritten_text: string
 	changes: TextChange[]
+	/**
+	 * Benar bila LLM tidak terjangkau sehingga naskah dikembalikan apa adanya.
+	 *
+	 * Tanpa penanda ini, hasil gagal dan hasil "naskahmu memang sudah bagus"
+	 * sama-sama berupa `changes: []`, dan panel terpaksa menebak - lalu
+	 * mengabarkan yang salah kepada pengguna.
+	 */
+	llm_unavailable?: boolean
 }
 
 export interface HumanizerResult {
 	humanized_text: string
 	changes_count: number
 	changes: TextChange[]
+	/** Sama seperti `AiRewriterResult.llm_unavailable`. */
+	llm_unavailable?: boolean
 }
 
 export interface PlagiarismResult {

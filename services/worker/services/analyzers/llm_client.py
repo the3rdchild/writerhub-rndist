@@ -203,6 +203,13 @@ def rewrite_sentences_candidates(
     )
 
     parsed = _chat_json(system, sentences, provider)
+    # `_chat_json` sudah mencatat sebabnya saat requestnya sendiri yang gagal
+    # (mis. 401). Membiarkannya jatuh ke cabang "malformed" di bawah membuat
+    # log berbohong: yang terjadi bukan model membalas bentuk aneh, melainkan
+    # tidak ada balasan sama sekali.
+    if parsed is None:
+        return None
+
     out = parsed.get("sentences") if isinstance(parsed, dict) else parsed
 
     if not isinstance(out, list) or len(out) != len(sentences):

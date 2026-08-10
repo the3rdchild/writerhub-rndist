@@ -4,6 +4,7 @@ import type { AnalysisFeature, RewriterTone, TextChange } from '@writer-hub/shar
 import { REWRITE_TONES } from '@writer-hub/shared'
 import type { LucideIcon } from 'lucide-react'
 import { useAnalysis } from '@/features/analysis/use-analysis'
+import { useCandidatePreview } from '@/features/analysis/use-candidate-preview'
 import { usePendingChanges } from '@/features/analysis/use-pending-changes'
 import { useRangeHighlight } from '@/features/document/use-range-highlight'
 import { useSelectionScope } from '@/features/editor/selection'
@@ -11,6 +12,8 @@ import { ToolbarSelect } from '@/components/ui/toolbar-select'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import {
 	AcceptAllButton,
+	AppliedCard,
+	CandidateCard,
 	ChangeCard,
 	PanelEmptyState,
 	PanelError,
@@ -62,9 +65,12 @@ export function ChangeListPanel({
 }: ChangeListPanelProps) {
 	const { result, isRunning, error, isStale, canRun, run } = useAnalysis(feature)
 	const changes = (result as { changes?: TextChange[] } | undefined)?.changes
-	const { pending, accept, dismiss, acceptAll } = usePendingChanges(changes)
+	const llmUnavailable = (result as { llm_unavailable?: boolean } | undefined)?.llm_unavailable
+	const { pending, applied, accept, dismiss, acceptAll, revert, canRevert } =
+		usePendingChanges(changes)
 	const { rangeProps } = useRangeHighlight()
 	const scope = useSelectionScope()
+	const { preview, showPreview, clearPreview } = useCandidatePreview()
 
 	// Pemilih tone hanya untuk AI Rewriter; pilihan terakhir diingat per browser.
 	const [tone, setTone] = usePersistentState<ToneChoice>('writer-hub-rewriter-tone', 'default')
@@ -93,28 +99,69 @@ export function ChangeListPanel({
 								<p className="px-1 text-[11px] text-subtle">
 									{pending.length} {pending.length === 1 ? 'change' : 'changes'}
 								</p>
-								{pending.map((change, index) => (
-									<ChangeCard
-										key={`${change.offset}-${change.original}`}
-										original={change.original}
-										replacement={change.replacement}
-										acceptDisabled={isStale}
-										onAccept={() => accept(index)}
-										onDismiss={() => dismiss(index)}
-										{...rangeProps({ offset: change.offset, length: change.length })}
-									/>
-								))}
+								{pending.map((change, index) =>
+									// Dua kandidat atau lebih layak dipilih; satu kandidat
+									// tidak - kartu pilihan untuk satu pilihan cuma menambah
+									// klik tanpa menambah kuasa.
+									change.candidates && change.candidates.length > 1 ? (
+										<CandidateCard
+											key={`${change.offset}-${change.original}`}
+											original={change.original}
+											candidates={change.candidates}
+											previewIndex={preview?.index === index ? preview.candidate : null}
+											onPreview={(candidate) =>
+												showPreview(index, candidate, change)
+											}
+											onClearPreview={clearPreview}
+											onApply={(candidate) => {
+												clearPreview()
+												accept(index, change.candidates?.[candidate])
+											}}
+											onDismiss={() => dismiss(index)}
+											{...rangeProps({ offset: change.offset, length: change.length })}
+										/>
+									) : (
+										<ChangeCard
+											key={`${change.offset}-${change.original}`}
+											original={change.original}
+											replacement={change.replacement}
+											acceptDisabled={isStale}
+											onAccept={() => accept(index)}
+											onDismiss={() => dismiss(index)}
+											{...rangeProps({ offset: change.offset, length: change.length })}
+										/>
+									),
+								)}
 							</div>
+						) : llmUnavailable ? (
+							// Gagal menjangkau AI dan "naskahmu memang sudah bagus"
+							// sama-sama berupa changes kosong. Menyamakan keduanya
+							// membuat kegagalan terbaca sebagai pujian - dan pengguna
+							// mengklik Rewrite berulang kali tanpa tahu apa yang salah.
+							<PanelError message="AI tidak dapat dihubungi, jadi tidak ada usulan yang bisa dibuat. Periksa konfigurasi penyedia AI, lalu coba lagi." />
 						) : (changes ?? []).length === 0 ? (
-							// Hasil tanpa satu pun usulan (mis. LLM tidak tersedia
-							// dan fallback mengembalikan teks apa adanya) bukan
-							// "semua perubahan diterapkan" - jangan tampilkan
-							// pesan yang menyerupai sukses.
 							<p className="py-4 text-center text-xs text-subtle">
 								Tidak ada perubahan yang disarankan untuk teks ini
 							</p>
 						) : (
 							<p className="py-4 text-center text-xs text-subtle">{noChangesLabel(result)}</p>
+						)}
+
+						{applied.length > 0 && (
+							<div className="mt-3 flex flex-col gap-2 border-t border-line pt-3">
+								<p className="text-[11px] font-medium uppercase tracking-wide text-subtle">
+									Sudah diterapkan
+								</p>
+								{applied.map((entry) => (
+									<AppliedCard
+										key={entry.id}
+										original={entry.original}
+										applied={entry.applied}
+										canRevert={canRevert(entry.id)}
+										onRevert={() => revert(entry.id)}
+									/>
+								))}
+							</div>
 						)}
 					</>
 				)}

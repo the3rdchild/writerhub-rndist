@@ -7,7 +7,9 @@ import {
 	Loader2,
 	type LucideIcon,
 	TextSelection,
+	Undo2,
 	X,
+	XCircle,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
@@ -222,6 +224,136 @@ export function ChangeCard({
 				<p className="border-l-2 border-emerald-400/40 pl-2 text-emerald-300">{replacement}</p>
 			</div>
 			<AcceptDismissRow onAccept={onAccept} onDismiss={onDismiss} acceptDisabled={acceptDisabled} />
+		</div>
+	)
+}
+
+/**
+ * Kartu segmen dengan beberapa kandidat pengganti (AI Rewriter).
+ *
+ * Tiap kandidat punya barisnya sendiri: menjenguk (hover/klik) menampilkan
+ * bayangannya di naskah, tombol Apply memasangnya. Segmen dengan satu kandidat
+ * tidak memakai kartu ini - `ChangeCard` biasa sudah cukup dan tidak menuntut
+ * pengguna memilih di antara satu pilihan.
+ */
+export function CandidateCard({
+	original,
+	candidates,
+	previewIndex,
+	onPreview,
+	onClearPreview,
+	onApply,
+	onDismiss,
+	...rangeProps
+}: {
+	original: string
+	candidates: readonly string[]
+	/** Kandidat yang sedang dijenguk di naskah; null bila tidak ada. */
+	previewIndex: number | null
+	onPreview: (index: number) => void
+	onClearPreview: () => void
+	onApply: (index: number) => void
+	onDismiss: () => void
+} & React.HTMLAttributes<HTMLDivElement>) {
+	return (
+		<div
+			{...rangeProps}
+			className="flex flex-col gap-2 rounded-xl border border-line bg-surface-raised p-3 transition-colors hover:border-line-strong"
+		>
+			<p className="text-xs leading-relaxed text-red-300/70 line-through decoration-red-400/40">
+				{original}
+			</p>
+
+			<div className="flex flex-col gap-1.5">
+				{candidates.map((candidate, index) => (
+					<div
+						key={candidate}
+						onMouseEnter={() => onPreview(index)}
+						onMouseLeave={onClearPreview}
+						className={cn(
+							'flex flex-col gap-1.5 rounded-lg border p-2 transition-colors',
+							previewIndex === index
+								? 'border-emerald-400/60 bg-emerald-500/10'
+								: 'border-line hover:border-line-strong',
+						)}
+					>
+						<div className="flex items-start gap-2">
+							<span className="mt-0.5 shrink-0 rounded bg-[var(--overlay-active)] px-1.5 py-0.5 text-[10px] font-medium text-subtle">
+								{index + 1}
+							</span>
+							<p className="flex-1 text-xs leading-relaxed text-emerald-300">{candidate}</p>
+						</div>
+						<button
+							type="button"
+							onClick={(event) => {
+								event.stopPropagation()
+								onApply(index)
+							}}
+							className="flex items-center justify-center gap-1 rounded-lg bg-green-500/15 py-1 text-xs text-green-400 transition-colors hover:bg-green-500/25"
+						>
+							<CheckCircle2 className="h-3.5 w-3.5" />
+							Terapkan
+						</button>
+					</div>
+				))}
+			</div>
+
+			<button
+				type="button"
+				onClick={(event) => {
+					event.stopPropagation()
+					onDismiss()
+				}}
+				className="flex items-center justify-center gap-1 rounded-lg bg-[var(--overlay-hover)] py-1.5 text-xs text-muted transition-colors hover:text-foreground"
+			>
+				<XCircle className="h-3.5 w-3.5" />
+				Lewati segmen ini
+			</button>
+		</div>
+	)
+}
+
+/**
+ * Kartu segmen yang sudah diterapkan, dengan jalan kembali.
+ *
+ * Revert mati begitu teks yang dipasang tidak lagi ditemukan di naskah -
+ * pengguna menyuntingnya sendiri sesudah menerapkan. Dimatikan berlabel, bukan
+ * disembunyikan: kartu yang lenyap tanpa penjelasan terbaca seperti kesalahan.
+ */
+export function AppliedCard({
+	original,
+	applied,
+	canRevert,
+	onRevert,
+}: {
+	original: string
+	applied: string
+	canRevert: boolean
+	onRevert: () => void
+}) {
+	return (
+		<div className="flex flex-col gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/5 p-3">
+			<div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-400">
+				<CheckCircle2 className="h-3.5 w-3.5" />
+				Diterapkan
+			</div>
+			<p className="text-xs leading-relaxed text-emerald-300">{applied}</p>
+			<p className="text-[11px] leading-relaxed text-subtle line-through">{original}</p>
+			<button
+				type="button"
+				onClick={onRevert}
+				disabled={!canRevert}
+				title={canRevert ? 'Kembalikan ke naskah semula' : undefined}
+				className={cn(
+					'flex items-center justify-center gap-1 rounded-lg py-1.5 text-xs transition-colors',
+					canRevert
+						? 'bg-[var(--overlay-hover)] text-muted hover:text-foreground'
+						: 'cursor-not-allowed bg-[var(--overlay-hover)] text-faint',
+				)}
+			>
+				<Undo2 className="h-3.5 w-3.5" />
+				{canRevert ? 'Batalkan' : 'Teks sudah berubah'}
+			</button>
 		</div>
 	)
 }

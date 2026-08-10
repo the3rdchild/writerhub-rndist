@@ -13,6 +13,7 @@ import type { Extensions } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import type * as Y from 'yjs'
 import { CommentMark } from '@/features/comments/comment-mark'
+import { CandidatePreviewHighlight } from '@/features/analysis/candidate-preview'
 import { SuggestionHighlight } from '@/features/document/suggestion-highlight'
 import { BlockSpacing } from '@/features/editor/block-spacing'
 import { ImageWithMarkdown, TrailingParagraph } from '@/features/editor/editor-polish'
@@ -78,6 +79,8 @@ export function buildEditorExtensions({
 		ImageWithMarkdown.configure({ inline: false, allowBase64: true }),
 		Placeholder.configure({ placeholder: 'Mulai menulis, atau tempel draf Anda di sini…' }),
 		SuggestionHighlight,
+		// Pratinjau kandidat AI Rewriter; menganggur sampai panel mengirim meta.
+		CandidatePreviewHighlight,
 		SelectionHighlight,
 		BlockIndentExtension,
 		BlockSpacing,

@@ -8,8 +8,8 @@ Kalau dua-duanya tak tersedia: balikin teks apa adanya tanpa changes.
 
 import logging
 
-from services.analyzers.common import apply_sentence_rewrites, sentence_spans
-from services.analyzers.llm_client import rewrite_sentences, style_memory_instruction
+from services.analyzers.common import apply_sentence_candidates, sentence_spans
+from services.analyzers.llm_client import rewrite_sentences_candidates, style_memory_instruction
 from core.provider import Provider
 
 logger = logging.getLogger(__name__)
@@ -24,17 +24,25 @@ def _rewrite_all(
     provider: Provider,
     language: str | None = None,
     style_memory: dict | None = None,
-) -> list[str]:
-    """Rewrite semua kalimat lewat LLM, fallback: teks dikembalikan apa adanya.
-    Selalu balikin list sepanjang input (elemen tak berubah = kalimat asli)."""
+) -> tuple[list[list[str]], bool]:
+    """
+    Rewrite semua kalimat lewat LLM, DUA alternatif per kalimat supaya pengguna
+    bisa memilih di panel. Selalu balikin list sepanjang input; tiap elemen
+    berisi 1-2 kandidat.
+
+    Balikan kedua menandakan apakah LLM benar-benar terpakai. Fallback saat LLM
+    tak tersedia membuat tiap kalimat jadi kandidat tunggal berisi dirinya
+    sendiri - di hilir itu terbaca sebagai "tidak ada perubahan", dan tanpa
+    penanda ini panel akan mengabarkannya sebagai naskah yang sudah baik.
+    """
     instruction = _INSTRUCTION + style_memory_instruction(style_memory)
-    via_api = rewrite_sentences(stripped, instruction, provider, language)
+    via_api = rewrite_sentences_candidates(stripped, instruction, provider, language)
     if via_api is not None:
-        logger.info("[ai_rewriter] pakai LLM (%d kalimat)", len(stripped))
-        return via_api
+        logger.info("[ai_rewriter] pakai LLM (%d kalimat, 2 kandidat)", len(stripped))
+        return via_api, True
 
     logger.warning("[ai_rewriter] LLM tidak tersedia - teks dikembalikan apa adanya")
-    return list(stripped)
+    return [[sentence] for sentence in stripped], False
 
 
 def run_ai_rewriter(
@@ -45,13 +53,19 @@ def run_ai_rewriter(
 ) -> dict:
     """
     Returns AiRewriterResult:
-    { rewritten_text: str, changes: [{original, replacement, offset, length}] }
-    Satu change per kalimat yang berubah (bukan per kata).
-    `style_memory` = AI Memory user, ditempel ke prompt sebagai instruksi gaya.
+    { rewritten_text: str, changes: [{original, replacement, offset, length,
+      candidates?}] }
+    Satu change per kalimat yang berubah (bukan per kata), masing-masing membawa
+    sampai dua alternatif untuk dipilih pengguna di panel.
+    `style_memory` = AI Memory user (termasuk tone pilihan panel yang menimpanya),
+    ditempel ke prompt sebagai instruksi gaya.
     """
     spans = sentence_spans(text)
     stripped = [sent.strip() for sent, _ in spans]
-    rewritten_all = _rewrite_all(stripped, provider, language, style_memory)
+    candidates_all, llm_used = _rewrite_all(stripped, provider, language, style_memory)
 
-    rewritten_text, changes = apply_sentence_rewrites(text, spans, rewritten_all)
-    return {"rewritten_text": rewritten_text, "changes": changes}
+    rewritten_text, changes = apply_sentence_candidates(text, spans, candidates_all)
+    result = {"rewritten_text": rewritten_text, "changes": changes}
+    if not llm_used:
+        result["llm_unavailable"] = True
+    return result
