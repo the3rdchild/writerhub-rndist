@@ -4,9 +4,11 @@ import { createContext, type ReactNode, useContext, useEffect, useMemo, useState
 import {
 	clampMargins,
 	DEFAULT_MARGINS,
+	DEFAULT_PAGE_ORIENTATION,
 	DEFAULT_PAGE_SIZE,
 	type PageMargins,
 	type PageSizeId,
+	type PageOrientation,
 } from '@/features/editor/page-geometry'
 import { usePersistentState } from '@/lib/use-persistent-state'
 
@@ -30,6 +32,8 @@ export interface Settings {
 	/** Perbesaran lembar dokumen; 1 = 100%. */
 	zoom: number
 	pageSize: PageSizeId
+	/** Orientasi lembar: portrait (tegak) atau landscape (mendatar). */
+	pageOrientation: PageOrientation
 	/** Margin lembar, dalam piksel 96 dpi; diubah lewat penggaris. */
 	pageMargins: PageMargins
 	/** Sembunyikan menu & toolbar sampai kursor mendekat, untuk menulis tanpa gangguan. */
@@ -50,6 +54,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	showWordCount: true,
 	zoom: 1,
 	pageSize: DEFAULT_PAGE_SIZE,
+	pageOrientation: DEFAULT_PAGE_ORIENTATION,
 	pageMargins: DEFAULT_MARGINS,
 	focusMode: false,
 	showPageNumbers: true,
@@ -121,14 +126,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 			update: (patch) =>
 				setSettings((current) => {
 					// Margin diperiksa ulang setiap pengaturan berubah: berganti ukuran
-					// kertas bisa membuat margin lama tidak menyisakan area teks lagi.
+					// kertas atau orientasi bisa membuat margin lama tidak menyisakan
+					// area teks lagi.
 					const next = { ...current, ...patch }
-					return { ...next, pageMargins: clampMargins(next.pageMargins, next.pageSize) }
+					return { ...next, pageMargins: clampMargins(next.pageMargins, next.pageSize, next.pageOrientation) }
 				}),
 			setPageMargins: (patch) =>
 				setSettings((current) => ({
 					...current,
-					pageMargins: clampMargins({ ...current.pageMargins, ...patch }, current.pageSize),
+					pageMargins: clampMargins({ ...current.pageMargins, ...patch }, current.pageSize, current.pageOrientation),
 				})),
 			updateProfile: (patch) =>
 				setSettings((current) => ({ ...current, profile: { ...current.profile, ...patch } })),

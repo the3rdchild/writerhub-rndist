@@ -1,5 +1,6 @@
 'use client'
 
+import { ChevronRight } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 
@@ -63,7 +64,12 @@ export function Dropdown({
 					id={id}
 					role="menu"
 					className={cn(
-						'absolute z-50 min-w-[200px] overflow-hidden rounded-xl border border-line-strong bg-surface-raised py-1 shadow-[var(--menu-shadow)]',
+						// Sengaja TIDAK `overflow-hidden`: submenu bersarang duduk di
+						// `left-full`, di luar kotak panel ini, dan akan terpotong habis.
+						// Sudut membulatnya dijaga dengan membulatkan baris pertama &
+						// terakhir, bukan dengan memangkas isi.
+						'absolute z-50 min-w-[200px] rounded-xl border border-line-strong bg-surface-raised py-1 shadow-[var(--menu-shadow)]',
+						'[&>*:first-child]:rounded-t-[10px] [&>*:last-child]:rounded-b-[10px]',
 						'animate-in fade-in zoom-in-95 duration-100',
 						side === 'bottom' ? 'top-full mt-1' : 'bottom-full mb-1',
 						align === 'start' ? 'left-0' : 'right-0',
@@ -131,6 +137,93 @@ export function DropdownLabel({ children }: { children: ReactNode }) {
 	return (
 		<div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-faint">
 			{children}
+		</div>
+	)
+}
+
+/**
+ * Item menu yang membuka submenu bersarang ke samping (kanan).
+ *
+ * Submenu terbuka saat hover (dengan jeda tutup), klik, atau panah kanan;
+ * tertutup saat pointer keluar, panah kiri, atau saat menu induknya ditutup.
+ * Dipakai untuk mengelompokkan item padat (mis. menu Format → Teks/Warna/...)
+ * tanpa memanjangkan menu utama.
+ *
+ * Tidak memakai hover murni: hover saja membuat submenu "menempel" ketika
+ * pointer melintas cepat, dan tidak bisa dipakai lewat keyboard. Kombinasi
+ * hover-dengan-jeda + klik + tombol panah memberi keduanya.
+ *
+ * Panel induk tidak boleh `overflow-hidden` - submenu ini duduk di luar
+ * kotaknya dan akan terpotong habis.
+ */
+export function Submenu({
+	label,
+	icon,
+	children,
+}: {
+	label: string
+	icon?: ReactNode
+	/** Item submenu; `close` menutup submenu ini (bukan seluruh rantai menu). */
+	children: (props: { close: () => void }) => ReactNode
+}) {
+	const [open, setOpen] = useState(false)
+	const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+	const cancelClose = () => {
+		if (closeTimer.current) {
+			clearTimeout(closeTimer.current)
+			closeTimer.current = null
+		}
+	}
+
+	// Tutup saat parent menu ditutup: item ini ikut unmount, state reset otomatis.
+	// Timernya tetap perlu dibatalkan supaya tidak menyentuh state pasca-unmount.
+	useEffect(() => cancelClose, [])
+
+	return (
+		<div
+			className="relative"
+			onMouseEnter={() => {
+				cancelClose()
+				setOpen(true)
+			}}
+			onMouseLeave={() => {
+				cancelClose()
+				closeTimer.current = setTimeout(() => setOpen(false), 120)
+			}}
+		>
+			<button
+				type="button"
+				role="menuitem"
+				aria-haspopup="menu"
+				aria-expanded={open}
+				onClick={() => setOpen((v) => !v)}
+				onKeyDown={(event) => {
+					if (event.key === 'ArrowRight') {
+						event.preventDefault()
+						setOpen(true)
+					} else if (event.key === 'ArrowLeft') {
+						event.preventDefault()
+						setOpen(false)
+					}
+				}}
+				className="flex w-full items-center gap-3 px-3 py-1.5 text-left text-sm text-foreground transition-colors hover:bg-[var(--overlay-hover)]"
+			>
+				<span className="flex h-4 w-4 shrink-0 items-center justify-center text-subtle">{icon}</span>
+				<span className="flex-1 truncate">{label}</span>
+				<ChevronRight className="h-3.5 w-3.5 shrink-0 text-faint" />
+			</button>
+			{open && (
+				// Dibatasi tingginya lalu digulung: submenu terpanjang (jenis huruf,
+				// palet warna) puluhan baris, dan tanpa ini baris terbawah jatuh di
+				// luar layar tanpa cara apa pun untuk mencapainya.
+				<div
+					role="menu"
+					className="absolute left-full top-0 z-50 ml-1 max-h-[70vh] min-w-[200px] overflow-y-auto overscroll-contain rounded-xl border border-line-strong bg-surface-raised py-1 shadow-[var(--menu-shadow)] animate-in fade-in zoom-in-95 duration-100"
+				>
+					{children({ close: () => setOpen(false) })}
+				</div>
+			)}
 		</div>
 	)
 }

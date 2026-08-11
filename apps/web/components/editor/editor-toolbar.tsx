@@ -45,32 +45,13 @@ import {
 	fontFamilyLabel,
 } from '@/features/editor/font-catalog'
 import { FONT_SIZES, LINE_HEIGHTS, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
-import { INDENT_STEP } from '@/features/editor/indent'
+import { indentSelection, outdentSelection } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
 import { ZOOM_LEVELS } from '@/features/editor/page-geometry'
 import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
 
 const DEFAULT_FONT_SIZE = 11
-
-/**
- * Satu tombol, dua arti.
- *
- * Di dalam daftar, indentasi adalah tingkat butir - memakai margin di sana akan
- * merusak penomoran. Di luar daftar tidak ada tingkat apa pun untuk dinaiki,
- * jadi yang digeser adalah blok itu sendiri.
- */
-function indent(editor: Editor | null): void {
-	if (!editor) return
-	if (editor.can().sinkListItem('listItem')) editor.chain().focus().sinkListItem('listItem').run()
-	else editor.chain().focus().shiftBlockIndent(INDENT_STEP).run()
-}
-
-function outdent(editor: Editor | null): void {
-	if (!editor) return
-	if (editor.can().liftListItem('listItem')) editor.chain().focus().liftListItem('listItem').run()
-	else editor.chain().focus().shiftBlockIndent(-INDENT_STEP).run()
-}
 
 function safeCan(check: () => boolean): boolean {
 	try {
@@ -304,8 +285,8 @@ export function EditorToolbar({
 
 			{/* Di dalam daftar, indentasi berarti berpindah tingkat; di luar daftar ia
 			    menggeser blok - hasil keduanya terlihat di penggaris. */}
-			<IconButton icon={Outdent} label="Kurangi indentasi" disabled={isOff} onClick={() => outdent(editor)} />
-			<IconButton icon={Indent} label="Tambah indentasi" disabled={isOff} onClick={() => indent(editor)} />
+			<IconButton icon={Outdent} label="Kurangi indentasi" disabled={isOff} onClick={() => outdentSelection(editor)} />
+			<IconButton icon={Indent} label="Tambah indentasi" disabled={isOff} onClick={() => indentSelection(editor)} />
 			<IconButton
 				icon={RemoveFormatting}
 				label="Hapus format"

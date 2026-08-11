@@ -18,6 +18,11 @@ export type PageSizeId = keyof typeof PAGE_SIZES
 
 export const DEFAULT_PAGE_SIZE: PageSizeId = 'a4'
 
+/** Orientasi lembar. Landscape menukar lebar ↔ tinggi dari ukuran kertas. */
+export type PageOrientation = 'portrait' | 'landscape'
+
+export const DEFAULT_PAGE_ORIENTATION: PageOrientation = 'portrait'
+
 export interface PageMargins {
 	top: number
 	right: number
@@ -56,8 +61,11 @@ export interface PageGeometry {
 export function clampMargins(
 	margins: PageMargins,
 	size: PageSizeId = DEFAULT_PAGE_SIZE,
+	orientation: PageOrientation = DEFAULT_PAGE_ORIENTATION,
 ): PageMargins {
-	const { width, height } = PAGE_SIZES[size]
+	const base = PAGE_SIZES[size]
+	const width = orientation === 'landscape' ? base.height : base.width
+	const height = orientation === 'landscape' ? base.width : base.height
 
 	const clampPair = (start: number, end: number, extent: number, minContent: number) => {
 		const first = Math.max(0, Math.min(start, extent - minContent))
@@ -74,9 +82,12 @@ export function clampMargins(
 export function pageGeometry(
 	size: PageSizeId = DEFAULT_PAGE_SIZE,
 	margins: PageMargins = DEFAULT_MARGINS,
+	orientation: PageOrientation = DEFAULT_PAGE_ORIENTATION,
 ): PageGeometry {
-	const { width, height } = PAGE_SIZES[size]
-	const safe = clampMargins(margins, size)
+	const base = PAGE_SIZES[size]
+	const width = orientation === 'landscape' ? base.height : base.width
+	const height = orientation === 'landscape' ? base.width : base.height
+	const safe = clampMargins(margins, size, orientation)
 
 	return {
 		width,

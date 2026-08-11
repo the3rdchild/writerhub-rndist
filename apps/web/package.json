@@ -20,6 +20,8 @@
     "@tiptap/extension-link": "^3.29.2",
     "@tiptap/extension-list": "^3.29.2",
     "@tiptap/extension-placeholder": "^3.29.2",
+    "@tiptap/extension-subscript": "^3.29.2",
+    "@tiptap/extension-superscript": "^3.29.2",
     "@tiptap/extension-table": "^3.29.2",
     "@tiptap/extension-table-of-contents": "^3.29.2",
     "@tiptap/extension-text-align": "^3.29.2",

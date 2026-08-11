@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
  * Sengaja terbatas - pilihan yang sedikit membuat dokumen tetap konsisten,
  * dan warna sebanyak Google Docs jarang benar-benar dipakai.
  */
-const PALETTE = [
+export const PALETTE = [
 	['#000000', '#434343', '#666666', '#999999', '#b7b7b7', '#d9d9d9', '#efefef', '#ffffff'],
 	['#e11d48', '#ea580c', '#eab308', '#16a34a', '#0891b2', '#2563eb', '#7c3aed', '#db2777'],
 	['#fecdd3', '#fed7aa', '#fef08a', '#bbf7d0', '#a5f3fc', '#bfdbfe', '#ddd6fe', '#fbcfe8'],

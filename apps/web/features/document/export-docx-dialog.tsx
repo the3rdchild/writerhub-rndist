@@ -74,7 +74,7 @@ export function ExportDocxDialog() {
 			const merged = mergeTabContents(chosen.map((tab) => fragmentToJSON(doc, tab.id)))
 			const blob = await exportDocx(buildSchema().nodeFromJSON(merged), {
 				title,
-				geometry: pageGeometry(settings.pageSize, settings.pageMargins),
+				geometry: pageGeometry(settings.pageSize, settings.pageMargins, settings.pageOrientation),
 			})
 			download(blob, safeFilename(title, 'docx'))
 			setDocxExportOpen(false)

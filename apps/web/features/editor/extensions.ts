@@ -5,6 +5,8 @@ import Highlight from '@tiptap/extension-highlight'
 import Link from '@tiptap/extension-link'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
 import Placeholder from '@tiptap/extension-placeholder'
+import { Subscript } from '@tiptap/extension-subscript'
+import { Superscript } from '@tiptap/extension-superscript'
 import { TableKit } from '@tiptap/extension-table'
 import TextAlign from '@tiptap/extension-text-align'
 import { TextStyleKit } from '@tiptap/extension-text-style'
@@ -89,6 +91,8 @@ export function buildEditorExtensions({
 		// membuat keduanya saling menimpa.
 		TextStyleKit.configure({ lineHeight: false }),
 		Highlight.configure({ multicolor: true }),
+		Subscript,
+		Superscript,
 		Typography,
 		TableKit.configure({ table: { resizable: true } }),
 		TaskList,

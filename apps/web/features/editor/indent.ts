@@ -184,6 +184,42 @@ function sameIndent(a: BlockIndent, b: BlockIndent): boolean {
 	return a.left === b.left && a.right === b.right && a.firstLine === b.firstLine
 }
 
+/** Butir daftar yang punya tingkat sendiri; daftar centang memakai `taskItem`. */
+const LIST_ITEMS = ['listItem', 'taskItem'] as const
+
+/**
+ * Naik/turun satu tingkat indentasi pada seleksi.
+ *
+ * Di dalam daftar, indentasi adalah tingkat butir - memakai margin di sana akan
+ * merusak penomoran. Di luar daftar tidak ada tingkat apa pun untuk dinaiki,
+ * jadi yang digeser adalah blok itu sendiri.
+ *
+ * Dipakai bersama oleh toolbar dan menu bar supaya keduanya tidak berbeda
+ * perilaku - versi yang hanya menyebut `listItem` diam saja di daftar centang.
+ */
+export function indentSelection(editor: Editor | null): void {
+	if (!editor) return
+	for (const item of LIST_ITEMS) {
+		if (editor.can().sinkListItem(item)) {
+			editor.chain().focus().sinkListItem(item).run()
+			return
+		}
+	}
+	editor.chain().focus().shiftBlockIndent(INDENT_STEP).run()
+}
+
+/** Kebalikan {@link indentSelection}. */
+export function outdentSelection(editor: Editor | null): void {
+	if (!editor) return
+	for (const item of LIST_ITEMS) {
+		if (editor.can().liftListItem(item)) {
+			editor.chain().focus().liftListItem(item).run()
+			return
+		}
+	}
+	editor.chain().focus().shiftBlockIndent(-INDENT_STEP).run()
+}
+
 /**
  * Indentasi blok aktif sebagai state React.
  *

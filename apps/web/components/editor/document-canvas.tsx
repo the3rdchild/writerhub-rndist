@@ -32,8 +32,8 @@ export function DocumentCanvas({
 	const [pageCount, setPageCount] = useState(1)
 
 	const geometry = useMemo(
-		() => pageGeometry(settings.pageSize, settings.pageMargins),
-		[settings.pageSize, settings.pageMargins],
+		() => pageGeometry(settings.pageSize, settings.pageMargins, settings.pageOrientation),
+		[settings.pageSize, settings.pageMargins, settings.pageOrientation],
 	)
 	const { width, height, margins, gap, pageStride } = geometry
 
