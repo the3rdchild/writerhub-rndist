@@ -14,9 +14,13 @@ from core.provider import Provider
 
 logger = logging.getLogger(__name__)
 
+# Menulis ulang disebut lebih dulu, perbaikan tata bahasa menyusul: dibalik,
+# naskah yang sudah benar secara tata bahasa tidak menyisakan apa pun untuk
+# dikerjakan model - dan itulah yang membuat teks rapi pulang tanpa usulan.
 _INSTRUCTION = (
-    "Rewrite each sentence to be clearer and easier to understand. Fix all "
-    "grammar mistakes. Keep the original meaning, tone, and language."
+    "Rephrase each sentence so it reads more clearly and flows better, even "
+    "when it is already correct. Fix any grammar mistakes along the way. Keep "
+    "the original meaning, tone, and language."
 )
 
 def _rewrite_all(
@@ -38,7 +42,6 @@ def _rewrite_all(
     instruction = _INSTRUCTION + style_memory_instruction(style_memory)
     via_api = rewrite_sentences_candidates(stripped, instruction, provider, language)
     if via_api is not None:
-        logger.info("[ai_rewriter] pakai LLM (%d kalimat, 2 kandidat)", len(stripped))
         return via_api, True
 
     logger.warning("[ai_rewriter] LLM tidak tersedia - teks dikembalikan apa adanya")
@@ -65,6 +68,25 @@ def run_ai_rewriter(
     candidates_all, llm_used = _rewrite_all(stripped, provider, language, style_memory)
 
     rewritten_text, changes = apply_sentence_candidates(text, spans, candidates_all)
+
+    if llm_used:
+        # Yang dicatat adalah hasil nyatanya, bukan bahwa LLM sempat dipanggil.
+        # Versi sebelumnya menulis "(%d kalimat, 2 kandidat)" dengan angka 2
+        # sebagai teks mati, jadi log itu tetap berbunyi sama persis ketika
+        # model membalas tanpa satu pun perubahan - dan panel yang lalu berkata
+        # "tidak ada perubahan yang disarankan" jadi tak bisa ditelusuri.
+        logger.info(
+            "[ai_rewriter] pakai LLM | kalimat=%d | berubah=%d | punya_alternatif=%d",
+            len(stripped),
+            len(changes),
+            sum(1 for candidates in candidates_all if len(candidates) > 1),
+        )
+        if not changes:
+            logger.warning(
+                "[ai_rewriter] model mengembalikan seluruh kalimat apa adanya - "
+                "tidak ada usulan yang bisa ditampilkan"
+            )
+
     result = {"rewritten_text": rewritten_text, "changes": changes}
     if not llm_used:
         result["llm_unavailable"] = True

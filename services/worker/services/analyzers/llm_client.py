@@ -197,9 +197,15 @@ def rewrite_sentences_candidates(
         '{"sentences": [{"candidates": ["...", "..."]}]} containing exactly '
         "the same number of elements, where element i holds the candidates "
         "for input sentence i. The first candidate should be the most "
-        "faithful rewrite; the second may vary the phrasing more freely. If "
-        "a sentence needs no change, return it unchanged as its single "
-        "candidate. Do not merge, split, add, or drop sentences."
+        "faithful rewrite; the second may vary the phrasing more freely. "
+        # Tanpa kalimat ini model membalas naskah yang sudah rapi apa adanya,
+        # dan seluruh permintaan berakhir tanpa satu pun usulan. Menulis ulang
+        # memang tugasnya - "sudah bagus" bukan jawaban yang berguna di sini.
+        "Always rephrase: each candidate must differ in wording from the input "
+        "sentence. Returning a sentence unchanged is not an acceptable answer; "
+        "if a sentence already reads well, vary its structure or word choice "
+        "while preserving the meaning. "
+        "Do not merge, split, add, or drop sentences."
     )
 
     parsed = _chat_json(system, sentences, provider)
