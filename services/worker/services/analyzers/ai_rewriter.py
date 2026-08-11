@@ -51,7 +51,7 @@ def _rewrite_all(
 def run_ai_rewriter(
     text: str,
     provider: Provider,
-    language: str | None = None,
+    language: str | None = No ne,
     style_memory: dict | None = None,
 ) -> dict:
     """

@@ -3,6 +3,7 @@
 import type { Editor } from '@tiptap/react'
 import { Check, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { MATH_BLOCK, MATH_INLINE, renderMath } from '@/features/editor/math'
 import { cn } from '@/lib/utils'
 
@@ -70,7 +71,7 @@ export function MathPopover({
 		if (target) inputRef.current?.focus()
 	}, [target])
 
-	if (!editor || !target) return null
+	if (!editor || !target || !containerRef.current) return null
 
 	const close = () => setTarget(null)
 
@@ -97,7 +98,18 @@ export function MathPopover({
 		close()
 	}
 
-	return (
+	/*
+	 * Dirender lewat portal ke container dokumen, bukan di tempatnya berada di
+	 * pohon komponen - pola yang sama dengan SelectionMenu, dan karena alasan
+	 * yang sama.
+	 *
+	 * `top`/`left` di atas diukur terhadap container yang diam, sedangkan
+	 * offsetParent-nya kalau dibiarkan di sini adalah isi halaman: ikut
+	 * tergulung dan ikut diperbesar `transform: scale(zoom)`. Selisih dua
+	 * sistem koordinat itu membuat popover mendarat di dekat awal dokumen, dan
+	 * fokus otomatis ke kolom LaTeX menyeret tampilan ikut ke sana.
+	 */
+	return createPortal(
 		<div
 			className="absolute z-40 flex w-[320px] flex-col gap-2 rounded-xl border border-line-strong bg-surface-raised p-3 shadow-[var(--menu-shadow)]"
 			style={{ top: target.top, left: target.left }}
@@ -167,6 +179,7 @@ export function MathPopover({
 					Jadikan teks
 				</button>
 			</div>
-		</div>
+		</div>,
+		containerRef.current,
 	)
 }
