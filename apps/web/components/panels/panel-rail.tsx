@@ -15,7 +15,11 @@ import {
 import { type PanelId, usePanels } from '@/features/analysis/panel-context'
 import { cn } from '@/lib/utils'
 
-const PANELS: Array<{ id: PanelId; icon: LucideIcon; label: string }> = [
+/**
+ * Daftar tunggal tool rail - juga dipakai menu Tools di menu bar, supaya label
+ * dan ikon di kedua tempat tidak bisa melenceng satu sama lain.
+ */
+export const PANELS: Array<{ id: PanelId; icon: LucideIcon; label: string }> = [
 	{ id: 'ai_chat', icon: MessagesSquare, label: 'AI Chat' },
 	{ id: 'proofreader', icon: SpellCheck, label: 'Proofreader' },
 	{ id: 'ai_detector', icon: Bot, label: 'AI Detector' },

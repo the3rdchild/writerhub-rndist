@@ -214,12 +214,13 @@ export function Submenu({
 				<ChevronRight className="h-3.5 w-3.5 shrink-0 text-faint" />
 			</button>
 			{open && (
-				// Dibatasi tingginya lalu digulung: submenu terpanjang (jenis huruf,
-				// palet warna) puluhan baris, dan tanpa ini baris terbawah jatuh di
-				// luar layar tanpa cara apa pun untuk mencapainya.
+				// Seperti panel induk: tanpa `overflow-hidden`, supaya submenu bisa
+				// bersarang lagi ke dalam (mis. Jenis huruf → Sans-serif → Arial).
+				// Daftar panjang dipecah jadi kelompok, bukan digulung - menu yang
+				// perlu digulung tandanya kelompoknya kurang.
 				<div
 					role="menu"
-					className="absolute left-full top-0 z-50 ml-1 max-h-[70vh] min-w-[200px] overflow-y-auto overscroll-contain rounded-xl border border-line-strong bg-surface-raised py-1 shadow-[var(--menu-shadow)] animate-in fade-in zoom-in-95 duration-100"
+					className="absolute left-full top-0 z-50 ml-1 min-w-[200px] rounded-xl border border-line-strong bg-surface-raised py-1 shadow-[var(--menu-shadow)] animate-in fade-in zoom-in-95 duration-100 [&>*:first-child]:rounded-t-[10px] [&>*:last-child]:rounded-b-[10px]"
 				>
 					{children({ close: () => setOpen(false) })}
 				</div>

@@ -3,31 +3,37 @@
 import type { Editor } from '@tiptap/react'
 import { type ReactNode, useState } from 'react'
 import {
+	ALargeSmall,
 	AlignCenter,
 	AlignJustify,
 	AlignLeft,
 	AlignRight,
 	Bold,
 	Boxes,
+	CaseSensitive,
 	CheckSquare,
+	CircleQuestionMark,
 	Code,
 	Code2,
 	Columns2,
 	Download,
 	Eraser,
+	Eye,
 	FileText,
 	Files,
 	Highlighter,
 	Image as ImageIcon,
 	Indent,
+	Info,
 	Italic,
+	Keyboard,
 	Link2,
 	List,
 	ListOrdered,
 	Minus,
-	MoreHorizontal,
 	Outdent,
-	Palette,
+	Pencil,
+	Plus,
 	Printer,
 	Quote,
 	Redo2,
@@ -35,6 +41,7 @@ import {
 	Search,
 	Settings as SettingsIcon,
 	Sigma,
+	SquarePlus,
 	Strikethrough,
 	Subscript,
 	Superscript,
@@ -44,10 +51,11 @@ import {
 	Underline,
 	Undo2,
 	Upload,
+	Wrench,
 } from 'lucide-react'
 import { Dropdown, DropdownItem, DropdownLabel, DropdownSeparator, Submenu } from '@/components/ui/dropdown'
 import { InsertImageDialog } from '@/components/editor/insert-image-dialog'
-import { PALETTE } from '@/components/editor/color-picker'
+import { PANELS } from '@/components/panels/panel-rail'
 import { usePanels } from '@/features/analysis/panel-context'
 import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
@@ -64,9 +72,15 @@ import {
 	type PageSizeId,
 	ZOOM_LEVELS,
 } from '@/features/editor/page-geometry'
-import { FONT_FAMILIES, fontFamilyLabel } from '@/features/editor/font-catalog'
+import { applyCapitalization } from '@/features/editor/capitalization'
+import {
+	FONT_CATEGORY_LABELS,
+	FONT_FAMILIES,
+	type FontCategory,
+	fontFamilyLabel,
+} from '@/features/editor/font-catalog'
 import { indentSelection, outdentSelection } from '@/features/editor/indent'
-import { FONT_SIZES, LINE_HEIGHTS, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
+import { LINE_HEIGHTS, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { useShortcutLabel } from '@/features/shortcuts/use-shortcuts'
@@ -86,7 +100,7 @@ export function MenuBar() {
 		useSettings()
 	const { newSession, deleteSession, activeId, sessions } = useSessions()
 	const { openImport } = useDocumentImport()
-	const { setActivePanel } = usePanels()
+	const { activePanel, setActivePanel } = usePanels()
 
 	// Label pintasan datang dari registry, bukan diketik di sini - dulu teksnya
 	// ditulis manual dan sempat menjanjikan tombol yang tidak pernah didaftarkan.
@@ -101,6 +115,10 @@ export function MenuBar() {
 
 	const [exporting, setExporting] = useState(false)
 	const [imageDialogOpen, setImageDialogOpen] = useState(false)
+
+	// Kapitalisasi hanya bekerja pada teks yang disorot; tanpa seleksi butirnya
+	// dimatikan alih-alih diam-diam mengubah paragraf yang sedang ditulis.
+	const hasSelection = Boolean(editor && !editor.state.selection.empty)
 
 	const downloadDocx = async () => {
 		if (!editor || exporting) return
@@ -188,7 +206,7 @@ export function MenuBar() {
 				)}
 			</Menu>
 
-			<Menu label="Edit" icon={<Undo2 className="h-4 w-4" />}>
+			<Menu label="Edit" icon={<Pencil className="h-4 w-4" />}>
 				{({ close }) => (
 					<>
 						<Item
@@ -226,7 +244,7 @@ export function MenuBar() {
 				)}
 			</Menu>
 
-			<Menu label="Tampilan" icon={<SettingsIcon className="h-4 w-4" />}>
+			<Menu label="Tampilan" icon={<Eye className="h-4 w-4" />}>
 				{({ close }) => (
 					<>
 						<Item active={settings.focusMode} onSelect={() => run(close, toggleFocusMode)}>
@@ -298,7 +316,7 @@ export function MenuBar() {
 				)}
 			</Menu>
 
-			<Menu label="Sisip" icon={<MoreHorizontal className="h-4 w-4" />}>
+			<Menu label="Sisip" icon={<SquarePlus className="h-4 w-4" />}>
 				{({ close }) => (
 					<>
 						<Item icon={<ImageIcon className="h-4 w-4" />} onSelect={() => run(close, () => setImageDialogOpen(true))}>
@@ -379,10 +397,13 @@ export function MenuBar() {
 				)}
 			</Menu>
 
-			<Menu label="Format" icon={<TextCursor className="h-4 w-4" />}>
+			<Menu label="Format" icon={<Type className="h-4 w-4" />}>
 				{({ close }) => (
 					<>
-						{/* ── Teks: bold/italic/underline/strike, sub/super, font, ukuran, warna ── */}
+						{/* ── Teks: gaya huruf, jenis & ukuran, kapitalisasi ──
+						    Warna sengaja tidak ada di sini: palet 24 warna jadi 24 baris
+						    menu yang payah dibaca, sementara toolbar sudah punya kisi
+						    swatch yang jauh lebih pas untuk itu. */}
 						<Submenu label="Teks" icon={<Type className="h-4 w-4" />}>
 							{() => (
 								<>
@@ -406,62 +427,71 @@ export function MenuBar() {
 										Superscript
 									</Item>
 									<DropdownSeparator />
-									<DropdownLabel>Jenis huruf</DropdownLabel>
-									{FONT_FAMILIES.map((font) => (
-										<Item
-											key={font.value}
-											onSelect={() => run(close, () => editor?.chain().focus().setFontFamily(font.value).run())}
-										>
-											{fontFamilyLabel(font.value)}
-										</Item>
-									))}
-									<DropdownSeparator />
-									<DropdownLabel>Ukuran huruf</DropdownLabel>
-									{FONT_SIZES.map((size) => (
-										<Item
-											key={size}
-											onSelect={() => run(close, () => editor?.chain().focus().setFontSize(`${size}pt`).run())}
-										>
-											{size}
-										</Item>
-									))}
-								</>
-							)}
-						</Submenu>
-
-						{/* ── Warna: teks & sorotan ── */}
-						<Submenu label="Warna" icon={<Palette className="h-4 w-4" />}>
-							{() => (
-								<>
-									<DropdownLabel>Warna teks</DropdownLabel>
-									{PALETTE.flat().map((color) => (
-										<Item
-											key={`t-${color}`}
-											icon={<span className="inline-block h-3 w-3 rounded-sm" style={{ background: color }} />}
-											onSelect={() => run(close, () => editor?.chain().focus().setColor(color).run())}
-										>
-											{color}
-										</Item>
-									))}
-									<DropdownSeparator />
-									<Item onSelect={() => run(close, () => editor?.chain().focus().unsetColor().run())}>
-										Warna bawaan
-									</Item>
-									<DropdownSeparator />
-									<DropdownLabel>Warna sorotan</DropdownLabel>
-									{PALETTE.flat().slice(8, 24).map((color) => (
-										<Item
-											key={`h-${color}`}
-											icon={<span className="inline-block h-3 w-3 rounded-sm" style={{ background: color }} />}
-											onSelect={() => run(close, () => editor?.chain().focus().toggleHighlight({ color }).run())}
-										>
-											{color}
-										</Item>
-									))}
-									<DropdownSeparator />
-									<Item onSelect={() => run(close, () => editor?.chain().focus().unsetHighlight().run())}>
-										Tanpa sorotan
-									</Item>
+									{/* Jenis huruf dikelompokkan per kategori: 30 nama dalam satu
+									    daftar datar tidak bisa dipindai, sementara per kategori
+									    tidak ada kelompok yang lebih dari selusin. */}
+									<Submenu label="Jenis huruf" icon={<Type className="h-4 w-4" />}>
+										{() => (
+											<>
+												{(Object.keys(FONT_CATEGORY_LABELS) as FontCategory[]).map((category) => (
+													<Submenu key={category} label={FONT_CATEGORY_LABELS[category]}>
+														{() => (
+															<>
+																{FONT_FAMILIES.filter((font) => font.category === category).map((font) => (
+																	<Item
+																		key={font.value}
+																		onSelect={() => run(close, () => editor?.chain().focus().setFontFamily(font.value).run())}
+																	>
+																		{fontFamilyLabel(font.value)}
+																	</Item>
+																))}
+															</>
+														)}
+													</Submenu>
+												))}
+											</>
+										)}
+									</Submenu>
+									{/* Ukuran huruf naik-turun selangkah, bukan daftar angka:
+									    angka pastinya urusan toolbar yang punya kolom isian.
+									    Dua butir ini sengaja TIDAK menutup menu - menaikkan tiga
+									    poin mestinya tiga klik, bukan tiga kali buka menu. */}
+									<Submenu label="Ukuran huruf" icon={<ALargeSmall className="h-4 w-4" />}>
+										{() => (
+											<>
+												<Item icon={<Plus className="h-4 w-4" />} onSelect={() => stepFontSize(editor, 1)}>
+													Perbesar
+												</Item>
+												<Item icon={<Minus className="h-4 w-4" />} onSelect={() => stepFontSize(editor, -1)}>
+													Perkecil
+												</Item>
+											</>
+										)}
+									</Submenu>
+									<Submenu label="Kapitalisasi" icon={<CaseSensitive className="h-4 w-4" />}>
+										{() => (
+											<>
+												<Item
+													disabled={!hasSelection}
+													onSelect={() => run(close, () => applyCapitalization(editor, 'lower'))}
+												>
+													huruf kecil
+												</Item>
+												<Item
+													disabled={!hasSelection}
+													onSelect={() => run(close, () => applyCapitalization(editor, 'upper'))}
+												>
+													HURUF BESAR
+												</Item>
+												<Item
+													disabled={!hasSelection}
+													onSelect={() => run(close, () => applyCapitalization(editor, 'title'))}
+												>
+													Huruf Kapital Setiap Kata
+												</Item>
+											</>
+										)}
+									</Submenu>
 								</>
 							)}
 						</Submenu>
@@ -595,24 +625,22 @@ export function MenuBar() {
 				)}
 			</Menu>
 
-			<Menu label="Tools" icon={<SettingsIcon className="h-4 w-4" />}>
+			<Menu label="Tools" icon={<Wrench className="h-4 w-4" />}>
 				{({ close }) => (
 					<>
-						<Item icon={<CheckSquare className="h-4 w-4" />} onSelect={() => run(close, () => setActivePanel('proofreader'))}>
-							Proofreader
-						</Item>
-						<Item icon={<Search className="h-4 w-4" />} onSelect={() => run(close, () => setActivePanel('ai_detector'))}>
-							AI Detector
-						</Item>
-						<Item icon={<Redo2 className="h-4 w-4" />} onSelect={() => run(close, () => setActivePanel('ai_rewriter'))}>
-							AI Rewriter
-						</Item>
-						<Item icon={<SettingsIcon className="h-4 w-4" />} onSelect={() => run(close, () => setActivePanel('humanizer'))}>
-							Humanizer
-						</Item>
-						<Item icon={<Search className="h-4 w-4" />} onSelect={() => run(close, () => setActivePanel('plagiarism'))}>
-							Plagiarism Checker
-						</Item>
+						{/* Dibangun dari daftar tool rail, bukan diketik ulang: dulu menu ini
+						    hanya memuat lima dari sembilan panel dengan ikon yang tidak
+						    berhubungan sama sekali dengan ikon di rail. */}
+						{PANELS.map((panel) => (
+							<Item
+								key={panel.id}
+								icon={<panel.icon className="h-4 w-4" />}
+								active={activePanel === panel.id}
+								onSelect={() => run(close, () => setActivePanel(panel.id))}
+							>
+								{panel.label}
+							</Item>
+						))}
 						<DropdownSeparator />
 						<Item disabled>
 							{countWords(state.text)} words · {state.text.length} characters
@@ -625,18 +653,20 @@ export function MenuBar() {
 				)}
 			</Menu>
 
-			<Menu label="Bantuan" icon={<Search className="h-4 w-4" />}>
+			<Menu label="Bantuan" icon={<CircleQuestionMark className="h-4 w-4" />}>
 				{({ close }) => (
 					<>
 						<Item
-							icon={<Type className="h-4 w-4" />}
+							icon={<Keyboard className="h-4 w-4" />}
 							shortcut={keys('view.shortcuts')}
 							onSelect={() => run(close, () => setShortcutsOpen(true))}
 						>
 							Pintasan papan tik…
 						</Item>
 						<DropdownSeparator />
-						<Item icon={<FileText className="h-4 w-4" />} onSelect={() => run(close, () => setSettingsOpen(true))}>Tentang WritingHub</Item>
+						<Item icon={<Info className="h-4 w-4" />} onSelect={() => run(close, () => setSettingsOpen(true))}>
+							Tentang WritingHub
+						</Item>
 					</>
 				)}
 			</Menu>
@@ -652,6 +682,23 @@ export function MenuBar() {
 		/>
 		</>
 	)
+}
+
+/** Ukuran huruf saat atribut `fontSize` belum pernah disetel. */
+const DEFAULT_FONT_SIZE = 11
+
+/**
+ * Naik/turun satu poin dari ukuran yang sedang aktif.
+ *
+ * Batas 6-96 pt dan langkah 1 pt mengikuti tombol +/- di toolbar, supaya dua
+ * jalan menuju hal yang sama tidak berakhir di angka yang berbeda.
+ */
+function stepFontSize(editor: Editor | null, delta: number): void {
+	if (!editor) return
+	const parsed = Number.parseFloat(String(editor.getAttributes('textStyle').fontSize ?? ''))
+	const base = Number.isFinite(parsed) ? parsed : DEFAULT_FONT_SIZE
+	const next = Math.min(96, Math.max(6, Math.round(base) + delta))
+	editor.chain().focus().setFontSize(`${next}pt`).run()
 }
 
 /** Jalankan aksi lalu tutup menu - pola yang berulang di hampir semua butir. */
