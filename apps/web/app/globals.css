@@ -751,15 +751,26 @@ a {
 
 /* ── multi-kolom ───────────────────────────────────────────────────────── */
 
+/* `column-count` datang inline dari atribut node; di sini hanya jarak dan
+   perilaku pemenggalannya. */
 .document-body div[data-type='columns'] {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 1.5em;
+  column-gap: 1.5em;
   margin: 1em 0;
+  /* Jangan tinggalkan satu baris sebatang kara di pangkal atau ujung kolom. */
+  orphans: 2;
+  widows: 2;
 }
-.document-body div[data-type='columns'][data-layout='align-left'] { grid-auto-columns: minmax(0, 1fr) 2fr; }
-.document-body div[data-type='columns'][data-layout='align-right'] { grid-auto-columns: 2fr minmax(0, 1fr); }
+.document-body div[data-type='columns'] > *:first-child { margin-top: 0; }
+.document-body div[data-type='columns'] > *:last-child { margin-bottom: 0; }
+/* Heading dan tabel dipenggal di tengah oleh batas kolom terbaca seperti rusak. */
+.document-body div[data-type='columns'] h1,
+.document-body div[data-type='columns'] h2,
+.document-body div[data-type='columns'] h3,
+.document-body div[data-type='columns'] table,
+.document-body div[data-type='columns'] blockquote {
+  break-inside: avoid;
+}
+/* Sisa struktur kolom lama - dibiarkan mengalir sebagai blok biasa. */
 .document-body div[data-type='col'] { min-width: 0; }
 
 /* ── gambar resizable ──────────────────────────────────────────────────── */

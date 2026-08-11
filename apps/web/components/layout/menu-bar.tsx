@@ -578,14 +578,25 @@ export function MenuBar() {
 							)}
 						</Submenu>
 
-						{/* ── Kolom (multi-kolom) ── */}
+						{/* ── Kolom (multi-kolom) ──
+						    Hanya untuk teks yang disorot: tanpa seleksi, yang terbungkus
+						    cuma paragraf tempat kursor berada - satu paragraf pendek yang
+						    terbelah dua, dan itu tidak pernah yang dimaksud. */}
 						<Submenu label="Kolom" icon={<Columns2 className="h-4 w-4" />}>
 							{() => (
 								<>
-									<Item icon={<Columns2 className="h-4 w-4" />} onSelect={() => run(close, () => editor?.chain().focus().setColumns(2).run())}>
+									<Item
+										icon={<Columns2 className="h-4 w-4" />}
+										disabled={!hasSelection()}
+										onSelect={() => run(close, () => editor?.chain().focus().setColumns(2).run())}
+									>
 										Dua kolom
 									</Item>
-									<Item icon={<Columns2 className="h-4 w-4" />} onSelect={() => run(close, () => editor?.chain().focus().setColumns(3).run())}>
+									<Item
+										icon={<Columns2 className="h-4 w-4" />}
+										disabled={!hasSelection()}
+										onSelect={() => run(close, () => editor?.chain().focus().setColumns(3).run())}
+									>
 										Tiga kolom
 									</Item>
 									<DropdownSeparator />

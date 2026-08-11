@@ -186,6 +186,17 @@ export async function exportDocx(
 			case 'horizontalRule':
 				return [new Paragraph({ text: '', border: { bottom: { style: 'single', size: 6, color: 'CCCCCC' } } })]
 
+			// Kolom tidak punya padanan langsung di sini, tapi isinya blok biasa.
+			// Ditelusuri satu per satu, bukan dibiarkan jatuh ke `default` yang
+			// meratakan seluruh isinya jadi satu paragraf teks polos - heading,
+			// daftar, dan tabel di dalam kolom akan hilang bentuknya.
+			case 'columns':
+			case 'column': {
+				const inner: unknown[] = []
+				node.forEach((child) => inner.push(...blockOf(child)))
+				return inner
+			}
+
 			default:
 				// Node tak dikenal tetap menyumbang teksnya daripada hilang diam-diam.
 				return node.textContent ? [new Paragraph({ text: node.textContent })] : []

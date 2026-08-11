@@ -84,6 +84,7 @@ interface ToolbarState {
 	highlight?: string
 	canUndo: boolean
 	canRedo: boolean
+	columns: boolean
 	/** Ada teks yang disorot - syarat untuk kontrol yang bekerja pada seleksi. */
 	hasSelection: boolean
 }
@@ -136,6 +137,7 @@ export function EditorToolbar({
 				canUndo: safeCan(() => instance.can().undo()),
 				canRedo: safeCan(() => instance.can().redo()),
 				hasSelection: !instance.state.selection.empty,
+				columns: instance.isActive('columns'),
 			}
 		},
 	})
@@ -259,12 +261,18 @@ export function EditorToolbar({
 				disabled={isOff}
 				onClick={() => editor?.chain().focus().toggleCallout('info').run()}
 			/>
+			{/* Butuh seleksi, sama seperti butir Kolom di menu Format - kecuali saat
+			    sudah berada di dalam kolom, di mana tombolnya bertugas keluar lagi. */}
 			<IconButton
 				icon={Columns2}
 				label="Dua kolom"
-				active={editor?.isActive('columns')}
-				disabled={isOff}
-				onClick={() => editor?.chain().focus().setColumns(2).run()}
+				active={active?.columns}
+				disabled={isOff || !(active?.hasSelection || active?.columns)}
+				onClick={() =>
+					active?.columns
+						? editor?.chain().focus().unsetColumns().run()
+						: editor?.chain().focus().setColumns(2).run()
+				}
 			/>
 			<IconButton
 				icon={Footprints}
