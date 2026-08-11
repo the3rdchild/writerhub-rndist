@@ -33,10 +33,12 @@ declare module '@tiptap/core' {
 				title?: string | null
 				width?: number | null
 			}) => ReturnType
-			/** Perataan gambar blok: kiri/tengah/kanan. */
+			/** Perataan gambar blok: kiri/tengah/kanan. Menghapus posisi bebas. */
 			setImageAlign: (align: 'left' | 'center' | 'right') => ReturnType
 			/** Kembalikan perataan ke bawaan (mengikuti paragraf). */
 			unsetImageAlign: () => ReturnType
+			/** Posisi bebas: jarak dari tepi kiri area konten, dalam piksel. */
+			setImageOffsetX: (offsetX: number | null) => ReturnType
 		}
 	}
 }
@@ -79,6 +81,20 @@ export const ResizableImage = Node.create<ResizableImageOptions>({
 				default: null,
 				parseHTML: (element) => element.getAttribute('height') ?? null,
 				renderHTML: (attributes) => (attributes.height ? { height: attributes.height } : {}),
+			},
+			// Posisi bebas dari tepi kiri area konten, dalam piksel; `null` = ikuti
+			// `align`. Keduanya tidak pernah aktif bersamaan - "geser ke x" dan
+			// "rata tengah" adalah dua jawaban atas pertanyaan yang sama, dan
+			// menyimpan keduanya berarti harus memilih pemenang di tiap render.
+			offsetX: {
+				default: null,
+				parseHTML: (element) => {
+					const raw = (element as HTMLElement).getAttribute('data-offset-x')
+					const parsed = raw === null ? Number.NaN : Number.parseFloat(raw)
+					return Number.isFinite(parsed) ? parsed : null
+				},
+				renderHTML: (attributes) =>
+					attributes.offsetX === null ? {} : { 'data-offset-x': attributes.offsetX },
 			},
 			// Perataan gambar blok. `null` = ikut paragraf (bawaan). Dipakai untuk
 			// menengahkan/menggeser gambar tanpa mengubah perataan teks di sekitarnya.
@@ -129,14 +145,20 @@ export const ResizableImage = Node.create<ResizableImageOptions>({
 						type: this.name,
 						attrs: options,
 					}),
+			// Menyetel perataan membuang posisi bebas, dan sebaliknya - hanya satu
+			// dari keduanya yang boleh hidup pada satu waktu.
 			setImageAlign:
 				(align) =>
 				({ commands }) =>
-					commands.updateAttributes(this.name, { align }),
+					commands.updateAttributes(this.name, { align, offsetX: null }),
 			unsetImageAlign:
 				() =>
 				({ commands }) =>
-					commands.resetAttributes(this.name, 'align'),
+					commands.updateAttributes(this.name, { align: null, offsetX: null }),
+			setImageOffsetX:
+				(offsetX) =>
+				({ commands }) =>
+					commands.updateAttributes(this.name, { offsetX, align: offsetX === null ? null : 'left' }),
 		}
 	},
 

@@ -28,7 +28,18 @@ export const NO_INDENT: BlockIndent = { left: 0, right: 0, firstLine: 0 }
 /** Setengah inci: langkah tombol indent di toolbar dan tombol Tab. */
 export const INDENT_STEP = 48
 
-const INDENTABLE = ['paragraph', 'heading', 'blockquote']
+/**
+ * `table` ikut di sini hanya untuk `indentLeft`-nya - marker tepi kiri di
+ * penggaris menulis ke atribut itu. `indentRight`/`indentFirstLine` tidak
+ * berarti bagi tabel, tapi membiarkannya ada jauh lebih murah daripada
+ * menduplikasi seluruh definisi atribut demi menyisihkan dua yang tak terpakai.
+ *
+ * Catatan: `margin-left` dari `renderHTML` di bawah hanya berlaku saat dokumen
+ * diserialkan ke HTML. Di editor, tabel digambar node view bawaan
+ * prosemirror-tables yang tidak menerima atribut itu, jadi pergeserannya
+ * dikerjakan ekstensi `TableIndent` lewat dekorasi node.
+ */
+const INDENTABLE = ['paragraph', 'heading', 'blockquote', 'table']
 
 /** Batas seret marker supaya paragraf selalu menyisakan ruang untuk teks. */
 const MIN_INDENTED_WIDTH = 48

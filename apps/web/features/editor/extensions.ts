@@ -37,6 +37,7 @@ import { SelectionHighlight } from '@/features/editor/selection-highlight'
 import type { SlashCommandOptions, SlashCommandState } from '@/features/editor/slash-command'
 import { SlashCommand } from '@/features/editor/slash-command'
 import { TableHeaderRepeat } from '@/features/editor/table-header-repeat'
+import { TableIndent } from '@/features/editor/table-indent'
 import { TableOfContentsConfigured } from '@/features/editor/table-of-contents'
 import { TextWeight } from '@/features/editor/text-weight'
 import { shortcutKeys } from '@/features/shortcuts/registry'
@@ -101,6 +102,10 @@ export function buildEditorExtensions({
 		TableKit.configure({ table: { resizable: true }, tableCell: false, tableHeader: false }),
 		CustomTableCell,
 		CustomTableHeader,
+		// Menggeser tabel sesuai `indentLeft`. Harus lewat dekorasi karena
+		// `resizable: true` menyerahkan penggambaran tabel ke node view bawaan
+		// prosemirror-tables - lihat catatan di modulnya.
+		TableIndent,
 		TaskList,
 		TaskItem.configure({ nested: true }),
 		// Gambar dengan handle ubah-ukuran; menggantikan Image polos. Input rule

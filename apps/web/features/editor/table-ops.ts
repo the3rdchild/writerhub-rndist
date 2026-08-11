@@ -233,6 +233,86 @@ export function moveColumn(editor: Editor, target: CellTarget, to: number): void
 }
 
 /**
+ * Lebar tiap kolom tabel dalam piksel dokumen.
+ *
+ * Sumbernya `colwidth` - atribut yang sama yang ditulis `columnResizing`
+ * bawaan, jadi menyeret di ruler dan menyeret di tepi kolom mengubah satu hal
+ * yang sama, bukan dua keadaan yang harus dijaga tetap sinkron.
+ *
+ * Tabel yang belum pernah diubah ukurannya tidak punya `colwidth` sama sekali -
+ * lebarnya dibagi rata oleh `table-layout: fixed`. Untuk itu lebarnya diukur
+ * dari DOM: `offsetWidth` adalah piksel tata letak, belum dikalikan transform
+ * zoom kanvas, jadi satuannya sudah sama dengan yang dipakai ruler.
+ */
+export function columnWidths(editor: Editor, tablePos: number): number[] | null {
+	const table = tableNodeAt(editor, tablePos)
+	if (!table) return null
+	const map = TableMap.get(table)
+
+	const explicit: number[] = new Array(map.width).fill(0)
+	let complete = true
+	for (let col = 0; col < map.width; col += 1) {
+		const cellPos = map.map[col]
+		const cell = table.nodeAt(cellPos)
+		const widths = cell?.attrs.colwidth as number[] | null | undefined
+		const value = widths?.[col - map.colCount(cellPos)]
+		if (!value) {
+			complete = false
+			break
+		}
+		explicit[col] = value
+	}
+	if (complete) return explicit
+
+	const dom = editor.view.nodeDOM(tablePos) as HTMLElement | null
+	const tableEl =
+		dom instanceof HTMLElement ? (dom.closest('table') ?? dom.querySelector('table')) : null
+	const row = tableEl?.querySelector('tr')
+	if (!row) return null
+	const measured = Array.from(row.children, (cell) => (cell as HTMLElement).offsetWidth)
+	return measured.length === map.width ? measured : null
+}
+
+/** Tulis lebar kolom ke seluruh sel; satu transaksi untuk seluruh tabel. */
+export function setColumnWidths(editor: Editor, tablePos: number, widths: number[]): boolean {
+	const table = tableNodeAt(editor, tablePos)
+	if (!table) return false
+	const map = TableMap.get(table)
+	if (widths.length !== map.width) return false
+
+	const tr = editor.state.tr
+	const done = new Set<number>()
+	for (let col = 0; col < map.width; col += 1) {
+		for (let row = 0; row < map.height; row += 1) {
+			const cellPos = map.map[row * map.width + col]
+			if (done.has(cellPos)) continue
+			done.add(cellPos)
+			const cell = table.nodeAt(cellPos)
+			if (!cell) continue
+			// Sel yang membentang beberapa kolom menyimpan satu angka per kolom yang
+			// ditumpanginya, bukan satu angka total.
+			const start = map.colCount(cellPos)
+			const span = (cell.attrs.colspan as number) || 1
+			const colwidth = Array.from({ length: span }, (_, i) => Math.round(widths[start + i] ?? 0))
+			tr.setNodeMarkup(tablePos + 1 + cellPos, undefined, { ...cell.attrs, colwidth })
+		}
+	}
+	if (!tr.docChanged) return false
+	editor.view.dispatch(tr)
+	return true
+}
+
+/** Jarak tabel dari tepi kiri area konten, dalam piksel. */
+export function setTableIndent(editor: Editor, tablePos: number, left: number): boolean {
+	const table = tableNodeAt(editor, tablePos)
+	if (!table) return false
+	const next = Math.max(0, Math.round(left))
+	if (table.attrs.indentLeft === next) return false
+	editor.view.dispatch(editor.state.tr.setNodeAttribute(tablePos, 'indentLeft', next))
+	return true
+}
+
+/**
  * Jadikan sel terpilih benar-benar polos: tanpa latar, tanpa bingkai, dan bukan
  * lagi sel kepala.
  *

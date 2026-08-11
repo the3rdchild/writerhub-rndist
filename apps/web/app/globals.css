@@ -328,6 +328,92 @@ a {
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }
 
+/* Marker tabel & gambar.
+   Sengaja tidak berbentuk segitiga seperti marker paragraf: keduanya bisa
+   muncul di batang yang sama, dan bentuk yang sama berarti dua arti berbeda
+   yang tak terbedakan. */
+.document-ruler__object {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 13px;
+  margin-left: -6.5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+.document-ruler__object::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  transition: background-color 0.15s ease;
+}
+.document-ruler__object:hover::before,
+.document-ruler__object:focus-visible::before {
+  background: var(--accent);
+}
+
+/* Tepi tabel: batang penuh, sama tegas dengan penanda margin. */
+.document-ruler__object--table-edge::before {
+  top: 2px;
+  bottom: 2px;
+  width: 3px;
+  border-radius: 1.5px;
+  background: var(--foreground-subtle);
+}
+/* Batas antar kolom: lebih tipis - ia memindahkan lebar, bukan tepi tabel. */
+.document-ruler__object--table-column::before {
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--foreground-faint);
+}
+/* Posisi gambar: rumah kecil, mengarah ke tepi kiri gambar. */
+.document-ruler__object--image::before {
+  top: 4px;
+  bottom: 4px;
+  width: 10px;
+  border-radius: 2px;
+  background: var(--foreground-subtle);
+  clip-path: polygon(0 0, 100% 0, 100% 60%, 50% 100%, 0 60%);
+}
+
+/* Titik perataan gambar - diklik, jadi kursornya penunjuk, bukan col-resize. */
+.document-ruler__align {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.document-ruler__align::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border: 1px solid var(--foreground-subtle);
+  border-radius: 50%;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.document-ruler__align:hover::before {
+  border-color: var(--accent);
+}
+.document-ruler__align--active::before {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 /* ── badan dokumen (ProseMirror) ───────────────────────────────────────── */
 
 .document-body {

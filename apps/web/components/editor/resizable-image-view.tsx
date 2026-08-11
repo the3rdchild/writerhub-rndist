@@ -28,13 +28,14 @@ export function ResizableImageView({
 	selected,
 	deleteNode,
 }: NodeViewProps) {
-	const { src, alt, title, width, height, align } = node.attrs as {
+	const { src, alt, title, width, height, align, offsetX } = node.attrs as {
 		src: string
 		alt: string | null
 		title: string | null
 		width: number | null
 		height: number | null
 		align: 'left' | 'center' | 'right' | null
+		offsetX: number | null
 	}
 
 	// Dokumen lama menyimpan `width` sebagai persen kontainer (10-100) dan tidak
@@ -146,6 +147,9 @@ export function ResizableImageView({
 	const figureWidth = preview ? preview.w : isLegacyPercent ? `${width}%` : (width ?? undefined)
 	const imgHeight = preview ? preview.h : isLegacyPercent ? undefined : (height ?? undefined)
 
+	// Posisi bebas menang atas perataan: saat `offsetX` ada, gambar berlabuh di
+	// kiri lalu digeser sejauh itu. Atribut `renderHTML` tidak sampai ke sini -
+	// node view menggambar DOM-nya sendiri - jadi jaraknya dipasang eksplisit.
 	const justify = align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start'
 
 	return (
@@ -153,7 +157,11 @@ export function ResizableImageView({
 			className="resizable-image-wrapper"
 			data-selected={selected || undefined}
 			data-align={align ?? undefined}
-			style={{ display: 'flex', justifyContent: justify }}
+			style={{
+				display: 'flex',
+				justifyContent: offsetX === null ? justify : 'flex-start',
+				paddingLeft: offsetX === null ? undefined : Math.max(0, offsetX),
+			}}
 		>
 			<figure className="resizable-image-figure relative inline-block max-w-full" style={{ width: figureWidth }}>
 				<img
