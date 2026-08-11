@@ -118,7 +118,12 @@ export function MenuBar() {
 
 	// Kapitalisasi hanya bekerja pada teks yang disorot; tanpa seleksi butirnya
 	// dimatikan alih-alih diam-diam mengubah paragraf yang sedang ditulis.
-	const hasSelection = Boolean(editor && !editor.state.selection.empty)
+	//
+	// Sengaja fungsi, bukan nilai: MenuBar tidak berlangganan transaksi editor,
+	// jadi nilai yang dihitung di sini akan membeku pada render terakhir dan
+	// butirnya tetap mati meski teks sudah disorot. Dipanggil dari dalam render
+	// prop menu, pembacaannya terjadi saat menu dibuka - selalu terkini.
+	const hasSelection = () => Boolean(editor && !editor.state.selection.empty)
 
 	const downloadDocx = async () => {
 		if (!editor || exporting) return
@@ -472,19 +477,19 @@ export function MenuBar() {
 										{() => (
 											<>
 												<Item
-													disabled={!hasSelection}
+													disabled={!hasSelection()}
 													onSelect={() => run(close, () => applyCapitalization(editor, 'lower'))}
 												>
 													huruf kecil
 												</Item>
 												<Item
-													disabled={!hasSelection}
+													disabled={!hasSelection()}
 													onSelect={() => run(close, () => applyCapitalization(editor, 'upper'))}
 												>
 													HURUF BESAR
 												</Item>
 												<Item
-													disabled={!hasSelection}
+													disabled={!hasSelection()}
 													onSelect={() => run(close, () => applyCapitalization(editor, 'title'))}
 												>
 													Huruf Kapital Setiap Kata

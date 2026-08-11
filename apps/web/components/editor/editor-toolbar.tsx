@@ -9,6 +9,7 @@ import {
 	AlignRight,
 	Baseline,
 	Bold,
+	CaseSensitive,
 	CheckSquare,
 	Code2,
 	Columns2,
@@ -38,6 +39,7 @@ import {
 import { Dropdown, DropdownItem } from '@/components/ui/dropdown'
 import { ColorPicker } from './color-picker'
 import { ToolbarSelect } from '@/components/ui/toolbar-select'
+import { applyCapitalization } from '@/features/editor/capitalization'
 import {
 	DEFAULT_FONT_FAMILY,
 	FONT_CATEGORY_LABELS,
@@ -82,6 +84,8 @@ interface ToolbarState {
 	highlight?: string
 	canUndo: boolean
 	canRedo: boolean
+	/** Ada teks yang disorot - syarat untuk kontrol yang bekerja pada seleksi. */
+	hasSelection: boolean
 }
 
 export function EditorToolbar({
@@ -131,6 +135,7 @@ export function EditorToolbar({
 				highlight: instance.getAttributes('highlight').color as string | undefined,
 				canUndo: safeCan(() => instance.can().undo()),
 				canRedo: safeCan(() => instance.can().redo()),
+				hasSelection: !instance.state.selection.empty,
 			}
 		},
 	})
@@ -223,6 +228,10 @@ export function EditorToolbar({
 			<IconButton icon={Italic} label="Miring" active={active?.italic} disabled={isOff} onClick={() => editor?.chain().focus().toggleItalic().run()} />
 			<IconButton icon={UnderlineIcon} label="Garis bawah" active={active?.underline} disabled={isOff} onClick={() => editor?.chain().focus().toggleUnderline().run()} />
 			<IconButton icon={Strikethrough} label="Coret" active={active?.strike} disabled={isOff} onClick={() => editor?.chain().focus().toggleStrike().run()} />
+
+			{/* Dimatikan tanpa seleksi: kapitalisasi bekerja pada teks yang disorot,
+			    dan `hasSelection` di sini ikut `useEditorState` jadi selalu terkini. */}
+			<CapitalizationControl editor={editor} disabled={isOff || !active?.hasSelection} />
 
 			<ColorControls editor={editor} color={active?.color} highlight={active?.highlight} />
 
@@ -357,6 +366,67 @@ function AlignControls({
 				/>
 			))}
 		</>
+	)
+}
+
+/**
+ * Ubah kapitalisasi teks terpilih.
+ *
+ * Dropdown, bukan tombol yang berputar antar mode: ketiga mode itu tujuan yang
+ * berbeda, bukan siklus, dan menebak mana yang sedang aktif dari teks yang sudah
+ * ada tidak mungkin dilakukan dengan andal.
+ */
+function CapitalizationControl({
+	editor,
+	disabled,
+}: {
+	editor: Editor | null
+	disabled?: boolean
+}) {
+	const options = [
+		{ mode: 'lower' as const, label: 'huruf kecil' },
+		{ mode: 'upper' as const, label: 'HURUF BESAR' },
+		{ mode: 'title' as const, label: 'Huruf Kapital Setiap Kata' },
+	]
+
+	return (
+		<Dropdown
+			trigger={({ open, toggle, id }) => (
+				<button
+					type="button"
+					onClick={toggle}
+					disabled={disabled}
+					aria-label="Kapitalisasi"
+					title="Kapitalisasi"
+					aria-haspopup="menu"
+					aria-expanded={open}
+					aria-controls={id}
+					className={cn(
+						'flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors',
+						open ? 'bg-[var(--overlay-active)]' : 'hover:bg-[var(--overlay-hover)] hover:text-foreground',
+						disabled && 'cursor-not-allowed opacity-40',
+					)}
+				>
+					<CaseSensitive className="h-4 w-4" />
+				</button>
+			)}
+		>
+			{({ close }) => (
+				<>
+					{options.map((option) => (
+						<DropdownItem
+							key={option.mode}
+							onSelect={() => {
+								applyCapitalization(editor, option.mode)
+								close()
+							}}
+						>
+							{option.label}
+						</DropdownItem>
+					))}
+				</>
+			)}
+		</Dropdown>
 	)
 }
 
