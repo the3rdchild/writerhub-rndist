@@ -21,6 +21,7 @@ import { BlockSpacing } from '@/features/editor/block-spacing'
 import { Callout } from '@/features/editor/callout'
 import { CodeBlock } from '@/features/editor/code-block'
 import { ColumnExtension } from '@/features/editor/columns'
+import { CustomTableCell, CustomTableHeader } from '@/features/editor/custom-table'
 import { TrailingParagraph } from '@/features/editor/editor-polish'
 import { Footnote, FootnoteRef } from '@/features/editor/footnote'
 import { BlockIndentExtension } from '@/features/editor/indent'
@@ -94,7 +95,12 @@ export function buildEditorExtensions({
 		Subscript,
 		Superscript,
 		Typography,
-		TableKit.configure({ table: { resizable: true } }),
+		// TableKit memakai sel & kepala kustom (warna latar/bingkai); kedua node
+		// bawaan dimatikan lalu digantikan CustomTableCell/CustomTableHeader di
+		// bawah, persis seperti demo resmi Tiptap.
+		TableKit.configure({ table: { resizable: true }, tableCell: false, tableHeader: false }),
+		CustomTableCell,
+		CustomTableHeader,
 		TaskList,
 		TaskItem.configure({ nested: true }),
 		// Gambar dengan handle ubah-ukuran; menggantikan Image polos. Input rule

@@ -9,12 +9,16 @@ import {
 	ArrowLeft,
 	ArrowRight,
 	ArrowUp,
+	ArrowLeftToLine,
 	BetweenHorizontalEnd,
 	BetweenHorizontalStart,
 	BetweenVerticalEnd,
 	BetweenVerticalStart,
+	Eraser,
 	PanelLeft,
 	PanelTop,
+	PaintRoller,
+	PencilLine,
 	RectangleHorizontal,
 	TableCellsMerge,
 	TableCellsSplit,
@@ -22,6 +26,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
+import { PALETTE } from '@/components/editor/color-picker'
 import {
 	type CellTarget,
 	deleteColAt,
@@ -86,8 +91,11 @@ export function TableMenu({
 	const ref = useRef<HTMLDivElement>(null)
 	const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
 	const [active, setActive] = useState(0)
+	// Mode palet warna: 'none' = daftar item biasa, 'background'/'border' =
+	// tampilan palet warna sel/bingkai.
+	const [paletteMode, setPaletteMode] = useState<'none' | 'background' | 'border'>('none')
 
-	const items = buildItems(editor, menu, onClose)
+	const items = buildItems(editor, menu, onClose, (mode) => setPaletteMode(mode))
 
 	useEffect(() => setActive(0), [menu])
 
@@ -171,37 +179,112 @@ export function TableMenu({
 			onMouseDown={(e) => e.preventDefault()}
 			onContextMenu={(e) => e.preventDefault()}
 		>
-			{items.map((item, i) => (
-				<div key={item.label}>
-					{item.separatorBefore && <div className="my-1 h-px bg-line" />}
-					<button
-						type="button"
-						onMouseEnter={() => setActive(i)}
-						onClick={item.onClick}
-						disabled={item.disabled}
-						className={cn(
-							'flex w-full items-center gap-3 px-3 py-1.5 text-left text-sm transition-colors',
-							i === active && !item.disabled
-								? 'bg-accent/10 text-accent'
-								: item.disabled
-									? 'text-faint'
-									: 'text-foreground hover:bg-[var(--overlay-hover)]',
-							item.disabled && 'cursor-not-allowed',
-						)}
-					>
-						<span className="flex h-4 w-4 shrink-0 items-center justify-center">{item.icon}</span>
-						{item.label}
-					</button>
-				</div>
-			))}
+			{paletteMode === 'none' ? (
+				items.map((item, i) => (
+					<div key={item.label}>
+						{item.separatorBefore && <div className="my-1 h-px bg-line" />}
+						<button
+							type="button"
+							onMouseEnter={() => setActive(i)}
+							onClick={item.onClick}
+							disabled={item.disabled}
+							className={cn(
+								'flex w-full items-center gap-3 px-3 py-1.5 text-left text-sm transition-colors',
+								i === active && !item.disabled
+									? 'bg-accent/10 text-accent'
+									: item.disabled
+										? 'text-faint'
+										: 'text-foreground hover:bg-[var(--overlay-hover)]',
+								item.disabled && 'cursor-not-allowed',
+							)}
+						>
+							<span className="flex h-4 w-4 shrink-0 items-center justify-center">{item.icon}</span>
+							{item.label}
+						</button>
+					</div>
+				))
+			) : (
+				<CellPalette
+					mode={paletteMode}
+					editor={editor}
+					menu={menu}
+					onBack={() => setPaletteMode('none')}
+					onClose={onClose}
+				/>
+			)}
 		</div>,
 		document.body,
 	)
 }
 
+/** Palet warna untuk latar/bingkai sel yang dipilih. */
+function CellPalette({
+	mode,
+	editor,
+	menu,
+	onBack,
+	onClose,
+}: {
+	mode: 'background' | 'border'
+	editor: Editor
+	menu: TableMenuState
+	onBack: () => void
+	onClose: () => void
+}) {
+	const target: CellTarget = { tablePos: menu.tablePos, rowIndex: menu.rowIndex, colIndex: menu.colIndex }
+	// Atribut yang diatur: 'backgroundColor' atau 'borderColor'.
+	const attr = mode === 'background' ? 'backgroundColor' : 'borderColor'
+
+	const apply = (color: string | null) => {
+		withCellTarget(editor, target, (e) => {
+			e.chain().focus().setCellAttribute(attr, color).run()
+		})
+		onClose()
+	}
+
+	return (
+		<div className="px-2 py-1">
+			<button
+				type="button"
+				onClick={onBack}
+				className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground"
+			>
+				<ArrowLeftToLine className="h-3.5 w-3.5" />
+				{mode === 'background' ? 'Warna latar sel' : 'Warna bingkai sel'}
+			</button>
+			<div className="grid grid-cols-8 gap-1">
+				{PALETTE.flat().map((color) => (
+					<button
+						key={color}
+						type="button"
+						aria-label={color}
+						title={color}
+						onClick={() => apply(color)}
+						className="h-5 w-5 rounded-md border border-line transition-transform hover:scale-110"
+						style={{ background: color }}
+					/>
+				))}
+			</div>
+			<button
+				type="button"
+				onClick={() => apply(null)}
+				className="mt-2 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
+			>
+				<Eraser className="h-3.5 w-3.5" />
+				{mode === 'background' ? 'Hapus warna latar' : 'Hapus warna bingkai'}
+			</button>
+		</div>
+	)
+}
+
 const ICON = 'h-4 w-4'
 
-function buildItems(editor: Editor, menu: TableMenuState, onClose: () => void): MenuRow[] {
+function buildItems(
+	editor: Editor,
+	menu: TableMenuState,
+	onClose: () => void,
+	openPalette: (mode: 'background' | 'border') => void,
+): MenuRow[] {
 	const { rowIndex, colIndex, rowCount, colCount } = menu
 	const target: CellTarget = { tablePos: menu.tablePos, rowIndex, colIndex }
 
@@ -299,6 +382,19 @@ function buildItems(editor: Editor, menu: TableMenuState, onClose: () => void): 
 			label: 'Align cell right',
 			icon: <AlignRight className={ICON} />,
 			onClick: onCell((e) => e.chain().focus().setCellAttribute('textAlign', 'right').run()),
+		},
+
+		{
+			label: 'Cell background color',
+			icon: <PaintRoller className={ICON} />,
+			// Buka palet warna, bukan tutup menu; palette menutup sendiri.
+			onClick: () => openPalette('background'),
+			separatorBefore: true,
+		},
+		{
+			label: 'Cell border color',
+			icon: <PencilLine className={ICON} />,
+			onClick: () => openPalette('border'),
 		},
 
 		{
