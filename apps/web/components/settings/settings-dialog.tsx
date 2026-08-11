@@ -55,7 +55,7 @@ export function SettingsDialog() {
 			role="dialog"
 			aria-modal="true"
 			aria-label="Pengaturan"
-			className="fixed inset-0 z-50 flex animate-in items-center justify-center bg-black/60 backdrop-blur-sm fade-in duration-200"
+			className="fixed inset-0 z-[70] flex animate-in items-center justify-center bg-black/60 backdrop-blur-sm fade-in duration-200"
 			onClick={(event) => {
 				if (event.target === overlayRef.current) setSettingsOpen(false)
 			}}

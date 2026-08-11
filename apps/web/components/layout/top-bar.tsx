@@ -58,7 +58,11 @@ export function TopBar() {
 	return (
 		<header
 			className={cn(
-				'group/topbar relative z-20 shrink-0 bg-surface',
+				// z-60: lihat skala lapisan di globals.css. Nilai ini harus di atas
+				// seluruh overlay editor (30-50) - `relative z-*` di sini membentuk
+				// stacking context, jadi dropdown menu bar yang menjulur ke area
+				// editor terkurung di angka ini, berapa pun z-index panelnya sendiri.
+				'group/topbar relative z-[60] shrink-0 bg-surface',
 				settings.focusMode && 'h-2 overflow-hidden hover:h-auto hover:overflow-visible',
 			)}
 		>

@@ -52,9 +52,10 @@ export function DocumentCanvas({
 				// atas saat menggulung vertikal - ia harus tetap terbaca sepanjang
 				// dokumen, bukan hanya di halaman pertama.
 				//
-				// z-10 harus tetap di bawah TopBar (z-20): menu yang terbuka dari sana
-				// terkurung di stacking context TopBar, jadi penggaris yang menyamai
-				// nilainya akan menutupi seluruh dropdown.
+				// z-10 = lapisan isi kanvas (lihat skala lapisan di globals.css), jauh
+				// di bawah TopBar: menu yang terbuka dari sana terkurung di stacking
+				// context TopBar, jadi penggaris yang menyamai nilainya akan menutupi
+				// seluruh dropdown.
 				<div
 					className="document-ruler-bar sticky top-0 z-10 mx-auto"
 					style={{ width: width * zoom }}

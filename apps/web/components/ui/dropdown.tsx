@@ -1,7 +1,19 @@
 'use client'
 
 import { ChevronRight } from 'lucide-react'
-import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react'
+import {
+	createContext,
+	type Dispatch,
+	type ReactNode,
+	type SetStateAction,
+	useCallback,
+	useContext,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+} from 'react'
 import { cn } from '@/lib/utils'
 
 /**
@@ -76,11 +88,30 @@ export function Dropdown({
 						menuClassName,
 					)}
 				>
-					{children({ close })}
+					<SubmenuGroup>{children({ close })}</SubmenuGroup>
 				</div>
 			)}
 		</div>
 	)
+}
+
+/**
+ * Satu tingkat menu berbagi "siapa yang sedang terbuka".
+ *
+ * Tanpa ini tiap `Submenu` hanya tahu dirinya sendiri: berpindah dari submenu A
+ * ke B membuat A menjadwalkan tutup (jeda 120 ms untuk menyeberangi celah menuju
+ * panelnya) sementara B langsung terbuka, jadi keduanya sempat tampil bertumpuk.
+ * Dengan satu `openId` bersama, membuka B menutup A pada render yang sama.
+ */
+const SubmenuGroupContext = createContext<{
+	openId: string | null
+	setOpenId: Dispatch<SetStateAction<string | null>>
+} | null>(null)
+
+function SubmenuGroup({ children }: { children: ReactNode }) {
+	const [openId, setOpenId] = useState<string | null>(null)
+	const value = useMemo(() => ({ openId, setOpenId }), [openId])
+	return <SubmenuGroupContext.Provider value={value}>{children}</SubmenuGroupContext.Provider>
 }
 
 interface DropdownItemProps {
@@ -107,12 +138,18 @@ export function DropdownItem({
 	disabled,
 	children,
 }: DropdownItemProps) {
+	const group = useContext(SubmenuGroupContext)
+
 	return (
 		<button
 			type="button"
 			role="menuitem"
 			disabled={disabled}
 			onClick={onSelect}
+			// Menyentuh butir biasa menutup submenu yang sedang terbuka di tingkat
+			// ini - kalau tidak, panelnya menggantung di samping menu yang sudah
+			// tidak lagi disorot.
+			onMouseEnter={() => group?.setOpenId(null)}
 			className={cn(
 				'flex w-full items-center gap-3 px-3 py-1.5 text-left text-sm transition-colors',
 				disabled
@@ -166,8 +203,11 @@ export function Submenu({
 	/** Item submenu; `close` menutup submenu ini (bukan seluruh rantai menu). */
 	children: (props: { close: () => void }) => ReactNode
 }) {
-	const [open, setOpen] = useState(false)
+	const id = useId()
+	const group = useContext(SubmenuGroupContext)
 	const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+	const open = group?.openId === id
 
 	const cancelClose = () => {
 		if (closeTimer.current) {
@@ -180,31 +220,39 @@ export function Submenu({
 	// Timernya tetap perlu dibatalkan supaya tidak menyentuh state pasca-unmount.
 	useEffect(() => cancelClose, [])
 
+	const openNow = () => {
+		cancelClose()
+		group?.setOpenId(id)
+	}
+
+	const closeNow = () => {
+		cancelClose()
+		group?.setOpenId((current) => (current === id ? null : current))
+	}
+
+	// Jeda hanya untuk menyeberangi celah 4 px antara butir dan panelnya. Saat
+	// waktunya habis, yang ditutup hanya kalau submenu ini masih yang terbuka -
+	// kalau pointer sudah pindah ke saudaranya, jangan tutup milik orang lain.
+	const scheduleClose = () => {
+		cancelClose()
+		closeTimer.current = setTimeout(closeNow, 120)
+	}
+
 	return (
-		<div
-			className="relative"
-			onMouseEnter={() => {
-				cancelClose()
-				setOpen(true)
-			}}
-			onMouseLeave={() => {
-				cancelClose()
-				closeTimer.current = setTimeout(() => setOpen(false), 120)
-			}}
-		>
+		<div className="relative" onMouseEnter={openNow} onMouseLeave={scheduleClose}>
 			<button
 				type="button"
 				role="menuitem"
 				aria-haspopup="menu"
 				aria-expanded={open}
-				onClick={() => setOpen((v) => !v)}
+				onClick={() => (open ? closeNow() : openNow())}
 				onKeyDown={(event) => {
 					if (event.key === 'ArrowRight') {
 						event.preventDefault()
-						setOpen(true)
+						openNow()
 					} else if (event.key === 'ArrowLeft') {
 						event.preventDefault()
-						setOpen(false)
+						closeNow()
 					}
 				}}
 				className="flex w-full items-center gap-3 px-3 py-1.5 text-left text-sm text-foreground transition-colors hover:bg-[var(--overlay-hover)]"
@@ -218,11 +266,17 @@ export function Submenu({
 				// bersarang lagi ke dalam (mis. Jenis huruf → Sans-serif → Arial).
 				// Daftar panjang dipecah jadi kelompok, bukan digulung - menu yang
 				// perlu digulung tandanya kelompoknya kurang.
+				//
+				// Tanpa animasi masuk, sengaja: berpindah antar submenu adalah
+				// mengarahkan pandangan, bukan memunculkan sesuatu yang baru, dan
+				// fade 100 ms di tiap perpindahan terbaca sebagai jeda.
 				<div
 					role="menu"
-					className="absolute left-full top-0 z-50 ml-1 min-w-[200px] rounded-xl border border-line-strong bg-surface-raised py-1 shadow-[var(--menu-shadow)] animate-in fade-in zoom-in-95 duration-100 [&>*:first-child]:rounded-t-[10px] [&>*:last-child]:rounded-b-[10px]"
+					className="absolute left-full top-0 z-50 ml-1 min-w-[200px] rounded-xl border border-line-strong bg-surface-raised py-1 shadow-[var(--menu-shadow)] [&>*:first-child]:rounded-t-[10px] [&>*:last-child]:rounded-b-[10px]"
 				>
-					{children({ close: () => setOpen(false) })}
+					{/* Tingkat ini punya kelompoknya sendiri, jadi submenu bersarang di
+					    dalamnya juga saling menutup secara instan. */}
+					<SubmenuGroup>{children({ close: closeNow })}</SubmenuGroup>
 				</div>
 			)}
 		</div>

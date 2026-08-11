@@ -124,6 +124,25 @@ a {
   text-decoration: none;
 }
 
+/* ── skala lapisan (z-index) ───────────────────────────────────────────────
+ *
+ * Angka z-index di komponen mengikuti skala ini. Ditulis di satu tempat karena
+ * yang menentukan siapa menimpa siapa bukan angkanya sendiri, melainkan
+ * stacking context tempat angka itu hidup - dan itu tidak terlihat dari file
+ * yang sedang dibaca.
+ *
+ *   10      isi kanvas dokumen: penggaris, lembar, badan teks
+ *   30-50   overlay editor & panel rail - menu seleksi, popover rumus, bilah
+ *           gambar, menu slash & tabel, pegangan tabel. Semuanya hidup di area
+ *           editor dan boleh saling menimpa sesuai urutan di band ini.
+ *   60      TopBar. HARUS di atas seluruh band di atas: panelnya sendiri
+ *           terkurung di stacking context TopBar, jadi dropdown menu bar yang
+ *           menjulur turun ke area editor kalah dari overlay editor mana pun
+ *           yang nilainya lebih tinggi - berapa pun z-index panel itu di dalam.
+ *   70      dialog modal. Di atas TopBar supaya lapisan gelapnya benar-benar
+ *           meredupkan seluruh aplikasi, termasuk menu bar.
+ */
+
 /* ── permukaan ─────────────────────────────────────────────────────────── */
 
 .content-bg {
