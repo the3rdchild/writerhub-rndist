@@ -18,6 +18,7 @@ import { SelectionMenu } from './selection-menu'
 import { SlashCommandMenu } from './slash-command-menu'
 import { type PopoverPosition, SuggestionPopover } from './suggestion-popover'
 import { ImageToolbar } from './image-toolbar'
+import { TableColorToolbar } from './table-color-toolbar'
 
 const FONT_SIZE_CLASS: Record<FontSize, string> = {
 	small: 'text-[15px] leading-[1.75]',
@@ -281,6 +282,7 @@ export function TiptapEditor({
 				/>
 			)}
 			<ImageToolbar editor={editor} />
+			<TableColorToolbar editor={editor} />
 		</>
 	)
 }
