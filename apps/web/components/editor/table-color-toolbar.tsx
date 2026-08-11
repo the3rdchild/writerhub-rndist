@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom'
 import { PALETTE } from '@/components/editor/color-picker'
 import {
 	type CellTarget,
+	clearCellStyling,
 	locateTable,
 	withCellTarget,
 } from '@/features/editor/table-ops'
@@ -33,17 +34,19 @@ export function TableColorToolbar({ editor }: { editor: Editor | null }) {
 
 	// Palet yang sedang terbuka: null, 'background', atau 'border'.
 	const [palette, setPalette] = useState<'background' | 'border' | null>(null)
-	// Posisi layar tabel aktif (diperbarui tiap transaksi/gulir).
-	const [rect, setRect] = useState<DOMRect | null>(null)
+	// Penempatan layar bilah (diperbarui tiap transaksi/gulir). `centered` menandai
+	// mode "di tengah atas tabel" yang perlu digeser separuh lebarnya sendiri.
+	const [place, setPlace] = useState<{ top: number; left: number; centered: boolean } | null>(null)
 
 	// Lacak elemen tabel aktif + posisinya; perbarui tiap transaksi & gulir.
 	useEffect(() => {
 		if (!editor || !inTable) {
 			setPalette(null)
-			setRect(null)
+			setPlace(null)
 			return
 		}
-		const update = () => {
+		let frame = 0
+		const measure = () => {
 			const table = editor.view.dom.querySelector('.ProseMirror-selectednode table, table')
 			// Cari tabel yang memuat kursor; ProseMirror tidak memilih node tabel,
 			// jadi cari ancestor <table> dari posisi seleksi.
@@ -60,10 +63,34 @@ export function TableColorToolbar({ editor }: { editor: Editor | null }) {
 				(table as HTMLElement | null) ||
 				null
 			if (!tableEl) {
-				setRect(null)
+				setPlace(null)
 				return
 			}
-			setRect(tableEl.getBoundingClientRect())
+			const rect = tableEl.getBoundingClientRect()
+
+			// Menyorot sel juga memunculkan menu seleksi di titik yang sama, dan
+			// keduanya saling menimpa. Kalau menu itu ada, bilah ini berlabuh di
+			// sisi kanannya alih-alih memperebutkan ruang di atas tabel.
+			const selectionMenu = document.querySelector('.selection-menu')
+			if (selectionMenu) {
+				const menu = selectionMenu.getBoundingClientRect()
+				setPlace({ top: menu.top, left: menu.right + 8, centered: false })
+				return
+			}
+
+			const above = rect.top - 44
+			setPlace({
+				top: above < 8 ? rect.bottom + 6 : above,
+				left: rect.left + rect.width / 2,
+				centered: true,
+			})
+		}
+		// Diukur setelah paint: menu seleksi muncul lewat render React, sedangkan
+		// `transaction` menyala sebelum React sempat memasangnya - membacanya
+		// langsung akan selalu melihat keadaan satu langkah tertinggal.
+		const update = () => {
+			cancelAnimationFrame(frame)
+			frame = requestAnimationFrame(measure)
 		}
 		update()
 		editor.on('transaction', update)
@@ -71,6 +98,7 @@ export function TableColorToolbar({ editor }: { editor: Editor | null }) {
 		window.addEventListener('scroll', update, true)
 		window.addEventListener('resize', update)
 		return () => {
+			cancelAnimationFrame(frame)
 			editor.off('transaction', update)
 			window.removeEventListener('scroll', update, true)
 			window.removeEventListener('resize', update)
@@ -95,7 +123,7 @@ export function TableColorToolbar({ editor }: { editor: Editor | null }) {
 		return () => document.removeEventListener('pointerdown', onPointer)
 	}, [palette])
 
-	if (!editor || !inTable || !rect) return null
+	if (!editor || !inTable || !place) return null
 
 	// Target sel untuk menerapkan warna: sel pada kursor saat ini.
 	const loc = locateTable(editor)
@@ -103,7 +131,7 @@ export function TableColorToolbar({ editor }: { editor: Editor | null }) {
 		? { tablePos: loc.tablePos, rowIndex: loc.rowIndex, colIndex: loc.colIndex }
 		: null
 
-	const apply = (attr: 'backgroundColor' | 'borderColor', color: string | null) => {
+	const apply = (attr: 'backgroundColor' | 'borderColor', color: string) => {
 		if (!target) return
 		withCellTarget(editor, target, (e) => {
 			e.chain().focus().setCellAttribute(attr, color).run()
@@ -111,14 +139,24 @@ export function TableColorToolbar({ editor }: { editor: Editor | null }) {
 		setPalette(null)
 	}
 
-	// Bilah ditempatkan di atas tabel, ditengah.
-	const top = rect.top - 44
-	const left = rect.left + rect.width / 2
+	// "Tanpa warna" bukan sekadar melepas atribut yang sedang dibuka paletnya:
+	// latar, bingkai, dan status sel kepala ketiganya menyumbang warna, jadi
+	// ketiganya harus lepas bersama supaya hasilnya benar-benar polos.
+	const clear = () => {
+		clearCellStyling(editor)
+		setPalette(null)
+	}
 
 	return createPortal(
 		<div
 			className="table-color-toolbar fixed z-40 flex items-center gap-0.5"
-			style={{ top: top < 8 ? rect.bottom + 6 : top, left }}
+			style={{
+				top: place.top,
+				left: place.left,
+				// Hanya mode "di tengah atas tabel" yang perlu digeser; saat berlabuh
+				// di samping menu seleksi, `left` sudah tepi kirinya.
+				transform: place.centered ? 'translateX(-50%)' : undefined,
+			}}
 		>
 			<div className="flex items-center gap-0.5 rounded-full border border-line-strong bg-surface-raised p-1 shadow-[var(--menu-shadow)]">
 				<ToolbarBtn
@@ -141,6 +179,7 @@ export function TableColorToolbar({ editor }: { editor: Editor | null }) {
 				<Palette
 					mode={palette}
 					onPick={(color) => apply(palette === 'background' ? 'backgroundColor' : 'borderColor', color)}
+					onClear={clear}
 				/>
 			)}
 		</div>,
@@ -181,9 +220,12 @@ function ToolbarBtn({
 function Palette({
 	mode,
 	onPick,
+	onClear,
 }: {
 	mode: 'background' | 'border'
-	onPick: (color: string | null) => void
+	onPick: (color: string) => void
+	/** Polos sepenuhnya - latar, bingkai, dan status sel kepala sekaligus. */
+	onClear: () => void
 }) {
 	return (
 		<div
@@ -208,11 +250,12 @@ function Palette({
 			</div>
 			<button
 				type="button"
-				onClick={() => onPick(null)}
+				onClick={onClear}
+				title="Latar, bingkai, dan status sel kepala dilepas sekaligus"
 				className="mt-2 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 			>
 				<Eraser className="h-3.5 w-3.5" />
-				Hapus warna
+				Tanpa warna (polos)
 			</button>
 		</div>
 	)

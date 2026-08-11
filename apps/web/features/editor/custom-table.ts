@@ -14,6 +14,17 @@ import { TableCell, TableHeader } from '@tiptap/extension-table'
  *  - `style` langsung menerapkan warnanya tanpa CSS tambahan per sel.
  */
 
+/**
+ * Nilai "sengaja tanpa warna", dibedakan dari `null` yang berarti "tidak
+ * disetel".
+ *
+ * Keduanya perlu ada: melepas atribut warna hanya membuang `style` inline,
+ * lalu CSS bawaan (`th { background }`, `th, td { border }`) langsung mengambil
+ * alih - sehingga "hapus warna" justru mengembalikan warna. Menulis
+ * `transparent` secara eksplisit-lah yang benar-benar mengosongkannya.
+ */
+export const NO_COLOR = 'transparent'
+
 /** Atribut warna yang dipakai bersama sel & kepala. */
 const colorAttributes = {
 	backgroundColor: {

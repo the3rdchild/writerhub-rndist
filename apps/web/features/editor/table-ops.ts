@@ -2,6 +2,7 @@ import { type Editor } from '@tiptap/core'
 import { type Node as PMNode } from '@tiptap/pm/model'
 import { type EditorState } from '@tiptap/pm/state'
 import { cellAround, CellSelection, findTable, moveTableColumn, moveTableRow, TableMap } from '@tiptap/pm/tables'
+import { NO_COLOR } from '@/features/editor/custom-table'
 
 /**
  * Operasi tabel tingkat-dokumen untuk handle baris/kolom.
@@ -229,4 +230,54 @@ export function moveColumn(editor: Editor, target: CellTarget, to: number): void
 	if (!size || to < 0 || to >= size.colCount || to === target.colIndex) return
 	if (!focusCell(editor, target)) return
 	moveTableColumn({ from: target.colIndex, to })(editor.state, (tr) => editor.view.dispatch(tr))
+}
+
+/**
+ * Jadikan sel terpilih benar-benar polos: tanpa latar, tanpa bingkai, dan bukan
+ * lagi sel kepala.
+ *
+ * Kepala tabel ikut diubah jadi sel biasa karena arsirannya datang dari CSS
+ * (`th { background }`), bukan dari atribut warna - selama sebuah sel masih
+ * `<th>`, berapa pun warna yang dilepas darinya ia tidak akan pernah polos.
+ *
+ * Bekerja pada blok sel yang disorot; kalau tidak ada blok, pada sel tempat
+ * kursor berada.
+ */
+export function clearCellStyling(editor: Editor): boolean {
+	const { state } = editor
+	const cellType = state.schema.nodes.tableCell
+	const headerType = state.schema.nodes.tableHeader
+	if (!cellType) return false
+
+	const positions: number[] = []
+	const { selection } = state
+	if (selection instanceof CellSelection) {
+		selection.forEachCell((_cell, pos) => positions.push(pos))
+	} else {
+		const { $from } = selection
+		for (let depth = $from.depth; depth > 0; depth -= 1) {
+			const role = $from.node(depth).type.spec.tableRole
+			if (role === 'cell' || role === 'header_cell') {
+				positions.push($from.before(depth))
+				break
+			}
+		}
+	}
+	if (positions.length === 0) return false
+
+	const tr = state.tr
+	for (const pos of positions) {
+		const cell = tr.doc.nodeAt(pos)
+		if (!cell) continue
+		// Ukuran node tidak berubah, jadi posisi sel lain tetap sahih tanpa pemetaan.
+		tr.setNodeMarkup(
+			pos,
+			headerType && cell.type === headerType ? cellType : cell.type,
+			{ ...cell.attrs, backgroundColor: NO_COLOR, borderColor: NO_COLOR },
+			cell.marks,
+		)
+	}
+	if (!tr.docChanged) return false
+	editor.view.dispatch(tr)
+	return true
 }

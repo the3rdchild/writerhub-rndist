@@ -399,23 +399,26 @@ a {
   margin: 1.6em 0;
 }
 
-/* Tabel */
+/* Tabel - satu-satunya tempat gaya tabel ditulis. Dulu ada blok kedua di bawah
+   yang menimpa sebagian nilai di sini, sehingga menyunting yang ini sering
+   tidak berefek apa pun; nilai yang menang sudah digabung ke sini. */
 .document-body table {
   border-collapse: collapse;
   width: 100%;
-  margin: 1em 0;
+  margin: 0.75em 0;
   table-layout: fixed;
+  overflow: hidden;
 }
 .document-body th,
 .document-body td {
   /* Sel jadi patokan posisi sorotan .selectedCell yang menutupinya. */
   position: relative;
   border: 1px solid var(--border-strong);
-  padding: 0.45em 0.7em;
+  padding: 0.4em 0.6em;
   vertical-align: top;
 }
 .document-body th {
-  background: var(--surface-inset);
+  background: var(--overlay-hover);
   font-weight: 600;
   text-align: left;
 }
@@ -1174,27 +1177,6 @@ html.light .range-highlight {
   max-width: 100%;
   height: auto;
   border-radius: 4px;
-}
-
-.document-body table {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 0.75em 0;
-  table-layout: fixed;
-  overflow: hidden;
-}
-
-.document-body th,
-.document-body td {
-  border: 1px solid var(--border-strong);
-  padding: 0.4em 0.6em;
-  vertical-align: top;
-}
-
-.document-body th {
-  background: var(--overlay-hover);
-  font-weight: 600;
-  text-align: left;
 }
 
 /* Daftar centang: penanda bawaan disembunyikan, kotaknya dari checkbox asli. */
