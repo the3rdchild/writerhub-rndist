@@ -74,6 +74,26 @@ describe('teks biasa dibiarkan apa adanya', () => {
 	test('tapi tabel dikenali', () => {
 		expect(toEditorContent('| a |\n|---|\n| b |')).toContain('<table>')
 	})
+
+	test('tapi tebal inline dikenali', () => {
+		expect(looksLikeMarkdown('Ini **penting** sekali.')).toBe(true)
+		expect(markdownToHtml('Ini **penting** sekali.')).toBe('<p>Ini <strong>penting</strong> sekali.</p>')
+	})
+})
+
+describe('garis mendatar', () => {
+	test('--- jadi <hr>', () => {
+		expect(markdownToHtml('---')).toBe('<hr>')
+		expect(markdownToHtml('atas\n---\nbawah')).toBe('<p>atas</p><hr><p>bawah</p>')
+	})
+
+	test('dikenali sebagai Markdown', () => {
+		expect(looksLikeMarkdown('atas\n---\nbawah')).toBe(true)
+	})
+
+	test('tanda pisah di tengah kalimat bukan garis', () => {
+		expect(markdownToHtml('rentang 1---2')).toBe('<p>rentang 1---2</p>')
+	})
 })
 
 describe('rumus LaTeX', () => {

@@ -103,6 +103,11 @@ function isTableRow(line: string): boolean {
 export function looksLikeMarkdown(text: string): boolean {
 	return (
 		/^\s*(#{1,6}\s|[-*]\s|\d+\.\s|>\s|\|.*\|)/m.test(text) ||
+		// Garis mendatar berdiri sendiri sebaris penuh.
+		/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/m.test(text) ||
+		// Penanda inline saja (tebal, kode) juga berarti - jawaban obrolan
+		// sering hanya berisi kalimat dengan `**…**` tanpa blok apa pun.
+		/\*\*[^*\n]+\*\*|`[^`\n]+`/.test(text) ||
 		/```/.test(text) ||
 		// Rumus juga layak diterjemahkan walau sisanya kalimat biasa. Pembatas
 		// LaTeX `\[…\]`/`\(…\)` dan lingkungan equation/align ikut dikenali.
@@ -160,6 +165,13 @@ export function markdownToHtml(markdown: string): string {
 				.join('')
 
 			out.push(`<table><tbody><tr>${head}</tr>${body}</tbody></table>`)
+			continue
+		}
+
+		// ── garis mendatar ─────────────────────────────────────────────────────
+		if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+			out.push('<hr>')
+			index += 1
 			continue
 		}
 
@@ -226,7 +238,12 @@ export function markdownToHtml(markdown: string): string {
 		// Baris berikutnya digabung ke paragraf yang sama, seperti Markdown.
 		while (index < lines.length) {
 			const current = lines[index].trim()
-			if (!current || isTableRow(lines[index]) || /^(#{1,6}\s|[-*]\s|\d+\.\s|>|```)/.test(current)) {
+			if (
+				!current ||
+				isTableRow(lines[index]) ||
+				/^(#{1,6}\s|[-*]\s|\d+\.\s|>|```)/.test(current) ||
+				/^(?:-{3,}|\*{3,}|_{3,})$/.test(current)
+			) {
 				break
 			}
 			paragraph.push(current)

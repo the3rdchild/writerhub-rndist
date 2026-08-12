@@ -21,7 +21,7 @@ import { type ChatStep, extractProposals, stripProposals, useChat } from '@/feat
 import { describeToolCall } from '@/features/chat/tools'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { useEditorInstance } from '@/features/editor/editor-context'
-import { toEditorContent } from '@/features/editor/markdown'
+import { looksLikeMarkdown, markdownToHtml, toEditorContent } from '@/features/editor/markdown'
 import { useSelectionScope } from '@/features/editor/selection'
 import { cn } from '@/lib/utils'
 import { PanelError } from './panel-parts'
@@ -293,12 +293,23 @@ function Bubble({
 			{/* Giliran selesai: lini masa menciut jadi ringkasan satu baris (§B1.3). */}
 			{steps && steps.length > 0 && <StepSummary steps={steps} usage={usage} />}
 
-			{prose && (
-				<p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
-					{prose}
-					{pending && <span className="ml-0.5 animate-pulse text-accent">▍</span>}
-				</p>
-			)}
+			{prose &&
+				(looksLikeMarkdown(prose) ? (
+					/*
+					 * Model menjawab dalam Markdown - render sebagai HTML, bukan teks
+					 * mentah penuh `**` dan `###`. markdownToHtml meng-escape HTML
+					 * bawaan, jadi aman untuk dangerouslySetInnerHTML.
+					 */
+					<div className="chat-md text-sm leading-relaxed text-foreground">
+						<div dangerouslySetInnerHTML={{ __html: markdownToHtml(prose) }} />
+						{pending && <span className="animate-pulse text-accent">▍</span>}
+					</div>
+				) : (
+					<p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+						{prose}
+						{pending && <span className="ml-0.5 animate-pulse text-accent">▍</span>}
+					</p>
+				))}
 
 			{emptyMarker && <p className="text-xs italic text-subtle">Tidak ada jawaban.</p>}
 
@@ -358,7 +369,14 @@ function ProposalCard({ text, expired }: { text: string; expired?: boolean }) {
 
 	return (
 		<div className="flex flex-col gap-2 rounded-xl bg-surface-raised p-3">
-			<p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-emerald-300">{text}</p>
+			{looksLikeMarkdown(text) ? (
+				<div
+					className="chat-md text-xs leading-relaxed text-emerald-300"
+					dangerouslySetInnerHTML={{ __html: markdownToHtml(text) }}
+				/>
+			) : (
+				<p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-emerald-300">{text}</p>
+			)}
 
 			{failed ? (
 				<p className="text-[11px] text-yellow-400">

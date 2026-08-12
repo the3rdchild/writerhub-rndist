@@ -1172,6 +1172,45 @@ a {
   border-bottom: 1px dotted #dc2626;
 }
 
+/* ── blok daftar isi ───────────────────────────────────────────────────── */
+
+/*
+ * Bilah kontrol blok TOC (dan menu tiga-titiknya) adalah antarmuka editor yang
+ * kebetulan tinggal di dalam kanvas - bukan isi naskah. Tanpa pencabutan ini ia
+ * mewarisi seluruh tipografi dokumen: huruf serif, ukuran badan teks, spasi
+ * baris ganda, perataan rata-kanan/justify, bahkan `white-space: pre-wrap` milik
+ * ProseMirror - dan menunya jadi renggang serta tidak sejajar dengan menu lain
+ * di aplikasi.
+ */
+.document-body .toc-block-controls,
+.document-body .toc-block-controls [role='menu'] {
+  font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  font-size: 1rem;
+  font-weight: 400;
+  font-style: normal;
+  line-height: normal;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-align: left;
+  text-indent: 0;
+  text-transform: none;
+  white-space: normal;
+  color: var(--foreground);
+}
+
+/* Isi daftar tetap bertipografi dokumen, tapi jarak antar barisnya milik daftar
+   ini sendiri - spasi baris ganda naskah membuat entri saling menjauh. */
+.document-body .toc-segment ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  line-height: 1.6;
+}
+
+.document-body .toc-segment li {
+  margin: 0;
+}
+
 /* ── komentar & menu seleksi ───────────────────────────────────────────── */
 
 /*
@@ -1536,4 +1575,100 @@ html.light .range-highlight {
   @page {
     margin: 25mm;
   }
+}
+
+
+/*
+ * Jawaban Markdown di panel obrolan AI (`.chat-md`).
+ *
+ * Gayanya meniru tipografi `.document-body` yang sudah ada, tapi diringkas ke
+ * skala bubble: margin kecil, tanpa warna paksa supaya pewarna bubble (misal
+ * hijau kartu proposal) tetap menang.
+ */
+.chat-md > *:first-child { margin-top: 0; }
+.chat-md > *:last-child { margin-bottom: 0; }
+.chat-md p { margin: 0.5em 0; }
+
+.chat-md h1,
+.chat-md h2,
+.chat-md h3,
+.chat-md h4,
+.chat-md h5,
+.chat-md h6 {
+  margin: 0.8em 0 0.35em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.chat-md h1 { font-size: 1.25em; }
+.chat-md h2 { font-size: 1.15em; }
+.chat-md h3 { font-size: 1.05em; }
+.chat-md h4,
+.chat-md h5,
+.chat-md h6 { font-size: 1em; }
+
+.chat-md ul,
+.chat-md ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+.chat-md ul { list-style: disc; }
+.chat-md ol { list-style: decimal; }
+.chat-md li { margin: 0.15em 0; }
+.chat-md li > p { margin: 0; }
+
+.chat-md blockquote {
+  margin: 0.5em 0;
+  border-left: 3px solid var(--border-strong);
+  padding-left: 0.9em;
+  opacity: 0.85;
+}
+.chat-md blockquote p { margin: 0; }
+
+.chat-md hr {
+  border: none;
+  border-top: 1px solid var(--border-strong);
+  margin: 0.9em 0;
+}
+
+.chat-md a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.chat-md code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  background: var(--overlay-hover);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+
+.chat-md pre {
+  margin: 0.5em 0;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.7em 0.9em;
+  overflow-x: auto;
+}
+.chat-md pre code {
+  background: none;
+  padding: 0;
+}
+
+.chat-md table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0;
+}
+.chat-md th,
+.chat-md td {
+  border: 1px solid var(--border-subtle);
+  padding: 0.3em 0.6em;
+  text-align: left;
+}
+.chat-md th {
+  background: var(--overlay-hover);
+  font-weight: 600;
 }

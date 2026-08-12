@@ -7,7 +7,7 @@ import type { OutlineItem } from '@/features/editor/use-outline-plain'
 import { readOutlineItems } from '@/features/editor/use-outline-plain'
 import { pageGeometry } from '@/features/editor/page-geometry'
 import { paginationKey, SELF_PAGINATE_ATTRIBUTE, SPACER_ATTRIBUTE } from '@/features/editor/pagination'
-import { Dropdown, DropdownItem } from '@/components/ui/dropdown'
+import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown'
 import { cn } from '@/lib/utils'
 import {
 	DEFAULT_TOC_ATTRS,
@@ -336,31 +336,44 @@ function TocControls({
 	onDelete: () => void
 }) {
 	return (
-		/* Disembunyikan saat mencetak lewat .toc-block-controls di globals.css. */
+		/*
+		 * Bilah ini chrome editor, bukan isi naskah: tipografinya dicabut dari
+		 * warisan dokumen lewat .toc-block-controls di globals.css - yang juga
+		 * menyembunyikannya saat mencetak.
+		 */
 		<div
 			className={cn(
 				'toc-block-controls mb-2 flex items-center gap-1 transition-opacity',
 				selected ? 'opacity-100' : 'opacity-0 focus-within:opacity-100 hover:opacity-100',
 			)}
 		>
-			<span className="mr-auto text-xs font-medium uppercase tracking-wide text-subtle">
+			<span className="mr-auto text-[11px] font-semibold uppercase tracking-wide text-subtle">
 				{KIND_TITLE[attrs.listKind]}
 			</span>
 			<button
 				type="button"
 				onClick={onRefresh}
 				title="Segarkan isi dan nomor halaman"
-				className="rounded p-1 text-subtle hover:bg-[var(--overlay-hover)] hover:text-foreground"
+				className="rounded-md p-1.5 text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 			>
 				<RefreshCw className="h-3.5 w-3.5" />
 			</button>
+			{/*
+			 * Rata kanan: tombolnya duduk di tepi kanan kotak TOC, jadi panel yang
+			 * dibentang ke kanan (bawaan `start`) tumpah keluar lembar kertas.
+			 */}
 			<Dropdown
-				trigger={({ toggle }) => (
+				align="end"
+				trigger={({ open, toggle }) => (
 					<button
 						type="button"
 						onClick={toggle}
 						title="Opsi"
-						className="rounded p-1 text-subtle hover:bg-[var(--overlay-hover)] hover:text-foreground"
+						aria-label="Opsi daftar isi"
+						className={cn(
+							'rounded-md p-1.5 transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground',
+							open ? 'bg-[var(--overlay-active)] text-foreground' : 'text-subtle',
+						)}
 					>
 						<MoreVertical className="h-3.5 w-3.5" />
 					</button>
@@ -368,17 +381,24 @@ function TocControls({
 			>
 				{({ close }) => (
 					<>
-						<DropdownItem onSelect={() => { close(); onSettings() }}>
-							<Settings2 className="mr-2 h-3.5 w-3.5" /> Setelan daftar isi…
+						{/*
+						 * Ikon lewat prop `icon`, bukan di dalam `children`: preflight
+						 * Tailwind memberi `svg { display: block }`, jadi ikon yang duduk
+						 * di sebelah teks label memaksa barisnya sendiri dan seluruh menu
+						 * tampak bertumpuk.
+						 */}
+						<DropdownItem icon={<Settings2 className="h-3.5 w-3.5" />} onSelect={() => { close(); onSettings() }}>
+							Setelan daftar isi…
 						</DropdownItem>
-						<DropdownItem onSelect={() => { close(); onCopy() }}>
-							<Copy className="mr-2 h-3.5 w-3.5" /> Salin sebagai teks
+						<DropdownItem icon={<Copy className="h-3.5 w-3.5" />} onSelect={() => { close(); onCopy() }}>
+							Salin sebagai teks
 						</DropdownItem>
-						<DropdownItem onSelect={() => { close(); onConvert() }}>
-							<Type className="mr-2 h-3.5 w-3.5" /> Ubah jadi teks biasa
+						<DropdownItem icon={<Type className="h-3.5 w-3.5" />} onSelect={() => { close(); onConvert() }}>
+							Ubah jadi teks biasa
 						</DropdownItem>
-						<DropdownItem onSelect={() => { close(); onDelete() }}>
-							<Trash2 className="mr-2 h-3.5 w-3.5" /> Hapus
+						<DropdownSeparator />
+						<DropdownItem icon={<Trash2 className="h-3.5 w-3.5" />} onSelect={() => { close(); onDelete() }}>
+							Hapus
 						</DropdownItem>
 					</>
 				)}
