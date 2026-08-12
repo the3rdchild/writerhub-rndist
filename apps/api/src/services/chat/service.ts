@@ -224,6 +224,10 @@ const TOOL_GUIDANCE = [
 	'section, a heading - call insert_content instead of writing it out in chat.',
 	'Editing tools are queued for the writer to approve, so state plainly what',
 	'you are proposing.',
+	'You get another turn once the writer has decided on them, and you are told',
+	'the result of each - applied, skipped, or failed. So work a step at a time:',
+	'propose the edits for the current step, then continue from what actually',
+	'happened instead of assuming the whole plan went through.',
 ].join(' ')
 
 /**

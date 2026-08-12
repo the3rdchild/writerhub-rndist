@@ -31,6 +31,7 @@ import { editorPlainText } from '@/features/editor/text-content'
 import { sessionLabel, useSessions } from '@/features/sessions/session-context'
 import { createTab as createTabInDoc } from '@/features/sessions/ydoc'
 import { buildSchema, fragmentToJSON, jsonToFragment } from '@/features/sync/serialize'
+import { usePersistentState } from '@/lib/use-persistent-state'
 import { parseFallbackCalls, streamChat, stripFallbackCalls } from './api'
 import {
 	applyWriteTool,
@@ -125,6 +126,18 @@ const MAX_READ_CALLS = 48
 const BUDGET_NOTICE =
 	'\n\n[System] Read budget for this turn is exhausted. Answer now with what you already have, or propose write tools. Further read tools will not be executed.'
 
+/**
+ * Batas gelombang alat tulis dalam satu tugas.
+ *
+ * Tiap keputusan atas kartu aksi melanjutkan giliran, jadi tanpa batas ini
+ * "rapikan dokumen" bisa jadi rantai kartu yang tak pernah menutup dirinya.
+ */
+const MAX_WRITE_WAVES = 8
+
+/** Ditempel ke hasil aksi pada gelombang tulis terakhir. */
+const WRITE_WAVE_NOTICE =
+	'\n\n[System] This is the last batch of edits that will be carried out automatically for this request. Wrap up: summarize what changed and what is left for the writer to decide.'
+
 /** Label baris langkah untuk tiap fase yang dipancarkan server (§B1.3). */
 const PHASE_LABEL: Record<ChatStreamPhase, string> = {
 	connecting: 'Menghubungi provider…',
@@ -195,6 +208,21 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 	return outbound
 }
 
+/**
+ * Apakah setiap kartu aksi milik `owner` sudah punya hasilnya di riwayat.
+ *
+ * Ini penjaga kontrak provider, bukan sekadar kerapian UI: riwayat yang memuat
+ * `tool_calls` tanpa pesan `tool` untuk SETIAP idnya ditolak mentah-mentah.
+ * Karena itu giliran hanya boleh dilanjutkan setelah seluruh kartunya
+ * diputuskan - diterapkan maupun dilewati.
+ */
+export function actionsSettled(history: ChatTurn[], owner: ChatTurn): boolean {
+	const decided = new Set(
+		history.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId),
+	)
+	return (owner.actions ?? []).every((action) => decided.has(action.id))
+}
+
 /** Panjang maksimum potongan awal naskah pada ringkasan kerangka. */
 const OUTLINE_SNIPPET_CHARS = 600
 
@@ -263,8 +291,18 @@ interface ChatContextValue {
 
 	/** Jalankan aksi tulis yang disetujui pengguna lewat kartu aksi. */
 	applyAction: (call: ToolCall) => ToolOutcome
+	/** Terapkan seluruh aksi tertunda satu giliran sekaligus. */
+	applyActions: (calls: ToolCall[]) => void
+	/** Tolak satu aksi: hasilnya tetap dikabarkan ke model, tanpa menyentuh naskah. */
+	skipAction: (call: ToolCall) => void
 	/** Apakah sebuah panggilan alat sudah pernah diterapkan (anti-terap-ganda). */
 	isActionApplied: (id: string) => boolean
+	/** Sudah diputuskan - diterapkan ATAU dilewati; kartunya tidak menunggu lagi. */
+	isActionSettled: (id: string) => boolean
+
+	/** Alat tulis dijalankan tanpa menunggu Apply. Mati secara bawaan. */
+	autoApply: boolean
+	setAutoApply: (value: boolean) => void
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null)
@@ -284,6 +322,44 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const [currentTaskId, setCurrentTaskId] = useState<string | undefined>(undefined)
 	/** toolCallId yang sudah diterapkan - lihat M5 (anti-terap-ganda). */
 	const [appliedActionIds, setAppliedActionIds] = useState<Set<string>>(() => new Set())
+
+	/**
+	 * Terapkan-otomatis: alat tulis berjalan tanpa menunggu Apply.
+	 *
+	 * Bawaannya mati, dan itu disengaja - prinsip §B3 adalah tak ada suntingan
+	 * yang tak terlihat. Yang membuatnya tetap masuk akal sebagai pilihan adalah
+	 * seluruh alat tulis menyunting lewat editor, jadi Ctrl+Z membatalkannya
+	 * seperti ketikan biasa.
+	 */
+	const [autoApply, setAutoApply] = usePersistentState('writer-hub-chat-auto-apply', false)
+	const autoApplyRef = useRef(autoApply)
+	autoApplyRef.current = autoApply
+
+	/**
+	 * `applyActions` dipanggil dari dalam runTurn (terapkan-otomatis), tapi ia
+	 * dideklarasikan sesudahnya - ia butuh alat tulis yang butuh runTurn untuk
+	 * melanjutkan. Ref memutus lingkaran itu tanpa memindahkan salah satunya.
+	 */
+	const applyActionsRef = useRef<((calls: ToolCall[]) => void) | null>(null)
+
+	/** Kartu yang menunggu diterapkan otomatis begitu gilirannya benar-benar usai. */
+	const pendingAutoApplyRef = useRef<ToolCall[] | null>(null)
+
+	/**
+	 * Cermin `messages` yang selalu mutakhir dalam satu tik.
+	 *
+	 * Rantai runTurn dan penerapan kartu aksi keduanya perlu riwayat terkini
+	 * SEBELUM React sempat merender ulang - mis. saat terapkan-otomatis langsung
+	 * menyelesaikan kartu yang baru saja lahir di baris sebelumnya. Karena itu
+	 * riwayat selalu dirakit sebagai array utuh lalu ditulis ke keduanya.
+	 */
+	const messagesRef = useRef<ChatTurn[]>(messages)
+
+	/** Berapa gelombang alat tulis yang sudah dilanjutkan otomatis, per tugas. */
+	const writeWavesRef = useRef<{ taskId: string | undefined; count: number }>({
+		taskId: undefined,
+		count: 0,
+	})
 
 	// Lini masa langkah giliran berjalan (§B1). Dimutasi dari dalam rantai async
 	// runTurn, jadi versi terkininya dipegang ref - state hanya untuk render.
@@ -310,6 +386,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	// Dibaca lewat ref karena runTurn berjalan sebagai rantai async (§B1).
 	const appRef = useRef({ setup, setPageSetup, doc, activeDocId, activeId, sessions, comments })
 	appRef.current = { setup, setPageSetup, doc, activeDocId, activeId, sessions, comments }
+
+	/** Tulis riwayat: satu-satunya jalan supaya state dan cermin ref tak berselisih. */
+	const commit = useCallback((next: ChatTurn[]) => {
+		messagesRef.current = next
+		setMessages(next)
+	}, [])
 
 	// Konteks dirakit saat kirim, bukan saat diketik: naskah bisa berubah
 	// selama pengguna menyusun pertanyaannya.
@@ -536,8 +618,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					setStepsBoth(cancelled)
 					const partial = stripFallbackCalls(answer)
 					if (partial || cancelled.length > 0) {
-						setMessages((current) => [
-							...current,
+						commit([
+							...history,
 							{
 								role: 'assistant',
 								content: partial,
@@ -601,7 +683,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						detail: 'Model masih meminta bacaan setelah anggaran habis; permintaannya tidak dijalankan.',
 					})
 				}
-				setMessages((current) => [...current, { ...assistant, steps: finishSteps(), usage }])
+				const finalTurn: ChatTurn = { ...assistant, steps: finishSteps(), usage }
+				commit([...history, finalTurn])
+
+				/*
+				 * Terapkan-otomatis: kartu yang baru lahir langsung diputuskan, dan
+				 * keputusan itulah yang menyalakan kelanjutan gilirannya.
+				 *
+				 * Dititipkan, bukan dijalankan di tempat: giliran ini belum benar-benar
+				 * usai - `abortRef` baru dilepas di `finally` milik startTurn - dan
+				 * `settleActions` menolak melanjutkan selama masih ada yang berjalan.
+				 */
+				if (writes.length > 0 && autoApplyRef.current) pendingAutoApplyRef.current = writes
 				return
 			}
 
@@ -663,7 +756,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			 * jawaban, walaupun model masih akan membaca lagi setelahnya.
 			 */
 			const step: ChatTurn = { ...assistant, intermediate: !visible && writes.length === 0 }
-			setMessages((current) => [...current, step, ...results])
+			commit([...history, step, ...results])
 			setStreaming('')
 			await runTurn(
 				[...history, step, ...results],
@@ -680,22 +773,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		[],
 	)
 
-	const send = useCallback(
-		(prompt: string) => {
-			const trimmed = prompt.trim()
-			if (!trimmed || abortRef.current) return
-
-			// Setiap pesan pengguna membuka batas tugas baru (M1). Kartu aksi tugas
-			// sebelumnya otomatis kedaluwarsa karena currentTaskId bergeser.
-			const taskId = newTaskId()
-			const history: ChatTurn[] = [...messages, { role: 'user', content: trimmed, taskId }]
-			setMessages(history)
-			setCurrentTaskId(taskId)
-			setStreaming('')
-			setError(null)
-			setStepsBoth([])
-			planRef.current = null
-
+	/** Kirim satu giliran dan urus siklus hidupnya (batal, gagal, selesai). */
+	const startTurn = useCallback(
+		(history: ChatTurn[], taskId: string) => {
 			const controller = new AbortController()
 			abortRef.current = controller
 
@@ -708,13 +788,43 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				.finally(() => {
 					abortRef.current = null
 					setStreaming(null)
+
+					// Titipan terapkan-otomatis dijalankan sekarang, saat giliran ini
+					// benar-benar sudah dilepas; ia sendiri yang menyalakan giliran
+					// berikutnya lewat settleActions. Dibatalkan pengguna berarti
+					// batal juga - titipannya dibuang tanpa dijalankan.
+					const pending = pendingAutoApplyRef.current
+					pendingAutoApplyRef.current = null
+					if (pending && !controller.signal.aborted) applyActionsRef.current?.(pending)
 				})
 		},
-		[messages, runTurn],
+		[runTurn],
 	)
 
-	/** Jalankan satu aksi tulis yang sudah disetujui pengguna. */
-	const applyAction = useCallback(
+	const send = useCallback(
+		(prompt: string) => {
+			const trimmed = prompt.trim()
+			if (!trimmed || abortRef.current) return
+
+			// Setiap pesan pengguna membuka batas tugas baru (M1). Kartu aksi tugas
+			// sebelumnya otomatis kedaluwarsa karena currentTaskId bergeser.
+			const taskId = newTaskId()
+			const history: ChatTurn[] = [...messagesRef.current, { role: 'user', content: trimmed, taskId }]
+			commit(history)
+			setCurrentTaskId(taskId)
+			setStreaming('')
+			setError(null)
+			setStepsBoth([])
+			planRef.current = null
+			writeWavesRef.current = { taskId, count: 0 }
+
+			startTurn(history, taskId)
+		},
+		[commit, startTurn],
+	)
+
+	/** Jalankan satu alat tulis di editor - tanpa menyentuh riwayat percakapan. */
+	const runWriteTool = useCallback(
 		(call: ToolCall): ToolOutcome => {
 			// M5: toolCallId yang sudah diterapkan tidak menulis dua kali,
 			// sekalipun tombol Apply-nya ditekan lagi.
@@ -743,6 +853,113 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		[appliedActionIds, addComment, setActivePanel, markRun, state.text, language.code],
 	)
 
+	/**
+	 * Catat keputusan atas satu atau beberapa kartu aksi, lalu lanjutkan giliran.
+	 *
+	 * Inilah yang membuat "Apply" bukan lagi jalan buntu: keputusannya kembali ke
+	 * model sebagai pesan `tool`, dan giliran itu diteruskan dari sana. Tanpa ini
+	 * rencana bertahap secara struktural mustahil - model kehilangan gilirannya
+	 * tepat pada langkah pertama yang benar-benar menyunting.
+	 *
+	 * Kelanjutan menunggu SELURUH kartu di giliran itu diputuskan, dan itu bukan
+	 * pilihan gaya: protokol provider menolak riwayat yang memuat `tool_calls`
+	 * tanpa hasil untuk setiap idnya. Untuk giliran berkartu satu - kasus yang
+	 * paling lazim - artinya lanjut seketika begitu Apply ditekan.
+	 */
+	const settleActions = useCallback(
+		(entries: { call: ToolCall; content: string }[]) => {
+			const current = messagesRef.current
+			const settled = new Set(
+				current.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId),
+			)
+			const fresh = entries.filter((entry) => !settled.has(entry.call.id))
+			if (fresh.length === 0) return
+
+			// Giliran pemilik kartu: dari sanalah taskId dan daftar kartu sesaudara.
+			const owner = current.find(
+				(turn) =>
+					turn.role === 'assistant' && turn.actions?.some((action) => action.id === fresh[0].call.id),
+			)
+			const taskId = owner?.taskId
+
+			const results: ChatTurn[] = fresh.map((entry) => ({
+				role: 'tool' as const,
+				content: entry.content,
+				toolCallId: entry.call.id,
+				taskId,
+			}))
+
+			// Apakah keputusan ini melengkapi gilirannya, dan apakah ia boleh
+			// dilanjutkan - keduanya diputuskan SEBELUM riwayat ditulis, supaya
+			// catatan gelombang terakhir sudah ikut terpasang saat commit.
+			const complete =
+				owner !== undefined &&
+				taskId !== undefined &&
+				actionsSettled([...current, ...results], owner)
+
+			// Kartu yatim (tak ketemu pemiliknya), kartu tugas lama, atau giliran yang
+			// masih berjalan: catat saja, jangan menyalakan giliran kedua.
+			const waves = writeWavesRef.current
+			const count = waves.taskId === taskId ? waves.count + 1 : 1
+			const resumable =
+				complete && taskId === currentTaskId && !abortRef.current && count <= MAX_WRITE_WAVES
+
+			/*
+			 * Gelombang terakhir diberi tahu bahwa ia yang terakhir, dengan cara yang
+			 * sama seperti anggaran baca: lewat hasil alat, supaya model menutup
+			 * pekerjaannya alih-alih terpotong di tengah rencana.
+			 */
+			if (resumable && count === MAX_WRITE_WAVES) {
+				const last = results[results.length - 1]
+				results[results.length - 1] = { ...last, content: last.content + WRITE_WAVE_NOTICE }
+			}
+
+			const next = [...current, ...results]
+			commit(next)
+
+			if (!resumable || taskId === undefined) return
+			writeWavesRef.current = { taskId, count }
+
+			setStreaming('')
+			setStepsBoth([])
+			startTurn(next, taskId)
+		},
+		[commit, currentTaskId, startTurn],
+	)
+
+	const applyAction = useCallback(
+		(call: ToolCall): ToolOutcome => {
+			const outcome = runWriteTool(call)
+			settleActions([{ call, content: outcome.message }])
+			return outcome
+		},
+		[runWriteTool, settleActions],
+	)
+
+	/**
+	 * Terapkan sekaligus - dipakai tombol "Terapkan semua" dan terapkan-otomatis.
+	 *
+	 * Satu penyelesaian untuk seluruh kartu, bukan `applyAction` berulang: setiap
+	 * pemanggilan membaca riwayat dari ref yang sama, jadi memanggilnya berkali-
+	 * kali dalam satu tik akan saling menimpa.
+	 */
+	const applyActions = useCallback(
+		(calls: ToolCall[]) => {
+			settleActions(calls.map((call) => ({ call, content: runWriteTool(call).message })))
+		},
+		[runWriteTool, settleActions],
+	)
+	applyActionsRef.current = applyActions
+
+	const skipAction = useCallback(
+		(call: ToolCall) => {
+			settleActions([
+				{ call, content: 'The writer skipped this action. It was not applied to the document.' },
+			])
+		},
+		[settleActions],
+	)
+
 	/** Buka batas tugas baru tanpa menghapus transkrip (M7). */
 	const startNewTopic = useCallback(() => {
 		// currentTaskId bergeser ke id segar yang tidak dimiliki pesan mana pun,
@@ -752,14 +969,30 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 	const reset = useCallback(() => {
 		stop()
-		setMessages([])
+		commit([])
 		setStreaming(null)
 		setError(null)
 		setAttachment(null)
 		setAppliedActionIds(new Set())
 		setCurrentTaskId(undefined)
 		setStepsBoth([])
-	}, [stop])
+		writeWavesRef.current = { taskId: undefined, count: 0 }
+	}, [stop, commit])
+
+	/*
+	 * Kartu yang sudah punya pesan `tool` berarti sudah diputuskan - diterapkan
+	 * maupun dilewati. Riwayat itu sendiri yang jadi sumber kebenarannya, bukan
+	 * himpunan terpisah yang harus dijaga tetap sinkron.
+	 */
+	const settledActionIds = useMemo(
+		() =>
+			new Set(
+				messages
+					.filter((turn) => turn.role === 'tool' && turn.toolCallId)
+					.map((turn) => turn.toolCallId as string),
+			),
+		[messages],
+	)
 
 	const value = useMemo<ChatContextValue>(
 		() => ({
@@ -779,7 +1012,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			startNewTopic,
 			currentTaskId,
 			applyAction,
+			applyActions,
+			skipAction,
 			isActionApplied: (id: string) => appliedActionIds.has(id),
+			isActionSettled: (id: string) => settledActionIds.has(id),
+			autoApply,
+			setAutoApply,
 		}),
 		[
 			messages,
@@ -794,7 +1032,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			startNewTopic,
 			currentTaskId,
 			applyAction,
+			applyActions,
+			skipAction,
 			appliedActionIds,
+			settledActionIds,
+			autoApply,
+			setAutoApply,
 		],
 	)
 

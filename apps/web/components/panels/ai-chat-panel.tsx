@@ -11,9 +11,11 @@ import {
 	Plus,
 	Square,
 	Trash2,
+	SkipForward,
 	TriangleAlert,
 	Wand2,
 	X,
+	Zap,
 } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import type { ChatUsage, ToolCall } from '@writer-hub/shared'
@@ -51,6 +53,8 @@ export function AiChatPanel() {
 		reset,
 		startNewTopic,
 		currentTaskId,
+		autoApply,
+		setAutoApply,
 	} = useChat()
 
 	const [draft, setDraft] = useState('')
@@ -181,6 +185,31 @@ export function AiChatPanel() {
 					>
 						<FileText className="h-3 w-3" />
 						Whole document
+					</button>
+
+					{/*
+					 * Terapkan-otomatis melewati kartu aksi sepenuhnya. Saklarnya duduk
+					 * di sini, bukan di Setelan, karena ia mengubah cara panel ini
+					 * bekerja dan pengguna perlu melihat keadaannya saat memutuskan.
+					 */}
+					<button
+						type="button"
+						onClick={() => setAutoApply(!autoApply)}
+						title={
+							autoApply
+								? 'Suntingan AI langsung masuk naskah - batalkan dengan Ctrl+Z'
+								: 'Terapkan suntingan AI tanpa menunggu Apply'
+						}
+						aria-pressed={autoApply}
+						className={cn(
+							'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-colors',
+							autoApply
+								? 'bg-accent/15 text-accent'
+								: 'text-subtle hover:bg-[var(--overlay-hover)] hover:text-foreground',
+						)}
+					>
+						<Zap className="h-3 w-3" />
+						Auto-apply
 					</button>
 
 					{messages.length > 0 && (
@@ -328,9 +357,9 @@ function Bubble({
 					/>
 				))}
 
-			{actions?.map((call) => (
-				<ActionCard key={call.id} call={call} expired={expired} />
-			))}
+			{actions && actions.length > 0 && (
+				<ActionGroup actions={actions} expired={expired} />
+			)}
 		</div>
 	)
 }
@@ -409,15 +438,51 @@ function ProposalCard({ text, expired }: { text: string; expired?: boolean }) {
 }
 
 /**
+ * Kelompok kartu aksi satu giliran.
+ *
+ * Keputusan atas kartu-kartu ini yang melanjutkan giliran AI, dan kelanjutan
+ * itu baru berjalan setelah SEMUANYA diputuskan (lihat `settleActions`). Karena
+ * itu kelompok ini punya tombol "Terapkan semua": pada pekerjaan format sepuluh
+ * langkah, memutuskan satu per satu bukan kehati-hatian, hanya kerja tangan.
+ */
+function ActionGroup({ actions, expired }: { actions: ToolCall[]; expired?: boolean }) {
+	const { applyActions, isActionSettled } = useChat()
+	const pending = actions.filter((call) => !isActionSettled(call.id))
+
+	return (
+		<div className="flex flex-col gap-2">
+			{pending.length > 1 && !expired && (
+				<button
+					type="button"
+					onClick={() => applyActions(pending)}
+					className="flex items-center justify-center gap-1.5 rounded-full bg-green-500/15 py-1.5 text-xs font-medium text-green-400 transition-colors hover:bg-green-500/25"
+				>
+					<Check className="h-3.5 w-3.5" />
+					Terapkan semua ({pending.length})
+				</button>
+			)}
+			{actions.map((call) => (
+				<ActionCard key={call.id} call={call} expired={expired} />
+			))}
+		</div>
+	)
+}
+
+/**
  * Aksi yang diminta AI, menunggu persetujuan.
  *
  * Alat tulis sengaja tidak langsung berjalan: pada naskah puluhan halaman,
  * suntingan yang tidak dilihat hampir mustahil ditelusuri kembali. Kartu ini
  * memakai idiom yang sama dengan kartu saran di modul lain.
+ *
+ * "Lewati" bukan sekadar kenyamanan: giliran AI baru dilanjutkan setelah setiap
+ * kartu diputuskan, jadi tanpa jalan untuk menolak, satu kartu yang tak
+ * diinginkan menghentikan sisa rencananya selamanya.
  */
 function ActionCard({ call, expired }: { call: ToolCall; expired?: boolean }) {
-	const { applyAction, isActionApplied } = useChat()
+	const { applyAction, skipAction, isActionApplied, isActionSettled } = useChat()
 	const applied = isActionApplied(call.id)
+	const settled = isActionSettled(call.id)
 	const [outcome, setOutcome] = useState<{ ok: boolean; message: string } | null>(null)
 	// Kartu dari tugas sebelumnya butuh satu klik konfirmasi lagi (M3).
 	const [confirming, setConfirming] = useState(false)
@@ -439,7 +504,7 @@ function ActionCard({ call, expired }: { call: ToolCall; expired?: boolean }) {
 				</p>
 			</div>
 
-			{expired && !applied && !outcome && (
+			{expired && !settled && (
 				<p className="text-[11px] italic text-subtle">Dari permintaan sebelumnya</p>
 			)}
 
@@ -449,20 +514,33 @@ function ActionCard({ call, expired }: { call: ToolCall; expired?: boolean }) {
 				<p className={cn('text-[11px]', outcome.ok ? 'text-green-400' : 'text-yellow-400')}>
 					{outcome.message}
 				</p>
+			) : settled ? (
+				<p className="text-[11px] text-subtle">Dilewati</p>
 			) : (
-				<button
-					type="button"
-					onClick={onClick}
-					className={cn(
-						'flex items-center justify-center gap-1 rounded-lg py-1.5 text-xs transition-colors',
-						expired
-							? 'bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25'
-							: 'bg-green-500/15 text-green-400 hover:bg-green-500/25',
-					)}
-				>
-					<Check className="h-3.5 w-3.5" />
-					{expired ? (confirming ? 'Konfirmasi?' : 'Terapkan') : 'Apply'}
-				</button>
+				<div className="flex gap-1.5">
+					<button
+						type="button"
+						onClick={onClick}
+						className={cn(
+							'flex flex-1 items-center justify-center gap-1 rounded-lg py-1.5 text-xs transition-colors',
+							expired
+								? 'bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25'
+								: 'bg-green-500/15 text-green-400 hover:bg-green-500/25',
+						)}
+					>
+						<Check className="h-3.5 w-3.5" />
+						{expired ? (confirming ? 'Konfirmasi?' : 'Terapkan') : 'Apply'}
+					</button>
+					<button
+						type="button"
+						onClick={() => skipAction(call)}
+						title="Jangan terapkan yang ini - AI tetap dikabari dan melanjutkan"
+						className="flex items-center justify-center gap-1 rounded-lg bg-[var(--overlay-hover)] px-3 py-1.5 text-xs text-muted transition-colors hover:text-foreground"
+					>
+						<SkipForward className="h-3.5 w-3.5" />
+						Lewati
+					</button>
+				</div>
 			)}
 		</div>
 	)
