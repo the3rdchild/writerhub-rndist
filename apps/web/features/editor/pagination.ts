@@ -48,6 +48,12 @@ export interface Measurement {
 	 * celah internal tersebut.
 	 */
 	selfPaginate?: boolean
+	/**
+	 * Total celah internal blok self-paginate - ruang mati antar lembar yang ia
+	 * lompati. Ikut ke kumulatif supaya blok-blok sesudahnya tetap terbaca di
+	 * kerangka koordinat alami yang sama.
+	 */
+	internal?: number
 }
 
 interface PaginationState {
@@ -127,6 +133,7 @@ function measureBlocks(view: EditorView): Measurement[] {
 				isBreak: false,
 				kind: 'block',
 				selfPaginate: true,
+				internal,
 			})
 			return
 		}
@@ -287,7 +294,14 @@ export function computeSpacers(
 			const renderedBottom = block.bottom + cumulative
 			const sheetsUsed = Math.floor(Math.max(0, renderedBottom - 1) / pageStride) + 1
 			if (sheetsUsed > pageCount) pageCount = sheetsUsed
-			pageStart = (pageCount - 1) * pageStride
+
+			// Celah internalnya ikut ke kumulatif: measureBlocks mengurangkannya dari
+			// koordinat alami blok-blok sesudahnya, jadi tanpa ini sisa dokumen
+			// dihitung dalam kerangka koordinat yang berbeda dari pageStart.
+			cumulative += block.internal ?? 0
+			// pageStart hidup di koordinat alami sedangkan garis lembar di koordinat
+			// render; selisih keduanya persis sebanyak yang sudah tersisip.
+			pageStart = (pageCount - 1) * pageStride - cumulative
 
 			forceNext = false
 			continue

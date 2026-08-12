@@ -970,6 +970,12 @@ a {
 }
 .document-body div[data-type='columns'] > *:first-child { margin-top: 0; }
 .document-body div[data-type='columns'] > *:last-child { margin-bottom: 0; }
+/* Jarak antarparagraf di dalam kolom. Aturan `.document-body > * + *` hanya
+   mengenai anak langsung badan dokumen, jadi tanpa ini paragraf di dalam kolom
+   saling menempel. */
+.document-body div[data-type='columns'] > * + * {
+  margin-top: 0.75em;
+}
 /* Heading dan tabel dipenggal di tengah oleh batas kolom terbaca seperti rusak. */
 .document-body div[data-type='columns'] h1,
 .document-body div[data-type='columns'] h2,
@@ -977,6 +983,31 @@ a {
 .document-body div[data-type='columns'] table,
 .document-body div[data-type='columns'] blockquote {
   break-inside: avoid;
+}
+
+/*
+ * Tata letak kolom di layar dihitung plugin (columns.ts): tiap blok diposisikan
+ * mutlak ke petak (lembar, kolom)-nya, jadi tidak ada isi yang menyeberangi
+ * batas lembar. Posisi dan tinggi datang sebagai style inline dari dekorasi -
+ * di sini hanya sifat yang tidak bergantung angka.
+ */
+.document-body .columns-flowed {
+  position: relative;
+  /* Multi-kolom CSS pada pembungkus yang sama akan memecah anak-anak yang sudah
+     diposisikan mutlak, jadi ia dimatikan selama tata letak sendiri berlaku.
+     `!important` karena `column-count` node ditulis inline. */
+  column-count: initial !important;
+}
+.document-body .columns-item {
+  /* Kolom sempit: kata panjang tidak boleh menonjol keluar petaknya. */
+  overflow-wrap: break-word;
+}
+.document-body .columns-sheet-gap {
+  position: absolute;
+  left: 0;
+  width: 0;
+  user-select: none;
+  pointer-events: none;
 }
 /* Sisa struktur kolom lama - dibiarkan mengalir sebagai blok biasa. */
 .document-body div[data-type='col'] { min-width: 0; }
@@ -1570,6 +1601,28 @@ html.light .range-highlight {
   .document-body .code-block-mermaid-preview {
     max-height: none !important;
     overflow: visible !important;
+  }
+
+  /*
+   * Kolom: di layar petaknya dihitung sendiri karena lembar di sana cuma
+   * gambar latar pada satu aliran menerus. Di kertas halamannya sungguhan,
+   * dan multi-kolom CSS memang mengalir dari lembar ke lembar dengan benar -
+   * termasuk memecah paragraf di batas kolom, yang tidak bisa dilakukan tata
+   * letak layar. Jadi di sini perhitungan itu dilepas seluruhnya.
+   */
+  .document-body div[data-type='columns'] {
+    position: static !important;
+    height: auto !important;
+    column-count: var(--columns-count, 2) !important;
+  }
+  .document-body .columns-item {
+    position: static !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+  }
+  .document-body .columns-sheet-gap {
+    display: none !important;
   }
 
   @page {

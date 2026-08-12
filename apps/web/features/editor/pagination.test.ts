@@ -266,6 +266,23 @@ describe('blok self-paginate (blok TOC)', () => {
 		expectStartsPage(tops[1], 3)
 	})
 
+	test('celah internalnya ikut dihitung, jadi blok sesudahnya tidak menembus batas', () => {
+		// Blok ini merentang dua lembar dan melompati satu celah antar lembar
+		// (224px). Tanpa celah itu ikut dihitung, blok sesudahnya diukur di
+		// kerangka koordinat yang berbeda dari garis lembar - dan luapannya baru
+		// terdeteksi jauh setelah ia menembus batas area teks.
+		const internal = pageStride - contentHeight
+		const blocks: Measurement[] = [
+			{ pos: 0, top: 0, bottom: 1379, isBreak: false, kind: 'block', selfPaginate: true, internal },
+			{ pos: 1, top: 1379, bottom: 1879, isBreak: false, kind: 'block' },
+		]
+		const { spacers } = computeSpacers(blocks, geometry)
+
+		expect(spacers).toHaveLength(1)
+		// Yang benar-benar terlihat: koordinat alami + celah internal + spacer.
+		expectStartsPage(1379 + internal + spacers[0].height, 3)
+	})
+
 	test('page break manual tetap mendorongnya ke lembar baru', () => {
 		const blocks: Measurement[] = [
 			{ pos: 0, top: 0, bottom: 100, isBreak: false, kind: 'block' },
