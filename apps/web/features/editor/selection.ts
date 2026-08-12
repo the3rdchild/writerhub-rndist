@@ -42,7 +42,9 @@ function read(editor: Editor): EditorSelection | null {
 
 function same(a: EditorSelection | null, b: EditorSelection | null): boolean {
 	if (a === null || b === null) return a === b
-	return a.from === b.from && a.to === b.to
+	// Teks ikut dibandingkan: seleksi yang disunting di tempat (mis. lewat
+	// penerapan change) punya from/to yang sama tapi isi yang sudah berbeda.
+	return a.from === b.from && a.to === b.to && a.text === b.text
 }
 
 export function useEditorSelection(editor: Editor | null): EditorSelection | null {

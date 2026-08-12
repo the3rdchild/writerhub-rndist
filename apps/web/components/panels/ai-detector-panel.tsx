@@ -2,9 +2,11 @@
 
 import type { AiDetectorResult } from '@writer-hub/shared'
 import { Bot, CheckCircle2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { riskColor, ScoreRing } from '@/components/ui/score-ring'
 import { useAnalysis } from '@/features/analysis/use-analysis'
+import { aiScoreLevel } from '@/features/analysis/analysis-highlight'
+import { useAnalysisHighlight } from '@/features/analysis/use-analysis-highlight'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { useSelectionScope } from '@/features/editor/selection'
@@ -45,6 +47,22 @@ export function AiDetectorPanel() {
 	useEffect(() => {
 		setSentences(result ? [...result.sentences] : [])
 	}, [result])
+
+	/*
+	 * Sorot tiap kalimat dengan warna mengikuti skornya. `sentences` adalah
+	 * state yang sama yang diperbarui saat saran diterima (skor diturunkan),
+	 * jadi warna sorotan ikut melembut tanpa jalur pembaruan terpisah.
+	 */
+	const highlightRanges = useMemo(
+		() =>
+			sentences.map(({ offset, length, score }) => ({
+				offset,
+				length,
+				kind: aiScoreLevel(score),
+			})),
+		[sentences],
+	)
+	useAnalysisHighlight('ai_detector', highlightRanges)
 
 	const accept = (index: number) => {
 		const sentence = sentences[index]

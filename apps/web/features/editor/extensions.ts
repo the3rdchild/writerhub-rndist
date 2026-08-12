@@ -15,6 +15,7 @@ import type { Extensions } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import type * as Y from 'yjs'
 import { CommentMark } from '@/features/comments/comment-mark'
+import { AnalysisHighlight } from '@/features/analysis/analysis-highlight'
 import { CandidatePreviewHighlight } from '@/features/analysis/candidate-preview'
 import { SuggestionHighlight } from '@/features/document/suggestion-highlight'
 import { BlockSpacing } from '@/features/editor/block-spacing'
@@ -137,6 +138,8 @@ export function buildEditorExtensions({
 		SuggestionHighlight,
 		// Pratinjau kandidat AI Rewriter; menganggur sampai panel mengirim meta.
 		CandidatePreviewHighlight,
+		// Sorotan rentang hasil analisis (Humanizer, Translator, AI Detector).
+		AnalysisHighlight,
 		SelectionHighlight,
 		BlockIndentExtension,
 		BlockSpacing,

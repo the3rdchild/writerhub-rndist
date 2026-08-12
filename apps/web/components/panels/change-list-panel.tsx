@@ -3,7 +3,9 @@
 import type { AnalysisFeature, RewriterTone, TextChange } from '@writer-hub/shared'
 import { REWRITE_TONES } from '@writer-hub/shared'
 import type { LucideIcon } from 'lucide-react'
+import { useMemo } from 'react'
 import { useAnalysis } from '@/features/analysis/use-analysis'
+import { useAnalysisHighlight } from '@/features/analysis/use-analysis-highlight'
 import { useCandidatePreview } from '@/features/analysis/use-candidate-preview'
 import { usePendingChanges } from '@/features/analysis/use-pending-changes'
 import { usePreTranslateSnapshot } from '@/features/analysis/use-pre-translate-snapshot'
@@ -81,6 +83,17 @@ export function ChangeListPanel({
 	const scope = useSelectionScope()
 	const { preview, showPreview, clearPreview } = useCandidatePreview()
 	const { ensureSnapshot, reset: resetSnapshot } = usePreTranslateSnapshot()
+
+	/*
+	 * Sorot segmen yang masih pending di naskah. Daftarnya dihitung ulang dari
+	 * state pending - yang sudah menggeser offset sesudahnya tiap kali satu
+	 * change diterima - jadi terima/tolak/batal otomatis memperbarui sorotan.
+	 */
+	const highlightRanges = useMemo(
+		() => pending.map(({ offset, length }) => ({ offset, length, kind: 'change' as const })),
+		[pending],
+	)
+	useAnalysisHighlight(feature, highlightRanges)
 
 	/*
 	 * Terjemahan menimpa banyak kalimat sekaligus, jadi penerapan pertamanya

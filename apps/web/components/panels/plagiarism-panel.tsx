@@ -1,6 +1,7 @@
 'use client'
 
 import { Search, TriangleAlert } from 'lucide-react'
+import { usePanels } from '@/features/analysis/panel-context'
 import { useAnalysis } from '@/features/analysis/use-analysis'
 import { useRangeHighlight } from '@/features/document/use-range-highlight'
 import { useSelectionScope } from '@/features/editor/selection'
@@ -28,6 +29,16 @@ export function PlagiarismPanel() {
 	const { result, isRunning, error, isStale, canRun, run } = useAnalysis('plagiarism')
 	const { rangeProps } = useRangeHighlight()
 	const scope = useSelectionScope()
+	const { lastRun } = usePanels()
+
+	/*
+	 * Seleksi runtuh begitu pengguna mengklik editor, jadi tanpa ini re-check
+	 * setelah run per-seleksi akan diam-diam mengirim SELURUH naskah. Selagi
+	 * tidak ada seleksi baru, re-check memakai kembali scope run terakhir -
+	 * teks dan offsetnya tersimpan lengkap di `lastRun`.
+	 */
+	const lastScoped = lastRun.plagiarism?.scoped ? lastRun.plagiarism : null
+	const recheckScope = lastScoped ? { text: lastScoped.text, offset: lastScoped.offset } : undefined
 
 	return (
 		<>
@@ -93,11 +104,19 @@ export function PlagiarismPanel() {
 				<RunScopeBar wordCount={scope?.wordCount ?? null} />
 
 				<RunButton
-					onClick={() => run(scope ?? undefined)}
+					onClick={() => run(scope ?? recheckScope)}
 					disabled={!canRun}
 					isRunning={isRunning}
 					runningLabel="Checking..."
-					label={scope ? 'Check Selection' : result ? 'Check Again' : 'Check Plagiarism'}
+					label={
+						scope
+							? 'Check Selection'
+							: lastScoped
+								? 'Re-check Selection'
+								: result
+									? 'Check Again'
+									: 'Check Plagiarism'
+					}
 				/>
 			</PanelFooter>
 		</>
