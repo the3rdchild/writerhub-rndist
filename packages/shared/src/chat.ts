@@ -37,10 +37,28 @@ export interface ChatRequest {
 }
 
 /**
+ * Fase kemajuan satu giliran (§B1.2). Dikirim server sebagai event `status`;
+ * klien yang menampilkannya sebagai baris langkah di lini masa.
+ */
+export type ChatStreamPhase = 'connecting' | 'thinking' | 'reading' | 'writing' | 'retrying'
+
+/** Pemakaian token satu giliran, bila provider melaporkannya. */
+export interface ChatUsage {
+	promptTokens?: number
+	completionTokens?: number
+}
+
+/**
  * Event SSE percakapan.
  *
  * `delta` datang berkali-kali berisi potongan teks; `done` menutup giliran.
  * Berbeda dari job analisis yang hanya mengenal satu event terminal.
+ *
+ * Event kemajuan (§B1) bersifat tambahan: klien lama mengabaikannya, klien baru
+ * mengubahnya jadi lini masa langkah. `tool_start`/`tool_result` tidak pernah
+ * dipancarkan server - keduanya disintesis klien saat alat baca dijalankan -
+ * tetapi bentuknya didaftarkan di sini supaya lini masa dan protokol berbagi
+ * satu kosakata.
  */
 export type ChatStreamEvent =
 	| { type: 'delta'; text: string }
@@ -48,6 +66,18 @@ export type ChatStreamEvent =
 	| { type: 'tool_call'; id: string; name: string; arguments: string }
 	/** Provider menolak parameter `tools`; klien beralih ke protokol blok teks. */
 	| { type: 'tools_unsupported' }
+	/** Fase baru dalam giliran; menyalakan baris langkah di UI. */
+	| { type: 'status'; phase: ChatStreamPhase; detail?: string }
+	/** Ringkasan penalaran (`reasoning_content`); dilewati bila provider tak mengirimnya. */
+	| { type: 'reasoning'; text: string }
+	/** Alat baca mulai dijalankan (disintesis klien). */
+	| { type: 'tool_start'; id: string; name: string; arguments: string }
+	/** Ringkasan pendek hasil alat, bukan isi penuh (disintesis klien). */
+	| { type: 'tool_result'; id: string; summary: string; ok: boolean }
+	/** Pemakaian token; ditampilkan halus di kaki giliran. */
+	| { type: 'usage'; promptTokens?: number; completionTokens?: number }
+	/** Denyut anti-menganggur supaya proksi tidak memutus koneksi. */
+	| { type: 'ping' }
 	| { type: 'done' }
 	| { type: 'error'; message: string }
 

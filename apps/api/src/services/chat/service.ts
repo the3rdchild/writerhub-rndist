@@ -70,42 +70,13 @@ export default class ChatService extends JobSubmissionService {
 					signal: this.context.req.raw.signal,
 				})
 
-			const wantsTools = parsed.data.tools
-			let upstream = await call(wantsTools)
-			let toolsRejected = false
-
 			/*
-			 * Model yang dipakai di produksi datang dari admin-ppe per pengguna, jadi
-			 * dukungan tool calling tidak bisa dipastikan di muka. Penolakan 4xx
-			 * diperlakukan sebagai "provider ini tidak mendukungnya": permintaan
-			 * diulang tanpa `tools`, dengan protokol blok teks di prompt-nya.
+			 * Stream dibuka SEBELUM provider dipanggil (§B1): fase connecting dan
+			 * retrying hanya bisa dilaporkan kalau klien sudah memegang saluran.
+			 * Akibatnya kegagalan provider tidak lagi pulang sebagai status HTTP,
+			 * melainkan sebagai event `error` - klien menampilkan keduanya sama.
 			 */
-			if (wantsTools && !upstream.ok && upstream.status >= 400 && upstream.status < 500) {
-				toolsRejected = true
-				upstream = await call(false)
-			}
-
-			if (!upstream.ok || !upstream.body) {
-				const detail = await upstream.text().catch(() => '')
-				/*
-				 * Kredensial yang ditolak diberi nama sendiri.
-				 *
-				 * Label bawaan `this.error` adalah "Bad Request", dan itu menyesatkan
-				 * di sini: yang salah bukan permintaan yang dikirim pengguna,
-				 * melainkan kunci API yang dipakai server. Yang membaca pesannya akan
-				 * memeriksa isi percakapan lebih dulu, padahal jawabannya ada di env.
-				 */
-				const credentialsRejected = upstream.status === 401 || upstream.status === 403
-				return this.error({
-					message: credentialsRejected
-						? 'Kunci API provider AI ditolak - periksa AI_API_KEY'
-						: 'Provider AI gagal menjawab',
-					errors: [`Provider AI membalas ${upstream.status}`, detail.slice(0, 300)].filter(Boolean),
-					status: 502,
-				})
-			}
-
-			return new Response(toEventStream(upstream.body, toolsRejected), {
+			return new Response(openChatStream(call, parsed.data.tools ?? false), {
 				headers: {
 					'content-type': 'text/event-stream; charset=utf-8',
 					'cache-control': 'no-cache, no-transform',
@@ -285,89 +256,174 @@ interface PartialToolCall {
 	arguments: string
 }
 
-function toEventStream(body: ByteSource, toolsRejected = false): ReadableStream<Uint8Array> {
-	const decoder = new TextDecoder()
+/** Denyut anti-menganggur (§B1.2): proksi lazim memutus koneksi yang diam. */
+const PING_INTERVAL_MS = 15_000
+
+/**
+ * Pompa satu giliran: panggil provider, laporkan tiap fase sebagai event
+ * `status`, dan teruskan delta/reasoning/usage.
+ *
+ * Seluruh kegagalan di dalam pompa pulang sebagai event `error`, bukan status
+ * HTTP - Responsnya sudah telanjur dibuka sebelum provider dipanggil.
+ */
+function openChatStream(
+	call: (withTools: boolean) => Promise<Response>,
+	wantsTools: boolean,
+): ReadableStream<Uint8Array> {
 	const encoder = new TextEncoder()
 
 	return new ReadableStream<Uint8Array>({
 		async start(controller) {
-			const reader = body.getReader()
-			let buffer = ''
-
-			/*
-			 * Panggilan alat tiba berkeping seperti teks: nama datang di delta
-			 * pertama, argumennya menyusul potongan demi potongan. Dikumpulkan per
-			 * indeks dan baru dikirim setelah stream selesai - argumen JSON yang
-			 * separuh jadi tidak bisa dipakai apa-apa.
-			 */
-			const pending = new Map<number, PartialToolCall>()
-
+			let closed = false
 			const send = (event: ChatStreamEvent) => {
+				if (closed) return
 				controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
 			}
 
-			if (toolsRejected) send({ type: 'tools_unsupported' })
+			const ping = setInterval(() => send({ type: 'ping' }), PING_INTERVAL_MS)
 
 			try {
-				while (true) {
-					const { done, value } = await reader.read()
-					if (done) break
+				send({ type: 'status', phase: 'connecting' })
+				let upstream = await call(wantsTools)
 
-					if (value) buffer += decoder.decode(value, { stream: true })
-
-					// SSE dipisah per baris, tapi satu chunk bisa memuat potongan
-					// baris - sisanya disimpan sampai barisnya utuh.
-					const lines = buffer.split('\n')
-					buffer = lines.pop() ?? ''
-
-					for (const line of lines) {
-						const trimmed = line.trim()
-						if (!trimmed.startsWith('data:')) continue
-
-						const payload = trimmed.slice(5).trim()
-						if (payload === '[DONE]') continue
-
-						try {
-							const parsed = JSON.parse(payload)
-							const delta = parsed?.choices?.[0]?.delta
-
-							const text = delta?.content
-							if (typeof text === 'string' && text.length > 0) send({ type: 'delta', text })
-
-							for (const call of delta?.tool_calls ?? []) {
-								const index: number = call.index ?? 0
-								const current = pending.get(index) ?? { id: '', name: '', arguments: '' }
-
-								if (call.id) current.id = call.id
-								if (call.function?.name) current.name = call.function.name
-								if (call.function?.arguments) current.arguments += call.function.arguments
-
-								pending.set(index, current)
-							}
-						} catch {
-							// Potongan tak terbaca dilewati: satu delta rusak tidak
-							// sepadan dengan menggugurkan seluruh jawaban.
-						}
-					}
+				/*
+				 * Model yang dipakai di produksi datang dari admin-ppe per pengguna, jadi
+				 * dukungan tool calling tidak bisa dipastikan di muka. Penolakan 4xx
+				 * diperlakukan sebagai "provider ini tidak mendukungnya": permintaan
+				 * diulang tanpa `tools`, dengan protokol blok teks di prompt-nya.
+				 */
+				if (wantsTools && !upstream.ok && upstream.status >= 400 && upstream.status < 500) {
+					send({ type: 'status', phase: 'retrying', detail: 'Provider menolak tool calling' })
+					send({ type: 'tools_unsupported' })
+					upstream = await call(false)
 				}
 
-				for (const call of pending.values()) {
-					if (!call.name) continue
+				if (!upstream.ok || !upstream.body) {
+					const detail = await upstream.text().catch(() => '')
+					// Kredensial yang ditolak diberi nama sendiri: yang salah bukan
+					// permintaan pengguna, melainkan kunci API yang dipakai server.
+					const credentialsRejected = upstream.status === 401 || upstream.status === 403
 					send({
-						type: 'tool_call',
-						id: call.id || `call_${call.name}_${Math.random().toString(36).slice(2, 8)}`,
-						name: call.name,
-						arguments: call.arguments || '{}',
+						type: 'error',
+						message: credentialsRejected
+							? 'Kunci API provider AI ditolak - periksa AI_API_KEY'
+							: `Provider AI membalas ${upstream.status}. ${detail.slice(0, 300)}`.trim(),
 					})
+					return
 				}
 
+				send({ type: 'status', phase: 'thinking' })
+				await pumpUpstream(upstream.body, send)
 				send({ type: 'done' })
 			} catch (error) {
 				send({ type: 'error', message: error instanceof Error ? error.message : 'Stream terputus' })
 			} finally {
+				clearInterval(ping)
+				closed = true
 				controller.close()
-				reader.releaseLock()
 			}
 		},
 	})
+}
+
+/** Teruskan aliran provider sebagai event, sambil melaporkan transisi fase. */
+async function pumpUpstream(body: ByteSource, send: (event: ChatStreamEvent) => void): Promise<void> {
+	const decoder = new TextDecoder()
+	const reader = body.getReader()
+	let buffer = ''
+
+	/*
+	 * Panggilan alat tiba berkeping seperti teks: nama datang di delta
+	 * pertama, argumennya menyusul potongan demi potongan. Dikumpulkan per
+	 * indeks dan baru dikirim setelah stream selesai - argumen JSON yang
+	 * separuh jadi tidak bisa dipakai apa-apa.
+	 */
+	const pending = new Map<number, PartialToolCall>()
+
+	// Fase dilaporkan sekali per transisi, bukan per delta.
+	let phase: 'thinking' | 'reading' | 'writing' = 'thinking'
+
+	try {
+		while (true) {
+			const { done, value } = await reader.read()
+			if (done) break
+
+			if (value) buffer += decoder.decode(value, { stream: true })
+
+			// SSE dipisah per baris, tapi satu chunk bisa memuat potongan
+			// baris - sisanya disimpan sampai barisnya utuh.
+			const lines = buffer.split('\n')
+			buffer = lines.pop() ?? ''
+
+			for (const line of lines) {
+				const trimmed = line.trim()
+				if (!trimmed.startsWith('data:')) continue
+
+				const payload = trimmed.slice(5).trim()
+				if (payload === '[DONE]') continue
+
+				try {
+					const parsed = JSON.parse(payload)
+					const delta = parsed?.choices?.[0]?.delta
+
+					const text = delta?.content
+					if (typeof text === 'string' && text.length > 0) {
+						if (phase !== 'writing') {
+							phase = 'writing'
+							send({ type: 'status', phase })
+						}
+						send({ type: 'delta', text })
+					}
+
+					// Ringkasan penalaran; namanya berbeda-beda antar provider
+					// (reasoning_content yang paling lazim).
+					const reasoning = delta?.reasoning_content ?? delta?.reasoning
+					if (typeof reasoning === 'string' && reasoning.length > 0) {
+						send({ type: 'reasoning', text: reasoning })
+					}
+
+					const toolCalls = delta?.tool_calls ?? []
+					if (toolCalls.length > 0 && phase !== 'reading') {
+						phase = 'reading'
+						send({ type: 'status', phase })
+					}
+					for (const call of toolCalls) {
+						const index: number = call.index ?? 0
+						const current = pending.get(index) ?? { id: '', name: '', arguments: '' }
+
+						if (call.id) current.id = call.id
+						if (call.function?.name) current.name = call.function.name
+						if (call.function?.arguments) current.arguments += call.function.arguments
+
+						pending.set(index, current)
+					}
+
+					// Pemakaian token dikirim provider di keping terakhir (bila ada).
+					const usage = parsed?.usage
+					if (usage) {
+						send({
+							type: 'usage',
+							promptTokens: usage.prompt_tokens,
+							completionTokens: usage.completion_tokens,
+						})
+					}
+				} catch {
+					// Potongan tak terbaca dilewati: satu delta rusak tidak
+					// sepadan dengan menggugurkan seluruh jawaban.
+				}
+			}
+		}
+
+		for (const call of pending.values()) {
+			if (!call.name) continue
+			send({
+				type: 'tool_call',
+				id: call.id || `call_${call.name}_${Math.random().toString(36).slice(2, 8)}`,
+				name: call.name,
+				arguments: call.arguments || '{}',
+			})
+		}
+	} finally {
+		reader.releaseLock()
+	}
 }

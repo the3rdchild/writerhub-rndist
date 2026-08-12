@@ -1,7 +1,13 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import { CHAT_CONTEXT_LIMITS, type ChatMessage, type ToolCall } from '@writer-hub/shared'
+import {
+	CHAT_CONTEXT_LIMITS,
+	type ChatMessage,
+	type ChatStreamPhase,
+	type ChatUsage,
+	type ToolCall,
+} from '@writer-hub/shared'
 import { isReadTool } from '@writer-hub/shared'
 import {
 	createContext,
@@ -19,7 +25,7 @@ import { useEditorInstance } from '@/features/editor/editor-context'
 import { editorPlainText } from '@/features/editor/text-content'
 import { useSessions } from '@/features/sessions/session-context'
 import { parseFallbackCalls, streamChat, stripFallbackCalls } from './api'
-import { applyWriteTool, runReadTool, type ToolOutcome } from './tools'
+import { applyWriteTool, readToolLabel, runReadTool, summarizeToolResult, type ToolOutcome } from './tools'
 
 /**
  * Percakapan dengan AI di panel samping.
@@ -40,6 +46,23 @@ export interface ChatAttachment {
 }
 
 /**
+ * Satu baris langkah di lini masa giliran (§B1.3).
+ *
+ * Langkah lahir dari event `status` server dan dari alat baca yang dijalankan
+ * klien; setelah giliran selesai ia menempel pada gilurannya supaya bisa
+ * dibuka lagi sebagai "N langkah · X dtk".
+ */
+export interface ChatStep {
+	id: string
+	label: string
+	status: 'running' | 'done' | 'failed' | 'cancelled'
+	startedAt: number
+	endedAt?: number
+	/** Argumen alat + ringkasan hasil, atau penalaran; dibuka saat baris ditekan. */
+	detail?: string
+}
+
+/**
  * Satu giliran percakapan, plus aksi tulis yang menunggu persetujuan.
  *
  * `actions` tidak pernah ikut dikirim ke provider - ia hanya milik UI.
@@ -48,10 +71,23 @@ export interface ChatTurn extends ChatMessage {
 	actions?: ToolCall[]
 	/** Batas tugas: semua giliran dari satu pesan pengguna berbagi id ini. */
 	taskId?: string
+	/** Lini masa langkah giliran ini (§B1); tidak dikirim ke provider. */
+	steps?: ChatStep[]
+	/** Pemakaian token, bila provider melaporkannya. */
+	usage?: ChatUsage
 }
 
 /** Batas putaran alat baca dalam satu giliran. */
 const MAX_TOOL_ROUNDS = 4
+
+/** Label baris langkah untuk tiap fase yang dipancarkan server (§B1.3). */
+const PHASE_LABEL: Record<ChatStreamPhase, string> = {
+	connecting: 'Menghubungi provider…',
+	thinking: 'Berpikir…',
+	reading: 'Menyiapkan pembacaan dokumen…',
+	writing: 'Menyusun jawaban…',
+	retrying: 'Mencoba ulang tanpa tool calling…',
+}
 
 /** Id batas tugas baru. crypto.randomUUID bila ada, mundur ke counter waktu. */
 function newTaskId(): string {
@@ -75,7 +111,7 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 	for (const turn of history) {
 		// Tugas berjalan: utuh, hanya buang bidang milik UI.
 		if (turn.taskId === currentTaskId) {
-			const { actions: _actions, taskId: _taskId, ...message } = turn
+			const { actions: _actions, taskId: _taskId, steps: _steps, usage: _usage, ...message } = turn
 			outbound.push(message)
 			continue
 		}
@@ -136,6 +172,8 @@ interface ChatContextValue {
 	messages: ChatTurn[]
 	/** Jawaban yang sedang mengalir; null saat tidak ada giliran berjalan. */
 	streaming: string | null
+	/** Lini masa langkah giliran yang sedang berjalan (§B1). */
+	steps: ChatStep[]
 	isRunning: boolean
 	error: string | null
 
@@ -178,6 +216,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const [currentTaskId, setCurrentTaskId] = useState<string | undefined>(undefined)
 	/** toolCallId yang sudah diterapkan - lihat M5 (anti-terap-ganda). */
 	const [appliedActionIds, setAppliedActionIds] = useState<Set<string>>(() => new Set())
+
+	// Lini masa langkah giliran berjalan (§B1). Dimutasi dari dalam rantai async
+	// runTurn, jadi versi terkininya dipegang ref - state hanya untuk render.
+	const [steps, setSteps] = useState<ChatStep[]>([])
+	const stepsRef = useRef<ChatStep[]>([])
 
 	const abortRef = useRef<AbortController | null>(null)
 
@@ -242,6 +285,43 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		abortRef.current = null
 	}, [])
 
+	// ── lini masa langkah (§B1) ──────────────────────────────────────────────
+	// Helper ini hanya menyentuh ref + setState yang stabil, jadi aman dipakai
+	// dari runTurn yang berjalan di luar siklus render.
+
+	const setStepsBoth = (next: ChatStep[]) => {
+		stepsRef.current = next
+		setSteps(next)
+	}
+
+	const closeRunning = (status: 'done' | 'failed' | 'cancelled', list: ChatStep[]): ChatStep[] =>
+		list.map((step) => (step.status === 'running' ? { ...step, status, endedAt: Date.now() } : step))
+
+	/** Buka langkah baru; langkah berjalan sebelumnya ditutup (satu fase menggantikan fase sebelumnya). */
+	const pushStep = (label: string, detail?: string) => {
+		const now = Date.now()
+		setStepsBoth([
+			...closeRunning('done', stepsRef.current),
+			{ id: `step_${now.toString(36)}_${stepsRef.current.length}`, label, status: 'running', startedAt: now, detail },
+		])
+	}
+
+	/** Tambahkan rincian pada langkah yang sedang berjalan (mis. penalaran atau hasil alat). */
+	const patchRunningStep = (patch: Partial<ChatStep>) => {
+		setStepsBoth(
+			stepsRef.current.map((step, index) =>
+				index === stepsRef.current.length - 1 && step.status === 'running' ? { ...step, ...patch } : step,
+			),
+		)
+	}
+
+	/** Tutup semua langkah berjalan dan kembalikan potretnya untuk ditempel ke giliran. */
+	const finishSteps = (): ChatStep[] | undefined => {
+		const closed = closeRunning('done', stepsRef.current)
+		setStepsBoth(closed)
+		return closed.length > 0 ? closed : undefined
+	}
+
 	/**
 	 * Satu giliran, termasuk kelanjutannya setelah alat baca dijalankan.
 	 *
@@ -257,21 +337,61 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		async (history: ChatTurn[], round: number, controller: AbortController, taskId: string): Promise<void> => {
 			let answer = ''
 			const calls: ToolCall[] = []
+			let usage: ChatUsage | undefined
+			let reasoning = ''
 
-			await streamChat(
-				{ messages: buildOutboundMessages(history, taskId), context: buildContext(), tools: toolsRef.current },
-				{
-					onDelta: (delta) => {
-						answer += delta
-						setStreaming(answer)
+			try {
+				await streamChat(
+					{ messages: buildOutboundMessages(history, taskId), context: buildContext(), tools: toolsRef.current },
+					{
+						onDelta: (delta) => {
+							answer += delta
+							setStreaming(answer)
+						},
+						onToolCall: (call) => calls.push(call),
+						onToolsUnsupported: () => {
+							toolsRef.current = false
+						},
+						// Tiap fase baru membuka satu baris langkah (§B1).
+						onStatus: (phase, detail) => pushStep(PHASE_LABEL[phase], detail),
+						// Penalaran ditempel ke langkah yang sedang berjalan; provider
+						// yang tidak mengirimkannya tidak menghasilkan apa-apa (§B1.4 no. 4).
+						onReasoning: (text) => {
+							reasoning += text
+							patchRunningStep({ detail: reasoning })
+						},
+						onUsage: (report) => {
+							usage = report
+						},
 					},
-					onToolCall: (call) => calls.push(call),
-					onToolsUnsupported: () => {
-						toolsRef.current = false
-					},
-				},
-				controller.signal,
-			)
+					controller.signal,
+				)
+			} catch (cause) {
+				if (controller.signal.aborted) {
+					// Hentikan: langkah berjalan ditandai dibatalkan dan jawaban separuh
+					// diabadikan, supaya pembatalannya terlihat di transkrip (§B1.4 no. 5).
+					const cancelled = closeRunning('cancelled', stepsRef.current)
+					setStepsBoth(cancelled)
+					const partial = stripFallbackCalls(answer)
+					if (partial || cancelled.length > 0) {
+						setMessages((current) => [
+							...current,
+							{
+								role: 'assistant',
+								content: partial,
+								taskId,
+								steps: cancelled.length > 0 ? cancelled : undefined,
+								usage,
+							},
+						])
+					}
+				} else {
+					// Kegagalan sungguhan: langkah berjalan ditandai gagal sebelum
+					// pesan errornya diangkat ke layar oleh send().
+					setStepsBoth(closeRunning('failed', stepsRef.current))
+				}
+				throw cause
+			}
 
 			// Jalur cadangan: panggilan yang ditulis sebagai blok teks.
 			calls.push(...parseFallbackCalls(answer))
@@ -300,22 +420,40 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			// sebagai penanda, bukan return diam-diam yang meninggalkan pertanyaan
 			// pengguna tanpa jawaban di mata model.
 			if (reads.length === 0 || round >= MAX_TOOL_ROUNDS || !editor) {
-				setMessages((current) => [...current, assistant])
+				if (reads.length > 0 && round >= MAX_TOOL_ROUNDS && editor) {
+					// Putaran alat mentok di batas: langkah eksplisit, bukan berhenti
+					// diam-diam (§B1.3).
+					pushStep('Batas penelusuran tercapai')
+					patchRunningStep({
+						status: 'failed',
+						endedAt: Date.now(),
+						detail: `${MAX_TOOL_ROUNDS} putaran alat baca dalam satu giliran`,
+					})
+				}
+				setMessages((current) => [...current, { ...assistant, steps: finishSteps(), usage }])
 				return
 			}
 
-			const results: ChatTurn[] = reads.map((call) => ({
-				role: 'tool',
-				content: runReadTool(editor, call),
-				toolCallId: call.id,
-				taskId,
-			}))
+			// Alat baca dijalankan klien; tiap pemanggilan jadi satu baris langkah
+			// berisi argumen dan ringkasan hasil (bukan isi penuh).
+			const results: ChatTurn[] = []
+			for (const call of reads) {
+				pushStep(readToolLabel(editor, call))
+				const content = runReadTool(editor, call)
+				patchRunningStep({
+					status: 'done',
+					endedAt: Date.now(),
+					detail: `${JSON.stringify(call.arguments)}\n→ ${summarizeToolResult(content)}`,
+				})
+				results.push({ role: 'tool', content, toolCallId: call.id, taskId })
+			}
 
 			setMessages((current) => [...current, assistant, ...results])
 			setStreaming('')
 			await runTurn([...history, assistant, ...results], round + 1, controller, taskId)
 		},
-		// buildContext dan editorRef dibaca lewat ref/closure segar tiap panggilan.
+		// buildContext dan editorRef dibaca lewat ref/closure segar tiap panggilan;
+		// helper langkah hanya menyentuh ref + setState yang stabil.
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 		[],
 	)
@@ -333,6 +471,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			setCurrentTaskId(taskId)
 			setStreaming('')
 			setError(null)
+			setStepsBoth([])
 
 			const controller = new AbortController()
 			abortRef.current = controller
@@ -393,12 +532,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		setAttachment(null)
 		setAppliedActionIds(new Set())
 		setCurrentTaskId(undefined)
+		setStepsBoth([])
 	}, [stop])
 
 	const value = useMemo<ChatContextValue>(
 		() => ({
 			messages,
 			streaming,
+			steps,
 			isRunning: streaming !== null,
 			error,
 			attachment,
@@ -417,6 +558,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		[
 			messages,
 			streaming,
+			steps,
 			error,
 			attachment,
 			includeDocument,

@@ -1,9 +1,23 @@
 'use client'
 
-import { ArrowUp, Check, FileText, Plus, Square, Trash2, Wand2, X } from 'lucide-react'
+import {
+	ArrowUp,
+	Ban,
+	Check,
+	ChevronDown,
+	ChevronRight,
+	FileText,
+	Loader2,
+	Plus,
+	Square,
+	Trash2,
+	TriangleAlert,
+	Wand2,
+	X,
+} from 'lucide-react'
 import { Fragment, useEffect, useRef, useState } from 'react'
-import type { ToolCall } from '@writer-hub/shared'
-import { extractProposals, stripProposals, useChat } from '@/features/chat/chat-context'
+import type { ChatUsage, ToolCall } from '@writer-hub/shared'
+import { type ChatStep, extractProposals, stripProposals, useChat } from '@/features/chat/chat-context'
 import { describeToolCall } from '@/features/chat/tools'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { useEditorInstance } from '@/features/editor/editor-context'
@@ -24,6 +38,7 @@ export function AiChatPanel() {
 	const {
 		messages,
 		streaming,
+		steps,
 		isRunning,
 		error,
 		attachment,
@@ -71,7 +86,7 @@ export function AiChatPanel() {
 	useEffect(() => {
 		const element = scrollRef.current
 		if (element) element.scrollTop = element.scrollHeight
-	}, [messages, streaming])
+	}, [messages, streaming, steps])
 
 	const submit = () => {
 		if (!draft.trim() || isRunning) return
@@ -108,13 +123,22 @@ export function AiChatPanel() {
 								role={message.role}
 								content={message.content}
 								actions={message.actions}
+								steps={message.steps}
+								usage={message.usage}
 								expired={!!message.taskId && message.taskId !== currentTaskId}
 							/>
 						</Fragment>
 					)
 				})}
 
-				{streaming !== null && <Bubble role="assistant" content={streaming} pending />}
+				{streaming !== null && (
+					<>
+						{/* Lini masa langkah (§B1): proses yang sedang berjalan terlihat
+						    sebelum jawaban muncul. */}
+						{steps.length > 0 && <StepTimeline steps={steps} live />}
+						<Bubble role="assistant" content={streaming} pending />
+					</>
+				)}
 
 				{error && <PanelError message={error} />}
 			</div>
@@ -235,12 +259,17 @@ function Bubble({
 	content,
 	pending,
 	actions,
+	steps,
+	usage,
 	expired,
 }: {
 	role: 'user' | 'assistant'
 	content: string
 	pending?: boolean
 	actions?: ToolCall[]
+	/** Lini masa langkah giliran ini (§B1); diringkas jadi satu baris. */
+	steps?: ChatStep[]
+	usage?: ChatUsage
 	/** Asal dari tugas sebelumnya: kartu aksanya butuh konfirmasi tambahan. */
 	expired?: boolean
 }) {
@@ -261,6 +290,9 @@ function Bubble({
 
 	return (
 		<div className="flex flex-col gap-2">
+			{/* Giliran selesai: lini masa menciut jadi ringkasan satu baris (§B1.3). */}
+			{steps && steps.length > 0 && <StepSummary steps={steps} usage={usage} />}
+
 			{prose && (
 				<p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
 					{prose}
@@ -421,6 +453,105 @@ function TaskSeparator() {
 			<span className="h-px flex-1 bg-foreground/10" />
 			<span className="text-[10px] uppercase tracking-wide text-subtle">Topik baru</span>
 			<span className="h-px flex-1 bg-foreground/10" />
+		</div>
+	)
+}
+
+// ── lini masa langkah (§B1.3) ────────────────────────────────────────────────
+
+/** Durasi langkah dalam detik, koma Indonesia ("0,4 dtk"). */
+function formatDuration(step: ChatStep, now: number): string {
+	const ms = (step.endedAt ?? now) - step.startedAt
+	return `${(Math.max(0, ms) / 1000).toFixed(1).replace('.', ',')} dtk`
+}
+
+function StepIcon({ status }: { status: ChatStep['status'] }) {
+	switch (status) {
+		case 'running':
+			return <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" />
+		case 'done':
+			return <Check className="h-3 w-3 shrink-0 text-green-400" />
+		case 'failed':
+			return <TriangleAlert className="h-3 w-3 shrink-0 text-yellow-400" />
+		case 'cancelled':
+			return <Ban className="h-3 w-3 shrink-0 text-subtle" />
+	}
+}
+
+/**
+ * Lini masa langkah satu giliran: satu baris per langkah, dengan ikon keadaan
+ * dan durasi. Menekan baris membuka rinciannya (argumen alat, ringkasan hasil,
+ * atau penalaran).
+ */
+function StepTimeline({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
+	const [open, setOpen] = useState<string | null>(null)
+	// Detak 1 dtk supaya durasi langkah berjalan terlihat bergerak - tidak ada
+	// jeda panjang tanpa perubahan di layar (§B1.4 no. 2).
+	const [now, setNow] = useState(() => Date.now())
+	useEffect(() => {
+		if (!live) return
+		const timer = setInterval(() => setNow(Date.now()), 1000)
+		return () => clearInterval(timer)
+	}, [live])
+
+	return (
+		<div className="flex flex-col gap-0.5 rounded-xl bg-surface-raised p-2">
+			{steps.map((step) => (
+				<div key={step.id}>
+					<button
+						type="button"
+						onClick={() => setOpen(open === step.id ? null : step.id)}
+						className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-[var(--overlay-hover)]"
+					>
+						<StepIcon status={step.status} />
+						<span
+							className={cn(
+								'min-w-0 flex-1 truncate text-xs',
+								step.status === 'running' ? 'text-foreground' : 'text-muted',
+							)}
+						>
+							{step.label}
+						</span>
+						<span className="shrink-0 text-[10px] tabular-nums text-faint">
+							{formatDuration(step, now)}
+						</span>
+					</button>
+					{open === step.id && step.detail && (
+						<p className="mx-1.5 mb-1 whitespace-pre-wrap break-words rounded-md bg-surface-inset px-2 py-1.5 font-mono text-[11px] leading-relaxed text-subtle">
+							{step.detail}
+						</p>
+					)}
+				</div>
+			))}
+		</div>
+	)
+}
+
+/** Ringkasan lini masa giliran yang sudah selesai: "3 langkah · 2,1 dtk". */
+function StepSummary({ steps, usage }: { steps: ChatStep[]; usage?: ChatUsage }) {
+	const [open, setOpen] = useState(false)
+	const first = steps[0]
+	const last = steps[steps.length - 1]
+	const totalMs = (last.endedAt ?? last.startedAt) - first.startedAt
+
+	return (
+		<div className="flex flex-col gap-1">
+			<button
+				type="button"
+				onClick={() => setOpen(!open)}
+				aria-expanded={open}
+				className="flex items-center gap-1 self-start text-[11px] text-faint transition-colors hover:text-subtle"
+			>
+				{open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+				{steps.length} langkah · {(Math.max(0, totalMs) / 1000).toFixed(1).replace('.', ',')} dtk
+			</button>
+			{open && <StepTimeline steps={steps} />}
+			{usage && (usage.promptTokens !== undefined || usage.completionTokens !== undefined) && (
+				<p className="text-[10px] text-faint">
+					{(usage.promptTokens ?? 0).toLocaleString('id-ID')} token masuk ·{' '}
+					{(usage.completionTokens ?? 0).toLocaleString('id-ID')} keluar
+				</p>
+			)}
 		</div>
 	)
 }

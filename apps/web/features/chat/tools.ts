@@ -108,6 +108,34 @@ export function runReadTool(editor: Editor, call: ToolCall): string {
 	}
 }
 
+/** Label baris langkah lini masa untuk alat baca (§B1.3) - apa yang sedang dibuka. */
+export function readToolLabel(editor: Editor, call: ToolCall): string {
+	switch (call.name) {
+		case 'get_outline':
+			return 'Membaca kerangka dokumen'
+		case 'read_section': {
+			const at = Number(call.arguments.heading_index)
+			const heading = Number.isInteger(at) ? headings(editor)[at] : undefined
+			return heading ? `Membaca bagian "${heading.text.slice(0, 48)}"` : 'Membaca bagian naskah'
+		}
+		case 'find_text':
+			return `Mencari "${String(call.arguments.query ?? '').slice(0, 48)}"`
+		default:
+			return `Menjalankan ${call.name}`
+	}
+}
+
+/**
+ * Ringkasan satu baris dari hasil alat baca (§B1.2 `tool_result.summary`) -
+ * cukup untuk mengenali hasilnya saat baris langkah dibuka, tanpa menyalin
+ * isi penuhnya ke lini masa.
+ */
+export function summarizeToolResult(result: string): string {
+	const lines = result.split('\n')
+	const first = lines[0].slice(0, 100)
+	return lines.length > 1 ? `${first} … (+${lines.length - 1} baris)` : first
+}
+
 // ── alat tulis ─────────────────────────────────────────────────────────────
 
 export interface WriteToolContext {

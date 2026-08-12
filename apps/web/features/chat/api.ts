@@ -1,4 +1,4 @@
-import type { ChatContext, ChatMessage, ChatStreamEvent, ToolCall } from '@writer-hub/shared'
+import type { ChatContext, ChatMessage, ChatStreamEvent, ChatStreamPhase, ChatUsage, ToolCall } from '@writer-hub/shared'
 import { FALLBACK_TOOL_FENCE } from '@writer-hub/shared'
 
 /**
@@ -19,6 +19,12 @@ export interface StreamChatHandlers {
 	onToolCall?: (call: ToolCall) => void
 	/** Provider menolak tool calling; giliran berikutnya dikirim tanpa itu. */
 	onToolsUnsupported?: () => void
+	/** Fase baru dalam giliran (§B1); bahan baris langkah di lini masa. */
+	onStatus?: (phase: ChatStreamPhase, detail?: string) => void
+	/** Ringkasan penalaran, bila provider mengirimkannya. */
+	onReasoning?: (text: string) => void
+	/** Pemakaian token, dilaporkan di keping terakhir bila provider menyediakannya. */
+	onUsage?: (usage: ChatUsage) => void
 }
 
 export async function streamChat(
@@ -75,6 +81,12 @@ export async function streamChat(
 			if (event.type === 'delta') on.onDelta(event.text)
 			else if (event.type === 'tool_call') on.onToolCall?.(parseToolCall(event))
 			else if (event.type === 'tools_unsupported') on.onToolsUnsupported?.()
+			else if (event.type === 'status') on.onStatus?.(event.phase, event.detail)
+			else if (event.type === 'reasoning') on.onReasoning?.(event.text)
+			else if (event.type === 'usage') {
+				on.onUsage?.({ promptTokens: event.promptTokens, completionTokens: event.completionTokens })
+			}
+			// `ping` sengaja tidak diteruskan: ia denyut jaringan, bukan kemajuan.
 			else if (event.type === 'error') throw new Error(event.message)
 			else if (event.type === 'done') return
 		}
