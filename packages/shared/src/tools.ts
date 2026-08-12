@@ -66,6 +66,81 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 			required: ['query'],
 		},
 	},
+	{
+		name: 'get_document_stats',
+		kind: 'read',
+		description:
+			'Get document statistics: word, character and page counts, heading counts per level, and counts of tables, images and formulas.',
+		parameters: { type: 'object', properties: {} },
+	},
+	{
+		name: 'get_selection',
+		kind: 'read',
+		description: 'Get the text the user has currently selected in the editor, with its position.',
+		parameters: { type: 'object', properties: {} },
+	},
+	{
+		name: 'get_page_setup',
+		kind: 'read',
+		description:
+			'Get the page layout in effect: paper size, orientation, margins, page color and pageless mode.',
+		parameters: { type: 'object', properties: {} },
+	},
+	{
+		name: 'list_tabs',
+		kind: 'read',
+		description: 'List the tabs of the active document with their ids and titles.',
+		parameters: { type: 'object', properties: {} },
+	},
+	{
+		name: 'read_tab',
+		kind: 'read',
+		description:
+			'Read the text of another tab of the active document, e.g. to build a summary across chapters. Call list_tabs first to get the ids.',
+		parameters: {
+			type: 'object',
+			properties: {
+				tab_id: { type: 'string', description: 'Tab id as returned by list_tabs.' },
+			},
+			required: ['tab_id'],
+		},
+	},
+	{
+		name: 'get_comments',
+		kind: 'read',
+		description: 'List unresolved comments on the active tab, so they can be followed up.',
+		parameters: { type: 'object', properties: {} },
+	},
+	{
+		name: 'plan',
+		kind: 'read',
+		description:
+			'Write down a step-by-step plan before a multi-step task. The plan is shown to the user in the progress timeline and its steps get checked off as you complete them.',
+		parameters: {
+			type: 'object',
+			properties: {
+				steps: {
+					type: 'array',
+					items: { type: 'string' },
+					description: 'The planned steps, in order.',
+				},
+			},
+			required: ['steps'],
+		},
+	},
+	{
+		name: 'think',
+		kind: 'read',
+		description:
+			'Reason briefly without side effects. The thought is summarized in the progress timeline; it is never inserted into the document.',
+		parameters: {
+			type: 'object',
+			properties: {
+				thought: { type: 'string', description: 'The reasoning, briefly.' },
+			},
+			required: ['thought'],
+		},
+	},
 
 	{
 		name: 'insert_content',
@@ -153,6 +228,178 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 				},
 			},
 			required: ['module'],
+		},
+	},
+	{
+		name: 'set_page_setup',
+		kind: 'write',
+		description:
+			'Change the page layout: paper size, orientation, margins, page color, pageless mode. Scope "document" applies to every tab of the document; "tab" only the active one.',
+		parameters: {
+			type: 'object',
+			properties: {
+				size: {
+					type: 'string',
+					enum: ['letter', 'tabloid', 'legal', 'statement', 'executive', 'folio', 'a3', 'a4', 'a5', 'b4', 'b5'],
+				},
+				orientation: { type: 'string', enum: ['portrait', 'landscape'] },
+				margins_cm: {
+					type: 'object',
+					properties: {
+						top: { type: 'number' },
+						bottom: { type: 'number' },
+						left: { type: 'number' },
+						right: { type: 'number' },
+					},
+					description: 'Margins in centimeters; only the sides given are changed.',
+				},
+				page_color: { type: 'string', description: 'Hex color like #fdf6e3, or empty to follow the theme.' },
+				pageless: { type: 'boolean' },
+				scope: { type: 'string', enum: ['document', 'tab'], description: 'Defaults to document.' },
+			},
+		},
+	},
+	{
+		name: 'insert_toc',
+		kind: 'write',
+		description:
+			'Insert a table-of-contents block. list_kind "isi" lists headings; "gambar"/"tabel" list figure/table captions (heading levels 7-9). Levels, leader and indent follow the writer\'s settings unless given.',
+		parameters: {
+			type: 'object',
+			properties: {
+				list_kind: { type: 'string', enum: ['isi', 'gambar', 'tabel'] },
+				style: { type: 'string', enum: ['plain', 'dotted', 'link'] },
+				show_page_numbers: { type: 'boolean' },
+				tab_leader: { type: 'string', enum: ['none', 'dots', 'dashes', 'line'] },
+				min_level: { type: 'number', description: 'Highest heading level included, 1-9.' },
+				max_level: { type: 'number', description: 'Deepest heading level included, 1-9.' },
+				indent_cm: { type: 'number', description: 'Indent per level, in centimeters.' },
+			},
+		},
+	},
+	{
+		name: 'set_toc_options',
+		kind: 'write',
+		description:
+			'Change the settings of an existing table-of-contents block. Only the given fields are changed.',
+		parameters: {
+			type: 'object',
+			properties: {
+				list_kind: {
+					type: 'string',
+					enum: ['isi', 'gambar', 'tabel'],
+					description: 'Only change blocks of this kind; omit to match any.',
+				},
+				index: { type: 'number', description: 'Which matching block, 0-based. Defaults to the first.' },
+				style: { type: 'string', enum: ['plain', 'dotted', 'link'] },
+				show_page_numbers: { type: 'boolean' },
+				tab_leader: { type: 'string', enum: ['none', 'dots', 'dashes', 'line'] },
+				min_level: { type: 'number' },
+				max_level: { type: 'number' },
+				indent_cm: { type: 'number' },
+			},
+		},
+	},
+	{
+		name: 'insert_mermaid',
+		kind: 'write',
+		description:
+			'Insert a Mermaid diagram block (flowchart, sequence, etc). Pass only the Mermaid source; it renders as a real diagram in the editor.',
+		parameters: {
+			type: 'object',
+			properties: {
+				source: { type: 'string', description: 'Mermaid source, e.g. "graph TD; A-->B".' },
+			},
+			required: ['source'],
+		},
+	},
+	{
+		name: 'insert_table',
+		kind: 'write',
+		description: 'Insert a table of a given size, with or without a header row.',
+		parameters: {
+			type: 'object',
+			properties: {
+				rows: { type: 'number' },
+				cols: { type: 'number' },
+				header_row: { type: 'boolean', description: 'Defaults to true.' },
+			},
+			required: ['rows', 'cols'],
+		},
+	},
+	{
+		name: 'apply_paragraph_style',
+		kind: 'write',
+		description:
+			'Turn the paragraph(s) covering an exact passage into a paragraph or a heading of level 1-9. Use find_text first to quote the passage exactly.',
+		parameters: {
+			type: 'object',
+			properties: {
+				find: { type: 'string', description: 'Exact text whose paragraph(s) get restyled.' },
+				style: { type: 'string', enum: ['paragraph', 'heading'] },
+				level: { type: 'number', description: 'Heading level 1-9; required for heading.' },
+			},
+			required: ['find', 'style'],
+		},
+	},
+	{
+		name: 'format_text',
+		kind: 'write',
+		description:
+			'Apply character formatting to the first exact occurrence of a passage: bold, italic, underline, strikethrough, highlight or text color.',
+		parameters: {
+			type: 'object',
+			properties: {
+				find: { type: 'string', description: 'Exact text to format.' },
+				bold: { type: 'boolean' },
+				italic: { type: 'boolean' },
+				underline: { type: 'boolean' },
+				strike: { type: 'boolean' },
+				highlight: { type: 'string', description: 'Highlight color, hex like #fff3a3.' },
+				color: { type: 'string', description: 'Text color, hex like #c2410c.' },
+			},
+			required: ['find'],
+		},
+	},
+	{
+		name: 'restructure_section',
+		kind: 'write',
+		description:
+			'Restructure one section (a heading plus everything under it): promote/demote its heading level, move it before another section, or delete it. Use get_outline first for the indexes.',
+		parameters: {
+			type: 'object',
+			properties: {
+				heading_index: { type: 'number', description: 'Index from get_outline.' },
+				action: { type: 'string', enum: ['promote', 'demote', 'move_before', 'delete'] },
+				target_index: { type: 'number', description: 'For move_before: the section to insert before.' },
+			},
+			required: ['heading_index', 'action'],
+		},
+	},
+	{
+		name: 'insert_image',
+		kind: 'write',
+		description: 'Insert an image from a public http(s) URL. Private or loopback addresses are rejected.',
+		parameters: {
+			type: 'object',
+			properties: {
+				src: { type: 'string', description: 'Public image URL.' },
+				alt: { type: 'string' },
+			},
+			required: ['src'],
+		},
+	},
+	{
+		name: 'create_tab',
+		kind: 'write',
+		description:
+			'Create a new tab in the active document, optionally with initial content as Markdown - e.g. an appendix.',
+		parameters: {
+			type: 'object',
+			properties: {
+				title: { type: 'string' },
+				markdown: { type: 'string', description: 'Initial content as Markdown.' },
+			},
 		},
 	},
 ]

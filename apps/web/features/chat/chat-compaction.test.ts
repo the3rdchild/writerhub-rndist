@@ -101,4 +101,50 @@ describe('buildOutboundMessages — pemadatan batas tugas', () => {
 		const outbound = buildOutboundMessages(withActions, TASK_A)
 		expect(outbound.every((m) => !('actions' in m))).toBe(true)
 	})
+
+	test('lini masa (steps) dan usage tidak pernah dikirim ke provider', () => {
+		// Bidang milik UI dari B1; sama seperti `actions`, keduanya hanya untuk
+		// ditampilkan - mengirimnya membocorkan transkrip mekanisme ke model.
+		const history: ChatTurn[] = [
+			user('ringkas bab 1', TASK_A),
+			{
+				...assistant('Ini ringkasannya.', TASK_A),
+				steps: [
+					{ id: 's1', label: 'Berpikir…', status: 'done', startedAt: 1, endedAt: 2 },
+				],
+				usage: { promptTokens: 100, completionTokens: 50 },
+			},
+		]
+
+		const outbound = buildOutboundMessages(history, TASK_A)
+		expect(outbound).toEqual([
+			{ role: 'user', content: 'ringkas bab 1' },
+			{ role: 'assistant', content: 'Ini ringkasannya.' },
+		])
+	})
+
+	test('riwayat panjang dipangkas ke batas server, giliran tertua lebih dulu', () => {
+		// 30 tugas lama × 2 pesan + tugas berjalan = jauh di atas max 40.
+		const history: ChatTurn[] = []
+		for (let i = 0; i < 30; i++) {
+			history.push(user(`pertanyaan ${i}`, `old-${i}`))
+			history.push(assistant(`jawaban ${i}`, `old-${i}`))
+		}
+		history.push(user('pertanyaan aktif', TASK_A))
+		history.push(assistant('', TASK_A, [{ id: 'c1', name: 'get_outline', arguments: '{}' }]))
+		history.push(tool('1. # Pendahuluan', 'c1', TASK_A))
+
+		const outbound = buildOutboundMessages(history, TASK_A)
+
+		expect(outbound.length).toBeLessThanOrEqual(40)
+		// Tugas berjalan utuh di ujung, termasuk pasangan tool_calls/tool-nya.
+		expect(outbound[outbound.length - 3]).toEqual({ role: 'user', content: 'pertanyaan aktif' })
+		expect(outbound[outbound.length - 1].role).toBe('tool')
+		// Potongan tidak pernah mulai di tengah rangkaian alat (provider menolak
+		// pasangan pincang): pesan pertama selalu dari pengguna.
+		expect(outbound[0].role).toBe('user')
+		// Dan yang hilang memang yang paling tua.
+		expect(outbound.some((m) => m.content === 'pertanyaan 0')).toBe(false)
+		expect(outbound.some((m) => m.content === 'pertanyaan 29')).toBe(true)
+	})
 })

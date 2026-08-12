@@ -2,7 +2,7 @@ import { CHAT_CONTEXT_LIMITS } from '@writer-hub/shared'
 import { z } from 'zod'
 
 /** Batas jumlah giliran yang ikut dikirim, supaya percakapan panjang tidak membengkak. */
-export const MAX_CHAT_MESSAGES = 40
+export const MAX_CHAT_MESSAGES = CHAT_CONTEXT_LIMITS.messages
 
 export const chatBodySchema = z.object({
 	messages: z

@@ -1,6 +1,7 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
+import { generateJSON } from '@tiptap/core'
 import {
 	CHAT_CONTEXT_LIMITS,
 	type ChatMessage,
@@ -22,10 +23,23 @@ import { usePanels } from '@/features/analysis/panel-context'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import { buildEditorExtensions } from '@/features/editor/extensions'
+import { paginationKey } from '@/features/editor/pagination'
+import { toEditorContent } from '@/features/editor/markdown'
+import { usePageSetup } from '@/features/editor/use-page-setup'
 import { editorPlainText } from '@/features/editor/text-content'
-import { useSessions } from '@/features/sessions/session-context'
+import { sessionLabel, useSessions } from '@/features/sessions/session-context'
+import { createTab as createTabInDoc } from '@/features/sessions/ydoc'
+import { buildSchema, fragmentToJSON, jsonToFragment } from '@/features/sync/serialize'
 import { parseFallbackCalls, streamChat, stripFallbackCalls } from './api'
-import { applyWriteTool, readToolLabel, runReadTool, summarizeToolResult, type ToolOutcome } from './tools'
+import {
+	applyWriteTool,
+	type ReadToolContext,
+	readToolLabel,
+	runReadTool,
+	summarizeToolResult,
+	type ToolOutcome,
+} from './tools'
 
 /**
  * Percakapan dengan AI di panel samping.
@@ -60,6 +74,8 @@ export interface ChatStep {
 	endedAt?: number
 	/** Argumen alat + ringkasan hasil, atau penalaran; dibuka saat baris ditekan. */
 	detail?: string
+	/** Daftar rencana dari alat `plan` (§B3.2); dicentang seiring langkah selesai. */
+	checklist?: { text: string; done: boolean }[]
 }
 
 /**
@@ -124,6 +140,21 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 			continue
 		}
 		outbound.push({ role: turn.role, content: turn.content })
+	}
+
+	/*
+	 * Jaga batas server (max 40): buang giliran paling tua lebih dulu. Satu
+	 * tugas alat baca bisa berisi belasan pesan (§B1), jadi tanpa ini sesi
+	 * yang aktif ditolak DTO sebelum sempat bertanya lagi.
+	 *
+	 * Potongan hanya boleh mulai di pesan pengguna: mulai di tengah rangkaian
+	 * `tool`/`tool_calls` mengirim pasangan pincang yang ditolak provider.
+	 * Tugas berjalan selalu utuh karena ia selalu diawali pesan pengguna.
+	 */
+	if (outbound.length > CHAT_CONTEXT_LIMITS.messages) {
+		let start = outbound.length - CHAT_CONTEXT_LIMITS.messages
+		while (start < outbound.length - 1 && outbound[start].role !== 'user') start++
+		return outbound.slice(start)
 	}
 	return outbound
 }
@@ -206,7 +237,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const { state } = useDocument()
 	const { editor } = useEditorInstance()
 	const { setActivePanel, markRun } = usePanels()
-	const { addComment } = useSessions()
+	const { doc, activeDocId, activeId, sessions, comments, addComment } = useSessions()
+	const { setup, setPageSetup } = usePageSetup()
 	const language = useDocumentLanguage()
 	const [messages, setMessages] = useState<ChatTurn[]>([])
 	const [streaming, setStreaming] = useState<string | null>(null)
@@ -237,6 +269,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 	const contextRef = useRef({ attachment, includeDocument, state })
 	contextRef.current = { attachment, includeDocument, state }
+
+	// Sumber alat baca/tulis yang hidup di luar editor: tata letak, tab, komentar.
+	// Dibaca lewat ref karena runTurn berjalan sebagai rantai async (§B1).
+	const appRef = useRef({ setup, setPageSetup, doc, activeDocId, activeId, sessions, comments })
+	appRef.current = { setup, setPageSetup, doc, activeDocId, activeId, sessions, comments }
 
 	// Konteks dirakit saat kirim, bukan saat diketik: naskah bisa berubah
 	// selama pengguna menyusun pertanyaannya.
@@ -298,12 +335,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		list.map((step) => (step.status === 'running' ? { ...step, status, endedAt: Date.now() } : step))
 
 	/** Buka langkah baru; langkah berjalan sebelumnya ditutup (satu fase menggantikan fase sebelumnya). */
-	const pushStep = (label: string, detail?: string) => {
+	const pushStep = (label: string, detail?: string): string => {
 		const now = Date.now()
+		const id = `step_${now.toString(36)}_${stepsRef.current.length}`
 		setStepsBoth([
 			...closeRunning('done', stepsRef.current),
-			{ id: `step_${now.toString(36)}_${stepsRef.current.length}`, label, status: 'running', startedAt: now, detail },
+			{ id, label, status: 'running', startedAt: now, detail },
 		])
+		return id
 	}
 
 	/** Tambahkan rincian pada langkah yang sedang berjalan (mis. penalaran atau hasil alat). */
@@ -320,6 +359,78 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		const closed = closeRunning('done', stepsRef.current)
 		setStepsBoth(closed)
 		return closed.length > 0 ? closed : undefined
+	}
+
+	// Rencana dari alat `plan` (§B3.2): checklist-nya dicentang satu per satu
+	// setiap langkah alat berikutnya selesai.
+	const planRef = useRef<{ stepId: string; next: number } | null>(null)
+
+	const recordPlan = (items: string[]) => {
+		const stepId = pushStep(`Rencana ${items.length} langkah`)
+		setStepsBoth(
+			stepsRef.current.map((step) =>
+				step.id === stepId
+					? { ...step, status: 'done', endedAt: Date.now(), checklist: items.map((text) => ({ text, done: false })) }
+					: step,
+			),
+		)
+		planRef.current = { stepId, next: 0 }
+	}
+
+	const advancePlan = () => {
+		const plan = planRef.current
+		if (!plan) return
+		setStepsBoth(
+			stepsRef.current.map((step) =>
+				step.id === plan.stepId && step.checklist
+					? {
+							...step,
+							checklist: step.checklist.map((item, index) =>
+								index === plan.next ? { ...item, done: true } : item,
+							),
+						}
+					: step,
+			),
+		)
+		plan.next += 1
+	}
+
+	/** Konteks alat baca, dirakit segar dari sumbernya tiap dipakai. */
+	const buildReadContext = (editor: Editor): ReadToolContext => {
+		const app = appRef.current
+		return {
+			editor,
+			pageCount: paginationKey.getState(editor.state)?.pageCount ?? 1,
+			setup: app.setup,
+			tabs: app.sessions.map((tab) => ({
+				id: tab.id,
+				label: sessionLabel(tab),
+				active: tab.id === app.activeId,
+			})),
+			readTab: (tabId) => {
+				try {
+					const json = fragmentToJSON(app.doc, tabId)
+					const node = buildSchema().nodeFromJSON(json)
+					return node.textBetween(0, node.content.size, '\n', ' ')
+				} catch {
+					return null
+				}
+			},
+			comments: app.comments,
+		}
+	}
+
+	/** Buat tab baru berisi naskah awal (alat create_tab); tidak berpindah tab. */
+	const createTabWithContent = (title: string | undefined, markdown: string | undefined) => {
+		const app = appRef.current
+		if (!app.activeDocId) return
+		const id = createTabInDoc(app.doc, app.activeDocId, title ?? 'Untitled document')
+		if (markdown?.trim()) {
+			// toEditorContent menghasilkan HTML; generateJSON menerjemahkannya ke
+			// JSON skema editor supaya bisa ditulis ke fragmen Y.Doc tab baru.
+			const json = generateJSON(toEditorContent(markdown), buildEditorExtensions())
+			jsonToFragment(app.doc, id, json)
+		}
 	}
 
 	/**
@@ -437,14 +548,35 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			// Alat baca dijalankan klien; tiap pemanggilan jadi satu baris langkah
 			// berisi argumen dan ringkasan hasil (bukan isi penuh).
 			const results: ChatTurn[] = []
+			const readContext = buildReadContext(editor)
 			for (const call of reads) {
+				// plan/think adalah alat "baca" berefek lini masa (§B3.2): rencana
+				// tampil sebagai checklist yang dicentang seiring langkah selesai,
+				// renungan diringkas sebagai rincian langkah - tak ada yang
+				// menempel ke naskah.
+				if (call.name === 'plan') {
+					const items = Array.isArray(call.arguments.steps)
+						? call.arguments.steps.map(String).filter(Boolean)
+						: []
+					if (items.length > 0) recordPlan(items)
+					results.push({ role: 'tool', content: 'Plan recorded and shown to the user.', toolCallId: call.id, taskId })
+					continue
+				}
+				if (call.name === 'think') {
+					pushStep('Berpikir sejenak')
+					patchRunningStep({ status: 'done', endedAt: Date.now(), detail: String(call.arguments.thought ?? '') })
+					results.push({ role: 'tool', content: 'OK.', toolCallId: call.id, taskId })
+					continue
+				}
+
 				pushStep(readToolLabel(editor, call))
-				const content = runReadTool(editor, call)
+				const content = runReadTool(readContext, call)
 				patchRunningStep({
 					status: 'done',
 					endedAt: Date.now(),
 					detail: `${JSON.stringify(call.arguments)}\n→ ${summarizeToolResult(content)}`,
 				})
+				advancePlan()
 				results.push({ role: 'tool', content, toolCallId: call.id, taskId })
 			}
 
@@ -472,6 +604,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			setStreaming('')
 			setError(null)
 			setStepsBoth([])
+			planRef.current = null
 
 			const controller = new AbortController()
 			abortRef.current = controller
@@ -507,6 +640,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					openPanel: setActivePanel,
 					runModule: (feature) =>
 						markRun(feature, { text: state.text, offset: 0, scoped: false, language: language.code }),
+					setup: appRef.current.setup,
+					setPageSetup: appRef.current.setPageSetup,
+					createTab: createTabWithContent,
 				},
 				call,
 			)

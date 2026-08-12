@@ -516,7 +516,21 @@ function StepTimeline({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
 							{formatDuration(step, now)}
 						</span>
 					</button>
-					{open === step.id && step.detail && (
+					{open === step.id && step.checklist && (
+						<div className="mx-1.5 mb-1 flex flex-col gap-0.5 rounded-md bg-surface-inset px-2 py-1.5">
+							{step.checklist.map((item, index) => (
+								<span key={index} className="flex items-center gap-1.5 text-[11px] leading-relaxed text-subtle">
+									{item.done ? (
+										<Check className="h-3 w-3 shrink-0 text-green-400" />
+									) : (
+										<span className="h-3 w-3 shrink-0 rounded-full border border-faint" />
+									)}
+									<span className={cn(item.done && 'line-through opacity-60')}>{item.text}</span>
+								</span>
+							))}
+						</div>
+					)}
+					{open === step.id && !step.checklist && step.detail && (
 						<p className="mx-1.5 mb-1 whitespace-pre-wrap break-words rounded-md bg-surface-inset px-2 py-1.5 font-mono text-[11px] leading-relaxed text-subtle">
 							{step.detail}
 						</p>

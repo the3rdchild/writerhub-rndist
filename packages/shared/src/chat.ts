@@ -86,4 +86,10 @@ export const CHAT_CONTEXT_LIMITS = {
 	selection: 8_000,
 	surrounding: 4_000,
 	document: 60_000,
+	/**
+	 * Jumlah pesan maksimum yang ikut dikirim. Divalidasi server (dto chat) dan
+	 * dijaga klien (buildOutboundMessages membuang giliran tertua lebih dulu) -
+	 * satu angka untuk keduanya supaya tidak ada yang kecele.
+	 */
+	messages: 40,
 } as const
