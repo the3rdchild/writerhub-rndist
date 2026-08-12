@@ -7,9 +7,6 @@ import { type PageGeometry, pageGeometry } from './page-geometry'
 
 export const paginationKey = new PluginKey<PaginationState>('pagination')
 
-/** Nama node blok kode (CodeBlockLowlight) - satu-satunya blok yang dipenggal per baris. */
-const CODE_BLOCK_NODE = 'codeBlock'
-
 /**
  * Bentuk spacer mengikuti tempatnya disisipkan.
  *
@@ -18,12 +15,8 @@ const CODE_BLOCK_NODE = 'codeBlock'
  * tabel. Karena itu pemenggalan di dalam tabel memakai baris kosong tanpa
  * border - yang kebetulan juga menghasilkan potongan paling bersih, sebab tidak
  * ada garis tabel yang ikut tergambar menembus celah antar lembar.
- *
- * Di dalam blok kode ada persoalan ketiga: latar `<pre>` tergambar menembus
- * sisipan apa pun yang ditaruh di dalamnya, jadi spacer-nya harus mengecat
- * ulang batas lembar sendiri (lihat `codeSpacer`).
  */
-export type SpacerKind = 'block' | 'row' | 'code'
+export type SpacerKind = 'block' | 'row'
 
 export interface Spacer {
 	/** Posisi ProseMirror dari blok atau baris yang didorong ke halaman berikutnya. */
@@ -34,13 +27,6 @@ export interface Spacer {
 	columns?: number
 	/** Baris tabel: posisi baris header yang digambar ulang di lembar baru. */
 	headerPos?: number
-	/**
-	 * Blok kode: jarak dari puncak spacer ke tepi bawah lembar - dari situlah
-	 * celah antar lembar mulai, dan hanya spacer yang tahu di mana ia berdiri.
-	 */
-	gapOffset?: number
-	/** Blok kode: tinggi celah antar lembar. */
-	gapHeight?: number
 }
 
 export interface Measurement {
@@ -97,7 +83,7 @@ export interface PaginationMeta {
  * dipulihkan dengan mengurangi total spacer yang mendahuluinya - dan
  * penggabungan margin antar blok tetap terhitung benar.
  */
-function measureBlocks(view: EditorView, geometry: PageGeometry): Measurement[] {
+function measureBlocks(view: EditorView): Measurement[] {
 	const inserted = insertedHeights(view)
 	const measurements: Measurement[] = []
 	let cumulative = 0
@@ -114,14 +100,6 @@ function measureBlocks(view: EditorView, geometry: PageGeometry): Measurement[] 
 
 		if (node.type.name === 'table') {
 			cumulative = measureTable(view, node, offset, top, dom, cumulative, inserted, measurements)
-			return
-		}
-
-		// Blok kode yang lebih pendek dari satu halaman tidak perlu diukur per
-		// baris: ia selalu bisa didorong utuh ke lembar berikutnya. Yang mahal -
-		// satu pembacaan koordinat per baris - hanya dibayar saat memang perlu.
-		if (node.type.name === CODE_BLOCK_NODE && dom.offsetHeight > geometry.contentHeight) {
-			cumulative = measureCodeBlock(view, node, offset, top, dom, cumulative, inserted, measurements)
 			return
 		}
 
@@ -204,117 +182,6 @@ function measureTable(
 	return cumulative
 }
 
-/**
- * Skala yang sedang dipakai kanvas (zoom).
- *
- * Diperlukan hanya di tempat yang harus membaca koordinat klien: `offsetTop`
- * adalah nilai layout dan bebas transform, tapi posisi baris di dalam sebuah
- * `<pre>` tidak punya elemen sendiri untuk ditanyai - satu-satunya jalan adalah
- * rect, dan rect ikut terskala.
- */
-function layoutScale(view: EditorView): number {
-	const layout = view.dom.offsetHeight
-	if (!layout) return 1
-	const scale = view.dom.getBoundingClientRect().height / layout
-	return scale > 0 ? scale : 1
-}
-
-/**
- * Ukur blok kode per baris, bukan sebagai satu blok utuh.
- *
- * Blok kode panjang - keluaran perintah, diagram Mermaid - kerap lebih tinggi
- * dari satu lembar. Dibiarkan utuh, isinya mengalir menembus margin bawah dan
- * celah antar lembar, jadi teksnya terbaca menyambung dari lembar satu ke
- * lembar berikutnya seolah tidak ada batas halaman. Dengan tiap baris jadi
- * satuan tersendiri, pemenggalan jatuh di antara baris - blok kodenya patah di
- * batas lembar dan menyambung di puncak lembar berikutnya.
- *
- * Baris pertama sengaja tidak jadi satuan sendiri: mendorongnya berarti
- * mendorong seluruh blok - berikut toolbar bahasa di kepalanya - jadi yang
- * dicatat adalah posisi blok kodenya, pola yang sama dengan baris pertama tabel.
- */
-function measureCodeBlock(
-	view: EditorView,
-	code: PMNode,
-	blockPos: number,
-	blockTop: number,
-	blockDom: HTMLElement,
-	cumulativeAtBlock: number,
-	inserted: Map<number, number>,
-	out: Measurement[],
-): number {
-	let cumulative = cumulativeAtBlock
-
-	// Tidak ada baris untuk dipenggal: satu satuan seperti blok biasa. Blok yang
-	// sampai di sini tidak pernah memuat spacer sendiri, jadi `offsetHeight`-nya
-	// sudah tinggi alaminya.
-	const single = () => {
-		out.push({
-			pos: blockPos,
-			top: blockTop,
-			bottom: blockTop + blockDom.offsetHeight,
-			isBreak: false,
-			kind: 'block',
-		})
-		return cumulative
-	}
-
-	// Pratinjau Mermaid menggantikan teks kode dengan satu SVG: tidak ada baris
-	// yang bisa dipenggal di sana, jadi ia diukur sebagai blok utuh.
-	if (!blockDom.querySelector('.code-block-code')) return single()
-
-	// Posisi awal tiap baris di dalam node - baris pertama dilewati, ia diwakili
-	// posisi bloknya sendiri.
-	const starts: number[] = []
-	let offset = 0
-	for (const line of code.textContent.split('\n')) {
-		if (offset > 0) starts.push(blockPos + 1 + offset)
-		offset += line.length + 1
-	}
-	if (starts.length === 0) return single()
-
-	/*
-	 * Puncak tiap baris, dalam koordinat layout yang sepatokan dengan blok lain.
-	 *
-	 * Rect baris dibaca relatif terhadap rect blok - keduanya di dalam transform
-	 * yang sama - lalu dibagi skala, sehingga selisihnya kembali jadi piksel
-	 * layout. `blockDom.offsetTop` yang menjembatani ke koordinat dokumen.
-	 */
-	const scale = layoutScale(view)
-	const blockRect = blockDom.getBoundingClientRect()
-	const rendered: number[] = []
-	try {
-		for (const pos of starts) {
-			const coords = view.coordsAtPos(pos, 1)
-			rendered.push(blockDom.offsetTop + (coords.top - blockRect.top) / scale)
-		}
-	} catch {
-		// Posisi yang belum sempat dirender membuat coordsAtPos melempar. Lebih
-		// baik blok ini meluber satu kali daripada seluruh paginasi berhenti.
-		return single()
-	}
-
-	// Koordinat alami: rendered dikurangi seluruh sisipan yang mendahuluinya -
-	// termasuk spacer di dalam blok ini, seperti pada baris tabel.
-	const naturalTops: number[] = []
-	for (const [index, pos] of starts.entries()) {
-		cumulative += inserted.get(pos) ?? 0
-		naturalTops.push(rendered[index] - cumulative)
-	}
-
-	// Bawah tiap satuan adalah puncak satuan sesudahnya; yang terakhir memakai
-	// bawah bloknya, supaya padding penutup `<pre>` ikut terhitung.
-	const blockBottom = blockDom.offsetTop + blockDom.offsetHeight - cumulative
-	const bottomOf = (index: number) => naturalTops[index + 1] ?? blockBottom
-
-	out.push({ pos: blockPos, top: blockTop, bottom: naturalTops[0], isBreak: false, kind: 'block' })
-	for (const [index, pos] of starts.entries()) {
-		out.push({ pos, top: naturalTops[index], bottom: bottomOf(index), isBreak: false, kind: 'code' })
-	}
-
-	return cumulative
-}
-
 /** Penanda pada tiap elemen sisipan, supaya tingginya bisa dibaca balik dari DOM. */
 const SPACER_ATTRIBUTE = 'data-spacer-for'
 
@@ -346,9 +213,8 @@ function insertedHeights(view: EditorView): Map<number, number> {
  */
 export function computeSpacers(
 	blocks: readonly Measurement[],
-	geometry: PageGeometry,
+	{ contentHeight, pageStride }: PageGeometry,
 ): { spacers: Spacer[]; pageCount: number } {
-	const { contentHeight, pageStride, height: sheetHeight, gap, margins } = geometry
 	const spacers: Spacer[] = []
 	/** Total tinggi spacer yang sudah disisipkan sebelum blok berjalan. */
 	let cumulative = 0
@@ -373,25 +239,12 @@ export function computeSpacers(
 			// ruang tulis sebanyak itu lebih sedikit.
 			const headerHeight = block.headerHeight ?? 0
 
-			/*
-			 * Spacer di dalam blok kode harus mengecat batas lembar sendiri, jadi ia
-			 * dibekali jarak dari puncaknya ke tepi bawah lembar. Koordinat blok
-			 * diukur dari puncak area teks, sedangkan tepi lembar dari puncak kertas -
-			 * selisihnya margin atas.
-			 */
-			const gapOffset =
-				block.kind === 'code'
-					? (pageCount - 1) * pageStride + sheetHeight - margins.top - (block.top + cumulative)
-					: undefined
-
 			spacers.push({
 				pos: block.pos,
 				height: spacerHeight,
 				kind: block.kind,
 				columns: block.columns,
 				headerPos: headerHeight > 0 ? block.headerPos : undefined,
-				gapOffset,
-				gapHeight: gapOffset === undefined ? undefined : gap,
 			})
 			cumulative += spacerHeight + headerHeight
 			pageStart = block.top - headerHeight
@@ -439,8 +292,7 @@ function sameSpacers(a: readonly Spacer[], b: readonly Spacer[]): boolean {
 				spacer.pos === other.pos &&
 				spacer.kind === other.kind &&
 				spacer.headerPos === other.headerPos &&
-				Math.abs(spacer.height - other.height) < 1 &&
-				Math.abs((spacer.gapOffset ?? 0) - (other.gapOffset ?? 0)) < 1
+				Math.abs(spacer.height - other.height) < 1
 			)
 		})
 	)
@@ -457,16 +309,6 @@ function buildDecorations(doc: PMNode, spacers: readonly Spacer[]): DecorationSe
 				Decoration.widget(spacer.pos, () => blockSpacer(spacer), {
 					side: -1,
 					key: `page-break-${key}`,
-				}),
-			)
-			continue
-		}
-
-		if (spacer.kind === 'code') {
-			decorations.push(
-				Decoration.widget(spacer.pos, () => codeSpacer(spacer), {
-					side: -1,
-					key: `page-break-code-${key}`,
 				}),
 			)
 			continue
@@ -511,44 +353,6 @@ function blockSpacer(spacer: Spacer): HTMLElement {
 	return markSpacer(element, spacer)
 }
 
-/**
- * Pemenggalan di dalam blok kode.
- *
- * Beda dari spacer lain, yang ini berdiri di dalam sebuah `<pre>`: latar dan
- * padding milik `<pre>` tergambar menembusnya, jadi ruang kosong saja tidak
- * cukup - blok kodenya akan tetap terlihat menyambung melewati celah antar
- * lembar. Karena itu ia mengecat sendiri batas lembar yang dilewatinya: kertas,
- * garis tepi lembar, celah kanvas, garis tepi lembar berikutnya, lalu kertas
- * lagi. Hasilnya blok kode yang patah di batas halaman.
- *
- * `inline-block` selebar penuh, bukan `div`: sebuah blok di tengah teks
- * `pre-wrap` menyisakan baris kosong dari pergantian baris yang mendahuluinya,
- * dan tinggi tak terhitung itu bikin latar `<pre>` menjorok ke margin bawah.
- */
-function codeSpacer(spacer: Spacer): HTMLElement {
-	const element = document.createElement('div')
-	element.className = 'code-block-page-spacer'
-	element.style.height = `${spacer.height}px`
-
-	// Garis tepi lembar 1px ada di dalam tinggi kertas (border-box), jadi ia
-	// justru sepiksel sebelum celah - dan sepiksel sesudahnya di lembar baru.
-	const gapStart = Math.max(1, spacer.gapOffset ?? 0)
-	const gapEnd = gapStart + (spacer.gapHeight ?? 0)
-	element.style.background = [
-		'linear-gradient(to bottom',
-		`var(--surface-raised) ${gapStart - 1}px`,
-		`var(--border-subtle) ${gapStart - 1}px`,
-		`var(--border-subtle) ${gapStart}px`,
-		`var(--canvas) ${gapStart}px`,
-		`var(--canvas) ${gapEnd}px`,
-		`var(--border-subtle) ${gapEnd}px`,
-		`var(--border-subtle) ${gapEnd + 1}px`,
-		`var(--surface-raised) ${gapEnd + 1}px)`,
-	].join(', ')
-
-	return markSpacer(element, spacer)
-}
-
 /** Baris kosong tanpa border - pemenggalan di dalam tabel. */
 function rowSpacer(spacer: Spacer): HTMLElement {
 	const row = document.createElement('tr')
@@ -590,13 +394,15 @@ function repeatedHeader(header: PMNode, spacer: Spacer): HTMLElement {
  * ikut tersimpan sebagai isi draf dan tidak mengganggu pemetaan offset yang
  * dipakai sorotan grammar.
  *
- * Tabel diukur per baris dan blok kode per baris teks, jadi keduanya boleh
- * lebih tinggi dari satu lembar tanpa ikut menyeberang.
+ * Tabel diukur per baris, jadi ia boleh lebih tinggi dari satu lembar tanpa
+ * ikut menyeberang. Blok kode menempuh jalan lain: tingginya dibatasi setinggi
+ * area teks dan sisanya digulung di dalam bloknya sendiri (lihat
+ * `--code-block-max-height` di globals.css), jadi ia selalu muat di satu lembar
+ * dan cukup didorong utuh seperti blok biasa.
  *
- * Batasan yang diketahui: satu satuan yang sendirian saja lebih tinggi dari satu
- * halaman penuh - baris tabel raksasa, gambar sehalaman, satu baris kode yang
- * membungkus berkali-kali - tetap meluber melewati batas lembar; memecahnya
- * butuh membelah node, bukan sekadar memberi jarak.
+ * Batasan yang diketahui: satu blok yang lebih tinggi dari satu halaman penuh -
+ * baris tabel raksasa, gambar sehalaman - tetap meluber melewati batas lembar;
+ * memecahnya butuh membelah node, bukan sekadar memberi jarak.
  */
 export const Pagination = Extension.create<PaginationOptions>({
 	name: 'pagination',
@@ -687,7 +493,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 							return
 						}
 
-						const blocks = measureBlocks(view, state.geometry)
+						const blocks = measureBlocks(view)
 						const { spacers, pageCount } = computeSpacers(blocks, state.geometry)
 
 						// Koordinat alami stabil, jadi perhitungan kedua atas dokumen yang

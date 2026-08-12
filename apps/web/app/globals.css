@@ -749,19 +749,27 @@ a {
 }
 .document-body .code-block-delete:hover { color: #ef4444; }
 
-/* Area kode di dalam node view. */
+/*
+ * Area kode di dalam node view.
+ *
+ * Tingginya dibatasi setinggi area teks satu lembar; sisa kodenya digulung di
+ * dalam bloknya sendiri. Blok kode yang dibiarkan tumbuh sampai lebih tinggi
+ * dari satu lembar tidak bisa dipenggal paginasi - memecahnya berarti membelah
+ * node - jadi ia akan mengalir menembus margin bawah dan celah antar lembar,
+ * dan teksnya terbaca menyambung seolah tidak ada batas halaman. Dibatasi
+ * begini, blok kode selalu muat di satu lembar dan cukup didorong utuh ke
+ * lembar berikutnya seperti blok biasa.
+ *
+ * Angkanya datang dari document-canvas.tsx, dihitung dari geometri lembar yang
+ * sedang dipakai; mode pageless mengirim `none`. Saat dicetak batasnya dilepas
+ * (lihat blok @media print) supaya tidak ada kode yang terpotong di kertas.
+ */
 .document-body .code-block-pre {
-  /*
-   * Padding mendatarnya piksel, bukan em: sisipan pemenggalan halaman melebar
-   * sebanyak nilai ini supaya latar <pre> tidak ikut menyeberangi celah antar
-   * lembar, dan em di dalam <code> (0.875em) tidak sama dengan em di <pre>.
-   */
-  --code-inset: 18px;
   margin: 0;
-  padding-left: var(--code-inset);
-  padding-right: var(--code-inset);
   border-radius: 0 0 8px 8px;
   border-top: none;
+  max-height: var(--code-block-max-height, none);
+  overflow: auto;
 }
 .document-body .code-block-code {
   display: block;
@@ -771,24 +779,8 @@ a {
   word-break: break-word;
 }
 
-/*
- * Pemenggalan halaman di dalam blok kode.
- *
- * Latarnya dicat oleh pagination.ts - hanya ia yang tahu di mana batas lembar
- * jatuh. Di sini yang diatur bentuknya: selebar kotak padding <pre> supaya
- * latar kodenya benar-benar terputus, dan inline-block selebar penuh supaya
- * pergantian baris sebelumnya tidak menyisakan baris kosong.
- */
-.document-body .code-block-page-spacer {
-  display: inline-block;
-  vertical-align: top;
-  width: calc(100% + var(--code-inset) * 2);
-  margin-left: calc(var(--code-inset) * -1);
-  user-select: none;
-  pointer-events: none;
-}
-
-/* Pratinjau diagram Mermaid. */
+/* Pratinjau diagram Mermaid. Dibatasi setinggi area kodenya - diagram besar
+   juga tidak boleh tumbuh melewati batas lembar. */
 .document-body .code-block-mermaid-preview {
   display: flex;
   flex-direction: column;
@@ -800,6 +792,8 @@ a {
   border-top: none;
   border-radius: 0 0 8px 8px;
   min-height: 80px;
+  max-height: var(--code-block-max-height, none);
+  overflow: auto;
 }
 .document-body .code-block-mermaid-preview svg {
   max-width: 100%;
@@ -1377,12 +1371,21 @@ html.light .range-highlight {
   }
 
   /* Saat dicetak browser yang memenggal tabel, jadi sisipan layar justru
-     mengganggu: baris kosongnya menyisakan lubang dan headernya jadi ganda.
-     Sama untuk sisipan di dalam blok kode: browser sendiri yang memenggalnya. */
+     mengganggu: baris kosongnya menyisakan lubang dan headernya jadi ganda. */
   .document-body .page-break-row,
-  .document-body .code-block-page-spacer,
   .document-body .table-header-repeat {
     display: none !important;
+  }
+
+  /*
+   * Di layar tinggi blok kode dibatasi dan sisanya digulung; di kertas tidak ada
+   * yang bisa digulung, jadi batasnya dilepas dan browser yang memenggalnya.
+   * Tanpa ini kode di luar area tergulung hilang dari hasil cetak.
+   */
+  .document-body .code-block-pre,
+  .document-body .code-block-mermaid-preview {
+    max-height: none !important;
+    overflow: visible !important;
   }
 
   @page {

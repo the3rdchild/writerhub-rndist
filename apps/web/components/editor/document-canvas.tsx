@@ -12,6 +12,27 @@ import { DocumentRuler } from './document-ruler'
 import { TiptapEditor } from './tiptap-editor'
 
 /**
+ * Bagian area teks yang boleh dipakai satu blok kode sebelum isinya digulung.
+ *
+ * Batas atasnya sudah pasti: satu blok tidak boleh lebih tinggi dari area teks,
+ * sebab paginasi tidak bisa memenggal isi satu node - yang lebih tinggi dari
+ * satu lembar hanya bisa dibiarkan meluber menembus margin dan celah.
+ *
+ * Angka di bawah batas itu adalah pilihan rasa: makin besar, makin jarang perlu
+ * menggulung di dalam blok, tapi makin sering satu blok yang tidak muat
+ * meninggalkan ruang kosong lebar di ujung halaman sebelumnya. 0.6 memberi
+ * sekitar 30 baris kode pada A4 - cukup untuk dibaca sekali pandang tanpa
+ * memakan satu halaman penuh.
+ */
+const CODE_BLOCK_HEIGHT_RATIO = 0.6
+
+/** Toolbar bahasa di kepala blok, plus sedikit kelonggaran. */
+const CODE_BLOCK_CHROME = 48
+
+/** Sisa ruang sependek ini tidak lagi berguna untuk menampilkan kode. */
+const CODE_BLOCK_MIN_HEIGHT = 120
+
+/**
  * Kanvas tempat lembar dokumen berada.
  *
  * Lembar digambar sebagai lapisan latar, sementara teks mengalir di atasnya
@@ -34,7 +55,23 @@ export function DocumentCanvas({
 	const [pageCount, setPageCount] = useState(1)
 
 	const geometry = useMemo(() => pageGeometry(setup), [setup])
-	const { width, height, margins, gap, pageStride } = geometry
+	const { width, height, margins, gap, pageStride, contentHeight } = geometry
+
+	/*
+	 * Blok kode dibatasi setinggi area teks dan sisanya digulung di dalam bloknya
+	 * sendiri. Tanpa itu, blok kode panjang tumbuh melewati batas lembar dan
+	 * isinya terbaca menyambung menembus celah antar halaman.
+	 *
+	 * Nilainya dikirim sebagai custom property, bukan ditulis di CSS: hanya di
+	 * sini geometri lembar diketahui, dan ia berubah tiap kali ukuran kertas atau
+	 * margin diubah. Mode pageless tidak punya batas lembar, jadi tidak dibatasi.
+	 */
+	const codeBlockMaxHeight = setup.pageless
+		? 'none'
+		: `${Math.max(
+				CODE_BLOCK_MIN_HEIGHT,
+				Math.min(contentHeight * CODE_BLOCK_HEIGHT_RATIO, contentHeight - CODE_BLOCK_CHROME),
+			)}px`
 
 	/*
 	 * Penggaris menulis perubahan margin langsung ke tata letak dokumen
@@ -116,12 +153,15 @@ export function DocumentCanvas({
 
 					<div
 						className="relative z-10"
-						style={{
-							paddingTop: margins.top,
-							paddingRight: margins.right,
-							paddingBottom: margins.bottom,
-							paddingLeft: margins.left,
-						}}
+						style={
+							{
+								paddingTop: margins.top,
+								paddingRight: margins.right,
+								paddingBottom: margins.bottom,
+								paddingLeft: margins.left,
+								'--code-block-max-height': codeBlockMaxHeight,
+							} as React.CSSProperties
+						}
 					>
 						{/*
 						 * Editor menunggu naskah tersimpan selesai dimuat.
@@ -135,7 +175,9 @@ export function DocumentCanvas({
 							<TiptapEditor
 								containerRef={containerRef}
 								onReady={onReady}
-								geometry={geometry}							pageless={setup.pageless}								onPageCountChange={setPageCount}
+								geometry={geometry}
+								pageless={setup.pageless}
+								onPageCountChange={setPageCount}
 							/>
 						)}
 					</div>
