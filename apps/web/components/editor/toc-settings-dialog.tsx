@@ -78,9 +78,18 @@ export function TocSettingsDialog() {
 	const applyRef = useRef<((patch: Partial<TocBlockAttrs>) => void) | null>(null)
 	const overlayRef = useRef<HTMLDivElement>(null)
 
-	// Buka saat event dari NodeView; detail membawa atribut + apply blok itu.
+	/*
+	 * Buka saat event dari NodeView; detail membawa atribut + apply blok itu.
+	 *
+	 * Simpul DOM-nya ditangkap sekali saat berlangganan, bukan dibaca ulang di
+	 * pembersihan: berpindah tab dokumen membubarkan editor view lebih dulu, dan
+	 * `editor.view` pada titik itu melempar ("The editor view is not available").
+	 * Melepas pendengar dari simpul yang sama dengan tempat ia dipasang juga
+	 * satu-satunya cara yang benar ketika view-nya sudah diganti.
+	 */
 	useEffect(() => {
 		if (!editor) return
+		const dom = editor.view.dom
 		const handler = (e: Event) => {
 			const detail = (e as CustomEvent<TocSettingsRequest>).detail
 			if (!detail) return
@@ -88,8 +97,14 @@ export function TocSettingsDialog() {
 			setDraft({ ...DEFAULT_TOC_ATTRS, ...detail.attrs })
 			setOpen(true)
 		}
-		editor.view.dom.addEventListener(TOC_SETTINGS_EVENT, handler)
-		return () => editor.view.dom.removeEventListener(TOC_SETTINGS_EVENT, handler)
+		dom.addEventListener(TOC_SETTINGS_EVENT, handler)
+		return () => {
+			dom.removeEventListener(TOC_SETTINGS_EVENT, handler)
+			// Editor berganti: `apply` yang tersimpan menunjuk NodeView dari
+			// dokumen lama, jadi dialog ditutup alih-alih menulis ke node hantu.
+			applyRef.current = null
+			setOpen(false)
+		}
 	}, [editor])
 
 	useEffect(() => {
