@@ -1,7 +1,7 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { type BlockIndent, clampBlockIndent, useBlockIndent } from '@/features/editor/indent'
 import {
 	INCH,
@@ -9,6 +9,7 @@ import {
 	type PageGeometry,
 	type PageMargins,
 } from '@/features/editor/page-geometry'
+import { clamp, rulerNudge, useRulerDrag } from '@/features/editor/ruler-drag'
 import { type TableRulerTarget, useRulerTarget } from '@/features/editor/ruler-targets'
 import { setColumnWidths, setTableIndent } from '@/features/editor/table-ops'
 import { cn } from '@/lib/utils'
@@ -24,6 +25,9 @@ import { cn } from '@/lib/utils'
  *
  * Semua posisi dihitung dalam piksel dokumen lalu dikalikan zoom saat digambar,
  * sehingga marker tetap seukuran jari berapa pun perbesarannya.
+ *
+ * Aturan seret/snap/nudge-nya dibagi dengan penggaris kiri lewat
+ * `features/editor/ruler-drag.ts` (§A3.2).
  */
 
 /**
@@ -48,15 +52,7 @@ const DEFERRED: ReadonlySet<Handle['kind']> = new Set(['tableLeft', 'tableRight'
 /** Kolom tidak boleh menyempit sampai isinya tak terbaca. */
 const MIN_COLUMN_WIDTH = 24
 
-/** Seret menempel ke 1/16 inci; tahan Shift untuk gerak halus per piksel. */
-const SNAP = INCH / 16
-const NUDGE = SNAP
-
 const RULER_HEIGHT = 24
-
-function clamp(value: number, min: number, max: number): number {
-	return Math.max(min, Math.min(value, max))
-}
 
 export function DocumentRuler({
 	geometry,
@@ -75,7 +71,6 @@ export function DocumentRuler({
 	const indent = useBlockIndent(editor)
 	const target = useRulerTarget(editor)
 	const trackRef = useRef<HTMLDivElement>(null)
-	const [dragging, setDragging] = useState<Handle | null>(null)
 	// Posisi sementara selama menyeret marker tabel/gambar. Marker itu menulis
 	// ke dokumen saat pointer dilepas, bukan tiap gerakan: satu langkah seret
 	// pada kolom menulis ke SETIAP sel di kolom itu, dan menulisnya per piksel
@@ -135,63 +130,29 @@ export function DocumentRuler({
 		[width, margins.left, margins.right, indent.left, contentWidth, editor, target, onMarginsChange, setIndent],
 	)
 
-	// Pointer dilepas di mana saja, bahkan di luar jendela, jadi listener-nya
-	// menempel di window selama seretan berlangsung.
-	useEffect(() => {
-		if (!dragging) return
-
-		const positionOf = (event: PointerEvent) => {
-			const rect = trackRef.current?.getBoundingClientRect()
-			if (!rect) return null
-			const raw = (event.clientX - rect.left) / zoom
-			return event.shiftKey ? Math.round(raw) : Math.round(raw / SNAP) * SNAP
-		}
-
-		const deferred = DEFERRED.has(dragging.kind)
-
-		const onMove = (event: PointerEvent) => {
-			const x = positionOf(event)
-			if (x === null) return
-			if (deferred) {
+	// Plumbing seret (listener window, snap, posisi pointer) dipinjam dari modul
+	// bersama; di sini tinggal memutuskan mana yang langsung menulis dan mana
+	// yang ditunda sampai pointer dilepas.
+	const { dragging, startDrag } = useRulerDrag<Handle>({
+		axis: 'x',
+		zoom,
+		trackRef,
+		onMove: (handle, x) => {
+			if (DEFERRED.has(handle.kind)) {
 				previewRef.current = x
 				setPreview(x)
 			} else {
-				applyHandle(dragging, x)
+				applyHandle(handle, x)
 			}
-		}
-		const onUp = () => {
-			// Dibaca lewat ref, bukan state: efek React di-flush asinkron, jadi
-			// penutupan ini bisa memegang posisi satu gerakan yang sudah basi.
-			if (deferred && previewRef.current !== null) applyHandle(dragging, previewRef.current)
+		},
+		onUp: (handle, x) => {
+			if (DEFERRED.has(handle.kind) && x !== null) applyHandle(handle, x)
 			previewRef.current = null
 			setPreview(null)
-			setDragging(null)
-		}
+		},
+	})
 
-		window.addEventListener('pointermove', onMove)
-		window.addEventListener('pointerup', onUp)
-		window.addEventListener('pointercancel', onUp)
-		return () => {
-			window.removeEventListener('pointermove', onMove)
-			window.removeEventListener('pointerup', onUp)
-			window.removeEventListener('pointercancel', onUp)
-		}
-	}, [dragging, zoom, applyHandle])
-
-	const startDrag = (handle: Handle) => (event: React.PointerEvent) => {
-		// Tanpa ini fokus pindah dari editor dan seleksi paragraf yang sedang
-		// diindentasi ikut hilang.
-		event.preventDefault()
-		setDragging(handle)
-	}
-
-	const nudge = (handle: Handle, current: number) => (event: React.KeyboardEvent) => {
-		const step = event.shiftKey ? 1 : NUDGE
-		if (event.key === 'ArrowLeft') applyHandle(handle, current - step)
-		else if (event.key === 'ArrowRight') applyHandle(handle, current + step)
-		else return
-		event.preventDefault()
-	}
+	const nudge = (handle: Handle, current: number) => rulerNudge('x', handle, current, applyHandle)
 
 	const toScreen = (x: number) => x * zoom
 

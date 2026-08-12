@@ -328,6 +328,87 @@ a {
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }
 
+/* ── penggaris kiri (vertikal, §A3) ────────────────────────────────────────
+ * Bayangan cermin dari penggaris atas: kelasnya dipisah (bukan modifier)
+ * karena arah tiap propertinya berbalik - top/bottom menggantikan left/right.
+ * Posisi tetap datang dari komponen sebagai piksel dokumen × zoom.
+ */
+.document-left-ruler {
+  position: relative;
+  background: var(--surface-raised);
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  user-select: none;
+  touch-action: none;
+}
+
+.document-left-ruler--dragging {
+  cursor: row-resize;
+}
+
+/* Area di luar batas tulis. */
+.document-left-ruler__margin {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+}
+
+.document-left-ruler__tick {
+  position: absolute;
+  left: 50%;
+  height: 1px;
+  width: 4px;
+  transform: translate(-50%, -0.5px);
+  background: var(--foreground-faint);
+  opacity: 0.5;
+}
+.document-left-ruler__tick--major {
+  width: 8px;
+  opacity: 0.75;
+}
+
+/* Angka diputar tegak - batang selebar 28px tidak muat angka mendatar. */
+.document-left-ruler__label {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--foreground-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Batas margin: garis mendatar yang bisa diseret. */
+.document-left-ruler__margin-handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 11px;
+  margin-top: -5.5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: row-resize;
+  touch-action: none;
+}
+.document-left-ruler__margin-handle::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  right: 3px;
+  height: 2px;
+  margin-top: -1px;
+  border-radius: 1px;
+  background: var(--foreground-faint);
+  transition: background-color 0.15s ease;
+}
+.document-left-ruler__margin-handle:hover::before,
+.document-left-ruler__margin-handle:focus-visible::before {
+  background: var(--accent);
+}
+
 /* Marker tabel & gambar.
    Sengaja tidak berbentuk segitiga seperti marker paragraf: keduanya bisa
    muncul di batang yang sama, dan bentuk yang sama berarti dua arti berbeda
@@ -1353,6 +1434,7 @@ html.light .range-highlight {
   aside,
   .document-canvas ~ *,
   .document-ruler-bar,
+  .document-left-ruler,
   .page-break-spacer,
   .document-sheet {
     display: none !important;

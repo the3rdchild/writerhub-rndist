@@ -9,6 +9,7 @@ import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
 import { DocumentRuler } from './document-ruler'
+import { DocumentLeftRuler, LEFT_RULER_GAP, LEFT_RULER_WIDTH } from './document-left-ruler'
 import { TiptapEditor } from './tiptap-editor'
 
 /**
@@ -84,6 +85,13 @@ export function DocumentCanvas({
 	const totalHeight = pageCount * height + (pageCount - 1) * gap
 	const zoom = settings.zoom
 
+	// Ruang penggaris kiri: lembar bergeser selebar ini ke kanan saat penggaris
+	// tampil. Penggaris atas ikut digeser (marginLeft) supaya keduanya tetap
+	// sejajar dengan tepi lembar. Pada pageless penggaris kiri disembunyikan
+	// (§A1.5) - tidak ada lembar yang bisa dijadikan asal skala.
+	const leftRulerRoom =
+		settings.showRuler && !setup.pageless ? LEFT_RULER_WIDTH + LEFT_RULER_GAP : 0
+
 	return (
 		<div
 			className={cn(
@@ -91,95 +99,113 @@ export function DocumentCanvas({
 				!settings.showRuler && 'pt-8',
 			)}
 		>
-			{settings.showRuler && (
-				// Penggaris ikut menggulung mendatar bersama lembar, tapi menempel di
-				// atas saat menggulung vertikal - ia harus tetap terbaca sepanjang
-				// dokumen, bukan hanya di halaman pertama.
-				//
-				// z-10 = lapisan isi kanvas (lihat skala lapisan di globals.css), jauh
-				// di bawah TopBar: menu yang terbuka dari sana terkurung di stacking
-				// context TopBar, jadi penggaris yang menyamai nilainya akan menutupi
-				// seluruh dropdown.
-				<div
-					className="document-ruler-bar sticky top-0 z-10 mx-auto"
-					style={{ width: width * zoom }}
-				>
-					<DocumentRuler
-						geometry={geometry}
-						zoom={zoom}
-						editor={editor}
-						onMarginsChange={onMarginsChange}
-					/>
-				</div>
-			)}
+			<div className="mx-auto" style={{ width: width * zoom + leftRulerRoom }}>
+				{settings.showRuler && (
+					// Penggaris ikut menggulung mendatar bersama lembar, tapi menempel di
+					// atas saat menggulung vertikal - ia harus tetap terbaca sepanjang
+					// dokumen, bukan hanya di halaman pertama.
+					//
+					// z-10 = lapisan isi kanvas (lihat skala lapisan di globals.css), jauh
+					// di bawah TopBar: menu yang terbuka dari sana terkurung di stacking
+					// context TopBar, jadi penggaris yang menyamai nilainya akan menutupi
+					// seluruh dropdown.
+					<div
+						className="document-ruler-bar sticky top-0 z-10"
+						style={{ marginLeft: leftRulerRoom, width: width * zoom }}
+					>
+						<DocumentRuler
+							geometry={geometry}
+							zoom={zoom}
+							editor={editor}
+							onMarginsChange={onMarginsChange}
+						/>
+					</div>
+				)}
 
-			{/* Pembungkus berukuran hasil zoom supaya scrollbar tetap akurat;
-			    elemen di dalamnya yang benar-benar diperbesar. */}
-			<div className="mx-auto" style={{ width: width * zoom, height: totalHeight * zoom }}>
-				<div
-					className="relative"
-					style={{
-						width,
-						minHeight: totalHeight,
-						transform: `scale(${zoom})`,
-						transformOrigin: 'top left',
-					}}
-				>
-					<div aria-hidden="true">
-						{Array.from({ length: pageCount }, (_, index) => (
-							<div
-								key={index}
-								className="document-sheet absolute left-0"
-								style={{
-									top: index * pageStride,
-									width,
-									height,
-									// pageColor null = ikuti tema (kelas CSS). Diisi eksplisit
-									// hanya bila pengguna memilih warna (WYSIWYG, putusan §9).
-									...(setup.pageColor ? { background: setup.pageColor } : {}),
-								}}
-							>
-								{settings.showPageNumbers && !setup.pageless && (
-									<span
-										className="absolute text-[11px] text-faint"
-										style={{ bottom: margins.bottom / 3, right: margins.right }}
+				<div className="flex">
+					{settings.showRuler && !setup.pageless && (
+						// Penggaris kiri menggulung bersama lembar ke dua arah - ia milik
+						// lembar, bukan bingkai layar.
+						<div className="shrink-0" style={{ width: leftRulerRoom, paddingRight: LEFT_RULER_GAP }}>
+							<DocumentLeftRuler
+								geometry={geometry}
+								zoom={zoom}
+								pageCount={pageCount}
+								unit={settings.measurementUnit}
+								onMarginsChange={onMarginsChange}
+							/>
+						</div>
+					)}
+
+					{/* Pembungkus berukuran hasil zoom supaya scrollbar tetap akurat;
+					    elemen di dalamnya yang benar-benar diperbesar. */}
+					<div style={{ width: width * zoom, height: totalHeight * zoom }}>
+						<div
+							className="relative"
+							style={{
+								width,
+								minHeight: totalHeight,
+								transform: `scale(${zoom})`,
+								transformOrigin: 'top left',
+							}}
+						>
+							<div aria-hidden="true">
+								{Array.from({ length: pageCount }, (_, index) => (
+									<div
+										key={index}
+										className="document-sheet absolute left-0"
+										style={{
+											top: index * pageStride,
+											width,
+											height,
+											// pageColor null = ikuti tema (kelas CSS). Diisi eksplisit
+											// hanya bila pengguna memilih warna (WYSIWYG, putusan §9).
+											...(setup.pageColor ? { background: setup.pageColor } : {}),
+										}}
 									>
-										{index + 1}
-									</span>
+										{settings.showPageNumbers && !setup.pageless && (
+											<span
+												className="absolute text-[11px] text-faint"
+												style={{ bottom: margins.bottom / 3, right: margins.right }}
+											>
+												{index + 1}
+											</span>
+										)}
+									</div>
+								))}
+							</div>
+
+							<div
+								className="relative z-10"
+								style={
+									{
+										paddingTop: margins.top,
+										paddingRight: margins.right,
+										paddingBottom: margins.bottom,
+										paddingLeft: margins.left,
+										'--code-block-max-height': codeBlockMaxHeight,
+									} as React.CSSProperties
+								}
+							>
+								{/*
+								 * Editor menunggu naskah tersimpan selesai dimuat.
+								 *
+								 * Ia terikat ke fragmen Y.Doc milik tab aktif, jadi membuatnya
+								 * sebelum tab itu diketahui berarti satu editor sia-sia yang
+								 * langsung dibuang - dan lembar kosong yang berkelebat sebelum
+								 * naskah muncul.
+								 */}
+								{activeId && (
+									<TiptapEditor
+										containerRef={containerRef}
+										onReady={onReady}
+										geometry={geometry}
+										pageless={setup.pageless}
+										onPageCountChange={setPageCount}
+									/>
 								)}
 							</div>
-						))}
-					</div>
-
-					<div
-						className="relative z-10"
-						style={
-							{
-								paddingTop: margins.top,
-								paddingRight: margins.right,
-								paddingBottom: margins.bottom,
-								paddingLeft: margins.left,
-								'--code-block-max-height': codeBlockMaxHeight,
-							} as React.CSSProperties
-						}
-					>
-						{/*
-						 * Editor menunggu naskah tersimpan selesai dimuat.
-						 *
-						 * Ia terikat ke fragmen Y.Doc milik tab aktif, jadi membuatnya
-						 * sebelum tab itu diketahui berarti satu editor sia-sia yang
-						 * langsung dibuang - dan lembar kosong yang berkelebat sebelum
-						 * naskah muncul.
-						 */}
-						{activeId && (
-							<TiptapEditor
-								containerRef={containerRef}
-								onReady={onReady}
-								geometry={geometry}
-								pageless={setup.pageless}
-								onPageCountChange={setPageCount}
-							/>
-						)}
+						</div>
 					</div>
 				</div>
 			</div>
