@@ -3,7 +3,9 @@ import {
 	type ChatMessage,
 	type ChatStreamEvent,
 	type StyleMemory,
+	DEFAULT_CHAT_MODEL,
 	fallbackToolPrompt,
+	isKnownChatModel,
 	toProviderTools,
 } from '@writer-hub/shared'
 import { env } from '@/config/env'
@@ -43,7 +45,7 @@ export default class ChatService extends JobSubmissionService {
 			// daripada memberi stream yang langsung gagal.
 			const baseUrl = provider?.baseUrl || env.AI_BASE_URL
 			const apiKey = provider?.apiKey || env.AI_API_KEY
-			const model = provider?.modelId || env.AI_MODEL
+			const model = pickModel(parsed.data.model, provider?.modelId || env.AI_MODEL, baseUrl)
 
 			if (!baseUrl || !apiKey) {
 				return this.error({
@@ -88,6 +90,27 @@ export default class ChatService extends JobSubmissionService {
 			return this.failFromError(error)
 		}
 	}
+}
+
+/**
+ * Model yang benar-benar dipakai untuk satu percakapan.
+ *
+ * Pilihan klien dihormati hanya kalau ia lolos DUA saringan:
+ *
+ * 1. Ada di daftar kurasi bersama. Nilai ini diteruskan apa adanya ke provider
+ *    dengan kunci API milik pengguna, jadi id sembarang dari klien tidak boleh
+ *    sampai ke sana.
+ * 2. Base URL yang berlaku memang OpenRouter. Id di daftar itu id OpenRouter;
+ *    kalau provider seorang pengguna diresolusi admin-ppe ke gateway lain,
+ *    mengirimkannya ke sana hanya menghasilkan 404 yang membingungkan.
+ *
+ * Gagal saringan berarti mundur ke bawaan, bukan menolak permintaan: pemilih
+ * model adalah kenyamanan, dan kehilangan kenyamanan tidak sepadan dengan
+ * kehilangan percakapan.
+ */
+function pickModel(requested: string | undefined, fallback: string, baseUrl: string): string {
+	if (!requested || !isKnownChatModel(requested) || requested === DEFAULT_CHAT_MODEL) return fallback
+	return baseUrl.includes('openrouter.ai') ? requested : fallback
 }
 
 const SYSTEM_PROMPT = [

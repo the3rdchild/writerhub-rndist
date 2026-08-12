@@ -9,7 +9,7 @@ import {
 	type ChatUsage,
 	type ToolCall,
 } from '@writer-hub/shared'
-import { isReadTool } from '@writer-hub/shared'
+import { DEFAULT_CHAT_MODEL, isReadTool } from '@writer-hub/shared'
 import {
 	createContext,
 	type ReactNode,
@@ -303,6 +303,10 @@ interface ChatContextValue {
 	/** Alat tulis dijalankan tanpa menunggu Apply. Mati secara bawaan. */
 	autoApply: boolean
 	setAutoApply: (value: boolean) => void
+
+	/** Model chat pilihan pengguna; string kosong = ikut bawaan server. */
+	model: string
+	setModel: (value: string) => void
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null)
@@ -378,6 +382,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 	/** Dimatikan begitu provider terbukti menolak tool calling. */
 	const toolsRef = useRef(true)
+
+	/**
+	 * Model pilihan pengguna, diingat per browser. Kosong berarti ikut bawaan
+	 * server - server memvalidasi ulang pilihannya, jadi nilai basi di
+	 * localStorage (mis. model yang dicabut dari daftar) mundur dengan tenang.
+	 */
+	const [model, setModel] = usePersistentState('writer-hub-chat-model', DEFAULT_CHAT_MODEL)
+	const modelRef = useRef(model)
+	modelRef.current = model
 
 	const contextRef = useRef({ attachment, includeDocument, state })
 	contextRef.current = { attachment, includeDocument, state }
@@ -586,7 +599,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 			try {
 				await streamChat(
-					{ messages: buildOutboundMessages(history, taskId), context: buildContext(), tools: toolsRef.current },
+					{
+						messages: buildOutboundMessages(history, taskId),
+						context: buildContext(),
+						tools: toolsRef.current,
+						model: modelRef.current,
+					},
 					{
 						onDelta: (delta) => {
 							answer += delta
@@ -1018,6 +1036,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			isActionSettled: (id: string) => settledActionIds.has(id),
 			autoApply,
 			setAutoApply,
+			model,
+			setModel,
 		}),
 		[
 			messages,
@@ -1038,6 +1058,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			settledActionIds,
 			autoApply,
 			setAutoApply,
+			model,
+			setModel,
 		],
 	)
 

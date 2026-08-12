@@ -6,6 +6,7 @@ import {
 	Check,
 	ChevronDown,
 	ChevronRight,
+	Cpu,
 	FileText,
 	Loader2,
 	Plus,
@@ -19,7 +20,9 @@ import {
 } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import type { ChatUsage, ToolCall } from '@writer-hub/shared'
+import { CHAT_MODELS, findChatModel } from '@writer-hub/shared'
 import { type ChatStep, extractProposals, stripProposals, useChat } from '@/features/chat/chat-context'
+import { Dropdown, DropdownItem } from '@/components/ui/dropdown'
 import { describeToolCall } from '@/features/chat/tools'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { useEditorInstance } from '@/features/editor/editor-context'
@@ -73,13 +76,27 @@ export function AiChatPanel() {
 
 	useEffect(() => {
 		if (!scope || selectionKey === null || dismissedRef.current === selectionKey) return
+
+		/*
+		 * Seleksi yang muncul selagi AI bekerja bukan isyarat pengguna - itu jejak
+		 * alat tulis yang menggeser seleksi untuk menunjuk sasarannya. Menempelkannya
+		 * membuat giliran berikutnya diberi tahu "pengguna menyorot ini dan
+		 * menanyakannya", dan AI menjawab jejak kakinya sendiri. Ditandai sudah
+		 * dilihat, bukan sekadar dilewati, supaya ia tidak menempel belakangan saat
+		 * giliran selesai.
+		 */
+		if (isRunning) {
+			dismissedRef.current = selectionKey
+			return
+		}
+
 		attach({
 			text: scope.text,
 			surrounding: scope.surrounding,
 			offset: scope.offset,
 			length: scope.length,
 		})
-	}, [scope, selectionKey, attach])
+	}, [scope, selectionKey, attach, isRunning])
 
 	const dismissAttachment = () => {
 		dismissedRef.current = selectionKey
@@ -211,6 +228,8 @@ export function AiChatPanel() {
 						<Zap className="h-3 w-3" />
 						Auto-apply
 					</button>
+
+					<ModelPicker />
 
 					{messages.length > 0 && (
 						<>
@@ -434,6 +453,72 @@ function ProposalCard({ text, expired }: { text: string; expired?: boolean }) {
 				</button>
 			)}
 		</div>
+	)
+}
+
+/**
+ * Pemilih model percakapan.
+ *
+ * Duduk di kaki panel bersama saklar lain, bukan di Setelan: model menentukan
+ * ongkos dan mutu jawaban berikutnya, jadi ia perlu terbaca saat bertanya -
+ * bukan tersembunyi di dialog yang dibuka sekali setahun.
+ *
+ * Daftarnya kurasi bersama server (`CHAT_MODELS`); pilihan yang tidak dikenal
+ * ditolak di sana dan mundur ke bawaan, jadi tidak ada jalan dari sini untuk
+ * mengarahkan kunci API pengguna ke model sembarangan.
+ */
+function ModelPicker() {
+	const { model, setModel } = useChat()
+	const active = findChatModel(model) ?? CHAT_MODELS[0]
+
+	return (
+		<Dropdown
+			align="start"
+			side="top"
+			trigger={({ open, toggle }) => (
+				<button
+					type="button"
+					onClick={toggle}
+					title={`Model: ${active.label} — ${active.hint}`}
+					className={cn(
+						'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-colors',
+						open
+							? 'bg-[var(--overlay-active)] text-foreground'
+							: 'text-subtle hover:bg-[var(--overlay-hover)] hover:text-foreground',
+					)}
+				>
+					<Cpu className="h-3 w-3" />
+					<span className="max-w-[9rem] truncate">{active.label}</span>
+				</button>
+			)}
+		>
+			{({ close }) => (
+				<>
+					{CHAT_MODELS.map((entry) => (
+						<DropdownItem
+							key={entry.id || 'default'}
+							active={entry.id === active.id}
+							onSelect={() => {
+								close()
+								setModel(entry.id)
+							}}
+							trailing={
+								entry.free ? (
+									<span className="rounded bg-green-500/15 px-1.5 py-0.5 text-[10px] text-green-400">
+										gratis
+									</span>
+								) : undefined
+							}
+						>
+							<span className="flex flex-col">
+								<span>{entry.label}</span>
+								<span className="text-[10px] text-subtle">{entry.hint}</span>
+							</span>
+						</DropdownItem>
+					))}
+				</>
+			)}
+		</Dropdown>
 	)
 }
 

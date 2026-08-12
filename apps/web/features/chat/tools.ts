@@ -407,7 +407,50 @@ function layoutRange(editor: Editor, call: ToolCall): { from: number; to: number
 
 const ANALYSIS_MODULES: readonly string[] = ['ai_detector', 'ai_rewriter', 'humanizer', 'plagiarism']
 
+/**
+ * Alat yang menggeser seleksi HANYA untuk menunjuk sasarannya.
+ *
+ * Seleksi di ProseMirror adalah cara perintah-perintah ini menyatakan "yang
+ * ini" - bukan sesuatu yang dimaksudkan untuk dilihat pengguna. Meninggalkannya
+ * di sana punya dua akibat buruk: kursor penulis melompat ke tempat yang tidak
+ * ia pilih, dan panel chat menempelkan sorotan itu sebagai lampiran, sehingga
+ * giliran AI berikutnya diberi tahu bahwa "pengguna menyorot teks ini dan
+ * menanyakannya". Model lalu menjawab jejak kakinya sendiri.
+ *
+ * Alat penyisip TIDAK ada di sini: berpindah ke isi yang baru saja disisipkan
+ * memang tempat yang benar untuk kursor sesudahnya.
+ */
+const SELECTION_NEUTRAL_TOOLS: readonly string[] = [
+	'set_alignment',
+	'set_indent',
+	'set_spacing',
+	'set_font',
+	'toggle_list',
+	'set_columns',
+	'format_text',
+	'apply_paragraph_style',
+]
+
 export function applyWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
+	const { editor } = context
+
+	// Seleksi penulis sebelum alat berjalan; dipulihkan di bawah bila alat ini
+	// hanya memakainya sebagai penunjuk. Dipetakan lewat panjang dokumen karena
+	// tiap alat melepas transaksinya sendiri - tidak ada satu mapping bersama
+	// yang bisa dititipi.
+	const before = { from: editor.state.selection.from, to: editor.state.selection.to }
+	const sizeBefore = editor.state.doc.content.size
+
+	const outcome = runWriteTool(context, call)
+
+	if (SELECTION_NEUTRAL_TOOLS.includes(call.name) && editor.state.doc.content.size === sizeBefore) {
+		editor.commands.setTextSelection(before)
+	}
+
+	return outcome
+}
+
+function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 	const { editor } = context
 
 	switch (call.name) {

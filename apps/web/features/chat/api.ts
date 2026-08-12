@@ -32,7 +32,8 @@ export async function streamChat(
 		messages,
 		context,
 		tools = true,
-	}: { messages: ChatMessage[]; context?: ChatContext; tools?: boolean },
+		model,
+	}: { messages: ChatMessage[]; context?: ChatContext; tools?: boolean; model?: string },
 	handlers: StreamChatHandlers | ((text: string) => void),
 	signal?: AbortSignal,
 ): Promise<void> {
@@ -42,7 +43,9 @@ export async function streamChat(
 	const response = await fetch('/api/chat', {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({ messages, context, tools }),
+		// `model` kosong berarti "ikuti bawaan server"; jangan kirim kunci itu
+		// sama sekali supaya DTO tidak perlu mengenal string kosong.
+		body: JSON.stringify({ messages, context, tools, ...(model ? { model } : {}) }),
 		signal,
 	})
 

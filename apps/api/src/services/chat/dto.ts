@@ -31,6 +31,13 @@ export const chatBodySchema = z.object({
 
 	/** Aktifkan tool calling; klien mematikannya saat sudah tahu provider menolak. */
 	tools: z.boolean().optional().default(true),
+
+	/**
+	 * Model pilihan pengguna. Divalidasi terhadap daftar kurasi di service -
+	 * bukan di sini - supaya id tak dikenal diabaikan dengan tenang alih-alih
+	 * menggugurkan seluruh permintaan chat.
+	 */
+	model: z.string().max(200).optional(),
 })
 
 export type ChatBody = z.infer<typeof chatBodySchema>
