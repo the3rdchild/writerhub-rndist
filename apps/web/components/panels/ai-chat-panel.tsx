@@ -9,6 +9,7 @@ import {
 	Cpu,
 	FileText,
 	Loader2,
+	type LucideIcon,
 	Plus,
 	Square,
 	Trash2,
@@ -188,48 +189,41 @@ export function AiChatPanel() {
 					</div>
 				)}
 
-				<div className="flex items-center gap-2">
-					<button
-						type="button"
+				{/*
+				 * Satu baris di panel selebar 340px, jadi hanya pemilih model yang
+				 * menyandang label - dua saklar konteks menyusut jadi ikon berkeadaan.
+				 *
+				 * Pemilih model diletakkan paling kiri karena menunya terbentang dari
+				 * tepi kiri pemicunya: dari tengah baris, ia melewati batas panel dan
+				 * terpotong `overflow-hidden` milik wadahnya.
+				 */}
+				<div className="flex items-center gap-1.5">
+					<ModelPicker />
+
+					<ToggleIcon
+						icon={FileText}
+						label="Whole document"
+						hint="Kirim teks penuh tab aktif (bawaan: ringkasan kerangka saja)"
+						active={includeDocument}
 						onClick={() => setIncludeDocument(!includeDocument)}
-						title="Kirim teks penuh tab aktif (bawaan: ringkasan kerangka saja)"
-						className={cn(
-							'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-colors',
-							includeDocument
-								? 'bg-accent/15 text-accent'
-								: 'text-subtle hover:bg-[var(--overlay-hover)] hover:text-foreground',
-						)}
-					>
-						<FileText className="h-3 w-3" />
-						Whole document
-					</button>
+					/>
 
 					{/*
 					 * Terapkan-otomatis melewati kartu aksi sepenuhnya. Saklarnya duduk
 					 * di sini, bukan di Setelan, karena ia mengubah cara panel ini
 					 * bekerja dan pengguna perlu melihat keadaannya saat memutuskan.
 					 */}
-					<button
-						type="button"
-						onClick={() => setAutoApply(!autoApply)}
-						title={
+					<ToggleIcon
+						icon={Zap}
+						label="Auto-apply"
+						hint={
 							autoApply
 								? 'Suntingan AI langsung masuk naskah - batalkan dengan Ctrl+Z'
 								: 'Terapkan suntingan AI tanpa menunggu Apply'
 						}
-						aria-pressed={autoApply}
-						className={cn(
-							'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-colors',
-							autoApply
-								? 'bg-accent/15 text-accent'
-								: 'text-subtle hover:bg-[var(--overlay-hover)] hover:text-foreground',
-						)}
-					>
-						<Zap className="h-3 w-3" />
-						Auto-apply
-					</button>
-
-					<ModelPicker />
+						active={autoApply}
+						onClick={() => setAutoApply(!autoApply)}
+					/>
 
 					{messages.length > 0 && (
 						<>
@@ -238,7 +232,7 @@ export function AiChatPanel() {
 								onClick={startNewTopic}
 								title="Mulai topik baru (kartu aksi lama kedaluwarsa)"
 								aria-label="Mulai topik baru"
-								className="ml-auto rounded-md p-1 text-subtle transition-colors hover:text-foreground"
+								className="ml-auto shrink-0 rounded-md p-1.5 text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 							>
 								<Plus className="h-3.5 w-3.5" />
 							</button>
@@ -247,7 +241,7 @@ export function AiChatPanel() {
 								onClick={reset}
 								title="Clear conversation"
 								aria-label="Clear conversation"
-								className="rounded-md p-1 text-subtle transition-colors hover:text-foreground"
+								className="shrink-0 rounded-md p-1.5 text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 							>
 								<Trash2 className="h-3.5 w-3.5" />
 							</button>
@@ -457,6 +451,46 @@ function ProposalCard({ text, expired }: { text: string; expired?: boolean }) {
 }
 
 /**
+ * Saklar konteks berbentuk ikon.
+ *
+ * Labelnya hidup di tooltip dan `aria-label`, bukan di layar: kaki panel hanya
+ * punya ~308px dan tiga kendali berlabel tidak muat - versi sebelumnya memecah
+ * "Whole document" jadi dua baris. Keadaan nyala ditandai warna aksen dan
+ * `aria-pressed`, jadi ia tetap terbaca tanpa teks.
+ */
+function ToggleIcon({
+	icon: Icon,
+	label,
+	hint,
+	active,
+	onClick,
+}: {
+	icon: LucideIcon
+	label: string
+	hint: string
+	active: boolean
+	onClick: () => void
+}) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			title={`${label} — ${hint}`}
+			aria-label={label}
+			aria-pressed={active}
+			className={cn(
+				'shrink-0 rounded-full p-1.5 transition-colors',
+				active
+					? 'bg-accent/15 text-accent'
+					: 'text-subtle hover:bg-[var(--overlay-hover)] hover:text-foreground',
+			)}
+		>
+			<Icon className="h-3.5 w-3.5" />
+		</button>
+	)
+}
+
+/**
  * Pemilih model percakapan.
  *
  * Duduk di kaki panel bersama saklar lain, bukan di Setelan: model menentukan
@@ -475,20 +509,31 @@ function ModelPicker() {
 		<Dropdown
 			align="start"
 			side="top"
+			className="min-w-0"
+			/*
+			 * Lebar dipatok, bukan dibiarkan mengikuti isi: keterangan model
+			 * membuatnya melar melewati tepi panel. Digulung juga - sepuluh butir
+			 * dua baris lebih tinggi dari panelnya sendiri. Menu ini tidak punya
+			 * submenu, jadi `overflow-y` di sini tidak memangkas apa pun.
+			 */
+			menuClassName="w-[272px] max-h-[min(60vh,340px)] overflow-y-auto"
 			trigger={({ open, toggle }) => (
 				<button
 					type="button"
 					onClick={toggle}
 					title={`Model: ${active.label} — ${active.hint}`}
 					className={cn(
-						'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-colors',
+						'flex min-w-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] transition-colors',
 						open
 							? 'bg-[var(--overlay-active)] text-foreground'
 							: 'text-subtle hover:bg-[var(--overlay-hover)] hover:text-foreground',
 					)}
 				>
-					<Cpu className="h-3 w-3" />
-					<span className="max-w-[9rem] truncate">{active.label}</span>
+					<Cpu className="h-3.5 w-3.5 shrink-0" />
+					{/* Dipatok: baris ini juga menampung empat tombol ikon, dan nama model
+					    terpanjang akan mendorongnya melewati lebar panel. */}
+					<span className="max-w-[6.5rem] truncate">{active.label}</span>
+					<ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
 				</button>
 			)}
 		>
@@ -510,9 +555,11 @@ function ModelPicker() {
 								) : undefined
 							}
 						>
-							<span className="flex flex-col">
-								<span>{entry.label}</span>
-								<span className="text-[10px] text-subtle">{entry.hint}</span>
+							{/* Dua baris di dalam butir yang aslinya satu baris `truncate`:
+							    tiap baris memotong dirinya sendiri, bukan dipotong induknya. */}
+							<span className="flex min-w-0 flex-col py-0.5">
+								<span className="truncate leading-tight">{entry.label}</span>
+								<span className="truncate text-[10px] leading-tight text-subtle">{entry.hint}</span>
 							</span>
 						</DropdownItem>
 					))}
