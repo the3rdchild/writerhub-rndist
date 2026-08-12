@@ -334,6 +334,43 @@ export function describeToolCall(call: ToolCall): string {
 			)
 			return `Format “${String(call.arguments.find ?? '').slice(0, 40)}…” (${marks.join(', ')})`
 		}
+		case 'set_alignment':
+			return `Align ${scopeLabel(call)} ${String(call.arguments.align ?? '')}`
+		case 'set_indent': {
+			const parts = [
+				call.arguments.left_cm !== undefined ? `left ${call.arguments.left_cm}cm` : null,
+				call.arguments.right_cm !== undefined ? `right ${call.arguments.right_cm}cm` : null,
+				call.arguments.first_line_cm !== undefined
+					? `first line ${call.arguments.first_line_cm}cm`
+					: null,
+			].filter(Boolean)
+			return `Indent ${scopeLabel(call)} (${parts.join(', ') || 'no change'})`
+		}
+		case 'set_spacing': {
+			const parts = [
+				call.arguments.line_height !== undefined ? `line ${call.arguments.line_height}` : null,
+				call.arguments.space_before_pt !== undefined ? `before ${call.arguments.space_before_pt}pt` : null,
+				call.arguments.space_after_pt !== undefined ? `after ${call.arguments.space_after_pt}pt` : null,
+			].filter(Boolean)
+			return `Space ${scopeLabel(call)} (${parts.join(', ') || 'no change'})`
+		}
+		case 'set_font': {
+			const parts = [
+				call.arguments.family ? String(call.arguments.family) : null,
+				call.arguments.size_pt !== undefined ? `${call.arguments.size_pt}pt` : null,
+			].filter(Boolean)
+			return `Font of ${scopeLabel(call)} → ${parts.join(' ') || 'no change'}`
+		}
+		case 'toggle_list':
+			return call.arguments.kind === 'none'
+				? `Turn “${String(call.arguments.find ?? '').slice(0, 40)}…” back into paragraphs`
+				: `Make “${String(call.arguments.find ?? '').slice(0, 40)}…” a ${call.arguments.kind} list`
+		case 'set_columns':
+			return Number(call.arguments.count) <= 1
+				? `Remove columns from ${scopeLabel(call)}`
+				: `Lay ${scopeLabel(call)} out in ${call.arguments.count} columns`
+		case 'insert_footnote':
+			return `Footnote on “${String(call.arguments.quote ?? '').slice(0, 40)}…”`
 		case 'restructure_section':
 			return `${String(call.arguments.action ?? '')} section ${call.arguments.heading_index ?? '?'}`
 		case 'insert_image':
@@ -343,6 +380,29 @@ export function describeToolCall(call: ToolCall): string {
 		default:
 			return call.name
 	}
+}
+
+/** "the whole document" atau kutipan pendeknya - untuk kalimat kartu aksi. */
+function scopeLabel(call: ToolCall): string {
+	const find = String(call.arguments.find ?? '')
+	return find ? `“${find.slice(0, 32)}…”` : 'the whole document'
+}
+
+/* Satuan panduan penulisan → piksel 96 dpi, satuan yang dipakai atribut node. */
+const PX_PER_CM = 96 / 2.54
+const PX_PER_PT = 96 / 72
+
+/**
+ * Rentang yang jadi sasaran alat tata letak.
+ *
+ * Tanpa `find`, sasarannya seluruh naskah - lihat catatan di registri alat.
+ * Mengembalikan null berarti kutipannya tidak ditemukan; pemanggil melaporkannya
+ * sebagai kegagalan, bukan diam-diam mengubah seluruh dokumen.
+ */
+function layoutRange(editor: Editor, call: ToolCall): { from: number; to: number } | null {
+	const find = typeof call.arguments.find === 'string' ? call.arguments.find : ''
+	if (!find.trim()) return { from: 0, to: editor.state.doc.content.size }
+	return findExactRange(editor, find)
 }
 
 const ANALYSIS_MODULES: readonly string[] = ['ai_detector', 'ai_rewriter', 'humanizer', 'plagiarism']
@@ -577,6 +637,180 @@ export function applyWriteTool(context: WriteToolContext, call: ToolCall): ToolO
 			if (applied === 0) return { ok: false, message: 'None of those marks exist in this editor.' }
 			editor.view.dispatch(tr)
 			return { ok: true, message: 'Formatted.' }
+		}
+
+		/*
+		 * Alat tata letak (A6). Semuanya berjalan lewat perintah editor yang sudah
+		 * ada - `setTextAlign`, `setBlockIndent`, `setLineHeight`, `setFontSize`,
+		 * dan seterusnya - dengan seleksi digeser lebih dulu ke rentang sasaran.
+		 * Menulis transaksinya sendiri di sini berarti menduplikasi aturan yang
+		 * sudah diuji lewat toolbar, termasuk hal-hal halus seperti node mana saja
+		 * yang boleh diindentasi.
+		 *
+		 * Seleksi disetel di dalam rantai yang sama dengan perintahnya, jadi
+		 * keadaan editor tidak pernah tertinggal di seleksi buatan kalau
+		 * perintahnya gagal.
+		 */
+		case 'set_alignment': {
+			const align = String(call.arguments.align ?? '')
+			if (!['left', 'center', 'right', 'justify'].includes(align)) {
+				return { ok: false, message: `Unknown alignment: ${align}` }
+			}
+			const range = layoutRange(editor, call)
+			if (!range) return { ok: false, message: 'That passage is no longer in the document.' }
+
+			const ok = editor.chain().focus().setTextSelection(range).setTextAlign(align).run()
+			return ok
+				? { ok: true, message: `Aligned ${align}.` }
+				: { ok: false, message: 'Nothing there could be aligned.' }
+		}
+
+		case 'set_indent': {
+			const range = layoutRange(editor, call)
+			if (!range) return { ok: false, message: 'That passage is no longer in the document.' }
+
+			const patch: { left?: number; right?: number; firstLine?: number } = {}
+			if (call.arguments.left_cm !== undefined) patch.left = Number(call.arguments.left_cm) * PX_PER_CM
+			if (call.arguments.right_cm !== undefined) patch.right = Number(call.arguments.right_cm) * PX_PER_CM
+			if (call.arguments.first_line_cm !== undefined) {
+				patch.firstLine = Number(call.arguments.first_line_cm) * PX_PER_CM
+			}
+			if (Object.keys(patch).length === 0) return { ok: false, message: 'No indent given.' }
+			if (Object.values(patch).some((value) => !Number.isFinite(value))) {
+				return { ok: false, message: 'Indents must be numbers, in centimeters.' }
+			}
+
+			const ok = editor.chain().focus().setTextSelection(range).setBlockIndent(patch).run()
+			return ok
+				? { ok: true, message: 'Indent applied.' }
+				: { ok: false, message: 'Nothing there could be indented.' }
+		}
+
+		case 'set_spacing': {
+			const range = layoutRange(editor, call)
+			if (!range) return { ok: false, message: 'That passage is no longer in the document.' }
+
+			const lineHeight = call.arguments.line_height
+			const before = call.arguments.space_before_pt
+			const after = call.arguments.space_after_pt
+			if (lineHeight === undefined && before === undefined && after === undefined) {
+				return { ok: false, message: 'No spacing given.' }
+			}
+
+			const chain = editor.chain().focus().setTextSelection(range)
+			if (lineHeight !== undefined) {
+				const value = Number(lineHeight)
+				if (!Number.isFinite(value) || value <= 0) {
+					return { ok: false, message: 'line_height must be a positive multiplier.' }
+				}
+				chain.setLineHeight(String(value))
+			}
+			if (before !== undefined || after !== undefined) {
+				chain.setBlockSpace({
+					...(before !== undefined ? { before: Number(before) * PX_PER_PT } : {}),
+					...(after !== undefined ? { after: Number(after) * PX_PER_PT } : {}),
+				})
+			}
+
+			const ok = chain.run()
+			return ok
+				? { ok: true, message: 'Spacing applied.' }
+				: { ok: false, message: 'Nothing there could be spaced.' }
+		}
+
+		case 'set_font': {
+			const range = layoutRange(editor, call)
+			if (!range) return { ok: false, message: 'That passage is no longer in the document.' }
+
+			const family = typeof call.arguments.family === 'string' ? call.arguments.family.trim() : ''
+			const size = call.arguments.size_pt
+			if (!family && size === undefined) return { ok: false, message: 'No font given.' }
+
+			const chain = editor.chain().focus().setTextSelection(range)
+			if (family) chain.setFontFamily(family)
+			if (size !== undefined) {
+				const value = Number(size)
+				if (!Number.isFinite(value) || value <= 0) {
+					return { ok: false, message: 'size_pt must be a positive number of points.' }
+				}
+				chain.setFontSize(`${value}pt`)
+			}
+
+			const ok = chain.run()
+			return ok ? { ok: true, message: 'Font applied.' } : { ok: false, message: 'Font could not be applied.' }
+		}
+
+		case 'toggle_list': {
+			const find = String(call.arguments.find ?? '')
+			if (!find) return { ok: false, message: 'Nothing to find.' }
+			const range = findExactRange(editor, find)
+			if (!range) return { ok: false, message: 'That passage is no longer in the document.' }
+
+			const kind = String(call.arguments.kind ?? '')
+			const chain = editor.chain().focus().setTextSelection(range)
+			// `toggle*` di seleksi yang sudah berupa daftar jenis itu akan mematikannya,
+			// jadi jenis yang sudah benar dibiarkan apa adanya - permintaan "jadikan
+			// daftar bernomor" tidak boleh membatalkan daftar bernomor yang sudah ada.
+			if (kind === 'bullet') {
+				if (!editor.isActive('bulletList')) chain.toggleBulletList()
+			} else if (kind === 'ordered') {
+				if (!editor.isActive('orderedList')) chain.toggleOrderedList()
+			} else if (kind === 'none') {
+				if (editor.isActive('bulletList')) chain.toggleBulletList()
+				else if (editor.isActive('orderedList')) chain.toggleOrderedList()
+			} else {
+				return { ok: false, message: `Unknown list kind: ${kind}` }
+			}
+
+			const ok = chain.run()
+			return ok
+				? { ok: true, message: kind === 'none' ? 'Turned back into paragraphs.' : `${kind} list applied.` }
+				: { ok: false, message: 'That passage could not become a list.' }
+		}
+
+		case 'set_columns': {
+			const count = Number(call.arguments.count)
+			if (!Number.isInteger(count) || count < 1 || count > 3) {
+				return { ok: false, message: 'count must be 1, 2 or 3.' }
+			}
+			const range = layoutRange(editor, call)
+			if (!range) return { ok: false, message: 'That passage is no longer in the document.' }
+
+			const chain = editor.chain().focus().setTextSelection(range)
+			const ok = count === 1 ? chain.unsetColumns().run() : chain.setColumns(count).run()
+			return ok
+				? { ok: true, message: count === 1 ? 'Columns removed.' : `${count} columns applied.` }
+				: { ok: false, message: 'The column layout could not be changed.' }
+		}
+
+		case 'insert_footnote': {
+			const quote = String(call.arguments.quote ?? '')
+			const body = String(call.arguments.body ?? '')
+			if (!quote) return { ok: false, message: 'Nothing to find.' }
+			if (!body.trim()) return { ok: false, message: 'The footnote has no text.' }
+
+			const range = findExactRange(editor, quote)
+			if (!range) return { ok: false, message: 'That passage is no longer in the document.' }
+
+			const footnoteType = editor.state.schema.nodes.footnote
+			if (!footnoteType) return { ok: false, message: 'This editor has no footnotes.' }
+
+			// Rujukan dan isinya dipasang dalam satu rantai: dua transaksi terpisah
+			// bisa meninggalkan rujukan tanpa catatan kalau yang kedua gagal.
+			const ok = editor
+				.chain()
+				.focus()
+				.setTextSelection(range.to)
+				.insertFootnote(`fn-${Date.now()}`)
+				.command(({ tr, dispatch }) => {
+					if (dispatch) tr.insert(tr.doc.content.size, footnoteType.create(null, editor.state.schema.text(body)))
+					return true
+				})
+				.run()
+
+			return ok
+				? { ok: true, message: 'Footnote added.' }
+				: { ok: false, message: 'The footnote could not be inserted.' }
 		}
 
 		case 'restructure_section': {

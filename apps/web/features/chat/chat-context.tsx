@@ -91,10 +91,39 @@ export interface ChatTurn extends ChatMessage {
 	steps?: ChatStep[]
 	/** Pemakaian token, bila provider melaporkannya. */
 	usage?: ChatUsage
+	/**
+	 * Giliran antara: model hanya meminta alat baca, belum menjawab.
+	 *
+	 * Ia wajib ada di riwayat - protokol provider menuntut `tool_calls` berpasangan
+	 * dengan hasilnya - tapi ia bukan jawaban, dan merendernya sebagai gelembung
+	 * kosong membuat tiap putaran alat terbaca "Tidak ada jawaban." Isinya sudah
+	 * terwakili lini masa langkah.
+	 */
+	intermediate?: boolean
 }
 
-/** Batas putaran alat baca dalam satu giliran. */
-const MAX_TOOL_ROUNDS = 4
+/**
+ * Anggaran penelusuran satu giliran.
+ *
+ * Dua batas, bukan satu, karena keduanya menahan hal berbeda: putaran menahan
+ * model yang bolak-balik tanpa maju, jumlah panggilan menahan model yang
+ * membuka seluruh dokumen sekaligus. Angka lama (4 putaran) terlalu ketat untuk
+ * naskah berbab-bab - "rapikan kerangka" saja sudah habis di penelusuran, dan
+ * gilirannya berakhir sebelum model sempat menulis sepatah pun.
+ */
+const MAX_TOOL_ROUNDS = 12
+const MAX_READ_CALLS = 48
+
+/**
+ * Ditempel ke hasil alat terakhir saat anggaran habis.
+ *
+ * Lewat saluran hasil alat, bukan pesan sistem baru: itu saluran yang memang
+ * kita miliki di tengah giliran, dan model sudah membacanya. Sesudah ini klien
+ * menjalankan satu putaran penutup yang tidak lagi mengeksekusi alat baca, jadi
+ * janji "tidak ada lagi" memang ditepati.
+ */
+const BUDGET_NOTICE =
+	'\n\n[System] Read budget for this turn is exhausted. Answer now with what you already have, or propose write tools. Further read tools will not be executed.'
 
 /** Label baris langkah untuk tiap fase yang dipancarkan server (§B1.3). */
 const PHASE_LABEL: Record<ChatStreamPhase, string> = {
@@ -127,7 +156,14 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 	for (const turn of history) {
 		// Tugas berjalan: utuh, hanya buang bidang milik UI.
 		if (turn.taskId === currentTaskId) {
-			const { actions: _actions, taskId: _taskId, steps: _steps, usage: _usage, ...message } = turn
+			const {
+				actions: _actions,
+				taskId: _taskId,
+				steps: _steps,
+				usage: _usage,
+				intermediate: _intermediate,
+				...message
+			} = turn
 			outbound.push(message)
 			continue
 		}
@@ -441,11 +477,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	 * membaca kerangka lalu memutuskan bagian mana yang perlu dibuka. Alat tulis
 	 * berhenti di sini sebagai kartu aksi; pengguna yang memutuskan.
 	 *
-	 * Putarannya dibatasi supaya model yang salah paham tidak terus meminta
-	 * bacaan sampai kuota habis.
+	 * Penelusurannya dianggarkan supaya model yang salah paham tidak terus
+	 * meminta bacaan sampai kuota habis. Anggaran yang habis TIDAK mengakhiri
+	 * giliran begitu saja: hasil bacaan terakhir tetap dikirimkan, lalu satu
+	 * putaran penutup dijalankan tanpa alat baca supaya model benar-benar
+	 * sempat menjawab. Versi sebelumnya berhenti di tempat, dan giliran itu
+	 * mendarat di layar sebagai "Tidak ada jawaban." padahal modelnya justru
+	 * sedang bekerja.
+	 *
+	 * `readsUsed` adalah jumlah alat baca yang sudah dijalankan sepanjang
+	 * giliran ini; `sealed` menandai putaran penutup itu.
 	 */
 	const runTurn = useCallback(
-		async (history: ChatTurn[], round: number, controller: AbortController, taskId: string): Promise<void> => {
+		async (
+			history: ChatTurn[],
+			round: number,
+			controller: AbortController,
+			taskId: string,
+			readsUsed = 0,
+			sealed = false,
+		): Promise<void> => {
 			let answer = ''
 			const calls: ToolCall[] = []
 			let usage: ChatUsage | undefined
@@ -527,18 +578,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			}
 
 			const editor = editorRef.current
-			// Giliran terminal. Termasuk giliran kosong (M6): ia tetap masuk riwayat
-			// sebagai penanda, bukan return diam-diam yang meninggalkan pertanyaan
-			// pengguna tanpa jawaban di mata model.
-			if (reads.length === 0 || round >= MAX_TOOL_ROUNDS || !editor) {
-				if (reads.length > 0 && round >= MAX_TOOL_ROUNDS && editor) {
-					// Putaran alat mentok di batas: langkah eksplisit, bukan berhenti
-					// diam-diam (§B1.3).
-					pushStep('Batas penelusuran tercapai')
+
+			/** Putaran ini yang terakhir boleh membaca; sesudahnya giliran ditutup. */
+			const budgetSpent = round >= MAX_TOOL_ROUNDS || readsUsed >= MAX_READ_CALLS
+
+			/*
+			 * Giliran terminal. Termasuk giliran kosong (M6): ia tetap masuk riwayat
+			 * sebagai penanda, bukan return diam-diam yang meninggalkan pertanyaan
+			 * pengguna tanpa jawaban di mata model.
+			 *
+			 * Pada putaran penutup (`sealed`), alat baca yang masih diminta sengaja
+			 * diabaikan - model sudah diberi tahu lewat BUDGET_NOTICE bahwa tidak ada
+			 * lagi yang akan dijalankan, jadi ini menepati janji itu, bukan memutus
+			 * percakapan di tengah.
+			 */
+			if (reads.length === 0 || sealed || !editor) {
+				if (reads.length > 0 && sealed) {
+					pushStep('Penelusuran ditutup')
 					patchRunningStep({
-						status: 'failed',
+						status: 'done',
 						endedAt: Date.now(),
-						detail: `${MAX_TOOL_ROUNDS} putaran alat baca dalam satu giliran`,
+						detail: 'Model masih meminta bacaan setelah anggaran habis; permintaannya tidak dijalankan.',
 					})
 				}
 				setMessages((current) => [...current, { ...assistant, steps: finishSteps(), usage }])
@@ -580,9 +640,39 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				results.push({ role: 'tool', content, toolCallId: call.id, taskId })
 			}
 
-			setMessages((current) => [...current, assistant, ...results])
+			/*
+			 * Anggaran habis: hasil bacaan putaran ini tetap dikirimkan - itu kerja
+			 * yang sudah terlanjur dilakukan - dan pemberitahuannya ditempel ke hasil
+			 * terakhir. Putaran berikutnya adalah putaran penutup.
+			 */
+			if (budgetSpent && results.length > 0) {
+				const last = results[results.length - 1]
+				results[results.length - 1] = { ...last, content: last.content + BUDGET_NOTICE }
+				pushStep('Anggaran penelusuran habis')
+				patchRunningStep({
+					status: 'done',
+					endedAt: Date.now(),
+					detail: `${round} putaran · ${readsUsed + reads.length} alat baca. Model diminta menjawab dengan bahan yang ada.`,
+				})
+			}
+
+			/*
+			 * Giliran antara yang tidak membawa apa-apa untuk dilihat pengguna
+			 * ditandai supaya panel melewatinya - lini masa langkah yang mewakilinya.
+			 * Yang membawa prosa atau kartu aksi tetap dirender: keduanya tetap
+			 * jawaban, walaupun model masih akan membaca lagi setelahnya.
+			 */
+			const step: ChatTurn = { ...assistant, intermediate: !visible && writes.length === 0 }
+			setMessages((current) => [...current, step, ...results])
 			setStreaming('')
-			await runTurn([...history, assistant, ...results], round + 1, controller, taskId)
+			await runTurn(
+				[...history, step, ...results],
+				round + 1,
+				controller,
+				taskId,
+				readsUsed + reads.length,
+				budgetSpent,
+			)
 		},
 		// buildContext dan editorRef dibaca lewat ref/closure segar tiap panggilan;
 		// helper langkah hanya menyentuh ref + setState yang stabil.

@@ -361,6 +361,121 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 			required: ['find'],
 		},
 	},
+	/*
+	 * Alat tata letak paragraf (A6).
+	 *
+	 * Semuanya berbagi satu kebiasaan: `find` bersifat opsional, dan bila
+	 * dihilangkan alatnya berlaku untuk SELURUH naskah. Itu bukan kemalasan -
+	 * "buat semuanya rata kiri-kanan, spasi 1,5, baris pertama menjorok 1,27 cm"
+	 * adalah bentuk paling lazim dari permintaan ini, dan memaksanya dikutip per
+	 * paragraf berarti puluhan panggilan alat untuk satu keinginan tunggal.
+	 *
+	 * Satuannya sentimeter dan poin, bukan piksel: itu satuan yang dipakai
+	 * panduan penulisan yang jadi sumber permintaannya.
+	 */
+	{
+		name: 'set_alignment',
+		kind: 'write',
+		description:
+			'Align paragraphs and headings: left, center, right or justify. Give "find" to align only the paragraphs covering that exact passage; omit it to align the whole document.',
+		parameters: {
+			type: 'object',
+			properties: {
+				align: { type: 'string', enum: ['left', 'center', 'right', 'justify'] },
+				find: {
+					type: 'string',
+					description: 'Exact passage whose paragraphs get aligned. Omit for the whole document.',
+				},
+			},
+			required: ['align'],
+		},
+	},
+	{
+		name: 'set_indent',
+		kind: 'write',
+		description:
+			'Set paragraph indents in centimeters - the same values the ruler markers show. first_line_cm is relative to the left indent: positive indents the first line, negative gives a hanging indent. Only the values given are changed; omit "find" for the whole document.',
+		parameters: {
+			type: 'object',
+			properties: {
+				find: { type: 'string', description: 'Exact passage. Omit for the whole document.' },
+				left_cm: { type: 'number' },
+				right_cm: { type: 'number' },
+				first_line_cm: { type: 'number', description: 'Negative for a hanging indent.' },
+			},
+		},
+	},
+	{
+		name: 'set_spacing',
+		kind: 'write',
+		description:
+			'Set line spacing and the space around paragraphs. line_height is a multiplier such as 1.5 or 2; space_before_pt and space_after_pt are in points. Only the values given are changed; omit "find" for the whole document.',
+		parameters: {
+			type: 'object',
+			properties: {
+				find: { type: 'string', description: 'Exact passage. Omit for the whole document.' },
+				line_height: { type: 'number', description: 'Multiplier, e.g. 1, 1.15, 1.5 or 2.' },
+				space_before_pt: { type: 'number' },
+				space_after_pt: { type: 'number' },
+			},
+		},
+	},
+	{
+		name: 'set_font',
+		kind: 'write',
+		description:
+			'Set the typeface and/or size of a passage. size_pt is in points. Omit "find" to restyle the whole document.',
+		parameters: {
+			type: 'object',
+			properties: {
+				find: { type: 'string', description: 'Exact passage. Omit for the whole document.' },
+				family: { type: 'string', description: 'Font family name, e.g. "Times New Roman".' },
+				size_pt: { type: 'number' },
+			},
+		},
+	},
+	{
+		name: 'toggle_list',
+		kind: 'write',
+		description:
+			'Turn the paragraphs covering an exact passage into a bulleted or numbered list, or back into plain paragraphs with kind "none".',
+		parameters: {
+			type: 'object',
+			properties: {
+				find: { type: 'string', description: 'Exact passage whose paragraphs become the list.' },
+				kind: { type: 'string', enum: ['bullet', 'ordered', 'none'] },
+			},
+			required: ['find', 'kind'],
+		},
+	},
+	{
+		name: 'set_columns',
+		kind: 'write',
+		description:
+			'Lay text out in newspaper columns. count 1 removes the column layout. Give "find" for one passage; omit it for the whole document.',
+		parameters: {
+			type: 'object',
+			properties: {
+				count: { type: 'number', description: '1 to remove columns, otherwise 2 or 3.' },
+				find: { type: 'string', description: 'Exact passage. Omit for the whole document.' },
+			},
+			required: ['count'],
+		},
+	},
+	{
+		name: 'insert_footnote',
+		kind: 'write',
+		description:
+			'Attach a footnote to an exact passage: a superscript reference is placed right after it and the note text is appended as a footnote block at the end of the document.',
+		parameters: {
+			type: 'object',
+			properties: {
+				quote: { type: 'string', description: 'Exact passage the reference follows.' },
+				body: { type: 'string', description: 'The note text.' },
+			},
+			required: ['quote', 'body'],
+		},
+	},
 	{
 		name: 'restructure_section',
 		kind: 'write',

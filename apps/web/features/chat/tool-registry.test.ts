@@ -41,6 +41,36 @@ describe('registri alat editor', () => {
 		for (const name of writes) expect(isReadTool(name)).toBe(false)
 	})
 
+	test('alat tata letak A6 terdaftar sebagai write', () => {
+		// Semuanya menyentuh naskah, jadi tak satu pun boleh lolos tanpa Apply -
+		// terlebih yang berlaku ke seluruh dokumen saat `find` dihilangkan.
+		const layout = [
+			'set_alignment',
+			'set_indent',
+			'set_spacing',
+			'set_font',
+			'toggle_list',
+			'set_columns',
+			'insert_footnote',
+		]
+		for (const name of layout) {
+			expect(EDITOR_TOOLS.find((tool) => tool.name === name)).toBeDefined()
+			expect(isReadTool(name)).toBe(false)
+		}
+	})
+
+	test('alat tata letak berlingkup dokumen tidak mewajibkan find', () => {
+		// `find` opsional adalah kontraknya: tanpa itu, "rata kiri-kanan seluruh
+		// naskah" berubah jadi puluhan panggilan alat.
+		for (const name of ['set_alignment', 'set_indent', 'set_spacing', 'set_font', 'set_columns']) {
+			const tool = EDITOR_TOOLS.find((item) => item.name === name)
+			expect(tool?.parameters.required ?? []).not.toContain('find')
+		}
+		// Kebalikannya: yang menempel pada satu kutipan wajib mengutipnya.
+		expect(EDITOR_TOOLS.find((t) => t.name === 'toggle_list')?.parameters.required).toContain('find')
+		expect(EDITOR_TOOLS.find((t) => t.name === 'insert_footnote')?.parameters.required).toContain('quote')
+	})
+
 	test('tidak ada alat tak dikenal yang menyusup', () => {
 		// Kriteria §B3.4 no. 4: alat tulis tak pernah menyentuh naskah tanpa
 		// Apply. Pengaman pertamanya adalah daftar ini sendiri - nama yang tidak

@@ -112,6 +112,10 @@ export function AiChatPanel() {
 					// Pesan `tool` adalah percakapan internal antara AI dan editor -
 					// pengguna melihat hasilnya, bukan transkrip mekanismenya.
 					if (message.role === 'tool') return null
+					// Idem giliran asisten yang isinya cuma permintaan alat baca: ia ada
+					// di riwayat karena protokol provider menuntutnya, bukan karena ada
+					// yang perlu dibaca. Lini masa langkah sudah menceritakannya.
+					if (message.intermediate) return null
 
 					const prev = messages[index - 1]
 					const newTaskBoundary = index > 0 && message.taskId !== prev?.taskId
