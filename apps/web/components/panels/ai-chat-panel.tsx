@@ -1,7 +1,7 @@
 'use client'
 
-import { ArrowUp, Check, FileText, Square, Trash2, Wand2, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { ArrowUp, Check, FileText, Plus, Square, Trash2, Wand2, X } from 'lucide-react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { ToolCall } from '@writer-hub/shared'
 import { extractProposals, stripProposals, useChat } from '@/features/chat/chat-context'
 import { describeToolCall } from '@/features/chat/tools'
@@ -34,6 +34,8 @@ export function AiChatPanel() {
 		send,
 		stop,
 		reset,
+		startNewTopic,
+		currentTaskId,
 	} = useChat()
 
 	const [draft, setDraft] = useState('')
@@ -91,18 +93,26 @@ export function AiChatPanel() {
 					</div>
 				)}
 
-				{messages.map((message, index) =>
+				{messages.map((message, index) => {
 					// Pesan `tool` adalah percakapan internal antara AI dan editor -
 					// pengguna melihat hasilnya, bukan transkrip mekanismenya.
-					message.role === 'tool' ? null : (
-						<Bubble
-							key={`${index}-${message.content.slice(0, 24)}`}
-							role={message.role}
-							content={message.content}
-							actions={message.actions}
-						/>
-					),
-				)}
+					if (message.role === 'tool') return null
+
+					const prev = messages[index - 1]
+					const newTaskBoundary = index > 0 && message.taskId !== prev?.taskId
+
+					return (
+						<Fragment key={`${index}-${message.content.slice(0, 24)}`}>
+							{newTaskBoundary && <TaskSeparator />}
+							<Bubble
+								role={message.role}
+								content={message.content}
+								actions={message.actions}
+								expired={!!message.taskId && message.taskId !== currentTaskId}
+							/>
+						</Fragment>
+					)
+				})}
 
 				{streaming !== null && <Bubble role="assistant" content={streaming} pending />}
 
@@ -133,7 +143,7 @@ export function AiChatPanel() {
 					<button
 						type="button"
 						onClick={() => setIncludeDocument(!includeDocument)}
-						title="Send the whole document as context"
+						title="Kirim teks penuh tab aktif (bawaan: ringkasan kerangka saja)"
 						className={cn(
 							'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-colors',
 							includeDocument
@@ -146,15 +156,26 @@ export function AiChatPanel() {
 					</button>
 
 					{messages.length > 0 && (
-						<button
-							type="button"
-							onClick={reset}
-							title="Clear conversation"
-							aria-label="Clear conversation"
-							className="ml-auto rounded-md p-1 text-subtle transition-colors hover:text-foreground"
-						>
-							<Trash2 className="h-3.5 w-3.5" />
-						</button>
+						<>
+							<button
+								type="button"
+								onClick={startNewTopic}
+								title="Mulai topik baru (kartu aksi lama kedaluwarsa)"
+								aria-label="Mulai topik baru"
+								className="ml-auto rounded-md p-1 text-subtle transition-colors hover:text-foreground"
+							>
+								<Plus className="h-3.5 w-3.5" />
+							</button>
+							<button
+								type="button"
+								onClick={reset}
+								title="Clear conversation"
+								aria-label="Clear conversation"
+								className="rounded-md p-1 text-subtle transition-colors hover:text-foreground"
+							>
+								<Trash2 className="h-3.5 w-3.5" />
+							</button>
+						</>
 					)}
 				</div>
 
@@ -214,11 +235,14 @@ function Bubble({
 	content,
 	pending,
 	actions,
+	expired,
 }: {
 	role: 'user' | 'assistant'
 	content: string
 	pending?: boolean
 	actions?: ToolCall[]
+	/** Asal dari tugas sebelumnya: kartu aksanya butuh konfirmasi tambahan. */
+	expired?: boolean
 }) {
 	const proposals = role === 'assistant' ? extractProposals(content) : []
 	const prose = role === 'assistant' ? stripProposals(content) : content
@@ -231,6 +255,10 @@ function Bubble({
 		)
 	}
 
+	// Giliran terminal yang kosong (M6): tampilkan penanda, bukan bubble hilang.
+	const emptyMarker =
+		!pending && !prose && proposals.length === 0 && !(actions && actions.length > 0)
+
 	return (
 		<div className="flex flex-col gap-2">
 			{prose && (
@@ -240,25 +268,33 @@ function Bubble({
 				</p>
 			)}
 
+			{emptyMarker && <p className="text-xs italic text-subtle">Tidak ada jawaban.</p>}
+
 			{/* Selama masih mengalir, blok usulan belum tentu utuh - tombol Apply
 			    baru muncul setelah gilirannya selesai. */}
 			{!pending &&
 				proposals.map((proposal, index) => (
-					<ProposalCard key={`${index}-${proposal.slice(0, 24)}`} text={proposal} />
+					<ProposalCard
+						key={`${index}-${proposal.slice(0, 24)}`}
+						text={proposal}
+						expired={expired}
+					/>
 				))}
 
 			{actions?.map((call) => (
-				<ActionCard key={call.id} call={call} />
+				<ActionCard key={call.id} call={call} expired={expired} />
 			))}
 		</div>
 	)
 }
 
-function ProposalCard({ text }: { text: string }) {
+function ProposalCard({ text, expired }: { text: string; expired?: boolean }) {
 	const { editor } = useEditorInstance()
 	const { attachment } = useChat()
 	const [applied, setApplied] = useState(false)
 	const [failed, setFailed] = useState(false)
+	// Kartu dari tugas sebelumnya butuh konfirmasi tambahan sebelum diterapkan.
+	const [confirming, setConfirming] = useState(false)
 
 	const apply = () => {
 		if (!editor) return
@@ -280,6 +316,14 @@ function ProposalCard({ text }: { text: string }) {
 		else setFailed(true)
 	}
 
+	const onClick = () => {
+		if (expired && !confirming) {
+			setConfirming(true)
+			return
+		}
+		apply()
+	}
+
 	return (
 		<div className="flex flex-col gap-2 rounded-xl bg-surface-raised p-3">
 			<p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-emerald-300">{text}</p>
@@ -291,17 +335,19 @@ function ProposalCard({ text }: { text: string }) {
 			) : (
 				<button
 					type="button"
-					onClick={apply}
+					onClick={onClick}
 					disabled={applied}
 					className={cn(
 						'flex items-center justify-center gap-1 rounded-lg py-1.5 text-xs transition-colors',
 						applied
 							? 'cursor-default bg-green-500/10 text-green-400/60'
-							: 'bg-green-500/15 text-green-400 hover:bg-green-500/25',
+							: expired
+								? 'bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25'
+								: 'bg-green-500/15 text-green-400 hover:bg-green-500/25',
 					)}
 				>
 					<Check className="h-3.5 w-3.5" />
-					{applied ? 'Applied' : 'Apply'}
+					{applied ? 'Applied' : expired ? (confirming ? 'Konfirmasi?' : 'Terapkan') : 'Apply'}
 				</button>
 			)}
 		</div>
@@ -315,9 +361,20 @@ function ProposalCard({ text }: { text: string }) {
  * suntingan yang tidak dilihat hampir mustahil ditelusuri kembali. Kartu ini
  * memakai idiom yang sama dengan kartu saran di modul lain.
  */
-function ActionCard({ call }: { call: ToolCall }) {
-	const { applyAction } = useChat()
+function ActionCard({ call, expired }: { call: ToolCall; expired?: boolean }) {
+	const { applyAction, isActionApplied } = useChat()
+	const applied = isActionApplied(call.id)
 	const [outcome, setOutcome] = useState<{ ok: boolean; message: string } | null>(null)
+	// Kartu dari tugas sebelumnya butuh satu klik konfirmasi lagi (M3).
+	const [confirming, setConfirming] = useState(false)
+
+	const onClick = () => {
+		if (expired && !confirming && !applied) {
+			setConfirming(true)
+			return
+		}
+		setOutcome(applyAction(call))
+	}
 
 	return (
 		<div className="flex flex-col gap-2 rounded-xl border border-accent/20 bg-accent/5 p-3">
@@ -328,20 +385,42 @@ function ActionCard({ call }: { call: ToolCall }) {
 				</p>
 			</div>
 
-			{outcome ? (
+			{expired && !applied && !outcome && (
+				<p className="text-[11px] italic text-subtle">Dari permintaan sebelumnya</p>
+			)}
+
+			{applied ? (
+				<p className="text-[11px] text-green-400/70">Sudah diterapkan</p>
+			) : outcome ? (
 				<p className={cn('text-[11px]', outcome.ok ? 'text-green-400' : 'text-yellow-400')}>
 					{outcome.message}
 				</p>
 			) : (
 				<button
 					type="button"
-					onClick={() => setOutcome(applyAction(call))}
-					className="flex items-center justify-center gap-1 rounded-lg bg-green-500/15 py-1.5 text-xs text-green-400 transition-colors hover:bg-green-500/25"
+					onClick={onClick}
+					className={cn(
+						'flex items-center justify-center gap-1 rounded-lg py-1.5 text-xs transition-colors',
+						expired
+							? 'bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25'
+							: 'bg-green-500/15 text-green-400 hover:bg-green-500/25',
+					)}
 				>
 					<Check className="h-3.5 w-3.5" />
-					Apply
+					{expired ? (confirming ? 'Konfirmasi?' : 'Terapkan') : 'Apply'}
 				</button>
 			)}
+		</div>
+	)
+}
+
+/** Pemisah visual antar tugas di transkrip (M7). */
+function TaskSeparator() {
+	return (
+		<div className="flex items-center gap-2 py-1" role="separator" aria-label="Topik baru">
+			<span className="h-px flex-1 bg-foreground/10" />
+			<span className="text-[10px] uppercase tracking-wide text-subtle">Topik baru</span>
+			<span className="h-px flex-1 bg-foreground/10" />
 		</div>
 	)
 }

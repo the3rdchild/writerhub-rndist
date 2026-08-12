@@ -162,6 +162,81 @@ describe('page break manual', () => {
 	})
 })
 
+/**
+ * Susun blok kode: baris pertama diwakili posisi blok kodenya sendiri
+ * (mendorongnya berarti mendorong seluruh blok berikut toolbar-nya), sisanya
+ * jadi satuan baris teks yang boleh dipenggal.
+ */
+function codeBlock(lineCount: number, lineHeight: number, startTop = 0): Measurement[] {
+	return Array.from({ length: lineCount }, (_, index): Measurement => {
+		const top = startTop + index * lineHeight
+		return {
+			pos: index,
+			top,
+			bottom: top + lineHeight,
+			isBreak: false,
+			kind: index === 0 ? 'block' : 'code',
+		}
+	})
+}
+
+describe('blok kode dipenggal per baris', () => {
+	// Gejalanya: blok kode yang lebih tinggi dari satu lembar mengalirkan
+	// teksnya menembus margin bawah dan celah antar lembar, jadi ia terbaca
+	// menyambung seolah tidak ada batas halaman.
+	const lines = codeBlock(60, 20) // 1200px, lebih tinggi dari satu halaman
+
+	test('baris yang tidak muat mengawali lembar berikutnya', () => {
+		const { spacers } = computeSpacers(lines, geometry)
+
+		expect(spacers).toHaveLength(1)
+		expect(spacers[0].kind).toBe('code')
+		// Baris pada 920px adalah yang pertama melewati batas 931px.
+		expect(spacers[0].pos).toBe(46)
+		expectStartsPage(renderedTops(lines)[46], 2)
+	})
+
+	test('yang dipenggal adalah barisnya, bukan seluruh bloknya', () => {
+		// Blok kodenya sendiri tetap di lembar pertama - hanya sisa barisnya
+		// yang turun. Kalau seluruh blok ikut didorong, halaman pertama jadi
+		// kosong tanpa alasan.
+		const { spacers } = computeSpacers(lines, geometry)
+		expect(spacers.some((spacer) => spacer.pos === 0)).toBe(false)
+		expect(renderedTops(lines)[0]).toBe(0)
+	})
+
+	test('spacer tahu di mana celah antar lembar jatuh', () => {
+		// Nilai inilah yang dipakai spacer untuk mengecat batas lembar: dari
+		// puncaknya ke tepi bawah kertas. Sesudah celah, yang tersisa persis
+		// setinggi margin atas lembar baru.
+		const spacer = computeSpacers(lines, geometry).spacers[0]
+		const { height: sheetHeight, margins, gap } = geometry
+
+		expect(spacer.gapOffset).toBe(sheetHeight - margins.top - 920)
+		expect(spacer.gapHeight).toBe(gap)
+		expect(spacer.height - (spacer.gapOffset ?? 0) - gap).toBe(margins.top)
+	})
+
+	test('blok kode berhalaman banyak tetap lurus di tiap lembar', () => {
+		const many = codeBlock(180, 20) // 3600px, tiga lembar lebih
+		const tops = renderedTops(many)
+
+		for (const top of tops) {
+			// Tidak ada baris yang mendarat di celah antar lembar atau di margin:
+			// tiap baris selalu di dalam area teks salah satu lembar.
+			expect(top % pageStride).toBeLessThanOrEqual(contentHeight)
+		}
+		expect(computeSpacers(many, geometry).spacers.every((spacer) => spacer.kind === 'code')).toBe(true)
+	})
+
+	test('blok kode yang muat tidak dipenggal sama sekali', () => {
+		// Blok yang lebih pendek dari satu halaman tidak pernah diukur per baris
+		// (lihat measureBlocks), jadi ia datang sebagai satu satuan biasa.
+		const short = codeBlock(1, 400)
+		expect(computeSpacers(short, geometry).spacers).toEqual([])
+	})
+})
+
 describe('tabel dipenggal per baris', () => {
 	test('baris yang tidak muat turun ke lembar berikutnya, bukan tertembus batas', () => {
 		// Enam baris 200px: yang kelima melewati batas 931px.

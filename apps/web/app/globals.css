@@ -751,7 +751,15 @@ a {
 
 /* Area kode di dalam node view. */
 .document-body .code-block-pre {
+  /*
+   * Padding mendatarnya piksel, bukan em: sisipan pemenggalan halaman melebar
+   * sebanyak nilai ini supaya latar <pre> tidak ikut menyeberangi celah antar
+   * lembar, dan em di dalam <code> (0.875em) tidak sama dengan em di <pre>.
+   */
+  --code-inset: 18px;
   margin: 0;
+  padding-left: var(--code-inset);
+  padding-right: var(--code-inset);
   border-radius: 0 0 8px 8px;
   border-top: none;
 }
@@ -761,6 +769,23 @@ a {
   font-size: 0.875em;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/*
+ * Pemenggalan halaman di dalam blok kode.
+ *
+ * Latarnya dicat oleh pagination.ts - hanya ia yang tahu di mana batas lembar
+ * jatuh. Di sini yang diatur bentuknya: selebar kotak padding <pre> supaya
+ * latar kodenya benar-benar terputus, dan inline-block selebar penuh supaya
+ * pergantian baris sebelumnya tidak menyisakan baris kosong.
+ */
+.document-body .code-block-page-spacer {
+  display: inline-block;
+  vertical-align: top;
+  width: calc(100% + var(--code-inset) * 2);
+  margin-left: calc(var(--code-inset) * -1);
+  user-select: none;
+  pointer-events: none;
 }
 
 /* Pratinjau diagram Mermaid. */
@@ -1352,8 +1377,10 @@ html.light .range-highlight {
   }
 
   /* Saat dicetak browser yang memenggal tabel, jadi sisipan layar justru
-     mengganggu: baris kosongnya menyisakan lubang dan headernya jadi ganda. */
+     mengganggu: baris kosongnya menyisakan lubang dan headernya jadi ganda.
+     Sama untuk sisipan di dalam blok kode: browser sendiri yang memenggalnya. */
   .document-body .page-break-row,
+  .document-body .code-block-page-spacer,
   .document-body .table-header-repeat {
     display: none !important;
   }

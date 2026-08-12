@@ -136,7 +136,11 @@ function contextMessage(context: ChatContext | undefined): ChatMessage | null {
 
 	const parts: string[] = []
 	if (context.title) parts.push(`Document title: ${context.title}`)
-	if (context.document) parts.push(`Full document:\n${context.document}`)
+	if (context.document) {
+		// Label menyebut kedua kedalaman karena klien mengirim keduanya lewat bidang
+		// yang sama: ringkasan kerangka secara bawaan, teks penuh bila diminta.
+		parts.push(`Document content (outline + opening, or full text if requested):\n${context.document}`)
+	}
 	else if (context.surrounding) parts.push(`Surrounding text:\n${context.surrounding}`)
 	if (context.selection) parts.push(`Selected text the user is asking about:\n${context.selection}`)
 
@@ -185,6 +189,11 @@ function buildMessages({ messages, context }: ChatBody, withTools: boolean, memo
 	const memoryBlock = memoryPrompt(memory)
 	if (memoryBlock) system = `${system}\n\n${memoryBlock}`
 
+	// Penegasan batas tugas (B2 M4): pesan pengguna terbaru adalah permintaan
+	// baru yang berdiri sendiri; tool_calls lama yang tak berbuah hasil tidak
+	// boleh diteruskan kecuali pengguna merujuknya.
+	system = `${system}\n\n${TASK_BOUNDARY_GUIDANCE}`
+
 	return [
 		{ role: 'system', content: system },
 		// Konteks diletakkan sebelum riwayat: ia latar, bukan giliran percakapan.
@@ -224,11 +233,28 @@ const TOOL_GUIDANCE = [
 	'\\documentclass, \\begin{document}, \\section, \\begin{tabular}, \\hline,',
 	'\\textbf or a standalone .tex file - that arrives in the document as raw',
 	'text with stray & and \\\\ characters.',
+	'The editor context already includes the active document title plus an',
+	'outline and the opening of its content - so the document is NOT empty.',
+	'Read that context before claiming otherwise; use get_outline / read_section',
+	'to go deeper than the outline when needed.',
 	'Prefer get_outline and read_section over guessing at a long document.',
 	'When the user asks for something to be put into the document - a table, a',
 	'section, a heading - call insert_content instead of writing it out in chat.',
 	'Editing tools are queued for the writer to approve, so state plainly what',
 	'you are proposing.',
+].join(' ')
+
+/**
+ * Penegasan batas tugas (B2 M4). Riwayat yang dikirim klien sudah memadatkan
+ * tugas-tugas lama (pesan `tool` dan `tool_calls` lama dibuang), tetapi
+ * penegasan di prompt tetap diperlukan agar model tidak meneruskan pekerjaan
+ * alat yang tergantung dari permintaan sebelumnya.
+ */
+const TASK_BOUNDARY_GUIDANCE = [
+	'The most recent user message begins a new, independent request.',
+	'The history may contain earlier assistant tool calls whose results are no',
+	'longer included. Treat any earlier unfinished tool work as completed and do',
+	'NOT resume it unless the user explicitly refers back to that previous task.',
 ].join(' ')
 
 /**
