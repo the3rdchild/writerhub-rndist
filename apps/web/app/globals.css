@@ -426,9 +426,22 @@ a {
   margin-top: 0.75em;
 }
 
+/*
+ * Sembilan tingkat judul dalam satu tangga menurun (§A4).
+ *
+ * h4-h6 wajib ikut disebut di sini: gaya bawaan browser membuat h5 (0.83em) dan
+ * h6 (0.67em) lebih KECIL dari teks biasa, jadi begitu tingkat 4 ke atas bisa
+ * dipilih dari toolbar, tangganya patah - judul 7 yang bergaya di bawah ini
+ * malah tampak lebih besar dari judul 5. Tingkat 7-9 dirender sebagai div
+ * berperan heading karena HTML tidak punya h7+.
+ */
 .document-body h1,
 .document-body h2,
-.document-body h3 {
+.document-body h3,
+.document-body h4,
+.document-body h5,
+.document-body h6,
+.document-body .heading {
   font-weight: 600;
   line-height: 1.25;
   margin-top: 1.4em;
@@ -437,6 +450,12 @@ a {
 .document-body h1 { font-size: 1.9em; }
 .document-body h2 { font-size: 1.5em; }
 .document-body h3 { font-size: 1.22em; }
+.document-body h4 { font-size: 1.12em; }
+.document-body h5 { font-size: 1.05em; }
+.document-body h6 { font-size: 1em; }
+.document-body .heading[data-level='7'] { font-size: 0.95em; }
+.document-body .heading[data-level='8'] { font-size: 0.9em; }
+.document-body .heading[data-level='9'] { font-size: 0.87em; }
 
 .document-body ul,
 .document-body ol {

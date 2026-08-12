@@ -46,7 +46,7 @@ import {
 	FONT_FAMILIES,
 	fontFamilyLabel,
 } from '@/features/editor/font-catalog'
-import { FONT_SIZES, LINE_HEIGHTS, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
+import { FONT_SIZES, LINE_HEIGHTS, ALL_PARAGRAPH_STYLES, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
 import { indentSelection, outdentSelection } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
 import { ZOOM_LEVELS } from '@/features/editor/page-geometry'
@@ -129,7 +129,7 @@ export function EditorToolbar({
 				alignCenter: instance.isActive({ textAlign: 'center' }),
 				alignRight: instance.isActive({ textAlign: 'right' }),
 				alignJustify: instance.isActive({ textAlign: 'justify' }),
-				style: PARAGRAPH_STYLES.find((item) => item.isActive(instance))?.id ?? 'paragraph',
+				style: ALL_PARAGRAPH_STYLES.find((item) => item.isActive(instance))?.id ?? 'paragraph',
 				fontFamily: String(attributes.fontFamily ?? DEFAULT_FONT_FAMILY),
 				fontSize: Number.isFinite(parsedSize) ? parsedSize : DEFAULT_FONT_SIZE,
 				color: attributes.color as string | undefined,
@@ -168,6 +168,9 @@ export function EditorToolbar({
 				width={128}
 				value={active?.style ?? 'paragraph'}
 				disabled={isOff}
+				// 6–9 tidak ada di daftar yang bisa dipilih (cuma 1–5), tapi tetap
+				// ditampilkan apa adanyanya - jangan menyesatkan jadi "Teks biasa".
+				fallbackLabel={ALL_PARAGRAPH_STYLES.find((item) => item.id === active?.style)?.label}
 				options={PARAGRAPH_STYLES.map((style) => ({
 					value: style.id,
 					label: style.label,

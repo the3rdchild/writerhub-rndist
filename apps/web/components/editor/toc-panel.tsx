@@ -75,7 +75,7 @@ export function TocPanel({ editor, onClose }: { editor: Editor; onClose?: () => 
 											? 'bg-accent/10 font-medium text-accent'
 											: 'text-muted hover:bg-[var(--overlay-hover)] hover:text-foreground',
 									)}
-									style={{ paddingLeft: `${0.75 + (item.level - 1) * 1}rem` }}
+									style={{ paddingLeft: `${0.75 + Math.min(item.level - 1, 6) * 1}rem` }}
 								>
 									{item.textContent || 'Tanpa judul'}
 								</button>

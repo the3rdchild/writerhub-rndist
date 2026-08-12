@@ -24,6 +24,7 @@ import { ColumnExtension } from '@/features/editor/columns'
 import { CustomTableCell, CustomTableHeader } from '@/features/editor/custom-table'
 import { TrailingParagraph } from '@/features/editor/editor-polish'
 import { Footnote, FootnoteRef } from '@/features/editor/footnote'
+import { HeadingLevels } from '@/features/editor/heading-extension'
 import { BlockIndentExtension } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
 import { MathBlock, MathInline } from '@/features/editor/math'
@@ -74,8 +75,17 @@ export function buildEditorExtensions({
 		// mencatat pembatalan sendiri-sendiri, dan dua pencatat pada satu naskah
 		// membuat Ctrl+Z memutar balik perubahan yang bukan milik penekannya.
 		// codeBlock bawaan dimatikan: digantikan CodeBlock dengan lowlight
-		// (pewarnaan sintaks) di bawah.
-		StarterKit.configure({ link: false, codeBlock: false, undoRedo: collaboration ? false : undefined }),
+		// (pewarnaan sintaks) di bawah. heading bawaan dimatikan juga, digantikan
+		// HeadingLevels yang menerima sampai 9 tingkat (§A4).
+		StarterKit.configure({
+			link: false,
+			codeBlock: false,
+			heading: false,
+			undoRedo: collaboration ? false : undefined,
+		}),
+		// Heading sampai 9 tingkat; tingkat 7–9 dirender sebagai div berperan heading
+		// karena HTML hanya punya h1–h6 (§A4).
+		HeadingLevels,
 		// Ctrl+K memakai alur yang sama persis dengan tombol tautan di toolbar.
 		Link.extend({
 			addKeyboardShortcuts() {

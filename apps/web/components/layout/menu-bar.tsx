@@ -80,7 +80,7 @@ import {
 	fontFamilyLabel,
 } from '@/features/editor/font-catalog'
 import { indentSelection, outdentSelection } from '@/features/editor/indent'
-import { LINE_HEIGHTS, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
+import { LINE_HEIGHTS, ALL_PARAGRAPH_STYLES, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
@@ -487,19 +487,36 @@ export function MenuBar() {
 
 						{/* ── Gaya paragraf ── */}
 						<Submenu label="Gaya paragraf" icon={<TextCursor className="h-4 w-4" />}>
-							{() => (
-								<>
-									{PARAGRAPH_STYLES.map((style) => (
-										<Item
-											key={style.id}
-											active={editor ? style.isActive(editor) : false}
-											onSelect={() => run(close, () => editor && style.apply(editor))}
-										>
-											{style.label}
-										</Item>
-									))}
-								</>
-							)}
+							{() => {
+								// Tingkat 6–9 tidak bisa dipilih dari sini (cuma 1–5), tapi kalau
+								// kursor sedang di salah satunya, tampilkan apa adanyanya supaya
+								// tidak terlihat seperti tidak ada gaya aktif.
+								const activeStyle = editor
+									? ALL_PARAGRAPH_STYLES.find((s) => s.isActive(editor))
+									: undefined
+								const highLevel =
+									activeStyle && !PARAGRAPH_STYLES.some((s) => s.id === activeStyle.id)
+										? activeStyle
+										: undefined
+								return (
+									<>
+										{highLevel && (
+											<Item key={highLevel.id} active disabled>
+												{highLevel.label} (papan tik)
+											</Item>
+										)}
+										{PARAGRAPH_STYLES.map((style) => (
+											<Item
+												key={style.id}
+												active={editor ? style.isActive(editor) : false}
+												onSelect={() => run(close, () => editor && style.apply(editor))}
+											>
+												{style.label}
+											</Item>
+										))}
+									</>
+								)
+							}}
 						</Submenu>
 
 						{/* ── Perataan ── */}

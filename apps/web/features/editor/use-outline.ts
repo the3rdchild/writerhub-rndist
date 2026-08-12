@@ -17,6 +17,12 @@ export interface OutlineItem {
 	pos: number
 	level: number
 	text: string
+	/**
+	 * 'heading' = bagian naskah (tingkat 1–6 default); 'caption' = tingkat 7–9
+	 * yang dipakai sebagai kunci Daftar Gambar/Tabel (putusan repo
+	 * heading-numbering). Dipakai A5 untuk menyaring jenis daftar isi.
+	 */
+	kind: 'heading' | 'caption'
 }
 
 export interface Outline {
@@ -32,12 +38,16 @@ function readHeadings(doc: PMNode): OutlineItem[] {
 
 	doc.descendants((node, pos) => {
 		if (node.type.name === 'heading') {
+			const level = (node.attrs.level as number) ?? 1
 			// Nomor bab kini bagian teks heading itu sendiri (dibakar saat impor),
 			// jadi cukup dipakai apa adanya - tidak ada nomor terhitung terpisah.
 			items.push({
 				pos,
-				level: (node.attrs.level as number) ?? 1,
+				level,
 				text: node.textContent.trim(),
+				// Tingkat 7–9 dialokasikan sebagai caption (Daftar Gambar/Tabel) - bukan
+				// bagian naskah biasa. A5 memakainya untuk menyaring jenis daftar.
+				kind: level >= 7 ? 'caption' : 'heading',
 			})
 			// Heading selalu blok tingkat atas pada skema ini, jadi tidak perlu
 			// turun ke anak-anaknya - pemindaian ini berjalan pada tiap ketukan.
@@ -64,7 +74,12 @@ function sameOutline(a: Outline, b: Outline): boolean {
 		a.items.length === b.items.length &&
 		a.items.every((item, index) => {
 			const other = b.items[index]
-			return item.pos === other.pos && item.level === other.level && item.text === other.text
+			return (
+				item.pos === other.pos &&
+				item.level === other.level &&
+				item.text === other.text &&
+				item.kind === other.kind
+			)
 		})
 	)
 }

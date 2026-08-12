@@ -44,6 +44,12 @@ export type ShortcutId =
 	| 'para.heading1'
 	| 'para.heading2'
 	| 'para.heading3'
+	| 'para.heading4'
+	| 'para.heading5'
+	| 'para.heading6'
+	| 'para.heading7'
+	| 'para.heading8'
+	| 'para.heading9'
 	| 'para.paragraph'
 	| 'para.bulletList'
 	| 'para.orderedList'
@@ -92,6 +98,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
 	{ id: 'para.heading1', keys: 'Mod-Alt-1', label: 'Judul 1', category: 'Paragraf', owner: 'tiptap' },
 	{ id: 'para.heading2', keys: 'Mod-Alt-2', label: 'Judul 2', category: 'Paragraf', owner: 'tiptap' },
 	{ id: 'para.heading3', keys: 'Mod-Alt-3', label: 'Judul 3', category: 'Paragraf', owner: 'tiptap' },
+	{ id: 'para.heading4', keys: 'Mod-Alt-4', label: 'Judul 4', category: 'Paragraf', owner: 'tiptap' },
+	{ id: 'para.heading5', keys: 'Mod-Alt-5', label: 'Judul 5', category: 'Paragraf', owner: 'tiptap' },
+	{ id: 'para.heading6', keys: 'Mod-Alt-6', label: 'Judul 6', category: 'Paragraf', owner: 'tiptap' },
+	{ id: 'para.heading7', keys: 'Mod-Alt-7', label: 'Judul 7', category: 'Paragraf', owner: 'tiptap' },
+	{ id: 'para.heading8', keys: 'Mod-Alt-8', label: 'Judul 8', category: 'Paragraf', owner: 'tiptap' },
+	{ id: 'para.heading9', keys: 'Mod-Alt-9', label: 'Judul 9', category: 'Paragraf', owner: 'tiptap' },
 	{ id: 'para.paragraph', keys: 'Mod-Alt-0', label: 'Teks biasa', category: 'Paragraf', owner: 'tiptap' },
 	{ id: 'para.bulletList', keys: 'Mod-Shift-8', label: 'Daftar butir', category: 'Paragraf', owner: 'tiptap' },
 	{ id: 'para.orderedList', keys: 'Mod-Shift-7', label: 'Daftar nomor', category: 'Paragraf', owner: 'tiptap' },

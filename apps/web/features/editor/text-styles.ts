@@ -1,8 +1,13 @@
 import type { Editor } from '@tiptap/react'
+import { HEADING_LEVELS, VISIBLE_HEADING_LEVELS } from '@/features/editor/heading-extension'
 
 /**
  * Daftar pilihan yang muncul di toolbar, dipisah dari komponennya supaya
  * menu bar Format dan toolbar memakai sumber yang sama.
+ *
+ * Tingkat mana yang ada dan mana yang boleh dipilih datang dari
+ * heading-extension - di situ skemanya ditentukan, jadi tidak ada daftar
+ * tingkat kedua yang bisa menyimpang darinya.
  */
 
 export interface ParagraphStyle {
@@ -13,6 +18,37 @@ export interface ParagraphStyle {
 	previewStyle: React.CSSProperties
 }
 
+/** Ukuran relatif per tingkat heading (em) - satu tangga menurun. */
+const HEADING_FONT_SIZE: Record<number, string> = {
+	1: '1.35rem',
+	2: '1.15rem',
+	3: '1rem',
+	4: '0.95rem',
+	5: '0.9rem',
+	6: '0.85rem',
+	7: '0.82rem',
+	8: '0.8rem',
+	9: '0.78rem',
+}
+
+/** Satu entri gaya heading untuk satu tingkat. */
+function headingStyle(level: number): ParagraphStyle {
+	// `level` dilewatkan sebagai `1` untuk melewati tipe `Level` (1-6) resmi;
+	// skema heading kita menerima sampai 9, jadi nilai sebenarnya tetap valid.
+	const typedLevel = level as 1
+	return {
+		id: `h${level}`,
+		label: `Judul ${level}`,
+		apply: (editor) => editor.chain().focus().toggleHeading({ level: typedLevel }).run(),
+		isActive: (editor) => editor.isActive('heading', { level: typedLevel }),
+		previewStyle: { fontSize: HEADING_FONT_SIZE[level] ?? '0.8rem', fontWeight: 600 },
+	}
+}
+
+/**
+ * Yang tampil di toolbar dan menu Format: Teks biasa + Judul 1–5.
+ * Tingkat 6–9 dijangkau lewat papan tik dan dialog pintasan.
+ */
 export const PARAGRAPH_STYLES: ParagraphStyle[] = [
 	{
 		id: 'paragraph',
@@ -21,27 +57,13 @@ export const PARAGRAPH_STYLES: ParagraphStyle[] = [
 		isActive: (editor) => editor.isActive('paragraph'),
 		previewStyle: { fontSize: '0.875rem' },
 	},
-	{
-		id: 'h1',
-		label: 'Judul 1',
-		apply: (editor) => editor.chain().focus().toggleHeading({ level: 1 }).run(),
-		isActive: (editor) => editor.isActive('heading', { level: 1 }),
-		previewStyle: { fontSize: '1.35rem', fontWeight: 700 },
-	},
-	{
-		id: 'h2',
-		label: 'Judul 2',
-		apply: (editor) => editor.chain().focus().toggleHeading({ level: 2 }).run(),
-		isActive: (editor) => editor.isActive('heading', { level: 2 }),
-		previewStyle: { fontSize: '1.15rem', fontWeight: 600 },
-	},
-	{
-		id: 'h3',
-		label: 'Judul 3',
-		apply: (editor) => editor.chain().focus().toggleHeading({ level: 3 }).run(),
-		isActive: (editor) => editor.isActive('heading', { level: 3 }),
-		previewStyle: { fontSize: '1rem', fontWeight: 600 },
-	},
+	...VISIBLE_HEADING_LEVELS.map(headingStyle),
+]
+
+/** Daftar lengkap Judul 1–9, dipakai pintasan papan tik dan panel TOC (A5). */
+export const ALL_PARAGRAPH_STYLES: ParagraphStyle[] = [
+	PARAGRAPH_STYLES[0],
+	...HEADING_LEVELS.map(headingStyle),
 ]
 
 export const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 24, 30, 36, 48, 60, 72] as const

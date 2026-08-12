@@ -148,8 +148,15 @@ export async function exportDocx(
 	const blockOf = (node: PMNode): unknown[] => {
 		switch (node.type.name) {
 			case 'heading': {
-				const level = Math.min(6, Math.max(1, Number(node.attrs.level) || 1))
-				return [paragraphOf(node, { heading: HEADINGS[level - 1] })]
+				const level = Math.max(1, Number(node.attrs.level) || 1)
+				if (level <= 6) {
+					return [paragraphOf(node, { heading: HEADINGS[level - 1] })]
+				}
+				// 7–9: Word tak punya style heading bawaan di atas 6, jadi pakai HEADING_6
+				// sebagai dasar gayanya (satu tangga di bawah tingkat sebelumnya) dan
+				// setel outlineLevel ke tingkat sebenarnya supaya panel navigasi Word
+				// menempatkannya dengan benar (§A4.2).
+				return [paragraphOf(node, { heading: HeadingLevel.HEADING_6, outlineLevel: level - 1 })]
 			}
 
 			case 'paragraph':
