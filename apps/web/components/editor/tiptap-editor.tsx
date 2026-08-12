@@ -32,11 +32,14 @@ export function TiptapEditor({
 	containerRef,
 	onReady,
 	geometry = pageGeometry(),
+	pageless = false,
 	onPageCountChange,
 }: {
 	containerRef: React.RefObject<HTMLDivElement | null>
 	onReady?: (editor: Editor | null) => void
 	geometry?: PageGeometry
+	/** Mode pageless: pemenggalan halaman dimatikan. */
+	pageless?: boolean
 	onPageCountChange?: (pageCount: number) => void
 }) {
 	const { state, dispatch } = useDocument()
@@ -109,10 +112,10 @@ export function TiptapEditor({
 	// saja lewat penggaris - geometri barunya dikirim sebagai meta transaksi.
 	useEffect(() => {
 		if (!editor) return
-		const transaction = editor.state.tr.setMeta(paginationKey, { geometry })
+		const transaction = editor.state.tr.setMeta(paginationKey, { geometry, pageless })
 		transaction.setMeta('addToHistory', false)
 		editor.view.dispatch(transaction)
-	}, [editor, geometry])
+	}, [editor, geometry, pageless])
 
 	/**
 	 * Editor yang isinya sudah pernah disamakan dengan state.

@@ -9,6 +9,7 @@ const local = (id: string, title: string, updatedAt: number, tabs = 1): DocMeta 
 	tabOrder: Array.from({ length: tabs }, (_, i) => `${id}-tab${i}`),
 	updatedAt,
 	titleUpdatedAt: 0,
+	pageSetup: null,
 })
 
 const server = (

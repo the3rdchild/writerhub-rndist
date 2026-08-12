@@ -1,6 +1,8 @@
 'use client'
 
 import * as Y from 'yjs'
+import type { PageSetup } from '@/features/editor/page-geometry'
+import { DEFAULT_PAGE_SETUP } from '@/features/editor/page-geometry'
 import type { CommentThread } from './types'
 
 /**
@@ -49,6 +51,8 @@ export interface TabMeta {
 	language: string | null
 	comments: CommentThread[]
 	updatedAt: number
+	/** Penimpa tata letak halaman untuk tab ini; null/undefined = ikut dokumen. */
+	pageSetup: PageSetup | null
 }
 
 export interface DocMeta {
@@ -70,6 +74,8 @@ export interface DocMeta {
 	 * mengetik satu huruf saja sudah menaikkan `updatedAt`.
 	 */
 	titleUpdatedAt: number
+	/** Tata letak halaman bawaan dokumen; dipakai tab yang tidak menimpanya. */
+	pageSetup: PageSetup | null
 }
 
 export function createTabId(): string {
@@ -174,6 +180,7 @@ function readMeta(meta: Y.Map<Y.Map<unknown>>, id: string): TabMeta {
 		language: (entry?.get('language') as string | null) ?? null,
 		comments: (entry?.get('comments') as CommentThread[]) ?? [],
 		updatedAt: (entry?.get('updatedAt') as number) ?? 0,
+		pageSetup: readPageSetup(entry),
 	}
 }
 
@@ -188,7 +195,103 @@ function readDocMeta(meta: Y.Map<Y.Map<unknown>>, id: string): DocMeta {
 		// Dokumen dari sebelum field ini ada dianggap belum pernah diganti nama;
 		// judul server yang eksplisit karena itu berhak menang atasnya.
 		titleUpdatedAt: (entry?.get('titleUpdatedAt') as number) ?? 0,
+		pageSetup: readPageSetup(entry),
 	}
+}
+
+/**
+ * Baca PageSetup dari sebuah entri meta Yjs.
+ *
+ * Disimpan sebagai objek polos (bukan Y.Map bersarang): tata letak berubah
+ * jarang (hanya lewat dialog/ruler), dan seluruh objeknya ditulis ulang tiap
+ * kali, jadi reaktivitasnya cukup bagi penimpaan menyeluruh. null bila field
+ * belum ada - penanda migrasi yang belum jalan.
+ */
+function readPageSetup(entry: Y.Map<unknown> | undefined): PageSetup | null {
+	if (!entry) return null
+	const raw = entry.get('pageSetup')
+	if (!raw || typeof raw !== 'object') return null
+	const value = raw as Partial<PageSetup>
+	// Field wajib dipakai apa adanya; yang hilang diisi dari bawaan supaya
+	// dokumen yang disimpan di versi antara tidak rusak.
+	return {
+		size: value.size ?? DEFAULT_PAGE_SETUP.size,
+		orientation: value.orientation ?? DEFAULT_PAGE_SETUP.orientation,
+		margins: value.margins ?? DEFAULT_PAGE_SETUP.margins,
+		pageColor: value.pageColor ?? null,
+		pageless: value.pageless ?? false,
+		...(value.size === 'custom'
+			? { customWidth: value.customWidth, customHeight: value.customHeight }
+			: {}),
+	}
+}
+
+/**
+ * Resolusi tata letak yang berlaku untuk sebuah tab.
+ *
+ * `tab.pageSetup ?? doc.pageSetup ?? fallback` - fallback biasanya bawaan
+ * pemakai (`Settings.defaultPageSetup`), atau DEFAULT_PAGE_SETUP bila tidak ada.
+ */
+export function resolvePageSetup(
+	doc: Y.Doc,
+	tabId: string,
+	fallback: PageSetup = DEFAULT_PAGE_SETUP,
+): PageSetup {
+	const tab = readMeta(tabsRoot(doc).meta, tabId).pageSetup
+	if (tab) return tab
+
+	const docId = findTabDoc(doc, tabId)
+	const documentSetup = docId ? readDocMeta(docsRoot(doc).meta, docId).pageSetup : null
+	return documentSetup ?? fallback
+}
+
+/**
+ * Terapkan tata letak ke seluruh dokumen (§A1 "Terapkan ke: Seluruh dokumen").
+ *
+ * Menulis `DocMeta.pageSetup` sekaligus MENGHAPUS `TabMeta.pageSetup` di semua
+ * tabnya - kalau tidak, tab yang pernah ditimpa diam-diam mengabaikan perintah
+ * ini dan menampilkan ukuran lamanya.
+ */
+export function setPageSetupForDoc(doc: Y.Doc, docId: string, setup: PageSetup): void {
+	const { meta: docsMeta } = docsRoot(doc)
+	const { meta: tabsMeta } = tabsRoot(doc)
+	const tabIds = readDocMeta(docsMeta, docId).tabOrder
+
+	doc.transact(() => {
+		docsMeta.get(docId)?.set('pageSetup', setup)
+		// Penimpaan tab dibersihkan supaya dokumen betul-betul seragam.
+		for (const tabId of tabIds) {
+			const entry = tabsMeta.get(tabId)
+			if (entry?.get('pageSetup') !== undefined) entry.delete('pageSetup')
+		}
+	}, LOCAL_ORIGIN)
+}
+
+/**
+ * Terapkan tata letak hanya ke tab aktif (§A1 "Terapkan ke: Dokumen terpilih").
+ */
+export function setPageSetupForTab(doc: Y.Doc, tabId: string, setup: PageSetup): void {
+	doc.transact(() => {
+		tabsRoot(doc).meta.get(tabId)?.set('pageSetup', setup)
+	}, LOCAL_ORIGIN)
+}
+
+/**
+ * Migrasi sekali jalan: bila dokumen belum punya tata letak, isi dari bawaan.
+ *
+ * check-then-set di dalam satu transaksi melindungi dari dua tab browser yang
+ * membuka dokumen yang sama via BroadcastChannel (persistensi IndexedDB bersifat
+ * lokal, bukan server). Mengembalikan true bila migrasi benar-benar menulis.
+ */
+export function migratePageSetup(doc: Y.Doc, docId: string, fallback: PageSetup): boolean {
+	const { meta: docsMeta } = docsRoot(doc)
+	const entry = docsMeta.get(docId)
+	if (!entry || entry.get('pageSetup') !== undefined) return false
+
+	doc.transact(() => {
+		entry.set('pageSetup', fallback)
+	}, LOCAL_ORIGIN)
+	return true
 }
 
 /**

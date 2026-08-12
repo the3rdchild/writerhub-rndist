@@ -4,7 +4,8 @@ import type { Editor } from '@tiptap/react'
 import { useMemo, useState } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { useSessions } from '@/features/sessions/session-context'
-import { pageGeometry } from '@/features/editor/page-geometry'
+import { pageGeometry, type PageMargins } from '@/features/editor/page-geometry'
+import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
 import { DocumentRuler } from './document-ruler'
@@ -26,16 +27,22 @@ export function DocumentCanvas({
 	containerRef: React.RefObject<HTMLDivElement | null>
 	onReady?: (editor: Editor | null) => void
 }) {
-	const { settings, setPageMargins } = useSettings()
+	const { settings } = useSettings()
+	const { setup, setPageSetup } = usePageSetup()
 	const { editor } = useEditorInstance()
 	const { activeId } = useSessions()
 	const [pageCount, setPageCount] = useState(1)
 
-	const geometry = useMemo(
-		() => pageGeometry(settings.pageSize, settings.pageMargins, settings.pageOrientation),
-		[settings.pageSize, settings.pageMargins, settings.pageOrientation],
-	)
+	const geometry = useMemo(() => pageGeometry(setup), [setup])
 	const { width, height, margins, gap, pageStride } = geometry
+
+	/*
+	 * Penggaris menulis perubahan margin langsung ke tata letak dokumen
+	 * (Y.Doc), bukan ke preferensi pemakai - keputusan §2.1. scope 'document'
+	 * menyamaratak semua tab; di sinilah ruler atas bekerja.
+	 */
+	const onMarginsChange = (patch: Partial<PageMargins>) =>
+		setPageSetup({ ...setup, margins: { ...margins, ...patch } }, 'document')
 
 	const totalHeight = pageCount * height + (pageCount - 1) * gap
 	const zoom = settings.zoom
@@ -64,7 +71,7 @@ export function DocumentCanvas({
 						geometry={geometry}
 						zoom={zoom}
 						editor={editor}
-						onMarginsChange={setPageMargins}
+						onMarginsChange={onMarginsChange}
 					/>
 				</div>
 			)}
@@ -86,9 +93,16 @@ export function DocumentCanvas({
 							<div
 								key={index}
 								className="document-sheet absolute left-0"
-								style={{ top: index * pageStride, width, height }}
+								style={{
+									top: index * pageStride,
+									width,
+									height,
+									// pageColor null = ikuti tema (kelas CSS). Diisi eksplisit
+									// hanya bila pengguna memilih warna (WYSIWYG, putusan §9).
+									...(setup.pageColor ? { background: setup.pageColor } : {}),
+								}}
 							>
-								{settings.showPageNumbers && (
+								{settings.showPageNumbers && !setup.pageless && (
 									<span
 										className="absolute text-[11px] text-faint"
 										style={{ bottom: margins.bottom / 3, right: margins.right }}
@@ -121,8 +135,7 @@ export function DocumentCanvas({
 							<TiptapEditor
 								containerRef={containerRef}
 								onReady={onReady}
-								geometry={geometry}
-								onPageCountChange={setPageCount}
+								geometry={geometry}							pageless={setup.pageless}								onPageCountChange={setPageCount}
 							/>
 						)}
 					</div>

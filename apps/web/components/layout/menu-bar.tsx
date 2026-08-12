@@ -81,6 +81,7 @@ import {
 } from '@/features/editor/font-catalog'
 import { indentSelection, outdentSelection } from '@/features/editor/indent'
 import { LINE_HEIGHTS, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
+import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { useShortcutLabel } from '@/features/shortcuts/use-shortcuts'
@@ -96,9 +97,10 @@ import { cn, countWords } from '@/lib/utils'
 export function MenuBar() {
 	const { editor } = useEditorInstance()
 	const { state, dispatch } = useDocument()
-	const { settings, update, toggleFocusMode, setSettingsOpen, setShortcutsOpen, setExportOpen, setDocxExportOpen } =
+	const { settings, update, toggleFocusMode, setSettingsOpen, setShortcutsOpen, setExportOpen, setDocxExportOpen, setPageSetupOpen } =
 		useSettings()
 	const { newSession, deleteSession, activeId, sessions } = useSessions()
+	const { setup: activeSetup, setPageSetup } = usePageSetup()
 	const { openImport } = useDocumentImport()
 	const { activePanel, setActivePanel } = usePanels()
 
@@ -135,7 +137,7 @@ export function MenuBar() {
 		}
 		setExporting(true)
 		try {
-			const geometry = pageGeometry(settings.pageSize, settings.pageMargins, settings.pageOrientation)
+			const geometry = pageGeometry(activeSetup)
 			download(
 				await exportDocx(editor.state.doc, { title: state.title, geometry }),
 				safeFilename(state.title, 'docx'),
@@ -188,21 +190,13 @@ export function MenuBar() {
 							Cetak
 						</Item>
 						<DropdownSeparator />
-						<Submenu label="Ukuran kertas" icon={<Boxes className="h-4 w-4" />}>
-							{() => (
-								<>
-									{(Object.keys(PAGE_SIZES) as PageSizeId[]).map((size) => (
-										<Item
-											key={size}
-											active={settings.pageSize === size}
-											onSelect={() => run(close, () => update({ pageSize: size }))}
-										>
-											{PAGE_SIZES[size].label}
-										</Item>
-									))}
-								</>
-							)}
-						</Submenu>
+						<Item
+							icon={<Boxes className="h-4 w-4" />}
+							disabled={!activeId}
+							onSelect={() => run(close, () => setPageSetupOpen(true))}
+						>
+							Penyiapan halaman…
+						</Item>
 						<DropdownSeparator />
 						<Item icon={<RotateCcw className="h-4 w-4" />} disabled={!activeId} shortcut={keys('doc.closeTab')} onSelect={() => run(close, () => activeId && deleteSession(activeId))}>
 							Tutup tab ini
@@ -283,22 +277,12 @@ export function MenuBar() {
 						>
 							Jumlah kata
 						</Item>
-						<Item onSelect={() => run(close, () => update({ pageMargins: DEFAULT_MARGINS }))}>
-							Setel ulang margin
+						<Item
+							active={activeSetup.pageless}
+							onSelect={() => run(close, () => setPageSetup({ ...activeSetup, pageless: !activeSetup.pageless }, 'document'))}
+						>
+							Pageless
 						</Item>
-						{/* Orientasi lembar: portrait (tegak) / landscape (mendatar). */}
-						<Submenu label="Orientasi" icon={<Boxes className="h-4 w-4" />}>
-							{() => (
-								<>
-									<Item active={settings.pageOrientation === 'portrait'} onSelect={() => run(close, () => update({ pageOrientation: 'portrait' }))}>
-										Potret (tegak)
-									</Item>
-									<Item active={settings.pageOrientation === 'landscape'} onSelect={() => run(close, () => update({ pageOrientation: 'landscape' }))}>
-										Lansekap (mendatar)
-									</Item>
-								</>
-							)}
-						</Submenu>
 						<DropdownSeparator />
 						{/* Perbesaran jadi submenu supaya daftar tingkat zoom tidak
 						    memanjangkan menu utama. */}

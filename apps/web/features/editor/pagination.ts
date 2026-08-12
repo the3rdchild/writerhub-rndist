@@ -67,11 +67,15 @@ interface PaginationState {
 	 * saja lewat penggaris. Perubahannya dikirim sebagai meta transaksi.
 	 */
 	geometry: PageGeometry
+	/** true = kanvas menerus; pemenggalan halaman dimatikan (§A1.5). */
+	pageless: boolean
 }
 
 export interface PaginationOptions {
 	geometry: PageGeometry
 	onPageCountChange?: (pageCount: number) => void
+	/** true = mode pageless; plugin jadi no-op (tanpa spacer). */
+	pageless?: boolean
 }
 
 /** Meta untuk memberi tahu plugin bahwa ukuran lembar atau margin berubah. */
@@ -79,6 +83,7 @@ export interface PaginationMeta {
 	spacers?: Spacer[]
 	pageCount?: number
 	geometry?: PageGeometry
+	pageless?: boolean
 }
 
 /**
@@ -608,39 +613,52 @@ export const Pagination = Extension.create<PaginationOptions>({
 				key: paginationKey,
 
 				state: {
-					init: () => ({
-						spacers: [],
-						decorations: DecorationSet.empty,
-						pageCount: 1,
-						geometry,
-					}),
+				init: () => ({
+					spacers: [],
+					decorations: DecorationSet.empty,
+					pageCount: 1,
+					geometry,
+					pageless: this.options.pageless ?? false,
+				}),
 
-					apply(tr, current, _old, newState) {
-						const incoming = tr.getMeta(paginationKey) as PaginationMeta | undefined
+				apply(tr, current, _old, newState) {
+					const incoming = tr.getMeta(paginationKey) as PaginationMeta | undefined
 
-						if (incoming) {
-							// Geometri baru saja tersimpan; spacer-nya menyusul dari
-							// pengukuran berikutnya yang dipicu oleh view.update.
-							if (!incoming.spacers) {
-								return { ...current, geometry: incoming.geometry ?? current.geometry }
-							}
-
+					if (incoming) {
+						// Toggle pageless: simpan nilainya, dan kosongkan spacer saat nyala.
+						if (incoming.pageless !== undefined && incoming.pageless !== current.pageless) {
 							return {
+								...current,
+								pageless: incoming.pageless,
 								geometry: incoming.geometry ?? current.geometry,
-								spacers: incoming.spacers,
-								pageCount: incoming.pageCount ?? current.pageCount,
-								decorations: buildDecorations(newState.doc, incoming.spacers),
+								spacers: incoming.pageless ? [] : current.spacers,
+								decorations: incoming.pageless ? DecorationSet.empty : current.decorations,
 							}
 						}
 
-						// Dekorasi lama dipetakan ke dokumen baru supaya tidak berkedip
-						// selama menunggu pengukuran berikutnya.
-						if (tr.docChanged) {
-							return { ...current, decorations: current.decorations.map(tr.mapping, tr.doc) }
+						// Geometri baru saja tersimpan; spacer-nya menyusul dari
+						// pengukuran berikutnya yang dipicu oleh view.update.
+						if (!incoming.spacers) {
+							return { ...current, geometry: incoming.geometry ?? current.geometry }
 						}
-						return current
-					},
+
+						return {
+							geometry: incoming.geometry ?? current.geometry,
+							pageless: current.pageless,
+							spacers: incoming.spacers,
+							pageCount: incoming.pageCount ?? current.pageCount,
+							decorations: buildDecorations(newState.doc, incoming.spacers),
+						}
+					}
+
+					// Dekorasi lama dipetakan ke dokumen baru supaya tidak berkedip
+					// selama menunggu pengukuran berikutnya.
+					if (tr.docChanged) {
+						return { ...current, decorations: current.decorations.map(tr.mapping, tr.doc) }
+					}
+					return current
 				},
+			},
 
 				props: {
 					decorations: (state) => paginationKey.getState(state)?.decorations,
@@ -654,6 +672,20 @@ export const Pagination = Extension.create<PaginationOptions>({
 						frame = 0
 						const state = paginationKey.getState(view.state)
 						if (!state) return
+
+						// Pageless: kanvas menerus, tidak ada pemenggalan (§A1.5).
+						if (state.pageless) {
+							if (state.spacers.length > 0 || state.pageCount !== 1) {
+								const transaction = view.state.tr.setMeta(paginationKey, { spacers: [], pageCount: 1 })
+								transaction.setMeta('addToHistory', false)
+								view.dispatch(transaction)
+							}
+							if (reportedPageCount !== 1) {
+								reportedPageCount = 1
+								onPageCountChange?.(1)
+							}
+							return
+						}
 
 						const blocks = measureBlocks(view, state.geometry)
 						const { spacers, pageCount } = computeSpacers(blocks, state.geometry)

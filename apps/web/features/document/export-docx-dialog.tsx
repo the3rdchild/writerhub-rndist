@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { download, safeFilename } from '@/features/document/download'
 import { exportDocx, mergeTabContents } from '@/features/document/export-docx'
 import { pageGeometry } from '@/features/editor/page-geometry'
+import { usePageSetup } from '@/features/editor/use-page-setup'
 import { sessionLabel, useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { buildSchema, fragmentToJSON } from '@/features/sync/serialize'
@@ -21,7 +22,8 @@ import { cn } from '@/lib/utils'
  * ber-page-break; hanya setelah itu pustaka docx disentuh.
  */
 export function ExportDocxDialog() {
-	const { docxExportOpen, setDocxExportOpen, settings } = useSettings()
+	const { docxExportOpen, setDocxExportOpen } = useSettings()
+	const { setup } = usePageSetup()
 	const { doc, documents, activeDocId, activeId, sessions } = useSessions()
 	const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -74,7 +76,7 @@ export function ExportDocxDialog() {
 			const merged = mergeTabContents(chosen.map((tab) => fragmentToJSON(doc, tab.id)))
 			const blob = await exportDocx(buildSchema().nodeFromJSON(merged), {
 				title,
-				geometry: pageGeometry(settings.pageSize, settings.pageMargins, settings.pageOrientation),
+				geometry: pageGeometry(setup),
 			})
 			download(blob, safeFilename(title, 'docx'))
 			setDocxExportOpen(false)
