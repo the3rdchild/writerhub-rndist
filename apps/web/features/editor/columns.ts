@@ -413,9 +413,17 @@ function columnGapOf(dom: HTMLElement): number {
  * akar editor, dan blok kolom yang bersarang di dalam tabel atau kutipan tidak
  * punya hubungan sesederhana itu dengan batas lembar. Yang bersarang dibiarkan
  * memakai multi-kolom CSS biasa.
+ *
+ * Selain rencana tata letak, dikembalikan juga elemen tiap blok anak: begitu
+ * mereka diposisikan mutlak, tinggi mereka tidak lagi terbaca dari ukuran akar
+ * editor, jadi merekalah yang harus diamati langsung (lihat `watch` di plugin).
  */
-function measureColumns(view: EditorView, geometry: PageGeometry): ColumnsPlan[] {
+function measureColumns(
+	view: EditorView,
+	geometry: PageGeometry,
+): { plans: ColumnsPlan[]; elements: HTMLElement[] } {
 	const plans: ColumnsPlan[] = []
+	const elements: HTMLElement[] = []
 
 	view.state.doc.forEach((node, offset) => {
 		if (node.type.name !== COLUMNS_NODE) return
@@ -438,6 +446,7 @@ function measureColumns(view: EditorView, geometry: PageGeometry): ColumnsPlan[]
 			const element = view.nodeDOM(childPos)
 			if (element instanceof HTMLElement) {
 				const style = getComputedStyle(element)
+				elements.push(element)
 				items.push({
 					pos: childPos,
 					height: element.offsetHeight,
@@ -474,7 +483,7 @@ function measureColumns(view: EditorView, geometry: PageGeometry): ColumnsPlan[]
 		})
 	})
 
-	return plans
+	return { plans, elements }
 }
 
 function samePlans(a: readonly ColumnsPlan[], b: readonly ColumnsPlan[]): boolean {
@@ -604,6 +613,39 @@ function columnLayoutPlugin(): Plugin<ColumnLayoutState> {
 		view(view) {
 			let frame = 0
 
+			const schedule = () => {
+				if (frame) return
+				frame = requestAnimationFrame(recalculate)
+			}
+
+			/**
+			 * Akar editor plus tiap blok anak di dalam kolom.
+			 *
+			 * Anak blok kolom wajib diamati satu per satu. Begitu mereka diposisikan
+			 * mutlak dan pembungkusnya diberi tinggi tetap, perubahan tinggi mereka
+			 * TIDAK lagi mengubah ukuran akar editor - jadi mengamati akar saja
+			 * membuat tata letak membatu pada angka pengukuran pertama. Blok kode
+			 * paling sering menabraknya: node view-nya React, isinya baru terpasang
+			 * satu putaran setelah ProseMirror membuat elemennya, dan pratinjau
+			 * Mermaid-nya menyusul jauh belakangan - keduanya tanpa transaksi apa pun
+			 * yang bisa memicu pengukuran ulang.
+			 */
+			const observer = new ResizeObserver(schedule)
+			observer.observe(view.dom)
+			let watched: HTMLElement[] = []
+
+			const watch = (elements: HTMLElement[]) => {
+				const same =
+					elements.length === watched.length &&
+					elements.every((element, index) => element === watched[index])
+				if (same) return
+
+				observer.disconnect()
+				observer.observe(view.dom)
+				for (const element of elements) observer.observe(element)
+				watched = elements
+			}
+
 			const recalculate = () => {
 				frame = 0
 				const state = columnLayoutKey.getState(view.state)
@@ -612,29 +654,23 @@ function columnLayoutPlugin(): Plugin<ColumnLayoutState> {
 				// Pageless: kanvas menerus, tidak ada batas lembar yang perlu dihindari,
 				// jadi multi-kolom CSS biasa sudah benar (§A1.5).
 				const pagination = paginationKey.getState(view.state)
-				const plans =
-					pagination && !pagination.pageless ? measureColumns(view, pagination.geometry) : []
+				const measured =
+					pagination && !pagination.pageless
+						? measureColumns(view, pagination.geometry)
+						: { plans: [], elements: [] }
+
+				watch(measured.elements)
 
 				// Pengukuran kedua atas keadaan yang sama menghasilkan rencana yang
 				// sama - di sinilah putaran ukur-gambar berhenti.
-				if (samePlans(plans, state.plans)) return
+				if (samePlans(measured.plans, state.plans)) return
 
-				const transaction = view.state.tr.setMeta(columnLayoutKey, plans)
+				const transaction = view.state.tr.setMeta(columnLayoutKey, measured.plans)
 				transaction.setMeta('addToHistory', false)
 				view.dispatch(transaction)
 			}
 
-			const schedule = () => {
-				if (frame) return
-				frame = requestAnimationFrame(recalculate)
-			}
-
 			schedule()
-
-			// Lebar kolom dan tinggi blok ikut berubah saat ukuran font, zoom, atau
-			// margin berubah - semuanya lewat perubahan ukuran akar editor.
-			const observer = new ResizeObserver(schedule)
-			observer.observe(view.dom)
 
 			return {
 				update: schedule,

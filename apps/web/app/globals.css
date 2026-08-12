@@ -795,6 +795,10 @@ a {
 .document-body .code-block-toolbar {
   display: flex;
   align-items: center;
+  /* Bilah ini isinya lebar tetap - pemilih bahasa, label, tombol - sementara
+     bloknya bisa duduk di kolom selebar sepertiga halaman. Tanpa membungkus,
+     barisnya menonjol keluar kolom dan keluar lembar. */
+  flex-wrap: wrap;
   gap: 0.5em;
   padding: 0.3em 0.5em;
   background: var(--surface-inset);
@@ -813,16 +817,30 @@ a {
   font-size: 0.78rem;
   outline: none;
   cursor: pointer;
+  /* Lebar bawaan <select> mengikuti nama bahasa terpanjang; di kolom sempit ia
+     harus mau menyusut. */
+  min-width: 0;
+  max-width: 100%;
 }
 .document-body .code-block-lang:hover { border-color: var(--accent); }
 .document-body .code-block-label {
   color: var(--foreground-faint);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Di dalam kolom label itu mengulang isi pemilih di sebelahnya - ruangnya lebih
+   berguna untuk tombolnya. */
+.document-body div[data-type='columns'] .code-block-label {
+  display: none;
 }
 .document-body .code-block-actions {
   margin-left: auto;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.25em;
 }
 .document-body .code-block-action {
