@@ -204,6 +204,16 @@ export async function exportDocx(
 				return inner
 			}
 
+			case 'tocBlock': {
+				// Blok daftar isi (A5): isinya sudah dihasilkan NodeView dari kerangka,
+				// jadi ekspor memakai snapshot teks terakhir - satu paragraf per baris.
+				const snapshot = String(node.attrs.snapshot ?? '')
+				return snapshot
+					.split('\n')
+					.filter((line) => line.trim())
+					.map((line) => new Paragraph({ text: line }))
+			}
+
 			default:
 				// Node tak dikenal tetap menyumbang teksnya daripada hilang diam-diam.
 				return node.textContent ? [new Paragraph({ text: node.textContent })] : []

@@ -220,3 +220,63 @@ describe('dokumen kosong', () => {
 		expect(computeSpacers([], geometry)).toEqual({ spacers: [], pageCount: 1 })
 	})
 })
+
+describe('blok self-paginate (blok TOC)', () => {
+	// bottom blok self-paginate sudah termasuk celah internal yang disisipkan
+	// node view-nya sendiri; plugin tidak boleh mendorongnya utuh.
+	const selfPaginate = (pos: number, top: number, bottom: number): Measurement => ({
+		pos,
+		top,
+		bottom,
+		isBreak: false,
+		kind: 'block',
+		selfPaginate: true,
+	})
+
+	test('blok yang meluber tidak didorong utuh dan tidak diberi spacer', () => {
+		const blocks: Measurement[] = [
+			{ pos: 0, top: 0, bottom: 100, isBreak: false, kind: 'block' },
+			selfPaginate(1, 100, 1600),
+			{ pos: 2, top: 1600, bottom: 1700, isBreak: false, kind: 'block' },
+		]
+		const { spacers, pageCount } = computeSpacers(blocks, geometry)
+
+		expect(spacers).toEqual([])
+		// Ujung terender di 1600 → lembar 2 (satu lembar = pageStride 1155px).
+		expect(pageCount).toBe(2)
+	})
+
+	test('blok sesudahnya mengalir di bawah segmen terakhir, bukan di lembar baru', () => {
+		const blocks: Measurement[] = [
+			selfPaginate(0, 0, 1600),
+			{ pos: 1, top: 1600, bottom: 1700, isBreak: false, kind: 'block' },
+		]
+		// Lembar 2 berakhir di 1155 + 931 = 2086; blok kedua (1600–1700) muat.
+		expect(computeSpacers(blocks, geometry).spacers).toEqual([])
+	})
+
+	test('blok sesudahnya yang meluber tetap mendarat tepat di awal lembar', () => {
+		const blocks: Measurement[] = [
+			selfPaginate(0, 0, 2000),
+			{ pos: 1, top: 2000, bottom: 2200, isBreak: false, kind: 'block' },
+		]
+		const tops = renderedTops(blocks)
+
+		// Lembar 2 habis di 2086; blok kedua didorong ke awal lembar 3.
+		expectStartsPage(tops[1], 3)
+	})
+
+	test('page break manual tetap mendorongnya ke lembar baru', () => {
+		const blocks: Measurement[] = [
+			{ pos: 0, top: 0, bottom: 100, isBreak: false, kind: 'block' },
+			{ pos: 1, top: 100, bottom: 100, isBreak: true, kind: 'block' },
+			selfPaginate(2, 100, 400),
+		]
+		const { spacers, pageCount } = computeSpacers(blocks, geometry)
+
+		expect(spacers).toHaveLength(1)
+		expect(spacers[0].pos).toBe(2)
+		expectStartsPage(100 + spacers[0].height, 2)
+		expect(pageCount).toBe(2)
+	})
+})

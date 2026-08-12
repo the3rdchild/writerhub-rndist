@@ -3,6 +3,9 @@
 import type { Node as PMNode } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
+// Sumber tunggal kerangka, dipakai bersama blok TOC (A5).
+export { type OutlineItem } from './use-outline-plain'
+import { type OutlineItem, readOutlineItems } from './use-outline-plain'
 
 /**
  * Kerangka dokumen: daftar heading yang tampil bersarang di bawah tab aktif.
@@ -13,18 +16,6 @@ import { useEffect, useRef, useState } from 'react'
  * ini memang dihitung ulang pada tiap transaksi.
  */
 
-export interface OutlineItem {
-	pos: number
-	level: number
-	text: string
-	/**
-	 * 'heading' = bagian naskah (tingkat 1–6 default); 'caption' = tingkat 7–9
-	 * yang dipakai sebagai kunci Daftar Gambar/Tabel (putusan repo
-	 * heading-numbering). Dipakai A5 untuk menyaring jenis daftar isi.
-	 */
-	kind: 'heading' | 'caption'
-}
-
 export interface Outline {
 	items: OutlineItem[]
 	/** Heading terdekat sebelum kursor; penanda "kamu sedang di sini". */
@@ -33,31 +24,9 @@ export interface Outline {
 
 const EMPTY: Outline = { items: [], activePos: null }
 
-function readHeadings(doc: PMNode): OutlineItem[] {
-	const items: OutlineItem[] = []
-
-	doc.descendants((node, pos) => {
-		if (node.type.name === 'heading') {
-			const level = (node.attrs.level as number) ?? 1
-			// Nomor bab kini bagian teks heading itu sendiri (dibakar saat impor),
-			// jadi cukup dipakai apa adanya - tidak ada nomor terhitung terpisah.
-			items.push({
-				pos,
-				level,
-				text: node.textContent.trim(),
-				// Tingkat 7–9 dialokasikan sebagai caption (Daftar Gambar/Tabel) - bukan
-				// bagian naskah biasa. A5 memakainya untuk menyaring jenis daftar.
-				kind: level >= 7 ? 'caption' : 'heading',
-			})
-			// Heading selalu blok tingkat atas pada skema ini, jadi tidak perlu
-			// turun ke anak-anaknya - pemindaian ini berjalan pada tiap ketukan.
-			return false
-		}
-		return true
-	})
-
-	return items
-}
+// readHeadings dipindahkan ke `use-outline-plain` (sumber bersama blok TOC);
+// bungkus namanya di sini supaya pemanggil lama tak berubah.
+const readHeadings = (doc: PMNode): OutlineItem[] => readOutlineItems(doc)
 
 function activeHeading(items: readonly OutlineItem[], cursor: number): number | null {
 	let active: number | null = null

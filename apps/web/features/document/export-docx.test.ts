@@ -60,3 +60,19 @@ describe('perakitan ekspor multi-tab', () => {
 		expect(node.child(1).type.name).toBe(PAGE_BREAK_NODE)
 	})
 })
+
+describe('blok daftar isi (A5)', () => {
+	test('tocBlock diterima skema dengan atribut dan snapshotnya utuh', () => {
+		// Snapshot adalah satu-satunya isi yang diekspor; kalau skema membuang
+		// node/atributnya, daftar isi hilang diam-diam dari DOCX multi-tab.
+		const toc: JSONContent = {
+			type: 'tocBlock',
+			attrs: { listKind: 'isi', minLevel: 1, maxLevel: 3, snapshot: 'BAB 1\t1\nBAB 2\t5' },
+		}
+		const node = buildSchema().nodeFromJSON(mergeTabContents([{ type: 'doc', content: [toc] }]))
+
+		expect(node.firstChild?.type.name).toBe('tocBlock')
+		expect(node.firstChild?.attrs.snapshot).toBe('BAB 1\t1\nBAB 2\t5')
+		expect(node.firstChild?.attrs.listKind).toBe('isi')
+	})
+})

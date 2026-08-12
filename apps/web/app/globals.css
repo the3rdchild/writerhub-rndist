@@ -1140,8 +1140,18 @@ html.dark .document-body .comment-mark {
 
 @media print {
   .selection-menu,
-  .table-handle-layer {
+  .table-handle-layer,
+  .toc-block-controls,
+  .toc-page-gap {
     display: none !important;
+  }
+  /* Blok daftar isi tercetak sebagai daftar polos: celah antar lembar adalah
+     chrome layar (peramban memenggal sendiri saat mencetak), dan bingkai kotak
+     tiap segmen dilepas supaya daftar tampak menyatu. */
+  .toc-block-wrapper .toc-segment {
+    border: none !important;
+    background: none !important;
+    padding: 0 !important;
   }
   .document-body .comment-mark {
     background: none;

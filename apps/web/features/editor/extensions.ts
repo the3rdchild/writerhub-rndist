@@ -31,6 +31,8 @@ import { MathBlock, MathInline } from '@/features/editor/math'
 import { PageBreak } from '@/features/editor/page-break'
 import { type PageGeometry, pageGeometry } from '@/features/editor/page-geometry'
 import { Pagination } from '@/features/editor/pagination'
+import { TocBlock } from '@/features/editor/toc-block'
+import { TocBlockNodeView } from '@/components/editor/toc-block-view'
 import { PasteMarkdown } from '@/features/editor/paste-markdown'
 import { type ResizableImageOptions, ResizableImage } from '@/features/editor/resizable-image'
 import { SearchAndReplace } from '@/features/editor/search-replace'
@@ -148,6 +150,7 @@ export function buildEditorExtensions({
 		// Cari & ganti; dekorasi menyorot kecocokan, perintah menggerakkan indeks.
 		SearchAndReplace,
 		TrailingParagraph,
+		TocBlock.extend({ addNodeView: () => TocBlockNodeView }),
 		Pagination.configure({ geometry, onPageCountChange }),
 		// Menu slash hanya untuk editor sungguhan.
 		...(slashCommand

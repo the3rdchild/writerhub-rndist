@@ -9,6 +9,7 @@ import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
 import { useSettings } from '@/features/settings/settings-context'
 import { countWords } from '@/lib/utils'
 import { DocumentCanvas } from './document-canvas'
+import { TocSettingsDialog } from './toc-settings-dialog'
 import { TableControls } from './table-controls'
 
 /**
@@ -108,6 +109,9 @@ export function DocumentEditor() {
 			) : (
 				<DocumentCanvas containerRef={containerRef} onReady={setEditor} />
 			)}
+
+			{/* Dialog setelan blok TOC; butuh konteks editor, jadi dipasang di sini. */}
+			<TocSettingsDialog />
 
 			<div className="flex shrink-0 items-center gap-3 bg-surface px-4 py-1.5">
 				{settings.showWordCount && !state.file && (

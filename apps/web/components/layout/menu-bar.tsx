@@ -55,6 +55,7 @@ import {
 } from 'lucide-react'
 import { Dropdown, DropdownItem, DropdownLabel, DropdownSeparator, Submenu } from '@/components/ui/dropdown'
 import { InsertImageDialog } from '@/components/editor/insert-image-dialog'
+import { refreshTocBlocks } from '@/components/editor/toc-block-view'
 import { PANELS } from '@/components/panels/panel-rail'
 import { usePanels } from '@/features/analysis/panel-context'
 import { useDocument } from '@/features/document/document-context'
@@ -129,6 +130,10 @@ export function MenuBar() {
 
 	const downloadDocx = async () => {
 		if (!editor || exporting) return
+		// Segarkan snapshot blok TOC dulu supaya nomor halaman yang diekspor
+		// mutakhir (§A5.3); menulis node lewat Y.Doc jadi tab aktif ikut terbawa
+		// juga saat ekspor multi-tab.
+		refreshTocBlocks(editor.view.dom)
 		// Dokumen bertab banyak ditanyakan dulu tab mana yang ikut; dokumen satu
 		// tab langsung diekspor tanpa dialog.
 		if (sessions.length > 1) {
@@ -337,6 +342,17 @@ export function MenuBar() {
 						</Item>
 						<Item icon={<Sigma className="h-4 w-4" />} onSelect={() => run(close, () => editor?.chain().focus().toggleCodeBlock({ language: 'mermaid' }).run())}>
 							Diagram Mermaid…
+						</Item>
+						<DropdownSeparator />
+						<DropdownLabel>Daftar</DropdownLabel>
+						<Item icon={<List className="h-4 w-4" />} disabled={!activeId} onSelect={() => run(close, () => editor?.chain().focus().insertToc({ listKind: 'isi' }).run())}>
+							Daftar isi
+						</Item>
+						<Item icon={<ImageIcon className="h-4 w-4" />} disabled={!activeId} onSelect={() => run(close, () => editor?.chain().focus().insertToc({ listKind: 'gambar' }).run())}>
+							Daftar gambar
+						</Item>
+						<Item icon={<TableIcon className="h-4 w-4" />} disabled={!activeId} onSelect={() => run(close, () => editor?.chain().focus().insertToc({ listKind: 'tabel' }).run())}>
+							Daftar tabel
 						</Item>
 						<Item icon={<Code className="h-4 w-4" />} onSelect={() => run(close, () => editor?.chain().focus().toggleCode().run())}>
 							Kode (dalam baris)

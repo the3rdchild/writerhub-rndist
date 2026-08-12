@@ -41,6 +41,13 @@ export interface Measurement {
 	headerPos?: number
 	/** Tinggi header ulangan, kalau baris ini akan didahului salinannya. */
 	headerHeight?: number
+	/**
+	 * Blok yang memenggal dirinya sendiri (mis. blok TOC): node view-nya
+	 * menyisipkan celah internal di batas lembar, jadi plugin tidak boleh
+	 * mendorongnya utuh saat meluber. `bottom`-nya sudah termasuk tinggi
+	 * celah internal tersebut.
+	 */
+	selfPaginate?: boolean
 }
 
 interface PaginationState {
@@ -100,6 +107,27 @@ function measureBlocks(view: EditorView): Measurement[] {
 
 		if (node.type.name === 'table') {
 			cumulative = measureTable(view, node, offset, top, dom, cumulative, inserted, measurements)
+			return
+		}
+
+		if (dom.hasAttribute(SELF_PAGINATE_ATTRIBUTE)) {
+			// Blok yang memenggal dirinya sendiri: celah internalnya menambah tinggi
+			// DOM blok, jadi ia harus ikut dalam kumulatif supaya koordinat alami
+			// blok sesudahnya tetap tepat. Ia dijumlahkan SESUDAH top dihitung -
+			// celah itu berada di dalam blok, bukan sebelumnya.
+			let internal = 0
+			for (const element of dom.querySelectorAll<HTMLElement>(`[${SPACER_ATTRIBUTE}]`)) {
+				internal += element.offsetHeight
+			}
+			cumulative += internal
+			measurements.push({
+				pos: offset,
+				top,
+				bottom: top + dom.offsetHeight,
+				isBreak: false,
+				kind: 'block',
+				selfPaginate: true,
+			})
 			return
 		}
 
@@ -183,7 +211,14 @@ function measureTable(
 }
 
 /** Penanda pada tiap elemen sisipan, supaya tingginya bisa dibaca balik dari DOM. */
-const SPACER_ATTRIBUTE = 'data-spacer-for'
+export const SPACER_ATTRIBUTE = 'data-spacer-for'
+
+/**
+ * Penanda blok yang memenggal dirinya sendiri (blok TOC). Node view-nya
+ * menyisipkan celah internal tepat di batas lembar; plugin hanya perlu
+ * menghitung tinggi celah itu, bukan mendorong bloknya utuh.
+ */
+export const SELF_PAGINATE_ATTRIBUTE = 'data-self-paginate'
 
 /**
  * Tinggi yang benar-benar tersisip di tiap posisi, dibaca dari DOM.
@@ -191,11 +226,16 @@ const SPACER_ATTRIBUTE = 'data-spacer-for'
  * Tinggi baris kosong kita yang menentukan, tapi tinggi header ulangan
  * ditentukan isinya sendiri. Membacanya balik dari DOM membuat koordinat alami
  * tetap tepat tanpa perlu menebak setinggi apa salinan itu jadinya.
+ *
+ * Celah internal blok self-paginate sengaja dilewati di sini: ia tidak duduk di
+ * posisi dokumen mana pun, melainkan di dalam DOM node view, dan dihitung
+ * per-blok oleh measureBlocks.
  */
 function insertedHeights(view: EditorView): Map<number, number> {
 	const heights = new Map<number, number>()
 
 	for (const element of view.dom.querySelectorAll<HTMLElement>(`[${SPACER_ATTRIBUTE}]`)) {
+		if (element.closest(`[${SELF_PAGINATE_ATTRIBUTE}]`)) continue
 		const pos = Number(element.getAttribute(SPACER_ATTRIBUTE))
 		if (Number.isNaN(pos)) continue
 		heights.set(pos, (heights.get(pos) ?? 0) + element.offsetHeight)
@@ -226,6 +266,32 @@ export function computeSpacers(
 	for (const block of blocks) {
 		const isFirstOnPage = block.top <= pageStart + 0.5
 		const overflows = block.bottom > pageStart + contentHeight
+
+		if (block.selfPaginate) {
+			// Blok yang memenggal dirinya sendiri (blok TOC): jangan didorong utuh
+			// saat meluber - node view-nya menyisipkan celah internal tepat di batas
+			// lembar, dan blok sesudahnya mengalir tepat di bawah segmen terakhir.
+			// Page break manual sebelumnya tetap dihormati seperti blok biasa.
+			if (forceNext && !isFirstOnPage) {
+				const target = pageCount * pageStride
+				const spacerHeight = Math.max(0, target - (block.top + cumulative))
+				spacers.push({ pos: block.pos, height: spacerHeight, kind: block.kind })
+				cumulative += spacerHeight
+				pageCount += 1
+			}
+
+			// bottom blok ini sudah termasuk celah internalnya, jadi renderedBottom
+			// adalah ujung segmen terakhir yang sebenarnya. Lembar yang ia habiskan
+			// dihitung darinya, lalu pageStart digeser ke lembar itu supaya blok
+			// berikutnya mengalir di bawah segmen terakhir, bukan di lembar baru.
+			const renderedBottom = block.bottom + cumulative
+			const sheetsUsed = Math.floor(Math.max(0, renderedBottom - 1) / pageStride) + 1
+			if (sheetsUsed > pageCount) pageCount = sheetsUsed
+			pageStart = (pageCount - 1) * pageStride
+
+			forceNext = false
+			continue
+		}
 
 		if ((overflows || forceNext) && !isFirstOnPage) {
 			// Tinggi spacer dihitung dari sasaran mutlaknya - awal lembar
@@ -399,6 +465,11 @@ function repeatedHeader(header: PMNode, spacer: Spacer): HTMLElement {
  * area teks dan sisanya digulung di dalam bloknya sendiri (lihat
  * `--code-block-max-height` di globals.css), jadi ia selalu muat di satu lembar
  * dan cukup didorong utuh seperti blok biasa.
+ *
+ * Jalan ketiga adalah blok bertanda `data-self-paginate` (blok TOC): node
+ * view-nya sendiri yang menyisipkan celah tepat di batas lembar. Plugin tidak
+ * mendorongnya utuh; ia cukup menghitung tinggi celah internal itu supaya blok
+ * sesudahnya mengalir tepat di bawah segmen terakhir.
  *
  * Batasan yang diketahui: satu blok yang lebih tinggi dari satu halaman penuh -
  * baris tabel raksasa, gambar sehalaman - tetap meluber melewati batas lembar;
