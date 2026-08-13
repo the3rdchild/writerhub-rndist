@@ -4,7 +4,7 @@ import type { Editor } from '@tiptap/react'
 import { useMemo, useState } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { useSessions } from '@/features/sessions/session-context'
-import { pageGeometry, type PageMargins } from '@/features/editor/page-geometry'
+import { pageGeometry, type PageMargins, type SheetGeometry } from '@/features/editor/page-geometry'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
@@ -54,6 +54,9 @@ export function DocumentCanvas({
 	const { editor } = useEditorInstance()
 	const { activeId } = useSessions()
 	const [pageCount, setPageCount] = useState(1)
+	// Lembar hasil perhitungan paginasi; kosong pada bingkai-bingkai pertama.
+	// Dengan section (§P8&P9) lembar boleh berbeda ukuran dan orientasi.
+	const [sheets, setSheets] = useState<SheetGeometry[]>([])
 
 	const geometry = useMemo(() => pageGeometry(setup), [setup])
 	const { width, height, margins, gap, pageStride, contentHeight } = geometry
@@ -82,7 +85,12 @@ export function DocumentCanvas({
 	const onMarginsChange = (patch: Partial<PageMargins>) =>
 		setPageSetup({ ...setup, margins: { ...margins, ...patch } }, 'document')
 
-	const totalHeight = pageCount * height + (pageCount - 1) * gap
+	// Kanvas selebar lembar terlebar; lembar yang lebih sempit dipusatkan.
+	const canvasWidth = sheets.length > 0 ? Math.max(width, ...sheets.map((sheet) => sheet.width)) : width
+	const totalHeight =
+		sheets.length > 0
+			? sheets[sheets.length - 1].top + sheets[sheets.length - 1].height
+			: pageCount * height + (pageCount - 1) * gap
 	const zoom = settings.zoom
 
 	// Ruang penggaris kiri: lembar bergeser selebar ini ke kanan saat penggaris
@@ -99,7 +107,7 @@ export function DocumentCanvas({
 				!settings.showRuler && 'pt-8',
 			)}
 		>
-			<div className="mx-auto" style={{ width: width * zoom + leftRulerRoom }}>
+			<div className="mx-auto" style={{ width: canvasWidth * zoom + leftRulerRoom }}>
 				{settings.showRuler && (
 					// Penggaris ikut menggulung mendatar bersama lembar, tapi menempel di
 					// atas saat menggulung vertikal - ia harus tetap terbaca sepanjang
@@ -139,40 +147,67 @@ export function DocumentCanvas({
 
 					{/* Pembungkus berukuran hasil zoom supaya scrollbar tetap akurat;
 					    elemen di dalamnya yang benar-benar diperbesar. */}
-					<div style={{ width: width * zoom, height: totalHeight * zoom }}>
+					<div style={{ width: canvasWidth * zoom, height: totalHeight * zoom }}>
 						<div
 							className="relative"
 							style={{
-								width,
+								width: canvasWidth,
 								minHeight: totalHeight,
 								transform: `scale(${zoom})`,
 								transformOrigin: 'top left',
 							}}
 						>
 							<div aria-hidden="true">
-								{Array.from({ length: pageCount }, (_, index) => (
-									<div
-										key={index}
-										className="document-sheet absolute left-0"
-										style={{
-											top: index * pageStride,
-											width,
-											height,
-											// pageColor null = ikuti tema (kelas CSS). Diisi eksplisit
-											// hanya bila pengguna memilih warna (WYSIWYG, putusan §9).
-											...(setup.pageColor ? { background: setup.pageColor } : {}),
-										}}
-									>
-										{settings.showPageNumbers && !setup.pageless && (
-											<span
-												className="absolute text-[11px] text-faint"
-												style={{ bottom: margins.bottom / 3, right: margins.right }}
+								{sheets.length > 0
+									? sheets.map((sheet) => (
+											<div
+												key={sheet.index}
+												className="document-sheet absolute"
+												style={{
+													top: sheet.top,
+													// Lembar yang lebih sempit dari kanvas dipusatkan (§P8&P9).
+													left: (canvasWidth - sheet.width) / 2,
+													width: sheet.width,
+													height: sheet.height,
+													// pageColor null = ikuti tema (kelas CSS). Diisi eksplisit
+													// hanya bila pengguna memilih warna (WYSIWYG, putusan §9).
+													...(setup.pageColor ? { background: setup.pageColor } : {}),
+												}}
 											>
-												{index + 1}
-											</span>
-										)}
-									</div>
-								))}
+												{settings.showPageNumbers && !setup.pageless && (
+													<span
+														className="absolute text-[11px] text-faint"
+														style={{
+															bottom: sheet.margins.bottom / 3,
+															right: sheet.margins.right,
+														}}
+													>
+														{sheet.index + 1}
+													</span>
+												)}
+											</div>
+										))
+									: Array.from({ length: pageCount }, (_, index) => (
+											<div
+												key={index}
+												className="document-sheet absolute left-0"
+												style={{
+													top: index * pageStride,
+													width,
+													height,
+													...(setup.pageColor ? { background: setup.pageColor } : {}),
+												}}
+											>
+												{settings.showPageNumbers && !setup.pageless && (
+													<span
+														className="absolute text-[11px] text-faint"
+														style={{ bottom: margins.bottom / 3, right: margins.right }}
+													>
+														{index + 1}
+													</span>
+												)}
+											</div>
+										))}
 							</div>
 
 							<div
@@ -200,8 +235,10 @@ export function DocumentCanvas({
 										containerRef={containerRef}
 										onReady={onReady}
 										geometry={geometry}
+										setup={setup}
 										pageless={setup.pageless}
 										onPageCountChange={setPageCount}
+										onSheetsChange={setSheets}
 									/>
 								)}
 							</div>

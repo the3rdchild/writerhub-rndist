@@ -124,6 +124,20 @@ export interface PageGeometry {
 	pageStride: number
 }
 
+/**
+ * Geometri satu lembar pada dokumen multi-section (§P8&P9).
+ *
+ * Begitu lembar boleh berbeda ukuran/orientasi per section, geometri berhenti
+ * jadi satu nilai dan menjadi daftar ini: `top` adalah puncak kertasnya pada
+ * koordinat kanvas, dan `index` nomor halamannya. Daftarnya dibangun oleh
+ * `computeSpacers` - hanya ia yang tahu berapa lembar yang dihabiskan tiap
+ * section - dan dibaca kanvas untuk menggambar latar.
+ */
+export interface SheetGeometry extends PageGeometry {
+	index: number
+	top: number
+}
+
 /** Pangkas margin supaya area teks tidak pernah lebih kecil dari batas minimum. */
 export function clampMargins(
 	margins: PageMargins,

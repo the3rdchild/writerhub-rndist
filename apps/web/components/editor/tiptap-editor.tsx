@@ -6,7 +6,7 @@ import { useDocument } from '@/features/document/document-context'
 import { suggestionHighlightKey } from '@/features/document/suggestion-highlight'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
 import { buildEditorExtensions } from '@/features/editor/extensions'
-import { type PageGeometry, pageGeometry } from '@/features/editor/page-geometry'
+import { type PageGeometry, pageGeometry, type PageSetup, type SheetGeometry } from '@/features/editor/page-geometry'
 import { paginationKey } from '@/features/editor/pagination'
 import { type SlashCommandState } from '@/features/editor/slash-command'
 import { editorPlainText, textToParagraphs } from '@/features/editor/text-content'
@@ -32,15 +32,21 @@ export function TiptapEditor({
 	containerRef,
 	onReady,
 	geometry = pageGeometry(),
+	setup,
 	pageless = false,
 	onPageCountChange,
+	onSheetsChange,
 }: {
 	containerRef: React.RefObject<HTMLDivElement | null>
 	onReady?: (editor: Editor | null) => void
 	geometry?: PageGeometry
+	/** Setelan halaman dasar; mengaktifkan model section (§P8&P9). */
+	setup?: PageSetup
 	/** Mode pageless: pemenggalan halaman dimatikan. */
 	pageless?: boolean
 	onPageCountChange?: (pageCount: number) => void
+	/** Daftar lembar berubah; kanvas menggambar ulang latar (§P8&P9). */
+	onSheetsChange?: (sheets: SheetGeometry[]) => void
 }) {
 	const { state, dispatch } = useDocument()
 	const { settings } = useSettings()
@@ -56,6 +62,8 @@ export function TiptapEditor({
 	// pemanggil tetap boleh mengirim fungsi baru tiap render.
 	const pageCountRef = useRef(onPageCountChange)
 	pageCountRef.current = onPageCountChange
+	const sheetsRef = useRef(onSheetsChange)
+	sheetsRef.current = onSheetsChange
 
 	/**
 	 * Perubahan yang berasal dari editor sendiri tidak boleh dipantulkan balik
@@ -78,7 +86,9 @@ export function TiptapEditor({
 			immediatelyRender: false, // dokumen dirender di klien; hindari mismatch hidrasi
 			extensions: buildEditorExtensions({
 				geometry,
+				setup,
 				onPageCountChange: (pageCount) => pageCountRef.current?.(pageCount),
+				onSheetsChange: (sheets) => sheetsRef.current?.(sheets),
 				collaboration: activeId ? { document: doc, field: activeId } : null,
 				slashCommand: {
 					onOpen: (s) => slashStateRef.current(s),
@@ -112,10 +122,10 @@ export function TiptapEditor({
 	// saja lewat penggaris - geometri barunya dikirim sebagai meta transaksi.
 	useEffect(() => {
 		if (!editor) return
-		const transaction = editor.state.tr.setMeta(paginationKey, { geometry, pageless })
+		const transaction = editor.state.tr.setMeta(paginationKey, { geometry, setup, pageless })
 		transaction.setMeta('addToHistory', false)
 		editor.view.dispatch(transaction)
-	}, [editor, geometry, pageless])
+	}, [editor, geometry, setup, pageless])
 
 	/**
 	 * Editor yang isinya sudah pernah disamakan dengan state.
