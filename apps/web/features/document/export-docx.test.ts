@@ -181,3 +181,74 @@ describe('section DOCX (§P8&P9)', () => {
 		expect(xml).toContain('isi di dalam blok kolom')
 	})
 })
+
+describe('lebar kolom tabel di DOCX', () => {
+	const cell = (text: string, type = 'tableCell', attrs: object = {}): JSONContent => ({
+		type,
+		attrs,
+		content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+	})
+
+	async function gridOf(header: JSONContent[]): Promise<number[]> {
+		const doc = buildSchema().nodeFromJSON({
+			type: 'doc',
+			content: [
+				{
+					type: 'table',
+					content: [
+						{ type: 'tableRow', content: header },
+						{ type: 'tableRow', content: [cell('a'), cell('b')] },
+					],
+				},
+			],
+		})
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+			setup: DEFAULT_PAGE_SETUP,
+		})
+		const xml = strFromU8(unzipSync(new Uint8Array(await blob.arrayBuffer()))['word/document.xml'])
+		return [...xml.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map((match) => Number(match[1]))
+	}
+
+	test('tabel tanpa colwidth dibagi rata atas lebar area teks', async () => {
+		// Tanpa ini `docx` menulis 100 twip per kolom - sekitar 1,8 mm - dan
+		// tabelnya keluar setipis satu huruf. Itu bentuk kerusakan yang dilaporkan.
+		const grid = await gridOf([cell('Nama', 'tableHeader'), cell('NPM', 'tableHeader')])
+		const expected = Math.round((pageGeometry(DEFAULT_PAGE_SETUP).contentWidth / 2) * 15)
+
+		expect(grid).toEqual([expected, expected])
+		expect(grid[0]).toBeGreaterThan(1000)
+	})
+
+	test('colwidth yang sudah diatur dipakai apa adanya', async () => {
+		const grid = await gridOf([
+			cell('Nama', 'tableHeader', { colwidth: [420] }),
+			cell('NPM', 'tableHeader', { colwidth: [180] }),
+		])
+
+		expect(grid).toEqual([420 * 15, 180 * 15])
+	})
+})
+
+describe('baris baru di dalam satu simpul teks', () => {
+	test('jadi <w:br/>, bukan spasi', async () => {
+		// Word membaca "\n" di dalam <w:t> sebagai spasi biasa, jadi judul sampul
+		// lima baris menyatu jadi satu baris panjang.
+		const doc = buildSchema().nodeFromJSON({
+			type: 'doc',
+			content: [{ type: 'paragraph', content: [{ type: 'text', text: 'PROPOSAL PROYEK\nTUGAS AKHIR' }] }],
+		})
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+			setup: DEFAULT_PAGE_SETUP,
+		})
+		const xml = strFromU8(unzipSync(new Uint8Array(await blob.arrayBuffer()))['word/document.xml'])
+
+		expect(xml).toContain('<w:br/>')
+		expect(xml).toContain('PROPOSAL PROYEK')
+		expect(xml).toContain('TUGAS AKHIR')
+		expect(xml).not.toContain('PROPOSAL PROYEK\nTUGAS AKHIR')
+	})
+})

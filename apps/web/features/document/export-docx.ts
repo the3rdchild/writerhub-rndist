@@ -36,6 +36,43 @@ const px = (value: number) => Math.round(value * TWIPS_PER_PX)
  */
 const DEFAULT_COLUMN_GAP_PX = 24
 
+/**
+ * Lebar tiap kolom tabel dalam piksel dokumen.
+ *
+ * Sumbernya `colwidth` - atribut yang sama yang ditulis `columnResizing` dan
+ * penggaris, jadi tabel yang sudah diatur lebarnya diekspor persis seperti yang
+ * terlihat. Versi DOM-nya ada di `features/editor/table-ops.ts`; di sini
+ * pengukuran DOM tidak bisa dipakai karena ekspor juga melayani tab yang tidak
+ * sedang terbuka.
+ *
+ * Tabel yang belum pernah diubah ukurannya tidak punya `colwidth` sama sekali -
+ * di layar `table-layout: fixed` membaginya rata, jadi di sini pun dibagi rata
+ * atas lebar area teks. Membiarkannya kosong bukan pilihan: `docx` lalu menulis
+ * `<w:gridCol w:w="100"/>` untuk tiap kolom, dan tabelnya keluar setipis satu
+ * huruf.
+ */
+function tableColumnWidths(table: PMNode, contentWidth: number): number[] {
+	const header = table.firstChild
+	const columns: number[] = []
+	let complete = header !== null
+
+	header?.forEach((cell) => {
+		const colwidth = cell.attrs.colwidth as number[] | null | undefined
+		const span = Math.max(1, Number(cell.attrs.colspan) || 1)
+		for (let index = 0; index < span; index += 1) {
+			const value = colwidth?.[index]
+			if (!value) complete = false
+			columns.push(value ?? 0)
+		}
+	})
+
+	if (columns.length === 0) return [contentWidth]
+	if (complete) return columns
+
+	const even = contentWidth / columns.length
+	return columns.map(() => even)
+}
+
 type Marks = { bold?: boolean; italics?: boolean; underline?: object; strike?: boolean }
 
 function marksOf(node: PMNode): Marks {
@@ -120,7 +157,16 @@ export async function exportDocx(
 		const runs: InstanceType<typeof TextRun>[] = []
 		node.forEach((child) => {
 			if (child.isText && child.text) {
-				runs.push(new TextRun({ text: child.text, ...marksOf(child) }))
+				// Baris baru di DALAM satu simpul teks - datang dari tempel Markdown
+				// dan impor DOCX - tidak punya arti apa pun di `<w:t>`: Word
+				// membacanya sebagai spasi biasa, jadi lima baris judul sampul
+				// menyatu jadi satu baris panjang. Dipecah jadi `<w:br/>`, sama
+				// seperti hardBreak.
+				const marks = marksOf(child)
+				child.text.split('\n').forEach((piece, index) => {
+					if (index > 0) runs.push(new TextRun({ break: 1 }))
+					if (piece) runs.push(new TextRun({ text: piece, ...marks }))
+				})
 			} else if (child.type.name === 'hardBreak') {
 				runs.push(new TextRun({ break: 1 }))
 			}
@@ -149,25 +195,57 @@ export async function exportDocx(
 		})
 	}
 
-	const cellOf = (cell: PMNode) => {
+	const cellOf = (cell: PMNode, width?: number) => {
 		const children: InstanceType<typeof Paragraph>[] = []
 		cell.forEach((block) => {
 			if (block.isTextblock) children.push(paragraphOf(block))
 		})
 		// Sel kosong tetap butuh satu paragraf; Word menolak sel tanpa isi.
 		if (children.length === 0) children.push(new Paragraph({}))
-		return new TableCell({ children })
+
+		return new TableCell({
+			children,
+			...(width && width > 0
+				? {
+						width: { size: px(width), type: WidthType.DXA },
+						columnSpan: Math.max(1, Number(cell.attrs.colspan) || 1),
+					}
+				: {}),
+		})
 	}
 
+	/**
+	 * Lebar area teks section yang sedang dirakit - dasar pembagian kolom tabel
+	 * yang belum pernah diatur lebarnya. Diperbarui perulangan section di bawah.
+	 */
+	let sectionContentWidth = geometry.contentWidth
+
 	const tableOf = (node: PMNode) => {
+		const widths = tableColumnWidths(node, sectionContentWidth)
+
 		const rows: InstanceType<typeof TableRow>[] = []
 		node.forEach((row) => {
 			const cells: InstanceType<typeof TableCell>[] = []
-			row.forEach((cell) => cells.push(cellOf(cell)))
+			let column = 0
+			row.forEach((cell) => {
+				const span = Math.max(1, Number(cell.attrs.colspan) || 1)
+				// Lebar ditulis di selnya juga, bukan hanya di tblGrid: sebagian
+				// pembaca (Google Docs di antaranya) memakai `w:tcW` saat menata
+				// ulang, dan tanpa itu kolomnya menyempit ke lebar isi terpendek.
+				const width = widths.slice(column, column + span).reduce((sum, value) => sum + value, 0)
+				cells.push(cellOf(cell, width))
+				column += span
+			})
 			if (cells.length > 0) rows.push(new TableRow({ children: cells }))
 		})
 
-		return new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE } })
+		return new Table({
+			rows,
+			width: { size: 100, type: WidthType.PERCENTAGE },
+			// Tanpa ini `docx` menulis `<w:gridCol w:w="100"/>` untuk tiap kolom -
+			// 100 twip, sekitar 1,8 mm - dan tabelnya keluar setipis satu huruf.
+			columnWidths: widths.map(px),
+		})
 	}
 
 	/** Satu blok tingkat atas jadi satu (atau beberapa) elemen Word. */
@@ -314,11 +392,20 @@ export async function exportDocx(
 	let current: unknown[] = []
 	let spanIndex = 0
 
+	const contentWidthOf = (span: SectionSpan | undefined) =>
+		span ? pageGeometry(span.setup).contentWidth : geometry.contentWidth
+
+	sectionContentWidth = contentWidthOf(spans[0])
+
 	root.forEach((node) => {
 		if (node.type.name === SECTION_BREAK_NODE && spans.length > 0) {
 			sections.push({ properties: sectionProperties(spans[spanIndex] ?? null), children: current })
 			spanIndex += 1
 			current = []
+			// Tabel di section berikutnya dibagi atas lebar area teks SECTION ITU -
+			// section lanskap punya area teks jauh lebih lebar, dan tabel yang
+			// dibagi memakai angka section sebelumnya akan menyempit tanpa alasan.
+			sectionContentWidth = contentWidthOf(spans[spanIndex])
 			return
 		}
 		current.push(...blockOf(node))
