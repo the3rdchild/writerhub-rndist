@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { Schema } from '@tiptap/pm/model'
 import { DEFAULT_PAGE_SETUP, INCH } from './page-geometry'
-import { sectionSpans } from './section-break'
+import { columnRegions, sectionSpans } from './section-break'
 
 /**
  * Rentang section diuji tanpa editor: cukup skema minimal berisi paragraph dan
@@ -71,5 +71,32 @@ describe('sectionSpans (§P8&P9)', () => {
 
 		expect(spans[0].columns).toBeNull()
 		expect(spans[1].columns).toEqual({ count: 2 })
+	})
+})
+
+
+describe('columnRegions (§P8)', () => {
+	test('rentang mulai sesudah pembatasnya dan berakhir di pembatas berikutnya', () => {
+		const doc = docWith({ columns: { count: 2 } }, { pageSetup: { orientation: 'landscape' } })
+		const regions = columnRegions(doc)
+
+		expect(regions).toHaveLength(1)
+		// Pembatas pertama di pos 2 (paragraf pertama nodeSize 2), atomik (nodeSize 1).
+		expect(regions[0].from).toBe(3)
+		// Pembatas kedua mengakhiri rentang walau section-nya tidak berkolom.
+		expect(regions[0].to).toBe(5)
+	})
+
+	test('section tanpa columns tidak menghasilkan rentang', () => {
+		expect(columnRegions(docWith({ pageSetup: { orientation: 'landscape' } }))).toHaveLength(0)
+		expect(columnRegions(docWith({ columns: { count: 1 } }))).toHaveLength(0)
+	})
+
+	test('rentang terakhir berakhir di ujung dokumen', () => {
+		const doc = docWith({ columns: { count: 3 } })
+		const regions = columnRegions(doc)
+
+		expect(regions).toHaveLength(1)
+		expect(regions[0].to).toBe(doc.content.size)
 	})
 })

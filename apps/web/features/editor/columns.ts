@@ -2,8 +2,18 @@ import { Extension, mergeAttributes, Node } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
-import type { PageGeometry } from './page-geometry'
-import { paginationKey, repeatedHeader, rowSpacer, SELF_PAGINATE_ATTRIBUTE, SPACER_ATTRIBUTE, type Spacer } from './pagination'
+import { type PageGeometry, pageGeometry } from './page-geometry'
+import {
+	paginationKey,
+	REGION_SHEET_GAP_ATTRIBUTE,
+	REGION_SPACE_ATTRIBUTE,
+	repeatedHeader,
+	rowSpacer,
+	SELF_PAGINATE_ATTRIBUTE,
+	SPACER_ATTRIBUTE,
+	type Spacer,
+} from './pagination'
+import { columnRegions } from './section-break'
 
 /**
  * Kolom gaya koran - teks terpilih mengalir dan berimbang sendiri antar kolom.
@@ -255,6 +265,13 @@ export interface ColumnFrame {
 	 * dianggap rata: lebar `columnWidth`, berjajar mulai dari tepi kiri.
 	 */
 	columns?: readonly { left: number; width: number }[]
+	/**
+	 * Puncak area teks lembar PERTAMA region ini pada koordinat render (§P8).
+	 * Section yang tidak mulai di puncak dokumen punya batas lembar yang tidak
+	 * berlabuh di nol; tanpa nilai ini seluruh batas lembar dihitung dari
+	 * kelipatan `pageStride` seperti biasa.
+	 */
+	sheetOrigin?: number
 }
 
 /**
@@ -347,19 +364,19 @@ export interface ColumnFlow {
  */
 export function flowColumns(
 	items: readonly ColumnItem[],
-	{ top, count, columnWidth, columnGap, columns }: ColumnFrame,
+	{ top, count, columnWidth, columnGap, columns, sheetOrigin = 0 }: ColumnFrame,
 	{ contentHeight, pageStride }: Pick<PageGeometry, 'contentHeight' | 'pageStride'>,
 ): ColumnFlow {
 	if (items.length === 0 || count < 1 || contentHeight <= 0) {
 		return { placements: [], height: 0, sheetGap: 0 }
 	}
 
-	const sheetTop = (page: number) => page * pageStride
-	const sheetBottom = (page: number) => page * pageStride + contentHeight
+	const sheetTop = (page: number) => sheetOrigin + page * pageStride
+	const sheetBottom = (page: number) => sheetOrigin + page * pageStride + contentHeight
 
 	// Lembar tempat pembungkus mendarat. Bila ia jatuh di celah antar lembar -
 	// blok raksasa sebelumnya meluber ke sana - isinya mulai di lembar berikutnya.
-	let page = Math.max(0, Math.floor(top / pageStride))
+	let page = Math.max(0, Math.floor((top - sheetOrigin) / pageStride))
 	if (top >= sheetBottom(page)) page += 1
 
 	const firstPage = page
@@ -458,11 +475,13 @@ export function flowColumns(
 			const item = items[index + offsetIndex]
 			const slot: (typeof slots)[number] = { page, column, top: base + offset, height: item.height }
 			if (giant && item.table) {
-				const cut = cutTableRows(item.table, slot.top, page, { contentHeight, pageStride })
+				// cutTableRows menghitung batas lembar dari nol; geser ke kerangka
+				// origin region ini lalu geser balik hasilnya (§P8).
+				const cut = cutTableRows(item.table, slot.top - sheetOrigin, page, { contentHeight, pageStride })
 				// Tinggi efektifnya memanjang oleh pengganjal dan salinan header.
-				slot.height = cut.bottom - slot.top
+				slot.height = cut.bottom + sheetOrigin - slot.top
 				if (cut.cuts.length > 0) slot.cuts = cut.cuts
-				blockedUntil[column] = cut.bottom
+				blockedUntil[column] = cut.bottom + sheetOrigin
 			}
 			slots.push(slot)
 		}
@@ -678,6 +697,8 @@ export interface ColumnsPlan {
 	nodeSize: number
 	height: number
 	sheetGap: number
+	/** true = rentang section berkolom (§P8); tidak ada node pembungkus. */
+	region?: boolean
 	items: {
 		pos: number
 		nodeSize: number
@@ -801,6 +822,11 @@ function measureTableItem(view: EditorView, table: PMNode, tablePos: number, dom
  * punya hubungan sesederhana itu dengan batas lembar. Yang bersarang dibiarkan
  * memakai multi-kolom CSS biasa.
  *
+ * Dua bentuk kolom ditangani di sini: blok `columns` (pembungkus nyata) dan
+ * RENTANG section berkolom (§P8) yang tidak punya pembungkus - bingkai rentang
+ * dibaca dari elemen pengganjal ruangnya (lihat `regionSpaceElement`), atau
+ * dari blok pertamanya selagi pengganjal itu belum ada.
+ *
  * Selain rencana tata letak, dikembalikan juga elemen tiap blok anak: begitu
  * mereka diposisikan mutlak, tinggi mereka tidak lagi terbaca dari ukuran akar
  * editor, jadi merekalah yang harus diamati langsung (lihat `watch` di plugin).
@@ -812,7 +838,34 @@ function measureColumns(
 	const plans: ColumnsPlan[] = []
 	const elements: HTMLElement[] = []
 
+	// Rentang section berkolom; blok di dalamnya bukan milik pembungkus mana pun.
+	const setup = paginationKey.getState(view.state)?.setup
+	const regions = setup ? columnRegions(view.state.doc, setup) : []
+	/** Isi tiap rentang, sejajar dengan `regions`. */
+	const regionItems = regions.map(() => ({ items: [] as ColumnItem[], sizes: [] as number[] }))
+
 	view.state.doc.forEach((node, offset) => {
+		const regionIndex = regions.findIndex((region) => offset >= region.from && offset < region.to)
+		if (regionIndex >= 0) {
+			const element = view.nodeDOM(offset)
+			if (element instanceof HTMLElement) {
+				elements.push(element)
+				regionItems[regionIndex].items.push(
+					node.type.name === 'table'
+						? measureTableItem(view, node, offset, element)
+						: {
+								pos: offset,
+								height: element.offsetHeight,
+								...blockMargins(element),
+								keepWithNext: KEEP_WITH_NEXT.has(node.type.name),
+								span: element.classList.contains('columns-span') || undefined,
+							},
+				)
+				regionItems[regionIndex].sizes.push(node.nodeSize)
+			}
+			return
+		}
+
 		if (node.type.name !== COLUMNS_NODE) return
 
 		const dom = view.nodeDOM(offset)
@@ -884,6 +937,76 @@ function measureColumns(
 		})
 	})
 
+	// Rentang section berkolom (§P8): sama seperti pembungkus, tapi bingkainya
+	// adalah pengganjal ruang - dan geometri lembarnya milik section-nya sendiri,
+	// bukan geometri dasar.
+	regions.forEach((region, regionIndex) => {
+		const { items, sizes } = regionItems[regionIndex]
+		if (items.length === 0) return
+
+		const columns = region.span.columns
+		if (!columns) return
+		const count = Math.max(MIN_COLUMNS, columns.count)
+		const columnGap = typeof columns.gap === 'number' ? columns.gap : FALLBACK_COLUMN_GAP
+
+		// Bingkai rentang. Pengganjal ruang menjaga ruang aliran rentang dan tidak
+		// pernah menyempit, jadi ukurannya stabil; sebelum ia ada (putaran pertama)
+		// blok pertama masih mengalir alami dan bisa dijadikan acuan.
+		const placeholder = view.dom.querySelector(`[${REGION_SPACE_ATTRIBUTE}="${region.from}"]`)
+		const anchor =
+			placeholder instanceof HTMLElement
+				? placeholder
+				: (() => {
+						const first = view.nodeDOM(region.from)
+						return first instanceof HTMLElement ? first : null
+					})()
+		if (!anchor) return
+
+		const top = anchor.offsetTop
+		const left = anchor.offsetLeft
+		const width = anchor.offsetWidth
+		const parent = anchor.offsetParent
+		const parentWidth = parent instanceof HTMLElement ? parent.clientWidth : left + width
+		if (!(width > 0)) return
+
+		const slots = resolveColumnSlots(width, count, columnGap, null)
+		if (slots.length === 0) return
+
+		const flow = flowColumns(
+			items,
+			{
+				top,
+				count,
+				columnWidth: slots[0].width,
+				columnGap,
+				columns: slots,
+				// Section ini mulai di tengah dokumen: batas lembarnya berlabuh di
+				// puncak lembar pertamanya, bukan di nol.
+				sheetOrigin: top,
+			},
+			pageGeometry(region.span.setup),
+		)
+
+		plans.push({
+			pos: region.from,
+			nodeSize: 0,
+			height: flow.height,
+			sheetGap: flow.sheetGap,
+			region: true,
+			items: flow.placements.map((placement, i) => ({
+				pos: placement.pos,
+				nodeSize: sizes[i],
+				top: top + placement.top - items[i].marginTop,
+				left: placement.span ? left : left + placement.left,
+				right: placement.span
+					? parentWidth - left - width
+					: parentWidth - (left + placement.left) - placement.width,
+				cuts: placement.cuts,
+				span: placement.span || undefined,
+			})),
+		})
+	})
+
 	return { plans, elements }
 }
 
@@ -938,21 +1061,49 @@ function sheetGapElement(plan: ColumnsPlan): HTMLElement {
 	return element
 }
 
+/**
+ * Pengganjal ruang sebuah rentang section berkolom (§P8).
+ *
+ * Rentang section tidak punya node pembungkus yang tingginya bisa diatur, jadi
+ * elemen inilah yang menjaga ruang alirannya: blok-blok rentang diposisikan
+ * mutlak, dan isi sesudah rentang mengalir mulai dari bawahnya. Paginasi
+ * membacanya sebagai satu blok self-paginate lewat atributnya.
+ */
+function regionSpaceElement(plan: ColumnsPlan): HTMLElement {
+	const element = document.createElement('div')
+	element.className = 'columns-region-space'
+	element.style.height = `${Math.round(plan.height)}px`
+	element.setAttribute(REGION_SPACE_ATTRIBUTE, String(plan.pos))
+	element.setAttribute(REGION_SHEET_GAP_ATTRIBUTE, String(Math.round(plan.sheetGap)))
+	element.setAttribute('aria-hidden', 'true')
+	element.contentEditable = 'false'
+	return element
+}
+
 function buildDecorations(doc: PMNode, plans: readonly ColumnsPlan[]): DecorationSet {
 	const decorations: Decoration[] = []
 
 	for (const plan of plans) {
-		decorations.push(
-			// Hanya tinggi yang ditulis inline. Sisanya - termasuk mematikan
-			// `column-count` bawaan node - datang dari kelas `.columns-flowed` di
-			// globals.css: ProseMirror mencabut properti dekorasi dari style inline
-			// saat dekorasinya hilang, dan properti yang juga dimiliki node sendiri
-			// ikut tercabut bersamanya.
-			Decoration.node(plan.pos, plan.pos + plan.nodeSize, {
-				class: 'columns-flowed',
-				style: `height:${Math.round(plan.height)}px`,
-			}),
-		)
+		if (plan.region) {
+			decorations.push(
+				Decoration.widget(plan.pos, () => regionSpaceElement(plan), {
+					side: -1,
+					key: `columns-region-${plan.pos}-${Math.round(plan.height)}`,
+				}),
+			)
+		} else {
+			decorations.push(
+				// Hanya tinggi yang ditulis inline. Sisanya - termasuk mematikan
+				// `column-count` bawaan node - datang dari kelas `.columns-flowed` di
+				// globals.css: ProseMirror mencabut properti dekorasi dari style inline
+				// saat dekorasinya hilang, dan properti yang juga dimiliki node sendiri
+				// ikut tercabut bersamanya.
+				Decoration.node(plan.pos, plan.pos + plan.nodeSize, {
+					class: 'columns-flowed',
+					style: `height:${Math.round(plan.height)}px`,
+				}),
+			)
+		}
 
 		for (const item of plan.items) {
 			decorations.push(
@@ -992,7 +1143,9 @@ function buildDecorations(doc: PMNode, plans: readonly ColumnsPlan[]): Decoratio
 			}
 		}
 
-		if (plan.sheetGap > 0.5) {
+		// Rentang section membawa celahnya pada atribut pengganjal ruangnya
+		// (dibaca paginasi dari sana), bukan sebagai elemen terpisah.
+		if (!plan.region && plan.sheetGap > 0.5) {
 			decorations.push(
 				Decoration.widget(plan.pos + plan.nodeSize - 1, () => sheetGapElement(plan), {
 					side: 1,

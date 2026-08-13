@@ -1053,6 +1053,13 @@ a {
   user-select: none;
   pointer-events: none;
 }
+/* Pengganjal ruang rentang section berkolom (§P8): tak terlihat, tak bisa
+   disunting, hanya menjaga ruang aliran yang ditinggalkan blok-blok rentang
+   yang diposisikan mutlak. */
+.document-body .columns-region-space {
+  user-select: none;
+  pointer-events: none;
+}
 /* Sisa struktur kolom lama - dibiarkan mengalir sebagai blok biasa. */
 .document-body div[data-type='col'] { min-width: 0; }
 
@@ -1708,6 +1715,10 @@ html.light .range-highlight {
     column-span: all;
   }
   .document-body .columns-sheet-gap {
+    display: none !important;
+  }
+  /* Pengganjal rentang section juga hanya penjaga ruang layar. */
+  .document-body .columns-region-space {
     display: none !important;
   }
 

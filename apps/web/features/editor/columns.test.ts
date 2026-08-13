@@ -547,3 +547,48 @@ describe('geometri kolom dari atribut (§P5)', () => {
 		})
 	})
 })
+
+describe('batas lembar berlabuh di sheetOrigin (§P8)', () => {
+	// Section yang mulai di tengah dokumen: lembar pertamanya di y=3500, dengan
+	// geometri lanskap (area teks 602, stride 826).
+	const geo = { contentHeight: 602, pageStride: 826 }
+
+	test('kolom terisi dari lembar pertama section, bukan dari kelipatan stride', () => {
+		const frame = { top: 3500, count: 2, columnWidth: 300, columnGap: 24 }
+		const withOrigin = flowColumns(blocks([500, 500]), { ...frame, sheetOrigin: 3500 }, geo)
+		expect(withOrigin.placements.map((placement) => placement.top)).toEqual([0, 0])
+
+		// Tanpa origin, 3500 bukan puncak lembar mana pun: sisa 406px di lembar
+		// itu tidak muat, dan kedua blok jatuh ke lembar berikutnya.
+		const withoutOrigin = flowColumns(blocks([500, 500]), frame, geo)
+		expect(withoutOrigin.placements[0].top).toBeGreaterThan(0)
+	})
+
+	test('celah antar lembar section terhitung dari origin yang sama', () => {
+		const { sheetGap } = flowColumns(blocks([500, 500, 500]), {
+			top: 3500,
+			count: 2,
+			columnWidth: 300,
+			columnGap: 24,
+			sheetOrigin: 3500,
+		}, geo)
+
+		expect(sheetGap).toBe(826 - 602)
+	})
+
+	test('tabel terpenggal di batas lembar section', () => {
+		const items = [tableItem(Array.from({ length: 12 }, () => 100))]
+		const { placements } = flowColumns(items, {
+			top: 3500,
+			count: 2,
+			columnWidth: 300,
+			columnGap: 24,
+			sheetOrigin: 3500,
+		}, geo)
+
+		// 6 baris muat di lembar pertama (602); baris ke-7 disodok ke lembar kedua.
+		expect(placements[0].cuts).toHaveLength(1)
+		expect(placements[0].cuts?.[0].pos).toBe(items[0].table?.rows[6].pos)
+		expect(placements[0].cuts?.[0].spacerHeight).toBeCloseTo(826 - 600)
+	})
+})

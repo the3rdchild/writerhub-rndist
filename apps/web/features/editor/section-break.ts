@@ -132,3 +132,38 @@ export function sectionSpans(doc: PMNode, baseSetup: PageSetup = DEFAULT_PAGE_SE
 
 	return spans
 }
+
+/** Rentang dokumen yang ditata berkolom oleh section-nya (§P8). */
+export interface ColumnRegion {
+	/** Posisi blok pertama sesudah pembatas section-nya. */
+	from: number
+	/** Posisi pembatas section berikutnya, atau ujung dokumen. */
+	to: number
+	span: SectionSpan
+}
+
+/**
+ * Rentang-rentang section berkolom sebuah dokumen. Dipakai dua plugin sekaligus:
+ * tata letak kolom menata isi rentangnya, dan paginasi memperlakukan tiap
+ * rentang sebagai satu blok self-paginate supaya tidak mendorong isinya satu
+ * per satu. Dihitung dari satu `sectionSpans`, jadi keduanya selalu sepakat.
+ */
+export function columnRegions(doc: PMNode, baseSetup: PageSetup = DEFAULT_PAGE_SETUP): ColumnRegion[] {
+	const spans = sectionSpans(doc, baseSetup)
+	const regions: ColumnRegion[] = []
+
+	spans.forEach((span, index) => {
+		if (index === 0) return
+		if (!span.columns || span.columns.count < 2) return
+
+		const breakNode = doc.nodeAt(span.pos)
+		if (!breakNode) return
+		regions.push({
+			from: span.pos + breakNode.nodeSize,
+			to: spans[index + 1]?.pos ?? doc.content.size,
+			span,
+		})
+	})
+
+	return regions
+}

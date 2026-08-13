@@ -10,7 +10,7 @@ import {
 	type PageSetup,
 	type SheetGeometry,
 } from './page-geometry'
-import { SECTION_BREAK_NODE, sectionSpans } from './section-break'
+import { SECTION_BREAK_NODE, columnRegions, sectionSpans } from './section-break'
 
 export const paginationKey = new PluginKey<PaginationState>('pagination')
 
@@ -127,8 +127,40 @@ function measureBlocks(view: EditorView): Measurement[] {
 	const measurements: Measurement[] = []
 	let cumulative = 0
 
+	// Rentang section berkolom (§P8): isinya tidak boleh didorong satu per satu -
+	// tata letak kolomlah yang menempatkannya. Tiap rentang dibaca sebagai satu
+	// blok self-paginate dari pengganjal ruangnya, sejajar dengan blok `columns`.
+	const setup = paginationKey.getState(view.state)?.setup
+	const regions = setup ? columnRegions(view.state.doc, setup) : []
+
 	view.state.doc.forEach((node, offset) => {
 		cumulative += inserted.get(offset) ?? 0
+
+		const region = regions.find((entry) => offset >= entry.from && offset < entry.to)
+		if (region) {
+			if (offset !== region.from) return
+
+			const placeholder = view.dom.querySelector(`[${REGION_SPACE_ATTRIBUTE}="${region.from}"]`)
+			if (placeholder instanceof HTMLElement) {
+				const top = placeholder.offsetTop - cumulative
+				// Celah antar lembar yang dilompati tata letak kolomnya, sejajar
+				// dengan `internal` pada blok self-paginate lainnya.
+				const internal = Number(placeholder.getAttribute(REGION_SHEET_GAP_ATTRIBUTE)) || 0
+				cumulative += internal
+				measurements.push({
+					pos: offset,
+					top,
+					bottom: top + placeholder.offsetHeight,
+					isBreak: false,
+					kind: 'block',
+					selfPaginate: true,
+					internal,
+				})
+				return
+			}
+			// Tata letak kolomnya belum berjalan: blok rentang diukur apa adanya
+			// dalam aliran alami, dan pengukuran berikutnya yang menyusunnya ulang.
+		}
 
 		const dom = view.nodeDOM(offset)
 		if (!(dom instanceof HTMLElement)) return
@@ -246,6 +278,17 @@ function measureTable(
 
 /** Penanda pada tiap elemen sisipan, supaya tingginya bisa dibaca balik dari DOM. */
 export const SPACER_ATTRIBUTE = 'data-spacer-for'
+
+/**
+ * Penanda pengganjal ruang sebuah rentang section berkolom (§P8), dengan nilai
+ * posisi blok pertama rentangnya. Rentang section tidak punya node pembungkus,
+ * jadi paginasi membaca elemen ini sebagai pengganti pembungkus: satu blok
+ * self-paginate yang tingginya menjaga ruang aliran rentang.
+ */
+export const REGION_SPACE_ATTRIBUTE = 'data-columns-region'
+
+/** Celah antar lembar yang dilompati rentang kolom, dibaca paginasi sebagai `internal`. */
+export const REGION_SHEET_GAP_ATTRIBUTE = 'data-sheet-gap'
 
 /**
  * Penanda blok yang memenggal dirinya sendiri (blok TOC). Node view-nya
