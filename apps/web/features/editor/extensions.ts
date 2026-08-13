@@ -60,6 +60,7 @@ export function buildEditorExtensions({
 	setup,
 	onPageCountChange,
 	onSheetsChange,
+	onSectionsChange,
 	collaboration,
 	slashCommand,
 }: {
@@ -69,6 +70,7 @@ export function buildEditorExtensions({
 	onPageCountChange?: (pageCount: number) => void
 	/** Daftar lembar berubah (geometri tak seragam); dibaca kanvas. */
 	onSheetsChange?: (sheets: SheetGeometry[]) => void
+	onSectionsChange?: (setups: PageSetup[]) => void
 	/**
 	 * Ikatan ke Y.Doc. Diisi editor sungguhan; dibiarkan kosong oleh editor
 	 * sementara yang hanya perlu skemanya.
@@ -162,7 +164,7 @@ export function buildEditorExtensions({
 		SearchAndReplace,
 		TrailingParagraph,
 		TocBlock.extend({ addNodeView: () => TocBlockNodeView }),
-		Pagination.configure({ geometry, setup, onPageCountChange, onSheetsChange }),
+		Pagination.configure({ geometry, setup, onPageCountChange, onSheetsChange, onSectionsChange }),
 		// Menu slash hanya untuk editor sungguhan.
 		...(slashCommand
 			? [SlashCommand.configure({ onOpen: slashCommand.onOpen, onUpdate: slashCommand.onUpdate, onClose: slashCommand.onClose })]

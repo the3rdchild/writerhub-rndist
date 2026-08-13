@@ -87,6 +87,8 @@ interface PaginationState {
 	marginAdjustments: MarginAdjustment[]
 	/** Blok tingkat atas → lembar tempat ia mulai; dibaca dialog Penyiapan halaman. */
 	blockPages: BlockPage[]
+	/** Blok tingkat atas → section-nya; jadi kelas penanda untuk `@page` bernama. */
+	blockSections: { pos: number; section: number }[]
 	/** true = kanvas menerus; pemenggalan halaman dimatikan (§A1.5). */
 	pageless: boolean
 }
@@ -98,6 +100,11 @@ export interface PaginationOptions {
 	onPageCountChange?: (pageCount: number) => void
 	/** Dipanggil bila daftar lembar berubah - kanvas menggambar ulang latar. */
 	onSheetsChange?: (sheets: SheetGeometry[]) => void
+	/**
+	 * Dipanggil bila daftar setelan section berubah - kanvas menyuntikkan aturan
+	 * `@page` bernama untuknya (cetak per-section, §P8&P9).
+	 */
+	onSectionsChange?: (setups: PageSetup[]) => void
 	/** true = mode pageless; plugin jadi no-op (tanpa spacer). */
 	pageless?: boolean
 }
@@ -109,6 +116,7 @@ export interface PaginationMeta {
 	sheets?: SheetGeometry[]
 	marginAdjustments?: MarginAdjustment[]
 	blockPages?: BlockPage[]
+	blockSections?: { pos: number; section: number }[]
 	geometry?: PageGeometry
 	setup?: PageSetup
 	pageless?: boolean
@@ -621,6 +629,41 @@ export function marginAdjustments(
 	return adjustments
 }
 
+/**
+ * Section ke berapa tiap blok tingkat atas berada.
+ *
+ * Dipakai aturan cetak: `@page` tidak bisa berbeda per halaman tanpa NAMED
+ * PAGES, dan named page ditempelkan ke blok lewat properti `page`. Jadi tiap
+ * blok perlu tahu section-nya, bukan sekadar lembar-nya - lembar adalah hasil
+ * pemenggalan peramban saat mencetak, dan kita tidak menentukannya di sana.
+ *
+ * Berbeda dari `marginAdjustments` yang melewati blok tanpa penyesuaian: di
+ * sini setiap blok harus punya jawaban, termasuk yang berada di section dasar.
+ */
+export function blockSections(
+	blockPositions: readonly number[],
+	sectionPositions: readonly number[],
+): { pos: number; section: number }[] {
+	return blockPositions.map((pos) => {
+		let section = 0
+		for (const [index, start] of sectionPositions.entries()) {
+			if (start > pos) break
+			section = index
+		}
+		return { pos, section }
+	})
+}
+
+function sameBlockSections(
+	a: readonly { pos: number; section: number }[],
+	b: readonly { pos: number; section: number }[],
+): boolean {
+	return (
+		a.length === b.length &&
+		a.every((entry, index) => entry.pos === b[index].pos && entry.section === b[index].section)
+	)
+}
+
 function sameAdjustments(a: readonly MarginAdjustment[], b: readonly MarginAdjustment[]): boolean {
 	return (
 		a.length === b.length &&
@@ -635,8 +678,22 @@ function buildDecorations(
 	doc: PMNode,
 	spacers: readonly Spacer[],
 	adjustments: readonly MarginAdjustment[] = [],
+	sections: readonly { pos: number; section: number }[] = [],
 ): DecorationSet {
 	const decorations: Decoration[] = []
+
+	// Kelas penanda section, dibaca aturan `@page` bernama saat mencetak. Hanya
+	// kelas: gaya angkanya disuntikkan document-canvas.tsx, sebab `@page` tidak
+	// menerima custom property dan ukurannya milik naskah.
+	for (const entry of sections) {
+		const node = doc.nodeAt(entry.pos)
+		if (!node) continue
+		decorations.push(
+			Decoration.node(entry.pos, entry.pos + node.nodeSize, {
+				class: `document-section-${entry.section}`,
+			}),
+		)
+	}
 
 	// Geser margin horizontal blok pada section yang berbeda dari dasar (§P8&P9).
 	// Hanya margin: kelas dan properti lain milik dekorasi lain tidak diusik.
@@ -766,7 +823,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 	},
 
 	addProseMirrorPlugins() {
-		const { geometry, onPageCountChange, onSheetsChange } = this.options
+		const { geometry, onPageCountChange, onSheetsChange, onSectionsChange } = this.options
 
 		return [
 			new Plugin<PaginationState>({
@@ -782,6 +839,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 						sheets: [],
 						marginAdjustments: [],
 						blockPages: [],
+						blockSections: [],
 						pageless: this.options.pageless ?? false,
 					}),
 
@@ -820,10 +878,12 @@ export const Pagination = Extension.create<PaginationOptions>({
 								sheets: incoming.sheets ?? current.sheets,
 								marginAdjustments: incoming.marginAdjustments ?? current.marginAdjustments,
 								blockPages: incoming.blockPages ?? current.blockPages,
+								blockSections: incoming.blockSections ?? current.blockSections,
 								decorations: buildDecorations(
 									newState.doc,
 									incoming.spacers,
 									incoming.marginAdjustments ?? current.marginAdjustments,
+									incoming.blockSections ?? current.blockSections,
 								),
 							}
 						}
@@ -893,6 +953,17 @@ export const Pagination = Extension.create<PaginationOptions>({
 								)
 							: []
 
+						// Section tiap blok - jadi kelas penanda `document-section-N`, yang
+						// dibaca aturan `@page` bernama saat mencetak (§P8&P9). Dokumen
+						// tanpa pembatas section tidak perlu penanda apa pun.
+						const sectionsOfBlocks =
+							spans.length > 1
+								? blockSections(
+										blocks.filter((block) => block.kind === 'block').map((block) => block.pos),
+										spans.map((span) => span.pos),
+									)
+								: []
+
 						// Koordinat alami stabil, jadi perhitungan kedua atas dokumen yang
 						// sama menghasilkan spacer identik - di sinilah loop berhenti.
 						if (
@@ -902,7 +973,8 @@ export const Pagination = Extension.create<PaginationOptions>({
 							// Menambah paragraf di tengah halaman tidak mengubah spacer mana
 							// pun, tapi menggeser peta blok→halaman - dan dialog "halaman ini"
 							// membaca peta itu, jadi ia tidak boleh basi.
-							!sameBlockPages(blockPages, state.blockPages)
+							!sameBlockPages(blockPages, state.blockPages) ||
+							!sameBlockSections(sectionsOfBlocks, state.blockSections)
 						) {
 							const transaction = view.state.tr.setMeta(paginationKey, {
 								spacers,
@@ -910,6 +982,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 								sheets,
 								marginAdjustments: adjustments,
 								blockPages,
+								blockSections: sectionsOfBlocks,
 							})
 							transaction.setMeta('addToHistory', false)
 							view.dispatch(transaction)
@@ -922,6 +995,10 @@ export const Pagination = Extension.create<PaginationOptions>({
 
 						if (!sameSheets(sheets, state.sheets)) {
 							onSheetsChange?.(sheets)
+							// Setelan section ikut dilaporkan di sini: setiap perubahan
+							// section pasti mengubah daftar lembar (pembatasnya selalu
+							// membuka lembar baru), jadi tidak perlu pemicu kedua.
+							onSectionsChange?.(spans.map((span) => span.setup))
 						}
 					}
 

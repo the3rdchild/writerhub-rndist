@@ -37,6 +37,7 @@ export function TiptapEditor({
 	pageless = false,
 	onPageCountChange,
 	onSheetsChange,
+	onSectionsChange,
 }: {
 	containerRef: React.RefObject<HTMLDivElement | null>
 	onReady?: (editor: Editor | null) => void
@@ -48,6 +49,7 @@ export function TiptapEditor({
 	onPageCountChange?: (pageCount: number) => void
 	/** Daftar lembar berubah; kanvas menggambar ulang latar (§P8&P9). */
 	onSheetsChange?: (sheets: SheetGeometry[]) => void
+	onSectionsChange?: (setups: PageSetup[]) => void
 }) {
 	const { state, dispatch } = useDocument()
 	const { settings } = useSettings()
@@ -65,6 +67,8 @@ export function TiptapEditor({
 	pageCountRef.current = onPageCountChange
 	const sheetsRef = useRef(onSheetsChange)
 	sheetsRef.current = onSheetsChange
+	const sectionsRef = useRef(onSectionsChange)
+	sectionsRef.current = onSectionsChange
 
 	/**
 	 * Perubahan yang berasal dari editor sendiri tidak boleh dipantulkan balik
@@ -90,6 +94,7 @@ export function TiptapEditor({
 				setup,
 				onPageCountChange: (pageCount) => pageCountRef.current?.(pageCount),
 				onSheetsChange: (sheets) => sheetsRef.current?.(sheets),
+					onSectionsChange: (setups) => sectionsRef.current?.(setups),
 				collaboration: activeId ? { document: doc, field: activeId } : null,
 				slashCommand: {
 					onOpen: (s) => slashStateRef.current(s),

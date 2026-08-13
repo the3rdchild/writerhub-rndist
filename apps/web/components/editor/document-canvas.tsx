@@ -4,7 +4,12 @@ import type { Editor } from '@tiptap/react'
 import { useMemo, useState } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { useSessions } from '@/features/sessions/session-context'
-import { pageGeometry, type PageMargins, type SheetGeometry } from '@/features/editor/page-geometry'
+import {
+	pageGeometry,
+	type PageMargins,
+	type PageSetup,
+	type SheetGeometry,
+} from '@/features/editor/page-geometry'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
@@ -36,6 +41,37 @@ const CODE_BLOCK_MIN_HEIGHT = 120
 /** Piksel 96 dpi → milimeter, dibulatkan 2 desimal untuk aturan `@page`. */
 const mm = (px: number) => Math.round((px / 96) * 25.4 * 100) / 100
 
+/** Satu aturan `@page`: ukuran kertas dan margin sebuah setelan halaman. */
+function pageRuleBody(setup: PageSetup): string {
+	const { width, height, margins } = pageGeometry(setup)
+	return `size: ${mm(width)}mm ${mm(height)}mm; margin: ${mm(margins.top)}mm ${mm(margins.right)}mm ${mm(margins.bottom)}mm ${mm(margins.left)}mm;`
+}
+
+/**
+ * Aturan `@page` untuk mencetak, termasuk NAMED PAGES per section (§P8&P9).
+ *
+ * Satu `@page` tanpa nama tidak bisa membedakan ukuran antar bagian dokumen -
+ * lampiran lanskap akan tercetak potret. Named page bisa: tiap section
+ * mendapat `@page secN`, dan tiap blok miliknya menunjuk ke sana lewat properti
+ * `page` (kelas penandanya dipasang plugin paginasi). Peramban yang belum
+ * mendukungnya mengabaikan nama itu dan jatuh ke `@page` tanpa nama di bawah -
+ * hasilnya sama seperti sebelum fitur ini ada, bukan rusak.
+ *
+ * Section pertama sengaja tidak diberi nama: ia memakai `@page` polos, sehingga
+ * dokumen tanpa pembatas section menghasilkan CSS yang persis seperti dulu.
+ */
+function printPageRules(base: PageSetup, sections: readonly PageSetup[]): string {
+	const rules = [`@page { ${pageRuleBody(base)} }`]
+
+	sections.forEach((setup, index) => {
+		if (index === 0) return
+		rules.push(`@page sec${index} { ${pageRuleBody(setup)} }`)
+		rules.push(`.document-section-${index} { page: sec${index}; }`)
+	})
+
+	return rules.join('\n')
+}
+
 /**
  * Kanvas tempat lembar dokumen berada.
  *
@@ -60,6 +96,11 @@ export function DocumentCanvas({
 	// Lembar hasil perhitungan paginasi; kosong pada bingkai-bingkai pertama.
 	// Dengan section (§P8&P9) lembar boleh berbeda ukuran dan orientasi.
 	const [sheets, setSheets] = useState<SheetGeometry[]>([])
+	/**
+	 * Setelan tiap section, untuk aturan `@page` bernama saat mencetak (§P8&P9).
+	 * Kosong berarti naskah tanpa pembatas section - satu `@page` sudah cukup.
+	 */
+	const [sectionSetups, setSectionSetups] = useState<PageSetup[]>([])
 
 	const geometry = useMemo(() => pageGeometry(setup), [setup])
 	const { width, height, margins, gap, pageStride, contentHeight } = geometry
@@ -123,13 +164,15 @@ export function DocumentCanvas({
 			 * menerus dan peramban yang memenggalnya, jadi hanya `@page` yang bisa
 			 * memberi margin pada halaman KEDUA dan seterusnya.
 			 *
-			 * Batasan yang diketahui: dokumen dengan section berukuran berbeda
-			 * (§P8&P9) tercetak seluruhnya pada ukuran section pertama - CSS baru
-			 * bisa membedakannya lewat named pages, dan dukungannya belum merata.
+			 * Section berukuran berbeda (§P8&P9) memakai NAMED PAGES: tiap section
+			 * dapat `@page secN` sendiri, dan blok miliknya menunjuk ke sana lewat
+			 * properti `page`. Peramban yang belum mendukungnya mengabaikan nama itu
+			 * dan jatuh ke `@page` polos - hasilnya seperti sebelum fitur ini ada,
+			 * bukan rusak. Chrome mendukung penuh; Firefox dan Safari belum
+			 * konsisten pada `@page { size }`, jadi di sana ukuran kertas ikut
+			 * pilihan dialog cetak.
 			 */}
-			{!setup.pageless && (
-				<style media="print">{`@page { size: ${mm(width)}mm ${mm(height)}mm; margin: ${mm(margins.top)}mm ${mm(margins.right)}mm ${mm(margins.bottom)}mm ${mm(margins.left)}mm; }`}</style>
-			)}
+			{!setup.pageless && <style media="print">{printPageRules(setup, sectionSetups)}</style>}
 			<div className="mx-auto" style={{ width: canvasWidth * zoom + leftRulerRoom }}>
 				{settings.showRuler && (
 					// Penggaris ikut menggulung mendatar bersama lembar, tapi menempel di
@@ -272,6 +315,7 @@ export function DocumentCanvas({
 										pageless={setup.pageless}
 										onPageCountChange={setPageCount}
 										onSheetsChange={setSheets}
+										onSectionsChange={setSectionSetups}
 									/>
 								)}
 							</div>

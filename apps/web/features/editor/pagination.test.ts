@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import { DEFAULT_PAGE_SETUP, pageGeometry } from './page-geometry'
-import { computeSpacers, pageBlockRange, pageOfPos, type Measurement } from './pagination'
+import {
+	blockSections,
+	computeSpacers,
+	pageBlockRange,
+	pageOfPos,
+	type Measurement,
+} from './pagination'
 
 /**
  * Aritmetika paginasi diuji tanpa DOM: `computeSpacers` menerima posisi blok
@@ -438,5 +444,35 @@ describe('peta blok→halaman (§P8&P9, cakupan "halaman ini")', () => {
 
 	test('posisi sebelum blok mana pun belum punya halaman', () => {
 		expect(pageOfPos([], 3)).toBeNull()
+	})
+})
+
+describe('peta blok→section (§P8&P9, cetak per-section)', () => {
+	test('blok sebelum pembatas pertama milik section 0', () => {
+		expect(blockSections([0, 5, 12], [0, 8])).toEqual([
+			{ pos: 0, section: 0 },
+			{ pos: 5, section: 0 },
+			{ pos: 12, section: 1 },
+		])
+	})
+
+	test('setiap blok punya jawaban, termasuk yang di section dasar', () => {
+		// Beda dari marginAdjustments yang melewati blok tanpa penyesuaian: aturan
+		// `@page` bernama butuh penanda pada tiap blok, kalau tidak halamannya
+		// diam-diam mewarisi nama section sebelumnya.
+		const sections = blockSections([0, 1, 2], [0])
+		expect(sections).toHaveLength(3)
+		expect(sections.every((entry) => entry.section === 0)).toBe(true)
+	})
+
+	test('pembatas itu sendiri sudah masuk section barunya', () => {
+		// Pembatas tinggal di lembar lama tapi ia PEMBUKA section baru; kalau ia
+		// dihitung milik section lama, halaman pertama section baru kehilangan
+		// namanya.
+		expect(blockSections([8], [0, 8])).toEqual([{ pos: 8, section: 1 }])
+	})
+
+	test('tiga section berurutan terbagi benar', () => {
+		expect(blockSections([1, 9, 20, 31], [0, 8, 30]).map((entry) => entry.section)).toEqual([0, 1, 1, 2])
 	})
 })
