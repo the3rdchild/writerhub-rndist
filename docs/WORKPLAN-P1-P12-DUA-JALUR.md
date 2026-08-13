@@ -280,3 +280,7 @@ Tiga hal yang ditemukan saat mengerjakannya dan layak diingat:
 diperiksa di sini bentuk XML-nya. Berkas contoh tiga section (potret → lanskap bertabel →
 potret dua kolom) dibuat lewat uji `export-docx.test.ts`; buka di Google Docs untuk memastikan
 tampilannya.
+
+**Hasil pemeriksaan pemakai (14 Agustus 2026):** ekspor DOCX dengan satu halaman lanskap
+**benar**. Yang masih rusak - ekspor PDF dan halaman kosong pada blok 3 kolom - pindah ke
+`docs/EXPORT-COLUMNS-PRD.md` (E1–E4) beserta penyebabnya yang sudah ditelusuri.
