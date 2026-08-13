@@ -3,7 +3,7 @@ import type { Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import type { PageGeometry } from './page-geometry'
-import { paginationKey, SELF_PAGINATE_ATTRIBUTE, SPACER_ATTRIBUTE } from './pagination'
+import { paginationKey, repeatedHeader, rowSpacer, SELF_PAGINATE_ATTRIBUTE, SPACER_ATTRIBUTE, type Spacer } from './pagination'
 
 /**
  * Kolom gaya koran - teks terpilih mengalir dan berimbang sendiri antar kolom.
@@ -152,6 +152,42 @@ export interface ColumnItem {
 	marginBottom: number
 	/** Judul: tidak boleh ditinggal sendirian di kaki kolom. */
 	keepWithNext: boolean
+	/**
+	 * Tabel yang diukur per baris (§P4 lapis 2): bila ia terpaksa jadi "blok
+	 * raksasa", pemenggalannya jatuh rapi di antar baris pada batas lembar -
+	 * dengan baris kosong pengganjal dan salinan header - alih-alih dibiarkan
+	 * meluber menembus celah. Tidak ada untuk blok lain: memenggalnya butuh
+	 * memecah node.
+	 */
+	table?: ColumnTable
+}
+
+/** Tabel sebagai deret baris terukur, plus header yang boleh diulang. */
+export interface ColumnTable {
+	/** Baris-barisnya, berurutan; `top` alami relatif terhadap puncak tabel. */
+	rows: readonly { pos: number; top: number; height: number }[]
+	/** Jumlah kolom tabel - untuk merentang sel baris kosong pengganjal. */
+	columns: number
+	/** Baris header yang digambar ulang di puncak tiap potongan lanjutan. */
+	header?: { pos: number; height: number }
+}
+
+/**
+ * Satu pemenggalan tabel di batas lembar, di dalam kolom.
+ *
+ * Baris kosong setinggi `spacerHeight` disisipkan sebelum baris di `pos`,
+ * menyodoknya ke puncak lembar berikutnya - persis `rowSpacer` pada paginasi
+ * biasa, hanya saja di sini "lembar berikutnya" adalah petak kolom yang sama
+ * satu lembar di bawahnya.
+ */
+export interface TableCut {
+	/** Posisi ProseMirror baris pertama SESUDAH potongan. */
+	pos: number
+	spacerHeight: number
+	/** Tinggi salinan header di puncak potongan; 0 bila header tidak diulang. */
+	headerHeight: number
+	headerPos?: number
+	columns: number
 }
 
 /** Bingkai tempat isi dialirkan: di mana blok kolom mulai, dan sebesar apa. */
@@ -169,6 +205,8 @@ export interface ColumnPlacement {
 	top: number
 	/** Tepi kiri kolom, relatif terhadap tepi kiri pembungkus. */
 	left: number
+	/** Pemenggalan tabel di batas lembar; hanya ada pada item bertabel. */
+	cuts?: readonly TableCut[]
 }
 
 export interface ColumnFlow {
@@ -198,6 +236,10 @@ export interface ColumnFlow {
  *   dibiarkan meluber, TAPI luberannya dicatat: petak yang masih tertutup
  *   luberan dilewati, supaya tidak ada blok yang digambar menimpa blok lain
  *   (§P4 lapis 1). Tinggi pembungkus dan `sheetGap` ikut mencakup luberan itu.
+ * - Pengecualian meluber: TABEL yang jadi blok raksasa dipenggal rapi di antar
+ *   baris pada batas lembar - baris kosong pengganjal menyodok sisanya ke
+ *   puncak lembar berikutnya dan salinan header membuka tiap potongan
+ *   (§P4 lapis 2, lihat `cutTableRows`).
  * - Lembar terakhir diseimbangkan, kalau tidak blok pendek akan menumpuk
  *   seluruh isinya di kolom pertama dan menyisakan kolom kedua kosong.
  */
@@ -223,7 +265,7 @@ export function flowColumns(
 	const regionTop = (sheet: number) => (sheet === firstPage ? firstTop : sheetTop(sheet))
 	const regionHeight = (sheet: number) => sheetBottom(sheet) - regionTop(sheet)
 
-	const slots: { page: number; column: number; top: number }[] = []
+	const slots: { page: number; column: number; top: number; height: number; cuts?: readonly TableCut[] }[] = []
 	/**
 	 * Sampai mana blok raksasa benar-benar meluber di tiap kolom, pada koordinat
 	 * render. Petak yang masih tertutup luberan dilewati atau dipotong puncaknya -
@@ -253,15 +295,32 @@ export function flowColumns(
 				advance()
 				continue
 			}
-			// Satu blok lebih tinggi dari kolom penuh. Memenggalnya butuh memecah
-			// node, jadi ia dibiarkan meluber - tapi luberannya dicatat supaya petak
-			// yang ia tutupi tidak dipakai blok berikutnya.
+			// Satu blok lebih tinggi dari kolom penuh. Tabel dipenggal rapi di
+			// antar baris (lihat cutTableRows); blok lain dibiarkan meluber - tapi
+			// luberannya dicatat supaya petak yang ia tutupi tidak dipakai blok
+			// berikutnya.
 			tops = [0]
 			giant = true
 		}
 
-		for (const offset of tops) slots.push({ page, column, top: base + offset })
-		if (giant) blockedUntil[column] = base + items[index].height
+		for (const [offsetIndex, offset] of tops.entries()) {
+			const item = items[index + offsetIndex]
+			const slot: (typeof slots)[number] = { page, column, top: base + offset, height: item.height }
+			if (!giant) {
+				slots.push(slot)
+				continue
+			}
+			if (item.table) {
+				const cut = cutTableRows(item.table, slot.top, page, { contentHeight, pageStride })
+				// Tinggi efektifnya memanjang oleh pengganjal dan salinan header.
+				slot.height = cut.bottom - slot.top
+				if (cut.cuts.length > 0) slot.cuts = cut.cuts
+				blockedUntil[column] = cut.bottom
+			} else {
+				blockedUntil[column] = slot.top + item.height
+			}
+			slots.push(slot)
+		}
 		index += tops.length
 
 		if (index < items.length) advance()
@@ -282,6 +341,7 @@ export function flowColumns(
 					page: lastPage,
 					column: placement.column,
 					top: base + placement.top,
+					height: items[firstOnLastPage + offset].height,
 				}
 			})
 		}
@@ -290,8 +350,8 @@ export function flowColumns(
 	// Ujung isi pada koordinat render, dari SEMUA penempatan: luberan blok
 	// raksasa bisa berakhir beberapa lembar di depan blok terakhir yang dipasang.
 	let bottom = firstTop
-	for (const [i, item] of items.entries()) {
-		bottom = Math.max(bottom, slots[i].top + item.height)
+	for (const slot of slots) {
+		bottom = Math.max(bottom, slot.top + slot.height)
 	}
 
 	// Lembar yang dilompati dihitung dari ujung isi, bukan dari jumlah
@@ -304,10 +364,71 @@ export function flowColumns(
 			pos: item.pos,
 			top: slots[i].top - top,
 			left: slots[i].column * (columnWidth + columnGap),
+			cuts: slots[i].cuts,
 		})),
 		height: Math.max(0, bottom - top),
 		sheetGap: firstTop - top + sheets * (pageStride - contentHeight),
 	}
+}
+
+/**
+ * Penggal tabel raksasa di antar baris, tepat di batas lembar (§P4 lapis 2).
+ *
+ * Tabel yang lebih tinggi dari kolom penuh tidak bisa pindah ke kolom sebelah -
+ * ia satu elemen DOM, tidak bisa berada di dua tempat sekaligus. Yang bisa
+ * dilakukan adalah memotongnya di dalam kolomnya sendiri: baris-baris mengisi
+ * lembar berjalan, baris kosong pengganjal menyodok sisanya ke puncak lembar
+ * berikutnya (petak kolom yang sama, yang memang sudah dipesan oleh
+ * `blockedUntil`), dan salinan header membuka tiap potongan lanjutan.
+ *
+ * Murni aritmetika atas tinggi baris yang sudah diukur; mengembalikan daftar
+ * potongan untuk digambar sebagai dekorasi, dan ujung tabel pada koordinat
+ * render sesudah semua sisipan.
+ */
+export function cutTableRows(
+	table: ColumnTable,
+	base: number,
+	page: number,
+	{ contentHeight, pageStride }: Pick<PageGeometry, 'contentHeight' | 'pageStride'>,
+): { cuts: TableCut[]; bottom: number } {
+	const sheetTop = (p: number) => p * pageStride
+	const sheetBottom = (p: number) => p * pageStride + contentHeight
+	const headerHeight = table.header?.height ?? 0
+
+	const cuts: TableCut[] = []
+	/** Total pengganjal + salinan header yang sudah tersisip sebelum baris berjalan. */
+	let shift = 0
+	let sheet = page
+
+	for (const row of table.rows) {
+		const top = base + shift + row.top
+		// Baris yang (terdorong luberan baris sebelumnya) sudah berada lembar-lembar
+		// di depan tidak perlu dipotong - cukup susul lembar tempatnya berada.
+		while (top >= sheetTop(sheet + 1) - 0.5) sheet += 1
+		if (top + row.height <= sheetBottom(sheet) + 0.5) continue
+		if (top <= sheetTop(sheet) + 0.5) {
+			// Satu baris saja lebih tinggi dari lembar penuh: memenggalnya butuh
+			// membelah sel, jadi ia dibiarkan meluber - batasan yang sama dengan
+			// baris raksasa pada paginasi biasa.
+			continue
+		}
+
+		const target = sheetTop(sheet + 1)
+		const spacerHeight = target - top
+		cuts.push({
+			pos: row.pos,
+			spacerHeight,
+			headerHeight,
+			headerPos: headerHeight > 0 ? table.header?.pos : undefined,
+			columns: table.columns,
+		})
+		shift += spacerHeight + headerHeight
+		sheet += 1
+	}
+
+	const lastRow = table.rows[table.rows.length - 1]
+	const bottom = lastRow ? base + shift + lastRow.top + lastRow.height : base
+	return { cuts, bottom }
 }
 
 /**
@@ -407,7 +528,7 @@ interface ColumnsPlan {
 	nodeSize: number
 	height: number
 	sheetGap: number
-	items: { pos: number; nodeSize: number; top: number; left: number; right: number }[]
+	items: { pos: number; nodeSize: number; top: number; left: number; right: number; cuts?: readonly TableCut[] }[]
 }
 
 interface ColumnLayoutState {
@@ -462,6 +583,59 @@ function columnGapOf(dom: HTMLElement): number {
 }
 
 /**
+ * Ukur tabel per baris, bukan sebagai satu blok utuh - gagasan yang sama dengan
+ * `measureTable` pada paginasi (§P4 lapis 2).
+ *
+ * Pengganjal dan salinan header yang tersisip dari perhitungan sebelumnya
+ * menambah tinggi DOM tabel dan menggeser baris-barisnya; keduanya dibaca balik
+ * lewat `SPACER_ATTRIBUTE` lalu dikurangkan, supaya yang diukur selalu koordinat
+ * alami dan perhitungan kedua atas keadaan yang sama menghasilkan rencana yang
+ * sama - sama seperti `insertedHeights` pada paginasi.
+ */
+function measureTableItem(view: EditorView, table: PMNode, tablePos: number, dom: HTMLElement): ColumnItem {
+	// Sisipan dari perhitungan sebelumnya, per posisi baris yang didahuluinya.
+	const inserted = new Map<number, number>()
+	let insertedTotal = 0
+	for (const element of dom.querySelectorAll<HTMLElement>(`[${SPACER_ATTRIBUTE}]`)) {
+		const pos = Number(element.getAttribute(SPACER_ATTRIBUTE))
+		if (Number.isNaN(pos)) continue
+		inserted.set(pos, (inserted.get(pos) ?? 0) + element.offsetHeight)
+		insertedTotal += element.offsetHeight
+	}
+
+	// Header hanya diulang kalau baris pertamanya memang baris header, dan
+	// penulis tidak mematikannya untuk tabel ini - aturan yang sama dengan
+	// paginasi biasa.
+	const headerRow = table.firstChild
+	const repeat = headerRow?.firstChild?.type.name === 'tableHeader' && table.attrs.repeatHeader !== false
+
+	const rows: { pos: number; top: number; height: number }[] = []
+	let header: ColumnTable['header']
+	let cumulative = 0
+
+	table.forEach((row, rowOffset) => {
+		const rowPos = tablePos + 1 + rowOffset
+		cumulative += inserted.get(rowPos) ?? 0
+
+		const rowDom = view.nodeDOM(rowPos)
+		if (!(rowDom instanceof HTMLElement)) return
+
+		// offsetParent sebuah <tr> adalah tabelnya, jadi top di sini relatif
+		// terhadap puncak tabel - persis yang dibutuhkan cutTableRows.
+		rows.push({ pos: rowPos, top: rowDom.offsetTop - cumulative, height: rowDom.offsetHeight })
+		if (repeat && rows.length === 1) header = { pos: rowPos, height: rowDom.offsetHeight }
+	})
+
+	return {
+		pos: tablePos,
+		height: dom.offsetHeight - insertedTotal,
+		...blockMargins(dom),
+		keepWithNext: false,
+		table: { rows, columns: headerRow?.childCount ?? 1, header },
+	}
+}
+
+/**
  * Ukur tiap blok kolom tingkat atas dan hitung tata letaknya.
  *
  * Hanya blok tingkat atas: koordinat lembar berasal dari `offsetTop` terhadap
@@ -501,12 +675,16 @@ function measureColumns(
 			const element = view.nodeDOM(childPos)
 			if (element instanceof HTMLElement) {
 				elements.push(element)
-				items.push({
-					pos: childPos,
-					height: element.offsetHeight,
-					...blockMargins(element),
-					keepWithNext: KEEP_WITH_NEXT.has(child.type.name),
-				})
+				items.push(
+					child.type.name === 'table'
+						? measureTableItem(view, child, childPos, element)
+						: {
+								pos: childPos,
+								height: element.offsetHeight,
+								...blockMargins(element),
+								keepWithNext: KEEP_WITH_NEXT.has(child.type.name),
+							},
+				)
 				sizes.push(child.nodeSize)
 			}
 			childPos += child.nodeSize
@@ -532,6 +710,7 @@ function measureColumns(
 				// Lebar diberikan lewat `right`, bukan `width`: dengan begitu blok
 				// berindentasi menyempit ke dalam kolomnya alih-alih tumpah keluar.
 				right: width - placement.left - columnWidth,
+				cuts: placement.cuts,
 			})),
 		})
 	})
@@ -541,6 +720,12 @@ function measureColumns(
 
 function samePlans(a: readonly ColumnsPlan[], b: readonly ColumnsPlan[]): boolean {
 	const near = (x: number, y: number) => Math.abs(x - y) < 0.5
+	const sameCuts = (one?: readonly TableCut[], other?: readonly TableCut[]) =>
+		(one?.length ?? 0) === (other?.length ?? 0) &&
+		(one ?? []).every((cut, index) => {
+			const twin = (other ?? [])[index]
+			return cut.pos === twin.pos && near(cut.spacerHeight, twin.spacerHeight) && near(cut.headerHeight, twin.headerHeight)
+		})
 
 	return (
 		a.length === b.length &&
@@ -558,7 +743,8 @@ function samePlans(a: readonly ColumnsPlan[], b: readonly ColumnsPlan[]): boolea
 						item.pos === twin.pos &&
 						near(item.top, twin.top) &&
 						near(item.left, twin.left) &&
-						near(item.right, twin.right)
+						near(item.right, twin.right) &&
+						sameCuts(item.cuts, twin.cuts)
 					)
 				})
 			)
@@ -608,6 +794,31 @@ function buildDecorations(doc: PMNode, plans: readonly ColumnsPlan[]): Decoratio
 					)}px;right:${Math.round(item.right)}px`,
 				}),
 			)
+
+			// Potongan tabel di batas lembar: baris kosong pengganjal menutup
+			// lembar lama, salinan header membuka lembar baru - mekanisme yang sama
+			// dengan paginasi biasa, digambar di dalam tabel yang diposisikan mutlak.
+			for (const cut of item.cuts ?? []) {
+				const spacer: Spacer = { pos: cut.pos, height: cut.spacerHeight, kind: 'row', columns: cut.columns }
+				decorations.push(
+					Decoration.widget(cut.pos, () => rowSpacer(spacer), {
+						side: -2,
+						key: `columns-cut-${cut.pos}-${Math.round(cut.spacerHeight)}`,
+					}),
+				)
+
+				if (cut.headerPos !== undefined && cut.headerHeight > 0) {
+					const header = doc.nodeAt(cut.headerPos)
+					if (header) {
+						decorations.push(
+							Decoration.widget(cut.pos, () => repeatedHeader(header, spacer), {
+								side: -1,
+								key: `columns-cut-header-${cut.pos}-${Math.round(cut.spacerHeight)}`,
+							}),
+						)
+					}
+				}
+			}
 		}
 
 		if (plan.sheetGap > 0.5) {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { collapsedMargin, flowColumns, type ColumnItem } from './columns'
+import { collapsedMargin, cutTableRows, flowColumns, type ColumnItem } from './columns'
 import { pageGeometry } from './page-geometry'
 
 /**
@@ -31,6 +31,28 @@ function blocks(heights: number[], keepWithNext: number[] = []): ColumnItem[] {
 		marginBottom: 0,
 		keepWithNext: keepWithNext.includes(index),
 	}))
+}
+
+/** Tabel sebagai deret baris; `header: true` menjadikan baris pertama header ulangan. */
+function tableItem(heights: number[], opts: { header?: boolean; pos?: number } = {}): ColumnItem {
+	let top = 0
+	const rows = heights.map((height, index) => {
+		const row = { pos: (opts.pos ?? 0) * 1000 + index + 1, top, height }
+		top += height
+		return row
+	})
+	return {
+		pos: opts.pos ?? 0,
+		height: top,
+		marginTop: 0,
+		marginBottom: 0,
+		keepWithNext: false,
+		table: {
+			rows,
+			columns: 2,
+			header: opts.header && rows.length > 0 ? { pos: rows[0].pos, height: rows[0].height } : undefined,
+		},
+	}
 }
 
 function flow(items: ColumnItem[], top = 0, count = 2) {
@@ -256,5 +278,142 @@ describe('penggabungan margin (§P4 catatan pengukuran, A-2)', () => {
 
 	test('margin anak tidak dibaca bila ada border', () => {
 		expect(collapsedMargin(0, 0, 1, 12)).toBe(0)
+	})
+})
+
+
+describe('tabel dipenggal antar baris (§P4 lapis 2)', () => {
+	describe('cutTableRows', () => {
+		const geo = { contentHeight, pageStride }
+
+		test('baris yang muat mengisi lembar, sisanya disodok ke lembar berikutnya', () => {
+			// 12 baris 100px: 9 muat di lembar pertama (900 dari 931), baris ke-10
+			// disodok pengganjal 255px ke puncak lembar kedua.
+			const table = tableItem(Array.from({ length: 12 }, () => 100)).table!
+			const { cuts, bottom } = cutTableRows(table, 0, 0, geo)
+
+			expect(cuts).toHaveLength(1)
+			expect(cuts[0].pos).toBe(table.rows[9].pos)
+			expect(cuts[0].spacerHeight).toBe(pageStride - 900)
+			expect(cuts[0].headerHeight).toBe(0)
+			// Baris terakhir berakhir di 1155 + 300.
+			expect(bottom).toBe(pageStride + 300)
+		})
+
+		test('salinan header ikut memakan ruang di puncak tiap potongan', () => {
+			const table = tableItem([40, ...Array.from({ length: 14 }, () => 100)], { header: true }).table!
+			const { cuts } = cutTableRows(table, 0, 0, geo)
+
+			expect(cuts).toHaveLength(1)
+			expect(cuts[0].headerHeight).toBe(40)
+			expect(cuts[0].headerPos).toBe(table.rows[0].pos)
+			// Pengganjal menjangkau dari ujung baris terakhir yang muat ke puncak
+			// lembar berikutnya; baris lanjutan mulai 40px di bawahnya (header).
+			expect(cuts[0].spacerHeight).toBe(pageStride - 840)
+		})
+
+		test('tabel yang menyeberangi banyak lembar dipotong di tiap batasnya', () => {
+			const table = tableItem(Array.from({ length: 25 }, () => 100)).table!
+			const { cuts, bottom } = cutTableRows(table, 0, 0, geo)
+
+			expect(cuts).toHaveLength(2)
+			expect(cuts[0].pos).toBe(table.rows[9].pos)
+			expect(cuts[1].pos).toBe(table.rows[18].pos)
+			expect(bottom).toBe(2 * pageStride + 700)
+		})
+
+		test('satu baris yang lebih tinggi dari lembar dibiarkan meluber, tanpa potongan', () => {
+			const table = tableItem([2000]).table!
+			const { cuts, bottom } = cutTableRows(table, 0, 0, geo)
+
+			expect(cuts).toHaveLength(0)
+			expect(bottom).toBe(2000)
+		})
+
+		test('baris sesudah baris raksasa tetap dipotong rapi di batas lembar', () => {
+			// Baris pertama meluber sampai tengah lembar kedua (0..2000); baris
+			// berikutnya tidak muat di sisa 86px dan disodok ke lembar ketiga.
+			const table = tableItem([2000, 100, 100]).table!
+			const { cuts, bottom } = cutTableRows(table, 0, 0, geo)
+
+			expect(cuts).toHaveLength(1)
+			expect(cuts[0].pos).toBe(table.rows[1].pos)
+			expect(cuts[0].spacerHeight).toBe(2 * pageStride - 2000)
+			expect(bottom).toBe(2 * pageStride + 200)
+		})
+
+		test('tabel yang muat di kolomnya tidak dipotong sama sekali', () => {
+			const table = tableItem(Array.from({ length: 5 }, () => 100)).table!
+			const { cuts } = cutTableRows(table, 0, 0, geo)
+			expect(cuts).toHaveLength(0)
+		})
+	})
+
+	describe('di dalam flowColumns', () => {
+		test('tabel raksasa mendapat potongan, bukan luberan buta', () => {
+			const items = [tableItem(Array.from({ length: 20 }, () => 100)), ...blocks([120, 120])]
+			const { placements, height, sheetGap } = flow(items)
+
+			const table = placements[0]
+			expect(table.cuts).toHaveLength(2)
+			// Ujung tabel (2310 + 200) ikut tertutup pembungkus dan terhitung celahnya.
+			expect(height).toBeGreaterThanOrEqual(2 * pageStride + 200)
+			expect(sheetGap).toBe(2 * (pageStride - contentHeight))
+		})
+
+		test('blok sesudah tabel terpenggal tidak menimpa potongannya', () => {
+			// Satu kolom: seluruh blok sesudah tabel harus mulai di bawah ujung
+			// potongannya yang sebenarnya (1155 + 2 pengganjal + sisa baris).
+			const items = [
+				tableItem(Array.from({ length: 20 }, () => 100)),
+				...blocks(Array.from({ length: 10 }, () => 120)),
+			]
+			const boxes = rendered(items, 0, 1)
+			const tableBottom = cutTableRows(items[0].table!, boxes[0].top, 0, { contentHeight, pageStride }).bottom
+
+			for (const box of boxes.slice(1)) {
+				expect(box.top).toBeGreaterThanOrEqual(tableBottom)
+			}
+		})
+
+		test('tabel yang muat di satu kolom mengalir seperti blok biasa', () => {
+			const items = [blocks([100])[0], tableItem(Array.from({ length: 4 }, () => 100)), blocks([100])[0]]
+			const { placements } = flow(items)
+
+			// Lembar terakhir diseimbangkan: tabel tetap utuh di kolom pertama,
+			// tepat di bawah blok pertama.
+			expect(placements[1].cuts).toBeUndefined()
+			expect(placements[1].top).toBe(100)
+		})
+
+		test('invarian anti-tumpang-tindih tetap berlaku dengan tabel terpenggal', () => {
+			for (const count of [1, 2, 3]) {
+				const items = [
+					...blocks(Array.from({ length: 4 }, () => 120)),
+					tableItem(Array.from({ length: 20 }, () => 100), { pos: 1 }),
+					...blocks(Array.from({ length: 12 }, () => 120)),
+				]
+				const { placements } = flow(items, 0, count)
+				const byColumn = new Map<number, { top: number; bottom: number }[]>()
+				placements.forEach((placement, index) => {
+					const top = placement.top
+					// Tabel terpenggal: ujung efektifnya dihitung dari potongannya.
+					const bottom = placement.cuts?.length
+						? cutTableRows(items[index].table!, top, Math.floor(top / pageStride), { contentHeight, pageStride }).bottom
+						: top + items[index].height
+					const list = byColumn.get(columnOf(placement.left)) ?? []
+					list.push({ top, bottom })
+					byColumn.set(columnOf(placement.left), list)
+				})
+				for (const boxes of byColumn.values()) {
+					for (let i = 0; i < boxes.length; i++) {
+						for (let j = i + 1; j < boxes.length; j++) {
+							const overlap = Math.min(boxes[i].bottom, boxes[j].bottom) - Math.max(boxes[i].top, boxes[j].top)
+							expect(overlap).toBeLessThanOrEqual(0.5)
+						}
+					}
+				}
+			}
+		})
 	})
 })

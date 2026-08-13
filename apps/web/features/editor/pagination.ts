@@ -434,7 +434,7 @@ function blockSpacer(spacer: Spacer): HTMLElement {
 }
 
 /** Baris kosong tanpa border - pemenggalan di dalam tabel. */
-function rowSpacer(spacer: Spacer): HTMLElement {
+export function rowSpacer(spacer: Spacer): HTMLElement {
 	const row = document.createElement('tr')
 	row.className = 'page-break-row'
 	row.style.height = `${spacer.height}px`
@@ -454,7 +454,7 @@ function rowSpacer(spacer: Spacer): HTMLElement {
  * pemetaan offset yang dipakai sorotan grammar. Isinya teks saja - tujuannya
  * mengingatkan nama kolom, bukan jadi tempat menyunting.
  */
-function repeatedHeader(header: PMNode, spacer: Spacer): HTMLElement {
+export function repeatedHeader(header: PMNode, spacer: Spacer): HTMLElement {
 	const row = document.createElement('tr')
 	row.className = 'table-header-repeat'
 
