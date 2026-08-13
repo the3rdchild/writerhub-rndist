@@ -1639,6 +1639,10 @@ html.light .range-highlight {
     left: auto !important;
     right: auto !important;
   }
+  /* Petak selebar pembungkus (§P4 lapis 3) ikut melintang penuh di kertas. */
+  .document-body .columns-span {
+    column-span: all;
+  }
   .document-body .columns-sheet-gap {
     display: none !important;
   }

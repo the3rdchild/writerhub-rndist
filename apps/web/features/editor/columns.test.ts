@@ -66,6 +66,7 @@ function rendered(items: ColumnItem[], top = 0, count = 2) {
 		column: columnOf(placement.left),
 		top: top + placement.top,
 		bottom: top + placement.top + items[index].height,
+		span: placement.span ?? false,
 	}))
 }
 
@@ -149,20 +150,15 @@ describe('blok raksasa (§P4 lapis 1)', () => {
 		expect(height).toBe(contentHeight + 400)
 	})
 
-	test('blok sesudahnya tidak menimpa luberannya di kolom yang sama', () => {
-		// Tabel raksasa setinggi 1,4 kolom di kolom pertama, diikuti blok biasa
-		// yang memenuhi kolom kedua: dulu blok berikutnya ditaruh di puncak
-		// lembar kedua - tepat di atas luberan.
+	test('blok sesudahnya dilanjutkan di bawah ujung petak penuhnya', () => {
+		// Paragraf raksasa setinggi 1,4 kolom: sejak lapis 3 ia naik selebar
+		// pembungkus, dan seluruh kolom mencatat ujungnya.
 		const giant = contentHeight + 400
 		const items = blocks([giant, ...Array.from({ length: 10 }, () => 100)])
 		const boxes = rendered(items)
 
-		expect(boxes[0]).toMatchObject({ column: 0, top: 0, bottom: giant })
-		expect(boxes[1]).toMatchObject({ column: 1, top: 0 })
-		// Kolom 0 lembar kedua dimulai DI BAWAH ujung luberan, bukan di puncak lembar.
-		const next = boxes[boxes.length - 1]
-		expect(next.column).toBe(0)
-		expect(next.top).toBeGreaterThanOrEqual(giant)
+		expect(boxes[0]).toMatchObject({ top: 0, bottom: giant, span: true })
+		expect(boxes[1].top).toBeGreaterThanOrEqual(giant)
 	})
 
 	test('tinggi pembungkus dan celah lembar mencakup luberan', () => {
@@ -174,15 +170,17 @@ describe('blok raksasa (§P4 lapis 1)', () => {
 		expect(sheetGap).toBe(pageStride - contentHeight)
 	})
 
-	test('luberan yang makan lebih dari satu lembar melompati semuanya', () => {
+	test('luberan petak penuh yang makan lebih dari satu lembar melompati semuanya', () => {
 		const giant = contentHeight + 2 * pageStride
 		const items = blocks([giant, 100])
 		const boxes = rendered(items)
 
-		expect(boxes[1].column).toBe(1)
-		// Kolom 1 lembar pertama tidak tertutup luberan kolom 0, jadi boleh dipakai.
-		expect(boxes[1].top).toBe(0)
-		expect(flow(items).sheetGap).toBe(2 * (pageStride - contentHeight))
+		// Petak penuhnya meluber selebar lembar; blok berikutnya mulai di lembar
+		// bersih pertama di bawah ujungnya.
+		expect(boxes[0].span).toBe(true)
+		expect(boxes[1].top).toBeGreaterThanOrEqual(giant)
+		// Ujung isi berakhir di lembar keempat: tiga celah dilompati.
+		expect(flow(items).sheetGap).toBe(3 * (pageStride - contentHeight))
 	})
 
 	test('pembungkus yang mendarat di celah antar lembar mulai di lembar berikutnya', () => {
@@ -201,9 +199,13 @@ describe('invarian: tidak ada dua blok yang bertumpang tindih di kolom yang sama
 	function boxesByColumn(items: ColumnItem[], top: number, count: number) {
 		const byColumn = new Map<number, { top: number; bottom: number }[]>()
 		for (const box of rendered(items, top, count)) {
-			const list = byColumn.get(box.column) ?? []
-			list.push({ top: box.top, bottom: box.bottom })
-			byColumn.set(box.column, list)
+			// Petak selebar pembungkus menempati SEMUA kolom sekaligus.
+			const columns = box.span ? Array.from({ length: count }, (_, i) => i) : [box.column]
+			for (const column of columns) {
+				const list = byColumn.get(column) ?? []
+				list.push({ top: box.top, bottom: box.bottom })
+				byColumn.set(column, list)
+			}
 		}
 		return byColumn
 	}
@@ -415,5 +417,83 @@ describe('tabel dipenggal antar baris (§P4 lapis 2)', () => {
 				}
 			}
 		})
+	})
+})
+
+describe('blok tak terpenggal naik selebar penuh (§P4 lapis 3)', () => {
+	/** Blok bertanda span lengket, sebagaimana dibaca balik dari kelas DOM-nya. */
+	function spanBlock(height: number): ColumnItem {
+		return { ...blocks([height])[0], span: true }
+	}
+
+	test('blok raksasa baru ditempatkan selebar pembungkus, bukan meluber di satu kolom', () => {
+		const items = blocks([contentHeight + 100, ...Array.from({ length: 6 }, () => 120)])
+		const { placements } = flow(items)
+
+		expect(placements[0].span).toBe(true)
+		expect(placements[0].left).toBe(0)
+		expect(placements[0].top).toBe(0)
+		// Aliran kolom dilanjutkan DI BAWAH ujungnya, bukan di kolom sebelah.
+		expect(placements[1].top).toBeGreaterThanOrEqual(contentHeight + 100)
+	})
+
+	test('keputusan selebar penuh lengket: blok bertanda span tetap penuh walau muat di kolom', () => {
+		const items = [spanBlock(100), ...blocks(Array.from({ length: 4 }, () => 100))]
+		const { placements } = flow(items)
+
+		expect(placements[0].span).toBe(true)
+		expect(placements[0].left).toBe(0)
+		expect(placements[1].top).toBe(100)
+	})
+
+	test('petak penuh yang muat di sisa lembar ditaruh di bawah isi terdalam', () => {
+		const items = [...blocks(Array.from({ length: 4 }, () => 120)), spanBlock(300)]
+		const { placements } = flow(items)
+
+		// 480 + 300 masih di dalam lembar pertama.
+		expect(placements[4].span).toBe(true)
+		expect(placements[4].top).toBe(480)
+	})
+
+	test('petak penuh yang tidak muat di sisa lembar turun ke lembar berikutnya', () => {
+		const items = [...blocks(Array.from({ length: 4 }, () => 120)), spanBlock(800), ...blocks([120, 120])]
+		const { placements } = flow(items)
+
+		// 480 + 800 melewati area teks lembar pertama (931).
+		expect(placements[4].top).toBe(pageStride)
+		// Aliran kolom dilanjutkan di bawah ujungnya pada lembar yang sama.
+		expect(placements[5].top).toBeGreaterThanOrEqual(pageStride + 800)
+	})
+
+	test('penyeimbangan lembar terakhir dilewati bila ada petak penuh di lembar itu', () => {
+		const items = [...blocks([100, 100]), spanBlock(300), ...blocks([100, 100])]
+		const { placements } = flow(items)
+
+		// Rakus, bukan seimbang: dua blok terakhir tetap berurutan di kolom pertama.
+		expect(placements[2].top).toBe(200)
+		expect(placements[3].top).toBe(500)
+		expect(placements[4].top).toBe(600)
+	})
+
+	test('invarian anti-tumpang-tindih berlaku juga di sekitar petak penuh', () => {
+		for (const count of [1, 2, 3]) {
+			const items = [
+				...blocks(Array.from({ length: 3 }, () => 100)),
+				spanBlock(400),
+				...blocks(Array.from({ length: 3 }, () => 100)),
+				spanBlock(400),
+				...blocks(Array.from({ length: 6 }, () => 100)),
+			]
+			const boxes = rendered(items, 0, count)
+			for (let i = 0; i < boxes.length; i++) {
+				for (let j = i + 1; j < boxes.length; j++) {
+					// Petak penuh bertabrakan dengan segalanya; blok biasa hanya dengan
+					// sesama kolomnya.
+					if (!boxes[i].span && !boxes[j].span && boxes[i].column !== boxes[j].column) continue
+					const overlap = Math.min(boxes[i].bottom, boxes[j].bottom) - Math.max(boxes[i].top, boxes[j].top)
+					expect(overlap).toBeLessThanOrEqual(0.5)
+				}
+			}
+		}
 	})
 })

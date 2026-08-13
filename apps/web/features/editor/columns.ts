@@ -153,6 +153,13 @@ export interface ColumnItem {
 	/** Judul: tidak boleh ditinggal sendirian di kaki kolom. */
 	keepWithNext: boolean
 	/**
+	 * Sedang ditempatkan selebar pembungkus (kelas `columns-span` masih melekat
+	 * di DOM-nya). Keputusan selebar penuh itu lengket: blok yang sama tidak
+	 * boleh berayun antara kolom dan petak penuh hanya karena tingginya berubah
+	 * setelah melebar (§P4 lapis 3).
+	 */
+	span?: boolean
+	/**
 	 * Tabel yang diukur per baris (§P4 lapis 2): bila ia terpaksa jadi "blok
 	 * raksasa", pemenggalannya jatuh rapi di antar baris pada batas lembar -
 	 * dengan baris kosong pengganjal dan salinan header - alih-alih dibiarkan
@@ -207,6 +214,8 @@ export interface ColumnPlacement {
 	left: number
 	/** Pemenggalan tabel di batas lembar; hanya ada pada item bertabel. */
 	cuts?: readonly TableCut[]
+	/** Ditempatkan selebar pembungkus (§P4 lapis 3), bukan di satu kolom. */
+	span?: boolean
 }
 
 export interface ColumnFlow {
@@ -232,14 +241,19 @@ export interface ColumnFlow {
  *   puncak lembar: blok kolom boleh mulai di tengah halaman.
  * - Sebuah blok tidak pernah dipenggal; yang tidak muat turun utuh ke kolom
  *   berikutnya, dan kolom terakhir sebuah lembar turun ke lembar berikutnya.
- * - Blok yang lebih tinggi dari kolom penuh mendapat petaknya sendiri dan
- *   dibiarkan meluber, TAPI luberannya dicatat: petak yang masih tertutup
- *   luberan dilewati, supaya tidak ada blok yang digambar menimpa blok lain
- *   (§P4 lapis 1). Tinggi pembungkus dan `sheetGap` ikut mencakup luberan itu.
- * - Pengecualian meluber: TABEL yang jadi blok raksasa dipenggal rapi di antar
- *   baris pada batas lembar - baris kosong pengganjal menyodok sisanya ke
- *   puncak lembar berikutnya dan salinan header membuka tiap potongan
+ * - Blok TAK TERPENGAL yang lebih tinggi dari kolom penuh (gambar sehalaman,
+ *   blok kode panjang, paragraf raksasa) naik jadi selebar pembungkus -
+ *   `column-span: all` secara logis - alih-alih dibiarkan meluber di satu
+ *   kolom (§P4 lapis 3). Aliran kolom berhenti di atasnya dan dilanjutkan di
+ *   bawahnya; keputusan ini lengket lewat tanda `span` pada bloknya.
+ * - TABEL yang jadi blok raksasa tidak ikut aturan itu: ia dipenggal rapi di
+ *   antar baris pada batas lembar - baris kosong pengganjal menyodok sisanya
+ *   ke puncak lembar berikutnya dan salinan header membuka tiap potongan
  *   (§P4 lapis 2, lihat `cutTableRows`).
+ * - Petak yang masih tertutup luberan (blok selebar penuh yang lebih tinggi
+ *   dari lembarnya, potongan tabel) dicatat di `blockedUntil` dan dilewati,
+ *   supaya tidak ada blok yang digambar menimpa blok lain (§P4 lapis 1).
+ *   Tinggi pembungkus dan `sheetGap` ikut mencakup luberan itu.
  * - Lembar terakhir diseimbangkan, kalau tidak blok pendek akan menumpuk
  *   seluruh isinya di kolom pertama dan menyisakan kolom kedua kosong.
  */
@@ -265,7 +279,14 @@ export function flowColumns(
 	const regionTop = (sheet: number) => (sheet === firstPage ? firstTop : sheetTop(sheet))
 	const regionHeight = (sheet: number) => sheetBottom(sheet) - regionTop(sheet)
 
-	const slots: { page: number; column: number; top: number; height: number; cuts?: readonly TableCut[] }[] = []
+	const slots: {
+		page: number
+		column: number
+		top: number
+		height: number
+		cuts?: readonly TableCut[]
+		span?: boolean
+	}[] = []
 	/**
 	 * Sampai mana blok raksasa benar-benar meluber di tiap kolom, pada koordinat
 	 * render. Petak yang masih tertutup luberan dilewati atau dipotong puncaknya -
@@ -282,8 +303,45 @@ export function flowColumns(
 		}
 	}
 
+	/**
+	 * Tempatkan satu blok SELEBAR pembungkus (§P4 lapis 3). Ia memutus aliran
+	 * kolom: mulai di bawah isi terdalam yang sudah ditempatkan - atau di lembar
+	 * berikutnya bila tidak muat di sisa lembarnya - dan aliran kolom dilanjutkan
+	 * di bawah ujungnya. Blok yang lebih tinggi dari lembarnya tetap meluber,
+	 * tapi sekarang meluber selebar penuh dan seluruh kolom mencatatnya.
+	 */
+	const placeSpanner = (item: ColumnItem) => {
+		let water = firstTop
+		for (const slot of slots) water = Math.max(water, slot.top + slot.height)
+		for (const until of blockedUntil) water = Math.max(water, until)
+
+		let spanPage = Math.floor(water / pageStride)
+		if (water >= sheetBottom(spanPage)) spanPage += 1
+		let spanTop = Math.max(water, sheetTop(spanPage))
+		if (spanTop + item.height > sheetBottom(spanPage) + 0.5 && spanTop > sheetTop(spanPage) + 0.5) {
+			// Tidak muat di sisa lembar ini dan sudah ada isi di atasnya.
+			spanPage += 1
+			spanTop = sheetTop(spanPage)
+		}
+
+		const bottom = spanTop + item.height
+		slots.push({ page: spanPage, column: 0, top: spanTop, height: item.height, span: true })
+		blockedUntil.fill(bottom)
+		page = Math.floor(bottom / pageStride)
+		if (bottom >= sheetBottom(page)) page += 1
+		column = 0
+	}
+
 	let index = 0
 	while (index < items.length) {
+		// Petak selebar pembungkus memutus aliran kolom; ia tidak pernah masuk
+		// perhitungan pengepakan kolom.
+		if (items[index].span) {
+			placeSpanner(items[index])
+			index += 1
+			continue
+		}
+
 		const base = Math.max(regionTop(page), blockedUntil[column])
 		const limit = sheetBottom(page) - base
 		let tops = packColumn(items, index, limit)
@@ -295,10 +353,15 @@ export function flowColumns(
 				advance()
 				continue
 			}
-			// Satu blok lebih tinggi dari kolom penuh. Tabel dipenggal rapi di
-			// antar baris (lihat cutTableRows); blok lain dibiarkan meluber - tapi
-			// luberannya dicatat supaya petak yang ia tutupi tidak dipakai blok
-			// berikutnya.
+			if (!items[index].table) {
+				// Blok tak terpenggal yang tidak muat di kolom mana pun: naik
+				// selebar pembungkus (§P4 lapis 3).
+				placeSpanner(items[index])
+				index += 1
+				continue
+			}
+			// Tabel lebih tinggi dari kolom penuh: dipenggal rapi di antar baris
+			// (lihat cutTableRows).
 			tops = [0]
 			giant = true
 		}
@@ -306,18 +369,12 @@ export function flowColumns(
 		for (const [offsetIndex, offset] of tops.entries()) {
 			const item = items[index + offsetIndex]
 			const slot: (typeof slots)[number] = { page, column, top: base + offset, height: item.height }
-			if (!giant) {
-				slots.push(slot)
-				continue
-			}
-			if (item.table) {
+			if (giant && item.table) {
 				const cut = cutTableRows(item.table, slot.top, page, { contentHeight, pageStride })
 				// Tinggi efektifnya memanjang oleh pengganjal dan salinan header.
 				slot.height = cut.bottom - slot.top
 				if (cut.cuts.length > 0) slot.cuts = cut.cuts
 				blockedUntil[column] = cut.bottom
-			} else {
-				blockedUntil[column] = slot.top + item.height
 			}
 			slots.push(slot)
 		}
@@ -327,12 +384,13 @@ export function flowColumns(
 	}
 
 	// Lembar terakhir diseimbangkan supaya kolomnya berakhir sama rata - kecuali
-	// bila ada luberan blok raksasa yang masuk ke lembar itu: mengatur ulang isi
-	// di kolom yang tertutup luberan akan membuatnya tertimpa.
+	// bila ada luberan blok raksasa atau petak selebar penuh di lembar itu:
+	// mengatur ulang isi di sekitarnya akan membuatnya tertimpa.
 	const lastPage = page
 	const spillOnLastPage = blockedUntil.some((until) => until > regionTop(lastPage) + 0.5)
+	const spanOnLastPage = slots.some((slot) => slot.page === lastPage && slot.span)
 	const firstOnLastPage = slots.findIndex((slot) => slot.page === lastPage)
-	if (firstOnLastPage >= 0 && !spillOnLastPage) {
+	if (firstOnLastPage >= 0 && !spillOnLastPage && !spanOnLastPage) {
 		const balanced = balanceColumns(items.slice(firstOnLastPage), regionHeight(lastPage), count)
 		if (balanced) {
 			const base = regionTop(lastPage)
@@ -365,6 +423,7 @@ export function flowColumns(
 			top: slots[i].top - top,
 			left: slots[i].column * (columnWidth + columnGap),
 			cuts: slots[i].cuts,
+			span: slots[i].span,
 		})),
 		height: Math.max(0, bottom - top),
 		sheetGap: firstTop - top + sheets * (pageStride - contentHeight),
@@ -442,6 +501,8 @@ function packColumn(items: readonly ColumnItem[], from: number, limit: number): 
 
 	for (let i = from; i < items.length; i++) {
 		const item = items[i]
+		// Petak selebar pembungkus memutus pengepakan; ia diurus pemanggil.
+		if (item.span) break
 		// Margin antar blok bertumpuk, bukan berjumlah - seperti aliran normal.
 		const spacing = i === from ? 0 : Math.max(previousBottom, item.marginTop)
 		if (y + spacing + item.height > limit + 0.5) break
@@ -528,7 +589,15 @@ interface ColumnsPlan {
 	nodeSize: number
 	height: number
 	sheetGap: number
-	items: { pos: number; nodeSize: number; top: number; left: number; right: number; cuts?: readonly TableCut[] }[]
+	items: {
+		pos: number
+		nodeSize: number
+		top: number
+		left: number
+		right: number
+		cuts?: readonly TableCut[]
+		span?: boolean
+	}[]
 }
 
 interface ColumnLayoutState {
@@ -683,6 +752,9 @@ function measureColumns(
 								height: element.offsetHeight,
 								...blockMargins(element),
 								keepWithNext: KEEP_WITH_NEXT.has(child.type.name),
+								// Keputusan selebar penuh lengket: kelasnya masih melekat
+								// dari rencana sebelumnya (§P4 lapis 3).
+								span: element.classList.contains('columns-span') || undefined,
 							},
 				)
 				sizes.push(child.nodeSize)
@@ -706,11 +778,14 @@ function measureColumns(
 				// margin atas di bawahnya, jadi margin itu dikurangkan lebih dulu -
 				// sementara margin kiri (indentasi) justru dibiarkan bekerja.
 				top: placement.top - items[i].marginTop,
-				left: placement.left,
+				// Petak selebar pembungkus (§P4 lapis 3): membentang penuh, tanpa
+				// mengindahkan kolom.
+				left: placement.span ? 0 : placement.left,
 				// Lebar diberikan lewat `right`, bukan `width`: dengan begitu blok
 				// berindentasi menyempit ke dalam kolomnya alih-alih tumpah keluar.
-				right: width - placement.left - columnWidth,
+				right: placement.span ? 0 : width - placement.left - columnWidth,
 				cuts: placement.cuts,
+				span: placement.span || undefined,
 			})),
 		})
 	})
@@ -788,7 +863,9 @@ function buildDecorations(doc: PMNode, plans: readonly ColumnsPlan[]): Decoratio
 		for (const item of plan.items) {
 			decorations.push(
 				Decoration.node(item.pos, item.pos + item.nodeSize, {
-					class: 'columns-item',
+					// `columns-span` menandai petak selebar pembungkus; kelasnya
+					// dibaca balik saat mengukur supaya keputusan itu lengket.
+					class: item.span ? 'columns-item columns-span' : 'columns-item',
 					style: `position:absolute;top:${Math.round(item.top)}px;left:${Math.round(
 						item.left,
 					)}px;right:${Math.round(item.right)}px`,
