@@ -34,6 +34,7 @@ export type DocumentAction =
 	| { type: 'acceptSuggestion'; id: string }
 	| { type: 'dismissSuggestion'; id: string }
 	| { type: 'acceptAllSuggestions' }
+	| { type: 'clearResults' }
 	| { type: 'setSuggestions'; suggestions: GrammarSuggestion[] }
 	| {
 			type: 'applyCheckResult'
@@ -144,6 +145,11 @@ export function documentReducer(state: DocumentState, action: DocumentAction): D
 				hoveredRange: null,
 			}
 		}
+
+		// Buang seluruh hasil pemeriksaan tanpa menerimanya - sorotan dan kartu
+		// hilang sekaligus (§P3.3). Tidak merusak naskah; bisa diulang dengan Run.
+		case 'clearResults':
+			return withClearedResults(state)
 
 		case 'applyCheckResult': {
 			// Unggahan dokumen: teks asli ada di worker, bukan di editor.

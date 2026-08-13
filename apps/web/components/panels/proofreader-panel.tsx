@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, Copy } from 'lucide-react'
+import { Check, Copy, Eraser } from 'lucide-react'
 import { useState } from 'react'
 import { ScoreRing } from '@/components/ui/score-ring'
 import { replaceTextRange } from '@/features/editor/apply-text'
@@ -140,7 +140,7 @@ export function ProofreaderPanel() {
 							>
 								<SuggestionCard
 									suggestion={suggestion}
-									onAccept={() => dispatch({ type: 'acceptSuggestion', id: suggestion.id })}
+								onAccept={() => acceptSuggestion(suggestion.id)}
 									onDismiss={() => dispatch({ type: 'dismissSuggestion', id: suggestion.id })}
 								/>
 							</div>
@@ -161,21 +161,37 @@ export function ProofreaderPanel() {
 				)}
 
 				{hasResults && (
-					<button
-						type="button"
-						onClick={copyOutput}
-						className={cn(
-							'flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition-colors',
-							copied
-								? 'border-green-500/30 bg-green-500/15 text-green-400'
-								: 'border-accent/30 bg-accent/10 text-accent hover:bg-accent/20',
-						)}
-					>
-						{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-						{copied ? 'Copied!' : 'Copy Result'}
-					</button>
-				)}
+					<div className="flex gap-2">
+						<button
+							type="button"
+							onClick={copyOutput}
+							className={cn(
+								'flex flex-1 items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition-colors',
+								copied
+									? 'border-green-500/30 bg-green-500/15 text-green-400'
+									: 'border-accent/30 bg-accent/10 text-accent hover:bg-accent/20',
+							)}
+						>
+							{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+							{copied ? 'Copied!' : 'Copy Result'}
+						</button>
 
+						{/* Buang seluruh hasil tanpa menerimanya - sorotan dan kartu hilang
+						    sekaligus (§P3.3). Gaya sekunder supaya tidak bersaing dengan Run;
+						    tidak perlu konfirmasi karena tidak merusak naskah. */}
+						<button
+							type="button"
+							onClick={() => dispatch({ type: 'clearResults' })}
+							className="flex items-center justify-center gap-2 rounded-xl border border-line-strong px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface-raised hover:text-foreground"
+							title="Clear all suggestions and scores"
+						>
+							<Eraser className="h-4 w-4" />
+							Clear results
+						</button>
+					</div>
+				)
+
+				}
 				{state.scores && (
 					<>
 						<div className="flex items-center justify-around pt-1">

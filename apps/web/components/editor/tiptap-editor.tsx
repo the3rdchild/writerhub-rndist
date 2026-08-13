@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useDocument } from '@/features/document/document-context'
 import { suggestionHighlightKey } from '@/features/document/suggestion-highlight'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
+import { replaceTextRange } from '@/features/editor/apply-text'
 import { buildEditorExtensions } from '@/features/editor/extensions'
 import { type PageGeometry, pageGeometry } from '@/features/editor/page-geometry'
 import { paginationKey } from '@/features/editor/pagination'
@@ -243,14 +244,15 @@ export function TiptapEditor({
 		const suggestion = state.suggestions.find((item) => item.id === id)
 		if (!editor || !suggestion) return
 
-		const index = buildTextIndex(editor.state.doc)
-		const span = index.text.indexOf(suggestion.original)
-		if (span !== -1) {
-			const range = textRangeToPM(index, span, suggestion.original.length)
-			if (range) {
-				editor.chain().focus().insertContentAt(range, suggestion.replacement).run()
-			}
-		}
+		// replaceTextRange memakai resolveSpan, jadi menyasar kemunculan yang
+		// benar walau kata itu muncul berkali-kali, dan tidak menggulir layar
+		// (§P3.1). Dulu memakai indexOf murni + .focus() yang selalu lompat ke
+		// kemunculan pertama dan menggulung ke sana.
+		replaceTextRange(
+			editor,
+			{ offset: suggestion.offset ?? 0, length: suggestion.length ?? suggestion.original.length, expected: suggestion.original },
+			suggestion.replacement,
+		)
 		dispatch({ type: 'dismissSuggestion', id })
 		setPopover(null)
 	}
