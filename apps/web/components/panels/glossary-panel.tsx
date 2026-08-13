@@ -68,12 +68,18 @@ export function GlossaryPanel() {
 							<PanelError message="AI tidak dapat dihubungi, jadi daftar istilah tidak bisa disusun. Periksa konfigurasi penyedia AI, lalu coba lagi." />
 						) : entries.length === 0 ? (
 							<p className="py-4 text-center text-xs text-subtle">
-								Tidak ada istilah khusus yang ditemukan di naskah ini
+								No terms were found. The glossary is built from words and acronyms that
+									<strong>repeat</strong> in the text, so terms that appear only once are
+									not captured (except acronyms, which are kept even on a single mention).
 							</p>
 						) : (
 							<div className="flex flex-col gap-2">
-								<p className="px-1 text-[11px] text-subtle">
-									{entries.length} istilah ditemukan
+								<p className="px-1 text-[11px] leading-relaxed text-subtle">
+									Built from words and acronyms that <strong>repeat</strong> in this text —
+									terms that appear only once are not captured, except acronyms.
+								</p>
+								<p className="mb-1 px-1 text-[11px] text-subtle">
+									{entries.length} terms found
 								</p>
 								{entries.map((entry) => (
 									<div
@@ -84,8 +90,13 @@ export function GlossaryPanel() {
 											<span className="text-xs font-medium text-foreground">
 													{glossaryTermLabel(entry)}
 												</span>
-											<span className="shrink-0 text-[10px] text-faint">
-												{entry.occurrences}×
+											<span className="flex shrink-0 items-center gap-1.5 text-faint">
+												{entry.source === 'acronym' ? (
+												<span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[9px] font-medium text-accent">Acronym</span>
+											) : entry.source === 'phrase' ? (
+												<span className="rounded-full bg-surface-inset px-1.5 py-0.5 text-[9px] font-medium text-muted">Repeated phrase</span>
+											) : null}
+											<span title={`Appears ${entry.occurrences}× in the text`} className="text-[10px]">{entry.occurrences}×</span>
 											</span>
 										</div>
 										<p className="text-xs leading-relaxed text-muted">{entry.definition}</p>
