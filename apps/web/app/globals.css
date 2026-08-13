@@ -462,6 +462,32 @@ a {
   background: var(--foreground-subtle);
   clip-path: polygon(0 0, 100% 0, 100% 60%, 50% 100%, 0 60%);
 }
+/* Sisi celah kolom (§P5): batang pendek, sepasang mengapit tiap pita celah. */
+.document-ruler__object--columns-gap::before {
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 1.5px;
+  background: var(--foreground-subtle);
+}
+
+/* Pita celah antar kolom: diseret untuk memindahkan celah, klik-ganda meratakan. */
+.document-ruler__gap-band {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: var(--overlay-hover);
+  cursor: col-resize;
+  touch-action: none;
+  transition: background-color 0.15s ease;
+}
+.document-ruler__gap-band:hover,
+.document-ruler__gap-band:focus-visible {
+  background: var(--overlay-active);
+}
 
 /* Titik perataan gambar - diklik, jadi kursornya penunjuk, bukan col-resize. */
 .document-ruler__align {

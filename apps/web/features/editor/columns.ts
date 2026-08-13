@@ -45,7 +45,28 @@ declare module '@tiptap/core' {
 		columns: {
 			setColumns: (count: number) => ReturnType
 			unsetColumns: () => ReturnType
+			/** Ubah celah dan/atau lebar kolom lewat penggaris (§P5). */
+			setColumnsLayout: (pos: number, patch: { gap?: number; widths?: number[] | null }) => ReturnType
 		}
+	}
+}
+
+/** Lebar celah tersimpan sebagai angka; bila belum pernah diseret, ikuti CSS. */
+function parseGapAttribute(element: HTMLElement): number | null {
+	const parsed = Number(element.getAttribute('data-gap'))
+	return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
+}
+
+/** Lebar kolom tersimpan sebagai JSON array angka; `null` berarti rata. */
+function parseWidthsAttribute(element: HTMLElement): number[] | null {
+	const raw = element.getAttribute('data-widths')
+	if (!raw) return null
+	try {
+		const parsed: unknown = JSON.parse(raw)
+		if (!Array.isArray(parsed) || parsed.length === 0) return null
+		return parsed.every((value) => typeof value === 'number' && Number.isFinite(value)) ? parsed : null
+	} catch {
+		return null
 	}
 }
 
@@ -72,11 +93,28 @@ export const Columns = Node.create({
 				//
 				// Nilainya ikut disimpan sebagai custom property karena tata letak
 				// layar mematikan `column-count` (anak-anaknya diposisikan mutlak),
-				// sementara aturan cetak perlu menyalakannya kembali.
+				// sementara aturan cetak perlu menyalakannya kembali. Celah ikut ke
+				// gaya yang sama supaya berlaku juga saat mencetak (§P5).
 				renderHTML: (attributes) => ({
 					'data-count': attributes.count,
-					style: `--columns-count: ${attributes.count}; column-count: ${attributes.count}`,
+					style: `--columns-count: ${attributes.count}; column-count: ${attributes.count}${
+						typeof attributes.gap === 'number' ? `; column-gap: ${attributes.gap}px` : ''
+					}`,
 				}),
+			},
+			// Celah antar kolom dalam piksel; `null` berarti ikuti `column-gap`
+			// dari CSS (1.5em). Lebar tiap kolom dalam piksel; `null` berarti
+			// rata. Keduanya diatur lewat penggaris (§P5).
+			gap: {
+				default: null,
+				parseHTML: parseGapAttribute,
+				renderHTML: (attributes) => (attributes.gap === null ? {} : { 'data-gap': attributes.gap }),
+			},
+			widths: {
+				default: null,
+				parseHTML: parseWidthsAttribute,
+				renderHTML: (attributes) =>
+					attributes.widths === null ? {} : { 'data-widths': JSON.stringify(attributes.widths) },
 			},
 		}
 	},
@@ -115,6 +153,14 @@ export const Columns = Node.create({
 				() =>
 				({ commands }) =>
 					commands.lift(this.name),
+			setColumnsLayout:
+				(pos, patch) =>
+				({ tr, dispatch }) => {
+					const node = tr.doc.nodeAt(pos)
+					if (!node || node.type.name !== this.name) return false
+					if (dispatch) tr.setNodeMarkup(pos, undefined, { ...node.attrs, ...patch })
+					return true
+				},
 		}
 	},
 })
@@ -204,6 +250,46 @@ export interface ColumnFrame {
 	count: number
 	columnWidth: number
 	columnGap: number
+	/**
+	 * Geometri per kolom hasil `resolveColumnSlots` (§P5). Tanpa ini kolom
+	 * dianggap rata: lebar `columnWidth`, berjajar mulai dari tepi kiri.
+	 */
+	columns?: readonly { left: number; width: number }[]
+}
+
+/**
+ * Tepi kiri dan lebar tiap kolom, dalam piksel, dari atribut blok (§P5).
+ *
+ * `widths` tersimpan sebagai piksel saat diseret di penggaris. Bila lebar
+ * pembungkus sudah berubah sejak itu - margin lembar digeser - daftarnya
+ * dinormalkan ulang secara proporsional supaya jumlahnya tetap pas dengan
+ * ruang yang ada, alih-alih meluber atau menyisakan ruang mati.
+ */
+export function resolveColumnSlots(
+	width: number,
+	count: number,
+	gap: number,
+	widths: readonly number[] | null,
+): { left: number; width: number }[] {
+	const natural = width - gap * (count - 1)
+	if (!(natural > 0) || count < 1) return []
+
+	if (!widths || widths.length !== count || widths.some((value) => !(value > 0))) {
+		const columnWidth = natural / count
+		return Array.from({ length: count }, (_, index) => ({
+			left: index * (columnWidth + gap),
+			width: columnWidth,
+		}))
+	}
+
+	const sum = widths.reduce((total, value) => total + value, 0)
+	const scale = sum > 0 ? natural / sum : 1
+	let left = 0
+	return widths.map((value) => {
+		const slot = { left, width: value * scale }
+		left += slot.width + gap
+		return slot
+	})
 }
 
 export interface ColumnPlacement {
@@ -212,6 +298,8 @@ export interface ColumnPlacement {
 	top: number
 	/** Tepi kiri kolom, relatif terhadap tepi kiri pembungkus. */
 	left: number
+	/** Lebar kolom tempat blok ini ditempatkan. */
+	width: number
 	/** Pemenggalan tabel di batas lembar; hanya ada pada item bertabel. */
 	cuts?: readonly TableCut[]
 	/** Ditempatkan selebar pembungkus (§P4 lapis 3), bukan di satu kolom. */
@@ -259,7 +347,7 @@ export interface ColumnFlow {
  */
 export function flowColumns(
 	items: readonly ColumnItem[],
-	{ top, count, columnWidth, columnGap }: ColumnFrame,
+	{ top, count, columnWidth, columnGap, columns }: ColumnFrame,
 	{ contentHeight, pageStride }: Pick<PageGeometry, 'contentHeight' | 'pageStride'>,
 ): ColumnFlow {
 	if (items.length === 0 || count < 1 || contentHeight <= 0) {
@@ -421,7 +509,8 @@ export function flowColumns(
 		placements: items.map((item, i) => ({
 			pos: item.pos,
 			top: slots[i].top - top,
-			left: slots[i].column * (columnWidth + columnGap),
+			left: columns?.[slots[i].column]?.left ?? slots[i].column * (columnWidth + columnGap),
+			width: columns?.[slots[i].column]?.width ?? columnWidth,
 			cuts: slots[i].cuts,
 			span: slots[i].span,
 		})),
@@ -581,10 +670,10 @@ const KEEP_WITH_NEXT = new Set(['heading'])
 /** Jarak antar kolom bila CSS tidak memberi angka. */
 const FALLBACK_COLUMN_GAP = 24
 
-const columnLayoutKey = new PluginKey<ColumnLayoutState>('columnLayout')
+export const columnLayoutKey = new PluginKey<ColumnLayoutState>('columnLayout')
 
 /** Satu blok kolom yang sudah dihitung, siap jadi dekorasi. */
-interface ColumnsPlan {
+export interface ColumnsPlan {
 	pos: number
 	nodeSize: number
 	height: number
@@ -600,7 +689,7 @@ interface ColumnsPlan {
 	}[]
 }
 
-interface ColumnLayoutState {
+export interface ColumnLayoutState {
 	plans: ColumnsPlan[]
 	decorations: DecorationSet
 }
@@ -646,7 +735,7 @@ function blockMargins(element: HTMLElement): { marginTop: number; marginBottom: 
 	}
 }
 
-function columnGapOf(dom: HTMLElement): number {
+export function columnGapOf(dom: HTMLElement): number {
 	const parsed = Number.parseFloat(getComputedStyle(dom).columnGap)
 	return Number.isFinite(parsed) ? parsed : FALLBACK_COLUMN_GAP
 }
@@ -731,9 +820,10 @@ function measureColumns(
 
 		const count = Math.max(MIN_COLUMNS, Number(node.attrs.count) || MIN_COLUMNS)
 		const width = dom.clientWidth
-		const columnGap = columnGapOf(dom)
-		const columnWidth = (width - columnGap * (count - 1)) / count
-		if (!(columnWidth > 0)) return
+		// Celah & lebar hasil seretan penggaris menang atas bawaan CSS (§P5).
+		const columnGap = typeof node.attrs.gap === 'number' && node.attrs.gap >= 0 ? node.attrs.gap : columnGapOf(dom)
+		const slots = resolveColumnSlots(width, count, columnGap, node.attrs.widths ?? null)
+		if (slots.length === 0) return
 
 		const items: ColumnItem[] = []
 		/** Sejajar dengan `items`: dipakai saat menerjemahkan hasil ke gaya CSS. */
@@ -764,7 +854,11 @@ function measureColumns(
 
 		if (items.length === 0) return
 
-		const flow = flowColumns(items, { top: dom.offsetTop, count, columnWidth, columnGap }, geometry)
+		const flow = flowColumns(
+			items,
+			{ top: dom.offsetTop, count, columnWidth: slots[0].width, columnGap, columns: slots },
+			geometry,
+		)
 
 		plans.push({
 			pos: offset,
@@ -783,7 +877,7 @@ function measureColumns(
 				left: placement.span ? 0 : placement.left,
 				// Lebar diberikan lewat `right`, bukan `width`: dengan begitu blok
 				// berindentasi menyempit ke dalam kolomnya alih-alih tumpah keluar.
-				right: placement.span ? 0 : width - placement.left - columnWidth,
+				right: placement.span ? 0 : width - placement.left - placement.width,
 				cuts: placement.cuts,
 				span: placement.span || undefined,
 			})),

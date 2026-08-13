@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { collapsedMargin, cutTableRows, flowColumns, type ColumnItem } from './columns'
+import { collapsedMargin, cutTableRows, flowColumns, resolveColumnSlots, type ColumnItem } from './columns'
 import { pageGeometry } from './page-geometry'
 
 /**
@@ -495,5 +495,55 @@ describe('blok tak terpenggal naik selebar penuh (§P4 lapis 3)', () => {
 				}
 			}
 		}
+	})
+})
+
+describe('geometri kolom dari atribut (§P5)', () => {
+	describe('resolveColumnSlots', () => {
+		test('tanpa atribut widths, kolom rata', () => {
+			expect(resolveColumnSlots(648, 2, 24, null)).toEqual([
+				{ left: 0, width: 312 },
+				{ left: 336, width: 312 },
+			])
+		})
+
+		test('widths tersimpan dipakai apa adanya bila lebarnya masih pas', () => {
+			expect(resolveColumnSlots(648, 2, 24, [212, 412])).toEqual([
+				{ left: 0, width: 212 },
+				{ left: 236, width: 412 },
+			])
+		})
+
+		test('widths yang tidak lagi pas dinormalkan proporsional', () => {
+			// Diseret saat pembungkus selebar 1248px; margin lalu diperlebar
+			// sehingga ruang tersisa 648px - proporsinya harus bertahan.
+			const slots = resolveColumnSlots(648, 2, 24, [400, 800])
+			expect(slots[0].width / slots[1].width).toBeCloseTo(0.5)
+			expect(slots[1].left + slots[1].width).toBeCloseTo(648)
+		})
+
+		test('widths yang tidak sah kembali ke rata', () => {
+			const equal = resolveColumnSlots(648, 2, 24, null)
+			expect(resolveColumnSlots(648, 2, 24, [100])).toEqual(equal)
+			expect(resolveColumnSlots(648, 2, 24, [100, 0])).toEqual(equal)
+		})
+	})
+
+	describe('flowColumns dengan lebar tak sama', () => {
+		test('penempatan mengikuti tepi dan lebar tiap kolom', () => {
+			const columns = [
+				{ left: 0, width: 212 },
+				{ left: 236, width: 412 },
+			]
+			const { placements } = flowColumns(
+				blocks([100, 100, 100, 100]),
+				{ top: 0, count: 2, columnWidth: 212, columnGap: 24, columns },
+				geometry,
+			)
+
+			// Lembar terakhir diseimbangkan: dua blok per kolom.
+			expect(placements[0]).toMatchObject({ left: 0, width: 212, top: 0 })
+			expect(placements[2]).toMatchObject({ left: 236, width: 412, top: 0 })
+		})
 	})
 })
