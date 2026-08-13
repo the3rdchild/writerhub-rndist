@@ -592,3 +592,39 @@ describe('batas lembar berlabuh di sheetOrigin (§P8)', () => {
 		expect(placements[0].cuts?.[0].spacerHeight).toBeCloseTo(826 - 600)
 	})
 })
+describe('page break di dalam blok kolom (§P4)', () => {
+	test('isi sesudahnya mulai di kolom pertama lembar berikutnya', () => {
+		// Tanpa ini penandanya tergambar tapi tidak melakukan apa pun: aliran
+		// berjalan terus ke kolom sebelah seolah tidak ada apa-apa.
+		const items = blocks([100, 0, 100])
+		items[1].isBreak = true
+
+		const boxes = rendered(items)
+
+		expect(boxes[0]).toMatchObject({ column: 0, top: 0 })
+		// Penandanya sendiri tidak memakan ruang, tapi memulangkan aliran ke
+		// lembar berikutnya - kolom pertama, bukan kolom kedua lembar ini.
+		expect(boxes[2].column).toBe(0)
+		expect(boxes[2].top).toBe(pageStride)
+	})
+
+	test('page break tetap memulangkan aliran walau kolomnya masih lowong', () => {
+		const items = blocks([100, 0, 100, 100])
+		items[1].isBreak = true
+
+		const boxes = rendered(items)
+
+		// Keduanya pindah ke lembar berikutnya. Bagaimana mereka dibagi antar
+		// kolom di sana urusan penyeimbangan lembar terakhir - yang dijaga di
+		// sini cuma satu: tidak ada yang tertinggal di lembar sebelum break.
+		expect(boxes[2].top).toBe(pageStride)
+		expect(boxes[3].top).toBeGreaterThanOrEqual(pageStride)
+	})
+
+	test('tanpa penanda, aliran tetap seperti biasa', () => {
+		// Penjaga arah sebaliknya: perubahan ini tidak boleh membuat SETIAP blok
+		// berpindah lembar - keduanya tetap di lembar pertama.
+		const boxes = rendered(blocks([100, 100]))
+		expect(boxes.every((box) => box.top < pageStride)).toBe(true)
+	})
+})

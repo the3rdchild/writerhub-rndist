@@ -2,6 +2,7 @@ import { Extension, mergeAttributes, Node } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
+import { PAGE_BREAK_NODE } from './page-break'
 import { type PageGeometry, pageGeometry } from './page-geometry'
 import {
 	paginationKey,
@@ -223,6 +224,16 @@ export interface ColumnItem {
 	 * memecah node.
 	 */
 	table?: ColumnTable
+	/**
+	 * Pemenggalan halaman yang disisipkan penulis, di dalam blok kolom.
+	 *
+	 * Ia memutus aliran kolom seluruhnya: isi sesudahnya mulai di puncak KOLOM
+	 * PERTAMA lembar berikutnya, bukan sekadar pindah ke kolom sebelah. Tanpa
+	 * ini penandanya tergambar tapi tidak melakukan apa pun - aliran berjalan
+	 * terus seolah tidak ada apa-apa, dan itulah yang terlihat sebagai naskah
+	 * yang "meledak" pada sampul dua kolom.
+	 */
+	isBreak?: boolean
 }
 
 /** Tabel sebagai deret baris terukur, plus header yang boleh diulang. */
@@ -437,6 +448,17 @@ export function flowColumns(
 		column = 0
 	}
 
+	/**
+	 * Pindah ke puncak kolom pertama lembar berikutnya - perintah page break.
+	 *
+	 * Berbeda dari `advance()`, yang hanya berpindah ke kolom sebelah dan baru
+	 * berganti lembar setelah kolom terakhir habis.
+	 */
+	const breakPage = () => {
+		page += 1
+		column = 0
+	}
+
 	let index = 0
 	while (index < items.length) {
 		// Petak selebar pembungkus memutus aliran kolom; ia tidak pernah masuk
@@ -444,6 +466,17 @@ export function flowColumns(
 		if (items[index].span) {
 			placeSpanner(items[index])
 			index += 1
+			continue
+		}
+
+		// Page break: penandanya sendiri tidak memakan ruang, tapi isi sesudahnya
+		// mulai di lembar berikutnya. Ditaruh di petak berjalan supaya posisinya
+		// tetap terdefinisi - dekorasi butuh koordinat untuk setiap blok.
+		if (items[index].isBreak) {
+			const base = Math.max(regionTop(page), blockedUntil[column])
+			slots.push({ page, column, top: base, height: 0 })
+			index += 1
+			breakPage()
 			continue
 		}
 
@@ -611,6 +644,10 @@ function packColumn(items: readonly ColumnItem[], from: number, limit: number): 
 		const item = items[i]
 		// Petak selebar pembungkus memutus pengepakan; ia diurus pemanggil.
 		if (item.span) break
+		// Begitu pula page break. Tanpa berhenti di sini ia ikut terbawa sebagai
+		// blok setinggi nol di tengah kolom, pemanggil tidak pernah melihatnya,
+		// dan penandanya jadi hiasan yang tidak memindahkan apa pun.
+		if (item.isBreak) break
 		// Margin antar blok bertumpuk, bukan berjumlah - seperti aliran normal.
 		const spacing = i === from ? 0 : Math.max(previousBottom, item.marginTop)
 		if (y + spacing + item.height > limit + 0.5) break
@@ -859,6 +896,7 @@ function measureColumns(
 								...blockMargins(element),
 								keepWithNext: KEEP_WITH_NEXT.has(node.type.name),
 								span: element.classList.contains('columns-span') || undefined,
+								isBreak: node.type.name === PAGE_BREAK_NODE || undefined,
 							},
 				)
 				regionItems[regionIndex].sizes.push(node.nodeSize)
@@ -895,6 +933,7 @@ function measureColumns(
 								height: element.offsetHeight,
 								...blockMargins(element),
 								keepWithNext: KEEP_WITH_NEXT.has(child.type.name),
+								isBreak: child.type.name === PAGE_BREAK_NODE || undefined,
 								// Keputusan selebar penuh lengket: kelasnya masih melekat
 								// dari rencana sebelumnya (§P4 lapis 3).
 								span: element.classList.contains('columns-span') || undefined,
