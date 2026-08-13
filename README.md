@@ -139,8 +139,19 @@ di dalam `try/except`, jadi style check tetap berjalan lewat daftar curated.
 | `bun run docker:up` / `docker:down` | Sama, lewat script workspace |
 | `bun run dev:web` / `dev:api` | Jalankan satu app di host dengan hot reload |
 | `bun run typecheck` | Typecheck seluruh workspace |
+| `bun run test` | Uji seluruh workspace TypeScript |
 | `bun run build` | Build produksi |
 | `bun run db:generate` / `db:migrate` / `db:push` / `db:studio` | Drizzle |
+
+Uji worker Python berdiri sendiri - ia tidak menyentuh Redis maupun basis data, jadi tidak
+perlu stack yang menyala:
+
+```bash
+cd services/worker
+python -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+pytest
+```
 
 ## Alur sebuah permintaan
 

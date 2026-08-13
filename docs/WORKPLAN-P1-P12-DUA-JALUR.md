@@ -235,10 +235,10 @@ Yang **belum** selesai dan sengaja dibiarkan masuk apa adanya:
 4. **Dependensi baru `country-flag-icons`.** `bun install` wajib di tiap mesin dan di image
    Docker sebelum menjalankan web.
 
-5. **`pytest` tidak ada di `services/worker/requirements.txt`.** Tiga berkas uji baru
-   (`core/test_cancel.py`, `core/queue/test_worker.py`,
-   `services/analyzers/test_glossary.py`) hanya bisa dijalankan dari venv yang memasang pytest
-   sendiri. Perlu `requirements-dev.txt` supaya CI dan orang berikutnya tidak menebak.
+5. ~~**`pytest` tidak ada di `services/worker/requirements.txt`.**~~ **Selesai** — dipisah ke
+   `services/worker/requirements-dev.txt` (pytest + ruff), dengan cara menjalankannya dicatat di
+   README §Perintah. Sengaja tidak digabung ke `requirements.txt` supaya image produksi tetap
+   ramping.
 
 6. **`JOB_DEADLINE_SECONDS=300` dan `WORKER_CONCURRENCY=2` masih tebakan (§2.9 PRD).** Belum
    diukur pada naskah 50 ribu karakter tier AI.
