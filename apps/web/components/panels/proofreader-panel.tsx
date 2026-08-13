@@ -35,7 +35,7 @@ function qualityBadge(average: number): { text: string; className: string; bar: 
 export function ProofreaderPanel() {
 	const { state, dispatch, correctedText } = useDocument()
 	const { editor } = useEditorInstance()
-	const { runCheck, isRunning, error, canRun, forcedAiTier } = useGrammarCheck()
+	const { runCheck, cancel, isRunning, error, canRun, forcedAiTier } = useGrammarCheck()
 	const scope = useSelectionScope()
 	const [copied, setCopied] = useState(false)
 
@@ -236,8 +236,7 @@ export function ProofreaderPanel() {
 					/>
 					<div className="shrink-0">
 						<RunButton
-							onClick={() => runCheck(scope ?? undefined)}
-							disabled={!canRun}
+							onClick={() => runCheck(scope ?? undefined)}						onCancel={cancel}							disabled={!canRun}
 							isRunning={isRunning}
 							runningLabel="Checking..."
 							label={scope ? 'Check Selection' : hasResults ? 'Check Again' : 'Check Grammar'}

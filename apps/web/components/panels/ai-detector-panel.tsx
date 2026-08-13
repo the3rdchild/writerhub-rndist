@@ -36,7 +36,7 @@ interface SentenceState extends Sentence {
 const acceptedScore = (score: number) => Math.max(5, Math.round(score * 0.25))
 
 export function AiDetectorPanel() {
-	const { result, isRunning, error, isStale, canRun, run } = useAnalysis('ai_detector')
+	const { result, isRunning, error, isStale, canRun, run, cancel } = useAnalysis('ai_detector')
 	const { dispatch } = useDocument()
 	const { editor } = useEditorInstance()
 	const { rangeProps } = useRangeHighlight()
@@ -234,6 +234,7 @@ export function AiDetectorPanel() {
 
 				<RunButton
 					onClick={() => run(scope ?? undefined)}
+					onCancel={cancel}
 					disabled={!canRun}
 					isRunning={isRunning}
 					runningLabel="Analyzing..."

@@ -6,6 +6,7 @@ import {
 	FileText,
 	Loader2,
 	type LucideIcon,
+	Square,
 	TextSelection,
 	Undo2,
 	X,
@@ -107,31 +108,47 @@ export function PanelEmptyState({
 
 export function RunButton({
 	onClick,
+	onCancel,
 	disabled,
 	isRunning,
 	runningLabel,
 	label,
+	cancelLabel = 'Cancel',
 }: {
 	onClick: () => void
+	/**
+	 * Bila disediakan, tombol berubah jadi "Cancel" selama berjalan - satu
+	 * tombol, dua keadaan, pola yang sama dengan obrolan AI (§P7 lapis A).
+	 * Tanpa ini, tombol hanya jadi spinner & mati seperti sebelumnya.
+	 */
+	onCancel?: () => void
 	disabled: boolean
 	isRunning: boolean
 	runningLabel: string
 	label: string
+	cancelLabel?: string
 }) {
+	const canCancel = isRunning && onCancel
 	return (
 		<button
 			type="button"
-			onClick={onClick}
-			disabled={disabled}
+			onClick={canCancel ? onCancel : onClick}
+			aria-label={canCancel ? cancelLabel : undefined}
 			className={cn(
 				'flex w-full items-center justify-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition-colors',
-				disabled
-					? 'cursor-not-allowed bg-accent/40 text-white/50'
-					: 'bg-accent text-accent-foreground hover:bg-accent-hover',
+				canCancel
+					? 'border border-line-strong bg-surface-raised text-foreground hover:bg-[var(--overlay-hover)]'
+					: disabled
+						? 'cursor-not-allowed bg-accent/40 text-white/50'
+						: 'bg-accent text-accent-foreground hover:bg-accent-hover',
 			)}
 		>
-			{isRunning && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-			{isRunning ? runningLabel : label}
+			{canCancel ? (
+				<Square className="h-3 w-3 fill-current" />
+			) : (
+				isRunning && <Loader2 className="h-3.5 w-3.5 animate-spin" />
+			)}
+			{canCancel ? cancelLabel : isRunning ? runningLabel : label}
 		</button>
 	)
 }

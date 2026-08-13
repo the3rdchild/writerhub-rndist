@@ -77,7 +77,7 @@ export function ChangeListPanel({
 	runningLabel,
 	noChangesLabel,
 }: ChangeListPanelProps) {
-	const { result, isRunning, error, isStale, canRun, run } = useAnalysis(feature)
+	const { result, isRunning, error, isStale, canRun, run, cancel } = useAnalysis(feature)
 	const changes = (result as { changes?: TextChange[] } | undefined)?.changes
 	const llmUnavailable = (result as { llm_unavailable?: boolean } | undefined)?.llm_unavailable
 	const { pending, applied, accept, dismiss, acceptAll, revert, canRevert } =
@@ -273,6 +273,7 @@ export function ChangeListPanel({
 
 				<RunButton
 					onClick={() => run(scope ?? undefined, runOptions)}
+					onCancel={cancel}
 					disabled={!canRun}
 					isRunning={isRunning}
 					runningLabel={runningLabel}

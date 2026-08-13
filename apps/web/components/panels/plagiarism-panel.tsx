@@ -26,7 +26,7 @@ function uniquenessColor(score: number): string {
 }
 
 export function PlagiarismPanel() {
-	const { result, isRunning, error, isStale, canRun, run } = useAnalysis('plagiarism')
+	const { result, isRunning, error, isStale, canRun, run, cancel } = useAnalysis('plagiarism')
 	const { rangeProps } = useRangeHighlight()
 	const scope = useSelectionScope()
 	const { lastRun } = usePanels()
@@ -105,6 +105,7 @@ export function PlagiarismPanel() {
 
 				<RunButton
 					onClick={() => run(scope ?? recheckScope)}
+					onCancel={cancel}
 					disabled={!canRun}
 					isRunning={isRunning}
 					runningLabel="Checking..."

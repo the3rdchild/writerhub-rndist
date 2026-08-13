@@ -31,7 +31,7 @@ import {
  * cara tahu.
  */
 export function GlossaryPanel() {
-	const { result, isRunning, error, canRun, run } = useAnalysis('glossary')
+	const { result, isRunning, error, canRun, run, cancel } = useAnalysis('glossary')
 	const { editor } = useEditorInstance()
 
 	const entries = (result as GlossaryResult | undefined)?.entries ?? []
@@ -130,6 +130,7 @@ export function GlossaryPanel() {
 
 				<RunButton
 					onClick={() => run()}
+					onCancel={cancel}
 					disabled={!canRun}
 					isRunning={isRunning}
 					runningLabel="Memindai…"

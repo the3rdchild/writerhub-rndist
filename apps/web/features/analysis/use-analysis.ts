@@ -1,7 +1,7 @@
 'use client'
 
 import type { AnalysisFeature, AnalysisResultFor, RewriterTone } from '@writer-hub/shared'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
@@ -35,6 +35,8 @@ export interface AnalysisController<F extends AnalysisFeature> {
 		scope?: { text: string; offset: number },
 		options?: { tone?: RewriterTone; targetLang?: string },
 	) => void
+	/** Batalkan analisis yang sedang berjalan (§P7 lapis A): UI bebas seketika. */
+	cancel: () => void
 }
 
 /**
@@ -51,6 +53,7 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 	const language = useDocumentLanguage()
 	const { linkage } = useSync()
 	const { activeId } = useSessions()
+	const queryClient = useQueryClient()
 
 	const currentText = state.text
 	const requested = lastRun[feature]
@@ -121,6 +124,13 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 		[markRun, feature, currentText, requested, query, language.code, linkage, activeId],
 	)
 
+	/** Batalkan analisis berjalan (§P7 lapis A). cancelQueries membatalkan queryFn
+	     yang sedang menunggu SSE; panel kembali ke keadaan sebelum Run, tanpa
+	     dianggap error. */
+	const cancel = useCallback(() => {
+		void queryClient.cancelQueries({ queryKey: ['analysis', feature], exact: false })
+	}, [queryClient, feature])
+
 	return {
 		result: query.data,
 		isRunning: query.isFetching,
@@ -132,5 +142,6 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 		canRun: !query.isFetching && currentText.trim().length >= MIN_TEXT_LENGTH,
 		isScoped: requested?.scoped ?? false,
 		run,
+		cancel,
 	}
 }
