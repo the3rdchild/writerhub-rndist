@@ -33,6 +33,9 @@ const CODE_BLOCK_CHROME = 48
 /** Sisa ruang sependek ini tidak lagi berguna untuk menampilkan kode. */
 const CODE_BLOCK_MIN_HEIGHT = 120
 
+/** Piksel 96 dpi → milimeter, dibulatkan 2 desimal untuk aturan `@page`. */
+const mm = (px: number) => Math.round((px / 96) * 25.4 * 100) / 100
+
 /**
  * Kanvas tempat lembar dokumen berada.
  *
@@ -107,6 +110,26 @@ export function DocumentCanvas({
 				!settings.showRuler && 'pt-8',
 			)}
 		>
+			{/*
+			 * Ukuran kertas & margin untuk pencetakan.
+			 *
+			 * Harus disuntikkan dari sini, bukan ditulis di globals.css: keduanya
+			 * milik naskah dan berubah kapan saja lewat dialog Penyiapan halaman,
+			 * sedangkan `@page` tidak menerima custom property.
+			 *
+			 * Di kertas, margin datang dari `@page` - bukan dari padding pembungkus
+			 * seperti di layar. Bedanya penting: di layar tiap lembar berhenti
+			 * sendiri di batas area teks, sementara saat dicetak naskah mengalir
+			 * menerus dan peramban yang memenggalnya, jadi hanya `@page` yang bisa
+			 * memberi margin pada halaman KEDUA dan seterusnya.
+			 *
+			 * Batasan yang diketahui: dokumen dengan section berukuran berbeda
+			 * (§P8&P9) tercetak seluruhnya pada ukuran section pertama - CSS baru
+			 * bisa membedakannya lewat named pages, dan dukungannya belum merata.
+			 */}
+			{!setup.pageless && (
+				<style media="print">{`@page { size: ${mm(width)}mm ${mm(height)}mm; margin: ${mm(margins.top)}mm ${mm(margins.right)}mm ${mm(margins.bottom)}mm ${mm(margins.left)}mm; }`}</style>
+			)}
 			<div className="mx-auto" style={{ width: canvasWidth * zoom + leftRulerRoom }}>
 				{settings.showRuler && (
 					// Penggaris ikut menggulung mendatar bersama lembar, tapi menempel di
@@ -146,10 +169,20 @@ export function DocumentCanvas({
 					)}
 
 					{/* Pembungkus berukuran hasil zoom supaya scrollbar tetap akurat;
-					    elemen di dalamnya yang benar-benar diperbesar. */}
-					<div style={{ width: canvasWidth * zoom, height: totalHeight * zoom }}>
+					    elemen di dalamnya yang benar-benar diperbesar.
+
+					    Keduanya diberi nama kelas, bukan dibiarkan jadi div polos:
+					    aturan cetak harus melepas ukuran dan transform-nya, dan
+					    menyasarnya lewat rantai `>` sempat meleset diam-diam begitu
+					    satu lapisan pembungkus bertambah - hasilnya seluruh dokumen
+					    tercetak sebagai satu halaman raksasa (browser tidak memenggal
+					    halaman di dalam elemen ber-transform). */}
+					<div
+						className="document-zoom-frame"
+						style={{ width: canvasWidth * zoom, height: totalHeight * zoom }}
+					>
 						<div
-							className="relative"
+							className="document-zoom-inner relative"
 							style={{
 								width: canvasWidth,
 								minHeight: totalHeight,
@@ -211,7 +244,7 @@ export function DocumentCanvas({
 							</div>
 
 							<div
-								className="relative z-10"
+								className="document-page-padding relative z-10"
 								style={
 									{
 										paddingTop: margins.top,

@@ -1635,9 +1635,22 @@ html.light .range-highlight {
     background: #fff;
   }
 
-  /* Zoom layar tidak boleh ikut memengaruhi hasil cetak. */
+  /*
+   * Zoom layar tidak boleh ikut memengaruhi hasil cetak.
+   *
+   * `transform` yang tertinggal bukan sekadar salah ukuran: elemen ber-transform
+   * membentuk containing block tersendiri dan peramban TIDAK memenggal halaman
+   * di dalamnya, jadi seluruh dokumen keluar sebagai satu lembar raksasa -
+   * "Total: 1 page" berapa pun panjang naskahnya.
+   *
+   * Disasar lewat nama kelas, bukan rantai `>`: rantai itu sempat meleset diam-
+   * diam begitu satu lapisan pembungkus bertambah, dan gejalanya baru terlihat
+   * di dialog cetak.
+   */
   .document-canvas > div,
-  .document-canvas > div > div {
+  .document-canvas > div > div,
+  .document-zoom-frame,
+  .document-zoom-inner {
     width: auto !important;
     height: auto !important;
     min-height: 0 !important;
@@ -1722,6 +1735,18 @@ html.light .range-highlight {
     display: none !important;
   }
 
+  /*
+   * Margin di kertas datang dari `@page` (disuntikkan document-canvas.tsx dari
+   * tata letak naskah), jadi padding pembungkus layar harus dilepas - kalau
+   * tidak, halaman pertama mendapat margin dua kali sementara halaman kedua dan
+   * seterusnya hanya sekali.
+   */
+  .document-page-padding {
+    padding: 0 !important;
+  }
+
+  /* Cadangan bila `@page` dari kanvas tidak sempat terpasang (mis. mode
+     pageless): jangan sampai naskah tercetak menempel tepi kertas. */
   @page {
     margin: 25mm;
   }
