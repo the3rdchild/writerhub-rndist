@@ -45,12 +45,23 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
 
       # Gate yang wajib lulus: seluruh modul harus bisa dikompilasi.
       - name: Compile check
         run: python -m compileall -q .
+
+      # Nama yang tidak pernah didefinisikan LOLOS dari compileall - Python baru
+      # mencarinya saat baris itu dijalankan. Sebuah `except CancelledError:`
+      # tanpa importnya pernah lolos ke produksi begitu dan mematikan seluruh
+      # Proofreader, sekaligus menyembunyikan galat aslinya. F821 karena itu
+      # blocking tersendiri, terpisah dari lint selengkapnya yang masih advisory.
+      - name: Undefined names (blocking)
+        run: ruff check --select F821 .
+
+      - name: Tests
+        run: pytest -q
 
       # Worker dipindahkan apa adanya dari ai-grammar-checker dan belum pernah
       # diformat ruff. Dua langkah di bawah masih bersifat informatif; jadikan
