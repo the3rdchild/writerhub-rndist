@@ -34,6 +34,17 @@ GRAMMAR_LANGUAGE = os.getenv("GRAMMAR_LANGUAGE", "en")
 EXTRACT_MAX_FILE_BYTES = _int("EXTRACT_MAX_FILE_BYTES", 10 * 1024 * 1024)
 EXTRACT_VERIFY_SSL = _bool("EXTRACT_VERIFY_SSL", True)
 
+# ── ketahanan antrean (§P11) ─────────────────────────────────────────────────
+# Batas waktu satu job. Handler dijalankan di thread anak dengan join(timeout);
+# lewat batas → job ditandai 'failed' dan antrean maju ke job berikutnya, jadi
+# satu job yang menggantung tidak membekukan seluruh fitur analisis. Thread anak
+# yang tertinggal mati sendiri karena requests punya timeout 60 detik.
+# Angka bawaan adalah tebakan awal - ukur dulu tier AI pada naskah 50 ribu karakter.
+JOB_DEADLINE_SECONDS = _int("JOB_DEADLINE_SECONDS", 300)
+# Jumlah pengambil (consumer) per antrean. Naskah tier AI memakan puluhan detik;
+# konkurensi mencegah satu pemakai mengunci yang lain.
+WORKER_CONCURRENCY = _int("WORKER_CONCURRENCY", 2)
+
 # ── AI provider bawaan ───────────────────────────────────────────────────────
 # Provider utama dikirim per job oleh apps/api (hasil resolve dari admin-ppe,
 # lihat core/provider.py). Nilai di bawah cuma dipakai POS tagger fallback;
