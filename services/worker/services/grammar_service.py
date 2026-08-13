@@ -44,6 +44,13 @@ def process(data: dict):
     try:
         _run(job_id, request_id, payload)
         _svc.log_end(job_id)
+    except CancelledError:
+        # Dibatalkan di tengah jalan (§P7 lapis C): hasil tidak disimpan, status
+        # ditandai batal, dan 'cancelled' diterbitkan supaya SSE tertutup rapi.
+        _svc.logger.info("[grammar_service] dibatalkan | job_id=%s", job_id)
+        update_status(job_id, "cancelled")
+        _publish(f"grammar:stream:{job_id}", {"type": "cancelled"})
+        clear_flag(job_id)
     except Exception as e:
         _svc.logger.exception("[grammar_service] error | job_id=%s", job_id)
         _svc.log_error(job_id)
@@ -86,6 +93,10 @@ def _run(job_id: str, request_id: str, payload: dict):
     def on_checkpoint(suggestions: list):
         _publish(channel, {"type": "checkpoint", "suggestions": suggestions})
 
+    # Titik periksa batal sebelum analyzer - job yang dibatalkan saat baru masuk
+    # tidak perlu menunggu satu putaran LLM (§P7 lapis C).
+    check_cancelled(job_id)
+
     # 3. analisa grammar - kirim snapshot per checker via Redis pub/sub
     with _svc.timed_step("grammar:analyze"):
         result = analyze_grammar(
@@ -93,7 +104,12 @@ def _run(job_id: str, request_id: str, payload: dict):
             on_checkpoint=on_checkpoint, provider=provider,
         )
 
+    # Token sudah terpakai di sisi penyedia walau lalu dibatalkan, jadi tetap
+    # dicatat - SEBELUM titik periksa batal terakhir (§2.8).
     update_tokens(job_id, result.get("total_tokens"))
+
+    # Titik periksa batal sesudah analyzer: hasil dibuang, tidak disimpan.
+    check_cancelled(job_id)
 
     # 4. simpen hasil ke grammar_result
     save_grammar_result(
