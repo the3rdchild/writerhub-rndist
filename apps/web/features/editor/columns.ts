@@ -1,6 +1,6 @@
 import { Extension, mergeAttributes, Node } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { type EditorState, Plugin, PluginKey, type Transaction } from '@tiptap/pm/state'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import { PAGE_BREAK_NODE } from './page-break'
 import { type PageGeometry, pageGeometry } from './page-geometry'
@@ -14,7 +14,8 @@ import {
 	SPACER_ATTRIBUTE,
 	type Spacer,
 } from './pagination'
-import { columnRegions } from './section-break'
+import { columnRegions, SECTION_BREAK_NODE, type SectionBreakAttrs, sectionSpans } from './section-break'
+import { clampColumnWidths, explicitColumnWidths, writeColumnWidths } from './table-ops'
 
 /**
  * Kolom gaya koran - teks terpilih mengalir dan berimbang sendiri antar kolom.
@@ -41,9 +42,11 @@ import { columnRegions } from './section-break'
  * (lihat blok @media print di globals.css): di kertas peramban yang memenggal,
  * dan multi-kolom CSS mengalir dari lembar ke lembar dengan benar.
  *
- * Perintah: `setColumns(n)` membungkus seleksi jadi n kolom - atau mengubah
- * jumlahnya kalau seleksi sudah berada di dalam kolom; `unsetColumns`
- * mengangkat isinya kembali ke aliran dokumen.
+ * Perintah: `setColumns(n)` mengolomkan seleksi sebagai SECTION MENERUS (E5) -
+ * blok pembungkus tidak pernah dibuat lagi, dan naskah lama yang memuatnya
+ * dimigrasi saat dibuka (lihat `migrateLegacyColumns`). `unsetColumns`
+ * mengangkat isi pembungkus lama maupun menghapus sepasang pembatas section
+ * berkolom yang melingkupi seleksi.
  */
 
 /** Minimal dua - satu kolom itu paragraf biasa. */
@@ -154,16 +157,22 @@ export const Columns = Node.create({
 				(count) =>
 				({ editor, commands }) => {
 					if (!Number.isFinite(count) || count < MIN_COLUMNS) return false
-					// Sudah di dalam kolom: ganti jumlahnya, jangan bersarang lagi.
+					// Naskah lama: sudah di dalam blok pembungkus - ganti jumlahnya
+					// saja (E5: pembungkus tidak pernah dibuat lagi, tapi yang sudah
+					// ada tetap bekerja sampai migrasi menemuinya saat dibuka).
 					if (editor.isActive(this.name)) {
 						return commands.updateAttributes(this.name, { count })
 					}
-					return commands.wrapIn(this.name, { count })
+					// Seleksi dikolomkan sebagai SECTION MENERUS, bukan pembungkus:
+					// hanya bentuk itulah yang bisa diekspor ke DOCX (putusan §2.2).
+					return commands.setSectionColumns(count)
 				},
 			unsetColumns:
 				() =>
 				({ commands }) =>
-					commands.lift(this.name),
+					// Pembungkus lama diangkat isinya; section berkolom dihapus sepasang
+					// pembatasnya (E5 langkah 3).
+					commands.lift(this.name) || commands.unsetSectionColumns(),
 			setColumnsLayout:
 				(pos, patch) =>
 				({ tr, dispatch }) => {
@@ -197,6 +206,61 @@ const LegacyColumn = Node.create({
 		return [{ tag: 'div[data-type="col"]' }]
 	},
 })
+
+/**
+ * Migrasi naskah lama saat dibuka (E5 langkah 4): tiap blok `columns` diganti
+ * sepasang pembatas section MENERUS - satu membuka kolom, satu mengembalikan
+ * kolom yang tadi berlaku - dan isinya diangkat keluar.
+ *
+ * Ketiga syarat keputusan §2.5 terlihat dari bentuk fungsinya:
+ * - Idempoten dan senyap: tanpa node `columns`, hasilnya null - bukan transaksi,
+ *   jadi naskah yang sudah bersih tidak pernah tercatat "berubah".
+ * - Di luar riwayat undo: transaksinya membawa `addToHistory: false`.
+ * - Tampil identik: jumlah dan celah kolom ikut ke pembatas pembukanya. Lebar
+ *   per kolom (`widths`) tidak punya padanan di model section dan gugur - ia
+ *   hanya pernah ada pada naskah yang kolomnya diseret tidak rata.
+ *
+ * Posisi dikumpulkan dulu lalu diolah dari BELAKANG supaya penggantian tidak
+ * menggeser alamat yang belum diproses. Pembungkus bersarang tidak diselami
+ * (`false` pada descendants) - isinya terangkat utuh dan putaran berikutnya
+ * yang mengurus pembungkus dalamnya.
+ */
+export function migrateLegacyColumns(state: EditorState): Transaction | null {
+	const breakType = state.schema.nodes[SECTION_BREAK_NODE]
+	if (!breakType) return null
+
+	const wrappers: { pos: number; node: PMNode }[] = []
+	state.doc.descendants((node, pos) => {
+		if (node.type.name !== COLUMNS_NODE) return true
+		wrappers.push({ pos, node })
+		return false
+	})
+	if (wrappers.length === 0) return null
+
+	// Kolom yang berlaku di sekitar tiap pembungkus, dari section yang
+	// melingkupinya - pembatas penutup harus mengembalikannya, bukan mengosongkan.
+	const spans = sectionSpans(state.doc)
+
+	const tr = state.tr
+	for (const { pos, node } of [...wrappers].reverse()) {
+		const enclosing = spans.filter((span) => span.pos <= pos).pop()
+		const restore = enclosing && enclosing.pos > 0 ? enclosing.columns : null
+
+		const columns: SectionBreakAttrs['columns'] = {
+			count: Math.max(MIN_COLUMNS, Number(node.attrs.count) || MIN_COLUMNS),
+			...(typeof node.attrs.gap === 'number' ? { gap: node.attrs.gap } : {}),
+		}
+		const open = breakType.create({ pageSetup: null, columns, continuous: true })
+		const close = breakType.create({ pageSetup: null, columns: restore ?? null, continuous: true })
+
+		const children: PMNode[] = []
+		node.content.forEach((child) => children.push(child))
+		tr.replaceWith(pos, pos + node.nodeSize, [open, ...children, close])
+	}
+
+	tr.setMeta('addToHistory', false)
+	return tr
+}
 
 // ── tata letak kolom ───────────────────────────────────────────────────────
 
@@ -473,10 +537,17 @@ export function flowColumns(
 		// mulai di lembar berikutnya. Ditaruh di petak berjalan supaya posisinya
 		// tetap terdefinisi - dekorasi butuh koordinat untuk setiap blok.
 		if (items[index].isBreak) {
+			// Lembar yang masih perawan tidak dilompati lagi: advance() dari kolom
+			// terakhir lembar sebelumnya SUDAH membukanya, jadi posisi berjalan
+			// persis di tempat yang diminta break. Melompat sekali lagi hanya
+			// menyisakan lembar kosong berisi penanda setinggi nol (E2). Penanda
+			// break lain tidak dihitung mengisi - dua break berturut-turut tetap
+			// hanya melewati satu lembar.
+			const fresh = column === 0 && !slots.some((slot) => slot.page === page && slot.height > 0)
 			const base = Math.max(regionTop(page), blockedUntil[column])
 			slots.push({ page, column, top: base, height: 0 })
 			index += 1
-			breakPage()
+			if (!fresh) breakPage()
 			continue
 		}
 
@@ -868,12 +939,39 @@ function measureTableItem(view: EditorView, table: PMNode, tablePos: number, dom
  * mereka diposisikan mutlak, tinggi mereka tidak lagi terbaca dari ukuran akar
  * editor, jadi merekalah yang harus diamati langsung (lihat `watch` di plugin).
  */
+/** Tabel yang colwidth tetapnya meluber petak kolomnya, plus ruang yang tersedia. */
+interface TableWidthCorrection {
+	pos: number
+	available: number
+}
+
 function measureColumns(
 	view: EditorView,
 	geometry: PageGeometry,
-): { plans: ColumnsPlan[]; elements: HTMLElement[] } {
+): { plans: ColumnsPlan[]; elements: HTMLElement[]; corrections: TableWidthCorrection[] } {
 	const plans: ColumnsPlan[] = []
 	const elements: HTMLElement[] = []
+	const corrections: TableWidthCorrection[] = []
+
+	/**
+	 * Tabel ber-`colwidth` tetap menang atas `width: 100%` pada `table-layout:
+	 * fixed` (E3): lebar pakainya adalah JUMLAH lebar kolomnya, jadi di petak
+	 * yang lebih sempit ia menonjol keluar dan menimpa kolom sebelah. Catat
+	 * untuk disempitkan proporsional; petak selebar pembungkus diukur terhadap
+	 * lebar penuh, dan indentasi ikut memakan ruangnya.
+	 */
+	const collectTableCorrections = (flow: ColumnFlow, items: readonly ColumnItem[], fullWidth: number) => {
+		flow.placements.forEach((placement, index) => {
+			if (!items[index].table) return
+			const table = view.state.doc.nodeAt(placement.pos)
+			if (!table || table.type.name !== 'table') return
+			const indent = Number(table.attrs.indentLeft) || 0
+			const available = Math.max(0, (placement.span ? fullWidth : placement.width) - indent)
+			if (clampColumnWidths(explicitColumnWidths(table), available)) {
+				corrections.push({ pos: placement.pos, available })
+			}
+		})
+	}
 
 	// Rentang section berkolom; blok di dalamnya bukan milik pembungkus mana pun.
 	const setup = paginationKey.getState(view.state)?.setup
@@ -952,6 +1050,8 @@ function measureColumns(
 			geometry,
 		)
 
+		collectTableCorrections(flow, items, width)
+
 		plans.push({
 			pos: offset,
 			nodeSize: node.nodeSize,
@@ -1026,6 +1126,8 @@ function measureColumns(
 			pageGeometry(region.span.setup),
 		)
 
+		collectTableCorrections(flow, items, width)
+
 		plans.push({
 			pos: region.from,
 			nodeSize: 0,
@@ -1046,7 +1148,7 @@ function measureColumns(
 		})
 	})
 
-	return { plans, elements }
+	return { plans, elements, corrections }
 }
 
 function samePlans(a: readonly ColumnsPlan[], b: readonly ColumnsPlan[]): boolean {
@@ -1284,9 +1386,30 @@ function columnLayoutPlugin(): Plugin<ColumnLayoutState> {
 				const measured =
 					pagination && !pagination.pageless
 						? measureColumns(view, pagination.geometry)
-						: { plans: [], elements: [] }
+						: { plans: [], elements: [], corrections: [] }
 
 				watch(measured.elements)
+
+				// Koreksi E3 lebih dulu: tabel yang colwidth-nya meluber petak
+				// kolomnya disempitkan proporsional (perhitungan yang sama dengan
+				// penggaris). Ini mengubah dokumen - yang memicu pengukuran ulang -
+				// jadi rencana putaran ini tidak perlu dikirim: tinggi tabel sudah
+				// kedaluwarsa begitu lebarnya berubah.
+				if (measured.corrections.length > 0) {
+					const tr = view.state.tr
+					let changed = false
+					for (const { pos, available } of measured.corrections) {
+						const table = tr.doc.nodeAt(pos)
+						if (!table || table.type.name !== 'table') continue
+						const next = clampColumnWidths(explicitColumnWidths(table), available)
+						if (next) changed = writeColumnWidths(tr, tr.doc, pos, next) || changed
+					}
+					if (changed) {
+						tr.setMeta('addToHistory', false)
+						view.dispatch(tr)
+						return
+					}
+				}
 
 				// Pengukuran kedua atas keadaan yang sama menghasilkan rencana yang
 				// sama - di sinilah putaran ukur-gambar berhenti.

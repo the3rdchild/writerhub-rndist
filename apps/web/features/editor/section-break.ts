@@ -1,5 +1,6 @@
 import { type CommandProps, mergeAttributes, Node } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
+import type { EditorState, Transaction } from '@tiptap/pm/state'
 import { DEFAULT_PAGE_SETUP, type PageSetup } from './page-geometry'
 
 /**
@@ -7,9 +8,15 @@ import { DEFAULT_PAGE_SETUP, type PageSetup } from './page-geometry'
  *
  * Setelan menempel pada potongan naskah, bukan pada nomor halaman - halaman
  * ke-3 bukan identitas yang stabil karena isi bergeser setiap kali teks
- * bertambah. Node ini menandai batasnya: ia SELALU memulai lembar baru, dan
- * section yang dimulai darinya mewarisi setelan section sebelumnya kecuali
- * yang disebutkan di atributnya (persis `sectPr` pada DOCX).
+ * bertambah. Node ini menandai batasnya: ia memulai lembar baru, dan section
+ * yang dimulai darinya mewarisi setelan section sebelumnya kecuali yang
+ * disebutkan di atributnya (persis `sectPr` pada DOCX).
+ *
+ * Pengecualiannya pembatas MENERUS (`continuous`, E5): ia tidak membuka lembar
+ * baru - yang berubah hanya kolomnya, di tengah halaman yang sama. Karena satu
+ * lembar hanya punya satu ukuran kertas, pembatas menerus yang membawa
+ * `pageSetup` sampai mengubah geometri lembar turun pangkat jadi pembatas
+ * biasa (lihat `sameSheetGeometry`).
  *
  * Atributnya sengaja parsial: `pageSetup` hanya memuat yang berubah, dan
  * `columns` hanya ada bila section ini ditata berkolom (§P8).
@@ -21,6 +28,8 @@ export const SECTION_BREAK_NODE = 'sectionBreak'
 export interface SectionBreakAttrs {
 	pageSetup: Partial<PageSetup> | null
 	columns: { count: number; gap?: number } | null
+	/** true = pembatas menerus (E5): hanya kolom yang berubah, lembar tidak. */
+	continuous?: boolean
 }
 
 /** Satu rentang section: mulai dari `pos`, dengan setelan yang sudah digabung. */
@@ -45,6 +54,10 @@ declare module '@tiptap/core' {
 				range: { from: number; to?: number },
 				baseSetup?: PageSetup,
 			) => ReturnType
+			/** Kolomkan seleksi sebagai SECTION MENERUS (E5) - isi tidak pindah lembar. */
+			setSectionColumns: (count: number) => ReturnType
+			/** Hapus sepasang pembatas section berkolom yang melingkupi seleksi. */
+			unsetSectionColumns: () => ReturnType
 		}
 	}
 }
@@ -83,6 +96,11 @@ export const SectionBreak = Node.create({
 				renderHTML: (attributes) =>
 					attributes.columns === null ? {} : { 'data-columns': JSON.stringify(attributes.columns) },
 			},
+			continuous: {
+				default: false,
+				parseHTML: (element) => element.getAttribute('data-continuous') === 'true',
+				renderHTML: (attributes) => (attributes.continuous ? { 'data-continuous': 'true' } : {}),
+			},
 		}
 	},
 
@@ -90,13 +108,14 @@ export const SectionBreak = Node.create({
 		return [{ tag: 'div[data-section-break]' }]
 	},
 
-	renderHTML({ HTMLAttributes }) {
+	renderHTML({ node, HTMLAttributes }) {
 		return [
 			'div',
 			mergeAttributes(HTMLAttributes, {
 				'data-section-break': '',
-				class: 'section-break',
-				'aria-label': 'Pembatas section',
+				// Pembatas menerus tampil beda di layar dan tidak memenggal kertas.
+				class: node.attrs.continuous ? 'section-break section-break-continuous' : 'section-break',
+				'aria-label': node.attrs.continuous ? 'Pembatas section menerus' : 'Pembatas section',
 			}),
 		]
 	},
@@ -109,7 +128,11 @@ export const SectionBreak = Node.create({
 					const atEnd = state.selection.to >= state.doc.content.size - 1
 					const node = {
 						type: this.name,
-						attrs: { pageSetup: attrs?.pageSetup ?? null, columns: attrs?.columns ?? null },
+						attrs: {
+							pageSetup: attrs?.pageSetup ?? null,
+							columns: attrs?.columns ?? null,
+							continuous: attrs?.continuous ?? false,
+						},
 					}
 					// Node atom di ujung dokumen tidak menyisakan tempat untuk kursor.
 					const content = atEnd ? [node, { type: 'paragraph' }] : [node]
@@ -163,6 +186,16 @@ export const SectionBreak = Node.create({
 						open: { pageSetup: null, columns },
 						close: { pageSetup: null, columns: before.columns ?? null },
 					})),
+
+			setSectionColumns:
+				(count) =>
+				({ state, tr, dispatch }) =>
+					setSectionColumnsCommand(state, tr, dispatch, count),
+
+			unsetSectionColumns:
+				() =>
+				({ state, tr, dispatch }) =>
+					unsetSectionColumnsCommand(state, tr, dispatch),
 		}
 	},
 })
@@ -198,6 +231,98 @@ function encloseSection(
 	}
 	tr.insert(range.from, type.create(open))
 
+	return true
+}
+
+/**
+ * Rentang section berkolom yang melingkupi sebuah posisi, bila ada.
+ *
+ * Dipakai kedua perintah kolom-seleksi: di dalam rentang, mengubah kolom
+ * berarti menyunting pembatas pembukanya - bukan menambah sepasang pembatas
+ * baru di dalam rentang yang sudah ada.
+ */
+function enclosingColumnSpan(spans: readonly SectionSpan[], from: number, docSize: number): SectionSpan | null {
+	// slice(1), bukan saring posisi: pembatas DI POSISI 0 pun membuka section
+	// nyata, dan posisinya berbagi angka yang sama dengan section dasar.
+	const columned = spans.slice(1).filter((span) => (span.columns?.count ?? 0) >= 2)
+	const candidate = columned.filter((span) => span.pos <= from).pop()
+	if (!candidate) return null
+	const next = spans[spans.indexOf(candidate) + 1]
+	return from < (next?.pos ?? docSize) ? candidate : null
+}
+
+/**
+ * Kolomkan seleksi sebagai SECTION MENERUS (E5 langkah 2).
+ *
+ * Berbeda dari `applySectionColumns` (cakupan halaman/section): kedua pembatas
+ * membawa `continuous`, jadi isi terpilih TIDAK didorong ke lembar berikutnya -
+ * "kolomkan dua paragraf ini" berarti mengolomkannya di tempat, bukan
+ * memindahkannya. Di dalam rentang yang sudah berkolom, perintah ini cukup
+ * mengganti jumlah kolom pada pembatas pembukanya.
+ *
+ * Mengikuti konvensi perintah ProseMirror: perubahan ditulis ke `tr` yang
+ * diberikan, dan `dispatch` hanya penanda "boleh mengubah dokumen". Diekspor
+ * (bukan hanya lewat perintah editor) supaya bisa diuji tanpa DOM.
+ */
+export function setSectionColumnsCommand(
+	state: EditorState,
+	tr: Transaction,
+	dispatch: ((tr: Transaction) => void) | undefined,
+	count: number,
+): boolean {
+	if (!Number.isFinite(count) || count < 2) return false
+
+	const spans = sectionSpans(state.doc)
+	const enclosing = enclosingColumnSpan(spans, state.selection.from, state.doc.content.size)
+	if (enclosing) {
+		if (!dispatch) return true
+		const node = state.doc.nodeAt(enclosing.pos)
+		if (!node) return false
+		const columns = { ...(node.attrs.columns as SectionBreakAttrs['columns']), count }
+		tr.setNodeMarkup(enclosing.pos, undefined, { ...node.attrs, columns })
+		return true
+	}
+
+	// Rentangnya blok-blok tingkat atas yang tersentuh seleksi, dihitung dari
+	// LUAR bloknya - before/after, bukan start/end: menyisipkan pembatas di
+	// dalam paragraf (start/end) justru membelah paragraf itu jadi dua.
+	// Seleksi lipat berarti blok tempat kursor berada.
+	const { $from, $to } = state.selection
+	const from = $from.depth >= 1 ? $from.before(1) : 0
+	const to = $to.depth >= 1 ? $to.after(1) : state.doc.content.size
+
+	return encloseSection({ tr, dispatch, state }, { from, to }, DEFAULT_PAGE_SETUP, (before) => ({
+		open: { pageSetup: null, columns: { count }, continuous: true },
+		close: { pageSetup: null, columns: before.columns ?? null, continuous: true },
+	}))
+}
+
+/**
+ * Hapus sepasang pembatas section berkolom yang melingkupi seleksi (E5 langkah
+ * 3): isinya kembali mengalir satu kolom. Pembatas penutup dibuang lebih dulu
+ * supaya posisi pembatas pembuka tidak bergeser.
+ *
+ * Aman untuk pasangan bikinan `setSectionColumns` maupun `applySectionColumns`:
+ * keduanya menulis `pageSetup: null` pada kedua pembatasnya, jadi membuangnya
+ * tidak menjatuhkan setelan halaman apa pun.
+ */
+export function unsetSectionColumnsCommand(
+	state: EditorState,
+	tr: Transaction,
+	dispatch: ((tr: Transaction) => void) | undefined,
+): boolean {
+	const spans = sectionSpans(state.doc)
+	const enclosing = enclosingColumnSpan(spans, state.selection.from, state.doc.content.size)
+	if (!enclosing) return false
+	if (!dispatch) return true
+
+	const next = spans[spans.indexOf(enclosing) + 1]
+	if (next) {
+		const closing = state.doc.nodeAt(next.pos)
+		if (closing) tr.delete(next.pos, next.pos + closing.nodeSize)
+	}
+	const open = state.doc.nodeAt(enclosing.pos)
+	if (open) tr.delete(enclosing.pos, enclosing.pos + open.nodeSize)
 	return true
 }
 

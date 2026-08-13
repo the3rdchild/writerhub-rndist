@@ -11,7 +11,7 @@ import {
 } from '@/features/editor/page-geometry'
 import { clamp, rulerNudge, useRulerDrag } from '@/features/editor/ruler-drag'
 import { type ColumnsRulerTarget, type TableRulerTarget, useRulerTarget } from '@/features/editor/ruler-targets'
-import { setColumnWidths, setTableIndent } from '@/features/editor/table-ops'
+import { MIN_COLUMN_WIDTH, scaleColumnWidths, setColumnWidths, setTableIndent } from '@/features/editor/table-ops'
 import { cn } from '@/lib/utils'
 
 /**
@@ -58,9 +58,6 @@ const DEFERRED: ReadonlySet<Handle['kind']> = new Set([
 	'columnsGap',
 	'columnsGapBand',
 ])
-
-/** Kolom tidak boleh menyempit sampai isinya tak terbaca. */
-const MIN_COLUMN_WIDTH = 24
 
 /** Celah antar kolom masih harus terbaca sebagai celah. */
 const MIN_COLUMN_GAP = 8
@@ -417,19 +414,6 @@ const ALIGNMENTS = [
 ]
 
 /**
- * Bagi ulang total lebar ke seluruh kolom dengan proporsi yang sama.
- *
- * Dipakai saat salah satu TEPI tabel digeser: yang berubah lebar keseluruhan,
- * dan perbandingan antar kolom yang sudah diatur pengguna harus bertahan.
- */
-function scaleWidths(widths: number[], total: number): number[] {
-	const current = widths.reduce((sum, value) => sum + value, 0)
-	if (current <= 0) return widths
-	const factor = Math.max(total, MIN_COLUMN_WIDTH * widths.length) / current
-	return widths.map((value) => Math.max(MIN_COLUMN_WIDTH, Math.round(value * factor)))
-}
-
-/**
  * Terjemahkan seretan marker tabel jadi perubahan dokumen.
  *
  * Tepi kiri dan tepi kanan adalah dua kendali yang menentukan lebar; lebar
@@ -455,13 +439,13 @@ function applyTableHandle(
 	if (handle.kind === 'tableLeft') {
 		const nextLeft = clamp(x, bounds.contentLeft, Math.max(bounds.contentLeft, right - floor))
 		setTableIndent(editor, tablePos, nextLeft - bounds.contentLeft)
-		setColumnWidths(editor, tablePos, scaleWidths(widths, right - nextLeft))
+		setColumnWidths(editor, tablePos, scaleColumnWidths(widths, right - nextLeft))
 		return
 	}
 
 	if (handle.kind === 'tableRight') {
 		const nextRight = clamp(x, left + floor, bounds.contentRight)
-		setColumnWidths(editor, tablePos, scaleWidths(widths, nextRight - left))
+		setColumnWidths(editor, tablePos, scaleColumnWidths(widths, nextRight - left))
 		return
 	}
 

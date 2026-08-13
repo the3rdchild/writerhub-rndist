@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { collapsedMargin, cutTableRows, flowColumns, resolveColumnSlots, type ColumnItem } from './columns'
+import type { JSONContent } from '@tiptap/core'
+import { EditorState } from '@tiptap/pm/state'
+import { buildSchema } from '@/features/sync/serialize'
+import { collapsedMargin, cutTableRows, flowColumns, migrateLegacyColumns, resolveColumnSlots, type ColumnItem } from './columns'
 import { pageGeometry } from './page-geometry'
 
 /**
@@ -68,6 +71,23 @@ function rendered(items: ColumnItem[], top = 0, count = 2) {
 		bottom: top + placement.top + items[index].height,
 		span: placement.span ?? false,
 	}))
+}
+
+/**
+ * Penjaga invarian E2: tidak ada lembar di antara lembar pertama dan terakhir
+ * yang tanpa penempatan apa pun. Penanda setinggi nol (page break) tidak
+ * dihitung mengisi - lembar yang hanya memuatnya adalah lembar kosong.
+ */
+function expectNoEmptySheet(boxes: ReturnType<typeof rendered>) {
+	const occupied = new Set<number>()
+	for (const box of boxes) {
+		if (box.bottom - box.top <= 0) continue
+		occupied.add(Math.floor(box.top / pageStride))
+	}
+	const pages = [...occupied].sort((a, b) => a - b)
+	for (let page = pages[0]; page <= pages[pages.length - 1]; page += 1) {
+		expect(occupied).toContain(page)
+	}
 }
 
 describe('isi yang muat satu lembar', () => {
@@ -626,5 +646,120 @@ describe('page break di dalam blok kolom (§P4)', () => {
 		// berpindah lembar - keduanya tetap di lembar pertama.
 		const boxes = rendered(blocks([100, 100]))
 		expect(boxes.every((box) => box.top < pageStride)).toBe(true)
+	})
+})
+
+describe('page break tidak menyisakan lembar kosong (E2)', () => {
+	/** Jumlah blok setinggi 100 yang memenuhi satu kolom penuh. */
+	const fill = Math.floor(contentHeight / 100)
+
+	test('break tepat setelah isi memenuhi kolom terakhir', () => {
+		// Regresi E2: advance() dari kolom terakhir sudah membuka lembar baru,
+		// lalu breakPage() melompat SEKALI LAGI - lembar barunya tidak pernah
+		// terisi apa pun selain penanda setinggi nol.
+		const items = blocks([...Array.from({ length: fill * 3 }, () => 100), 0, 100])
+		items[fill * 3].isBreak = true
+
+		const boxes = rendered(items, 0, 3)
+
+		expectNoEmptySheet(boxes)
+		expect(boxes[fill * 3 + 1].top).toBe(pageStride)
+	})
+
+	test('dua break berturut-turut hanya melewati satu lembar', () => {
+		const items = blocks([100, 0, 0, 100])
+		items[1].isBreak = true
+		items[2].isBreak = true
+
+		const boxes = rendered(items)
+
+		expect(boxes[3].top).toBe(pageStride)
+		expectNoEmptySheet(boxes)
+	})
+
+	test('break sebagai butir pertama tidak membuka lembar kosong di depan', () => {
+		const items = blocks([0, 100, 100])
+		items[0].isBreak = true
+
+		const boxes = rendered(items)
+
+		expect(boxes.every((box) => box.top < pageStride)).toBe(true)
+	})
+
+	test('invarian: tidak ada lembar kosong di antara lembar pertama dan terakhir', () => {
+		// Menangkap bentuk kerusakannya, bukan satu kasusnya: berapa pun isi yang
+		// mendahului break, lembar hasil lompatannya wajib terisi.
+		for (const count of [2, 3]) {
+			for (const filled of [0, fill - 1, fill, fill * count]) {
+				for (const breaks of [1, 2]) {
+					const heights = [
+						...Array.from({ length: filled }, () => 100),
+						...Array.from({ length: breaks }, () => 0),
+						100,
+					]
+					const items = blocks(heights)
+					for (let i = 0; i < breaks; i += 1) items[filled + i].isBreak = true
+
+					expectNoEmptySheet(rendered(items, 0, count))
+				}
+			}
+		}
+	})
+})
+
+describe('migrasi blok kolom lama saat dibuka (E5 langkah 4)', () => {
+	const para = (text: string): JSONContent => ({ type: 'paragraph', content: [{ type: 'text', text }] })
+
+	function stateOf(content: JSONContent[]): EditorState {
+		const schema = buildSchema()
+		return EditorState.create({ schema, doc: schema.nodeFromJSON({ type: 'doc', content }) })
+	}
+
+	test('blok columns diganti sepasang pembatas menerus dan isinya terangkat', () => {
+		const state = stateOf([
+			para('sebelum'),
+			{ type: 'columns', attrs: { count: 3 }, content: [para('a'), para('b')] },
+			para('sesudah'),
+		])
+
+		const tr = migrateLegacyColumns(state)
+		expect(tr).not.toBeNull()
+		// Di luar riwayat undo: pemakai tidak boleh bisa kembali ke bentuk yang
+		// tidak bisa diekspor.
+		expect(tr!.getMeta('addToHistory')).toBe(false)
+
+		const next = state.apply(tr!).doc
+		expect(next.childCount).toBe(6)
+		expect(next.child(0).textContent).toBe('sebelum')
+		expect(next.child(1).type.name).toBe('sectionBreak')
+		expect(next.child(1).attrs).toMatchObject({ continuous: true, columns: { count: 3 } })
+		expect(next.child(2).textContent).toBe('a')
+		expect(next.child(3).textContent).toBe('b')
+		expect(next.child(4).type.name).toBe('sectionBreak')
+		// Penutup mengembalikan satu kolom - keadaan yang berlaku sebelum bloknya.
+		expect(next.child(4).attrs).toMatchObject({ continuous: true, columns: null })
+		expect(next.child(5).textContent).toBe('sesudah')
+	})
+
+	test('celah kolom ikut ke pembatas pembukanya', () => {
+		const state = stateOf([
+			{ type: 'columns', attrs: { count: 2, gap: 40 }, content: [para('a')] },
+		])
+		const next = state.apply(migrateLegacyColumns(state)!).doc
+		expect(next.child(0).attrs.columns).toEqual({ count: 2, gap: 40 })
+	})
+
+	test('idempoten: migrasi kedua atas hasilnya bukan transaksi', () => {
+		// Kriteria E5: membuka naskah yang sama dua kali tidak menambah apa-apa.
+		const state = stateOf([{ type: 'columns', attrs: { count: 2 }, content: [para('a')] }])
+		const migrated = EditorState.create({
+			schema: buildSchema(),
+			doc: state.apply(migrateLegacyColumns(state)!).doc,
+		})
+		expect(migrateLegacyColumns(migrated)).toBeNull()
+	})
+
+	test('naskah yang sudah bersih tidak disentuh sama sekali', () => {
+		expect(migrateLegacyColumns(stateOf([para('biasa')]))).toBeNull()
 	})
 })

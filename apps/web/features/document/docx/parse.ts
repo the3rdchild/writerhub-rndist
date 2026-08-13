@@ -9,6 +9,15 @@
 
 import type { JSONContent } from '@tiptap/core'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
+import {
+	DEFAULT_PAGE_SETUP,
+	PAGE_SIZES,
+	type PageMargins,
+	type PageSetup,
+	type PageSizeId,
+	sameSheetGeometry,
+} from '@/features/editor/page-geometry'
+import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
 import type { Numberer } from './numbering'
 import { type DocxArchive, resolvePath } from './zip'
 import {
@@ -695,15 +704,112 @@ function tableBlocks(tbl: Element, context: ParseContext): JSONContent[] {
 	return [{ type: 'table', ...(Object.keys(attrs).length > 0 ? { attrs } : {}), content: rows }]
 }
 
+/**
+ * Setelan halaman sebagian - bentuk yang dibawa pembatas section dan hasil
+ * impor. Marginnya pun boleh sebagian: sisi yang tidak disebut mewarisi.
+ */
+export type PageSetupPatch = Partial<Omit<PageSetup, 'margins'>> & { margins?: Partial<PageMargins> }
+
+/** Properti sebuah section Word, sudah dinormalisasi ke model editor. */
+interface SectionProps {
+	pageSetup: PageSetupPatch
+	columns: { count: number; gap?: number } | null
+	/** `w:type val="continuous"` (E5); kesahihannya diputuskan lewat geometri. */
+	continuous?: boolean
+}
+
+/**
+ * Cocokkan ukuran kertas balik ke `PAGE_SIZES` (E4).
+ *
+ * Kertas standar tidak boleh pulang sebagai "Ukuran khusus" dengan angka yang
+ * kebetulan sama: dokumen A4 yang terbaca sebagai 794 × 1123 khusus adalah
+ * impor yang gagal menyebut namanya. Toleransi 2 px menampung pembulatan twip
+ * (11906 twip-nya A4 memang 793,7 px).
+ */
+function matchPageSize(width: number, height: number): PageSizeId | null {
+	for (const [id, size] of Object.entries(PAGE_SIZES)) {
+		if (id === 'custom') continue
+		if (Math.abs(size.width - width) <= 2 && Math.abs(size.height - height) <= 2) {
+			return id as PageSizeId
+		}
+	}
+	return null
+}
+
+/**
+ * Satu `w:sectPr` jadi properti section yang dinormalisasi.
+ *
+ * `w:type` dibaca apa adanya: hanya `continuous` yang berarti khusus (E5) -
+ * `nextPage`, `evenPage`, dan `oddPage` memang pembatas halaman. Apakah
+ * `continuous` itu SAH diputuskan bukan di sini melainkan saat rantai section
+ * disusun: satu lembar hanya punya satu ukuran kertas, jadi "menerus" yang
+ * mengubah geometri turun pangkat jadi pembatas biasa (putusan §9 PRD).
+ */
+function readSectPr(sectPr: Element): SectionProps {
+	const pageSetup: PageSetupPatch = {}
+
+	const pgSz = child(sectPr, 'pgSz')
+	const width = twipsToPx(Number.parseInt(attr(pgSz, 'w') ?? '', 10))
+	const height = twipsToPx(Number.parseInt(attr(pgSz, 'h') ?? '', 10))
+	if (pgSz && width > 0 && height > 0) {
+		const landscape = attr(pgSz, 'orient') === 'landscape'
+		// Dua bentuk lanskap ditemui di alam liar: Word menulis sisi yang SUDAH
+		// tertukar, sedangkan pustaka `docx` menulis bentuk tegak + `w:orient`.
+		// Keduanya dinormalisasi ke tegak sebelum dicocokkan.
+		const upright = landscape && width > height ? { width: height, height: width } : { width, height }
+		const size = matchPageSize(upright.width, upright.height)
+		if (size) {
+			pageSetup.size = size
+		} else {
+			pageSetup.size = 'custom'
+			pageSetup.customWidth = upright.width
+			pageSetup.customHeight = upright.height
+		}
+		pageSetup.orientation = landscape ? 'landscape' : 'portrait'
+	}
+
+	const pgMar = child(sectPr, 'pgMar')
+	if (pgMar) {
+		const margins: Partial<PageMargins> = {}
+		for (const side of ['top', 'right', 'bottom', 'left'] as const) {
+			const twips = Number.parseInt(attr(pgMar, side) ?? '', 10)
+			if (Number.isFinite(twips)) margins[side] = Math.max(0, twipsToPx(twips))
+		}
+		// `header`, `footer`, dan `gutter` tidak punya padanan di model halaman kita.
+		if (Object.keys(margins).length > 0) pageSetup.margins = margins
+	}
+
+	let columns: SectionProps['columns'] = null
+	const cols = child(sectPr, 'cols')
+	const count = Number.parseInt(attr(cols, 'num') ?? '', 10)
+	if (Number.isFinite(count) && count >= 2) {
+		columns = { count }
+		const space = Number.parseInt(attr(cols, 'space') ?? '', 10)
+		if (Number.isFinite(space)) columns.gap = twipsToPx(space)
+		// Lebar per kolom (`w:col`) tidak dibawa: model kolom kita berukuran sama.
+	}
+
+	return { pageSetup, columns, ...(val(child(sectPr, 'type')) === 'continuous' ? { continuous: true } : {}) }
+}
+
 /** Isi `w:body` jadi deretan blok tingkat atas. */
-export function bodyBlocks(body: Element, context: ParseContext): JSONContent[] {
+export function bodyBlocks(
+	body: Element,
+	context: ParseContext,
+	onSection?: (props: SectionProps, endedAt: number) => void,
+): JSONContent[] {
 	const blocks: JSONContent[] = []
 
 	for (const node of children(body)) {
 		switch (tagName(node)) {
-			case 'p':
+			case 'p': {
 				blocks.push(...paragraphBlocks(node, context))
+				// `sectPr` di dalam pPr MENUTUP section yang berakhir di paragraf
+				// ini - ia bukan properti paragrafnya.
+				const sectPr = descend(node, 'pPr', 'sectPr')
+				if (sectPr) onSection?.(readSectPr(sectPr), blocks.length)
 				break
+			}
 
 			case 'tbl':
 				blocks.push(...tableBlocks(node, context))
@@ -711,13 +817,17 @@ export function bodyBlocks(body: Element, context: ParseContext): JSONContent[] 
 
 			case 'sdt': {
 				const content = child(node, 'sdtContent')
-				if (content) blocks.push(...bodyBlocks(content, context))
+				if (content) blocks.push(...bodyBlocks(content, context, onSection))
 				break
 			}
 
-			// Properti bagian menyimpan ukuran dan margin halaman; tidak ada isi
-			// di dalamnya.
+			// `sectPr` di tingkat badan milik section TERAKHIR: ia menutup dokumen,
+			// bukan paragraf mana pun (jebakan E4 - membacanya seperti sectPr
+			// paragraf menggeser seluruh section satu langkah).
 			case 'sectPr':
+				onSection?.(readSectPr(node), blocks.length)
+				break
+
 			case 'bookmarkStart':
 			case 'bookmarkEnd':
 			case 'proofErr':
@@ -729,6 +839,72 @@ export function bodyBlocks(body: Element, context: ParseContext): JSONContent[] 
 	}
 
 	return blocks
+}
+
+/** Gabungkan patch ke setelan dasar; marginnya digabung per sisi. */
+function mergeSetup(base: PageSetup, patch: PageSetupPatch): PageSetup {
+	return { ...base, ...patch, margins: { ...base.margins, ...patch.margins } }
+}
+
+/**
+ * Isi `w:body` beserta struktur section-nya (E4).
+ *
+ * DOCX dan editor menandai section dari dua arah yang berlawanan: `sectPr`
+ * MENUTUP section-nya - propertinya milik isi di BELAKANGNYA - sedangkan
+ * `sectionBreak` MEMBUKA section-nya. Karena itu pembacaan berjalan dua tahap:
+ * telusuri isi sambil mencatat di blok ke berapa tiap section berakhir, lalu
+ * susun ulang jadi [isi S1][pembatas(S2)][isi S2]…
+ *
+ * Setelan section pertama tidak menjadi pembatas - ia milik naskah itu sendiri,
+ * dan dikembalikan terpisah untuk dipasang sebagai tata letak tab.
+ */
+export function readBody(
+	body: Element,
+	context: ParseContext,
+): { blocks: JSONContent[]; pageSetup?: PageSetupPatch } {
+	const endings: { at: number; props: SectionProps }[] = []
+	const raw = bodyBlocks(body, context, (props, endedAt) => endings.push({ at: endedAt, props }))
+
+	// Kolom section pertama tidak punya tempat: section dasar editor tidak bisa
+	// berkolom (kolom selalu dibuka pembatas). Dilaporkan, bukan dibuang diam-diam.
+	if (endings[0]?.props.columns) skip(context, 'kolom-bagian-pertama')
+
+	const last = endings[endings.length - 1]
+	// Dokumen satu section - bentuk yang umum - tidak butuh pembatas sama sekali.
+	if (!last || (endings.length === 1 && last.at >= raw.length)) {
+		return { blocks: raw, pageSetup: last?.props.pageSetup }
+	}
+
+	const blocks: JSONContent[] = []
+	let start = 0
+	// Rantai setelan per section, untuk memutuskan kemenerusan yang sebenarnya.
+	let resolved = mergeSetup(DEFAULT_PAGE_SETUP, endings[0]?.props.pageSetup ?? {})
+	endings.forEach(({ at, props }, index) => {
+		if (index > 0) {
+			const next = mergeSetup(resolved, props.pageSetup)
+			// "Menerus" yang mengubah geometri lembar turun pangkat DI SINI (E5):
+			// ia masuk naskah sebagai pembatas halaman biasa, bukan sebagai
+			// pembatas menerus yang berbohong - satu lembar hanya punya satu
+			// ukuran kertas.
+			const continuous = props.continuous === true && sameSheetGeometry(next, resolved)
+			blocks.push({
+				type: SECTION_BREAK_NODE,
+				attrs: {
+					pageSetup: props.pageSetup,
+					columns: props.columns,
+					...(continuous ? { continuous: true } : {}),
+				},
+			})
+			resolved = next
+		}
+		blocks.push(...raw.slice(start, at))
+		start = at
+	})
+	// Isi sesudah section terakhir - tak pernah ada di DOCX yang sah, tapi
+	// dokumen rakitan alat lain bisa begitu - tetap diikutsertakan.
+	blocks.push(...raw.slice(start))
+
+	return { blocks, pageSetup: endings[0]?.props.pageSetup }
 }
 
 /** Elemen `w:body` di dalam sebuah `document.xml` yang sudah diurai. */

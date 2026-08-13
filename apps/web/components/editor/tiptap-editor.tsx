@@ -7,6 +7,7 @@ import { suggestionHighlightKey } from '@/features/document/suggestion-highlight
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { buildEditorExtensions } from '@/features/editor/extensions'
+import { migrateLegacyColumns } from '@/features/editor/columns'
 import { type PageGeometry, pageGeometry, type PageSetup, type SheetGeometry } from '@/features/editor/page-geometry'
 import { paginationKey } from '@/features/editor/pagination'
 import { type SlashCommandState } from '@/features/editor/slash-command'
@@ -123,6 +124,27 @@ export function TiptapEditor({
 		onReady?.(editor)
 		return () => onReady?.(null)
 	}, [editor, onReady])
+
+	/*
+	 * Migrasi naskah lama (E5 langkah 4): blok kolom pembungkus yang masih
+	 * tersimpan diganti sepasang pembatas section menerus saat naskah dibuka.
+	 * Editor dibuat ulang per tab, jadi tiap tab dimigrasi tepat sekali saat
+	 * isinya datang; `update` menjangkau isi yang tiba belakangan dari Yjs.
+	 * Fungsinya idempoten dan transaksinya di luar riwayat undo, jadi aman
+	 * dijalankan di setiap pembaruan.
+	 */
+	useEffect(() => {
+		if (!editor) return
+		const migrate = () => {
+			const tr = migrateLegacyColumns(editor.state)
+			if (tr) editor.view.dispatch(tr)
+		}
+		migrate()
+		editor.on('update', migrate)
+		return () => {
+			editor.off('update', migrate)
+		}
+	}, [editor])
 
 	// Daftar ekstensi hanya dibuat sekali, sedangkan margin bisa diseret kapan
 	// saja lewat penggaris - geometri barunya dikirim sebagai meta transaksi.

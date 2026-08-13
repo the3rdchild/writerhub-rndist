@@ -115,6 +115,36 @@ describe('section DOCX (§P8&P9)', () => {
 		})
 	})
 
+	test('pembatas menerus ditulis sebagai continuous (E5)', async () => {
+		const xml = await documentXml(
+			[
+				paragraph('satu kolom'),
+				sectionBreak({ columns: { count: 2 }, continuous: true }),
+				paragraph('dua kolom'),
+				sectionBreak({ columns: null, continuous: true }),
+				paragraph('satu lagi'),
+			],
+			DEFAULT_PAGE_SETUP,
+		)
+
+		expect(xml.match(/<w:type w:val="continuous"\/>/g) ?? []).toHaveLength(2)
+	})
+
+	test('pembatas "menerus" yang mengubah geometri ditulis TANPA continuous (E5)', async () => {
+		// Satu lembar hanya punya satu ukuran kertas: ia sudah turun pangkat jadi
+		// pembatas biasa, dan berkas hasilnya harus mengatakan yang sebenarnya.
+		const xml = await documentXml(
+			[
+				paragraph('potret'),
+				sectionBreak({ pageSetup: { orientation: 'landscape' }, continuous: true }),
+				paragraph('lanskap'),
+			],
+			DEFAULT_PAGE_SETUP,
+		)
+
+		expect(xml.match(/<w:type w:val="continuous"\/>/g) ?? []).toHaveLength(0)
+	})
+
 	test('tiap pembatas section menghasilkan sectPr tersendiri', async () => {
 		const xml = await documentXml(
 			[

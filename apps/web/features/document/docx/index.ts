@@ -15,10 +15,12 @@
 
 import type { JSONContent } from '@tiptap/core'
 import { createNumberer, readNumbering } from './numbering'
-import { bodyBlocks, bodyOf, type ParseContext, readRelationships, readTheme } from './parse'
+import { bodyOf, type ParseContext, type PageSetupPatch, readBody, readRelationships, readTheme } from './parse'
 import { readStyles } from './properties'
 import { type DocxArchive, openDocx, resolvePath } from './zip'
 import { createXmlParser, type XmlParser } from './xml'
+
+export type { PageSetupPatch } from './parse'
 
 /** Yang hilang saat mengimpor, dan alasannya. */
 export interface ImportWarning {
@@ -27,6 +29,11 @@ export interface ImportWarning {
 
 export interface DocxImport {
 	content: JSONContent
+	/**
+	 * Setelan halaman section pertama naskah (E4). Ia bukan pembatas - ia milik
+	 * naskah itu sendiri, jadi dipasang pemanggil sebagai tata letak tab.
+	 */
+	pageSetup?: PageSetupPatch
 	/** Hal yang tidak punya padanan di editor ini; ditunjukkan, bukan disembunyikan. */
 	warnings: ImportWarning[]
 }
@@ -103,6 +110,7 @@ const SKIPPED_LABELS: Record<string, string> = {
 	drawing: 'gambar',
 	pict: 'gambar',
 	'merged-cell': 'sel gabungan tabel',
+	'kolom-bagian-pertama': 'kolom di bagian pertama dokumen',
 	object: 'objek tertanam',
 	oMath: 'rumus',
 	oMathPara: 'rumus',
@@ -163,12 +171,13 @@ export async function readDocx(data: Uint8Array): Promise<DocxImport> {
 		mainPart,
 	}
 
-	const blocks = bodyBlocks(body, context)
+	const { blocks, pageSetup } = readBody(body, context)
 
 	return {
 		// Dokumen kosong tetap butuh satu paragraf; skema editor menolak badan
 		// dokumen tanpa isi.
 		content: { type: 'doc', content: blocks.length > 0 ? blocks : [{ type: 'paragraph' }] },
+		pageSetup,
 		warnings: warningsFor(context.skipped, archive),
 	}
 }

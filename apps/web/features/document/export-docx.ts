@@ -8,6 +8,7 @@ import {
 	type PageSetup,
 	pageGeometry,
 	resolvePageSize,
+	sameSheetGeometry,
 } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE, type SectionSpan, sectionSpans } from '@/features/editor/section-break'
 
@@ -377,6 +378,9 @@ export async function exportDocx(
 						},
 					}
 				: {}),
+			// Pembatas menerus yang sah ditulis sebagai `continuous` (E5): Word dan
+			// Google Docs mengenalinya sebagai section yang tidak membuka lembar.
+			...(span && continuousPos.has(span.pos) ? { type: docx.SectionType.CONTINUOUS } : {}),
 		}
 	}
 
@@ -388,6 +392,19 @@ export async function exportDocx(
 	 * Urutannya sejalan: span pertama milik isi sebelum pembatas pertama.
 	 */
 	const spans = setup ? sectionSpans(root, setup) : []
+	// Pembatas menerus yang SAH (E5): atributnya berbunyi menerus DAN geometri
+	// lembarnya sama dengan section sebelumnya. Yang mengubah geometri sudah
+	// turun pangkat jadi pembatas biasa - section-nya ditulis tanpa `w:type`.
+	const continuousPos = new Set(
+		spans
+			.filter(
+				(span, index) =>
+					index > 0 &&
+					root.nodeAt(span.pos)?.attrs.continuous === true &&
+					sameSheetGeometry(span.setup, spans[index - 1].setup),
+			)
+			.map((span) => span.pos),
+	)
 	const sections: { properties: ReturnType<typeof sectionProperties>; children: unknown[] }[] = []
 	let current: unknown[] = []
 	let spanIndex = 0

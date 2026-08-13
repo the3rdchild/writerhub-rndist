@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import { Schema } from '@tiptap/pm/model'
+import { EditorState, TextSelection } from '@tiptap/pm/state'
 import { DEFAULT_PAGE_SETUP, INCH } from './page-geometry'
-import { columnRegions, sectionSpans } from './section-break'
+import {
+	columnRegions,
+	sectionSpans,
+	setSectionColumnsCommand,
+	unsetSectionColumnsCommand,
+} from './section-break'
 
 /**
  * Rentang section diuji tanpa editor: cukup skema minimal berisi paragraph dan
@@ -18,6 +24,7 @@ const schema = new Schema({
 			attrs: {
 				pageSetup: { default: null },
 				columns: { default: null },
+				continuous: { default: false },
 			},
 		},
 	},
@@ -170,5 +177,106 @@ describe('kolom section tidak diwarisi (§P8)', () => {
 
 		expect(spans[2].setup.orientation).toBe('landscape')
 		expect(spans[2].columns).toBeNull()
+	})
+})
+
+describe('setSectionColumns - kolomkan seleksi sebagai section menerus (E5)', () => {
+	/**
+	 * Perintahnya diuji tanpa DOM: `setSectionColumnsCommand` menerima state dan
+	 * dispatch, jadi transaksinya bisa diterapkan langsung pada EditorState.
+	 */
+	function stateOf(texts: string[], from: number, to = from): EditorState {
+		const doc = schema.node(
+			'doc',
+			null,
+			texts.map((text) => schema.node('paragraph', null, text ? [schema.text(text)] : [])),
+		)
+		const state = EditorState.create({ schema, doc })
+		return state.apply(state.tr.setSelection(TextSelection.create(state.doc, from, to)))
+	}
+
+	function run(state: EditorState, count: number): EditorState {
+		// Konvensi perintah ProseMirror: perintah memutasi `tr` yang diberikan;
+		// dispatch hanya penanda "boleh mengubah dokumen".
+		const tr = state.tr
+		const ok = setSectionColumnsCommand(state, tr, () => {}, count)
+		expect(ok).toBe(true)
+		return state.apply(tr)
+	}
+
+	test('sepasang pembatas menerus mengurung blok yang tersentuh seleksi', () => {
+		// Tiga paragraf @6px: p1 di 0, p2 di 6, p3 di 12. Seleksi p1..p2.
+		const next = run(stateOf(['satu', 'dua', 'tiga'], 1, 7), 2)
+
+		expect(next.doc.childCount).toBe(5)
+		const open = next.doc.child(0)
+		expect(open.type.name).toBe('sectionBreak')
+		expect(open.attrs).toMatchObject({ columns: { count: 2 }, continuous: true, pageSetup: null })
+		const close = next.doc.child(3)
+		expect(close.type.name).toBe('sectionBreak')
+		expect(close.attrs).toMatchObject({ columns: null, continuous: true })
+		// Paragrafnya utuh - tidak ada yang terbelah atau berpindah.
+		expect(next.doc.child(1).textContent).toBe('satu')
+		expect(next.doc.child(2).textContent).toBe('dua')
+		expect(next.doc.child(4).textContent).toBe('tiga')
+	})
+
+	test('seleksi lipat mengolomkan paragraf tempat kursor berada', () => {
+		const next = run(stateOf(['satu', 'dua', 'tiga'], 7), 2)
+
+		expect(next.doc.childCount).toBe(5)
+		expect(next.doc.child(0).textContent).toBe('satu')
+		expect(next.doc.child(1).type.name).toBe('sectionBreak')
+		expect(next.doc.child(2).textContent).toBe('dua')
+		expect(next.doc.child(3).type.name).toBe('sectionBreak')
+		expect(next.doc.child(4).textContent).toBe('tiga')
+	})
+
+	test('di dalam rentang berkolom: cukup mengganti jumlahnya, tanpa pembatas baru', () => {
+		const columned = run(stateOf(['satu', 'dua', 'tiga'], 1, 7), 2)
+		const next = run(columned, 3)
+
+		expect(next.doc.childCount).toBe(5) // tidak bertambah
+		expect(next.doc.child(0).attrs.columns).toEqual({ count: 3 })
+	})
+
+	test('rentang sampai ujung dokumen tidak butuh pembatas penutup', () => {
+		const next = run(stateOf(['satu', 'dua'], 1, 7), 2)
+
+		expect(next.doc.childCount).toBe(3)
+		expect(next.doc.child(0).type.name).toBe('sectionBreak')
+		expect(next.doc.child(2).textContent).toBe('dua')
+	})
+})
+
+describe('unsetSectionColumns - hapus sepasang pembatas berkolom (E5)', () => {
+	function columnedDoc(): EditorState {
+		const doc = schema.node('doc', null, [
+			schema.node('paragraph', null, [schema.text('satu')]),
+			schema.node('sectionBreak', { pageSetup: null, columns: { count: 2 }, continuous: true }),
+			schema.node('paragraph', null, [schema.text('dua')]),
+			schema.node('sectionBreak', { pageSetup: null, columns: null, continuous: true }),
+			schema.node('paragraph', null, [schema.text('tiga')]),
+		])
+		return EditorState.create({ schema, doc })
+	}
+
+	test('kedua pembatas terhapus dan isinya kembali satu kolom', () => {
+		// p1 @6, pembuka @2 (pos 6), p2 @6 (pos 8) - kursor di dalam p2.
+		const state = columnedDoc()
+		const selected = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 9)))
+		const tr = selected.tr
+		const ok = unsetSectionColumnsCommand(selected, tr, () => {})
+		const next = selected.apply(tr)
+
+		expect(ok).toBe(true)
+		expect(next.doc.childCount).toBe(3)
+		expect(next.doc.textContent).toBe('satuduatiga')
+	})
+
+	test('di luar rentang berkolom tidak melakukan apa-apa', () => {
+		const state = columnedDoc()
+		const selected = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1)))
+		expect(unsetSectionColumnsCommand(selected, selected.tr, undefined)).toBe(false)
 	})
 })

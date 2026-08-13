@@ -76,6 +76,29 @@ export const DEFAULT_PAGE_SETUP: PageSetup = {
 	pageless: false,
 }
 
+/**
+ * Apakah dua setelan menghasilkan lembar yang sama: ukuran kertas, orientasi,
+ * margin, dan mode pemenggalan identik.
+ *
+ * Ini syarat pembatas section MENERUS (E5): satu lembar hanya punya satu
+ * ukuran kertas, jadi pembatas yang mengubah salah satunya tidak bisa benar-
+ * benar menerus - ia turun pangkat jadi pembatas halaman biasa. Warna halaman
+ * sengaja tidak dibandingkan: ia tidak mengubah geometri lembar.
+ */
+export function sameSheetGeometry(a: PageSetup, b: PageSetup): boolean {
+	if (a.pageless !== b.pageless) return false
+	const sizeA = resolvePageSize(a)
+	const sizeB = resolvePageSize(b)
+	return (
+		sizeA.width === sizeB.width &&
+		sizeA.height === sizeB.height &&
+		a.margins.top === b.margins.top &&
+		a.margins.right === b.margins.right &&
+		a.margins.bottom === b.margins.bottom &&
+		a.margins.left === b.margins.left
+	)
+}
+
 /** Lebar/tinggi kertas dari sebuah PageSetup, sudah menukar orientasi. */
 export function resolvePageSize(setup: PageSetup): { width: number; height: number } {
 	const base = PAGE_SIZES[setup.size]

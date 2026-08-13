@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { DEFAULT_PAGE_SETUP, pageGeometry } from './page-geometry'
+import { DEFAULT_PAGE_SETUP, pageGeometry, sameSheetGeometry } from './page-geometry'
 import {
 	blockSections,
 	computeSpacers,
@@ -17,6 +17,30 @@ import {
 
 const geometry = pageGeometry() // A4, margin 1 inci
 const { contentHeight, pageStride } = geometry
+
+describe('sameSheetGeometry - syarat pembatas menerus (E5)', () => {
+	test('setelan yang sama berarti lembar yang sama', () => {
+		expect(sameSheetGeometry(DEFAULT_PAGE_SETUP, { ...DEFAULT_PAGE_SETUP })).toBe(true)
+	})
+
+	test('orientasi, ukuran, atau margin yang berubah menggagalkan kemenerusan', () => {
+		expect(
+			sameSheetGeometry(DEFAULT_PAGE_SETUP, { ...DEFAULT_PAGE_SETUP, orientation: 'landscape' }),
+		).toBe(false)
+		expect(sameSheetGeometry(DEFAULT_PAGE_SETUP, { ...DEFAULT_PAGE_SETUP, size: 'letter' })).toBe(false)
+		expect(
+			sameSheetGeometry(DEFAULT_PAGE_SETUP, {
+				...DEFAULT_PAGE_SETUP,
+				margins: { ...DEFAULT_PAGE_SETUP.margins, top: 48 },
+			}),
+		).toBe(false)
+		expect(sameSheetGeometry(DEFAULT_PAGE_SETUP, { ...DEFAULT_PAGE_SETUP, pageless: true })).toBe(false)
+	})
+
+	test('warna halaman sengaja tidak dibandingkan - ia bukan geometri lembar', () => {
+		expect(sameSheetGeometry(DEFAULT_PAGE_SETUP, { ...DEFAULT_PAGE_SETUP, pageColor: '#fef3c7' })).toBe(true)
+	})
+})
 
 /** Susun blok berurutan dengan tinggi tertentu, seperti hasil pengukuran DOM. */
 function layout(heights: Array<number | 'break'>): Measurement[] {
@@ -355,6 +379,32 @@ describe('paginasi tak seragam (§P8&P9)', () => {
 		expect(spacers[0].height).toBe(pageStride - 200)
 	})
 
+	test('pembatas menerus tidak membuka lembar baru (E5)', () => {
+		// "Kolomkan dua paragraf ini" berarti mengolomkan di tempat: blok sesudah
+		// pembatas mengalir tepat di bawahnya, bukan di puncak lembar berikutnya.
+		const blocks = sectioned([200, 'section', 100])
+		const { spacers, pageCount, sheets } = computeSpacers(blocks, geometry, [
+			{ pos: 1, geometry, continuous: true },
+		])
+
+		expect(pageCount).toBe(1)
+		expect(sheets).toHaveLength(1)
+		expect(spacers).toHaveLength(0)
+	})
+
+	test('pembatas menerus menutup rentang kolom tanpa membuka lembar (E5)', () => {
+		// Pasangan menerus buka-tutup di tengah halaman: tidak ada lembar tambahan
+		// dari keduanya, dan blok terakhir tetap berada di lembar yang sama.
+		const blocks = sectioned([200, 'section', 100, 'section', 100])
+		const { spacers, pageCount } = computeSpacers(blocks, geometry, [
+			{ pos: 1, geometry, continuous: true },
+			{ pos: 3, geometry, continuous: true },
+		])
+
+		expect(pageCount).toBe(1)
+		expect(spacers).toHaveLength(0)
+	})
+
 	test('batas lembar di dalam section memakai tinggi area teksnya sendiri', () => {
 		// Section lanskap: area teks 602px, jadi blok 300px kedua sudah meluber.
 		const blocks = sectioned([600, 'section', 500, 300])
@@ -449,7 +499,12 @@ describe('peta blok→halaman (§P8&P9, cakupan "halaman ini")', () => {
 
 describe('peta blok→section (§P8&P9, cetak per-section)', () => {
 	test('blok sebelum pembatas pertama milik section 0', () => {
-		expect(blockSections([0, 5, 12], [0, 8])).toEqual([
+		expect(
+			blockSections([0, 5, 12], [
+				{ pos: 0, name: 0 },
+				{ pos: 8, name: 1 },
+			]),
+		).toEqual([
 			{ pos: 0, section: 0 },
 			{ pos: 5, section: 0 },
 			{ pos: 12, section: 1 },
@@ -460,7 +515,7 @@ describe('peta blok→section (§P8&P9, cetak per-section)', () => {
 		// Beda dari marginAdjustments yang melewati blok tanpa penyesuaian: aturan
 		// `@page` bernama butuh penanda pada tiap blok, kalau tidak halamannya
 		// diam-diam mewarisi nama section sebelumnya.
-		const sections = blockSections([0, 1, 2], [0])
+		const sections = blockSections([0, 1, 2], [{ pos: 0, name: 0 }])
 		expect(sections).toHaveLength(3)
 		expect(sections.every((entry) => entry.section === 0)).toBe(true)
 	})
@@ -469,10 +524,40 @@ describe('peta blok→section (§P8&P9, cetak per-section)', () => {
 		// Pembatas tinggal di lembar lama tapi ia PEMBUKA section baru; kalau ia
 		// dihitung milik section lama, halaman pertama section baru kehilangan
 		// namanya.
-		expect(blockSections([8], [0, 8])).toEqual([{ pos: 8, section: 1 }])
+		expect(
+			blockSections([8], [
+				{ pos: 0, name: 0 },
+				{ pos: 8, name: 1 },
+			]),
+		).toEqual([{ pos: 8, section: 1 }])
 	})
 
 	test('tiga section berurutan terbagi benar', () => {
-		expect(blockSections([1, 9, 20, 31], [0, 8, 30]).map((entry) => entry.section)).toEqual([0, 1, 1, 2])
+		expect(
+			blockSections(
+				[1, 9, 20, 31],
+				[
+					{ pos: 0, name: 0 },
+					{ pos: 8, name: 1 },
+					{ pos: 30, name: 2 },
+				],
+			).map((entry) => entry.section),
+		).toEqual([0, 1, 1, 2])
+	})
+
+	test('pembatas menerus berbagi nama halaman dengan section sebelumnya (E5)', () => {
+		// Dua section boleh berbagi satu named page: pergantian `page: secN`
+		// sendiri memaksa pemenggalan di kertas, jadi section menerus tidak boleh
+		// membuka nama baru.
+		expect(
+			blockSections(
+				[1, 9, 20],
+				[
+					{ pos: 0, name: 0 },
+					{ pos: 8, name: 0 },
+					{ pos: 16, name: 1 },
+				],
+			).map((entry) => entry.section),
+		).toEqual([0, 0, 1])
 	})
 })

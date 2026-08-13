@@ -1,6 +1,6 @@
 import { type Editor } from '@tiptap/core'
 import { type Node as PMNode } from '@tiptap/pm/model'
-import { type EditorState } from '@tiptap/pm/state'
+import { type EditorState, type Transaction } from '@tiptap/pm/state'
 import { cellAround, CellSelection, findTable, moveTableColumn, moveTableRow, TableMap } from '@tiptap/pm/tables'
 import { NO_COLOR } from '@/features/editor/custom-table'
 
@@ -244,25 +244,33 @@ export function moveColumn(editor: Editor, target: CellTarget, to: number): void
  * dari DOM: `offsetWidth` adalah piksel tata letak, belum dikalikan transform
  * zoom kanvas, jadi satuannya sudah sama dengan yang dipakai ruler.
  */
-export function columnWidths(editor: Editor, tablePos: number): number[] | null {
-	const table = tableNodeAt(editor, tablePos)
-	if (!table) return null
+/**
+ * Lebar colwidth eksplisit tiap kolom, atau null bila ada satu pun yang kosong.
+ *
+ * Dipisah dari `columnWidths` supaya koreksi tata letak (E3) bisa membaca lebar
+ * tanpa jatuh ke pengukuran DOM: tabel yang belum pernah diubah ukurannya tidak
+ * meluber petaknya - `table-layout: fixed` sudah membaginya rata.
+ */
+export function explicitColumnWidths(table: PMNode): number[] | null {
 	const map = TableMap.get(table)
-
-	const explicit: number[] = new Array(map.width).fill(0)
-	let complete = true
+	const widths: number[] = new Array(map.width).fill(0)
 	for (let col = 0; col < map.width; col += 1) {
 		const cellPos = map.map[col]
 		const cell = table.nodeAt(cellPos)
-		const widths = cell?.attrs.colwidth as number[] | null | undefined
-		const value = widths?.[col - map.colCount(cellPos)]
-		if (!value) {
-			complete = false
-			break
-		}
-		explicit[col] = value
+		const values = cell?.attrs.colwidth as number[] | null | undefined
+		const value = values?.[col - map.colCount(cellPos)]
+		if (!value) return null
+		widths[col] = value
 	}
-	if (complete) return explicit
+	return widths
+}
+
+export function columnWidths(editor: Editor, tablePos: number): number[] | null {
+	const table = tableNodeAt(editor, tablePos)
+	if (!table) return null
+
+	const explicit = explicitColumnWidths(table)
+	if (explicit) return explicit
 
 	const dom = editor.view.nodeDOM(tablePos) as HTMLElement | null
 	const tableEl =
@@ -270,18 +278,60 @@ export function columnWidths(editor: Editor, tablePos: number): number[] | null 
 	const row = tableEl?.querySelector('tr')
 	if (!row) return null
 	const measured = Array.from(row.children, (cell) => (cell as HTMLElement).offsetWidth)
+	const map = TableMap.get(table)
 	return measured.length === map.width ? measured : null
 }
 
-/** Tulis lebar kolom ke seluruh sel; satu transaksi untuk seluruh tabel. */
-export function setColumnWidths(editor: Editor, tablePos: number, widths: number[]): boolean {
-	const table = tableNodeAt(editor, tablePos)
-	if (!table) return false
+/** Lebar minimum satu kolom tabel - nilai yang sama dengan yang dipakai penggaris. */
+export const MIN_COLUMN_WIDTH = 24
+
+/**
+ * Bagi ulang total lebar ke seluruh kolom dengan proporsi yang sama.
+ *
+ * Dipakai saat salah satu TEPI tabel digeser di penggaris, dan oleh koreksi E3
+ * saat tabel meluber petak kolomnya: yang berubah lebar keseluruhan, dan
+ * perbandingan antar kolom yang sudah diatur pengguna harus bertahan.
+ */
+export function scaleColumnWidths(widths: readonly number[], total: number): number[] {
+	const current = widths.reduce((sum, value) => sum + value, 0)
+	if (current <= 0) return [...widths]
+	const factor = Math.max(total, MIN_COLUMN_WIDTH * widths.length) / current
+	return widths.map((value) => Math.max(MIN_COLUMN_WIDTH, Math.round(value * factor)))
+}
+
+/**
+ * Koreksi proporsional untuk tabel yang meluber petak kolomnya (E3).
+ *
+ * Mengembalikan lebar baru, atau null bila tidak ada yang perlu dikoreksi:
+ * tabel tanpa colwidth, tabel yang sudah muat, dan tabel yang sudah berada di
+ * lantai minimum (menyempitkannya lagi tidak mengubah apa pun - penjaga ini
+ * yang menghentikan putaran ukur-koreksi pada petak yang lebih sempit dari
+ * lantai).
+ */
+export function clampColumnWidths(widths: readonly number[] | null, available: number): number[] | null {
+	if (!widths || widths.length === 0) return null
+	const sum = widths.reduce((total, value) => total + value, 0)
+	if (sum <= available + 0.5) return null
+	const next = scaleColumnWidths(widths, available)
+	const nextSum = next.reduce((total, value) => total + value, 0)
+	return Math.abs(nextSum - sum) < 0.5 ? null : next
+}
+
+/**
+ * Tulis lebar kolom ke transaksi yang sudah ada, tanpa mengirimkannya.
+ *
+ * Dipakai koreksi tata letak (E3) yang mengumpulkan beberapa tabel dalam satu
+ * transaksi. Node tabel dibaca ulang dari `doc` transaksi - bila ia sudah
+ * berubah atau hilang sejak diukur, koreksinya dibatalkan begitu saja.
+ */
+export function writeColumnWidths(tr: Transaction, doc: PMNode, tablePos: number, widths: number[]): boolean {
+	const table = doc.nodeAt(tablePos)
+	if (!table || table.type.spec.tableRole !== 'table') return false
 	const map = TableMap.get(table)
 	if (widths.length !== map.width) return false
 
-	const tr = editor.state.tr
 	const done = new Set<number>()
+	let changed = false
 	for (let col = 0; col < map.width; col += 1) {
 		for (let row = 0; row < map.height; row += 1) {
 			const cellPos = map.map[row * map.width + col]
@@ -294,10 +344,21 @@ export function setColumnWidths(editor: Editor, tablePos: number, widths: number
 			const start = map.colCount(cellPos)
 			const span = (cell.attrs.colspan as number) || 1
 			const colwidth = Array.from({ length: span }, (_, i) => Math.round(widths[start + i] ?? 0))
+			const current = cell.attrs.colwidth as number[] | null | undefined
+			if (current && current.length === colwidth.length && current.every((value, i) => value === colwidth[i])) {
+				continue
+			}
 			tr.setNodeMarkup(tablePos + 1 + cellPos, undefined, { ...cell.attrs, colwidth })
+			changed = true
 		}
 	}
-	if (!tr.docChanged) return false
+	return changed
+}
+
+/** Tulis lebar kolom ke seluruh sel; satu transaksi untuk seluruh tabel. */
+export function setColumnWidths(editor: Editor, tablePos: number, widths: number[]): boolean {
+	const tr = editor.state.tr
+	if (!writeColumnWidths(tr, tr.doc, tablePos, widths)) return false
 	editor.view.dispatch(tr)
 	return true
 }

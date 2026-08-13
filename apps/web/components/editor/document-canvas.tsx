@@ -219,9 +219,15 @@ export function DocumentCanvas({
 					    menyasarnya lewat rantai `>` sempat meleset diam-diam begitu
 					    satu lapisan pembungkus bertambah - hasilnya seluruh dokumen
 					    tercetak sebagai satu halaman raksasa (browser tidak memenggal
-					    halaman di dalam elemen ber-transform). */}
+					    halaman di dalam elemen ber-transform). *)
+
+					    Bingkai luar sekaligus memikul peran `document-print-root` (E1):
+					    satu-satunya bagian DOM yang boleh dicetak. Ia yang dipilih,
+					    bukan pembungkus editor di luarnya, karena hanya ia yang memuat
+					    lembar + naskah TANPA chrome - penggaris, bilah status, dan
+					    spanduk semuanya berada di luar bingkai ini. */}
 					<div
-						className="document-zoom-frame"
+						className="document-zoom-frame document-print-root"
 						style={{ width: canvasWidth * zoom, height: totalHeight * zoom }}
 					>
 						<div

@@ -8,6 +8,7 @@ import {
 	type PageGeometry,
 	pageGeometry,
 	type PageSetup,
+	sameSheetGeometry,
 	type SheetGeometry,
 } from './page-geometry'
 import { SECTION_BREAK_NODE, columnRegions, sectionSpans } from './section-break'
@@ -336,6 +337,13 @@ function insertedHeights(view: EditorView): Map<number, number> {
 export interface SectionGeometry {
 	pos: number
 	geometry: PageGeometry
+	/**
+	 * true = pembatas MENERUS yang sah (E5): geometri lembarnya tidak berubah,
+	 * jadi ia tidak membuka lembar baru - hanya kolom yang berubah, dan itu
+	 * diurus rentang kolomnya. Pembatas "menerus" yang mengubah geometri sudah
+	 * turun pangkat jadi pembatas biasa sebelum sampai ke sini.
+	 */
+	continuous?: boolean
 }
 
 /**
@@ -443,8 +451,13 @@ export function computeSpacers(
 			// Blok sesudah pembatas section memulai lembar baru dengan geometri
 			// section-nya; pembatasnya sendiri tinggal di lembar berjalan.
 			blockPages.push({ pos: block.pos, page: sheets.length - 1 })
-			forceNext = true
-			pendingGeometry = sections.find((section) => section.pos === block.pos)?.geometry ?? null
+			const section = sections.find((section) => section.pos === block.pos)
+			// Pembatas MENERUS (E5): tidak ada lembar baru dan geometri berjalan
+			// terus dipakai - yang berubah hanya kolom, diurus rentang kolomnya.
+			if (!section?.continuous) {
+				forceNext = true
+				pendingGeometry = section?.geometry ?? null
+			}
 			continue
 		}
 
@@ -637,18 +650,22 @@ export function marginAdjustments(
  * blok perlu tahu section-nya, bukan sekadar lembar-nya - lembar adalah hasil
  * pemenggalan peramban saat mencetak, dan kita tidak menentukannya di sana.
  *
+ * Masukannya nama halaman bernama PER SECTION, bukan sekadar posisinya (E5):
+ * pembatas menerus tidak membuka halaman bernama baru, jadi section-nya
+ * memakai nama milik section sebelumnya - dua section boleh berbagi satu nama.
+ *
  * Berbeda dari `marginAdjustments` yang melewati blok tanpa penyesuaian: di
  * sini setiap blok harus punya jawaban, termasuk yang berada di section dasar.
  */
 export function blockSections(
 	blockPositions: readonly number[],
-	sectionPositions: readonly number[],
+	sections: readonly { pos: number; name: number }[],
 ): { pos: number; section: number }[] {
 	return blockPositions.map((pos) => {
 		let section = 0
-		for (const [index, start] of sectionPositions.entries()) {
-			if (start > pos) break
-			section = index
+		for (const entry of sections) {
+			if (entry.pos > pos) break
+			section = entry.name
 		}
 		return { pos, section }
 	})
@@ -662,6 +679,11 @@ function sameBlockSections(
 		a.length === b.length &&
 		a.every((entry, index) => entry.pos === b[index].pos && entry.section === b[index].section)
 	)
+}
+
+/** PageSetup adalah data polos, jadi perbandingan JSON sudah cukup apa adanya. */
+function sameSetups(a: readonly PageSetup[], b: readonly PageSetup[]): boolean {
+	return a.length === b.length && a.every((setup, index) => JSON.stringify(setup) === JSON.stringify(b[index]))
 }
 
 function sameAdjustments(a: readonly MarginAdjustment[], b: readonly MarginAdjustment[]): boolean {
@@ -904,6 +926,8 @@ export const Pagination = Extension.create<PaginationOptions>({
 				view(view) {
 					let frame = 0
 					let reportedPageCount = 0
+					/** Daftar section cetak terakhir yang dilaporkan ke kanvas (E5). */
+					let reportedPrintSetups: PageSetup[] = []
 
 					const recalculate = () => {
 						frame = 0
@@ -928,9 +952,25 @@ export const Pagination = Extension.create<PaginationOptions>({
 						// Section dari pembatas yang ada di dokumen; tanpa `setup`
 						// dasar tidak ada cara mewarisi setelannya, jadi dimatikan.
 						const spans = state.setup ? sectionSpans(view.state.doc, state.setup) : []
+						// Pembatas menerus yang SAH (E5): atributnya berbunyi menerus
+						// DAN geometri lembarnya tidak berubah - satu lembar hanya punya
+						// satu ukuran kertas. Yang mengubahnya turun pangkat jadi
+						// pembatas biasa, di semua lapisan sekaligus.
+						const continuous = spans.map((span, index) => {
+							if (index === 0) return false
+							const node = view.state.doc.nodeAt(span.pos)
+							return (
+								node?.attrs.continuous === true &&
+								sameSheetGeometry(span.setup, spans[index - 1].setup)
+							)
+						})
 						const sections = spans
 							.slice(1)
-							.map((span) => ({ pos: span.pos, geometry: pageGeometry(span.setup) }))
+							.map((span, index) => ({
+								pos: span.pos,
+								geometry: pageGeometry(span.setup),
+								continuous: continuous[index + 1],
+							}))
 						const { spacers, pageCount, sheets, blockPages } = computeSpacers(
 						blocks,
 						state.geometry,
@@ -953,6 +993,19 @@ export const Pagination = Extension.create<PaginationOptions>({
 								)
 							: []
 
+						// Indeks named page tiap section saat mencetak (E5): pembatas
+						// menerus tidak membuka lembar, jadi bloknya memakai halaman
+						// bernama milik section SEBELUMNYA - kalau tidak, pergantian
+						// `page: secN` sendiri memaksa pemenggalan di kertas. Daftar
+						// `printSetups` adalah sisi lain dari pemetaan yang sama, dan
+						// urutannya harus sejalan dengan nomor di sini.
+						const printSetups: PageSetup[] = spans.length > 0 ? [spans[0].setup] : []
+						const pageNames: number[] = []
+						spans.forEach((span, index) => {
+							if (index > 0 && !continuous[index]) printSetups.push(span.setup)
+							pageNames.push(printSetups.length - 1)
+						})
+
 						// Section tiap blok - jadi kelas penanda `document-section-N`, yang
 						// dibaca aturan `@page` bernama saat mencetak (§P8&P9). Dokumen
 						// tanpa pembatas section tidak perlu penanda apa pun.
@@ -960,7 +1013,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 							spans.length > 1
 								? blockSections(
 										blocks.filter((block) => block.kind === 'block').map((block) => block.pos),
-										spans.map((span) => span.pos),
+										spans.map((span, index) => ({ pos: span.pos, name: pageNames[index] })),
 									)
 								: []
 
@@ -995,10 +1048,14 @@ export const Pagination = Extension.create<PaginationOptions>({
 
 						if (!sameSheets(sheets, state.sheets)) {
 							onSheetsChange?.(sheets)
-							// Setelan section ikut dilaporkan di sini: setiap perubahan
-							// section pasti mengubah daftar lembar (pembatasnya selalu
-							// membuka lembar baru), jadi tidak perlu pemicu kedua.
-							onSectionsChange?.(spans.map((span) => span.setup))
+						}
+						// Daftar section cetak dilaporkan terpisah dari lembar: pembatas
+						// MENERUS mengubah section tanpa mengubah satu lembar pun (E5),
+						// jadi pemicu lama - "perubahan section pasti mengubah lembar" -
+						// tidak lagi cukup.
+						if (!sameSetups(printSetups, reportedPrintSetups)) {
+							reportedPrintSetups = printSetups
+							onSectionsChange?.(printSetups)
 						}
 					}
 

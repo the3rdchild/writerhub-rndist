@@ -1231,6 +1231,15 @@ a {
   color: var(--accent);
 }
 
+/* Pembatas menerus (E5): garisnya lebih tipis - ia tidak memenggal lembar. */
+.document-body .section-break-continuous {
+  border-top-width: 1px;
+  border-top-style: solid;
+}
+.document-body .section-break-continuous::after {
+  content: 'Section break (continuous)';
+}
+
 /* ── rumus matematika ──────────────────────────────────────────────────── */
 
 /*
@@ -1612,14 +1621,26 @@ html.light .range-highlight {
  * berganda, dan seluruh perkakas disembunyikan.
  */
 @media print {
-  header,
-  nav,
-  aside,
-  .document-canvas ~ *,
-  .document-ruler-bar,
-  .document-left-ruler,
-  .page-break-spacer,
-  .document-sheet {
+  /*
+   * Yang boleh dicetak dinyatakan POSITIF (E1): hanya naskah
+   * (.document-print-root - bingkai zoom di document-canvas.tsx) dan isinya.
+   * Tiap leluhurnya kehilangan kotaknya sendiri lewat display: contents, jadi
+   * tinggi viewport, pemotongan overflow, dan baris flex ikut lenyap sekaligus
+   * tanpa perlu tahu berapa lapis pembungkus yang ada hari ini atau nanti.
+   * Semua elemen lain disembunyikan oleh SATU aturan: daftar "chrome yang
+   * disembunyikan" selalu ketinggalan setiap ada komponen baru - panel dan
+   * rail sempat ikut tercetak karena selektor saudara yang meleset dari
+   * susunan DOM yang sebenarnya (§2.4).
+   *
+   * Efek samping yang menguntungkan: karena kotak leluhur lenyap, blok-blok
+   * naskah menjadi anak body pada pohon kotak - persis syarat Chrome untuk
+   * menghormati named pages (`page: secN`).
+   */
+  body *:has(.document-print-root) {
+    display: contents !important;
+  }
+  body:has(.document-print-root)
+    *:not(:has(.document-print-root)):not(.document-print-root):not(.document-print-root *) {
     display: none !important;
   }
 
@@ -1629,33 +1650,34 @@ html.light .range-highlight {
     height: auto;
   }
 
-  .document-canvas {
-    overflow: visible !important;
-    padding: 0 !important;
-    background: #fff;
+  /* Sisipan layar DI DALAM naskah tetap dinyatakan satu per satu: lembar
+     latar (kertas menyediakan putihnya) dan spacer paginasi (di kertas
+     peramban yang memenggal halaman, jadi sisipan ini hanya membuat halaman
+     kosong berganda). */
+  .page-break-spacer,
+  .document-sheet {
+    display: none !important;
   }
 
   /*
-   * Zoom layar tidak boleh ikut memengaruhi hasil cetak.
+   * Ukuran & zoom layar tidak boleh ikut ke kertas.
    *
    * `transform` yang tertinggal bukan sekadar salah ukuran: elemen ber-transform
    * membentuk containing block tersendiri dan peramban TIDAK memenggal halaman
    * di dalamnya, jadi seluruh dokumen keluar sebagai satu lembar raksasa -
-   * "Total: 1 page" berapa pun panjang naskahnya.
-   *
-   * Disasar lewat nama kelas, bukan rantai `>`: rantai itu sempat meleset diam-
-   * diam begitu satu lapisan pembungkus bertambah, dan gejalanya baru terlihat
-   * di dialog cetak.
+   * "Total: 1 page" berapa pun panjang naskahnya. Inline style pada kedua
+   * bingkai zoom ditimpa !important.
    */
-  .document-canvas > div,
-  .document-canvas > div > div,
-  .document-zoom-frame,
+  .document-print-root,
   .document-zoom-inner {
     width: auto !important;
     height: auto !important;
     min-height: 0 !important;
     transform: none !important;
     padding: 0 !important;
+    overflow: visible !important;
+    border-radius: 0 !important;
+    background: #fff !important;
   }
 
   .document-body {
@@ -1676,8 +1698,10 @@ html.light .range-highlight {
   .document-body .page-break::after {
     display: none;
   }
-  /* Pembatas section juga selalu memulai halaman baru di kertas. */
-  .document-body .section-break {
+  /* Pembatas section selalu memulai halaman baru di kertas - KECUALI yang
+     menerus (E5): ia mengalir terus, dan bila geometri section-nya berbeda,
+     named pages (`page: secN`) yang memindahkan isinya di Chrome. */
+  .document-body .section-break:not(.section-break-continuous) {
     break-after: page;
     height: 0;
     margin: 0;

@@ -2,11 +2,16 @@
 
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
+import {
+	DEFAULT_MARGINS,
+	DEFAULT_PAGE_SETUP,
+	type PageSetup,
+} from '@/features/editor/page-geometry'
 import { MAX_DOCUMENTS, MAX_SESSIONS, useSessions } from '@/features/sessions/session-context'
-import { createDocument, createTab, LOCAL_ORIGIN, readDocs, readTabs } from '@/features/sessions/ydoc'
+import { createDocument, createTab, LOCAL_ORIGIN, readDocs, readTabs, setPageSetupForTab } from '@/features/sessions/ydoc'
 import { jsonToFragment } from '@/features/sync/serialize'
 import { useDocument } from './document-context'
-import { importDocx, isDocx } from './import-docx'
+import { type DocxImport, importDocx, isDocx } from './import-docx'
 
 /**
  * Satu jalur masuk untuk berkas, dipakai bersama menu File dan tombol di bilah
@@ -69,6 +74,19 @@ function textToDocContent(text: string): JSONContent {
 	}
 }
 
+/**
+ * Setelan halaman section pertama hasil impor (E4) jadi tata letak tab yang
+ * lengkap: sisi yang tidak disebut `sectPr` - warna halaman, mode pageless -
+ * mengikuti bawaan.
+ */
+function resolveImportedSetup(patch: NonNullable<DocxImport['pageSetup']>): PageSetup {
+	return {
+		...DEFAULT_PAGE_SETUP,
+		...patch,
+		margins: { ...DEFAULT_MARGINS, ...patch.margins },
+	}
+}
+
 export function DocumentImportProvider({ children }: { children: ReactNode }) {
 	const { dispatch } = useDocument()
 	const { doc, activeDocId, selectSession } = useSessions()
@@ -91,11 +109,14 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 	 * ekstensi.
 	 */
 	const importToNewTab = useCallback(
-		(title: string, content: JSONContent) => {
+		(title: string, content: JSONContent, pageSetup?: DocxImport['pageSetup']) => {
 			if (!activeDocId) return
 			const tabId = createTab(doc, activeDocId, title)
 			doc.transact(() => {
 				jsonToFragment(doc, tabId, content)
+				// Setelan section pertama ikut sebagai tata letak tab (E4) - bukan
+				// sebagai pembatas, karena ia milik naskah sejak awal.
+				if (pageSetup) setPageSetupForTab(doc, tabId, resolveImportedSetup(pageSetup))
 			}, LOCAL_ORIGIN)
 			selectSession(tabId)
 		},
@@ -116,7 +137,7 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 
 			try {
 				const result = await importDocx(file)
-				importToNewTab(file.name.replace(/\.docx$/i, ''), result.content)
+				importToNewTab(file.name.replace(/\.docx$/i, ''), result.content, result.pageSetup)
 				setWarnings(result.warnings.map((warning) => warning.message))
 			} catch (cause) {
 				setWarnings([cause instanceof Error ? cause.message : 'Gagal membaca berkas DOCX'])
@@ -184,13 +205,13 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 
 			// Semua berkas dibaca dulu, baru dokumennya ditulis - kegagalan baca
 			// satu berkas tidak meninggalkan dokumen setengah jadi.
-			const parsed: Array<{ title: string; content: JSONContent }> = []
+			const parsed: Array<{ title: string; content: JSONContent; pageSetup?: DocxImport['pageSetup'] }> = []
 			for (const file of limited) {
 				try {
 					if (isDocx(file)) {
 						const result = await importDocx(file)
 						warn.push(...result.warnings.map((warning) => warning.message))
-						parsed.push({ title: baseName(file), content: result.content })
+						parsed.push({ title: baseName(file), content: result.content, pageSetup: result.pageSetup })
 					} else {
 						parsed.push({ title: baseName(file), content: textToDocContent(await file.text()) })
 					}
@@ -215,8 +236,11 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 				firstTabId = readTabs(doc, docId)[0]?.id ?? ''
 				if (!firstTabId) return
 				jsonToFragment(doc, firstTabId, parsed[0].content)
+				if (parsed[0].pageSetup) setPageSetupForTab(doc, firstTabId, resolveImportedSetup(parsed[0].pageSetup))
 				for (const item of parsed.slice(1)) {
-					jsonToFragment(doc, createTab(doc, docId, item.title), item.content)
+					const tabId = createTab(doc, docId, item.title)
+					jsonToFragment(doc, tabId, item.content)
+					if (item.pageSetup) setPageSetupForTab(doc, tabId, resolveImportedSetup(item.pageSetup))
 				}
 			}, LOCAL_ORIGIN)
 

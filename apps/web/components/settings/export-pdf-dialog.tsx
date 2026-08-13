@@ -92,6 +92,20 @@ export function ExportPdfDialog() {
 					</li>
 				</ol>
 
+				{/* Keputusan E1: petunjuk kecil tidak cukup - langkah ini paling
+				    sering terlewat dan akibatnya langsung terlihat di berkas hasil,
+				    jadi pengingatnya diletakkan terakhir, persis di atas tombol. */}
+				<div className="rounded-xl border border-yellow-500/25 bg-yellow-500/10 px-3 py-2.5">
+					<p className="text-[13px] font-semibold text-yellow-400">
+						Jangan lewati langkah 2: matikan Headers and footers.
+					</p>
+					<p className="mt-1 text-xs leading-relaxed text-yellow-400/85">
+						Chrome/Edge: <em>More settings</em> → hapus centang <em>Headers and footers</em>.
+						Firefox: <em>More settings</em> → matikan <em>Print headers and footers</em>. Tanpa
+						itu, URL dan tanggal ikut tercetak di sudut tiap halaman.
+					</p>
+				</div>
+
 				<div className="flex justify-end gap-2">
 					<button
 						type="button"

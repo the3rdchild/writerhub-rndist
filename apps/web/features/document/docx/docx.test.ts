@@ -707,3 +707,184 @@ describe('berkas yang tidak wajar', () => {
 		expect(blocks(result.content)).toEqual([{ type: 'paragraph' }])
 	})
 })
+
+describe('impor section (E4)', () => {
+	const sectPr = (inner: string) => `<w:sectPr>${inner}</w:sectPr>`
+	const pgSz = (w: number, h: number, orient = '') =>
+		`<w:pgSz w:w="${w}" w:h="${h}"${orient ? ` w:orient="${orient}"` : ''}/>`
+	const pgMar = (twips = 1440) =>
+		`<w:pgMar w:top="${twips}" w:right="${twips}" w:bottom="${twips}" w:left="${twips}"/>`
+	const sectionBreaksOf = (document: JSONContent) =>
+		blocks(document).filter((block) => block.type === 'sectionBreak')
+
+	test('satu section: sectPr badan jadi tata letak naskah, bukan pembatas', async () => {
+		const result = await readDocx(docx({ body: p(r('isi')) + sectPr(pgSz(11906, 16838) + pgMar()) }))
+
+		expect(result.pageSetup?.size).toBe('a4')
+		expect(result.pageSetup?.orientation).toBe('portrait')
+		expect(result.pageSetup?.margins).toEqual({ top: 96, right: 96, bottom: 96, left: 96 })
+		expect(sectionBreaksOf(result.content)).toHaveLength(0)
+	})
+
+	test('kertas standar pulang dengan namanya, bukan ukuran khusus', async () => {
+		// Jebakan E4: A4/letter yang terbaca sebagai "Ukuran khusus" dengan angka
+		// yang kebetulan sama adalah impor yang gagal menyebut namanya.
+		const letter = await readDocx(docx({ body: sectPr(pgSz(12240, 15840)) }))
+		expect(letter.pageSetup?.size).toBe('letter')
+	})
+
+	test('lanskap bentuk Word: sisi sudah tertukar + w:orient', async () => {
+		const result = await readDocx(docx({ body: sectPr(pgSz(16838, 11906, 'landscape')) }))
+		expect(result.pageSetup?.size).toBe('a4')
+		expect(result.pageSetup?.orientation).toBe('landscape')
+	})
+
+	test('lanskap bentuk pustaka docx: sisi tegak + w:orient', async () => {
+		// Bentuk yang ditulis ekspor kita sendiri - keduanya harus pulang sama.
+		const result = await readDocx(docx({ body: sectPr(pgSz(11906, 16838, 'landscape')) }))
+		expect(result.pageSetup?.size).toBe('a4')
+		expect(result.pageSetup?.orientation).toBe('landscape')
+	})
+
+	test('ukuran yang benar-benar asing jadi ukuran khusus yang jujur', async () => {
+		const result = await readDocx(docx({ body: sectPr(pgSz(9000, 12000)) }))
+		expect(result.pageSetup?.size).toBe('custom')
+		expect(result.pageSetup?.customWidth).toBe(600)
+		expect(result.pageSetup?.customHeight).toBe(800)
+	})
+
+	test('dua section: pembatas dibawa sectPr KEDUA, yang pertama milik naskah', async () => {
+		// Jebakan E4: sectPr MENUTUP section-nya. Membaca keduanya sebagai hal
+		// yang sama menggeser seluruh section satu langkah.
+		const body =
+			p(r('satu'), sectPr(pgSz(12240, 15840) + pgMar())) +
+			p(r('dua')) +
+			sectPr(pgSz(11906, 16838) + pgMar())
+		const result = await readDocx(docx({ body }))
+
+		expect(result.pageSetup?.size).toBe('letter')
+		expect(blocks(result.content).map((block) => block.type)).toEqual([
+			'paragraph',
+			'sectionBreak',
+			'paragraph',
+		])
+		const pembatas = sectionBreaksOf(result.content)[0]
+		expect(pembatas?.attrs?.pageSetup.size).toBe('a4')
+		expect(pembatas?.attrs?.pageSetup.orientation).toBe('portrait')
+		expect(pembatas?.attrs?.columns).toBeNull()
+	})
+
+	test('kolom section ikut ke pembatasnya', async () => {
+		const body =
+			p(r('satu'), sectPr(pgSz(11906, 16838))) +
+			p(r('dua')) +
+			sectPr(pgSz(11906, 16838) + '<w:cols w:num="2" w:space="708"/>')
+		const result = await readDocx(docx({ body }))
+
+		expect(sectionBreaksOf(result.content)[0]?.attrs?.columns).toEqual({ count: 2, gap: 47 })
+	})
+
+	test('kolom di section pertama dilaporkan, bukan dibuang diam-diam', async () => {
+		// Section dasar editor tidak bisa berkolom - kolom selalu dibuka pembatas.
+		const result = await readDocx(
+			docx({ body: p(r('isi')) + sectPr(pgSz(11906, 16838) + '<w:cols w:num="2"/>') }),
+		)
+		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain(
+			'kolom di bagian pertama',
+		)
+	})
+
+	test('pembatas tetap dibuat walau kedua section ber setelan sama', async () => {
+		// Section berikutnya selalu memulai halaman baru di Word - menghapus
+		// pembatasnya karena setelannya sama berarti menghapus pemenggalannya.
+		const body = p(r('satu'), sectPr(pgSz(11906, 16838))) + p(r('dua')) + sectPr(pgSz(11906, 16838))
+		const result = await readDocx(docx({ body }))
+		expect(sectionBreaksOf(result.content)).toHaveLength(1)
+	})
+
+	test('ekspor → impor mengembalikan section yang sama', async () => {
+		const { exportDocx } = await import('../export-docx')
+		const { buildSchema } = await import('@/features/sync/serialize')
+		const { DEFAULT_PAGE_SETUP, pageGeometry } = await import('@/features/editor/page-geometry')
+
+		const doc = buildSchema().nodeFromJSON({
+			type: 'doc',
+			content: [
+				{ type: 'paragraph', content: [{ type: 'text', text: 'potret' }] },
+				{
+					type: 'sectionBreak',
+					attrs: {
+						pageSetup: { size: 'letter', orientation: 'landscape' },
+						columns: { count: 2 },
+					},
+				},
+				{ type: 'paragraph', content: [{ type: 'text', text: 'lanskap' }] },
+			],
+		})
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+			setup: DEFAULT_PAGE_SETUP,
+		})
+		const result = await readDocx(new Uint8Array(await blob.arrayBuffer()))
+
+		expect(result.pageSetup?.size).toBe('a4')
+		const pembatas = sectionBreaksOf(result.content)
+		expect(pembatas).toHaveLength(1)
+		expect(pembatas[0]?.attrs?.pageSetup.size).toBe('letter')
+		expect(pembatas[0]?.attrs?.pageSetup.orientation).toBe('landscape')
+		expect(pembatas[0]?.attrs?.columns.count).toBe(2)
+	})
+
+	test('sectPr continuous dengan geometri sama terbaca sebagai pembatas menerus (E5)', async () => {		const body =
+			p(r('satu'), sectPr(pgSz(11906, 16838))) +
+			p(r('dua')) +
+			sectPr(pgSz(11906, 16838) + '<w:type w:val="continuous"/>')
+		const result = await readDocx(docx({ body }))
+
+		expect(sectionBreaksOf(result.content)[0]?.attrs?.continuous).toBe(true)
+	})
+
+	test('sectPr continuous yang mengubah ukuran turun pangkat jadi pembatas biasa (E5)', async () => {
+		// Satu lembar hanya punya satu ukuran kertas: "menerus" yang mengubah
+		// geometri masuk sebagai pembatas halaman biasa, bukan menerus yang berbohong.
+		const body =
+			p(r('satu'), sectPr(pgSz(11906, 16838))) +
+			p(r('dua')) +
+			sectPr(pgSz(12240, 15840) + '<w:type w:val="continuous"/>')
+		const result = await readDocx(docx({ body }))
+
+		const pembatas = sectionBreaksOf(result.content)[0]
+		expect(pembatas?.attrs?.continuous).toBeFalsy()
+		expect(pembatas?.attrs?.pageSetup.size).toBe('letter')
+	})
+
+	test('putar-balik pembatas menerus: ekspor → impor (E5)', async () => {
+		const { exportDocx } = await import('../export-docx')
+		const { buildSchema } = await import('@/features/sync/serialize')
+		const { DEFAULT_PAGE_SETUP, pageGeometry } = await import('@/features/editor/page-geometry')
+
+		const doc = buildSchema().nodeFromJSON({
+			type: 'doc',
+			content: [
+				{ type: 'paragraph', content: [{ type: 'text', text: 'satu' }] },
+				{ type: 'sectionBreak', attrs: { pageSetup: null, columns: { count: 2 }, continuous: true } },
+				{ type: 'paragraph', content: [{ type: 'text', text: 'dua' }] },
+				{ type: 'sectionBreak', attrs: { pageSetup: null, columns: null, continuous: true } },
+				{ type: 'paragraph', content: [{ type: 'text', text: 'tiga' }] },
+			],
+		})
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+			setup: DEFAULT_PAGE_SETUP,
+		})
+		const result = await readDocx(new Uint8Array(await blob.arrayBuffer()))
+
+		const pembatas = sectionBreaksOf(result.content)
+		expect(pembatas).toHaveLength(2)
+		expect(pembatas[0]?.attrs).toMatchObject({ continuous: true })
+		expect(pembatas[0]?.attrs?.columns).toMatchObject({ count: 2 })
+		expect(pembatas[1]?.attrs).toMatchObject({ continuous: true, columns: null })
+	})
+})
