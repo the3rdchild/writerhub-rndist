@@ -1,6 +1,14 @@
 # WritingHub — PRD: Ekspor & Kolom (sisa yang belum beres)
 
-Status: **Keputusan lengkap - siap dikerjakan** · Disusun 14 Agustus 2026 · Baseline kode `0c4dab7` (branch `main`).
+Status: **Terimplementasi (E1–E5)** · Disusun 14 Agustus 2026, dikerjakan di hari yang sama · Baseline kode `0c4dab7` (branch `main`).
+
+> **Koreksi pasca-implementasi (§3 butir 1):** penanda `document-print-root` akhirnya
+> dipasang pada `document-zoom-frame` di `document-canvas.tsx`, bukan pada pembungkus
+> `document-editor.tsx` seperti yang tertulis di bawah. Alasannya: pembungkus editor
+> memuat bilah status dan spanduk yang akan ikut tercetak; bingkai zoom hanya memuat
+> lembar + naskah (penggaris, bilah status, dan spanduk semuanya di luarnya). Uji
+> strukturnya (`print-root.test.ts`) membaca sumber JSX dan CSS, bukan me-render
+> komponen - infrastruktur uji DOM belum ada di repo ini.
 
 Lanjutan langsung dari `docs/COLUMNS-PROOFREADER-TOOLS-PRD.md` (P1–P12) dan
 `docs/WORKPLAN-P1-P12-DUA-JALUR.md` §9 (C-1…C-3). Dokumen ini hanya memuat yang **masih rusak
@@ -15,11 +23,12 @@ Penomoran **E1–E5** baru dan tidak bertabrakan dengan P1–P12, A–O, maupun 
 
 | # | Butir | Jenis | Keadaan | Ukuran |
 |---|---|---|---|---|
-| **E1** | Ekspor PDF tetap satu halaman, dan panel ikut tercetak | **Bug** | Penyebab terverifikasi; perbaikan `b219e85` perlu tapi belum cukup | Sedang |
-| **E2** | Page break di blok kolom menyisakan halaman kosong | **Bug** | Penyebab terverifikasi (regresi dari `4b4dd20`) | Kecil |
-| **E3** | Tabel di kolom sempit | Verifikasi | Keputusan: **dibiarkan sempit** (§2.1); sisanya tinggal memastikan tidak meluber | Kecil |
-| **E4** | Impor DOCX belum membaca `sectPr` | Fitur | Belum ada; ekspornya sudah benar, jadi hanya arah masuk yang pincang | Sedang |
-| **E5** | Pensiunkan blok kolom pembungkus, ganti section berkolom | Fitur | Diputuskan §2.2 & §2.5; **butuh pembatas section "menerus" yang belum ada** | Besar |
+| **E1** | Ekspor PDF tetap satu halaman, dan panel ikut tercetak | **Bug** | **Terimplementasi** - CSS positif `:has()` + `document-print-root` di zoom-frame; pengingat header/footer diperkuat. Menunggu verifikasi peramban | Sedang |
+| **E2** | Page break di blok kolom menyisakan halaman kosong | **Bug** | **Terimplementasi** - lompat hanya bila lembar berjalan sudah terisi; invarian diuji | Kecil |
+| **E3** | Tabel di kolom sempit | Verifikasi | **Terimplementasi** - ternyata benar meluber; colwidth kini disempitkan proporsional terhadap petaknya | Kecil |
+| **E4** | Impor DOCX belum membaca `sectPr` | Fitur | **Terimplementasi** - termasuk setelan section pertama ke tab, dan putar-balik ekspor→impor | Sedang |
+| **E5** | Pensiunkan blok kolom pembungkus, ganti section berkolom | Fitur | **Terimplementasi** - pembatas menerus, `setColumns` jadi section, migrasi saat dibuka, `w:type continuous` dua arah | Besar |
+| **E6** | Rentang kolom section tercetak satu kolom di kertas | **Bug** | Ditemukan saat E5; celah lama §P8 yang baru terlihat sekarang (§10) | Sedang |
 
 **E1, E2, dan E3 saling lepas** - bisa dikerjakan paralel tanpa menyentuh berkas yang sama.
 **E5 wajib menunggu E2**: keduanya menyunting aritmetika penempatan di `columns.ts`.
@@ -441,3 +450,31 @@ Chrome (E1) dan tampilan berkas DOCX di Google Docs (E4, E5).
 3. **E4 - `sectPr` dengan tipe yang tidak didukung (`evenPage`/`oddPage`)?** Dibaca sebagai
    **pembatas halaman biasa** - degradasi aman; impor boleh memperingatkan, tidak menolak.
    Tercatat sebagai catatan 3 di §6.
+
+---
+
+## 10. E6 — Rentang kolom section tercetak satu kolom di kertas
+
+Ditemukan saat mengerjakan E5, dan akarnya lebih tua dari E5: multi-kolom CSS butuh
+**wadah**, sedangkan rentang section berkolom (§P8) memang tidak punya wadah - blok-bloknya
+anak langsung badan dokumen. Di layar petak absolut mengatasinya; di kertas, aturan cetak
+`columns-item { position: static }` mengembalikan mereka ke aliran biasa - **satu kolom**.
+
+Blok `columns` pembungkus tidak kena: ia punya wadah, dan `column-count` memang
+dinyalakan kembali di cetak. Jadi setelah E5 - yang mengalihkan kolom-seleksi dari
+pembungkus ke rentang section - bentuk kolom yang tadinya tercetak benar ikut kehilangan
+kolomnya di kertas. Ekspor DOCX tidak terpengaruh (ia menulis `w:cols` apa adanya), jadi
+jalur setia tetap benar; yang pincang hanya cetak langsung dari layar.
+
+### Arah rancangan (belum dikerjakan)
+Satu-satunya jalan CSS adalah memberi rentang itu wadah saat mencetak - misalnya paginasi
+membungkus blok rentang dengan elemen `columns-print-region` khusus cetak yang membawa
+`column-count`. Alternatif yang lebih jujur namun lebih mahal: node wadah nyata untuk
+rentang (mundur dari keputusan "rentang tanpa pembungkus"). Yang tidak boleh dipilih:
+membiarkan kolom-seleksi diam-diam tercetak satu kolom - itu bentuk kerusakan yang sama
+dengan yang dulu dilaporkan pada tabel (§P4), hanya pindah tempat.
+
+### Kriteria terima
+- Dua paragraf yang dikolomkan sebagai section menerus tercetak dua kolom di Chrome.
+- Rentang kolom "halaman ini" (§P8) ikut tercetak berkolom, bukan hanya kolom-seleksi.
+- Page break di dalam rentang tetap memenggal di kertas (E2 tidak boleh kambuh di sini).
