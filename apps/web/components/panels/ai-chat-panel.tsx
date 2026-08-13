@@ -203,7 +203,7 @@ export function AiChatPanel() {
 					<ToggleIcon
 						icon={FileText}
 						label="Whole document"
-						hint="Kirim teks penuh tab aktif (bawaan: ringkasan kerangka saja)"
+						hint="Send the full text of the active tab (default: outline summary only)"
 						active={includeDocument}
 						onClick={() => setIncludeDocument(!includeDocument)}
 					/>
@@ -218,8 +218,8 @@ export function AiChatPanel() {
 						label="Auto-apply"
 						hint={
 							autoApply
-								? 'Suntingan AI langsung masuk naskah - batalkan dengan Ctrl+Z'
-								: 'Terapkan suntingan AI tanpa menunggu Apply'
+								? 'AI edits go straight into the document - undo with Ctrl+Z'
+								: 'Apply AI edits without waiting for Apply'
 						}
 						active={autoApply}
 						onClick={() => setAutoApply(!autoApply)}
@@ -230,8 +230,8 @@ export function AiChatPanel() {
 							<button
 								type="button"
 								onClick={startNewTopic}
-								title="Mulai topik baru (kartu aksi lama kedaluwarsa)"
-								aria-label="Mulai topik baru"
+								title="Start a new topic (old action cards expire)"
+								aria-label="Start a new topic"
 								className="ml-auto shrink-0 rounded-md p-1.5 text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 							>
 								<Plus className="h-3.5 w-3.5" />
@@ -357,7 +357,7 @@ function Bubble({
 					</p>
 				))}
 
-			{emptyMarker && <p className="text-xs italic text-subtle">Tidak ada jawaban.</p>}
+			{emptyMarker && <p className="text-xs italic text-subtle">No response.</p>}
 
 			{/* Selama masih mengalir, blok usulan belum tentu utuh - tombol Apply
 			    baru muncul setelah gilirannya selesai. */}
@@ -426,7 +426,7 @@ function ProposalCard({ text, expired }: { text: string; expired?: boolean }) {
 
 			{failed ? (
 				<p className="text-[11px] text-yellow-400">
-					Teks aslinya sudah berubah - pilih ulang bagiannya lalu coba lagi
+					The original text has changed - reselect the passage and try again
 				</p>
 			) : (
 				<button
@@ -443,7 +443,7 @@ function ProposalCard({ text, expired }: { text: string; expired?: boolean }) {
 					)}
 				>
 					<Check className="h-3.5 w-3.5" />
-					{applied ? 'Applied' : expired ? (confirming ? 'Konfirmasi?' : 'Terapkan') : 'Apply'}
+					{applied ? 'Applied' : expired ? (confirming ? 'Confirm?' : 'Apply') : 'Apply'}
 				</button>
 			)}
 		</div>
@@ -550,7 +550,7 @@ function ModelPicker() {
 							trailing={
 								entry.free ? (
 									<span className="rounded bg-green-500/15 px-1.5 py-0.5 text-[10px] text-green-400">
-										gratis
+										free
 									</span>
 								) : undefined
 							}
@@ -590,7 +590,7 @@ function ActionGroup({ actions, expired }: { actions: ToolCall[]; expired?: bool
 					className="flex items-center justify-center gap-1.5 rounded-full bg-green-500/15 py-1.5 text-xs font-medium text-green-400 transition-colors hover:bg-green-500/25"
 				>
 					<Check className="h-3.5 w-3.5" />
-					Terapkan semua ({pending.length})
+					Apply all ({pending.length})
 				</button>
 			)}
 			{actions.map((call) => (
@@ -637,17 +637,17 @@ function ActionCard({ call, expired }: { call: ToolCall; expired?: boolean }) {
 			</div>
 
 			{expired && !settled && (
-				<p className="text-[11px] italic text-subtle">Dari permintaan sebelumnya</p>
+				<p className="text-[11px] italic text-subtle">From a previous request</p>
 			)}
 
 			{applied ? (
-				<p className="text-[11px] text-green-400/70">Sudah diterapkan</p>
+				<p className="text-[11px] text-green-400/70">Applied</p>
 			) : outcome ? (
 				<p className={cn('text-[11px]', outcome.ok ? 'text-green-400' : 'text-yellow-400')}>
 					{outcome.message}
 				</p>
 			) : settled ? (
-				<p className="text-[11px] text-subtle">Dilewati</p>
+				<p className="text-[11px] text-subtle">Skipped</p>
 			) : (
 				<div className="flex gap-1.5">
 					<button
@@ -661,16 +661,16 @@ function ActionCard({ call, expired }: { call: ToolCall; expired?: boolean }) {
 						)}
 					>
 						<Check className="h-3.5 w-3.5" />
-						{expired ? (confirming ? 'Konfirmasi?' : 'Terapkan') : 'Apply'}
+						{expired ? (confirming ? 'Confirm?' : 'Apply') : 'Apply'}
 					</button>
 					<button
 						type="button"
 						onClick={() => skipAction(call)}
-						title="Jangan terapkan yang ini - AI tetap dikabari dan melanjutkan"
+						title="Don't apply this one - AI is still notified and continues"
 						className="flex items-center justify-center gap-1 rounded-lg bg-[var(--overlay-hover)] px-3 py-1.5 text-xs text-muted transition-colors hover:text-foreground"
 					>
 						<SkipForward className="h-3.5 w-3.5" />
-						Lewati
+						Skip
 					</button>
 				</div>
 			)}
@@ -681,9 +681,9 @@ function ActionCard({ call, expired }: { call: ToolCall; expired?: boolean }) {
 /** Pemisah visual antar tugas di transkrip (M7). */
 function TaskSeparator() {
 	return (
-		<div className="flex items-center gap-2 py-1" role="separator" aria-label="Topik baru">
+		<div className="flex items-center gap-2 py-1" role="separator" aria-label="New topic">
 			<span className="h-px flex-1 bg-foreground/10" />
-			<span className="text-[10px] uppercase tracking-wide text-subtle">Topik baru</span>
+			<span className="text-[10px] uppercase tracking-wide text-subtle">New topic</span>
 			<span className="h-px flex-1 bg-foreground/10" />
 		</div>
 	)

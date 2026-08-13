@@ -196,10 +196,10 @@ export function ChangeListPanel({
 							// sama-sama berupa changes kosong. Menyamakan keduanya
 							// membuat kegagalan terbaca sebagai pujian - dan pengguna
 							// mengklik Rewrite berulang kali tanpa tahu apa yang salah.
-							<PanelError message="AI tidak dapat dihubungi, jadi tidak ada usulan yang bisa dibuat. Periksa konfigurasi penyedia AI, lalu coba lagi." />
+							<PanelError message="AI could not be reached, so no suggestions could be produced. Check the AI provider configuration, then try again." />
 						) : (changes ?? []).length === 0 ? (
 							<p className="py-4 text-center text-xs text-subtle">
-								Tidak ada perubahan yang disarankan untuk teks ini
+								No changes suggested for this text
 							</p>
 						) : (
 							<p className="py-4 text-center text-xs text-subtle">{noChangesLabel(result)}</p>
@@ -208,7 +208,7 @@ export function ChangeListPanel({
 						{applied.length > 0 && (
 							<div className="mt-3 flex flex-col gap-2 border-t border-line pt-3">
 								<p className="text-[11px] font-medium uppercase tracking-wide text-subtle">
-									Sudah diterapkan
+									Applied
 								</p>
 								{applied.map((entry) => (
 									<AppliedCard
@@ -247,7 +247,7 @@ export function ChangeListPanel({
 							value={tone}
 							options={TONE_OPTIONS}
 							onChange={handleToneChange}
-							label="Tone hasil rewrite"
+							label="Rewrite tone"
 							width={110}
 							disabled={isRunning}
 							side="top"
@@ -257,12 +257,12 @@ export function ChangeListPanel({
 
 				{feature === 'translator' && (
 					<div className="flex items-center gap-1.5 px-1">
-						<span className="text-[11px] text-subtle">Ke</span>
+						<span className="text-[11px] text-subtle">To</span>
 						<ToolbarSelect
 							value={targetLang}
 							options={LANGUAGE_CHOICES}
 							onChange={handleTargetLangChange}
-							label="Bahasa tujuan terjemahan"
+							label="Translation target language"
 							width={140}
 							disabled={isRunning}
 							side="top"

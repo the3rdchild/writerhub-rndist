@@ -328,7 +328,7 @@ export function CandidateCard({
 							className="flex items-center justify-center gap-1 rounded-lg bg-green-500/15 py-1 text-xs text-green-400 transition-colors hover:bg-green-500/25"
 						>
 							<CheckCircle2 className="h-3.5 w-3.5" />
-							Terapkan
+							Apply
 						</button>
 					</div>
 				))}
@@ -343,7 +343,7 @@ export function CandidateCard({
 				className="flex items-center justify-center gap-1 rounded-lg bg-[var(--overlay-hover)] py-1.5 text-xs text-muted transition-colors hover:text-foreground"
 			>
 				<XCircle className="h-3.5 w-3.5" />
-				Lewati segmen ini
+				Skip this segment
 			</button>
 		</div>
 	)
@@ -371,7 +371,7 @@ export function AppliedCard({
 		<div className="flex flex-col gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/5 p-3">
 			<div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-400">
 				<CheckCircle2 className="h-3.5 w-3.5" />
-				Diterapkan
+			Applied
 			</div>
 			<p className="text-xs leading-relaxed text-emerald-300">{applied}</p>
 			<p className="text-[11px] leading-relaxed text-subtle line-through">{original}</p>
@@ -379,7 +379,7 @@ export function AppliedCard({
 				type="button"
 				onClick={onRevert}
 				disabled={!canRevert}
-				title={canRevert ? 'Kembalikan ke naskah semula' : undefined}
+				title={canRevert ? 'Revert to original text' : undefined}
 				className={cn(
 					'flex items-center justify-center gap-1 rounded-lg py-1.5 text-xs transition-colors',
 					canRevert
@@ -388,7 +388,7 @@ export function AppliedCard({
 				)}
 			>
 				<Undo2 className="h-3.5 w-3.5" />
-				{canRevert ? 'Batalkan' : 'Teks sudah berubah'}
+				{canRevert ? 'Undo' : 'Text has changed'}
 			</button>
 		</div>
 	)

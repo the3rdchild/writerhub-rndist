@@ -60,13 +60,13 @@ export function GlossaryPanel() {
 	return (
 		<>
 			<PanelScroll>
-				{isRunning && <PanelLoading label="Menyusun daftar istilah…" />}
+				{isRunning && <PanelLoading label="Building term list…" />}
 				{error && !isRunning && <PanelError message={error.message} />}
 
 				{!isRunning && !error && result && (
 					<>
 						{llmUnavailable ? (
-							<PanelError message="AI tidak dapat dihubungi, jadi daftar istilah tidak bisa disusun. Periksa konfigurasi penyedia AI, lalu coba lagi." />
+							<PanelError message="AI could not be reached, so the term list couldn't be built. Check the AI provider configuration, then try again." />
 						) : entries.length === 0 ? (
 							<p className="py-4 text-center text-xs text-subtle">
 								No terms were found. The glossary is built from words and acronyms that
@@ -111,8 +111,8 @@ export function GlossaryPanel() {
 				{!isRunning && !error && !result && (
 					<PanelEmptyState
 						icon={BookMarked}
-						title="Buat daftar istilah"
-						description="AI memindai seluruh tab ini, mengumpulkan istilah dan akronim yang berulang, lalu menyusun definisinya sebagai tabel di akhir naskah."
+						title="Build a term list"
+						description="AI scans this entire tab, gathers recurring terms and acronyms, then compiles their definitions as a table at the end of the document."
 					/>
 				)}
 			</PanelScroll>
@@ -125,7 +125,7 @@ export function GlossaryPanel() {
 						className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-green-500/15 py-2 text-xs text-green-400 transition-colors hover:bg-green-500/25"
 					>
 						<BookMarked className="h-3.5 w-3.5" />
-						Sisipkan tabel Glosarium
+						Insert Glossary table
 					</button>
 				)}
 
@@ -136,8 +136,8 @@ export function GlossaryPanel() {
 					onCancel={cancel}
 					disabled={!canRun}
 					isRunning={isRunning}
-					runningLabel="Memindai…"
-					label={result ? 'Pindai ulang' : 'Buat glosarium'}
+					runningLabel="Scanning…"
+					label={result ? 'Scan again' : 'Build glossary'}
 				/>
 			</PanelFooter>
 		</>

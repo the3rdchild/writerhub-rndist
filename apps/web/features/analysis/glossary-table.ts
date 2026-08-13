@@ -3,7 +3,7 @@ import type { JSONContent } from '@tiptap/core'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 
 /** Judul bagian yang disisipkan; juga penanda saat menggantinya nanti. */
-export const GLOSSARY_HEADING = 'Glosarium'
+export const GLOSSARY_HEADING = 'Glossary'
 
 const cell = (text: string, header = false): JSONContent => ({
 	type: header ? 'tableHeader' : 'tableCell',
@@ -41,7 +41,7 @@ export function buildGlossarySection(entries: readonly GlossaryEntry[]): JSONCon
 		{
 			type: 'table',
 			content: [
-				{ type: 'tableRow', content: [cell('Istilah', true), cell('Definisi', true)] },
+				{ type: 'tableRow', content: [cell('Term', true), cell('Definition', true)] },
 				...entries.map((entry) => ({
 					type: 'tableRow',
 					content: [cell(glossaryTermLabel(entry)), cell(entry.definition)],
