@@ -194,6 +194,10 @@ export interface ColumnFlow {
  *   puncak lembar: blok kolom boleh mulai di tengah halaman.
  * - Sebuah blok tidak pernah dipenggal; yang tidak muat turun utuh ke kolom
  *   berikutnya, dan kolom terakhir sebuah lembar turun ke lembar berikutnya.
+ * - Blok yang lebih tinggi dari kolom penuh mendapat petaknya sendiri dan
+ *   dibiarkan meluber, TAPI luberannya dicatat: petak yang masih tertutup
+ *   luberan dilewati, supaya tidak ada blok yang digambar menimpa blok lain
+ *   (§P4 lapis 1). Tinggi pembungkus dan `sheetGap` ikut mencakup luberan itu.
  * - Lembar terakhir diseimbangkan, kalau tidak blok pendek akan menumpuk
  *   seluruh isinya di kolom pertama dan menyisakan kolom kedua kosong.
  */
@@ -220,47 +224,56 @@ export function flowColumns(
 	const regionHeight = (sheet: number) => sheetBottom(sheet) - regionTop(sheet)
 
 	const slots: { page: number; column: number; top: number }[] = []
+	/**
+	 * Sampai mana blok raksasa benar-benar meluber di tiap kolom, pada koordinat
+	 * render. Petak yang masih tertutup luberan dilewati atau dipotong puncaknya -
+	 * kalau tidak, blok berikutnya digambar menimpa si raksasa (§P4 lapis 1).
+	 */
+	const blockedUntil: number[] = Array.from({ length: count }, () => 0)
 	let column = 0
-	/** Berapa kali tata letak pindah lembar - dasar perhitungan `sheetGap`. */
-	let sheets = 0
 
 	const advance = () => {
 		column += 1
 		if (column >= count) {
 			column = 0
 			page += 1
-			sheets += 1
 		}
 	}
 
 	let index = 0
 	while (index < items.length) {
-		const limit = regionHeight(page)
+		const base = Math.max(regionTop(page), blockedUntil[column])
+		const limit = sheetBottom(page) - base
 		let tops = packColumn(items, index, limit)
+		let giant = false
 
 		if (tops.length === 0) {
 			if (limit < contentHeight - 0.5) {
-				// Sisa lembar pertama terlalu pendek untuk blok mana pun - lewati.
+				// Sisa kolom terlalu pendek untuk blok mana pun - lewati.
 				advance()
 				continue
 			}
 			// Satu blok lebih tinggi dari kolom penuh. Memenggalnya butuh memecah
-			// node, jadi ia dibiarkan meluber - batasan yang sama dengan blok raksasa
-			// pada paginasi biasa.
+			// node, jadi ia dibiarkan meluber - tapi luberannya dicatat supaya petak
+			// yang ia tutupi tidak dipakai blok berikutnya.
 			tops = [0]
+			giant = true
 		}
 
-		const base = regionTop(page)
 		for (const offset of tops) slots.push({ page, column, top: base + offset })
+		if (giant) blockedUntil[column] = base + items[index].height
 		index += tops.length
 
 		if (index < items.length) advance()
 	}
 
-	// Lembar terakhir diseimbangkan supaya kolomnya berakhir sama rata.
+	// Lembar terakhir diseimbangkan supaya kolomnya berakhir sama rata - kecuali
+	// bila ada luberan blok raksasa yang masuk ke lembar itu: mengatur ulang isi
+	// di kolom yang tertutup luberan akan membuatnya tertimpa.
 	const lastPage = page
+	const spillOnLastPage = blockedUntil.some((until) => until > regionTop(lastPage) + 0.5)
 	const firstOnLastPage = slots.findIndex((slot) => slot.page === lastPage)
-	if (firstOnLastPage >= 0) {
+	if (firstOnLastPage >= 0 && !spillOnLastPage) {
 		const balanced = balanceColumns(items.slice(firstOnLastPage), regionHeight(lastPage), count)
 		if (balanced) {
 			const base = regionTop(lastPage)
@@ -274,11 +287,17 @@ export function flowColumns(
 		}
 	}
 
+	// Ujung isi pada koordinat render, dari SEMUA penempatan: luberan blok
+	// raksasa bisa berakhir beberapa lembar di depan blok terakhir yang dipasang.
 	let bottom = firstTop
 	for (const [i, item] of items.entries()) {
-		if (slots[i].page !== lastPage) continue
 		bottom = Math.max(bottom, slots[i].top + item.height)
 	}
+
+	// Lembar yang dilompati dihitung dari ujung isi, bukan dari jumlah
+	// perpindahan petak, supaya luberan blok raksasa yang melewati lembar
+	// terakhir yang dipakai pun ikut terhitung dalam `sheetGap`.
+	const sheets = Math.max(0, Math.ceil((bottom - sheetBottom(firstPage)) / pageStride))
 
 	return {
 		placements: items.map((item, i) => ({

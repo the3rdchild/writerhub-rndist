@@ -117,7 +117,7 @@ describe('judul di kaki kolom', () => {
 	})
 })
 
-describe('batasan yang diketahui', () => {
+describe('blok raksasa (§P4 lapis 1)', () => {
 	test('blok yang lebih tinggi dari kolom penuh tetap ditempatkan, bukan hilang', () => {
 		const items = blocks([contentHeight + 400])
 		const { placements, height } = flow(items)
@@ -125,6 +125,42 @@ describe('batasan yang diketahui', () => {
 		expect(placements).toHaveLength(1)
 		expect(placements[0].top).toBe(0)
 		expect(height).toBe(contentHeight + 400)
+	})
+
+	test('blok sesudahnya tidak menimpa luberannya di kolom yang sama', () => {
+		// Tabel raksasa setinggi 1,4 kolom di kolom pertama, diikuti blok biasa
+		// yang memenuhi kolom kedua: dulu blok berikutnya ditaruh di puncak
+		// lembar kedua - tepat di atas luberan.
+		const giant = contentHeight + 400
+		const items = blocks([giant, ...Array.from({ length: 10 }, () => 100)])
+		const boxes = rendered(items)
+
+		expect(boxes[0]).toMatchObject({ column: 0, top: 0, bottom: giant })
+		expect(boxes[1]).toMatchObject({ column: 1, top: 0 })
+		// Kolom 0 lembar kedua dimulai DI BAWAH ujung luberan, bukan di puncak lembar.
+		const next = boxes[boxes.length - 1]
+		expect(next.column).toBe(0)
+		expect(next.top).toBeGreaterThanOrEqual(giant)
+	})
+
+	test('tinggi pembungkus dan celah lembar mencakup luberan', () => {
+		const giant = contentHeight + 400
+		const { height, sheetGap } = flow(blocks([giant, ...Array.from({ length: 10 }, () => 100)]))
+
+		// Blok terakhir berakhir di lembar kedua; satu celah antar lembar dilompati.
+		expect(height).toBeGreaterThanOrEqual(giant + 100)
+		expect(sheetGap).toBe(pageStride - contentHeight)
+	})
+
+	test('luberan yang makan lebih dari satu lembar melompati semuanya', () => {
+		const giant = contentHeight + 2 * pageStride
+		const items = blocks([giant, 100])
+		const boxes = rendered(items)
+
+		expect(boxes[1].column).toBe(1)
+		// Kolom 1 lembar pertama tidak tertutup luberan kolom 0, jadi boleh dipakai.
+		expect(boxes[1].top).toBe(0)
+		expect(flow(items).sheetGap).toBe(2 * (pageStride - contentHeight))
 	})
 
 	test('pembungkus yang mendarat di celah antar lembar mulai di lembar berikutnya', () => {
@@ -135,6 +171,64 @@ describe('batasan yang diketahui', () => {
 
 		expect(boxes[0].top).toBe(pageStride)
 		expect(flow(blocks([100, 100]), top).sheetGap).toBe(pageStride - top)
+	})
+})
+
+describe('invarian: tidak ada dua blok yang bertumpang tindih di kolom yang sama', () => {
+	/** Puncak/ujung tiap blok pada koordinat render, per kolom. */
+	function boxesByColumn(items: ColumnItem[], top: number, count: number) {
+		const byColumn = new Map<number, { top: number; bottom: number }[]>()
+		for (const box of rendered(items, top, count)) {
+			const list = byColumn.get(box.column) ?? []
+			list.push({ top: box.top, bottom: box.bottom })
+			byColumn.set(box.column, list)
+		}
+		return byColumn
+	}
+
+	function expectNoOverlap(items: ColumnItem[], top: number, count: number) {
+		for (const boxes of boxesByColumn(items, top, count).values()) {
+			for (let i = 0; i < boxes.length; i++) {
+				for (let j = i + 1; j < boxes.length; j++) {
+					const overlap = Math.min(boxes[i].bottom, boxes[j].bottom) - Math.max(boxes[i].top, boxes[j].top)
+					expect(overlap).toBeLessThanOrEqual(0.5)
+				}
+			}
+		}
+	}
+
+	const GIANT = Math.round(contentHeight * 1.5)
+	const SMALL = 120
+
+	for (const count of [1, 2, 3]) {
+		for (const top of [0, 400]) {
+			test(`${count} kolom, raksasa di awal, mulai di y=${top}`, () => {
+				const items = blocks([GIANT, ...Array.from({ length: 20 }, () => SMALL)])
+				expectNoOverlap(items, top, count)
+			})
+
+			test(`${count} kolom, raksasa di tengah, mulai di y=${top}`, () => {
+				const items = blocks([
+					...Array.from({ length: 8 }, () => SMALL),
+					GIANT,
+					...Array.from({ length: 12 }, () => SMALL),
+				])
+				expectNoOverlap(items, top, count)
+			})
+
+			test(`${count} kolom, raksasa di akhir, mulai di y=${top}`, () => {
+				const items = blocks([...Array.from({ length: 20 }, () => SMALL), GIANT])
+				expectNoOverlap(items, top, count)
+			})
+		}
+	}
+
+	test('pembungkus menutupi seluruh isinya, termasuk luberan', () => {
+		const items = blocks([GIANT, ...Array.from({ length: 20 }, () => SMALL)])
+		const { placements, height } = flow(items, 0, 2)
+		for (const [index, placement] of placements.entries()) {
+			expect(placement.top + items[index].height).toBeLessThanOrEqual(height + 0.5)
+		}
 	})
 })
 
