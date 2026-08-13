@@ -2,6 +2,7 @@
 
 import { X } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { Flag } from '@/components/ui/flag'
 import { LANGUAGE_OPTIONS } from '@/features/document/language'
 import { cn } from '@/lib/utils'
 import type { MemoryPreferences } from './types'
@@ -101,21 +102,37 @@ export function MemoryTab() {
 			</Field>
 
 			<Field label="Bahasa keluaran AI">
-				<select
-					value={language}
-					onChange={(event) => {
-						setLanguage(event.target.value)
-						setSaved(false)
-					}}
-					className="w-full rounded-lg border border-line-strong bg-surface-inset px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-accent/50"
-				>
-					<option value="">Ikuti bahasa naskah</option>
-					{LANGUAGE_OPTIONS.map((option) => (
-						<option key={option.code} value={option.label}>
-							{option.label}
-						</option>
-					))}
-				</select>
+				{/* Select asli (native) dipertahankan karena ini formulir pengaturan;
+			       opsi native tidak bisa merender SVG bendera, jadi bendera
+			       kebahasaan yang dipilih ditampilkan sebagai indikator di depannya (§P1). */}
+				<div className="relative">
+					{(() => {
+						const flagCode = LANGUAGE_OPTIONS.find((option) => option.label === language)?.flag
+						return flagCode ? (
+							<span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2">
+								<Flag code={flagCode} />
+							</span>
+						) : null
+					})()}
+					<select
+						value={language}
+						onChange={(event) => {
+							setLanguage(event.target.value)
+							setSaved(false)
+						}}
+						className={cn(
+							'w-full appearance-none rounded-lg border border-line-strong bg-surface-inset py-2 text-sm text-foreground outline-none transition-colors focus:border-accent/50',
+							LANGUAGE_OPTIONS.some((option) => option.label === language) ? 'pl-9' : 'px-3',
+						)}
+					>
+						<option value="">Ikuti bahasa naskah</option>
+						{LANGUAGE_OPTIONS.map((option) => (
+							<option key={option.code} value={option.label}>
+								{option.label}
+							</option>
+						))}
+					</select>
+				</div>
 			</Field>
 
 			<Field label="Glosarium — istilah yang tidak boleh diubah atau diterjemahkan">

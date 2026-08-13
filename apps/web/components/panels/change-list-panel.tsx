@@ -12,6 +12,7 @@ import { usePreTranslateSnapshot } from '@/features/analysis/use-pre-translate-s
 import { useRangeHighlight } from '@/features/document/use-range-highlight'
 import { LANGUAGE_OPTIONS } from '@/features/document/language'
 import { useSelectionScope } from '@/features/editor/selection'
+import { Flag } from '@/components/ui/flag'
 import { ToolbarSelect } from '@/components/ui/toolbar-select'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import {
@@ -38,9 +39,11 @@ const TONE_OPTIONS: ReadonlyArray<{ value: ToneChoice; label: string }> = [
 ]
 
 /** Bahasa tujuan Translator - memakai ulang daftar bahasa dokumen. */
-const LANGUAGE_CHOICES: ReadonlyArray<{ value: string; label: string }> = LANGUAGE_OPTIONS.map(
-	(entry) => ({ value: entry.code, label: entry.label }),
-)
+const LANGUAGE_CHOICES = LANGUAGE_OPTIONS.map((entry) => ({
+	value: entry.code,
+	label: entry.label,
+	icon: <Flag code={entry.flag} />,
+}))
 
 export interface ChangeListPanelProps {
 	feature: Extract<AnalysisFeature, 'ai_rewriter' | 'humanizer' | 'translator'>
