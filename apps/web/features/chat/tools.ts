@@ -926,20 +926,11 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 				if (!scoped) {
 					return { ok: false, message: 'Could not tell which page that is; the document has no pages yet.' }
 				}
-				const type = editor.state.schema.nodes[SECTION_BREAK_NODE]
-				if (!type) return { ok: false, message: 'This editor has no sections.' }
-
-				const chain = editor.chain().focus()
-				// Sisip dari posisi terbesar dulu supaya yang pertama tidak menggeser
-				// yang kedua - alasan yang sama seperti di applySectionSetup.
-				if (scoped.to !== undefined && scoped.to < editor.state.doc.content.size) {
-					chain.insertContentAt(scoped.to, { type: SECTION_BREAK_NODE, attrs: { pageSetup: null, columns: null } })
-				}
-				chain.insertContentAt(scoped.from, {
-					type: SECTION_BREAK_NODE,
-					attrs: { pageSetup: null, columns: columnsFromArgs(count, call.arguments.gap_cm) },
-				})
-				const ok = chain.run()
+				const ok = editor
+					.chain()
+					.focus()
+					.applySectionColumns(columnsFromArgs(count, call.arguments.gap_cm), scoped, context.setup)
+					.run()
 				return ok
 					? { ok: true, message: count === 1 ? 'Columns removed for that section.' : `${count} columns applied to that section.` }
 					: { ok: false, message: 'The column layout could not be changed.' }

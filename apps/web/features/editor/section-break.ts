@@ -1,4 +1,4 @@
-import { mergeAttributes, Node } from '@tiptap/core'
+import { type CommandProps, mergeAttributes, Node } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { DEFAULT_PAGE_SETUP, type PageSetup } from './page-geometry'
 
@@ -37,6 +37,11 @@ declare module '@tiptap/core' {
 			setSectionBreak: (attrs?: Partial<SectionBreakAttrs>) => ReturnType
 			applySectionSetup: (
 				patch: Partial<PageSetup>,
+				range: { from: number; to?: number },
+				baseSetup?: PageSetup,
+			) => ReturnType
+			applySectionColumns: (
+				columns: SectionBreakAttrs['columns'],
 				range: { from: number; to?: number },
 				baseSetup?: PageSetup,
 			) => ReturnType
@@ -127,32 +132,74 @@ export const SectionBreak = Node.create({
 			 */
 			applySectionSetup:
 				(patch, range, baseSetup = DEFAULT_PAGE_SETUP) =>
-				({ tr, dispatch, state }) => {
-					const type = state.schema.nodes[SECTION_BREAK_NODE]
-					if (!type) return false
+				({ tr, dispatch, state }) =>
+					encloseSection(
+						{ tr, dispatch, state },
+						range,
+						baseSetup,
+						(before) => ({
+							open: { pageSetup: patch, columns: before.columns ?? null },
+							close: { pageSetup: before.setup, columns: before.columns ?? null },
+						}),
+					),
 
-					const spans = sectionSpans(state.doc, baseSetup)
-					// Setelan yang berlaku tepat sebelum rentang ini - itulah yang harus
-					// dipulihkan sesudahnya.
-					const before = spans.filter((span) => span.pos <= range.from).pop() ?? spans[0]
-
-					if (!dispatch) return true
-
-					// Sisipkan dari posisi TERBESAR lebih dulu: menyisipkan di `from`
-					// menggeser `to`, sebaliknya tidak.
-					if (range.to !== undefined && range.to < state.doc.content.size) {
-						tr.insert(
-							range.to,
-							type.create({ pageSetup: before.setup, columns: before.columns ?? null }),
-						)
-					}
-					tr.insert(range.from, type.create({ pageSetup: patch, columns: before.columns ?? null }))
-
-					return true
-				},
+			/**
+			 * Sama seperti `applySectionSetup`, tapi yang diubah jumlah kolomnya.
+			 *
+			 * Berdiri sebagai perintah tersendiri - bukan dirakit ulang di tiap
+			 * pemanggil - karena tiga permukaan memakainya: menu Format, alat AI
+			 * `set_columns`, dan (lewat rentang yang sama) dialog Penyiapan halaman.
+			 *
+			 * Kolom TIDAK diwarisi antar section: `sectionSpans` membaca atribut tiap
+			 * pembatas apa adanya. Karena itu pembatas penutup yang membawa
+			 * `columns: null` benar-benar berarti "kembali satu kolom", bukan
+			 * "ikut yang sebelumnya".
+			 */
+			applySectionColumns:
+				(columns, range, baseSetup = DEFAULT_PAGE_SETUP) =>
+				({ tr, dispatch, state }) =>
+					encloseSection({ tr, dispatch, state }, range, baseSetup, (before) => ({
+						// pageSetup null = warisi; yang diubah hanya kolomnya.
+						open: { pageSetup: null, columns },
+						close: { pageSetup: null, columns: before.columns ?? null },
+					})),
 		}
 	},
 })
+
+/**
+ * Kurung sebuah rentang dengan pembatas section: satu membuka, satu menutup.
+ *
+ * Pembatas penutup mengembalikan keadaan yang tadi berlaku - tanpa itu,
+ * perubahan yang diminta untuk satu halaman bocor sampai ujung naskah, dan itu
+ * cakupan yang berbeda. Yang membuka dan yang menutup dirakit pemanggil lewat
+ * `attrs`, karena hanya ia yang tahu bagian mana yang sedang diubah.
+ */
+function encloseSection(
+	{ tr, dispatch, state }: Pick<CommandProps, 'tr' | 'dispatch' | 'state'>,
+	range: { from: number; to?: number },
+	baseSetup: PageSetup,
+	attrs: (before: SectionSpan) => { open: SectionBreakAttrs; close: SectionBreakAttrs },
+): boolean {
+	const type = state.schema.nodes[SECTION_BREAK_NODE]
+	if (!type) return false
+
+	const spans = sectionSpans(state.doc, baseSetup)
+	// Keadaan yang berlaku tepat sebelum rentang ini - itulah yang dipulihkan.
+	const before = spans.filter((span) => span.pos <= range.from).pop() ?? spans[0]
+	const { open, close } = attrs(before)
+
+	if (!dispatch) return true
+
+	// Sisipkan dari posisi TERBESAR lebih dulu: menyisipkan di `from` menggeser
+	// `to`, sebaliknya tidak.
+	if (range.to !== undefined && range.to < state.doc.content.size) {
+		tr.insert(range.to, type.create(close))
+	}
+	tr.insert(range.from, type.create(open))
+
+	return true
+}
 
 /**
  * Daftar rentang section sebuah dokumen, dari puncak sampai akhir.

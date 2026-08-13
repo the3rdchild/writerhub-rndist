@@ -82,6 +82,7 @@ import {
 } from '@/features/editor/font-catalog'
 import { indentSelection, outdentSelection } from '@/features/editor/indent'
 import { LINE_HEIGHTS, ALL_PARAGRAPH_STYLES, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
+import { sectionRange } from '@/features/editor/section-scope'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
@@ -596,26 +597,55 @@ export function MenuBar() {
 						</Submenu>
 
 						{/* ── Kolom (multi-kolom) ──
-						    Hanya untuk teks yang disorot: tanpa seleksi, yang terbungkus
-						    cuma paragraf tempat kursor berada - satu paragraf pendek yang
-						    terbelah dua, dan itu tidak pernah yang dimaksud. */}
+						    Dua cakupan, dan keduanya disebut terang-terangan.
+
+						    Versi sebelumnya hanya punya satu, "seleksi", dan mematikan
+						    butirnya saat tidak ada teks yang disorot - sehingga menu ini
+						    mati justru pada permintaan yang paling lazim ("halaman ini dua
+						    kolom"), padahal AI Chat dan dialog Penyiapan halaman sudah
+						    bisa melakukannya. Alasan menonaktifkannya tetap berlaku untuk
+						    cakupan seleksi saja: tanpa seleksi, yang terbungkus cuma
+						    paragraf tempat kursor berada. */}
 						<Submenu label="Columns" icon={<Columns2 className="h-4 w-4" />}>
 							{() => (
 								<>
-									<Item
-										icon={<Columns2 className="h-4 w-4" />}
-										disabled={!hasSelection()}
-										onSelect={() => run(close, () => editor?.chain().focus().setColumns(2).run())}
-									>
-										Two columns
-									</Item>
-									<Item
-										icon={<Columns2 className="h-4 w-4" />}
-										disabled={!hasSelection()}
-										onSelect={() => run(close, () => editor?.chain().focus().setColumns(3).run())}
-									>
-										Three columns
-									</Item>
+									<DropdownLabel>Selected text</DropdownLabel>
+									{[2, 3].map((count) => (
+										<Item
+											key={`selection-${count}`}
+											icon={<Columns2 className="h-4 w-4" />}
+											disabled={!hasSelection()}
+											onSelect={() =>
+												run(close, () => editor?.chain().focus().setColumns(count).run())
+											}
+										>
+											{count === 2 ? 'Two columns' : 'Three columns'}
+										</Item>
+									))}
+
+									<DropdownSeparator />
+									<DropdownLabel>This page</DropdownLabel>
+									{[2, 3].map((count) => (
+										<Item
+											key={`page-${count}`}
+											icon={<Columns2 className="h-4 w-4" />}
+											onSelect={() =>
+												run(close, () => {
+													if (!editor) return
+													const range = sectionRange(editor, 'this_page')
+													if (!range) return
+													editor
+														.chain()
+														.focus()
+														.applySectionColumns({ count }, range, activeSetup)
+														.run()
+												})
+											}
+										>
+											{count === 2 ? 'Two columns' : 'Three columns'}
+										</Item>
+									))}
+
 									<DropdownSeparator />
 									<Item onSelect={() => run(close, () => editor?.chain().focus().unsetColumns().run())}>
 										Single column (revert)

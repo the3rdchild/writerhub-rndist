@@ -146,3 +146,29 @@ describe('pembatas penutup mengembalikan setelan sebelumnya (§P8&P9)', () => {
 		expect(spans[2].setup.margins).toEqual(DEFAULT_PAGE_SETUP.margins)
 	})
 })
+
+describe('kolom section tidak diwarisi (§P8)', () => {
+	/**
+	 * Kolom berbeda sifat dari setelan halaman: `sectionSpans` membaca atribut
+	 * tiap pembatas apa adanya, tanpa menggabungkannya dengan section sebelumnya.
+	 * Itu yang membuat pembatas penutup `columns: null` benar-benar berarti
+	 * "kembali satu kolom" - dan `applySectionColumns` bersandar padanya.
+	 */
+	test('pembatas tanpa atribut kolom berarti satu kolom, bukan meneruskan', () => {
+		const doc = docWith({ columns: { count: 2 } }, {})
+		const spans = sectionSpans(doc, DEFAULT_PAGE_SETUP)
+
+		expect(spans[1].columns).toEqual({ count: 2 })
+		expect(spans[2].columns).toBeNull()
+	})
+
+	test('setelan halaman tetap diwarisi walau kolomnya tidak', () => {
+		// Dua sifat yang berbeda pada node yang sama - gampang tertukar saat
+		// menyunting `sectionSpans`, dan akibatnya baru kelihatan di halaman ketiga.
+		const doc = docWith({ pageSetup: { orientation: 'landscape' }, columns: { count: 2 } }, {})
+		const spans = sectionSpans(doc, DEFAULT_PAGE_SETUP)
+
+		expect(spans[2].setup.orientation).toBe('landscape')
+		expect(spans[2].columns).toBeNull()
+	})
+})
