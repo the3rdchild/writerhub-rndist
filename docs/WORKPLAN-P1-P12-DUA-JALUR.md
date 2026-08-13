@@ -195,3 +195,53 @@ B      B-1  B-2  B-4  B-5  B-6──  B-7  B-8─────  B-9────  
 ```
 
 Tidak ada satu pun hari di mana kedua jalur memegang berkas yang sama.
+
+---
+
+## 8. Catatan pasca-merge — utang yang diketahui
+
+Kedua jalur digabungkan ke `main` pada 13 Agustus 2026. Uji-merge lebih dulu dijalankan di
+worktree terpisah: **nol konflik**, dan dari 13 berkas jalur A + 50 berkas jalur B hanya satu
+yang bersinggungan — `apps/web/components/editor/tiptap-editor.tsx`, persis berkas yang
+diperkirakan §4. Verifikasi setelah merge: `bun run typecheck` bersih di ketiga workspace,
+`bun run test` 366 lulus, `pytest` worker 11 lulus.
+
+Yang **belum** selesai dan sengaja dibiarkan masuk apa adanya:
+
+1. **P8/P9 baru mesinnya.** `sectionBreak` hanya dirujuk oleh `features/editor/section-break.ts`,
+   `features/editor/pagination.ts`, dan berkas ujinya. Tidak ada jalan masuk bagi pemakai:
+   - `components/settings/page-setup-dialog.tsx` belum punya *Apply to* ketiga ("halaman ini");
+   - `components/layout/menu-bar.tsx` submenu Kolom belum punya pilihan cakupan;
+   - `packages/shared/src/tools.ts` belum punya `set_section_setup` / `set_section_columns`,
+     jadi AI Chat belum bisa menyentuhnya;
+   - `features/document/export-docx.ts` belum menulis satu `sectPr` per section — dokumen
+     campur orientasi kehilangan section-nya saat diekspor.
+
+   Ini persis bagian **"permukaan"** di §6. Kodenya inert (node terdaftar di skema tapi tidak
+   pernah dibuat), jadi aman berada di `main`, tapi P8/P9 belum boleh disebut selesai.
+
+2. **`POST /jobs/:jobId/cancel` tanpa cek kepemilikan.** Rute sudah di balik `authMiddleware`,
+   tapi siapa pun yang login bisa membatalkan job orang lain kalau tahu jobId-nya.
+   **Diterima apa adanya**: risikonya rendah karena jobId berupa UUID acak, dan
+   `routes/v1/stream.route.ts` memang sudah bersandar pada ketidakterkaan UUID yang sama.
+   Kalau model ancamannya berubah, di sinilah cek pemilik ditambahkan.
+
+3. **Migrasi `0010` harus jalan sebelum API baru dinaikkan.** Ia menambah nilai `'cancelled'` ke
+   enum `pool_request_status`. API yang sudah menulis status itu ke basis data yang belum
+   dimigrasi akan gagal. Aman di PostgreSQL 16 (yang dipakai `docker-compose.yml`) karena
+   `ALTER TYPE … ADD VALUE` boleh di dalam transaksi sejak PG 12, dan migrasi ini tidak memakai
+   nilainya di transaksi yang sama.
+
+4. **Dependensi baru `country-flag-icons`.** `bun install` wajib di tiap mesin dan di image
+   Docker sebelum menjalankan web.
+
+5. **`pytest` tidak ada di `services/worker/requirements.txt`.** Tiga berkas uji baru
+   (`core/test_cancel.py`, `core/queue/test_worker.py`,
+   `services/analyzers/test_glossary.py`) hanya bisa dijalankan dari venv yang memasang pytest
+   sendiri. Perlu `requirements-dev.txt` supaya CI dan orang berikutnya tidak menebak.
+
+6. **`JOB_DEADLINE_SECONDS=300` dan `WORKER_CONCURRENCY=2` masih tebakan (§2.9 PRD).** Belum
+   diukur pada naskah 50 ribu karakter tier AI.
+
+7. **`main` belum di-push.** Cabang `feat/a-*` dan `feat/jalur-b` sengaja dipertahankan sebagai
+   bukti perubahan, tidak dihapus.
