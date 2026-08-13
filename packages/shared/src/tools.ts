@@ -234,7 +234,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'set_page_setup',
 		kind: 'write',
 		description:
-			'Change the page layout: paper size, orientation, margins, page color, pageless mode. Scope "document" applies to every tab of the document; "tab" only the active one.',
+			'Change the page layout: paper size, orientation, margins, page color, pageless mode. Scope "document" applies to every tab; "tab" only the active one; "from_here" and "this_page" change only part of the document by inserting section breaks - use those for a landscape appendix or a single wide table.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -255,7 +255,12 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 				},
 				page_color: { type: 'string', description: 'Hex color like #fdf6e3, or empty to follow the theme.' },
 				pageless: { type: 'boolean' },
-				scope: { type: 'string', enum: ['document', 'tab'], description: 'Defaults to document.' },
+				scope: {
+					type: 'string',
+					enum: ['document', 'tab', 'from_here', 'this_page'],
+					description:
+						'Defaults to document. "from_here" applies from the cursor to the end; "this_page" only to the page the cursor is on, restoring the previous layout afterwards.',
+				},
 			},
 		},
 	},
@@ -452,14 +457,49 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'set_columns',
 		kind: 'write',
 		description:
-			'Lay text out in newspaper columns. count 1 removes the column layout. Give "find" for one passage; omit it for the whole document.',
+			'Lay text out in newspaper columns. count 1 removes the column layout. By default it columns one passage ("find") or the whole document; scope "from_here" or "this_page" instead columns a section of the document, which is how a journal-style page is normally built.',
 		parameters: {
 			type: 'object',
 			properties: {
 				count: { type: 'number', description: '1 to remove columns, otherwise 2 or 3.' },
 				find: { type: 'string', description: 'Exact passage. Omit for the whole document.' },
+				scope: {
+					type: 'string',
+					enum: ['passage', 'from_here', 'this_page'],
+					description:
+						'Defaults to passage (uses "find", or the whole document when omitted). The others insert section breaks instead.',
+				},
+				gap_cm: { type: 'number', description: 'Space between columns in centimeters.' },
 			},
 			required: ['count'],
+		},
+	},
+	{
+		name: 'insert_section_break',
+		kind: 'write',
+		description:
+			'Start a new section at the cursor: the content after it begins on a fresh page and may use a different paper size, orientation, margins or column count. Everything not given is inherited from the section before it. Use this to begin a landscape appendix or a two-column part; use set_page_setup or set_columns to change a section that already exists.',
+		parameters: {
+			type: 'object',
+			properties: {
+				size: {
+					type: 'string',
+					enum: ['letter', 'tabloid', 'legal', 'statement', 'executive', 'folio', 'a3', 'a4', 'a5', 'b4', 'b5'],
+				},
+				orientation: { type: 'string', enum: ['portrait', 'landscape'] },
+				margins_cm: {
+					type: 'object',
+					properties: {
+						top: { type: 'number' },
+						bottom: { type: 'number' },
+						left: { type: 'number' },
+						right: { type: 'number' },
+					},
+					description: 'Margins in centimeters; only the sides given are changed.',
+				},
+				columns: { type: 'number', description: 'Column count for the new section; 1 for a single column.' },
+				gap_cm: { type: 'number', description: 'Space between columns in centimeters.' },
+			},
 		},
 	},
 	{

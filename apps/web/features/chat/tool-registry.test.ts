@@ -97,3 +97,44 @@ describe('registri alat editor', () => {
 		}
 	})
 })
+
+describe('alat section (§P8&P9)', () => {
+	const enumOf = (tool: string, param: string): string[] =>
+		((EDITOR_TOOLS.find((item) => item.name === tool)?.parameters.properties[param] as
+			| { enum?: string[] }
+			| undefined)?.enum ?? [])
+
+	test('insert_section_break adalah alat tulis tanpa argumen wajib', () => {
+		const tool = EDITOR_TOOLS.find((item) => item.name === 'insert_section_break')
+		expect(tool).toBeDefined()
+		expect(isReadTool('insert_section_break')).toBe(false)
+		// Tanpa argumen pun sah: "mulai bagian baru di sini" adalah permintaan yang
+		// lengkap - sisanya diwarisi section sebelumnya.
+		expect(tool?.parameters.required ?? []).toHaveLength(0)
+	})
+
+	test('cakupan per-section tersedia di set_page_setup dan set_columns', () => {
+		expect(enumOf('set_page_setup', 'scope')).toEqual(
+			expect.arrayContaining(['document', 'tab', 'from_here', 'this_page']),
+		)
+		expect(enumOf('set_columns', 'scope')).toEqual(
+			expect.arrayContaining(['passage', 'from_here', 'this_page']),
+		)
+	})
+
+	test('cakupan memakai satu kosakata yang sama di kedua alat', () => {
+		// Model tidak punya cara menebak bahwa dua alat bersaudara menamai hal yang
+		// sama dengan kata berbeda; kalau ini melenceng, ia akan mengirim
+		// "this-page" ke salah satunya dan diam-diam jatuh ke perilaku bawaan.
+		const shared = ['from_here', 'this_page']
+		for (const scope of shared) {
+			expect(enumOf('set_page_setup', 'scope')).toContain(scope)
+			expect(enumOf('set_columns', 'scope')).toContain(scope)
+		}
+	})
+
+	test('set_columns tetap tidak mewajibkan find setelah scope ditambahkan', () => {
+		const tool = EDITOR_TOOLS.find((item) => item.name === 'set_columns')
+		expect(tool?.parameters.required ?? []).toEqual(['count'])
+	})
+})

@@ -14,6 +14,8 @@ import {
 	type PageSetup,
 	clampMargins,
 } from '@/features/editor/page-geometry'
+import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
+import { isSectionScope, sectionRange } from '@/features/editor/section-scope'
 import { TOC_BLOCK, type TocBlockAttrs, type TocListKind } from '@/features/editor/toc-block'
 import type { CommentThread } from '@/features/sessions/types'
 import { countWords } from '@/lib/utils'
@@ -312,7 +314,21 @@ export function describeToolCall(call: ToolCall): string {
 				call.arguments.orientation === 'landscape' ? 'landscape' : null,
 				call.arguments.pageless === true ? 'pageless' : null,
 			].filter(Boolean)
-			return `Set page layout${parts.length > 0 ? ` - ${parts.join(', ')}` : ''}`
+			const where =
+				call.arguments.scope === 'this_page'
+					? ' for this page'
+					: call.arguments.scope === 'from_here'
+						? ' from here on'
+						: ''
+			return `Set page layout${where}${parts.length > 0 ? ` - ${parts.join(', ')}` : ''}`
+		}
+		case 'insert_section_break': {
+			const parts = [
+				String(call.arguments.size ?? '').toUpperCase() || null,
+				call.arguments.orientation === 'landscape' ? 'landscape' : null,
+				Number(call.arguments.columns) > 1 ? `${call.arguments.columns} columns` : null,
+			].filter(Boolean)
+			return `Start a new section${parts.length > 0 ? ` - ${parts.join(', ')}` : ''}`
 		}
 		case 'insert_toc': {
 			const kind = call.arguments.list_kind
@@ -403,6 +419,77 @@ function layoutRange(editor: Editor, call: ToolCall): { from: number; to: number
 	const find = typeof call.arguments.find === 'string' ? call.arguments.find : ''
 	if (!find.trim()) return { from: 0, to: editor.state.doc.content.size }
 	return findExactRange(editor, find)
+}
+
+/** Sentimeter → piksel 96 dpi, satuan yang dipakai seluruh modul tata letak. */
+function cmToPx(cm: number): number {
+	return Math.round((cm / 2.54) * INCH)
+}
+
+/**
+ * Setelan halaman dari argumen alat, di atas setelan yang berlaku.
+ *
+ * Dipakai bersama `set_page_setup` dan `insert_section_break` supaya keduanya
+ * memahami argumen yang sama persis - model tidak punya cara menebak bahwa dua
+ * alat bersaudara ternyata membaca `margins_cm` dengan aturan berbeda.
+ */
+function pageSetupFromArgs(args: Record<string, unknown>, base: PageSetup): PageSetup {
+	const next: PageSetup = { ...base, margins: { ...base.margins } }
+
+	if (typeof args.size === 'string' && args.size in PAGE_SIZES) {
+		next.size = args.size as PageSetup['size']
+	}
+	if (args.orientation === 'portrait' || args.orientation === 'landscape') {
+		next.orientation = args.orientation
+	}
+	if (args.margins_cm && typeof args.margins_cm === 'object') {
+		const input = args.margins_cm as Record<string, unknown>
+		for (const side of ['top', 'bottom', 'left', 'right'] as const) {
+			const value = Number(input[side])
+			if (Number.isFinite(value) && value >= 0) next.margins[side] = cmToPx(value)
+		}
+	}
+	if (typeof args.page_color === 'string') next.pageColor = args.page_color || null
+	if (typeof args.pageless === 'boolean') next.pageless = args.pageless
+
+	// clampMargins yang sama dengan dialog Penyiapan halaman: area teks tidak
+	// pernah hilang seberapa pun angka yang dikirim model.
+	next.margins = clampMargins(next.margins, next)
+	return next
+}
+
+/**
+ * Bagian setelan yang benar-benar DISEBUT model, sudah lewat validasi yang sama.
+ *
+ * Pembatas section membawa patch, bukan setelan utuh: yang tidak disebut harus
+ * diwarisi section sebelumnya. Menyimpan setelan utuh di sini akan membekukan
+ * ukuran kertas yang kebetulan berlaku saat alat dipanggil, sehingga mengubah
+ * kertas dokumen belakangan tidak lagi menyentuh section mana pun.
+ */
+function pageSetupPatch(
+	args: Record<string, unknown>,
+	base: PageSetup,
+): Partial<PageSetup> | null {
+	const merged = pageSetupFromArgs(args, base)
+	const patch: Partial<PageSetup> = {}
+
+	if (typeof args.size === 'string' && args.size in PAGE_SIZES) patch.size = merged.size
+	if (args.orientation === 'portrait' || args.orientation === 'landscape') {
+		patch.orientation = merged.orientation
+	}
+	// Margin ikut utuh begitu satu sisi pun disebut: `clampMargins` sudah
+	// memperhitungkan keempatnya bersama, jadi memisah satu sisi darinya
+	// menghasilkan angka yang tidak pernah diperiksa terhadap sisi lainnya.
+	if (args.margins_cm && typeof args.margins_cm === 'object') patch.margins = merged.margins
+
+	return Object.keys(patch).length > 0 ? patch : null
+}
+
+/** Atribut kolom sebuah section dari argumen alat; null = satu kolom biasa. */
+function columnsFromArgs(count: number, gapCm: unknown): { count: number; gap?: number } | null {
+	if (count < 2) return null
+	const gap = Number(gapCm)
+	return Number.isFinite(gap) && gap > 0 ? { count, gap: cmToPx(gap) } : { count }
 }
 
 const ANALYSIS_MODULES: readonly string[] = ['ai_detector', 'ai_rewriter', 'humanizer', 'plagiarism']
@@ -545,33 +632,47 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 
 		case 'set_page_setup': {
 			const args = call.arguments
-			const next: PageSetup = { ...context.setup, margins: { ...context.setup.margins } }
+			const next = pageSetupFromArgs(args, context.setup)
 
-			if (typeof args.size === 'string' && args.size in PAGE_SIZES) {
-				next.size = args.size as PageSetup['size']
-			}
-			if (args.orientation === 'portrait' || args.orientation === 'landscape') {
-				next.orientation = args.orientation
-			}
-			const marginsCm = args.margins_cm
-			if (marginsCm && typeof marginsCm === 'object') {
-				const toPx = (cm: number) => Math.round((cm / 2.54) * INCH)
-				const input = marginsCm as Record<string, unknown>
-				for (const side of ['top', 'bottom', 'left', 'right'] as const) {
-					const value = Number(input[side])
-					if (Number.isFinite(value) && value >= 0) next.margins[side] = toPx(value)
+			// Cakupan per-section menulis ke NASKAH sebagai pembatas, bukan ke
+			// setelan dokumen (§P8&P9) - jalur yang sama dengan dialog Penyiapan
+			// halaman, lewat helper yang sama, supaya "halaman ini" tidak pernah
+			// berarti dua hal berbeda.
+			if (isSectionScope(args.scope)) {
+				const range = sectionRange(editor, args.scope)
+				if (!range) {
+					return { ok: false, message: 'Could not tell which page that is; the document has no pages yet.' }
+				}
+				editor.chain().focus().applySectionSetup(next, range, context.setup).run()
+				return {
+					ok: true,
+					message:
+						args.scope === 'this_page'
+							? 'Layout changed for this page only.'
+							: 'Layout changed from here onwards.',
 				}
 			}
-			if (typeof args.page_color === 'string') next.pageColor = args.page_color || null
-			if (typeof args.pageless === 'boolean') next.pageless = args.pageless
-
-			// clampMargins yang sama dengan dialog Penyiapan halaman: area teks
-			// tidak pernah hilang seberapa pun angka yang dikirim model.
-			next.margins = clampMargins(next.margins, next)
 
 			const scope = args.scope === 'tab' ? 'tab' : 'document'
 			context.setPageSetup(next, scope)
 			return { ok: true, message: scope === 'tab' ? 'Tab layout updated.' : 'Document layout updated.' }
+		}
+
+		case 'insert_section_break': {
+			const args = call.arguments
+			const type = editor.state.schema.nodes[SECTION_BREAK_NODE]
+			if (!type) return { ok: false, message: 'This editor has no sections.' }
+
+			const count = Number(args.columns)
+			const attrs = {
+				// Hanya yang benar-benar disebut yang ikut; sisanya diwarisi section
+				// sebelumnya - itulah gunanya pembatas membawa patch, bukan setelan
+				// utuh (lihat section-break.ts).
+				pageSetup: pageSetupPatch(args, context.setup),
+				columns: Number.isInteger(count) ? columnsFromArgs(count, args.gap_cm) : null,
+			}
+			editor.chain().focus().setSectionBreak(attrs).run()
+			return { ok: true, message: 'Section break inserted.' }
 		}
 
 		case 'insert_toc': {
@@ -816,6 +917,34 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			if (!Number.isInteger(count) || count < 1 || count > 3) {
 				return { ok: false, message: 'count must be 1, 2 or 3.' }
 			}
+
+			// Kolom per-section: bentuk yang benar-benar dipakai jurnal, dan
+			// satu-satunya yang bisa diekspor ke DOCX apa adanya (kolom di DOCX
+			// selalu properti section, tidak pernah properti paragraf).
+			if (isSectionScope(call.arguments.scope)) {
+				const scoped = sectionRange(editor, call.arguments.scope)
+				if (!scoped) {
+					return { ok: false, message: 'Could not tell which page that is; the document has no pages yet.' }
+				}
+				const type = editor.state.schema.nodes[SECTION_BREAK_NODE]
+				if (!type) return { ok: false, message: 'This editor has no sections.' }
+
+				const chain = editor.chain().focus()
+				// Sisip dari posisi terbesar dulu supaya yang pertama tidak menggeser
+				// yang kedua - alasan yang sama seperti di applySectionSetup.
+				if (scoped.to !== undefined && scoped.to < editor.state.doc.content.size) {
+					chain.insertContentAt(scoped.to, { type: SECTION_BREAK_NODE, attrs: { pageSetup: null, columns: null } })
+				}
+				chain.insertContentAt(scoped.from, {
+					type: SECTION_BREAK_NODE,
+					attrs: { pageSetup: null, columns: columnsFromArgs(count, call.arguments.gap_cm) },
+				})
+				const ok = chain.run()
+				return ok
+					? { ok: true, message: count === 1 ? 'Columns removed for that section.' : `${count} columns applied to that section.` }
+					: { ok: false, message: 'The column layout could not be changed.' }
+			}
+
 			const range = layoutRange(editor, call)
 			if (!range) return { ok: false, message: 'That passage is no longer in the document.' }
 

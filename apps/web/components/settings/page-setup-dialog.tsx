@@ -15,7 +15,7 @@ import {
 	validateCustomSize,
 } from '@/features/editor/page-geometry'
 import { useEditorInstance } from '@/features/editor/editor-context'
-import { pageBlockRange, pageOfPos, paginationKey } from '@/features/editor/pagination'
+import { isSectionScope, sectionRange } from '@/features/editor/section-scope'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useSettings } from '@/features/settings/settings-context'
 import { useSessions } from '@/features/sessions/session-context'
@@ -33,7 +33,7 @@ import { cn } from '@/lib/utils'
  *
  * - `document` / `tab` menulis ke Y.Doc - setelan DASAR naskah, berlaku untuk
  *   section pertama dan diwarisi semua section sesudahnya.
- * - `from-here` / `this-page` menulis ke NASKAH, sebagai node `sectionBreak`.
+ * - `from_here` / `this_page` menulis ke NASKAH, sebagai node `sectionBreak`.
  *   Ia menempel pada potongan teks, bukan pada nomor halaman (§2.1), sehingga
  *   tetap benar saat isi bergeser.
  *
@@ -45,7 +45,7 @@ import { cn } from '@/lib/utils'
  * Cakupan penerapan. Dua yang pertama milik dokumen, dua yang terakhir milik
  * naskah - lihat catatan di atas.
  */
-type Scope = 'document' | 'tab' | 'from-here' | 'this-page'
+type Scope = 'document' | 'tab' | 'from_here' | 'this_page'
 
 /** Konversi piksel 96 dpi ke satuan aktif. */
 function fromPx(px: number, unit: 'cm' | 'in'): number {
@@ -124,26 +124,6 @@ export function PageSetupDialog() {
 	 */
 	const sectionScopesAvailable = editor !== null && !editor.isDestroyed && !setup.pageless
 
-	/** Rentang naskah yang akan dikurung, sesuai cakupan. Null = tidak bisa. */
-	const sectionRange = (): { from: number; to?: number } | null => {
-		if (!editor || editor.isDestroyed) return null
-		const { doc, selection } = editor.state
-
-		if (scope === 'from-here') {
-			// Awal blok tingkat atas tempat kursor berada - pembatas section adalah
-			// blok tersendiri, jadi ia harus mendarat di antara blok, bukan di
-			// tengah paragraf.
-			const depth = selection.$from.depth === 0 ? 0 : 1
-			return { from: selection.$from.before(depth || undefined) }
-		}
-
-		const pagination = paginationKey.getState(editor.state)
-		if (!pagination) return null
-		const page = pageOfPos(pagination.blockPages, selection.from)
-		if (page === null) return null
-		return pageBlockRange(pagination.blockPages, page, doc.content.size)
-	}
-
 	const ok = () => {
 		// Validasi ukuran khusus sebelum menulis.
 		if (draft.size === 'custom') {
@@ -160,7 +140,7 @@ export function PageSetupDialog() {
 			return
 		}
 
-		const range = sectionRange()
+		const range = editor && isSectionScope(scope) ? sectionRange(editor, scope) : null
 		if (!range || !editor) {
 			setCustomError('Could not tell which page the cursor is on. Click in the document first.')
 			return
@@ -202,19 +182,19 @@ export function PageSetupDialog() {
 							<option value="tab">
 								{activeTab ? `This tab: ${activeTab.title || 'Untitled'}` : 'This tab'}
 							</option>
-							<option value="from-here" disabled={!sectionScopesAvailable}>
+							<option value="from_here" disabled={!sectionScopesAvailable}>
 								This point forward
 							</option>
-							<option value="this-page" disabled={!sectionScopesAvailable}>
+							<option value="this_page" disabled={!sectionScopesAvailable}>
 								This page only
 							</option>
 						</select>
-						{(scope === 'from-here' || scope === 'this-page') && (
+						{isSectionScope(scope) && (
 							// Kedua cakupan ini menulis ke naskah, bukan ke setelan dokumen -
 							// pemakai berhak tahu sebelum menekan OK, sebab hasilnya ikut
 							// tersalin dan ikut ke riwayat undo.
 							<span className="text-[11px] leading-relaxed text-subtle">
-								{scope === 'this-page'
+								{scope === 'this_page'
 									? 'Inserts a section break before and after this page. Content may reflow onto another page if it no longer fits.'
 									: 'Inserts a section break at the cursor; everything after it follows the new layout.'}
 							</span>
