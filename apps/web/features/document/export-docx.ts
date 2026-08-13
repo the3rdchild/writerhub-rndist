@@ -3,7 +3,13 @@
 import type { JSONContent } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
-import type { PageGeometry } from '@/features/editor/page-geometry'
+import {
+	type PageGeometry,
+	type PageSetup,
+	pageGeometry,
+	resolvePageSize,
+} from '@/features/editor/page-geometry'
+import { SECTION_BREAK_NODE, type SectionSpan, sectionSpans } from '@/features/editor/section-break'
 
 /**
  * Menulis dokumen jadi berkas .docx.
@@ -22,6 +28,13 @@ import type { PageGeometry } from '@/features/editor/page-geometry'
 const TWIPS_PER_PX = 15
 
 const px = (value: number) => Math.round(value * TWIPS_PER_PX)
+
+/**
+ * Jarak antar kolom bila section tidak menyebutkannya - sama dengan bawaan CSS
+ * kita (1,5em ≈ 24px), bukan bawaan Word (0,5 inci), supaya berkas hasil ekspor
+ * terbaca seperti yang tampil di layar.
+ */
+const DEFAULT_COLUMN_GAP_PX = 24
 
 type Marks = { bold?: boolean; italics?: boolean; underline?: object; strike?: boolean }
 
@@ -74,7 +87,20 @@ export function mergeTabContents(tabs: JSONContent[]): JSONContent {
  */
 export async function exportDocx(
 	root: PMNode,
-	{ title, geometry }: { title: string; geometry: PageGeometry },
+	{
+		title,
+		geometry,
+		setup,
+	}: {
+		title: string
+		geometry: PageGeometry
+		/**
+		 * Setelan dasar naskah. Diberikan, `sectionBreak` di dalam dokumen ikut
+		 * diterjemahkan jadi section DOCX tersendiri (§P8&P9); tanpa itu seluruh
+		 * naskah jadi satu section seperti sebelumnya.
+		 */
+		setup?: PageSetup
+	},
 ): Promise<Blob> {
 	const docx = await import('docx')
 	const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType } =
@@ -220,8 +246,84 @@ export async function exportDocx(
 		}
 	}
 
-	const children: unknown[] = []
-	root.forEach((node) => children.push(...blockOf(node)))
+	/**
+	 * Properti satu section DOCX.
+	 *
+	 * Ukuran kertas ditulis dalam bentuk TEGAK, bukan yang sudah ditukar
+	 * orientasi. `pageGeometry` menukar lebar↔tinggi untuk lanskap - itu yang
+	 * dibutuhkan layar - tapi `docx` menukarnya sekali lagi begitu `orientation`
+	 * bernilai landscape (lihat `createPageSize` di pustakanya), jadi mengirim
+	 * angka yang sudah tertukar menghasilkan lembar yang kembali tegak. Yang
+	 * dikirim karena itu ukuran tegaknya, dan `w:orient` yang menentukan arah.
+	 *
+	 * `w:orient` sendiri tetap perlu: tanpa itu Google Docs menggambar halamannya
+	 * benar tapi dialog penyiapan halamannya menyebutnya potret.
+	 *
+	 * Margin tidak ikut ditukar - ia diambil dari geometri yang sama dengan yang
+	 * dipakai penggaris dan paginasi, satu sumber angka.
+	 */
+	const sectionProperties = (span: SectionSpan | null) => {
+		const geo = span ? pageGeometry(span.setup) : geometry
+		const columns = span?.columns
+		const upright = span
+			? resolvePageSize({ ...span.setup, orientation: 'portrait' })
+			: { width: geometry.width, height: geometry.height }
+
+		return {
+			page: {
+				margin: {
+					top: px(geo.margins.top),
+					right: px(geo.margins.right),
+					bottom: px(geo.margins.bottom),
+					left: px(geo.margins.left),
+				},
+				size: {
+					width: px(upright.width),
+					height: px(upright.height),
+					// Tanpa section, geometrinya sudah tertukar sejak dari pemanggil dan
+					// tidak ada `setup` untuk membaca arahnya - perilaku lama dibiarkan.
+					...(span ? { orientation: span.setup.orientation } : {}),
+				},
+			},
+			// Kolom di DOCX SELALU properti section, tidak pernah properti paragraf -
+			// karena itu hanya kolom per-section yang bisa dibawa apa adanya. Blok
+			// `columns` gaya lama (dari `setColumns` pada seleksi) diratakan jadi satu
+			// kolom di atas; memecahnya jadi section sendiri akan menyisipkan
+			// pemenggalan halaman yang tidak pernah diminta penulis.
+			...(columns && columns.count > 1
+				? {
+						column: {
+							count: columns.count,
+							space: px(columns.gap ?? DEFAULT_COLUMN_GAP_PX),
+							equalWidth: true,
+						},
+					}
+				: {}),
+		}
+	}
+
+	/**
+	 * Bagi naskah jadi beberapa section DOCX di tiap `sectionBreak`.
+	 *
+	 * `sectionSpans` sudah menggabungkan pewarisan antar section, jadi span ke-n
+	 * memuat setelan LENGKAP - bukan patch - dan bisa langsung jadi `sectPr`.
+	 * Urutannya sejalan: span pertama milik isi sebelum pembatas pertama.
+	 */
+	const spans = setup ? sectionSpans(root, setup) : []
+	const sections: { properties: ReturnType<typeof sectionProperties>; children: unknown[] }[] = []
+	let current: unknown[] = []
+	let spanIndex = 0
+
+	root.forEach((node) => {
+		if (node.type.name === SECTION_BREAK_NODE && spans.length > 0) {
+			sections.push({ properties: sectionProperties(spans[spanIndex] ?? null), children: current })
+			spanIndex += 1
+			current = []
+			return
+		}
+		current.push(...blockOf(node))
+	})
+	sections.push({ properties: sectionProperties(spans[spanIndex] ?? null), children: current })
 
 	const document = new Document({
 		title,
@@ -233,24 +335,10 @@ export async function exportDocx(
 				},
 			],
 		},
-		sections: [
-			{
-				properties: {
-					page: {
-						// Margin halaman diambil dari geometri yang sama dengan yang
-						// dipakai penggaris dan paginasi - satu sumber angka.
-						margin: {
-							top: px(geometry.margins.top),
-							right: px(geometry.margins.right),
-							bottom: px(geometry.margins.bottom),
-							left: px(geometry.margins.left),
-						},
-						size: { width: px(geometry.width), height: px(geometry.height) },
-					},
-				},
-				children: children as never,
-			},
-		],
+		sections: sections.map((section) => ({
+			properties: section.properties,
+			children: section.children as never,
+		})) as never,
 	})
 
 	return Packer.toBlob(document)

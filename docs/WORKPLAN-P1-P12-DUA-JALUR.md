@@ -208,17 +208,15 @@ diperkirakan §4. Verifikasi setelah merge: `bun run typecheck` bersih di ketiga
 
 Yang **belum** selesai dan sengaja dibiarkan masuk apa adanya:
 
-1. **P8/P9 baru mesinnya.** `sectionBreak` hanya dirujuk oleh `features/editor/section-break.ts`,
-   `features/editor/pagination.ts`, dan berkas ujinya. Tidak ada jalan masuk bagi pemakai:
-   - `components/settings/page-setup-dialog.tsx` belum punya *Apply to* ketiga ("halaman ini");
-   - `components/layout/menu-bar.tsx` submenu Kolom belum punya pilihan cakupan;
-   - `packages/shared/src/tools.ts` belum punya `set_section_setup` / `set_section_columns`,
-     jadi AI Chat belum bisa menyentuhnya;
-   - `features/document/export-docx.ts` belum menulis satu `sectPr` per section — dokumen
-     campur orientasi kehilangan section-nya saat diekspor.
-
-   Ini persis bagian **"permukaan"** di §6. Kodenya inert (node terdaftar di skema tapi tidak
-   pernah dibuat), jadi aman berada di `main`, tapi P8/P9 belum boleh disebut selesai.
+1. ~~**P8/P9 baru mesinnya.**~~ **Sebagian besar selesai** lewat C-1…C-3 (§9):
+   - ✅ dialog Penyiapan halaman punya *This point forward* dan *This page only*;
+   - ✅ `set_page_setup` / `set_columns` punya `scope: from_here|this_page`, plus alat baru
+     `insert_section_break`;
+   - ✅ `export-docx.ts` menulis satu `sectPr` per section, lengkap dengan `w:cols`;
+   - ⬜ submenu Kolom di `menu-bar.tsx` belum punya pilihan cakupan — jalannya sudah ada lewat
+     dialog dan AI Chat, jadi ini kenyamanan, bukan penghalang;
+   - ⬜ **impor** DOCX belum membaca `sectPr` (butir (d) yang ditunda): dokumen Word
+     berorientasi campur tetap rata jadi satu section saat diimpor.
 
 2. **`POST /jobs/:jobId/cancel` tanpa cek kepemilikan.** Rute sudah di balik `authMiddleware`,
    tapi siapa pun yang login bisa membatalkan job orang lain kalau tahu jobId-nya.
@@ -245,3 +243,40 @@ Yang **belum** selesai dan sengaja dibiarkan masuk apa adanya:
 
 7. **`main` belum di-push.** Cabang `feat/a-*` dan `feat/jalur-b` sengaja dipertahankan sebagai
    bukti perubahan, tidak dihapus.
+
+---
+
+## 9. §6 — permukaan section (C-1…C-3)
+
+Dikerjakan langsung di `main` setelah merge, satu commit per bagian. Butir (d), impor `sectPr`
+DOCX, sengaja dilewati.
+
+| # | Isi | Commit |
+|---|---|---|
+| **C-1** | Cakupan *This point forward* & *This page only* di dialog Penyiapan halaman | `adf1ac9` |
+| **C-2** | `scope: from_here\|this_page` pada `set_page_setup`/`set_columns` + `insert_section_break` | `b9b03b1` |
+| **C-3** | Ekspor DOCX multi-`sectPr`, termasuk `w:cols` | commit ini |
+
+Tiga hal yang ditemukan saat mengerjakannya dan layak diingat:
+
+1. **Nomor halaman hanya bisa datang dari hasil paginasi.** Ia tidak tersimpan di naskah, jadi
+   `computeSpacers` kini juga mengembalikan peta blok tingkat atas → lembar tempat ia MULAI
+   (`BlockPage`). Blok yang menyeberang batas tercatat sekali saja, di lembar tempat ia bermula,
+   supaya "halaman ini" tidak pernah memotong satu blok jadi dua section.
+
+2. **Pembatas penutup harus membawa setelan sebelumnya SELENGKAPNYA.** Section mewarisi section
+   sebelumnya, bukan setelan dasar - penutup yang hanya membatalkan `orientation` meninggalkan
+   ukuran kertasnya menetap sampai ujung naskah. Ada uji yang mengunci ini
+   (`section-break.test.ts`), sengaja berikut kasus "selisih saja tidak cukup" supaya alasannya
+   ikut terbaca.
+
+3. **`docx` menukar sendiri lebar↔tinggi saat `orientation: 'landscape'`** (lihat
+   `createPageSize` di pustakanya). `pageGeometry` juga menukar - untuk layar - jadi mengirim
+   angka yang sudah tertukar menghasilkan lembar yang kembali tegak. Ekspor karena itu mengirim
+   ukuran TEGAK plus `w:orient`. Ini ditemukan hanya karena ujinya membongkar `.docx` dan
+   membaca `word/document.xml`; memeriksa "berkasnya jadi" tidak akan pernah menangkapnya.
+
+**Verifikasi visual masih terbuka.** Tidak ada pengolah kata di mesin pengembangan, jadi yang
+diperiksa di sini bentuk XML-nya. Berkas contoh tiga section (potret → lanskap bertabel →
+potret dua kolom) dibuat lewat uji `export-docx.test.ts`; buka di Google Docs untuk memastikan
+tampilannya.

@@ -144,7 +144,7 @@ export function MenuBar() {
 		try {
 			const geometry = pageGeometry(activeSetup)
 			download(
-				await exportDocx(editor.state.doc, { title: state.title, geometry }),
+				await exportDocx(editor.state.doc, { title: state.title, geometry, setup: activeSetup }),
 				safeFilename(state.title, 'docx'),
 			)
 		} finally {

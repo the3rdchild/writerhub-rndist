@@ -77,6 +77,7 @@ export function ExportDocxDialog() {
 			const blob = await exportDocx(buildSchema().nodeFromJSON(merged), {
 				title,
 				geometry: pageGeometry(setup),
+				setup,
 			})
 			download(blob, safeFilename(title, 'docx'))
 			setDocxExportOpen(false)
