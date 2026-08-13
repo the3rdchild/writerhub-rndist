@@ -5,6 +5,7 @@ import files from './files.route'
 import grammar from './grammar.route'
 import health from './health.route'
 import history from './history.route'
+import jobs from './jobs.route'
 import memory from './memory.route'
 import projects from './projects.route'
 import share from './share.route'
@@ -12,4 +13,4 @@ import status from './status.route'
 import stream from './stream.route'
 import tabs from './tabs.route'
 
-export const v1Routes = [health, grammar, analysis, chat, status, stream, files, share, documents, tabs, projects, memory, history]
+export const v1Routes = [health, grammar, analysis, chat, status, stream, jobs, files, share, documents, tabs, projects, memory, history]

@@ -3,6 +3,7 @@
 import type { GrammarModel, GrammarSuggestion } from '@writer-hub/shared'
 import { useIsMutating, useMutation, useMutationState } from '@tanstack/react-query'
 import { useCallback, useRef } from 'react'
+import { cancelJob } from '@/lib/api-client'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
 import { useSessions } from '@/features/sessions/session-context'
@@ -56,6 +57,9 @@ export function useGrammarCheck() {
 	 *  Mutation TanStack tidak menyodorkan signal sendiri, jadi ia dikelola di sini. */
 	const abortRef = useRef<AbortController | null>(null)
 
+	/** jobId pemeriksaan berjalan - untuk membatalkan di server (§P7 lapis B). */
+	const jobIdRef = useRef<string | null>(null)
+
 	const mutation = useMutation({
 		mutationKey: GRAMMAR_CHECK_KEY,
 		mutationFn: async (vars: GrammarCheckVars) => {
@@ -69,6 +73,7 @@ export function useGrammarCheck() {
 				language: vars.language,
 				tabId: vars.tabId,
 			})
+			jobIdRef.current = jobId
 
 			// Offset suggestion dari worker relatif terhadap teks yang diperiksa;
 			// geser ke posisinya di dokumen penuh kalau ini hanya sebuah potongan.
@@ -91,6 +96,7 @@ export function useGrammarCheck() {
 				})
 			} finally {
 				if (abortRef.current === controller) abortRef.current = null
+				jobIdRef.current = null
 			}
 		},
 		onSuccess: (result, vars) => {
@@ -166,6 +172,11 @@ export function useGrammarCheck() {
 	 * menampilkan error - pembatalan bukan kegagalan.
 	 */
 	const cancel = useCallback(() => {
+		const jobId = jobIdRef.current
+		if (jobId) {
+			cancelJob(jobId)
+			jobIdRef.current = null
+		}
 		abortRef.current?.abort()
 		mutation.reset()
 	}, [mutation])

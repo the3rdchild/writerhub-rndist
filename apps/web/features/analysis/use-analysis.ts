@@ -2,7 +2,8 @@
 
 import type { AnalysisFeature, AnalysisResultFor, RewriterTone } from '@writer-hub/shared'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
+import { cancelJob } from '@/lib/api-client'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
 import { useSessions } from '@/features/sessions/session-context'
@@ -55,6 +56,9 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 	const { activeId } = useSessions()
 	const queryClient = useQueryClient()
 
+	/** jobId analisis yang sedang berjalan - dipakai untuk membatalkan di server (§P7 lapis B). */
+	const jobIdRef = useRef<string | null>(null)
+
 	const currentText = state.text
 	const requested = lastRun[feature]
 	const requestedKey = requested?.text != null ? fingerprint(requested.text) : null
@@ -79,6 +83,10 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 				run.tabId,
 				run.tone,
 				run.targetLang,
+				// Catat jobId seketika setelah submit supaya cancel() bisa menyasar server.
+				(jobId) => {
+					jobIdRef.current = jobId
+				},
 			)
 			// Digeser di sini, sekali, supaya seluruh pemakainya tidak perlu tahu
 			// apakah hasil ini datang dari potongan atau dari naskah penuh.
@@ -124,10 +132,15 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 		[markRun, feature, currentText, requested, query, language.code, linkage, activeId],
 	)
 
-	/** Batalkan analisis berjalan (§P7 lapis A). cancelQueries membatalkan queryFn
+	/** Batalkan analisis berjalan (§P7 lapis A+B). cancelQueries membatalkan queryFn
 	     yang sedang menunggu SSE; panel kembali ke keadaan sebelum Run, tanpa
-	     dianggap error. */
+	     dianggap error. Bendera cancel juga dikirim ke server (best effort). */
 	const cancel = useCallback(() => {
+		const jobId = jobIdRef.current
+		if (jobId) {
+			cancelJob(jobId)
+			jobIdRef.current = null
+		}
 		void queryClient.cancelQueries({ queryKey: ['analysis', feature], exact: false })
 	}, [queryClient, feature])
 

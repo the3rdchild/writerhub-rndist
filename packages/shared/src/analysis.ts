@@ -175,4 +175,5 @@ export type AnalysisStreamEvent<F extends AnalysisFeature = AnalysisFeature> =
 	| { type: 'done'; result: AnalysisResultFor<F> }
 	| { type: 'error'; message: string }
 	| { type: 'timeout' }
+	| { type: 'cancelled' }
 	| { type: 'ping' }

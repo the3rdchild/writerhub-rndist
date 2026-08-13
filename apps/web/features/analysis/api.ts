@@ -21,6 +21,8 @@ export async function runAnalysis<F extends AnalysisFeature>(
 	tone?: string,
 	/** Bahasa tujuan (hanya translator). */
 	targetLang?: string,
+	/** Dipanggil saat jobId diketahui, supaya hook bisa membatalkannya di server (§P7 lapis B). */
+	onJobId?: (jobId: string) => void,
 ): Promise<AnalysisResultFor<F>> {
 	const { jobId } = await apiFetch<JobSubmission>('/analyze', {
 		method: 'POST',
@@ -29,13 +31,16 @@ export async function runAnalysis<F extends AnalysisFeature>(
 		signal,
 	})
 
+	onJobId?.(jobId)
+
 	const event = await streamJob<AnalysisStreamEvent<F>>(jobId, {
 		signal,
 		timeoutMs: ANALYSIS_TIMEOUT_MS,
-		isTerminal: (e) => e.type === 'done' || e.type === 'error' || e.type === 'timeout',
+		isTerminal: (e) => e.type === 'done' || e.type === 'error' || e.type === 'timeout' || e.type === 'cancelled',
 	})
 
 	if (event.type === 'error') throw new Error(event.message || 'Analisis gagal')
+	if (event.type === 'cancelled') throw new DOMException('Dibatalkan', 'AbortError')
 	if (event.type !== 'done') throw new Error('Timeout menunggu hasil, coba lagi')
 
 	return event.result

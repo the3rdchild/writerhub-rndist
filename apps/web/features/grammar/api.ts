@@ -56,13 +56,14 @@ export async function streamGrammarCheck(
 	const event = await streamJob<GrammarStreamEvent>(jobId, {
 		timeoutMs,
 		signal,
-		isTerminal: (e) => e.type === 'done' || e.type === 'error' || e.type === 'timeout',
+		isTerminal: (e) => e.type === 'done' || e.type === 'error' || e.type === 'timeout' || e.type === 'cancelled',
 		onEvent: (e) => {
 			if (e.type === 'checkpoint') onCheckpoint?.(e)
 		},
 	})
 
 	if (event.type === 'error') throw new Error(event.message || 'Pengecekan gagal')
+	if (event.type === 'cancelled') throw new DOMException('Dibatalkan', 'AbortError')
 	if (event.type !== 'done') throw new Error('Timeout menunggu hasil, coba lagi')
 
 	const { type: _type, ...result } = event

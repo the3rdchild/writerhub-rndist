@@ -1,6 +1,6 @@
 /** Lifecycle job async (grammar & analysis) - dari submit sampai hasil siap. */
 
-export const JOB_STATUSES = ['pending', 'processing', 'completed', 'failed'] as const
+export const JOB_STATUSES = ['pending', 'processing', 'completed', 'failed', 'cancelled'] as const
 export type JobStatus = (typeof JOB_STATUSES)[number]
 
 /** Balasan 202 saat job berhasil di-enqueue. */
