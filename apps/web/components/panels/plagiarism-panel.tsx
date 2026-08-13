@@ -7,6 +7,7 @@ import { useRangeHighlight } from '@/features/document/use-range-highlight'
 import { useSelectionScope } from '@/features/editor/selection'
 import { cn } from '@/lib/utils'
 import {
+	ClearResultsButton,
 	PanelEmptyState,
 	PanelError,
 	PanelFooter,
@@ -26,9 +27,9 @@ function uniquenessColor(score: number): string {
 }
 
 export function PlagiarismPanel() {
-	const { result, isRunning, error, isStale, canRun, run } = useAnalysis('plagiarism')
-	const { rangeProps } = useRangeHighlight()
 	const scope = useSelectionScope()
+	const { result, isRunning, error, isStale, canRun, run, cancel, clear } = useAnalysis('plagiarism', scope)
+	const { rangeProps } = useRangeHighlight()
 	const { lastRun } = usePanels()
 
 	/*
@@ -103,8 +104,11 @@ export function PlagiarismPanel() {
 			<PanelFooter>
 				<RunScopeBar wordCount={scope?.wordCount ?? null} />
 
+				{!isRunning && result && <ClearResultsButton onClick={clear} />}
+
 				<RunButton
 					onClick={() => run(scope ?? recheckScope)}
+					onCancel={cancel}
 					disabled={!canRun}
 					isRunning={isRunning}
 					runningLabel="Checking..."

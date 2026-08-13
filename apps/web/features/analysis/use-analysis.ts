@@ -1,8 +1,9 @@
 'use client'
 
 import type { AnalysisFeature, AnalysisResultFor, RewriterTone } from '@writer-hub/shared'
-import { useQuery } from '@tanstack/react-query'
-import { useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useRef } from 'react'
+import { cancelJob } from '@/lib/api-client'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
 import { useSessions } from '@/features/sessions/session-context'
@@ -35,6 +36,10 @@ export interface AnalysisController<F extends AnalysisFeature> {
 		scope?: { text: string; offset: number },
 		options?: { tone?: RewriterTone; targetLang?: string },
 	) => void
+	/** Batalkan analisis yang sedang berjalan (§P7 lapis A): UI bebas seketika. */
+	cancel: () => void
+	/** Buang hasil yang ditampilkan (§P12 butir 2). */
+	clear: () => void
 }
 
 /**
@@ -45,12 +50,22 @@ export interface AnalysisController<F extends AnalysisFeature> {
  * `markOthersStale()` secara manual di setiap handler accept, dan itu gampang
  * terlewat. Menjalankan ulang pada teks yang sama juga langsung memakai cache.
  */
-export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisController<F> {
+export function useAnalysis<F extends AnalysisFeature>(
+	feature: F,
+	/** Seleksi aktif; kalau ada, canRun menghitung panjangnya, bukan seluruh
+	 *  naskah - seleksi 3 kata pada dokumen panjang tidak boleh menghabiskan kuota
+	 *  untuk hasil yang pasti kosong (§P12 butir 3). */
+	scope?: { text: string } | null,
+): AnalysisController<F> {
 	const { state } = useDocument()
 	const { lastRun, markRun } = usePanels()
 	const language = useDocumentLanguage()
 	const { linkage } = useSync()
 	const { activeId } = useSessions()
+	const queryClient = useQueryClient()
+
+	/** jobId analisis yang sedang berjalan - dipakai untuk membatalkan di server (§P7 lapis B). */
+	const jobIdRef = useRef<string | null>(null)
 
 	const currentText = state.text
 	const requested = lastRun[feature]
@@ -76,6 +91,10 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 				run.tabId,
 				run.tone,
 				run.targetLang,
+				// Catat jobId seketika setelah submit supaya cancel() bisa menyasar server.
+				(jobId) => {
+					jobIdRef.current = jobId
+				},
 			)
 			// Digeser di sini, sekali, supaya seluruh pemakainya tidak perlu tahu
 			// apakah hasil ini datang dari potongan atau dari naskah penuh.
@@ -121,6 +140,25 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 		[markRun, feature, currentText, requested, query, language.code, linkage, activeId],
 	)
 
+	/** Batalkan analisis berjalan (§P7 lapis A+B). cancelQueries membatalkan queryFn
+	     yang sedang menunggu SSE; panel kembali ke keadaan sebelum Run, tanpa
+	     dianggap error. Bendera cancel juga dikirim ke server (best effort). */
+	const cancel = useCallback(() => {
+		const jobId = jobIdRef.current
+		if (jobId) {
+			cancelJob(jobId)
+			jobIdRef.current = null
+		}
+		void queryClient.cancelQueries({ queryKey: ['analysis', feature], exact: false })
+	}, [queryClient, feature])
+
+	/** Buang hasil analisis yang ditampilkan tanpa menerimanya (§P12 butir 2) -
+	 *  kembaran 'Clear results' milik Proofreader. Hasil dan sorotannya hilang
+	 *  sekaligus; bisa diulang dengan Run. */
+	const clear = useCallback(() => {
+		void queryClient.removeQueries({ queryKey: ['analysis', feature], exact: false })
+	}, [queryClient, feature])
+
 	return {
 		result: query.data,
 		isRunning: query.isFetching,
@@ -129,8 +167,12 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 		// disunting - yang diperiksa memang bukan seluruh naskah.
 		isStale:
 			query.data !== undefined && !requested?.scoped && requested?.text !== currentText,
-		canRun: !query.isFetching && currentText.trim().length >= MIN_TEXT_LENGTH,
+		canRun:
+			!query.isFetching &&
+			(scope ? scope.text : currentText).trim().length >= MIN_TEXT_LENGTH,
 		isScoped: requested?.scoped ?? false,
 		run,
+		cancel,
+		clear,
 	}
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { Check, ChevronDown } from 'lucide-react'
-import { Fragment } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { Dropdown, DropdownItem, DropdownLabel } from './dropdown'
 
@@ -10,6 +10,11 @@ export interface SelectOption<T> {
 	label: string
 	/** Gaya pratinjau pada daftar, dipakai pemilih font dan gaya paragraf. */
 	previewStyle?: React.CSSProperties
+	/**
+	 * Ikon di depan label - mis. bendera pada pemilih bahasa (§P1). Ditampilkan
+	 * baik di pemicu maupun di daftar, kecuali saat pilihan aktif (diganti centang).
+	 */
+	icon?: ReactNode
 	/**
 	 * Judul kelompok. Ditulis sekali di awal rentetan pilihan yang bernilai
 	 * sama, jadi daftarnya harus sudah urut menurut kelompok.
@@ -73,6 +78,7 @@ export function ToolbarSelect<T extends string | number>({
 						disabled && 'cursor-not-allowed opacity-40',
 					)}
 				>
+					{selected?.icon}
 					<span className="flex-1 truncate text-left">
 						{selected?.label ?? fallbackLabel ?? String(value)}
 					</span>
@@ -94,7 +100,7 @@ export function ToolbarSelect<T extends string | number>({
 								<div ref={selected ? centerActiveOption : undefined}>
 									<DropdownItem
 										active={selected}
-										icon={selected ? <Check className="h-3.5 w-3.5" /> : null}
+									icon={selected ? <Check className="h-3.5 w-3.5" /> : option.icon ?? null}
 										onSelect={() => {
 											onChange(option.value)
 											close()

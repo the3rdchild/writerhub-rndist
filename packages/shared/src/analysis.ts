@@ -122,6 +122,12 @@ export interface GlossaryEntry {
 	definition: string
 	/** Berapa kali istilah ini muncul di naskah - bahan urut dan keyakinan. */
 	occurrences: number
+	/**
+	 * Asal kandidat: 'acronym' (akronim, diterima walau muncul sekali) atau
+	 * 'phrase' (frasa berkapital yang berulang). Opsional supaya hasil lama yang
+	 * belum membawa bidang ini tetap terbaca (§P2).
+	 */
+	source?: 'acronym' | 'phrase'
 }
 
 /**
@@ -169,4 +175,5 @@ export type AnalysisStreamEvent<F extends AnalysisFeature = AnalysisFeature> =
 	| { type: 'done'; result: AnalysisResultFor<F> }
 	| { type: 'error'; message: string }
 	| { type: 'timeout' }
+	| { type: 'cancelled' }
 	| { type: 'ping' }

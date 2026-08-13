@@ -2,6 +2,7 @@
 
 import { X } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { Flag } from '@/components/ui/flag'
 import { LANGUAGE_OPTIONS } from '@/features/document/language'
 import { cn } from '@/lib/utils'
 import type { MemoryPreferences } from './types'
@@ -60,21 +61,21 @@ export function MemoryTab() {
 	}
 
 	if (memory.isPending) {
-		return <p className="text-sm text-subtle">Memuat preferensi…</p>
+		return <p className="text-sm text-subtle">Loading preferences…</p>
 	}
 
 	if (memory.isError) {
 		return (
 			<div className="flex flex-col gap-3">
 				<p className="text-sm text-red-400">
-					Gagal memuat AI Memory: {memory.error.message}
+					Failed to load AI Memory: {memory.error.message}
 				</p>
 				<button
 					type="button"
 					onClick={() => memory.refetch()}
 					className="w-fit rounded-lg border border-line-strong bg-surface-inset px-3 py-1.5 text-sm text-muted transition-colors hover:text-foreground"
 				>
-					Coba lagi
+					Try again
 				</button>
 			</div>
 		)
@@ -83,11 +84,11 @@ export function MemoryTab() {
 	return (
 		<div className="flex flex-col gap-5">
 			<p className="text-xs leading-relaxed text-subtle">
-				Preferensi ini dipakai AI Chat, AI Rewriter, dan Humanizer saat menulis atau menulis
-				ulang naskah untuk Anda.
+These preferences are used by AI Chat, AI Rewriter, and Humanizer when writing or
+			rewriting text for you.
 			</p>
 
-			<Field label="Nada (tone)">
+			<Field label="Tone">
 				<input
 					type="text"
 					value={tone}
@@ -95,30 +96,46 @@ export function MemoryTab() {
 						setTone(event.target.value)
 						setSaved(false)
 					}}
-					placeholder="mis. formal, santai, akademik"
+					placeholder="e.g. formal, casual, academic"
 					className="w-full rounded-lg border border-line-strong bg-surface-inset px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-faint focus:border-accent/50"
 				/>
 			</Field>
 
-			<Field label="Bahasa keluaran AI">
-				<select
-					value={language}
-					onChange={(event) => {
-						setLanguage(event.target.value)
-						setSaved(false)
-					}}
-					className="w-full rounded-lg border border-line-strong bg-surface-inset px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-accent/50"
-				>
-					<option value="">Ikuti bahasa naskah</option>
-					{LANGUAGE_OPTIONS.map((option) => (
-						<option key={option.code} value={option.label}>
-							{option.label}
-						</option>
-					))}
-				</select>
+			<Field label="AI output language">
+				{/* Select asli (native) dipertahankan karena ini formulir pengaturan;
+			       opsi native tidak bisa merender SVG bendera, jadi bendera
+			       kebahasaan yang dipilih ditampilkan sebagai indikator di depannya (§P1). */}
+				<div className="relative">
+					{(() => {
+						const flagCode = LANGUAGE_OPTIONS.find((option) => option.label === language)?.flag
+						return flagCode ? (
+							<span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2">
+								<Flag code={flagCode} />
+							</span>
+						) : null
+					})()}
+					<select
+						value={language}
+						onChange={(event) => {
+							setLanguage(event.target.value)
+							setSaved(false)
+						}}
+						className={cn(
+							'w-full appearance-none rounded-lg border border-line-strong bg-surface-inset py-2 text-sm text-foreground outline-none transition-colors focus:border-accent/50',
+							LANGUAGE_OPTIONS.some((option) => option.label === language) ? 'pl-9' : 'px-3',
+						)}
+					>
+						<option value="">Follow document language</option>
+						{LANGUAGE_OPTIONS.map((option) => (
+							<option key={option.code} value={option.label}>
+								{option.label}
+							</option>
+						))}
+					</select>
+				</div>
 			</Field>
 
-			<Field label="Glosarium — istilah yang tidak boleh diubah atau diterjemahkan">
+			<Field label="Glossary — terms that must not be changed or translated">
 				<div className="flex gap-2">
 					<input
 						type="text"
@@ -130,7 +147,7 @@ export function MemoryTab() {
 								addTerm()
 							}
 						}}
-						placeholder="mis. WritingHub, Ransel.ai"
+						placeholder="e.g. WritingHub, Ransel.ai"
 						className="w-full rounded-lg border border-line-strong bg-surface-inset px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-faint focus:border-accent/50"
 					/>
 					<button
@@ -139,7 +156,7 @@ export function MemoryTab() {
 						disabled={!term.trim()}
 						className="shrink-0 rounded-lg border border-line-strong bg-surface-inset px-3 py-2 text-sm text-muted transition-colors hover:text-foreground disabled:opacity-50"
 					>
-						Tambah
+						Add
 					</button>
 				</div>
 				{glossary.length > 0 && (
@@ -156,7 +173,7 @@ export function MemoryTab() {
 										setGlossary(glossary.filter((entry) => entry !== item))
 										setSaved(false)
 									}}
-									aria-label={`Hapus ${item}`}
+									aria-label={`Remove ${item}`}
 									className="text-faint transition-colors hover:text-foreground"
 								>
 									<X className="h-3 w-3" />
@@ -167,7 +184,7 @@ export function MemoryTab() {
 				)}
 			</Field>
 
-			<Field label="Catatan gaya">
+			<Field label="Style notes">
 				<textarea
 					value={notes}
 					onChange={(event) => {
@@ -176,7 +193,7 @@ export function MemoryTab() {
 					}}
 					maxLength={NOTES_MAX}
 					rows={4}
-					placeholder="mis. Hindari kalimat pasif; sapa pembaca dengan 'Anda'"
+					placeholder="e.g. Avoid passive voice; address the reader as 'you'"
 					className="w-full resize-none rounded-lg border border-line-strong bg-surface-inset px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-faint focus:border-accent/50"
 				/>
 				<span
@@ -199,15 +216,15 @@ export function MemoryTab() {
 						'bg-accent text-accent-foreground hover:opacity-90 disabled:opacity-50',
 					)}
 				>
-					{save.isPending ? 'Menyimpan…' : 'Simpan'}
+					{save.isPending ? 'Saving…' : 'Save'}
 				</button>
-				{saved && !save.isPending && <span className="text-xs text-green-400">Tersimpan.</span>}
+				{saved && !save.isPending && <span className="text-xs text-green-400">Saved.</span>}
 			</div>
 
 			{save.isError && (
 				<p className="text-sm text-red-400">
-					Gagal menyimpan AI Memory: {save.error.message}. Perubahan Anda belum tersimpan —
-					coba lagi.
+					Failed to save AI Memory: {save.error.message}. Your changes were not saved —
+					try again.
 				</p>
 			)}
 		</div>

@@ -51,9 +51,9 @@ def _normalize(term: str) -> str:
     return re.sub(r"\s+", " ", term).strip()
 
 
-def extract_candidates(text: str, limit: int = MAX_CANDIDATES) -> list[tuple[str, int]]:
+def extract_candidates(text: str, limit: int = MAX_CANDIDATES) -> list[tuple[str, int, str]]:
     """
-    Kandidat istilah beserta jumlah kemunculannya, terbanyak di depan.
+    Kandidat istilah beserta jumlah kemunculannya dan jenisnya, terbanyak di depan.
 
     Fungsi murni tanpa LLM supaya bisa diuji sendiri - dan supaya bagian yang
     membaca seluruh naskah tidak pernah menjadi biaya token.
@@ -61,11 +61,18 @@ def extract_candidates(text: str, limit: int = MAX_CANDIDATES) -> list[tuple[str
     Akronim diterima walau muncul sekali (kemunculannya sendiri sudah sinyal
     kuat); frasa berkapital baru diterima kalau berulang, karena satu kali
     kemunculan biasanya hanya kata pertama kalimat.
+
+    `kind` bernilai 'acronym' atau 'phrase' - dibawa sampai ke panel supaya
+    pemakai tahu dari mana sebuah istilah datang, dan kenapa istilah yang hanya
+    muncul sekali bisa masuk daftar (§P2).
     """
     counts: Counter[str] = Counter()
+    kinds: dict[str, str] = {}
 
     for match in _ACRONYM.finditer(text):
-        counts[_normalize(match.group())] += 1
+        term = _normalize(match.group())
+        counts[term] += 1
+        kinds[term] = "acronym"
 
     phrase_counts: Counter[str] = Counter()
     for match in _CAPPED.finditer(text):
@@ -80,9 +87,10 @@ def extract_candidates(text: str, limit: int = MAX_CANDIDATES) -> list[tuple[str
     for phrase, n in phrase_counts.items():
         if n > 1:
             counts[phrase] += n
+            kinds.setdefault(phrase, "phrase")
 
     ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0].lower()))
-    return ranked[:limit]
+    return [(term, n, kinds.get(term, "phrase")) for term, n in ranked[:limit]]
 
 
 def sample_sentence(text: str, term: str) -> str:
@@ -111,8 +119,8 @@ def run_glossary(
         return {"entries": []}
 
     payload = [
-        {"term": term, "occurrences": n, "context": sample_sentence(text, term)}
-        for term, n in candidates
+        {"term": term, "occurrences": n, "kind": kind, "context": sample_sentence(text, term)}
+        for term, n, kind in candidates
     ]
 
     defined = define_terms(payload, provider, language, style_memory)
@@ -120,7 +128,9 @@ def run_glossary(
         logger.warning("[glossary] LLM tidak tersedia - daftar istilah tidak dibuat")
         return {"entries": [], "llm_unavailable": True}
 
-    occurrences = dict(candidates)
+    # Peta term → (jumlah, jenis) supaya definisi LLM bisa diperkaya kembali
+    # dengan asal kandidatnya setelah LLM membuang yang bukan istilah.
+    meta = {term: (n, kind) for term, n, kind in candidates}
     entries = [
         {
             "term": item["term"],
@@ -128,7 +138,8 @@ def run_glossary(
             # menampilkannya atau tidak.
             "expansion": item.get("expansion") or "",
             "definition": item["definition"],
-            "occurrences": occurrences.get(item["term"], 1),
+            "occurrences": meta.get(item["term"], (1, "phrase"))[0],
+            "source": meta.get(item["term"], (1, "phrase"))[1],
         }
         for item in defined
     ]

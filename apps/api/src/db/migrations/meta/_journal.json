@@ -71,6 +71,13 @@
       "when": 1786319767528,
       "tag": "0009_document_tabs_restructure",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786406200000,
+      "tag": "0010_pool_request_cancelled_status",
+      "breakpoints": true
     }
   ]
 }

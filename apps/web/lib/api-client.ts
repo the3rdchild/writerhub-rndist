@@ -34,3 +34,15 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 	}
 	return body.data
 }
+
+/**
+ * Minta server membatalkan job (§P7 lapis B). Fire-and-forget: UI sudah bebas
+ * lewat AbortController (lapis A); panggilan ini hanya berusaha membebaskan
+ * worker. Galat ditelan - kegagalan pembatalan server tidak boleh mengganggu
+ * pengguna yang sudah melihat UI-nya bebas.
+ */
+export function cancelJob(jobId: string): void {
+	apiFetch(`/jobs/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' }).catch(() => {
+		/* best effort - lihat komentar di atas */
+	})
+}

@@ -26,6 +26,9 @@ async function buildSettledEvent(jobId: string): Promise<string | null> {
 	if (request.status === 'failed') {
 		return JSON.stringify({ type: 'error', message: request.error ?? 'Job failed' })
 	}
+	if (request.status === 'cancelled') {
+		return JSON.stringify({ type: 'cancelled' })
+	}
 	if (request.status !== 'completed') return null
 
 	const grammar = await findGrammarResult(jobId).catch(() => null)

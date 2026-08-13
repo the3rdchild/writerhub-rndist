@@ -15,6 +15,7 @@ import {
 	PanelFooter,
 	PanelLoading,
 	PanelScroll,
+	ClearResultsButton,
 	RunButton,
 } from './panel-parts'
 
@@ -31,7 +32,7 @@ import {
  * cara tahu.
  */
 export function GlossaryPanel() {
-	const { result, isRunning, error, canRun, run } = useAnalysis('glossary')
+	const { result, isRunning, error, canRun, run, cancel, clear } = useAnalysis('glossary')
 	const { editor } = useEditorInstance()
 
 	const entries = (result as GlossaryResult | undefined)?.entries ?? []
@@ -59,21 +60,27 @@ export function GlossaryPanel() {
 	return (
 		<>
 			<PanelScroll>
-				{isRunning && <PanelLoading label="Menyusun daftar istilah…" />}
+				{isRunning && <PanelLoading label="Building term list…" />}
 				{error && !isRunning && <PanelError message={error.message} />}
 
 				{!isRunning && !error && result && (
 					<>
 						{llmUnavailable ? (
-							<PanelError message="AI tidak dapat dihubungi, jadi daftar istilah tidak bisa disusun. Periksa konfigurasi penyedia AI, lalu coba lagi." />
+							<PanelError message="AI could not be reached, so the term list couldn't be built. Check the AI provider configuration, then try again." />
 						) : entries.length === 0 ? (
 							<p className="py-4 text-center text-xs text-subtle">
-								Tidak ada istilah khusus yang ditemukan di naskah ini
+								No terms were found. The glossary is built from words and acronyms that
+									<strong>repeat</strong> in the text, so terms that appear only once are
+									not captured (except acronyms, which are kept even on a single mention).
 							</p>
 						) : (
 							<div className="flex flex-col gap-2">
-								<p className="px-1 text-[11px] text-subtle">
-									{entries.length} istilah ditemukan
+								<p className="px-1 text-[11px] leading-relaxed text-subtle">
+									Built from words and acronyms that <strong>repeat</strong> in this text —
+									terms that appear only once are not captured, except acronyms.
+								</p>
+								<p className="mb-1 px-1 text-[11px] text-subtle">
+									{entries.length} terms found
 								</p>
 								{entries.map((entry) => (
 									<div
@@ -84,8 +91,13 @@ export function GlossaryPanel() {
 											<span className="text-xs font-medium text-foreground">
 													{glossaryTermLabel(entry)}
 												</span>
-											<span className="shrink-0 text-[10px] text-faint">
-												{entry.occurrences}×
+											<span className="flex shrink-0 items-center gap-1.5 text-faint">
+												{entry.source === 'acronym' ? (
+												<span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[9px] font-medium text-accent">Acronym</span>
+											) : entry.source === 'phrase' ? (
+												<span className="rounded-full bg-surface-inset px-1.5 py-0.5 text-[9px] font-medium text-muted">Repeated phrase</span>
+											) : null}
+											<span title={`Appears ${entry.occurrences}× in the text`} className="text-[10px]">{entry.occurrences}×</span>
 											</span>
 										</div>
 										<p className="text-xs leading-relaxed text-muted">{entry.definition}</p>
@@ -99,8 +111,8 @@ export function GlossaryPanel() {
 				{!isRunning && !error && !result && (
 					<PanelEmptyState
 						icon={BookMarked}
-						title="Buat daftar istilah"
-						description="AI memindai seluruh tab ini, mengumpulkan istilah dan akronim yang berulang, lalu menyusun definisinya sebagai tabel di akhir naskah."
+						title="Build a term list"
+						description="AI scans this entire tab, gathers recurring terms and acronyms, then compiles their definitions as a table at the end of the document."
 					/>
 				)}
 			</PanelScroll>
@@ -113,16 +125,19 @@ export function GlossaryPanel() {
 						className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-green-500/15 py-2 text-xs text-green-400 transition-colors hover:bg-green-500/25"
 					>
 						<BookMarked className="h-3.5 w-3.5" />
-						Sisipkan tabel Glosarium
+						Insert Glossary table
 					</button>
 				)}
 
+				{!isRunning && result && <ClearResultsButton onClick={clear} />}
+
 				<RunButton
 					onClick={() => run()}
+					onCancel={cancel}
 					disabled={!canRun}
 					isRunning={isRunning}
-					runningLabel="Memindai…"
-					label={result ? 'Pindai ulang' : 'Buat glosarium'}
+					runningLabel="Scanning…"
+					label={result ? 'Scan again' : 'Build glossary'}
 				/>
 			</PanelFooter>
 		</>

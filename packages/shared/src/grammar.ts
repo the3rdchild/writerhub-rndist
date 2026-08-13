@@ -54,4 +54,5 @@ export type GrammarStreamEvent =
 	| ({ type: 'done' } & GrammarResultPayload)
 	| { type: 'error'; message: string }
 	| { type: 'timeout' }
+	| { type: 'cancelled' }
 	| { type: 'ping' }

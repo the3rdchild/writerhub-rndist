@@ -23,24 +23,30 @@ export interface DetectedLanguage {
 	confident: boolean
 }
 
-/** Pilihan pada penukar bahasa; `null` berarti ikut hasil deteksi. */
-export const LANGUAGE_OPTIONS: ReadonlyArray<{ code: string; label: string }> = [
-	{ code: 'en', label: 'English' },
-	{ code: 'id', label: 'Bahasa Indonesia' },
-	{ code: 'ms', label: 'Bahasa Melayu' },
-	{ code: 'es', label: 'Español' },
-	{ code: 'pt', label: 'Português' },
-	{ code: 'fr', label: 'Français' },
-	{ code: 'de', label: 'Deutsch' },
-	{ code: 'it', label: 'Italiano' },
-	{ code: 'nl', label: 'Nederlands' },
-	{ code: 'tr', label: 'Türkçe' },
-	{ code: 'vi', label: 'Tiếng Việt' },
-	{ code: 'ja', label: '日本語' },
-	{ code: 'ko', label: '한국어' },
-	{ code: 'zh', label: '中文' },
-	{ code: 'ar', label: 'العربية' },
-	{ code: 'ru', label: 'Русский' },
+/**
+ * Pilihan pada penukar bahasa; `null` berarti ikut hasil deteksi.
+ *
+ * `flag` adalah kode negara ISO 3166 (huruf kecil) untuk bendera pendamping
+ * label - bukan pengganti label (bahasa bukan negara), hanya mempercepat pindai
+ * (§P1, §2.6). Dipetakan per keputusan §15.2.
+ */
+export const LANGUAGE_OPTIONS: ReadonlyArray<{ code: string; label: string; flag: string }> = [
+	{ code: 'en', label: 'English', flag: 'us' },
+	{ code: 'id', label: 'Bahasa Indonesia', flag: 'id' },
+	{ code: 'ms', label: 'Bahasa Melayu', flag: 'my' },
+	{ code: 'es', label: 'Español', flag: 'es' },
+	{ code: 'pt', label: 'Português', flag: 'br' },
+	{ code: 'fr', label: 'Français', flag: 'fr' },
+	{ code: 'de', label: 'Deutsch', flag: 'de' },
+	{ code: 'it', label: 'Italiano', flag: 'it' },
+	{ code: 'nl', label: 'Nederlands', flag: 'nl' },
+	{ code: 'tr', label: 'Türkçe', flag: 'tr' },
+	{ code: 'vi', label: 'Tiếng Việt', flag: 'vn' },
+	{ code: 'ja', label: '日本語', flag: 'jp' },
+	{ code: 'ko', label: '한국어', flag: 'kr' },
+	{ code: 'zh', label: '中文', flag: 'cn' },
+	{ code: 'ar', label: 'العربية', flag: 'sa' },
+	{ code: 'ru', label: 'Русский', flag: 'ru' },
 ]
 
 const LABELS = new Map(LANGUAGE_OPTIONS.map((option) => [option.code, option.label]))

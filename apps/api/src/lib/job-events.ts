@@ -11,12 +11,12 @@ export function jobChannel(jobId: string): string {
 }
 
 export interface JobEvent {
-	type: 'checkpoint' | 'done' | 'error' | 'timeout'
+	type: 'checkpoint' | 'done' | 'error' | 'timeout' | 'cancelled'
 	[key: string]: unknown
 }
 
 export function isTerminalEvent(event: { type?: string }): boolean {
-	return event.type === 'done' || event.type === 'error'
+	return event.type === 'done' || event.type === 'error' || event.type === 'cancelled'
 }
 
 /**

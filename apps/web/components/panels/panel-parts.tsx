@@ -3,9 +3,11 @@
 import {
 	AlertTriangle,
 	CheckCircle2,
+	Eraser,
 	FileText,
 	Loader2,
 	type LucideIcon,
+	Square,
 	TextSelection,
 	Undo2,
 	X,
@@ -107,31 +109,47 @@ export function PanelEmptyState({
 
 export function RunButton({
 	onClick,
+	onCancel,
 	disabled,
 	isRunning,
 	runningLabel,
 	label,
+	cancelLabel = 'Cancel',
 }: {
 	onClick: () => void
+	/**
+	 * Bila disediakan, tombol berubah jadi "Cancel" selama berjalan - satu
+	 * tombol, dua keadaan, pola yang sama dengan obrolan AI (§P7 lapis A).
+	 * Tanpa ini, tombol hanya jadi spinner & mati seperti sebelumnya.
+	 */
+	onCancel?: () => void
 	disabled: boolean
 	isRunning: boolean
 	runningLabel: string
 	label: string
+	cancelLabel?: string
 }) {
+	const canCancel = isRunning && onCancel
 	return (
 		<button
 			type="button"
-			onClick={onClick}
-			disabled={disabled}
+			onClick={canCancel ? onCancel : onClick}
+			aria-label={canCancel ? cancelLabel : undefined}
 			className={cn(
 				'flex w-full items-center justify-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition-colors',
-				disabled
-					? 'cursor-not-allowed bg-accent/40 text-white/50'
-					: 'bg-accent text-accent-foreground hover:bg-accent-hover',
+				canCancel
+					? 'border border-line-strong bg-surface-raised text-foreground hover:bg-[var(--overlay-hover)]'
+					: disabled
+						? 'cursor-not-allowed bg-accent/40 text-white/50'
+						: 'bg-accent text-accent-foreground hover:bg-accent-hover',
 			)}
 		>
-			{isRunning && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-			{isRunning ? runningLabel : label}
+			{canCancel ? (
+				<Square className="h-3 w-3 fill-current" />
+			) : (
+				isRunning && <Loader2 className="h-3.5 w-3.5 animate-spin" />
+			)}
+			{canCancel ? cancelLabel : isRunning ? runningLabel : label}
 		</button>
 	)
 }
@@ -151,6 +169,24 @@ export function AcceptAllButton({ onClick, disabled }: { onClick: () => void; di
 		>
 			<CheckCircle2 className="h-3.5 w-3.5" />
 			Accept All
+		</button>
+	)
+}
+
+/**
+ * Buang hasil tanpa menerapkan (§P12 butir 2). Kembaran "Clear results" milik
+ * Proofreader, dipakai panel berbasis hasil analisis yang meninggalkan sorotan.
+ * Gaya sekunder (garis batas) supaya tidak bersaing dengan Run.
+ */
+export function ClearResultsButton({ onClick }: { onClick: () => void }) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			className="flex w-full items-center justify-center gap-1.5 rounded-full border border-line-strong py-2 text-sm font-medium text-muted transition-colors hover:bg-surface-raised hover:text-foreground"
+		>
+			<Eraser className="h-3.5 w-3.5" />
+			Clear results
 		</button>
 	)
 }
@@ -292,7 +328,7 @@ export function CandidateCard({
 							className="flex items-center justify-center gap-1 rounded-lg bg-green-500/15 py-1 text-xs text-green-400 transition-colors hover:bg-green-500/25"
 						>
 							<CheckCircle2 className="h-3.5 w-3.5" />
-							Terapkan
+							Apply
 						</button>
 					</div>
 				))}
@@ -307,7 +343,7 @@ export function CandidateCard({
 				className="flex items-center justify-center gap-1 rounded-lg bg-[var(--overlay-hover)] py-1.5 text-xs text-muted transition-colors hover:text-foreground"
 			>
 				<XCircle className="h-3.5 w-3.5" />
-				Lewati segmen ini
+				Skip this segment
 			</button>
 		</div>
 	)
@@ -335,7 +371,7 @@ export function AppliedCard({
 		<div className="flex flex-col gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/5 p-3">
 			<div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-400">
 				<CheckCircle2 className="h-3.5 w-3.5" />
-				Diterapkan
+			Applied
 			</div>
 			<p className="text-xs leading-relaxed text-emerald-300">{applied}</p>
 			<p className="text-[11px] leading-relaxed text-subtle line-through">{original}</p>
@@ -343,7 +379,7 @@ export function AppliedCard({
 				type="button"
 				onClick={onRevert}
 				disabled={!canRevert}
-				title={canRevert ? 'Kembalikan ke naskah semula' : undefined}
+				title={canRevert ? 'Revert to original text' : undefined}
 				className={cn(
 					'flex items-center justify-center gap-1 rounded-lg py-1.5 text-xs transition-colors',
 					canRevert
@@ -352,7 +388,7 @@ export function AppliedCard({
 				)}
 			>
 				<Undo2 className="h-3.5 w-3.5" />
-				{canRevert ? 'Batalkan' : 'Teks sudah berubah'}
+				{canRevert ? 'Undo' : 'Text has changed'}
 			</button>
 		</div>
 	)

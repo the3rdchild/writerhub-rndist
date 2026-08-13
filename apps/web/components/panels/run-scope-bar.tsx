@@ -2,6 +2,7 @@
 
 import { Check, FileText, Globe, TextSelection } from 'lucide-react'
 import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown'
+import { Flag } from '@/components/ui/flag'
 import { LANGUAGE_OPTIONS } from '@/features/document/language'
 import { useDocumentLanguage } from '@/features/document/use-language'
 import { cn } from '@/lib/utils'
@@ -16,6 +17,11 @@ import { cn } from '@/lib/utils'
  */
 export function RunScopeBar({ wordCount }: { wordCount: number | null }) {
 	const language = useDocumentLanguage()
+
+	// Bendera untuk bahasa yang berlaku (§P1). Dicari lewat LANGUAGE_OPTIONS sebab
+	// `language.code` bisa berupa kode deteksi yang tidak ada di daftar - pada
+	// kasus itu tidak ada bendera, dan Globe dipakai sebagai gantinya.
+	const flagCode = LANGUAGE_OPTIONS.find((option) => option.code === language.code)?.flag
 
 	return (
 		<div className="flex items-center gap-2">
@@ -62,7 +68,10 @@ export function RunScopeBar({ wordCount }: { wordCount: number | null }) {
 								: 'border-line text-muted hover:text-foreground',
 						)}
 					>
-						<Globe className="h-3.5 w-3.5 shrink-0" />
+						{/* Bahasa yang sudah pasti digambar sebagai bendera; Globe dipakai saat
+						    bahasa belum pasti (uncertain) supaya tidak terlihat seperti klaim
+						    yang salah (§P1 butir 4). */}
+						{!language.uncertain && flagCode ? <Flag code={flagCode} /> : <Globe className="h-3.5 w-3.5 shrink-0" />}
 						<span className="max-w-[92px] truncate">{language.label}</span>
 					</button>
 				)}
@@ -86,7 +95,9 @@ export function RunScopeBar({ wordCount }: { wordCount: number | null }) {
 								icon={
 									language.overridden && language.code === option.code ? (
 										<Check className="h-4 w-4" />
-									) : undefined
+									) : (
+										<Flag code={option.flag} />
+									)
 								}
 								active={language.overridden && language.code === option.code}
 								onSelect={() => {

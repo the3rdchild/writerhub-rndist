@@ -20,16 +20,16 @@ export function TranslatorPanel() {
 		<ChangeListPanel
 			feature="translator"
 			icon={Languages}
-			emptyTitle="Terjemahkan naskah"
-			emptyDescription="Sorot bagian tertentu untuk menerjemahkan sebagian saja, atau jalankan tanpa seleksi untuk seluruh tab ini."
-			runLabel="Terjemahkan"
-			rerunLabel="Terjemahkan lagi"
-			scopedLabel="Terjemahkan seleksi"
-			runningLabel="Menerjemahkan…"
+			emptyTitle="Translate your text"
+			emptyDescription="Highlight a passage to translate only part of it, or run without a selection for this entire tab."
+			runLabel="Translate Text"
+			rerunLabel="Translate Again"
+			scopedLabel="Translate Selection"
+			runningLabel="Translating..."
 			noChangesLabel={(result) =>
 				(result as TranslatorResult).detected_language
-					? 'Naskah ini sudah dalam bahasa tujuan'
-					: 'Tidak ada yang perlu diterjemahkan'
+					? 'This document is already in the target language'
+					: 'Nothing to translate'
 			}
 		/>
 	)

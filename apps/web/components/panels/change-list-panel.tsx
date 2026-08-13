@@ -12,6 +12,7 @@ import { usePreTranslateSnapshot } from '@/features/analysis/use-pre-translate-s
 import { useRangeHighlight } from '@/features/document/use-range-highlight'
 import { LANGUAGE_OPTIONS } from '@/features/document/language'
 import { useSelectionScope } from '@/features/editor/selection'
+import { Flag } from '@/components/ui/flag'
 import { ToolbarSelect } from '@/components/ui/toolbar-select'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import {
@@ -19,6 +20,7 @@ import {
 	AppliedCard,
 	CandidateCard,
 	ChangeCard,
+	ClearResultsButton,
 	PanelEmptyState,
 	PanelError,
 	PanelFooter,
@@ -38,9 +40,11 @@ const TONE_OPTIONS: ReadonlyArray<{ value: ToneChoice; label: string }> = [
 ]
 
 /** Bahasa tujuan Translator - memakai ulang daftar bahasa dokumen. */
-const LANGUAGE_CHOICES: ReadonlyArray<{ value: string; label: string }> = LANGUAGE_OPTIONS.map(
-	(entry) => ({ value: entry.code, label: entry.label }),
-)
+const LANGUAGE_CHOICES = LANGUAGE_OPTIONS.map((entry) => ({
+	value: entry.code,
+	label: entry.label,
+	icon: <Flag code={entry.flag} />,
+}))
 
 export interface ChangeListPanelProps {
 	feature: Extract<AnalysisFeature, 'ai_rewriter' | 'humanizer' | 'translator'>
@@ -74,13 +78,13 @@ export function ChangeListPanel({
 	runningLabel,
 	noChangesLabel,
 }: ChangeListPanelProps) {
-	const { result, isRunning, error, isStale, canRun, run } = useAnalysis(feature)
+	const scope = useSelectionScope()
+	const { result, isRunning, error, isStale, canRun, run, cancel, clear } = useAnalysis(feature, scope)
 	const changes = (result as { changes?: TextChange[] } | undefined)?.changes
 	const llmUnavailable = (result as { llm_unavailable?: boolean } | undefined)?.llm_unavailable
 	const { pending, applied, accept, dismiss, acceptAll, revert, canRevert } =
 		usePendingChanges(changes)
 	const { rangeProps } = useRangeHighlight()
-	const scope = useSelectionScope()
 	const { preview, showPreview, clearPreview } = useCandidatePreview()
 	const { ensureSnapshot, reset: resetSnapshot } = usePreTranslateSnapshot()
 
@@ -192,10 +196,10 @@ export function ChangeListPanel({
 							// sama-sama berupa changes kosong. Menyamakan keduanya
 							// membuat kegagalan terbaca sebagai pujian - dan pengguna
 							// mengklik Rewrite berulang kali tanpa tahu apa yang salah.
-							<PanelError message="AI tidak dapat dihubungi, jadi tidak ada usulan yang bisa dibuat. Periksa konfigurasi penyedia AI, lalu coba lagi." />
+							<PanelError message="AI could not be reached, so no suggestions could be produced. Check the AI provider configuration, then try again." />
 						) : (changes ?? []).length === 0 ? (
 							<p className="py-4 text-center text-xs text-subtle">
-								Tidak ada perubahan yang disarankan untuk teks ini
+								No changes suggested for this text
 							</p>
 						) : (
 							<p className="py-4 text-center text-xs text-subtle">{noChangesLabel(result)}</p>
@@ -204,7 +208,7 @@ export function ChangeListPanel({
 						{applied.length > 0 && (
 							<div className="mt-3 flex flex-col gap-2 border-t border-line pt-3">
 								<p className="text-[11px] font-medium uppercase tracking-wide text-subtle">
-									Sudah diterapkan
+									Applied
 								</p>
 								{applied.map((entry) => (
 									<AppliedCard
@@ -243,7 +247,7 @@ export function ChangeListPanel({
 							value={tone}
 							options={TONE_OPTIONS}
 							onChange={handleToneChange}
-							label="Tone hasil rewrite"
+							label="Rewrite tone"
 							width={110}
 							disabled={isRunning}
 							side="top"
@@ -253,12 +257,12 @@ export function ChangeListPanel({
 
 				{feature === 'translator' && (
 					<div className="flex items-center gap-1.5 px-1">
-						<span className="text-[11px] text-subtle">Ke</span>
+						<span className="text-[11px] text-subtle">To</span>
 						<ToolbarSelect
 							value={targetLang}
 							options={LANGUAGE_CHOICES}
 							onChange={handleTargetLangChange}
-							label="Bahasa tujuan terjemahan"
+							label="Translation target language"
 							width={140}
 							disabled={isRunning}
 							side="top"
@@ -268,8 +272,11 @@ export function ChangeListPanel({
 
 				<RunScopeBar wordCount={scope?.wordCount ?? null} />
 
+				{!isRunning && result && <ClearResultsButton onClick={clear} />}
+
 				<RunButton
 					onClick={() => run(scope ?? undefined, runOptions)}
+					onCancel={cancel}
 					disabled={!canRun}
 					isRunning={isRunning}
 					runningLabel={runningLabel}

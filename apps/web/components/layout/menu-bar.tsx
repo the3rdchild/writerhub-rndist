@@ -599,7 +599,7 @@ export function MenuBar() {
 						    Hanya untuk teks yang disorot: tanpa seleksi, yang terbungkus
 						    cuma paragraf tempat kursor berada - satu paragraf pendek yang
 						    terbelah dua, dan itu tidak pernah yang dimaksud. */}
-						<Submenu label="Kolom" icon={<Columns2 className="h-4 w-4" />}>
+						<Submenu label="Columns" icon={<Columns2 className="h-4 w-4" />}>
 							{() => (
 								<>
 									<Item
@@ -607,25 +607,25 @@ export function MenuBar() {
 										disabled={!hasSelection()}
 										onSelect={() => run(close, () => editor?.chain().focus().setColumns(2).run())}
 									>
-										Dua kolom
+										Two columns
 									</Item>
 									<Item
 										icon={<Columns2 className="h-4 w-4" />}
 										disabled={!hasSelection()}
 										onSelect={() => run(close, () => editor?.chain().focus().setColumns(3).run())}
 									>
-										Tiga kolom
+										Three columns
 									</Item>
 									<DropdownSeparator />
 									<Item onSelect={() => run(close, () => editor?.chain().focus().unsetColumns().run())}>
-										Satu kolom (kembalikan)
+										Single column (revert)
 									</Item>
 								</>
 							)}
 						</Submenu>
 
 						{/* ── Rumus ── */}
-						<Submenu label="Rumus" icon={<Sigma className="h-4 w-4" />}>
+						<Submenu label="Formula" icon={<Sigma className="h-4 w-4" />}>
 							{() => (
 								<>
 									<Item
@@ -633,18 +633,18 @@ export function MenuBar() {
 										disabled={!editor || editor.state.selection.empty}
 										onSelect={() => run(close, () => editor && convertSelectionToMath(editor, false))}
 									>
-										Jadikan rumus
+										Make formula
 									</Item>
 									<Item
 										icon={<Sigma className="h-4 w-4" />}
 										disabled={!editor || editor.state.selection.empty}
 										onSelect={() => run(close, () => editor && convertSelectionToMath(editor, true))}
 									>
-										Jadikan rumus blok
+										Make block formula
 									</Item>
 									<DropdownSeparator />
 									<Item onSelect={() => run(close, () => editor && convertMathInDocument(editor))}>
-										Konversi semua $rumus$ di dokumen
+										Convert all $formulas$ in the document
 									</Item>
 								</>
 							)}
@@ -652,7 +652,7 @@ export function MenuBar() {
 
 						<DropdownSeparator />
 						<Item icon={<Eraser className="h-4 w-4" />} onSelect={() => run(close, () => editor?.chain().focus().unsetAllMarks().clearNodes().run())}>
-							Hapus format
+							Clear formatting
 						</Item>
 					</>
 				)}

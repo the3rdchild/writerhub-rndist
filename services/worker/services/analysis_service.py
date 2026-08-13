@@ -3,6 +3,7 @@ import json
 import redis as redis_lib
 
 from core.base_service import BaseService
+from core.cancel import CancelledError, check_cancelled, clear_flag
 from core.configs.env import REDIS_URL
 from core.db.repository import (
     update_status,
@@ -89,6 +90,9 @@ def process(data: dict):
                 "atau jalankan lewat apps/api yang terhubung ke admin-ppe."
             )
 
+        # Titik periksa batal sebelum analyzer (§P7 lapis C).
+        check_cancelled(job_id)
+
         with _svc.timed_step(f"analyze:{feature}"):
             if feature == "translator":
                 result = analyzer(text, provider, language, style_memory, target_lang)
@@ -97,7 +101,12 @@ def process(data: dict):
             else:
                 result = analyzer(text, provider, language)
 
+        # Token sudah terpakai walau lalu dibatalkan - dicatat SEBELUM titik periksa
+        # batal terakhir (§2.8).
         update_tokens(job_id, get_last_total_tokens())
+
+        # Titik periksa batal sesudah analyzer: hasil dibuang, tidak disimpan.
+        check_cancelled(job_id)
 
         save_analysis_result(
             request_id=request_id,
@@ -108,6 +117,11 @@ def process(data: dict):
         update_status(job_id, "completed")
         _publish(channel, {"type": "done", "result": result})
         _svc.log_end(job_id)
+    except CancelledError:
+        _svc.logger.info("[analysis_service] dibatalkan | job_id=%s", job_id)
+        update_status(job_id, "cancelled")
+        _publish(channel, {"type": "cancelled"})
+        clear_flag(job_id)
     except Exception as e:
         _svc.logger.exception("[analysis_service] error | job_id=%s", job_id)
         _svc.log_error(job_id)
