@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { flowColumns, type ColumnItem } from './columns'
+import { collapsedMargin, flowColumns, type ColumnItem } from './columns'
 import { pageGeometry } from './page-geometry'
 
 /**
@@ -235,5 +235,26 @@ describe('invarian: tidak ada dua blok yang bertumpang tindih di kolom yang sama
 describe('daftar kosong', () => {
 	test('tidak menghasilkan apa-apa', () => {
 		expect(flow([])).toEqual({ placements: [], height: 0, sheetGap: 0 })
+	})
+})
+
+describe('penggabungan margin (§P4 catatan pengukuran, A-2)', () => {
+	test('DOM terluar yang punya margin sendiri memakai miliknya', () => {
+		// Blok kode (margin: 1em 0 di pembungkusnya) dan TOC (my-3).
+		expect(collapsedMargin(16, 0, 0, 12)).toBe(16)
+	})
+
+	test('tableWrapper tanpa margin membaca margin <table> di dalamnya', () => {
+		expect(collapsedMargin(0, 0, 0, 12)).toBe(12)
+	})
+
+	test('margin anak tidak dibaca bila ada padding - ia tidak menggabung keluar', () => {
+		// Dengan padding, margin anak tetap di dalam dan sudah termasuk
+		// offsetHeight; membacanya lagi menghitung jarak yang sama dua kali.
+		expect(collapsedMargin(0, 8, 0, 12)).toBe(0)
+	})
+
+	test('margin anak tidak dibaca bila ada border', () => {
+		expect(collapsedMargin(0, 0, 1, 12)).toBe(0)
 	})
 })

@@ -420,6 +420,42 @@ function px(value: string): number {
 	return Number.isFinite(parsed) ? parsed : 0
 }
 
+/**
+ * Penggabungan margin satu lapis, murni aritmetika: margin anak pertama/terakhir
+ * hanya bocor keluar ke ruang blok bila sisi itu tidak punya margin sendiri,
+ * tidak punya padding, dan tidak punya border. Kalau ada padding/border, margin
+ * anak tetap di dalam dan sudah termasuk `offsetHeight` - membacanya lagi akan
+ * menghitung jarak yang sama dua kali.
+ *
+ * Kasus nyatanya adalah tabel: DOM terluar node view-nya `div.tableWrapper`
+ * bikinan `prosemirror-tables`, yang tidak memegang margin - `margin: 0.75em 0`
+ * ada pada `<table>` di dalamnya (globals.css) dan bocor keluar lewat
+ * penggabungan margin. Tanpa pembacaan ini `marginBottom` tabel terbaca 0 dan
+ * blok sesudahnya terhitung 12px terlalu rapat (§P4 catatan pengukuran, A-2).
+ */
+export function collapsedMargin(own: number, padding: number, border: number, child: number): number {
+	if (own !== 0 || padding !== 0 || border !== 0) return own
+	return child
+}
+
+/** Margin vertikal efektif sebuah blok, dengan penggabungan satu lapis ke dalam. */
+function blockMargins(element: HTMLElement): { marginTop: number; marginBottom: number } {
+	const style = getComputedStyle(element)
+	const childMargin = (side: 'Top' | 'Bottom'): number => {
+		const child = side === 'Top' ? element.firstElementChild : element.lastElementChild
+		return child instanceof HTMLElement ? px(getComputedStyle(child)[`margin${side}`]) : 0
+	}
+	return {
+		marginTop: collapsedMargin(px(style.marginTop), px(style.paddingTop), px(style.borderTopWidth), childMargin('Top')),
+		marginBottom: collapsedMargin(
+			px(style.marginBottom),
+			px(style.paddingBottom),
+			px(style.borderBottomWidth),
+			childMargin('Bottom'),
+		),
+	}
+}
+
 function columnGapOf(dom: HTMLElement): number {
 	const parsed = Number.parseFloat(getComputedStyle(dom).columnGap)
 	return Number.isFinite(parsed) ? parsed : FALLBACK_COLUMN_GAP
@@ -464,13 +500,11 @@ function measureColumns(
 		node.forEach((child) => {
 			const element = view.nodeDOM(childPos)
 			if (element instanceof HTMLElement) {
-				const style = getComputedStyle(element)
 				elements.push(element)
 				items.push({
 					pos: childPos,
 					height: element.offsetHeight,
-					marginTop: px(style.marginTop),
-					marginBottom: px(style.marginBottom),
+					...blockMargins(element),
 					keepWithNext: KEEP_WITH_NEXT.has(child.type.name),
 				})
 				sizes.push(child.nodeSize)
