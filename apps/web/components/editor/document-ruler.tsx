@@ -10,7 +10,7 @@ import {
 	type PageMargins,
 } from '@/features/editor/page-geometry'
 import { clamp, rulerNudge, useRulerDrag } from '@/features/editor/ruler-drag'
-import { type TableRulerTarget, useRulerTarget } from '@/features/editor/ruler-targets'
+import { type ColumnsRulerTarget, type TableRulerTarget, useRulerTarget } from '@/features/editor/ruler-targets'
 import { setColumnWidths, setTableIndent } from '@/features/editor/table-ops'
 import { cn } from '@/lib/utils'
 
@@ -31,9 +31,10 @@ import { cn } from '@/lib/utils'
  */
 
 /**
- * Marker paragraf & margin berlaku terus-menerus; marker tabel/gambar hanya
- * muncul saat sasarannya aktif. `tableCol` membawa indeks batas kolom yang
- * diseret (0 = batas antara kolom pertama dan kedua).
+ * Marker paragraf & margin berlaku terus-menerus; marker tabel/gambar/kolom
+ * hanya muncul saat sasarannya aktif. `tableCol` membawa indeks batas kolom
+ * yang diseret (0 = batas antara kolom pertama dan kedua). `columnsGap`
+ * membawa indeks celah dan sisi mana yang diseret (§P5).
  */
 type Handle =
 	| { kind: 'marginLeft' }
@@ -45,12 +46,24 @@ type Handle =
 	| { kind: 'tableRight' }
 	| { kind: 'tableCol'; index: number }
 	| { kind: 'imageX' }
+	| { kind: 'columnsGap'; index: number; side: 'left' | 'right' }
+	| { kind: 'columnsGapBand'; index: number }
 
 /** Marker yang menulis ke dokumen hanya saat pointer dilepas. */
-const DEFERRED: ReadonlySet<Handle['kind']> = new Set(['tableLeft', 'tableRight', 'tableCol', 'imageX'])
+const DEFERRED: ReadonlySet<Handle['kind']> = new Set([
+	'tableLeft',
+	'tableRight',
+	'tableCol',
+	'imageX',
+	'columnsGap',
+	'columnsGapBand',
+])
 
 /** Kolom tidak boleh menyempit sampai isinya tak terbaca. */
 const MIN_COLUMN_WIDTH = 24
+
+/** Celah antar kolom masih harus terbaca sebagai celah. */
+const MIN_COLUMN_GAP = 8
 
 const RULER_HEIGHT = 24
 
@@ -78,13 +91,20 @@ export function DocumentRuler({
 	const [preview, setPreview] = useState<number | null>(null)
 	const previewRef = useRef<number | null>(null)
 
+	// Di dalam blok kolom, penanda indentasi diikat ke kolom tempat kursor
+	// berada - indentasi di dalam kolom diukur dari tepi kolomnya, bukan dari
+	// margin lembar (§P5 butir 4).
+	const activeColumn = target?.kind === 'columns' ? target.active : undefined
+	const indentBase = margins.left + (activeColumn?.left ?? 0)
+	const indentWidth = activeColumn?.width ?? contentWidth
+
 	const setIndent = useCallback(
 		(patch: Partial<BlockIndent>) => {
 			if (!editor) return
-			const next = clampBlockIndent({ ...indent, ...patch }, contentWidth)
+			const next = clampBlockIndent({ ...indent, ...patch }, indentWidth)
 			editor.commands.setBlockIndent(next)
 		},
-		[editor, indent, contentWidth],
+		[editor, indent, indentWidth],
 	)
 
 	/** Terapkan satu posisi (piksel dokumen, diukur dari tepi kiri lembar). */
@@ -100,14 +120,20 @@ export function DocumentRuler({
 					})
 					return
 				case 'firstLine':
-					setIndent({ firstLine: x - margins.left - indent.left })
+					setIndent({ firstLine: x - indentBase - indent.left })
 					return
 				case 'indentLeft':
-					setIndent({ left: x - margins.left })
+					setIndent({ left: x - indentBase })
 					return
 				case 'indentRight':
-					setIndent({ right: width - margins.right - x })
+					setIndent({ right: indentBase + indentWidth - x })
 					return
+				case 'columnsGap':
+				case 'columnsGapBand': {
+					if (!editor || target?.kind !== 'columns') return
+					applyColumnsHandle(editor, handle, x, target, margins.left)
+					return
+				}
 				case 'imageX': {
 					if (!editor || target?.kind !== 'image') return
 					// Ditahan supaya gambar tidak bisa didorong keluar area konten.
@@ -127,7 +153,7 @@ export function DocumentRuler({
 				}
 			}
 		},
-		[width, margins.left, margins.right, indent.left, contentWidth, editor, target, onMarginsChange, setIndent],
+		[width, margins.left, margins.right, indent.left, indentBase, indentWidth, contentWidth, editor, target, onMarginsChange, setIndent],
 	)
 
 	// Plumbing seret (listener window, snap, posisi pointer) dipinjam dari modul
@@ -156,9 +182,9 @@ export function DocumentRuler({
 
 	const toScreen = (x: number) => x * zoom
 
-	const firstLineX = margins.left + indent.left + indent.firstLine
-	const indentLeftX = margins.left + indent.left
-	const indentRightX = width - margins.right - indent.right
+	const firstLineX = indentBase + indent.left + indent.firstLine
+	const indentLeftX = indentBase + indent.left
+	const indentRightX = indentBase + indentWidth - indent.right
 
 	// Marker paragraf disembunyikan selama tabel aktif: di dalam sel, ketiganya
 	// menyasar paragraf DI DALAM sel, dan berdesakan dengan marker tepi serta
@@ -166,12 +192,8 @@ export function DocumentRuler({
 	const hasIndentControls = editor !== null && target?.kind !== 'table'
 
 	/** Posisi marker yang sedang diseret mengikuti pointer, bukan dokumen. */
-	const live = (x: number, handle: Handle['kind'], index?: number) =>
-		preview !== null &&
-		dragging?.kind === handle &&
-		(index === undefined || (dragging.kind === 'tableCol' && dragging.index === index))
-			? preview
-			: x
+	const live = (x: number, match: (handle: Handle) => boolean) =>
+		preview !== null && dragging !== null && match(dragging) ? preview : x
 
 	const table =
 		target?.kind === 'table'
@@ -180,6 +202,22 @@ export function DocumentRuler({
 					const edges: number[] = [left]
 					for (const columnWidth of target.widths) edges.push(edges[edges.length - 1] + columnWidth)
 					return { left, edges, right: edges[edges.length - 1] }
+				})()
+			: null
+
+	// Celah antar kolom: dari tepi kanan sebuah kolom ke tepi kiri kolom
+	// berikutnya, diukur dari tepi kiri lembar.
+	const columns =
+		target?.kind === 'columns'
+			? (() => {
+					const gaps: { left: number; right: number; index: number }[] = []
+					let left = margins.left
+					for (let index = 0; index < target.widths.length - 1; index++) {
+						const gapLeft = left + target.widths[index]
+						gaps.push({ left: gapLeft, right: gapLeft + target.gap, index })
+						left = gapLeft + target.gap
+					}
+					return { gaps }
 				})()
 			: null
 
@@ -260,14 +298,14 @@ export function DocumentRuler({
 						<ObjectHandle
 							variant="table-edge"
 							label="Tepi kiri tabel"
-							x={toScreen(live(table.left, 'tableLeft'))}
+							x={toScreen(live(table.left, (handle) => handle.kind === 'tableLeft'))}
 							onPointerDown={startDrag({ kind: 'tableLeft' })}
 							onKeyDown={nudge({ kind: 'tableLeft' }, table.left)}
 						/>
 						<ObjectHandle
 							variant="table-edge"
 							label="Tepi kanan tabel"
-							x={toScreen(live(table.right, 'tableRight'))}
+							x={toScreen(live(table.right, (handle) => handle.kind === 'tableRight'))}
 							onPointerDown={startDrag({ kind: 'tableRight' })}
 							onKeyDown={nudge({ kind: 'tableRight' }, table.right)}
 						/>
@@ -277,9 +315,63 @@ export function DocumentRuler({
 								key={`col-${index}-${table.edges.length}`}
 								variant="table-column"
 								label={`Batas kolom ${index + 1} dan ${index + 2}`}
-								x={toScreen(live(edge, 'tableCol', index))}
+								x={toScreen(live(edge, (handle) => handle.kind === 'tableCol' && handle.index === index))}
 								onPointerDown={startDrag({ kind: 'tableCol', index })}
 								onKeyDown={nudge({ kind: 'tableCol', index }, edge)}
+							/>
+						))}
+					</>
+				)}
+
+				{columns && (
+					<>
+						{columns.gaps.map((gap) => (
+							<GapMarker
+								key={`gap-${gap.index}-${columns.gaps.length}`}
+								label={`Celah antara kolom ${gap.index + 1} dan ${gap.index + 2}`}
+								left={toScreen(live(gap.left, (handle) => handle.kind === 'columnsGapBand' && handle.index === gap.index))}
+								width={toScreen(gap.right - gap.left)}
+								onPointerDown={startDrag({ kind: 'columnsGapBand', index: gap.index })}
+								onKeyDown={nudge({ kind: 'columnsGapBand', index: gap.index }, gap.left)}
+								onDoubleClick={() => {
+									// Klik-ganda mengembalikan semua kolom ke lebar rata -
+									// jalan keluar tanpa harus menyeret dengan presisi (§P5).
+									if (target?.kind === 'columns') {
+										editor?.commands.setColumnsLayout(target.pos, { widths: null })
+									}
+								}}
+							/>
+						))}
+						{columns.gaps.map((gap) => (
+							<ObjectHandle
+								key={`gap-left-${gap.index}`}
+								variant="columns-gap"
+								label={`Lebar kolom ${gap.index + 1} dan celah`}
+								x={toScreen(
+									live(
+										gap.left,
+										(handle) =>
+											handle.kind === 'columnsGap' && handle.index === gap.index && handle.side === 'left',
+									),
+								)}
+								onPointerDown={startDrag({ kind: 'columnsGap', index: gap.index, side: 'left' })}
+								onKeyDown={nudge({ kind: 'columnsGap', index: gap.index, side: 'left' }, gap.left)}
+							/>
+						))}
+						{columns.gaps.map((gap) => (
+							<ObjectHandle
+								key={`gap-right-${gap.index}`}
+								variant="columns-gap"
+								label={`Celah dan lebar kolom ${gap.index + 2}`}
+								x={toScreen(
+									live(
+										gap.right,
+										(handle) =>
+											handle.kind === 'columnsGap' && handle.index === gap.index && handle.side === 'right',
+									),
+								)}
+								onPointerDown={startDrag({ kind: 'columnsGap', index: gap.index, side: 'right' })}
+								onKeyDown={nudge({ kind: 'columnsGap', index: gap.index, side: 'right' }, gap.right)}
 							/>
 						))}
 					</>
@@ -290,7 +382,7 @@ export function DocumentRuler({
 						<ObjectHandle
 							variant="image"
 							label="Posisi gambar"
-							x={toScreen(live(image.x, 'imageX'))}
+							x={toScreen(live(image.x, (handle) => handle.kind === 'imageX'))}
 							onPointerDown={startDrag({ kind: 'imageX' })}
 							onKeyDown={nudge({ kind: 'imageX' }, image.x)}
 						/>
@@ -385,6 +477,62 @@ function applyTableHandle(
 }
 
 /**
+ * Terjemahkan seretan penanda celah kolom jadi perubahan dokumen (§P5).
+ *
+ * Dua kendali berbeda, mengikuti penggaris kolom Google Docs:
+ * - Menyeret SATU SISI celah memindahkan tepi itu saja: kolom di sisinya
+ *   melebar/menyempit dan celahnya ikut berubah, lebar total tetap.
+ * - Menyeret PITA celah memindahkan seluruh celah: kedua kolom bertetangga
+ *   bertukar lebar, celahnya sendiri tidak berubah.
+ *
+ * Keduanya menahan lebar minimum kolom dan celah, dan keduanya menulis satu
+ * transaksi saat pointer dilepas (lihat DEFERRED di atas).
+ */
+function applyColumnsHandle(
+	editor: Editor,
+	handle: Extract<Handle, { kind: 'columnsGap' | 'columnsGapBand' }>,
+	x: number,
+	target: ColumnsRulerTarget,
+	contentLeft: number,
+): void {
+	const { widths, gap, pos } = target
+	const lefts: number[] = []
+	let left = contentLeft
+	for (const columnWidth of widths) {
+		lefts.push(left)
+		left += columnWidth + gap
+	}
+
+	const index = handle.index
+	if (index < 0 || index >= widths.length - 1) return
+	const next = [...widths]
+
+	if (handle.kind === 'columnsGapBand') {
+		const pair = widths[index] + widths[index + 1]
+		const first = clamp(x - lefts[index], MIN_COLUMN_WIDTH, pair - MIN_COLUMN_WIDTH)
+		next[index] = Math.round(first)
+		next[index + 1] = pair - next[index]
+		editor.commands.setColumnsLayout(pos, { widths: next })
+		return
+	}
+
+	if (handle.side === 'left') {
+		const first = clamp(x - lefts[index], MIN_COLUMN_WIDTH, widths[index] + gap - MIN_COLUMN_GAP)
+		next[index] = Math.round(first)
+		editor.commands.setColumnsLayout(pos, { widths: next, gap: Math.round(widths[index] + gap - first) })
+		return
+	}
+
+	const last = clamp(
+		lefts[index + 1] + widths[index + 1] - x,
+		MIN_COLUMN_WIDTH,
+		widths[index + 1] + gap - MIN_COLUMN_GAP,
+	)
+	next[index + 1] = Math.round(last)
+	editor.commands.setColumnsLayout(pos, { widths: next, gap: Math.round(widths[index + 1] + gap - last) })
+}
+
+/**
  * Garis skala, diukur dari tepi kiri lembar.
  *
  * Pada zoom kecil garis 1/8 inci saling menempel dan hanya jadi bercak abu,
@@ -455,7 +603,7 @@ function ObjectHandle({
 	onPointerDown,
 	onKeyDown,
 }: {
-	variant: 'table-edge' | 'table-column' | 'image'
+	variant: 'table-edge' | 'table-column' | 'image' | 'columns-gap'
 	label: string
 	x: number
 	onPointerDown: (event: React.PointerEvent) => void
@@ -470,6 +618,36 @@ function ObjectHandle({
 			style={{ left: x }}
 			onPointerDown={onPointerDown}
 			onKeyDown={onKeyDown}
+		/>
+	)
+}
+
+/** Pita celah antar kolom: diseret untuk memindahkan celah, klik-ganda meratakannya. */
+function GapMarker({
+	label,
+	left,
+	width,
+	onPointerDown,
+	onKeyDown,
+	onDoubleClick,
+}: {
+	label: string
+	left: number
+	width: number
+	onPointerDown: (event: React.PointerEvent) => void
+	onKeyDown: (event: React.KeyboardEvent) => void
+	onDoubleClick: () => void
+}) {
+	return (
+		<button
+			type="button"
+			aria-label={label}
+			title={`${label} - klik dua kali untuk kembali ke lebar rata`}
+			className="document-ruler__gap-band"
+			style={{ left, width }}
+			onPointerDown={onPointerDown}
+			onKeyDown={onKeyDown}
+			onDoubleClick={onDoubleClick}
 		/>
 	)
 }

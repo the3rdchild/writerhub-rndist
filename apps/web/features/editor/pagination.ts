@@ -3,7 +3,14 @@ import type { Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import { PAGE_BREAK_NODE } from './page-break'
-import { type PageGeometry, pageGeometry } from './page-geometry'
+import {
+	PAGE_GAP,
+	type PageGeometry,
+	pageGeometry,
+	type PageSetup,
+	type SheetGeometry,
+} from './page-geometry'
+import { SECTION_BREAK_NODE, columnRegions, sectionSpans } from './section-break'
 
 export const paginationKey = new PluginKey<PaginationState>('pagination')
 
@@ -36,6 +43,12 @@ export interface Measurement {
 	bottom: number
 	/** Blok ini adalah pemenggalan halaman yang disisipkan penulis. */
 	isBreak: boolean
+	/**
+	 * Blok ini adalah pembatas section (§P8&P9): blok SESUDAHNYA memulai lembar
+	 * baru dengan geometri baru. Node-nya sendiri tinggal di lembar berjalan
+	 * sebagai penanda tipis.
+	 */
+	isSectionBreak?: boolean
 	kind: SpacerKind
 	columns?: number
 	headerPos?: number
@@ -66,13 +79,23 @@ interface PaginationState {
 	 * saja lewat penggaris. Perubahannya dikirim sebagai meta transaksi.
 	 */
 	geometry: PageGeometry
+	/** Setelan dasar untuk mewarisi section; undefined = tanpa section (§P8&P9). */
+	setup?: PageSetup
+	/** Lembar-lembar hasil perhitungan terakhir, dibaca kanvas sebagai latar. */
+	sheets: SheetGeometry[]
+	/** Penyesuaian margin horizontal per blok, dari section-nya (§P8&P9). */
+	marginAdjustments: MarginAdjustment[]
 	/** true = kanvas menerus; pemenggalan halaman dimatikan (§A1.5). */
 	pageless: boolean
 }
 
 export interface PaginationOptions {
 	geometry: PageGeometry
+	/** Setelan halaman dasar; mengaktifkan pembacaan `sectionBreak` (§P8&P9). */
+	setup?: PageSetup
 	onPageCountChange?: (pageCount: number) => void
+	/** Dipanggil bila daftar lembar berubah - kanvas menggambar ulang latar. */
+	onSheetsChange?: (sheets: SheetGeometry[]) => void
 	/** true = mode pageless; plugin jadi no-op (tanpa spacer). */
 	pageless?: boolean
 }
@@ -81,7 +104,10 @@ export interface PaginationOptions {
 export interface PaginationMeta {
 	spacers?: Spacer[]
 	pageCount?: number
+	sheets?: SheetGeometry[]
+	marginAdjustments?: MarginAdjustment[]
 	geometry?: PageGeometry
+	setup?: PageSetup
 	pageless?: boolean
 }
 
@@ -101,8 +127,40 @@ function measureBlocks(view: EditorView): Measurement[] {
 	const measurements: Measurement[] = []
 	let cumulative = 0
 
+	// Rentang section berkolom (§P8): isinya tidak boleh didorong satu per satu -
+	// tata letak kolomlah yang menempatkannya. Tiap rentang dibaca sebagai satu
+	// blok self-paginate dari pengganjal ruangnya, sejajar dengan blok `columns`.
+	const setup = paginationKey.getState(view.state)?.setup
+	const regions = setup ? columnRegions(view.state.doc, setup) : []
+
 	view.state.doc.forEach((node, offset) => {
 		cumulative += inserted.get(offset) ?? 0
+
+		const region = regions.find((entry) => offset >= entry.from && offset < entry.to)
+		if (region) {
+			if (offset !== region.from) return
+
+			const placeholder = view.dom.querySelector(`[${REGION_SPACE_ATTRIBUTE}="${region.from}"]`)
+			if (placeholder instanceof HTMLElement) {
+				const top = placeholder.offsetTop - cumulative
+				// Celah antar lembar yang dilompati tata letak kolomnya, sejajar
+				// dengan `internal` pada blok self-paginate lainnya.
+				const internal = Number(placeholder.getAttribute(REGION_SHEET_GAP_ATTRIBUTE)) || 0
+				cumulative += internal
+				measurements.push({
+					pos: offset,
+					top,
+					bottom: top + placeholder.offsetHeight,
+					isBreak: false,
+					kind: 'block',
+					selfPaginate: true,
+					internal,
+				})
+				return
+			}
+			// Tata letak kolomnya belum berjalan: blok rentang diukur apa adanya
+			// dalam aliran alami, dan pengukuran berikutnya yang menyusunnya ulang.
+		}
 
 		const dom = view.nodeDOM(offset)
 		if (!(dom instanceof HTMLElement)) return
@@ -143,6 +201,7 @@ function measureBlocks(view: EditorView): Measurement[] {
 			top,
 			bottom: top + dom.offsetHeight,
 			isBreak: node.type.name === PAGE_BREAK_NODE,
+			isSectionBreak: node.type.name === SECTION_BREAK_NODE || undefined,
 			kind: 'block',
 		})
 	})
@@ -221,6 +280,17 @@ function measureTable(
 export const SPACER_ATTRIBUTE = 'data-spacer-for'
 
 /**
+ * Penanda pengganjal ruang sebuah rentang section berkolom (§P8), dengan nilai
+ * posisi blok pertama rentangnya. Rentang section tidak punya node pembungkus,
+ * jadi paginasi membaca elemen ini sebagai pengganti pembungkus: satu blok
+ * self-paginate yang tingginya menjaga ruang aliran rentang.
+ */
+export const REGION_SPACE_ATTRIBUTE = 'data-columns-region'
+
+/** Celah antar lembar yang dilompati rentang kolom, dibaca paginasi sebagai `internal`. */
+export const REGION_SHEET_GAP_ATTRIBUTE = 'data-sheet-gap'
+
+/**
  * Penanda blok yang memenggal dirinya sendiri (blok TOC). Node view-nya
  * menyisipkan celah internal tepat di batas lembar; plugin hanya perlu
  * menghitung tinggi celah itu, bukan mendorong bloknya utuh.
@@ -251,28 +321,76 @@ function insertedHeights(view: EditorView): Map<number, number> {
 	return heights
 }
 
+/** Geometri sebuah section yang dimulai oleh `sectionBreak` di posisi ini. */
+export interface SectionGeometry {
+	pos: number
+	geometry: PageGeometry
+}
+
 /**
  * Tentukan di mana halaman dipenggal - murni aritmetika atas hasil pengukuran.
  *
  * Diekspor demi pengujian: masuk daftar blok, keluar daftar spacer, tanpa DOM
  * sama sekali. Aritmetika inilah yang paling sering salah, dan gejalanya baru
  * kelihatan setelah dokumen panjang dibuka.
+ *
+ * Tanpa section (`sections` kosong) seluruh lembar memakai satu `geometry` -
+ * perilaku lama, tidak berubah. Dengan section, tiap lembar pada daftar
+ * `sheets` yang dikembalikan boleh punya geometri sendiri (§P8&P9): lembar
+ * baru yang dibuka sesudah `sectionBreak` memakai geometri section-nya, dan
+ * puncak kertasnya tidak lagi kelipatan satu `pageStride`.
+ *
+ * Kerangka koordinat: `top`/`bottom` blok adalah koordinat "alami" (tanpa
+ * spacer) pada bingkai isi editor - yang di kanvas bergeser sejauh padding
+ * pembungkus (`geometry.margins` dasar). `sheets[n].top` adalah puncak KERTAS
+ * pada bingkai yang sama, jadi puncak area teks lembar n adalah
+ * `sheets[n].top + sheets[n].margins.top - margins.top` (lihat `contentTop`).
  */
 export function computeSpacers(
 	blocks: readonly Measurement[],
-	{ contentHeight, pageStride }: PageGeometry,
-): { spacers: Spacer[]; pageCount: number } {
+	geometry: PageGeometry,
+	sections: readonly SectionGeometry[] = [],
+): { spacers: Spacer[]; pageCount: number; sheets: SheetGeometry[] } {
 	const spacers: Spacer[] = []
 	/** Total tinggi spacer yang sudah disisipkan sebelum blok berjalan. */
 	let cumulative = 0
 	let pageStart = 0
-	let pageCount = 1
 	/** Blok ini wajib mulai di lembar baru, apa pun sisa ruangnya. */
 	let forceNext = false
+	/** Geometri lembar berikutnya, diwariskan oleh sectionBreak terakhir. */
+	let pendingGeometry: PageGeometry | null = null
+
+	const baseMargins = geometry.margins
+	/** Lembar-lembar yang sudah pasti; lembar pertama selalu geometri dasar. */
+	const sheets: SheetGeometry[] = [{ ...geometry, index: 0, top: 0 }]
+	/** Puncak area teks lembar pada bingkai isi editor (setara `n * pageStride` dulu). */
+	const contentTop = (sheet: SheetGeometry) => sheet.top + sheet.margins.top - baseMargins.top
+
+	/** Buka lembar baru tepat di bawah lembar terakhir; geometri pending menang. */
+	const pushSheet = (): SheetGeometry => {
+		const last = sheets[sheets.length - 1]
+		const next: SheetGeometry = {
+			...(pendingGeometry ?? last),
+			index: sheets.length,
+			top: last.top + last.height + PAGE_GAP,
+		}
+		sheets.push(next)
+		pendingGeometry = null
+		return next
+	}
 
 	for (const block of blocks) {
+		if (block.isSectionBreak) {
+			// Blok sesudah pembatas section memulai lembar baru dengan geometri
+			// section-nya; pembatasnya sendiri tinggal di lembar berjalan.
+			forceNext = true
+			pendingGeometry = sections.find((section) => section.pos === block.pos)?.geometry ?? null
+			continue
+		}
+
+		const sheet = sheets[sheets.length - 1]
 		const isFirstOnPage = block.top <= pageStart + 0.5
-		const overflows = block.bottom > pageStart + contentHeight
+		const overflows = block.bottom > pageStart + sheet.contentHeight
 
 		if (block.selfPaginate) {
 			// Blok yang memenggal dirinya sendiri (blok TOC): jangan didorong utuh
@@ -280,20 +398,18 @@ export function computeSpacers(
 			// lembar, dan blok sesudahnya mengalir tepat di bawah segmen terakhir.
 			// Page break manual sebelumnya tetap dihormati seperti blok biasa.
 			if (forceNext && !isFirstOnPage) {
-				const target = pageCount * pageStride
+				const target = contentTop(pushSheet())
 				const spacerHeight = Math.max(0, target - (block.top + cumulative))
 				spacers.push({ pos: block.pos, height: spacerHeight, kind: block.kind })
 				cumulative += spacerHeight
-				pageCount += 1
 			}
 
 			// bottom blok ini sudah termasuk celah internalnya, jadi renderedBottom
 			// adalah ujung segmen terakhir yang sebenarnya. Lembar yang ia habiskan
 			// dihitung darinya, lalu pageStart digeser ke lembar itu supaya blok
 			// berikutnya mengalir di bawah segmen terakhir, bukan di lembar baru.
-			const renderedBottom = block.bottom + cumulative
-			const sheetsUsed = Math.floor(Math.max(0, renderedBottom - 1) / pageStride) + 1
-			if (sheetsUsed > pageCount) pageCount = sheetsUsed
+			const canvasBottom = block.bottom + cumulative + baseMargins.top
+			while (nextContentTop() < canvasBottom - 0.5) pushSheet()
 
 			// Celah internalnya ikut ke kumulatif: measureBlocks mengurangkannya dari
 			// koordinat alami blok-blok sesudahnya, jadi tanpa ini sisa dokumen
@@ -301,7 +417,7 @@ export function computeSpacers(
 			cumulative += block.internal ?? 0
 			// pageStart hidup di koordinat alami sedangkan garis lembar di koordinat
 			// render; selisih keduanya persis sebanyak yang sudah tersisip.
-			pageStart = (pageCount - 1) * pageStride - cumulative
+			pageStart = contentTop(sheets[sheets.length - 1]) - cumulative
 
 			forceNext = false
 			continue
@@ -312,7 +428,7 @@ export function computeSpacers(
 			// berikutnya - bukan dari sisa ruang halaman berjalan. Selama tidak ada
 			// blok yang meluber hasil keduanya sama persis; bedanya baru muncul
 			// sesudahnya, dan hanya cara ini yang mengembalikan blok ke garis lembar.
-			const target = pageCount * pageStride
+			const target = contentTop(pushSheet())
 			const spacerHeight = Math.max(0, target - (block.top + cumulative))
 			// Header ulangan ikut memakan ruang di puncak lembar baru, jadi ia
 			// dihitung sebagai bagian dari sisipan - dan halaman ini menyisakan
@@ -328,7 +444,6 @@ export function computeSpacers(
 			})
 			cumulative += spacerHeight + headerHeight
 			pageStart = block.top - headerHeight
-			pageCount += 1
 		}
 
 		forceNext = block.isBreak
@@ -341,11 +456,14 @@ export function computeSpacers(
 		// antar lembar alih-alih dipenggal di situ, sehingga satu lembar menampung
 		// pageStride piksel isinya - bukan contentHeight. Menghitungnya dengan
 		// contentHeight membuat lembar kosong bermunculan di ujung blok panjang.
-		const renderedBottom = block.bottom + cumulative
-		const sheetsUsed = Math.floor(Math.max(0, renderedBottom - 1) / pageStride) + 1
+		// Daftar lembar dipanjangkan sampai ujung blok termuat; lembar-lembar
+		// baru itu mewarisi geometri lembar berjalan (bukan section berikutnya -
+		// luberan bukan pembatas section).
+		const canvasBottom = block.bottom + cumulative + baseMargins.top
+		const before = sheets.length
+		while (nextContentTop() < canvasBottom - 0.5) pushSheet()
 
-		if (sheetsUsed > pageCount) {
-			pageCount = sheetsUsed
+		if (sheets.length > before) {
 			// Ia sudah menembus batas lembarnya sendiri, jadi blok sesudahnya wajib
 			// mulai dari lembar baru. Tanpa paksaan ini, margin dan celah yang
 			// dilewatinya jadi utang yang tidak pernah dibayar dan seluruh sisa
@@ -358,9 +476,15 @@ export function computeSpacers(
 	// itu justru yang diminta penulis saat menaruhnya di ujung dokumen. Blok
 	// raksasa di baris terakhir tidak dihitung begitu: halamannya sudah dihitung
 	// oleh perulangan di atas.
-	if (blocks[blocks.length - 1]?.isBreak) pageCount += 1
+	if (blocks[blocks.length - 1]?.isBreak) pushSheet()
 
-	return { spacers, pageCount }
+	return { spacers, pageCount: sheets.length, sheets }
+
+	/** Puncak area teks lembar berikutnya (bila dibuka sekarang), pada kanvas. */
+	function nextContentTop(): number {
+		const last = sheets[sheets.length - 1]
+		return last.top + last.height + PAGE_GAP + (pendingGeometry ?? last).margins.top
+	}
 }
 
 function sameSpacers(a: readonly Spacer[], b: readonly Spacer[]): boolean {
@@ -378,8 +502,88 @@ function sameSpacers(a: readonly Spacer[], b: readonly Spacer[]): boolean {
 	)
 }
 
-function buildDecorations(doc: PMNode, spacers: readonly Spacer[]): DecorationSet {
+/** Daftar lembar dianggap sama bila jumlah, puncak, dan ukurannya berurutan sama. */
+function sameSheets(a: readonly SheetGeometry[], b: readonly SheetGeometry[]): boolean {
+	return (
+		a.length === b.length &&
+		a.every((sheet, index) => {
+			const other = b[index]
+			return sheet.top === other.top && sheet.width === other.width && sheet.height === other.height
+		})
+	)
+}
+
+/** Penyesuaian margin horizontal satu blok, akibat section-nya berbeda dari dasar. */
+export interface MarginAdjustment {
+	pos: number
+	left: number
+	right: number
+}
+
+/**
+ * Margin horizontal tiap blok tingkat atas pada dokumen multi-section (§P8&P9).
+ *
+ * Padding pembungkus editor hanya bisa satu nilai (milik section dasar), jadi
+ * blok pada section lain digeser lewat dekorasi margin: lembar yang lebih
+ * sempit dari kanvas dipusatkan, dan margin section-nya menggantikan margin
+ * dasar. Horizontal saja - penyesuaian vertikal sudah tertangani oleh spacer,
+ * dan margin vertikal dekorasi akan ikut terukur sebagai tinggi blok (putaran
+ * umpan balik). Murni aritmetika; diekspor demi pengujian.
+ */
+export function marginAdjustments(
+	blockPositions: readonly number[],
+	spans: readonly { pos: number; width: number; margins: PageSetup['margins'] }[],
+	canvasWidth: number,
+	baseMargins: PageSetup['margins'],
+): MarginAdjustment[] {
+	const adjustments: MarginAdjustment[] = []
+
+	for (const pos of blockPositions) {
+		let span = spans[0]
+		for (const candidate of spans) {
+			if (candidate.pos > pos) break
+			span = candidate
+		}
+		if (!span) continue
+
+		const center = (canvasWidth - span.width) / 2
+		const left = center + span.margins.left - baseMargins.left
+		const right = center + span.margins.right - baseMargins.right
+		if (Math.abs(left) < 0.5 && Math.abs(right) < 0.5) continue
+		adjustments.push({ pos, left: Math.round(left), right: Math.round(right) })
+	}
+
+	return adjustments
+}
+
+function sameAdjustments(a: readonly MarginAdjustment[], b: readonly MarginAdjustment[]): boolean {
+	return (
+		a.length === b.length &&
+		a.every((adjustment, index) => {
+			const other = b[index]
+			return adjustment.pos === other.pos && adjustment.left === other.left && adjustment.right === other.right
+		})
+	)
+}
+
+function buildDecorations(
+	doc: PMNode,
+	spacers: readonly Spacer[],
+	adjustments: readonly MarginAdjustment[] = [],
+): DecorationSet {
 	const decorations: Decoration[] = []
+
+	// Geser margin horizontal blok pada section yang berbeda dari dasar (§P8&P9).
+	// Hanya margin: kelas dan properti lain milik dekorasi lain tidak diusik.
+	for (const adjustment of adjustments) {
+		const node = doc.nodeAt(adjustment.pos)
+		if (!node) continue
+		decorations.push(
+			Decoration.node(adjustment.pos, adjustment.pos + node.nodeSize, {
+				style: `margin-left:${adjustment.left}px;margin-right:${adjustment.right}px`,
+			}),
+		)
+	}
 
 	for (const spacer of spacers) {
 		const key = `${spacer.pos}-${Math.round(spacer.height)}`
@@ -434,7 +638,7 @@ function blockSpacer(spacer: Spacer): HTMLElement {
 }
 
 /** Baris kosong tanpa border - pemenggalan di dalam tabel. */
-function rowSpacer(spacer: Spacer): HTMLElement {
+export function rowSpacer(spacer: Spacer): HTMLElement {
 	const row = document.createElement('tr')
 	row.className = 'page-break-row'
 	row.style.height = `${spacer.height}px`
@@ -454,7 +658,7 @@ function rowSpacer(spacer: Spacer): HTMLElement {
  * pemetaan offset yang dipakai sorotan grammar. Isinya teks saja - tujuannya
  * mengingatkan nama kolom, bukan jadi tempat menyunting.
  */
-function repeatedHeader(header: PMNode, spacer: Spacer): HTMLElement {
+export function repeatedHeader(header: PMNode, spacer: Spacer): HTMLElement {
 	const row = document.createElement('tr')
 	row.className = 'table-header-repeat'
 
@@ -497,59 +701,74 @@ export const Pagination = Extension.create<PaginationOptions>({
 	},
 
 	addProseMirrorPlugins() {
-		const { geometry, onPageCountChange } = this.options
+		const { geometry, onPageCountChange, onSheetsChange } = this.options
 
 		return [
 			new Plugin<PaginationState>({
 				key: paginationKey,
 
 				state: {
-				init: () => ({
-					spacers: [],
-					decorations: DecorationSet.empty,
-					pageCount: 1,
-					geometry,
-					pageless: this.options.pageless ?? false,
-				}),
+					init: () => ({
+						spacers: [],
+						decorations: DecorationSet.empty,
+						pageCount: 1,
+						geometry,
+						setup: this.options.setup,
+						sheets: [],
+						marginAdjustments: [],
+						pageless: this.options.pageless ?? false,
+					}),
 
-				apply(tr, current, _old, newState) {
-					const incoming = tr.getMeta(paginationKey) as PaginationMeta | undefined
+					apply(tr, current, _old, newState) {
+						const incoming = tr.getMeta(paginationKey) as PaginationMeta | undefined
 
-					if (incoming) {
-						// Toggle pageless: simpan nilainya, dan kosongkan spacer saat nyala.
-						if (incoming.pageless !== undefined && incoming.pageless !== current.pageless) {
+						if (incoming) {
+							// Toggle pageless: simpan nilainya, dan kosongkan spacer saat nyala.
+							if (incoming.pageless !== undefined && incoming.pageless !== current.pageless) {
+								return {
+									...current,
+									pageless: incoming.pageless,
+									geometry: incoming.geometry ?? current.geometry,
+									setup: incoming.setup ?? current.setup,
+									spacers: incoming.pageless ? [] : current.spacers,
+									decorations: incoming.pageless ? DecorationSet.empty : current.decorations,
+								}
+							}
+
+							// Geometri baru saja tersimpan; spacer-nya menyusul dari
+							// pengukuran berikutnya yang dipicu oleh view.update.
+							if (!incoming.spacers) {
+								return {
+									...current,
+									geometry: incoming.geometry ?? current.geometry,
+									setup: incoming.setup ?? current.setup,
+								}
+							}
+
 							return {
-								...current,
-								pageless: incoming.pageless,
 								geometry: incoming.geometry ?? current.geometry,
-								spacers: incoming.pageless ? [] : current.spacers,
-								decorations: incoming.pageless ? DecorationSet.empty : current.decorations,
+								setup: incoming.setup ?? current.setup,
+								pageless: current.pageless,
+								spacers: incoming.spacers,
+								pageCount: incoming.pageCount ?? current.pageCount,
+								sheets: incoming.sheets ?? current.sheets,
+								marginAdjustments: incoming.marginAdjustments ?? current.marginAdjustments,
+								decorations: buildDecorations(
+									newState.doc,
+									incoming.spacers,
+									incoming.marginAdjustments ?? current.marginAdjustments,
+								),
 							}
 						}
 
-						// Geometri baru saja tersimpan; spacer-nya menyusul dari
-						// pengukuran berikutnya yang dipicu oleh view.update.
-						if (!incoming.spacers) {
-							return { ...current, geometry: incoming.geometry ?? current.geometry }
+						// Dekorasi lama dipetakan ke dokumen baru supaya tidak berkedip
+						// selama menunggu pengukuran berikutnya.
+						if (tr.docChanged) {
+							return { ...current, decorations: current.decorations.map(tr.mapping, tr.doc) }
 						}
-
-						return {
-							geometry: incoming.geometry ?? current.geometry,
-							pageless: current.pageless,
-							spacers: incoming.spacers,
-							pageCount: incoming.pageCount ?? current.pageCount,
-							decorations: buildDecorations(newState.doc, incoming.spacers),
-						}
-					}
-
-					// Dekorasi lama dipetakan ke dokumen baru supaya tidak berkedip
-					// selama menunggu pengukuran berikutnya.
-					if (tr.docChanged) {
-						return { ...current, decorations: current.decorations.map(tr.mapping, tr.doc) }
-					}
-					return current
+						return current
+					},
 				},
-			},
 
 				props: {
 					decorations: (state) => paginationKey.getState(state)?.decorations,
@@ -579,12 +798,43 @@ export const Pagination = Extension.create<PaginationOptions>({
 						}
 
 						const blocks = measureBlocks(view)
-						const { spacers, pageCount } = computeSpacers(blocks, state.geometry)
+						// Section dari pembatas yang ada di dokumen; tanpa `setup`
+						// dasar tidak ada cara mewarisi setelannya, jadi dimatikan.
+						const spans = state.setup ? sectionSpans(view.state.doc, state.setup) : []
+						const sections = spans
+							.slice(1)
+							.map((span) => ({ pos: span.pos, geometry: pageGeometry(span.setup) }))
+						const { spacers, pageCount, sheets } = computeSpacers(blocks, state.geometry, sections)
+
+						// Margin horizontal per blok, dari lebar dan margin section-nya.
+						const adjustments = state.setup
+							? marginAdjustments(
+									// Hanya blok tingkat atas: satuan baris tabel bukan
+									// blok dan margin pada <tr> tidak berarti apa-apa.
+									blocks.filter((block) => block.kind === 'block').map((block) => block.pos),
+									spans.map((span) => ({
+										pos: span.pos,
+										width: pageGeometry(span.setup).width,
+										margins: span.setup.margins,
+									})),
+									Math.max(...sheets.map((sheet) => sheet.width)),
+									state.geometry.margins,
+								)
+							: []
 
 						// Koordinat alami stabil, jadi perhitungan kedua atas dokumen yang
 						// sama menghasilkan spacer identik - di sinilah loop berhenti.
-						if (!sameSpacers(spacers, state.spacers) || pageCount !== state.pageCount) {
-							const transaction = view.state.tr.setMeta(paginationKey, { spacers, pageCount })
+						if (
+							!sameSpacers(spacers, state.spacers) ||
+							pageCount !== state.pageCount ||
+							!sameAdjustments(adjustments, state.marginAdjustments)
+						) {
+							const transaction = view.state.tr.setMeta(paginationKey, {
+								spacers,
+								pageCount,
+								sheets,
+								marginAdjustments: adjustments,
+							})
 							transaction.setMeta('addToHistory', false)
 							view.dispatch(transaction)
 						}
@@ -592,6 +842,10 @@ export const Pagination = Extension.create<PaginationOptions>({
 						if (pageCount !== reportedPageCount) {
 							reportedPageCount = pageCount
 							onPageCountChange?.(pageCount)
+						}
+
+						if (!sameSheets(sheets, state.sheets)) {
+							onSheetsChange?.(sheets)
 						}
 					}
 

@@ -462,6 +462,32 @@ a {
   background: var(--foreground-subtle);
   clip-path: polygon(0 0, 100% 0, 100% 60%, 50% 100%, 0 60%);
 }
+/* Sisi celah kolom (§P5): batang pendek, sepasang mengapit tiap pita celah. */
+.document-ruler__object--columns-gap::before {
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 1.5px;
+  background: var(--foreground-subtle);
+}
+
+/* Pita celah antar kolom: diseret untuk memindahkan celah, klik-ganda meratakan. */
+.document-ruler__gap-band {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: var(--overlay-hover);
+  cursor: col-resize;
+  touch-action: none;
+  transition: background-color 0.15s ease;
+}
+.document-ruler__gap-band:hover,
+.document-ruler__gap-band:focus-visible {
+  background: var(--overlay-active);
+}
 
 /* Titik perataan gambar - diklik, jadi kursornya penunjuk, bukan col-resize. */
 .document-ruler__align {
@@ -1027,6 +1053,13 @@ a {
   user-select: none;
   pointer-events: none;
 }
+/* Pengganjal ruang rentang section berkolom (§P8): tak terlihat, tak bisa
+   disunting, hanya menjaga ruang aliran yang ditinggalkan blok-blok rentang
+   yang diposisikan mutlak. */
+.document-body .columns-region-space {
+  user-select: none;
+  pointer-events: none;
+}
 /* Sisa struktur kolom lama - dibiarkan mengalir sebagai blok biasa. */
 .document-body div[data-type='col'] { min-width: 0; }
 
@@ -1167,6 +1200,34 @@ a {
   border-top-color: var(--accent);
 }
 .document-body .page-break.ProseMirror-selectednode::after {
+  color: var(--accent);
+}
+
+/* Pembatas section (§P8&P9): garis ganda - ia memulai lembar baru DAN mengubah
+   tata letaknya, jadi harus terbaca lebih berat dari pemenggalan biasa. */
+.document-body .section-break {
+  position: relative;
+  height: 0;
+  margin: 1.1em 0;
+  border-top: 3px double var(--border-strong);
+  user-select: none;
+}
+.document-body .section-break::after {
+  content: 'Section break';
+  position: absolute;
+  right: 0;
+  top: -0.7em;
+  padding-left: 0.6em;
+  background: var(--surface-raised);
+  font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--foreground-faint);
+}
+.document-body .section-break.ProseMirror-selectednode {
+  border-top-color: var(--accent);
+}
+.document-body .section-break.ProseMirror-selectednode::after {
   color: var(--accent);
 }
 
@@ -1602,6 +1663,16 @@ html.light .range-highlight {
   .document-body .page-break::after {
     display: none;
   }
+  /* Pembatas section juga selalu memulai halaman baru di kertas. */
+  .document-body .section-break {
+    break-after: page;
+    height: 0;
+    margin: 0;
+    border: 0;
+  }
+  .document-body .section-break::after {
+    display: none;
+  }
 
   /* Saat dicetak browser yang memenggal tabel, jadi sisipan layar justru
      mengganggu: baris kosongnya menyisakan lubang dan headernya jadi ganda. */
@@ -1639,7 +1710,15 @@ html.light .range-highlight {
     left: auto !important;
     right: auto !important;
   }
+  /* Petak selebar pembungkus (§P4 lapis 3) ikut melintang penuh di kertas. */
+  .document-body .columns-span {
+    column-span: all;
+  }
   .document-body .columns-sheet-gap {
+    display: none !important;
+  }
+  /* Pengganjal rentang section juga hanya penjaga ruang layar. */
+  .document-body .columns-region-space {
     display: none !important;
   }
 

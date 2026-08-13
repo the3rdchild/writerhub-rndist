@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { pageGeometry } from './page-geometry'
+import { DEFAULT_PAGE_SETUP, pageGeometry } from './page-geometry'
 import { computeSpacers, type Measurement } from './pagination'
 
 /**
@@ -217,7 +217,11 @@ describe('tabel dipenggal per baris', () => {
 
 describe('dokumen kosong', () => {
 	test('tetap satu halaman', () => {
-		expect(computeSpacers([], geometry)).toEqual({ spacers: [], pageCount: 1 })
+		const result = computeSpacers([], geometry)
+		expect(result.spacers).toEqual([])
+		expect(result.pageCount).toBe(1)
+		expect(result.sheets).toHaveLength(1)
+		expect(result.sheets[0]).toMatchObject({ index: 0, top: 0 })
 	})
 })
 
@@ -295,5 +299,97 @@ describe('blok self-paginate (blok TOC)', () => {
 		expect(spacers[0].pos).toBe(2)
 		expectStartsPage(100 + spacers[0].height, 2)
 		expect(pageCount).toBe(2)
+	})
+})
+
+
+describe('paginasi tak seragam (§P8&P9)', () => {
+	const landscape = pageGeometry({ ...DEFAULT_PAGE_SETUP, orientation: 'landscape' })
+
+	/** Susun blok dengan pembatas section di antaranya; pos section = pos node-nya. */
+	function sectioned(items: Array<number | 'section'>): Measurement[] {
+		let top = 0
+		return items.map((item, index) => {
+			const height = item === 'section' ? 0 : item
+			const block: Measurement = {
+				pos: index,
+				top,
+				bottom: top + height,
+				isBreak: false,
+				isSectionBreak: item === 'section' || undefined,
+				kind: 'block',
+			}
+			top += height
+			return block
+		})
+	}
+
+	test('lembar sesudah pembatas section memakai geometrinya sendiri', () => {
+		const blocks = sectioned([600, 'section', 400])
+		const { spacers, pageCount, sheets } = computeSpacers(blocks, geometry, [
+			{ pos: 1, geometry: landscape },
+		])
+
+		expect(pageCount).toBe(2)
+		expect(sheets[0]).toMatchObject({ index: 0, top: 0, width: geometry.width })
+		// Lembar kedua: lanskap, tepat di bawah lembar pertama.
+		expect(sheets[1]).toMatchObject({ index: 1, top: pageStride, width: landscape.width, height: landscape.height })
+		// Blok sesudah pembatas didorong ke puncak area teks lembar lanskap.
+		expect(spacers).toHaveLength(1)
+		expect(spacers[0].pos).toBe(2)
+		expect(spacers[0].height).toBe(pageStride - 600)
+	})
+
+	test('pembatas section memaksa lembar baru walau ruang masih banyak', () => {
+		const blocks = sectioned([200, 'section', 100])
+		const { spacers } = computeSpacers(blocks, geometry, [{ pos: 1, geometry: landscape }])
+
+		// 200 + 100 masih jauh di dalam lembar pertama, tapi blok kedua tetap turun.
+		expect(spacers).toHaveLength(1)
+		expect(spacers[0].height).toBe(pageStride - 200)
+	})
+
+	test('batas lembar di dalam section memakai tinggi area teksnya sendiri', () => {
+		// Section lanskap: area teks 602px, jadi blok 300px kedua sudah meluber.
+		const blocks = sectioned([600, 'section', 500, 300])
+		const { spacers, sheets } = computeSpacers(blocks, geometry, [{ pos: 1, geometry: landscape }])
+
+		expect(sheets).toHaveLength(3)
+		expect(sheets[1]).toMatchObject({ top: pageStride, height: landscape.height })
+		// Lembar ketiga mewarisi lanskap dan mulai tepat di bawah lembar keduanya.
+		expect(sheets[2]).toMatchObject({
+			index: 2,
+			top: pageStride + landscape.height + 32,
+			height: landscape.height,
+		})
+		expect(spacers.map((spacer) => spacer.pos)).toEqual([2, 3])
+		// Blok 500px mendarat di puncak lembar lanskap; blok 300px-nya yang meluber
+		// didorong ke puncak lembar ketiga.
+		expect(600 + spacers[0].height).toBe(pageStride)
+		expect(600 + 500 + spacers[0].height + spacers[1].height).toBe(sheets[2].top)
+	})
+
+	test('section ketiga kembali ke geometri dasar', () => {
+		const blocks = sectioned([600, 'section', 400, 100, 'section', 100])
+		const { sheets } = computeSpacers(blocks, geometry, [
+			{ pos: 1, geometry: landscape },
+			{ pos: 4, geometry },
+		])
+
+		expect(sheets).toHaveLength(3)
+		expect(sheets[2]).toMatchObject({ index: 2, width: geometry.width, top: pageStride + landscape.height + 32 })
+	})
+
+	test('blok raksasa di section sempit memanjangkan daftar lembar dengan geometrinya', () => {
+		// Blok 1500px di section lanskap meluber melewati lembar lanskap keduanya;
+		// lembar yang dilaluinya tetap lanskap (luberan bukan pembatas section),
+		// dan blok sesudahnya memulai lembar baru yang juga lanskap.
+		const blocks = sectioned([100, 'section', 1500, 50])
+		const { sheets } = computeSpacers(blocks, geometry, [{ pos: 1, geometry: landscape }])
+
+		expect(sheets).toHaveLength(4)
+		expect(sheets[1]).toMatchObject({ height: landscape.height, top: pageStride })
+		expect(sheets[2]).toMatchObject({ height: landscape.height, top: pageStride + landscape.height + 32 })
+		expect(sheets[3]).toMatchObject({ height: landscape.height, top: pageStride + 2 * (landscape.height + 32) })
 	})
 })

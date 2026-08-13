@@ -30,7 +30,8 @@ import { BlockIndentExtension } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
 import { MathBlock, MathInline } from '@/features/editor/math'
 import { PageBreak } from '@/features/editor/page-break'
-import { type PageGeometry, pageGeometry } from '@/features/editor/page-geometry'
+import { SectionBreak } from '@/features/editor/section-break'
+import { type PageGeometry, pageGeometry, type PageSetup, type SheetGeometry } from '@/features/editor/page-geometry'
 import { Pagination } from '@/features/editor/pagination'
 import { TocBlock } from '@/features/editor/toc-block'
 import { TocBlockNodeView } from '@/components/editor/toc-block-view'
@@ -56,12 +57,18 @@ import { shortcutKeys } from '@/features/shortcuts/registry'
  */
 export function buildEditorExtensions({
 	geometry = pageGeometry(),
+	setup,
 	onPageCountChange,
+	onSheetsChange,
 	collaboration,
 	slashCommand,
 }: {
 	geometry?: PageGeometry
+	/** Setelan halaman dasar; mengaktifkan model section (§P8&P9). */
+	setup?: PageSetup
 	onPageCountChange?: (pageCount: number) => void
+	/** Daftar lembar berubah (geometri tak seragam); dibaca kanvas. */
+	onSheetsChange?: (sheets: SheetGeometry[]) => void
 	/**
 	 * Ikatan ke Y.Doc. Diisi editor sungguhan; dibiarkan kosong oleh editor
 	 * sementara yang hanya perlu skemanya.
@@ -145,6 +152,7 @@ export function buildEditorExtensions({
 		BlockSpacing,
 		TextWeight,
 		PageBreak,
+		SectionBreak,
 		TableHeaderRepeat,
 		CommentMark,
 		MathInline,
@@ -154,7 +162,7 @@ export function buildEditorExtensions({
 		SearchAndReplace,
 		TrailingParagraph,
 		TocBlock.extend({ addNodeView: () => TocBlockNodeView }),
-		Pagination.configure({ geometry, onPageCountChange }),
+		Pagination.configure({ geometry, setup, onPageCountChange, onSheetsChange }),
 		// Menu slash hanya untuk editor sungguhan.
 		...(slashCommand
 			? [SlashCommand.configure({ onOpen: slashCommand.onOpen, onUpdate: slashCommand.onUpdate, onClose: slashCommand.onClose })]
