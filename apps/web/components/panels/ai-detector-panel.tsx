@@ -15,6 +15,7 @@ import { useRangeHighlight } from '@/features/document/use-range-highlight'
 import {
 	AcceptAllButton,
 	AcceptDismissRow,
+	ClearResultsButton,
 	PanelEmptyState,
 	PanelError,
 	PanelFooter,
@@ -36,11 +37,11 @@ interface SentenceState extends Sentence {
 const acceptedScore = (score: number) => Math.max(5, Math.round(score * 0.25))
 
 export function AiDetectorPanel() {
-	const { result, isRunning, error, isStale, canRun, run, cancel } = useAnalysis('ai_detector')
+	const scope = useSelectionScope()
+	const { result, isRunning, error, isStale, canRun, run, cancel, clear } = useAnalysis('ai_detector', scope)
 	const { dispatch } = useDocument()
 	const { editor } = useEditorInstance()
 	const { rangeProps } = useRangeHighlight()
-	const scope = useSelectionScope()
 
 	const [sentences, setSentences] = useState<SentenceState[]>([])
 
@@ -231,6 +232,8 @@ export function AiDetectorPanel() {
 				)}
 
 				<RunScopeBar wordCount={scope?.wordCount ?? null} />
+
+				{!isRunning && result && <ClearResultsButton onClick={clear} />}
 
 				<RunButton
 					onClick={() => run(scope ?? undefined)}

@@ -15,6 +15,7 @@ import {
 	PanelFooter,
 	PanelLoading,
 	PanelScroll,
+	ClearResultsButton,
 	RunButton,
 } from './panel-parts'
 
@@ -31,7 +32,7 @@ import {
  * cara tahu.
  */
 export function GlossaryPanel() {
-	const { result, isRunning, error, canRun, run, cancel } = useAnalysis('glossary')
+	const { result, isRunning, error, canRun, run, cancel, clear } = useAnalysis('glossary')
 	const { editor } = useEditorInstance()
 
 	const entries = (result as GlossaryResult | undefined)?.entries ?? []
@@ -127,6 +128,8 @@ export function GlossaryPanel() {
 						Sisipkan tabel Glosarium
 					</button>
 				)}
+
+				{!isRunning && result && <ClearResultsButton onClick={clear} />}
 
 				<RunButton
 					onClick={() => run()}

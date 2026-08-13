@@ -11,7 +11,7 @@ import type { SuggestionFilter } from '@/features/document/document-reducer'
 import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
 import { cn } from '@/lib/utils'
 import { ModelSelector } from './model-selector'
-import { AcceptAllButton, PanelError, PanelFooter, RunButton } from './panel-parts'
+import { AcceptAllButton, PanelError, PanelFooter, RunButton, StaleNotice } from './panel-parts'
 import { RunScopeBar } from './run-scope-bar'
 import { SuggestionCard } from './suggestion-card'
 
@@ -75,6 +75,10 @@ export function ProofreaderPanel() {
 			!suggestion.dismissed && (state.filter === 'all' || suggestion.category === state.filter),
 	)
 	const hasResults = state.suggestions.length > 0 || state.scores !== null
+
+	// Hasil basi: naskah berubah sejak pemeriksaan terakhir. Accept All pada
+	// keadaan ini bisa menimpa massal dengan offset yang sudah tidak pas (§P12 butir 4).
+	const isStale = state.checkedText !== null && state.checkedText !== state.text
 
 	const average = state.scores
 		? Math.round(
@@ -157,8 +161,10 @@ export function ProofreaderPanel() {
 				{error && <PanelError message={error.message} />}
 
 				{visible.length > 0 && (
-					<AcceptAllButton onClick={acceptAll} />
+					<AcceptAllButton onClick={acceptAll} disabled={isStale} />
 				)}
+
+				{isStale && hasResults && <StaleNotice />}
 
 				{hasResults && (
 					<div className="flex gap-2">

@@ -68,3 +68,39 @@ describe('documentReducer: acceptSuggestion (§P3.2, B-3)', () => {
 		expect(remaining?.offset).toBe(17 + 3)
 	})
 })
+
+describe('documentReducer: checkedText / isStale (§P12 butir 4, B-11)', () => {
+	test('applyCheckResult mencatat baseline teks saat pemeriksaan', () => {
+		const before = stateWith({ text: 'naskah asli', checkedText: null })
+		const after = documentReducer(before, {
+			type: 'applyCheckResult',
+			suggestions: [],
+			scores: null,
+		})
+		expect(after.checkedText).toBe('naskah asli')
+	})
+
+	test('naskah yang berubah sejak pemeriksaan membuat isStale (checkedText !== text)', () => {
+		const checked = documentReducer(
+			stateWith({ text: 'naskah asli', checkedText: null }),
+			{ type: 'applyCheckResult', suggestions: [], scores: null },
+		)
+		expect(checked.checkedText).toBe('naskah asli')
+
+		// Pemakai mengetik satu huruf - teks berubah, baseline tidak.
+		const edited = documentReducer(checked, { type: 'editText', text: 'naskah aslix' })
+		expect(edited.checkedText).toBe('naskah asli')
+		expect(edited.text).toBe('naskah aslix')
+		// isStale = checkedText !== null && checkedText !== text
+		expect(edited.checkedText !== null && edited.checkedText !== edited.text).toBe(true)
+	})
+
+	test('clearResults membuang baseline sehingga tidak lagi dianggap basi', () => {
+		const checked = documentReducer(
+			stateWith({ text: 'naskah', checkedText: null }),
+			{ type: 'applyCheckResult', suggestions: [], scores: null },
+		)
+		const cleared = documentReducer(checked, { type: 'clearResults' })
+		expect(cleared.checkedText).toBeNull()
+	})
+})

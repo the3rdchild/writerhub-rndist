@@ -20,6 +20,7 @@ import {
 	AppliedCard,
 	CandidateCard,
 	ChangeCard,
+	ClearResultsButton,
 	PanelEmptyState,
 	PanelError,
 	PanelFooter,
@@ -77,13 +78,13 @@ export function ChangeListPanel({
 	runningLabel,
 	noChangesLabel,
 }: ChangeListPanelProps) {
-	const { result, isRunning, error, isStale, canRun, run, cancel } = useAnalysis(feature)
+	const scope = useSelectionScope()
+	const { result, isRunning, error, isStale, canRun, run, cancel, clear } = useAnalysis(feature, scope)
 	const changes = (result as { changes?: TextChange[] } | undefined)?.changes
 	const llmUnavailable = (result as { llm_unavailable?: boolean } | undefined)?.llm_unavailable
 	const { pending, applied, accept, dismiss, acceptAll, revert, canRevert } =
 		usePendingChanges(changes)
 	const { rangeProps } = useRangeHighlight()
-	const scope = useSelectionScope()
 	const { preview, showPreview, clearPreview } = useCandidatePreview()
 	const { ensureSnapshot, reset: resetSnapshot } = usePreTranslateSnapshot()
 
@@ -270,6 +271,8 @@ export function ChangeListPanel({
 				)}
 
 				<RunScopeBar wordCount={scope?.wordCount ?? null} />
+
+				{!isRunning && result && <ClearResultsButton onClick={clear} />}
 
 				<RunButton
 					onClick={() => run(scope ?? undefined, runOptions)}

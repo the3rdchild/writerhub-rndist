@@ -38,6 +38,8 @@ export interface AnalysisController<F extends AnalysisFeature> {
 	) => void
 	/** Batalkan analisis yang sedang berjalan (§P7 lapis A): UI bebas seketika. */
 	cancel: () => void
+	/** Buang hasil yang ditampilkan (§P12 butir 2). */
+	clear: () => void
 }
 
 /**
@@ -48,7 +50,13 @@ export interface AnalysisController<F extends AnalysisFeature> {
  * `markOthersStale()` secara manual di setiap handler accept, dan itu gampang
  * terlewat. Menjalankan ulang pada teks yang sama juga langsung memakai cache.
  */
-export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisController<F> {
+export function useAnalysis<F extends AnalysisFeature>(
+	feature: F,
+	/** Seleksi aktif; kalau ada, canRun menghitung panjangnya, bukan seluruh
+	 *  naskah - seleksi 3 kata pada dokumen panjang tidak boleh menghabiskan kuota
+	 *  untuk hasil yang pasti kosong (§P12 butir 3). */
+	scope?: { text: string } | null,
+): AnalysisController<F> {
 	const { state } = useDocument()
 	const { lastRun, markRun } = usePanels()
 	const language = useDocumentLanguage()
@@ -144,6 +152,13 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 		void queryClient.cancelQueries({ queryKey: ['analysis', feature], exact: false })
 	}, [queryClient, feature])
 
+	/** Buang hasil analisis yang ditampilkan tanpa menerimanya (§P12 butir 2) -
+	 *  kembaran 'Clear results' milik Proofreader. Hasil dan sorotannya hilang
+	 *  sekaligus; bisa diulang dengan Run. */
+	const clear = useCallback(() => {
+		void queryClient.removeQueries({ queryKey: ['analysis', feature], exact: false })
+	}, [queryClient, feature])
+
 	return {
 		result: query.data,
 		isRunning: query.isFetching,
@@ -152,9 +167,12 @@ export function useAnalysis<F extends AnalysisFeature>(feature: F): AnalysisCont
 		// disunting - yang diperiksa memang bukan seluruh naskah.
 		isStale:
 			query.data !== undefined && !requested?.scoped && requested?.text !== currentText,
-		canRun: !query.isFetching && currentText.trim().length >= MIN_TEXT_LENGTH,
+		canRun:
+			!query.isFetching &&
+			(scope ? scope.text : currentText).trim().length >= MIN_TEXT_LENGTH,
 		isScoped: requested?.scoped ?? false,
 		run,
 		cancel,
+		clear,
 	}
 }

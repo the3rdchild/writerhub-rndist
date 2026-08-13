@@ -3,6 +3,7 @@
 import {
 	AlertTriangle,
 	CheckCircle2,
+	Eraser,
 	FileText,
 	Loader2,
 	type LucideIcon,
@@ -168,6 +169,24 @@ export function AcceptAllButton({ onClick, disabled }: { onClick: () => void; di
 		>
 			<CheckCircle2 className="h-3.5 w-3.5" />
 			Accept All
+		</button>
+	)
+}
+
+/**
+ * Buang hasil tanpa menerapkan (§P12 butir 2). Kembaran "Clear results" milik
+ * Proofreader, dipakai panel berbasis hasil analisis yang meninggalkan sorotan.
+ * Gaya sekunder (garis batas) supaya tidak bersaing dengan Run.
+ */
+export function ClearResultsButton({ onClick }: { onClick: () => void }) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			className="flex w-full items-center justify-center gap-1.5 rounded-full border border-line-strong py-2 text-sm font-medium text-muted transition-colors hover:bg-surface-raised hover:text-foreground"
+		>
+			<Eraser className="h-3.5 w-3.5" />
+			Clear results
 		</button>
 	)
 }

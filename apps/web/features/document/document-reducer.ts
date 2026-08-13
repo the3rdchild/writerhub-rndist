@@ -20,6 +20,9 @@ export interface DocumentState {
 	focusedRange: TextRange | null
 	/** Rentang yang sedang di-hover di panel - digambar sebagai overlay. */
 	hoveredRange: TextRange | null
+	/** Teks saat hasil pemeriksaan terakhir dibuat; null berarti belum diperiksa.
+	 *  Dipakai mengetahui apakah suggestion sudah basi (naskah berubah sejak itu). */
+	checkedText: string | null
 }
 
 export type DocumentAction =
@@ -57,6 +60,7 @@ export const initialDocumentState: DocumentState = {
 	filter: 'all',
 	focusedRange: null,
 	hoveredRange: null,
+	checkedText: null,
 }
 
 /** Reset hasil pemeriksaan - dipakai setiap kali sumber teks berganti total. */
@@ -66,6 +70,7 @@ const withClearedResults = (state: DocumentState) => ({
 	scores: null,
 	focusedRange: null,
 	hoveredRange: null,
+	checkedText: null,
 })
 
 export function documentReducer(state: DocumentState, action: DocumentAction): DocumentState {
@@ -99,7 +104,13 @@ export function documentReducer(state: DocumentState, action: DocumentAction): D
 			return { ...state, hoveredRange: action.range }
 
 		case 'setSuggestions':
-			return { ...state, suggestions: reconcileSuggestions(state.text, action.suggestions) }
+			return {
+				...state,
+				suggestions: reconcileSuggestions(state.text, action.suggestions),
+				// Catat baseline saat hasil pertama kali datang; selama streaming teks
+				// tidak berubah, jadi tidak perlu ditimpa tiap checkpoint.
+				checkedText: state.checkedText ?? state.text,
+			}
 
 		case 'acceptSuggestion': {
 			const target = state.suggestions.find((s) => s.id === action.id)
@@ -160,6 +171,7 @@ export function documentReducer(state: DocumentState, action: DocumentAction): D
 				file: action.extractedText ? null : state.file,
 				suggestions: reconcileSuggestions(baseText, action.suggestions),
 				scores: action.scores,
+				checkedText: baseText,
 			}
 		}
 
