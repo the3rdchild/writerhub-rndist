@@ -1,6 +1,6 @@
 # WritingHub — PRD: Ekspor & Kolom (sisa yang belum beres)
 
-Status: **Draft untuk ditinjau** · Disusun 14 Agustus 2026 · Baseline kode `0c4dab7` (branch `main`).
+Status: **Keputusan lengkap - siap dikerjakan** · Disusun 14 Agustus 2026 · Baseline kode `0c4dab7` (branch `main`).
 
 Lanjutan langsung dari `docs/COLUMNS-PROOFREADER-TOOLS-PRD.md` (P1–P12) dan
 `docs/WORKPLAN-P1-P12-DUA-JALUR.md` §9 (C-1…C-3). Dokumen ini hanya memuat yang **masih rusak
@@ -19,7 +19,7 @@ Penomoran **E1–E5** baru dan tidak bertabrakan dengan P1–P12, A–O, maupun 
 | **E2** | Page break di blok kolom menyisakan halaman kosong | **Bug** | Penyebab terverifikasi (regresi dari `4b4dd20`) | Kecil |
 | **E3** | Tabel di kolom sempit | Verifikasi | Keputusan: **dibiarkan sempit** (§2.1); sisanya tinggal memastikan tidak meluber | Kecil |
 | **E4** | Impor DOCX belum membaca `sectPr` | Fitur | Belum ada; ekspornya sudah benar, jadi hanya arah masuk yang pincang | Sedang |
-| **E5** | Pensiunkan blok kolom pembungkus, ganti section berkolom | Fitur | Diputuskan §2.2; **butuh pembatas section "menerus" yang belum ada** | Besar |
+| **E5** | Pensiunkan blok kolom pembungkus, ganti section berkolom | Fitur | Diputuskan §2.2 & §2.5; **butuh pembatas section "menerus" yang belum ada** | Besar |
 
 **E1, E2, dan E3 saling lepas** - bisa dikerjakan paralel tanpa menyentuh berkas yang sama.
 **E5 wajib menunggu E2**: keduanya menyunting aritmetika penempatan di `columns.ts`.
@@ -64,6 +64,15 @@ Penomoran **E1–E5** baru dan tidak bertabrakan dengan P1–P12, A–O, maupun 
 4. **Aturan cetak berhenti menyebut chrome satu per satu.** Daftar "apa saja yang harus
    disembunyikan" akan selalu ketinggalan setiap kali ada komponen baru - itulah yang terjadi
    pada E1. Yang dinyatakan justru sebaliknya: apa yang **boleh** dicetak.
+
+5. **Blok kolom lama dimigrasi saat naskah dibuka, bukan diperingatkan saat diekspor.**
+   Menimpa usulan awal §7: begitu pembatas menerus ada (E5 langkah 1), dokumen yang masih
+   memuat node `columns` diubah menjadi sepasang pembatas menerus pada saat dimuat - satu
+   kali, idempoten, tidak masuk riwayat undo. Alasannya: peringatan ekspor membiarkan bentuk
+   yang tidak bisa diekspor hidup selamanya di naskah-naskah lama, sedangkan migrasi saat
+   dibuka menyelesaikannya persis di naskah yang benar-benar dipakai, tanpa menyentuh yang
+   tidak pernah dibuka. Harganya nyata - migrasi menyunting dokumen orang tanpa diminta -
+   jadi ia wajib tampil identik (E5 langkah 4).
 
 ---
 
@@ -159,6 +168,12 @@ Sesuai §2.4, dinyatakan positif:
 4. **Aturan lama dihapus, bukan ditumpuk.** `header, nav, aside, .document-canvas ~ *` dibuang.
    Membiarkannya berdampingan dengan aturan baru berarti dua sumber kebenaran, dan yang salah
    akan tetap terlihat benar selama yang benar kebetulan menang.
+
+5. **Dialog Ekspor PDF menyatakan langkah header/footer lebih terang** (keputusan: petunjuk
+   kecil tidak cukup). Pengingat "matikan *Headers and footers* di *More settings*" naik dari
+   catatan kaki menjadi blok yang tidak mungkin terlewat - tebal, dengan langkah per peramban,
+   tepat di atas tombol cetak, dan terlihat selama dialog terbuka. Tombol tidak dikunci:
+   pemakai yang sengaja membiarkan kepala/kaki halaman tidak boleh dihalangi.
 
 ### Uji
 
@@ -303,6 +318,11 @@ Dua hal yang mudah keliru:
 2. **Ukuran kertas harus dicocokkan balik ke `PAGE_SIZES`**, bukan disimpan sebagai custom
    mentah-mentah - kalau tidak, dokumen A4 hasil impor akan tampil sebagai "Ukuran khusus"
    dengan angka yang kebetulan sama.
+3. **`w:type` selain `continuous` dibaca sebagai pembatas halaman biasa** (keputusan: degradasi
+   aman, bukan penolakan). `nextPage` memang setara pembatas halaman; `evenPage`/`oddPage`
+   kehilangan makna paritasnya, tapi isi, ukuran kertas, dan kolom section itu tetap terbaca.
+   Impor boleh mencatat satu peringatan per dokumen; yang tidak boleh adalah menolak naskah
+   yang sebenarnya masih bisa diselamatkan.
 
 ### Kriteria terima
 - Ekspor → impor sebuah dokumen tiga section menghasilkan tiga section yang sama.
@@ -358,17 +378,35 @@ seperti `LegacyColumn` yang sudah ada di `columns.ts:184`. Tata letak layarnya d
 adanya. `unsetColumns` tetap bekerja untuk naskah lama, dan untuk section berkolom ia berarti
 menghapus sepasang pembatasnya.
 
-**Migrasi naskah lama:** tidak otomatis. Mengubah dokumen orang saat dibuka adalah harga yang
-terlalu mahal untuk keuntungan yang hanya terasa saat ekspor. Sebagai gantinya, blok `columns`
-lama diekspor dengan peringatan yang jelas (lihat kriteria terima).
+**Langkah 4: migrasi naskah lama saat dibuka** (keputusan §2.5, menimpa usulan awal).
+
+Tiap node `columns` diganti sepasang pembatas menerus - `columns: { count: n }` sebelum isinya,
+`columns: <yang tadi berlaku>` sesudahnya, persis pola langkah 2 - dan isinya diangkat keluar.
+Titik masuknya **bukan** `setContent`: isi naskah datang dari fragmen Yjs (`collaboration:
+{ document: doc, field }` di `tiptap-editor.tsx`), jadi migrasi dijalankan sebagai satu
+transaksi editor tepat setelah fragmen dokumen pertama kali terikat. Syaratnya tiga:
+
+- **Idempoten dan senyap bila bersih** - tanpa node `columns`, tidak ada transaksi sama
+  sekali. Dokumen yang sudah benar tidak boleh ikut tercatat "berubah": riwayat versi dan
+  sinkronisasi membaca tiap transaksi sebagai suntingan.
+- **Tidak masuk riwayat undo** - transaksinya diberi origin/meta yang tidak dilacak undo
+  manager Yjs. Pemakai tidak boleh bisa meng-undo migrasi dan kembali ke bentuk yang tidak
+  bisa diekspor.
+- **Tampil identik** - tata letak hasil migrasi harus sama pikselnya dengan blok `columns`
+  yang digantikannya; bedanya baru terasa saat diekspor.
+
+Node `columns` tetap ada di skema - naskah yang belum pernah dibuka tetap terbaca, dan editor
+pratinjau (riwayat versi, tautan berbagi) ikut membacanya apa adanya tanpa dimigrasi.
 
 ### Kriteria terima
 - Mengolomkan dua paragraf di tengah halaman **tidak** memindahkannya ke halaman berikutnya.
 - Hasilnya diekspor ke DOCX sebagai section dengan `w:cols` dan `w:type val="continuous"`, dan
   terbaca benar di Google Docs.
-- Naskah lama berisi node `columns` tetap tampil persis seperti sebelumnya.
-- Ekspor naskah lama memberi tahu pemakai bahwa blok kolomnya diratakan - sekali, di dialog
-  ekspor, bukan sebagai kejutan di berkas hasil.
+- Naskah lama berisi node `columns`: begitu dibuka, node-nya termigrasi ke sepasang pembatas
+  menerus, tampilannya sama persis, dan migrasinya tidak bisa di-undo.
+- Naskah hasil migrasi diekspor sebagai section berkolom `continuous` - tanpa peringatan apa
+  pun, karena tidak ada lagi yang diratakan.
+- Membuka naskah yang sama dua kali tidak menambah apa-apa: migrasi kedua bukan transaksi.
 - Pembatas menerus yang membawa `pageSetup` terbaca sebagai pembatas halaman, dan UI-nya
   mengatakan itu.
 
@@ -393,13 +431,13 @@ Chrome (E1) dan tampilan berkas DOCX di Google Docs (E4, E5).
 
 ---
 
-## 9. Pertanyaan terbuka
+## 9. Pertanyaan terbuka - sudah dijawab (14 Agustus)
 
-1. **E5 - blok `columns` lama: benar tidak dimigrasi otomatis?** Alternatifnya mengubahnya saat
-   dokumen dibuka, yang membuat ekspor langsung benar tapi menyunting naskah orang tanpa diminta.
-   Usulan di §7 adalah membiarkannya dan memberi peringatan saat ekspor.
-2. **E1 - kepala/kaki halaman bawaan peramban (URL & tanggal)** tidak bisa dimatikan dari CSS;
-   satu-satunya jalan adalah meminta pemakai mematikannya di dialog cetak. Dialog Ekspor PDF
-   sudah menyebutkan langkahnya - cukup, atau perlu lebih terang?
-3. **E4 - dokumen Word dengan section yang tidak kita dukung** (mis. `w:type val="evenPage"`):
-   dibaca sebagai pembatas halaman biasa, atau ditolak dengan peringatan impor?
+1. **E5 - blok `columns` lama dimigrasi otomatis?** **Ya, saat dokumen dibuka** - menimpa
+   usulan awal (peringatan saat ekspor). Tercatat sebagai §2.5 dan langkah 4 E5.
+2. **E1 - petunjuk header/footer di dialog ekspor: cukup?** **Tidak, perlu lebih terang** -
+   menjadi butir 5 rancangan E1. Kepala/kaki halaman bawaan peramban tetap tidak bisa dimatikan
+   dari CSS; satu-satunya jalan adalah pemakai mematikannya, jadi pengingatnya yang diperkuat.
+3. **E4 - `sectPr` dengan tipe yang tidak didukung (`evenPage`/`oddPage`)?** Dibaca sebagai
+   **pembatas halaman biasa** - degradasi aman; impor boleh memperingatkan, tidak menolak.
+   Tercatat sebagai catatan 3 di §6.
