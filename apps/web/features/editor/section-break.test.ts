@@ -100,3 +100,49 @@ describe('columnRegions (§P8)', () => {
 		expect(regions[0].to).toBe(doc.content.size)
 	})
 })
+describe('pembatas penutup mengembalikan setelan sebelumnya (§P8&P9)', () => {
+	/**
+	 * "Halaman ini saja" bekerja dengan mengurung rentang di antara dua pembatas.
+	 * Yang diuji di sini bukan perintahnya - itu butuh editor - melainkan sifat
+	 * yang membuatnya benar: pembatas penutup yang membawa setelan sebelumnya
+	 * SELENGKAPNYA mengembalikan section berikutnya ke keadaan semula, apa pun
+	 * yang diubah di tengah.
+	 */
+	test('section sesudah rentang kembali persis ke setelan dasar', () => {
+		const doc = docWith(
+			{ pageSetup: { orientation: 'landscape', size: 'a3' } },
+			// Penutup membawa setelan dasar selengkapnya, bukan selisihnya.
+			{ pageSetup: { ...DEFAULT_PAGE_SETUP } },
+		)
+		const spans = sectionSpans(doc, DEFAULT_PAGE_SETUP)
+
+		expect(spans).toHaveLength(3)
+		expect(spans[1].setup).toMatchObject({ orientation: 'landscape', size: 'a3' })
+		expect(spans[2].setup).toEqual(DEFAULT_PAGE_SETUP)
+	})
+
+	test('selisih saja tidak cukup - inilah alasan penutup membawa semuanya', () => {
+		// Penutup yang hanya membatalkan orientasi meninggalkan ukuran A3 menetap,
+		// karena section mewarisi section sebelumnya, bukan setelan dasar.
+		const doc = docWith(
+			{ pageSetup: { orientation: 'landscape', size: 'a3' } },
+			{ pageSetup: { orientation: 'portrait' } },
+		)
+		const spans = sectionSpans(doc, DEFAULT_PAGE_SETUP)
+
+		expect(spans[2].setup.orientation).toBe('portrait')
+		expect(spans[2].setup.size).toBe('a3')
+	})
+
+	test('margin ikut dipulihkan, bukan bergabung separuh', () => {
+		const narrow = { ...DEFAULT_PAGE_SETUP.margins, left: INCH / 2 }
+		const doc = docWith(
+			{ pageSetup: { margins: narrow } },
+			{ pageSetup: { ...DEFAULT_PAGE_SETUP } },
+		)
+		const spans = sectionSpans(doc, DEFAULT_PAGE_SETUP)
+
+		expect(spans[1].setup.margins.left).toBe(INCH / 2)
+		expect(spans[2].setup.margins).toEqual(DEFAULT_PAGE_SETUP.margins)
+	})
+})

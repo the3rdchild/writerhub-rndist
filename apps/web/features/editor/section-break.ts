@@ -35,6 +35,11 @@ declare module '@tiptap/core' {
 	interface Commands<ReturnType> {
 		sectionBreak: {
 			setSectionBreak: (attrs?: Partial<SectionBreakAttrs>) => ReturnType
+			applySectionSetup: (
+				patch: Partial<PageSetup>,
+				range: { from: number; to?: number },
+				baseSetup?: PageSetup,
+			) => ReturnType
 		}
 	}
 }
@@ -104,6 +109,46 @@ export const SectionBreak = Node.create({
 					// Node atom di ujung dokumen tidak menyisakan tempat untuk kursor.
 					const content = atEnd ? [node, { type: 'paragraph' }] : [node]
 					return chain().insertContent(content).run()
+				},
+
+			/**
+			 * Terapkan setelan halaman pada satu rentang naskah (§P8&P9).
+			 *
+			 * Dengan `to`: rentangnya dikurung dua pembatas - satu membuka section
+			 * baru, satu MENUTUPNYA dengan mengembalikan setelan yang tadi berlaku.
+			 * Tanpa pembatas penutup, "halaman ini saja" akan bocor sampai ujung
+			 * naskah, dan itu justru cakupan yang berbeda.
+			 *
+			 * Tanpa `to`: satu pembatas saja - "dari sini dan seterusnya".
+			 *
+			 * Pembatas penutup membawa setelan sebelumnya SELENGKAPNYA, bukan
+			 * selisihnya: selisih hanya benar selama section di antaranya tidak
+			 * ikut berubah, dan yang membacanya nanti tidak punya cara tahu itu.
+			 */
+			applySectionSetup:
+				(patch, range, baseSetup = DEFAULT_PAGE_SETUP) =>
+				({ tr, dispatch, state }) => {
+					const type = state.schema.nodes[SECTION_BREAK_NODE]
+					if (!type) return false
+
+					const spans = sectionSpans(state.doc, baseSetup)
+					// Setelan yang berlaku tepat sebelum rentang ini - itulah yang harus
+					// dipulihkan sesudahnya.
+					const before = spans.filter((span) => span.pos <= range.from).pop() ?? spans[0]
+
+					if (!dispatch) return true
+
+					// Sisipkan dari posisi TERBESAR lebih dulu: menyisipkan di `from`
+					// menggeser `to`, sebaliknya tidak.
+					if (range.to !== undefined && range.to < state.doc.content.size) {
+						tr.insert(
+							range.to,
+							type.create({ pageSetup: before.setup, columns: before.columns ?? null }),
+						)
+					}
+					tr.insert(range.from, type.create({ pageSetup: patch, columns: before.columns ?? null }))
+
+					return true
 				},
 		}
 	},

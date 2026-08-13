@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { DEFAULT_PAGE_SETUP, pageGeometry } from './page-geometry'
-import { computeSpacers, type Measurement } from './pagination'
+import { computeSpacers, pageBlockRange, pageOfPos, type Measurement } from './pagination'
 
 /**
  * Aritmetika paginasi diuji tanpa DOM: `computeSpacers` menerima posisi blok
@@ -391,5 +391,52 @@ describe('paginasi tak seragam (§P8&P9)', () => {
 		expect(sheets[1]).toMatchObject({ height: landscape.height, top: pageStride })
 		expect(sheets[2]).toMatchObject({ height: landscape.height, top: pageStride + landscape.height + 32 })
 		expect(sheets[3]).toMatchObject({ height: landscape.height, top: pageStride + 2 * (landscape.height + 32) })
+	})
+})
+describe('peta blok→halaman (§P8&P9, cakupan "halaman ini")', () => {
+	test('tiap blok dicatat pada lembar tempat ia mulai', () => {
+		// Tiga blok 400px pada area teks 931px: dua muat di lembar pertama.
+		const { blockPages } = computeSpacers(layout([400, 400, 400]), geometry)
+
+		expect(blockPages).toEqual([
+			{ pos: 0, page: 0 },
+			{ pos: 1, page: 0 },
+			{ pos: 2, page: 1 },
+		])
+	})
+
+	test('blok yang menyeberang batas tetap milik lembar tempat ia bermula', () => {
+		// Blok kedua lebih tinggi dari satu lembar - ia meluber, tapi tidak boleh
+		// tercatat dua kali, kalau tidak "halaman ini" akan memotongnya jadi dua.
+		const { blockPages } = computeSpacers(layout([200, pageStride + 300, 100]), geometry)
+
+		expect(blockPages[1]).toEqual({ pos: 1, page: 1 })
+		expect(blockPages.filter((entry) => entry.pos === 1)).toHaveLength(1)
+	})
+
+	test('baris tabel tidak masuk peta - yang mewakili tabel adalah tabelnya', () => {
+		const { blockPages } = computeSpacers(table([100, 100, 100]), geometry)
+
+		expect(blockPages).toEqual([{ pos: 0, page: 0 }])
+	})
+
+	test('halaman berisi blok pertama sampai sebelum blok pertama halaman berikutnya', () => {
+		const { blockPages } = computeSpacers(layout([400, 400, 400, 400]), geometry)
+
+		expect(pageOfPos(blockPages, 1)).toBe(0)
+		expect(pageOfPos(blockPages, 2)).toBe(1)
+		// Halaman 0 berhenti tepat di awal blok pertama halaman 1.
+		expect(pageBlockRange(blockPages, 0, 999)).toEqual({ from: 0, to: 2 })
+		// Halaman terakhir memanjang sampai ujung dokumen.
+		expect(pageBlockRange(blockPages, 1, 999)).toEqual({ from: 2, to: 999 })
+	})
+
+	test('halaman yang tidak ada tidak menghasilkan rentang', () => {
+		const { blockPages } = computeSpacers(layout([100]), geometry)
+		expect(pageBlockRange(blockPages, 7, 999)).toBeNull()
+	})
+
+	test('posisi sebelum blok mana pun belum punya halaman', () => {
+		expect(pageOfPos([], 3)).toBeNull()
 	})
 })

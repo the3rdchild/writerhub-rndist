@@ -85,6 +85,8 @@ interface PaginationState {
 	sheets: SheetGeometry[]
 	/** Penyesuaian margin horizontal per blok, dari section-nya (§P8&P9). */
 	marginAdjustments: MarginAdjustment[]
+	/** Blok tingkat atas → lembar tempat ia mulai; dibaca dialog Penyiapan halaman. */
+	blockPages: BlockPage[]
 	/** true = kanvas menerus; pemenggalan halaman dimatikan (§A1.5). */
 	pageless: boolean
 }
@@ -106,6 +108,7 @@ export interface PaginationMeta {
 	pageCount?: number
 	sheets?: SheetGeometry[]
 	marginAdjustments?: MarginAdjustment[]
+	blockPages?: BlockPage[]
 	geometry?: PageGeometry
 	setup?: PageSetup
 	pageless?: boolean
@@ -328,6 +331,52 @@ export interface SectionGeometry {
 }
 
 /**
+ * Lembar tempat sebuah blok tingkat atas MULAI.
+ *
+ * Ini satu-satunya jembatan dari "halaman ke-n" - yang dilihat penulis - ke
+ * posisi dokumen, dan ia hanya bisa datang dari sini: nomor halaman adalah
+ * hasil pemenggalan, bukan sesuatu yang tersimpan di naskah. Dipakai dialog
+ * Penyiapan halaman untuk cakupan "halaman ini saja" (§P8&P9).
+ *
+ * Yang dicatat lembar tempat blok MULAI, bukan lembar yang ia habiskan: blok
+ * yang menyeberang batas (tabel panjang, gambar sehalaman) tetap dianggap milik
+ * halaman tempat ia bermula, sehingga "halaman ini" tidak pernah memotong satu
+ * blok jadi dua section.
+ */
+export interface BlockPage {
+	pos: number
+	page: number
+}
+
+/** Halaman tempat posisi dokumen `pos` berada, atau null bila belum terukur. */
+export function pageOfPos(blockPages: readonly BlockPage[], pos: number): number | null {
+	let page: number | null = null
+	for (const block of blockPages) {
+		if (block.pos > pos) break
+		page = block.page
+	}
+	return page
+}
+
+/**
+ * Rentang posisi dokumen yang ditempati sebuah halaman: dari blok pertamanya
+ * sampai blok pertama halaman berikutnya (eksklusif).
+ *
+ * `to` sengaja berupa awal blok berikutnya, bukan ujung blok terakhir: itulah
+ * titik sisip yang benar untuk pembatas section penutup.
+ */
+export function pageBlockRange(
+	blockPages: readonly BlockPage[],
+	page: number,
+	docSize: number,
+): { from: number; to: number } | null {
+	const first = blockPages.find((block) => block.page === page)
+	if (!first) return null
+	const next = blockPages.find((block) => block.page > page)
+	return { from: first.pos, to: next?.pos ?? docSize }
+}
+
+/**
  * Tentukan di mana halaman dipenggal - murni aritmetika atas hasil pengukuran.
  *
  * Diekspor demi pengujian: masuk daftar blok, keluar daftar spacer, tanpa DOM
@@ -350,8 +399,10 @@ export function computeSpacers(
 	blocks: readonly Measurement[],
 	geometry: PageGeometry,
 	sections: readonly SectionGeometry[] = [],
-): { spacers: Spacer[]; pageCount: number; sheets: SheetGeometry[] } {
+): { spacers: Spacer[]; pageCount: number; sheets: SheetGeometry[]; blockPages: BlockPage[] } {
 	const spacers: Spacer[] = []
+	/** Blok tingkat atas beserta lembar tempat ia mulai (§P8&P9). */
+	const blockPages: BlockPage[] = []
 	/** Total tinggi spacer yang sudah disisipkan sebelum blok berjalan. */
 	let cumulative = 0
 	let pageStart = 0
@@ -383,6 +434,7 @@ export function computeSpacers(
 		if (block.isSectionBreak) {
 			// Blok sesudah pembatas section memulai lembar baru dengan geometri
 			// section-nya; pembatasnya sendiri tinggal di lembar berjalan.
+			blockPages.push({ pos: block.pos, page: sheets.length - 1 })
 			forceNext = true
 			pendingGeometry = sections.find((section) => section.pos === block.pos)?.geometry ?? null
 			continue
@@ -403,6 +455,8 @@ export function computeSpacers(
 				spacers.push({ pos: block.pos, height: spacerHeight, kind: block.kind })
 				cumulative += spacerHeight
 			}
+
+			blockPages.push({ pos: block.pos, page: sheets.length - 1 })
 
 			// bottom blok ini sudah termasuk celah internalnya, jadi renderedBottom
 			// adalah ujung segmen terakhir yang sebenarnya. Lembar yang ia habiskan
@@ -446,6 +500,10 @@ export function computeSpacers(
 			pageStart = block.top - headerHeight
 		}
 
+		// Baris tabel bukan blok tingkat atas: yang mewakili tabel di peta halaman
+		// adalah tabelnya sendiri, yang sudah tercatat lewat satuan `block`-nya.
+		if (block.kind === 'block') blockPages.push({ pos: block.pos, page: sheets.length - 1 })
+
 		forceNext = block.isBreak
 
 		// Blok yang sendirian saja lebih tinggi dari satu halaman tidak bisa
@@ -478,13 +536,20 @@ export function computeSpacers(
 	// oleh perulangan di atas.
 	if (blocks[blocks.length - 1]?.isBreak) pushSheet()
 
-	return { spacers, pageCount: sheets.length, sheets }
+	return { spacers, pageCount: sheets.length, sheets, blockPages }
 
 	/** Puncak area teks lembar berikutnya (bila dibuka sekarang), pada kanvas. */
 	function nextContentTop(): number {
 		const last = sheets[sheets.length - 1]
 		return last.top + last.height + PAGE_GAP + (pendingGeometry ?? last).margins.top
 	}
+}
+
+function sameBlockPages(a: readonly BlockPage[], b: readonly BlockPage[]): boolean {
+	return (
+		a.length === b.length &&
+		a.every((entry, index) => entry.pos === b[index].pos && entry.page === b[index].page)
+	)
 }
 
 function sameSpacers(a: readonly Spacer[], b: readonly Spacer[]): boolean {
@@ -716,6 +781,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 						setup: this.options.setup,
 						sheets: [],
 						marginAdjustments: [],
+						blockPages: [],
 						pageless: this.options.pageless ?? false,
 					}),
 
@@ -753,6 +819,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 								pageCount: incoming.pageCount ?? current.pageCount,
 								sheets: incoming.sheets ?? current.sheets,
 								marginAdjustments: incoming.marginAdjustments ?? current.marginAdjustments,
+								blockPages: incoming.blockPages ?? current.blockPages,
 								decorations: buildDecorations(
 									newState.doc,
 									incoming.spacers,
@@ -804,7 +871,11 @@ export const Pagination = Extension.create<PaginationOptions>({
 						const sections = spans
 							.slice(1)
 							.map((span) => ({ pos: span.pos, geometry: pageGeometry(span.setup) }))
-						const { spacers, pageCount, sheets } = computeSpacers(blocks, state.geometry, sections)
+						const { spacers, pageCount, sheets, blockPages } = computeSpacers(
+						blocks,
+						state.geometry,
+						sections,
+					)
 
 						// Margin horizontal per blok, dari lebar dan margin section-nya.
 						const adjustments = state.setup
@@ -827,13 +898,18 @@ export const Pagination = Extension.create<PaginationOptions>({
 						if (
 							!sameSpacers(spacers, state.spacers) ||
 							pageCount !== state.pageCount ||
-							!sameAdjustments(adjustments, state.marginAdjustments)
+							!sameAdjustments(adjustments, state.marginAdjustments) ||
+							// Menambah paragraf di tengah halaman tidak mengubah spacer mana
+							// pun, tapi menggeser peta blok→halaman - dan dialog "halaman ini"
+							// membaca peta itu, jadi ia tidak boleh basi.
+							!sameBlockPages(blockPages, state.blockPages)
 						) {
 							const transaction = view.state.tr.setMeta(paginationKey, {
 								spacers,
 								pageCount,
 								sheets,
 								marginAdjustments: adjustments,
+								blockPages,
 							})
 							transaction.setMeta('addToHistory', false)
 							view.dispatch(transaction)
