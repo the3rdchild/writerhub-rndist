@@ -132,14 +132,15 @@ Audience: stakeholder/teknis yang ingin melihat bukti jalan dan arsitektur.
 
 | Layer | Stack |
 |-------|-------|
-| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
+| Frontend | Next.js 16.2.4, React 19.2.4, TypeScript 5.9.3, Tailwind CSS 4.1.14 |
 | Editor core | Tiptap 3 / ProseMirror |
-| State & sync | Yjs (CRDT), TanStack Query, React Context |
+| State & sync | Yjs (CRDT), TanStack Query 5.90.2, React Context |
 | Backend | Bun + Hono, PostgreSQL, Drizzle ORM |
 | Queue / jobs | BullMQ + Redis |
 | AI worker | Python (Bun-driven), LLM provider via nine-router |
 | Real-time | Server-Sent Events (SSE) |
 | Monorepo | Bun workspaces |
+| FE–BE communication | Next.js route proxy (`/api/*`) → `API_URL` (server-side only) |
 
 **Notes pembicara:**
 - Pilih Next.js/Tailwind karena tim familiar; Tiptap/ProseMirror karena butuh kontrol dokumen tingkat rendah; Yjs karena kolaborasi real-time butuh CRDT; Python worker karena library NLP (spellchecker, proselint, langdetect) sudah matang di sana.
@@ -152,15 +153,16 @@ Audience: stakeholder/teknis yang ingin melihat bukti jalan dan arsitektur.
 **Judul slide:** Alur Data
 
 **Isi slide (konten PPT):**
-- Browser ↔ API (Hono) ↔ PostgreSQL / Redis.
+- Browser → Next.js route proxy (`/api/*`) → API (Hono) → PostgreSQL / Redis.
+- Browser **tidak** langsung ke `API_URL`; `API_URL` hanya dibaca server-side oleh proxy.
 - API enqueue job ke BullMQ.
 - Worker Python mengolah: grammar, parafrase, translate, plagiarism, dll.
 - Hasil worker streaming kembali via SSE ke browser.
 - Dokumen disimpan sebagai Yjs document; kolaborasi siap dinyalakan.
 
 **Notes pembicara:**
-- Penekanan: arsitektur ini membuat proses berat (translate file besar, plagiarism panjang) bisa asynchronous + bisa dicancel.
-- **Bagian UI**: diagram kotak sederhana: Browser → API → Redis → Worker → SSE → Browser; DB PostgreSQL di bawah API.
+- Penekanan: arsitektur ini membuat proses berat (translate file besar, plagiarism panjang) bisa asynchronous + bisa dicancel. Proxy same-origin juga menyederhanakan CORS dan kredensial di browser.
+- **Bagian UI**: diagram kotak sederhana: Browser → Next.js `/api/*` → API → Redis → Worker → SSE → Browser; DB PostgreSQL di bawah API.
 
 ---
 
@@ -188,6 +190,7 @@ Audience: stakeholder/teknis yang ingin melihat bukti jalan dan arsitektur.
 - **Yjs**: kolaborasi real-time tanpa lock server.
 - **BullMQ + Python worker**: NLP library mature di Python; queue membuat UI tetap responsif.
 - **SSE, bukan WebSocket (saat ini)**: cukup untuk streaming hasil AI; lebih sederhana dari sisi state.
+- **Next.js `/api/*` proxy**: browser tidak menyimpan `NEXT_PUBLIC_API_URL`; semua request FE same-origin, kredensial di-handle server-side.
 
 **Notes pembicara:**
 - Jelaskan bahwa keputusan ini mendukung visi Google Docs-like: struktur dokumen kuat + AI tools modular + kolaborasi scalable.
