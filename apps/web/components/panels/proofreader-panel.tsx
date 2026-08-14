@@ -1,7 +1,7 @@
 'use client'
 
 import { Check, Copy, Eraser } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ScoreRing } from '@/components/ui/score-ring'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { useEditorInstance } from '@/features/editor/editor-context'
@@ -9,9 +9,10 @@ import { useSelectionScope } from '@/features/editor/selection'
 import { useDocument } from '@/features/document/document-context'
 import type { SuggestionFilter } from '@/features/document/document-reducer'
 import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
+import { editsFromSuggestions, useAnalysisDiff } from '@/features/analysis/use-analysis-diff'
 import { cn } from '@/lib/utils'
 import { ModelSelector } from './model-selector'
-import { AcceptAllButton, PanelError, PanelFooter, RunButton, StaleNotice } from './panel-parts'
+import { AcceptAllButton, CompareButton, PanelError, PanelFooter, RunButton, StaleNotice } from './panel-parts'
 import { RunScopeBar } from './run-scope-bar'
 import { SuggestionCard } from './suggestion-card'
 
@@ -75,6 +76,15 @@ export function ProofreaderPanel() {
 			!suggestion.dismissed && (state.filter === 'all' || suggestion.category === state.filter),
 	)
 	const hasResults = state.suggestions.length > 0 || state.scores !== null
+
+	// Suntingan tertunda untuk mode Compare: saran yang belum diterima/di-dismiss.
+	// Di-memo menurut isi `state.suggestions` (bukan referensinya) supaya diff
+	// hanya dihitung ulang saat daftarnya benar-benar berubah.
+	const diffEdits = useMemo(
+		() => editsFromSuggestions(state.suggestions),
+		[state.suggestions],
+	)
+	const compare = useAnalysisDiff('proofreader', diffEdits)
 
 	// Hasil basi: naskah berubah sejak pemeriksaan terakhir. Accept All pada
 	// keadaan ini bisa menimpa massal dengan offset yang sudah tidak pas (§P12 butir 4).
@@ -164,13 +174,24 @@ export function ProofreaderPanel() {
 					<AcceptAllButton onClick={acceptAll} disabled={isStale} />
 				)}
 
-				{isStale && hasResults && <StaleNotice />}
+			{isStale && hasResults && <StaleNotice />}
 
-				{hasResults && (
-					<div className="flex gap-2">
-						<button
-							type="button"
-							onClick={copyOutput}
+			{/* Pratinjau diff "accept-all virtual" di editor utama (§diff hasil
+			    dengan dokumen). Dimatikan saat basi: offset saran sudah tidak
+			    menempel pada teks yang berubah, jadi diff-nya menyesatkan. */}
+			{compare.hasEdits && (
+				<CompareButton
+					active={compare.isEnabled}
+					disabled={isStale}
+					onToggle={() => (compare.isEnabled ? compare.disable() : compare.enable())}
+				/>
+			)}
+
+			{hasResults && (
+				<div className="flex gap-2">
+					<button
+						type="button"
+						onClick={copyOutput}
 							className={cn(
 								'flex flex-1 items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition-colors',
 								copied

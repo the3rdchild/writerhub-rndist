@@ -16,6 +16,7 @@ import StarterKit from '@tiptap/starter-kit'
 import type * as Y from 'yjs'
 import { CommentMark } from '@/features/comments/comment-mark'
 import { AnalysisHighlight } from '@/features/analysis/analysis-highlight'
+import { AnalysisDiffHighlight } from '@/features/analysis/analysis-diff-highlight'
 import { CandidatePreviewHighlight } from '@/features/analysis/candidate-preview'
 import { SuggestionHighlight } from '@/features/document/suggestion-highlight'
 import { BlockSpacing } from '@/features/editor/block-spacing'
@@ -149,6 +150,9 @@ export function buildEditorExtensions({
 		CandidatePreviewHighlight,
 		// Sorotan rentang hasil analisis (Humanizer, Translator, AI Detector).
 		AnalysisHighlight,
+		// Diff "accept-all virtual" di editor utama (§diff hasil dengan dokumen);
+		// menganggur sampai sebuah panel mengaktifkan mode Compare.
+		AnalysisDiffHighlight,
 		SelectionHighlight,
 		BlockIndentExtension,
 		BlockSpacing,

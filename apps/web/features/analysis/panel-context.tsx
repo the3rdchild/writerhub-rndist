@@ -49,6 +49,14 @@ interface PanelContextValue {
 	 */
 	lastRun: LastRunMap
 	markRun: (feature: AnalysisFeature, run: AnalysisRun) => void
+	/**
+	 * Buang catatan run terakhir sebuah fitur. Ini yang membuat "Clear results"
+	 * benar-benar membuang hasil: query analisis dimatikan (`enabled` jatuh ke
+	 * false), jadi cache yang dihapus lewat `queryClient.removeQueries` tidak
+	 * seketika di-fetch ulang (§P12 butir 2). Tanpa ini, klik Clear justru
+	 * menjalankan ulang job — lihat bug terpisah di `useAnalysis.clear`.
+	 */
+	clearRun: (feature: AnalysisFeature) => void
 }
 
 const PanelContext = createContext<PanelContextValue | null>(null)
@@ -65,9 +73,18 @@ export function PanelProvider({ children }: { children: ReactNode }) {
 		setLastRun((current) => ({ ...current, [feature]: run }))
 	}, [])
 
+	const clearRun = useCallback((feature: AnalysisFeature) => {
+		setLastRun((current) => {
+			if (current[feature] === undefined) return current
+			const next = { ...current }
+			delete next[feature]
+			return next
+		})
+	}, [])
+
 	const value = useMemo(
-		() => ({ activePanel, setActivePanel, togglePanel, lastRun, markRun }),
-		[activePanel, togglePanel, lastRun, markRun],
+		() => ({ activePanel, setActivePanel, togglePanel, lastRun, markRun, clearRun }),
+		[activePanel, togglePanel, lastRun, markRun, clearRun],
 	)
 
 	return <PanelContext.Provider value={value}>{children}</PanelContext.Provider>

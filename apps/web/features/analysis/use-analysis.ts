@@ -2,7 +2,7 @@
 
 import type { AnalysisFeature, AnalysisResultFor, RewriterTone } from '@writer-hub/shared'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { cancelJob } from '@/lib/api-client'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
@@ -58,7 +58,7 @@ export function useAnalysis<F extends AnalysisFeature>(
 	scope?: { text: string } | null,
 ): AnalysisController<F> {
 	const { state } = useDocument()
-	const { lastRun, markRun } = usePanels()
+	const { lastRun, markRun, clearRun } = usePanels()
 	const language = useDocumentLanguage()
 	const { linkage } = useSync()
 	const { activeId } = useSessions()
@@ -154,10 +154,30 @@ export function useAnalysis<F extends AnalysisFeature>(
 
 	/** Buang hasil analisis yang ditampilkan tanpa menerimanya (§P12 butir 2) -
 	 *  kembaran 'Clear results' milik Proofreader. Hasil dan sorotannya hilang
-	 *  sekaligus; bisa diulang dengan Run. */
+	 *  sekaligus; bisa diulang dengan Run.
+	 *
+	 *  `clearRun` didahulukan: ia mematikan query (`enabled` → false lewat
+	 *  `requested` jadi undefined) SEBELUM cache dihapus, supaya observer yang
+	 *  masih hidup tidak seketika mem-fetch ulang — itulah bug "klik Clear malah
+	 *  re-run job". Penghapusan cache sisanya dilakukan di efek terpisah di
+	 *  bawah, setelah re-render memindahkan observer ke kunci yang dimatikan. */
 	const clear = useCallback(() => {
-		void queryClient.removeQueries({ queryKey: ['analysis', feature], exact: false })
-	}, [queryClient, feature])
+		clearRun(feature)
+	}, [clearRun, feature])
+
+	/*
+	 * Begitu `requested` jadi undefined (setelah `clear`, atau saat panel baru
+	 * dibuka tanpa pernah di-Run), bersihkan sisa cache fitur ini. Dijalankan
+	 * SETELAH re-render, jadi observer sudah tidak lagi menonton kunci lama
+	 * yang `enabled`-nya true — `removeQueries` di sini tidak memicu refetch.
+	 * Tanpa langkah ini, menjalankan ulang pada teks yang sama setelah Clear
+	 * akan mengembalikan hasil lama dari cache tanpa memanggil worker.
+	 */
+	useEffect(() => {
+		if (requested === undefined) {
+			queryClient.removeQueries({ queryKey: ['analysis', feature], exact: false })
+		}
+	}, [requested, queryClient, feature])
 
 	return {
 		result: query.data,

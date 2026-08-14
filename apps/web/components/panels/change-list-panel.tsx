@@ -21,6 +21,7 @@ import {
 	CandidateCard,
 	ChangeCard,
 	ClearResultsButton,
+	CompareButton,
 	PanelEmptyState,
 	PanelError,
 	PanelFooter,
@@ -30,6 +31,7 @@ import {
 	StaleNotice,
 } from './panel-parts'
 import { RunScopeBar } from './run-scope-bar'
+import { editsFromChanges, useAnalysisDiff } from '@/features/analysis/use-analysis-diff'
 
 /** Nilai tone 'default' = tanpa arahan khusus (AI Memory tetap berlaku). */
 type ToneChoice = RewriterTone | 'default'
@@ -87,6 +89,14 @@ export function ChangeListPanel({
 	const { rangeProps } = useRangeHighlight()
 	const { preview, showPreview, clearPreview } = useCandidatePreview()
 	const { ensureSnapshot, reset: resetSnapshot } = usePreTranslateSnapshot()
+
+	// Suntingan tertunda untuk mode Compare: change yang belum diterima.
+	// `editsFromChanges` membuang yang sudah masuk riwayat Applied.
+	const diffEdits = useMemo(
+		() => editsFromChanges(pending, applied),
+		[pending, applied],
+	)
+	const compare = useAnalysisDiff(feature, diffEdits)
 
 	/*
 	 * Sorot segmen yang masih pending di naskah. Daftarnya dihitung ulang dari
@@ -240,22 +250,34 @@ export function ChangeListPanel({
 						/>
 					)}
 
-				{feature === 'ai_rewriter' && (
-					<div className="flex items-center gap-1.5 px-1">
-						<span className="text-[11px] text-subtle">Tone</span>
-						<ToolbarSelect
-							value={tone}
-							options={TONE_OPTIONS}
-							onChange={handleToneChange}
-							label="Rewrite tone"
-							width={110}
-							disabled={isRunning}
-							side="top"
-						/>
-					</div>
-				)}
+			{/* Pratinjau diff "accept-all virtual" di editor utama (§diff hasil
+			    dengan dokumen). Dimatikan saat basi: offset change sudah tidak
+			    menempel pada teks yang berubah. */}
+			{compare.hasEdits && (
+				<CompareButton
+					active={compare.isEnabled}
+					disabled={isStale}
+					onToggle={() => (compare.isEnabled ? compare.disable() : compare.enable())}
+				/>
+			)}
 
-				{feature === 'translator' && (
+
+				{feature === 'ai_rewriter' && (
+				<div className="flex items-center gap-1.5 px-1">
+					<span className="text-[11px] text-subtle">Tone</span>
+					<ToolbarSelect
+						value={tone}
+						options={TONE_OPTIONS}
+						onChange={handleToneChange}
+						label="Rewrite tone"
+						width={110}
+						disabled={isRunning}
+						side="top"
+					/>
+				</div>
+			)}
+
+			{feature === 'translator' && (
 					<div className="flex items-center gap-1.5 px-1">
 						<span className="text-[11px] text-subtle">To</span>
 						<ToolbarSelect

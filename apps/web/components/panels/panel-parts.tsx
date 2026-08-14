@@ -5,6 +5,7 @@ import {
 	CheckCircle2,
 	Eraser,
 	FileText,
+	GitCompare,
 	Loader2,
 	type LucideIcon,
 	Square,
@@ -187,6 +188,46 @@ export function ClearResultsButton({ onClick }: { onClick: () => void }) {
 		>
 			<Eraser className="h-3.5 w-3.5" />
 			Clear results
+		</button>
+	)
+}
+
+/**
+ * Toggle mode "Compare" (§diff hasil dengan dokumen): tampilkan diff
+ * accept-all virtual langsung di editor utama - coret merah untuk teks yang
+ * akan diganti, penanda hijau untuk tambahan. Saat aktif, tombol terlihat
+ * tertekan supaya pemakai tahu mode itu sedang menyala dan harus dimatikan
+ * untuk menyelesaikan suntingan.
+ *
+ * Hanya satu panel yang boleh aktif pada satu waktu; mengaktifkan di satu
+ * panel mematikan yang lain (lihat `AnalysisDiffContext`).
+ */
+export function CompareButton({
+	active,
+	onToggle,
+	disabled,
+}: {
+	active: boolean
+	onToggle: () => void
+	disabled?: boolean
+}) {
+	return (
+		<button
+			type="button"
+			onClick={onToggle}
+			disabled={disabled}
+			aria-pressed={active}
+			title={active ? 'Hide comparison in document' : 'Preview all changes in the document'}
+			className={cn(
+				'flex w-full items-center justify-center gap-1.5 rounded-full border py-2 text-sm font-medium transition-colors',
+				active
+					? 'border-accent/40 bg-accent/15 text-accent'
+					: 'border-line-strong text-muted hover:bg-surface-raised hover:text-foreground',
+				disabled && 'cursor-not-allowed opacity-40',
+			)}
+		>
+			<GitCompare className="h-3.5 w-3.5" />
+			{active ? 'Hide compare' : 'Compare'}
 		</button>
 	)
 }

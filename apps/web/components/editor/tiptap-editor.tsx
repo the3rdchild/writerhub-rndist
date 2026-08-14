@@ -4,6 +4,7 @@ import { EditorContent, useEditor, type Editor } from '@tiptap/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useDocument } from '@/features/document/document-context'
 import { suggestionHighlightKey } from '@/features/document/suggestion-highlight'
+import { useAnalysisDiffHost } from '@/features/analysis/use-analysis-diff-host'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { buildEditorExtensions } from '@/features/editor/extensions'
@@ -187,6 +188,10 @@ export function TiptapEditor({
 		if (!editor) return
 		editor.view.dispatch(editor.state.tr.setMeta(suggestionHighlightKey, state.suggestions))
 	}, [editor, state.suggestions])
+
+	// Jembatan diff analisis: kirim rentang aktif (bila ada panel sedang dalam
+	// mode Compare) ke plugin dekorasi `AnalysisDiffHighlight`.
+	useAnalysisDiffHost()
 
 	// ── popover pada penanda suggestion ──────────────────────────────────────
 

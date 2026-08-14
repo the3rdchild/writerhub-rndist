@@ -12,10 +12,12 @@ import { useEditorInstance } from '@/features/editor/editor-context'
 import { useSelectionScope } from '@/features/editor/selection'
 import { useDocument } from '@/features/document/document-context'
 import { useRangeHighlight } from '@/features/document/use-range-highlight'
+import { editsFromSentences, useAnalysisDiff } from '@/features/analysis/use-analysis-diff'
 import {
 	AcceptAllButton,
 	AcceptDismissRow,
 	ClearResultsButton,
+	CompareButton,
 	PanelEmptyState,
 	PanelError,
 	PanelFooter,
@@ -64,6 +66,10 @@ export function AiDetectorPanel() {
 		[sentences],
 	)
 	useAnalysisHighlight('ai_detector', highlightRanges)
+
+	// Suntingan tertunda untuk mode Compare: kalimat yang masih punya saran.
+	const diffEdits = useMemo(() => editsFromSentences(sentences), [sentences])
+	const compare = useAnalysisDiff('ai_detector', diffEdits)
 
 	const accept = (index: number) => {
 		const sentence = sentences[index]
@@ -212,6 +218,16 @@ export function AiDetectorPanel() {
 
 			<PanelFooter>
 				{result && hasPending && <AcceptAllButton onClick={acceptAll} disabled={isStale} />}
+
+				{/* Pratinjau diff "accept-all virtual" di editor utama (§diff hasil
+				    dengan dokumen). Hanya saat ada saran dan tidak basi. */}
+				{compare.hasEdits && (
+					<CompareButton
+						active={compare.isEnabled}
+						disabled={isStale}
+						onToggle={() => (compare.isEnabled ? compare.disable() : compare.enable())}
+					/>
+				)}
 
 				{result && (
 					<div className="flex items-center gap-3">

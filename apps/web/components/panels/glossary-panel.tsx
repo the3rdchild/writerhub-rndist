@@ -15,7 +15,6 @@ import {
 	PanelFooter,
 	PanelLoading,
 	PanelScroll,
-	ClearResultsButton,
 	RunButton,
 } from './panel-parts'
 
@@ -32,7 +31,7 @@ import {
  * cara tahu.
  */
 export function GlossaryPanel() {
-	const { result, isRunning, error, canRun, run, cancel, clear } = useAnalysis('glossary')
+	const { result, isRunning, error, canRun, run, cancel } = useAnalysis('glossary')
 	const { editor } = useEditorInstance()
 
 	const entries = (result as GlossaryResult | undefined)?.entries ?? []
@@ -129,7 +128,13 @@ export function GlossaryPanel() {
 					</button>
 				)}
 
-				{!isRunning && result && <ClearResultsButton onClick={clear} />}
+			{/*
+				Sengaja tanpa tombol "Clear results": hasil Glosarium tidak
+				meninggalkan sorotan di naskah. Tabel yang sudah disisipkan ke
+				naskah juga tidak ikut terbuang kalau hasil panel dihapus - jadi
+				tombolnya menyesatkan, bukan membantu (§P12 butir 2).
+			*/}
+
 
 				<RunButton
 					onClick={() => run()}
