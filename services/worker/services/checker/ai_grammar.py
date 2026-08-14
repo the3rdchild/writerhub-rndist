@@ -9,12 +9,15 @@ import logging
 
 import requests
 
+from services.analyzers.llm_client import language_name
+
 logger = logging.getLogger(__name__)
 
 _TIMEOUT = 90
 
-_SYSTEM = (
-    "You are a professional English grammar, spelling, and style checker.\n"
+# Kontrak JSON-nya sengaja satu-satunya bagian yang dibagi semua bahasa:
+# bentuk respons tidak boleh berubah hanya karena naskahnya bukan Inggris.
+_CONTRACT = (
     "Analyze the given text and return every error you find.\n\n"
     "For each error produce a JSON object with these exact keys:\n"
     '  "original"    : the exact substring that is wrong (must exist verbatim in the text)\n'
@@ -27,6 +30,34 @@ _SYSTEM = (
     "Quote `original` verbatim from the text, long enough to be unambiguous.\n"
     "If the text has no errors, return {\"suggestions\": []}."
 )
+
+_SYSTEM = "You are a professional English grammar, spelling, and style checker.\n" + _CONTRACT
+
+
+def _system_prompt(language: str | None) -> str:
+    """
+    Prompt checker untuk bahasa naskah.
+
+    Tanpa nama bahasa, model menganggap teksnya Inggris dan "memperbaiki" kata
+    bahasa lain jadi kata Inggris yang mirip bunyi - `salah` jadi `salad`,
+    `mata` jadi `data`. Pelajarannya sudah dicatat di llm_client: perintah
+    "keep the original language" saja KALAH; bahasanya harus disebut namanya
+    di depan. Prompt Inggris dibiarkan persis seperti semula - ia sudah teruji,
+    dan mengubahnya tanpa alasan mengacaukan pembandingan hasil.
+    """
+    if not language:
+        return _SYSTEM
+    name = language_name(language)
+    if name == "English":
+        return _SYSTEM
+    return (
+        f"You are a professional grammar, spelling, and style checker for {name} text.\n"
+        f"The text is written in {name}. Judge it against the rules of {name}, never "
+        f"against English: a {name} word is not a misspelled English word, and a "
+        f"correct {name} sentence is not an error. Every replacement you propose "
+        f"must itself be written in {name}.\n"
+        + _CONTRACT
+    )
 
 
 def _resolve_offset(text: str, original: str, hint: int | None) -> int | None:
@@ -72,6 +103,7 @@ def check_ai_grammar(
     base_url: str,
     api_key: str,
     sdk_provider: str,
+    language: str | None = None,
 ) -> tuple[list[dict], int | None]:
     if sdk_provider != "openai":
         raise ValueError(f"sdk_provider '{sdk_provider}' belum didukung worker ini (cuma OpenAI-compatible).")
@@ -93,7 +125,7 @@ def check_ai_grammar(
             json={
                 "model": model,
                 "messages": [
-                    {"role": "system", "content": _SYSTEM},
+                    {"role": "system", "content": _system_prompt(language)},
                     {"role": "user", "content": text},
                 ],
                 "response_format": {"type": "json_object"},
