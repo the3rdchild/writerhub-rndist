@@ -169,7 +169,7 @@ export function ActivityView() {
 								<Activity className="h-8 w-8 text-faint" />
 								<p className="mt-3 text-sm font-medium text-foreground">Belum ada aktivitas</p>
 								<p className="mt-1 max-w-sm text-xs text-subtle">
-									Jalankan Proofreader, AI Detector, AI Rewriter, Humanizer, atau Plagiarism —
+									Jalankan Proofreader, AI Detector, AI Rewriter, Humanizer, atau Plagiarism -
 									catatannya akan muncul di sini.
 								</p>
 							</div>

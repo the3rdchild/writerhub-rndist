@@ -1,4 +1,4 @@
-# WritingHub — PRD: Ekspor & Kolom (sisa yang belum beres)
+# WritingHub - PRD: Ekspor & Kolom (sisa yang belum beres)
 
 Status: **Terimplementasi (E1–E5)** · Disusun 14 Agustus 2026, dikerjakan di hari yang sama · Baseline kode `0c4dab7` (branch `main`).
 
@@ -85,7 +85,7 @@ Penomoran **E1–E5** baru dan tidak bertabrakan dengan P1–P12, A–O, maupun 
 
 ---
 
-## 3. E1 — Ekspor PDF tetap satu halaman
+## 3. E1 - Ekspor PDF tetap satu halaman
 
 ### Gejala
 Dialog cetak melaporkan **"Total: 1 page"** berapa pun panjang naskah, dan **panel Proofreader
@@ -207,7 +207,7 @@ Sisanya manual, di Chrome:
 
 ---
 
-## 4. E2 — Page break di blok kolom menyisakan halaman kosong
+## 4. E2 - Page break di blok kolom menyisakan halaman kosong
 
 ### Gejala
 Pada blok 3 kolom, page break memindahkan isi ke halaman berikutnya - tapi **menyisipkan satu
@@ -278,7 +278,7 @@ Baris terakhir yang paling berharga: ia menangkap bentuk kerusakannya, bukan sat
 
 ---
 
-## 5. E3 — Tabel di kolom sempit
+## 5. E3 - Tabel di kolom sempit
 
 **Keputusan (§2.1): dibiarkan sempit.** Tidak ada penaikan otomatis. Butir ini karena itu bukan
 lagi pertanyaan desain, melainkan satu verifikasi kecil.
@@ -302,7 +302,7 @@ Titik yang perlu dilihat:
 
 ---
 
-## 6. E4 — Impor DOCX belum membaca `sectPr`
+## 6. E4 - Impor DOCX belum membaca `sectPr`
 
 `features/document/docx/parse.ts` mengabaikan properti section Word, jadi dokumen berorientasi
 campur yang diimpor menjadi satu section. Ekspor sudah benar sejak `bc00f1d`, jadi ini
@@ -342,7 +342,7 @@ Dua hal yang mudah keliru:
 
 ---
 
-## 7. E5 — Pensiunkan blok kolom pembungkus
+## 7. E5 - Pensiunkan blok kolom pembungkus
 
 **Keputusan §2.2.** Ini butir terbesar di dokumen ini, dan **tidak bisa dikerjakan apa adanya** -
 §2.3 menjelaskan kenapa.
@@ -453,7 +453,7 @@ Chrome (E1) dan tampilan berkas DOCX di Google Docs (E4, E5).
 
 ---
 
-## 10. E6 — Rentang kolom section tercetak satu kolom di kertas
+## 10. E6 - Rentang kolom section tercetak satu kolom di kertas
 
 Ditemukan saat mengerjakan E5, dan akarnya lebih tua dari E5: multi-kolom CSS butuh
 **wadah**, sedangkan rentang section berkolom (§P8) memang tidak punya wadah - blok-bloknya

@@ -4,7 +4,7 @@ import { documentVersions } from '@/db/schemas'
 import type { NewDocumentVersion } from '@/db/schemas'
 
 /**
- * Akses tabel `document_versions`. Kepemilikan tidak dicek di sini — service
+ * Akses tabel `document_versions`. Kepemilikan tidak dicek di sini - service
  * wajib memverifikasi tab milik user lewat `findTabById` dulu.
  */
 
@@ -39,7 +39,7 @@ export async function insertVersion(values: NewDocumentVersion) {
 }
 
 /**
- * Versi terbaru — untuk keputusan snapshot interval. Sengaja tanpa `content`:
+ * Versi terbaru - untuk keputusan snapshot interval. Sengaja tanpa `content`:
  * perbandingan isinya dilakukan di database lewat `versionContentEquals`.
  */
 export async function findLatestVersion(tabId: string) {

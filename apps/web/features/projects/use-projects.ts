@@ -13,7 +13,7 @@ export function useProjects() {
 }
 
 /**
- * Segarkan daftar proyek setelah mutasi (create/update/delete) —
+ * Segarkan daftar proyek setelah mutasi (create/update/delete) -
  * pola yang sama dengan `useInvalidateDocuments`.
  */
 export function useInvalidateProjects() {

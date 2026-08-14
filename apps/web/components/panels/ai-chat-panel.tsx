@@ -475,7 +475,7 @@ function ToggleIcon({
 		<button
 			type="button"
 			onClick={onClick}
-			title={`${label} — ${hint}`}
+			title={`${label} - ${hint}`}
 			aria-label={label}
 			aria-pressed={active}
 			className={cn(
@@ -521,7 +521,7 @@ function ModelPicker() {
 				<button
 					type="button"
 					onClick={toggle}
-					title={`Model: ${active.label} — ${active.hint}`}
+					title={`Model: ${active.label} - ${active.hint}`}
 					className={cn(
 						'flex min-w-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] transition-colors',
 						open

@@ -7,7 +7,7 @@ import type { VersionDetail, VersionSummary } from './dto'
 
 /**
  * Hitung jumlah kata dari JSON ProseMirror: rekursi seluruh node, jumlahkan
- * kata di tiap `node.text` (dipisah spasi). Helper murni — dipakai juga oleh
+ * kata di tiap `node.text` (dipisah spasi). Helper murni - dipakai juga oleh
  * snapshot interval di `TabsService`.
  */
 export function countWords(content: Record<string, unknown>): number {
@@ -27,7 +27,7 @@ export function countWords(content: Record<string, unknown>): number {
 /**
  * Riwayat versi sebuah TAB milik user (versi tetap per tab - keputusan 2 di
  * docs/DOCUMENT-TABS-RESTRUCTURE-PLAN.md). Semua operasi memverifikasi dulu
- * bahwa tabnya milik user (via `findTabById`) — 404 bila bukan.
+ * bahwa tabnya milik user (via `findTabById`) - 404 bila bukan.
  */
 export default class VersionsService extends BaseService {
 	/** List metadata versi (tanpa konten), terbaru di atas. */
@@ -88,7 +88,7 @@ export default class VersionsService extends BaseService {
 	/**
 	 * Pulihkan tab ke versi lampau: beku dulu keadaan sekarang sebagai
 	 * versi `pre_restore`, lalu timpa `document_tabs.content` dengan konten versi.
-	 * Idempoten — pengulangan menghasilkan pre_restore baru (tidak destructive).
+	 * Idempoten - pengulangan menghasilkan pre_restore baru (tidak destructive).
 	 */
 	async restore(): Promise<Response> {
 		try {

@@ -4,7 +4,7 @@ import { documents, projects } from '@/db/schemas'
 import type { NewProject } from '@/db/schemas'
 
 /**
- * Akses tabel `projects` yang selalu diskop ke pemilik (`owner_id`) —
+ * Akses tabel `projects` yang selalu diskop ke pemilik (`owner_id`) -
  * proyek user lain tidak pernah terlihat lewat fungsi-fungsi ini.
  */
 

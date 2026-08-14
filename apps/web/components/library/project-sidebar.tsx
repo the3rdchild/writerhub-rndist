@@ -184,7 +184,7 @@ export function ProjectSidebar({ active }: { active: string }) {
 					<>
 						Proyek <strong className="text-foreground">{pendingDelete?.name}</strong> dihapus.
 						Dokumen di dalamnya <strong className="text-foreground">tidak ikut terhapus</strong>{' '}
-						— mereka kembali ke &ldquo;Tanpa proyek&rdquo;.
+						- mereka kembali ke &ldquo;Tanpa proyek&rdquo;.
 					</>
 				}
 				confirmLabel={deleting ? 'Menghapus…' : 'Hapus'}

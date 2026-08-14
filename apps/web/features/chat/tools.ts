@@ -191,7 +191,7 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 		case 'list_tabs': {
 			if (context.tabs.length === 0) return 'The document has no tabs.'
 			return context.tabs
-				.map((tab) => `${tab.id} — ${tab.label}${tab.active ? ' (active)' : ''}`)
+				.map((tab) => `${tab.id} - ${tab.label}${tab.active ? ' (active)' : ''}`)
 				.join('\n')
 		}
 
@@ -209,7 +209,7 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 			return open
 				.map((thread) => {
 					const first = thread.replies[0]?.text ?? ''
-					return `- "${thread.quote}" — ${first} (${thread.replies.length} repl${thread.replies.length === 1 ? 'y' : 'ies'})`
+					return `- "${thread.quote}" - ${first} (${thread.replies.length} repl${thread.replies.length === 1 ? 'y' : 'ies'})`
 				})
 				.join('\n')
 		}

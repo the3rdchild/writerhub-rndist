@@ -4,7 +4,7 @@ import { documents, documentTabs } from '@/db/schemas'
 import type { NewDocument } from '@/db/schemas'
 
 /**
- * Akses tabel `documents` (induk) yang selalu diskop ke pemilik (`owner_id`) —
+ * Akses tabel `documents` (induk) yang selalu diskop ke pemilik (`owner_id`) -
  * dokumen user lain tidak pernah terlihat lewat fungsi-fungsi ini.
  */
 

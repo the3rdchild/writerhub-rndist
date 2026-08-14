@@ -27,7 +27,7 @@ function tool(content: string, toolCallId: string, taskId: string): ChatTurn {
 	return { role: 'tool', content, toolCallId, taskId }
 }
 
-describe('buildOutboundMessages — pemadatan batas tugas', () => {
+describe('buildOutboundMessages - pemadatan batas tugas', () => {
 	test('tugas berjalan dikirim utuh, termasuk pesan tool dan tool_calls', () => {
 		const history: ChatTurn[] = [
 			user('ringkas bab 1', TASK_A),
@@ -70,7 +70,7 @@ describe('buildOutboundMessages — pemadatan batas tugas', () => {
 	test('giliran asisten lama yang kosong tidak dikirim (tidak ada isinya)', () => {
 		const history: ChatTurn[] = [
 			user('tanya sesuatu', TASK_A),
-			assistant('', TASK_A), // giliran terminal kosong (penanda M6) — buang saat dikirim
+			assistant('', TASK_A), // giliran terminal kosong (penanda M6) - buang saat dikirim
 			user('tanya lagi', TASK_B),
 		]
 
@@ -161,7 +161,7 @@ describe('buildOutboundMessages — pemadatan batas tugas', () => {
  * harus punya hasil lebih dulu. Bukan soal rapi - riwayat yang memuat
  * `tool_calls` tanpa hasil untuk setiap idnya ditolak provider.
  */
-describe('actionsSettled — syarat melanjutkan giliran', () => {
+describe('actionsSettled - syarat melanjutkan giliran', () => {
 	const write = (id: string, name: string) => ({ id, name, arguments: '{}' })
 
 	const owner = (...ids: string[]): ChatTurn => ({

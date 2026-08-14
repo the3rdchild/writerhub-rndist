@@ -35,7 +35,7 @@ const EMPTY_CONTENT: Record<string, unknown> = { type: 'doc', content: [] }
  * Snapshot `interval` otomatis sebuah tab: dibuat bila belum ada versi sama
  * sekali atau versi terakhir lebih tua dari `INTERVAL_SNAPSHOT_MS`, dan
  * dilewati bila konten identik dengan versi terakhir (PUT metadata tidak boleh
- * melahirkan versi kembar). Best-effort — kegagalan snapshot tidak boleh
+ * melahirkan versi kembar). Best-effort - kegagalan snapshot tidak boleh
  * menggagalkan autosave; cukup dicatat.
  *
  * Dipindah dari `DocumentsService` saat restrukturisasi (versi tetap per tab);
@@ -66,7 +66,7 @@ export async function snapshotIntervalTab(
 
 /**
  * CRUD tab di dalam dokumen induk. Kepemilikan selalu diverifikasi lewat
- * dokumen induknya (`findTabById` join `documents`) — tab user lain tidak
+ * dokumen induknya (`findTabById` join `documents`) - tab user lain tidak
  * pernah terlihat.
  */
 export default class TabsService extends BaseService {
@@ -136,7 +136,7 @@ export default class TabsService extends BaseService {
 			const existing = await this.ownedTab()
 			const values: Partial<NewDocumentTab> = { ...body.data }
 			// Patch kosong (field tak dikenal sudah di-strip zod) membuat drizzle
-			// melempar "No values to set" — tangkap sebagai 400.
+			// melempar "No values to set" - tangkap sebagai 400.
 			if (Object.keys(values).length === 0) {
 				return this.error({ errors: ['Tidak ada field yang bisa diubah (title/content/emoji/language)'] })
 			}
@@ -184,7 +184,7 @@ export default class TabsService extends BaseService {
 
 	/**
 	 * Atur ulang urutan tab: `tabIds[0]` jadi paling kiri. Body harus memuat
-	 * seluruh tab dokumen tepat sekali — reorder parsial ditolak supaya tidak
+	 * seluruh tab dokumen tepat sekali - reorder parsial ditolak supaya tidak
 	 * ada tab yang kehilangan posisi.
 	 */
 	async reorder(): Promise<Response> {

@@ -158,7 +158,7 @@ export function useAnalysis<F extends AnalysisFeature>(
 	 *
 	 *  `clearRun` didahulukan: ia mematikan query (`enabled` → false lewat
 	 *  `requested` jadi undefined) SEBELUM cache dihapus, supaya observer yang
-	 *  masih hidup tidak seketika mem-fetch ulang — itulah bug "klik Clear malah
+	 *  masih hidup tidak seketika mem-fetch ulang - itulah bug "klik Clear malah
 	 *  re-run job". Penghapusan cache sisanya dilakukan di efek terpisah di
 	 *  bawah, setelah re-render memindahkan observer ke kunci yang dimatikan. */
 	const clear = useCallback(() => {
@@ -169,7 +169,7 @@ export function useAnalysis<F extends AnalysisFeature>(
 	 * Begitu `requested` jadi undefined (setelah `clear`, atau saat panel baru
 	 * dibuka tanpa pernah di-Run), bersihkan sisa cache fitur ini. Dijalankan
 	 * SETELAH re-render, jadi observer sudah tidak lagi menonton kunci lama
-	 * yang `enabled`-nya true — `removeQueries` di sini tidak memicu refetch.
+	 * yang `enabled`-nya true - `removeQueries` di sini tidak memicu refetch.
 	 * Tanpa langkah ini, menjalankan ulang pada teks yang sama setelah Clear
 	 * akan mengembalikan hasil lama dari cache tanpa memanggil worker.
 	 */

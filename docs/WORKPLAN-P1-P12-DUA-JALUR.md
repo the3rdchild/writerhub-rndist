@@ -1,10 +1,10 @@
-# Rencana kerja dua jalur — P1…P12
+# Rencana kerja dua jalur - P1…P12
 
 Pendamping `docs/COLUMNS-PROOFREADER-TOOLS-PRD.md`. Disusun 13 Agustus 2026 · baseline `d033114`.
 
 Dokumen ini **tidak** mengulang spesifikasi. Ia menjawab satu pertanyaan saja: *siapa menyentuh
 berkas yang mana, kapan, supaya dua orang tidak bertabrakan.* Isi pekerjaannya selalu dibaca dari
-PRD — tiap tugas di bawah menyebut nomor bagiannya.
+PRD - tiap tugas di bawah menyebut nomor bagiannya.
 
 ---
 
@@ -28,12 +28,12 @@ Batas itu nyata, bukan dibuat-buat: jalur A hidup di `features/editor/*` dan
 berkas, dan kelimanya sudah dijadwalkan agar tidak bersamaan.
 
 **Beban.** Jalur A ±15 hari kerja, jalur B ±11 hari. Selisihnya sengaja: begitu jalur B selesai
-(sekitar hari ke-11), ia bergabung ke P8/P9 lewat sub-pembagian di §6 — bagian permukaan (dialog,
+(sekitar hari ke-11), ia bergabung ke P8/P9 lewat sub-pembagian di §6 - bagian permukaan (dialog,
 menu, tools AI, ekspor DOCX) yang memang tidak menyentuh mesin tata letak.
 
 ---
 
-## 2. Jalur A — Tata letak
+## 2. Jalur A - Tata letak
 
 **Berkas milik jalur A (jangan disentuh jalur B):**
 
@@ -58,11 +58,11 @@ ref/**                                              (P6)
 
 | # | Tugas | Baca PRD | Ukuran | Prasyarat |
 |---|---|---|---|---|
-| **A-1** | Kolom: tidak ada blok yang tertimpa (lapis 1) + uji invarian anti-tumpang-tindih | §P4 → *Lapis 1* & *Kriteria terima* | ½ hari | — |
+| **A-1** | Kolom: tidak ada blok yang tertimpa (lapis 1) + uji invarian anti-tumpang-tindih | §P4 → *Lapis 1* & *Kriteria terima* | ½ hari | - |
 | **A-2** | Kolom: perbaiki pembacaan margin pada node view (tabel, blok kode, gambar, TOC) | §P4 → *Catatan pengukuran* | ½ hari | A-1 |
 | **A-3** | Kolom: tabel dipenggal antar baris di dalam kolom (lapis 2) | §P4 → *Lapis 2* | 2–3 hari | A-1 |
 | **A-4** | Kolom: blok tak terpenggal naik jadi selebar penuh (lapis 3) | §P4 → *Lapis 3*, §2.10 | 1 hari | A-3 |
-| **A-5** | Baca referensi, catat temuan di PR | §P6 | ½ hari | — (bisa disisipkan kapan saja) |
+| **A-5** | Baca referensi, catat temuan di PR | §P6 | ½ hari | - (bisa disisipkan kapan saja) |
 | **A-6** | Penggaris: penanda lebar & celah kolom | §P5 | 2 hari | A-1 |
 | **A-7** | Model *section*: `SheetGeometry[]`, node `sectionBreak`, paginasi tak seragam, kanvas | §P8&P9 → *Kenapa ini besar*, *Keputusan* | 5 hari | A-4 |
 | **A-8** | Kolom per-halaman di atas model section | §P8&P9 → *P8* | 1 hari | A-7 |
@@ -70,12 +70,12 @@ ref/**                                              (P6)
 **Urutan wajib:** A-1 → A-3 → A-4 → A-7. A-2, A-5, A-6 boleh disisipkan di sela.
 
 **Titik henti aman.** Setelah A-1 gejala paling terlihat sudah hilang; setelah A-4 kolom sudah
-layak pakai. Kalau harus berhenti, berhentilah di salah satu dari dua titik itu — bukan di tengah
+layak pakai. Kalau harus berhenti, berhentilah di salah satu dari dua titik itu - bukan di tengah
 A-3 atau A-7.
 
 ---
 
-## 3. Jalur B — Panel & pipeline
+## 3. Jalur B - Panel & pipeline
 
 **Berkas milik jalur B (jangan disentuh jalur A):**
 
@@ -101,16 +101,16 @@ services/worker/**
 
 | # | Tugas | Baca PRD | Ukuran | Prasyarat |
 |---|---|---|---|---|
-| **B-1** | `replaceTextRange` pakai `resolveSpan`, hentikan gulir otomatis | §P10 | ¼ hari | — |
+| **B-1** | `replaceTextRange` pakai `resolveSpan`, hentikan gulir otomatis | §P10 | ¼ hari | - |
 | **B-2** | Proofreader: accept dari popover menyasar kemunculan yang benar | §P3.1 | ¼ hari | B-1 |
 | **B-3** | Proofreader: accept dari kartu panel benar-benar mengubah naskah | §P3.2 | ¼ hari | B-1 |
-| **B-4** | Proofreader: aksi `clearResults` + tombol "Clear results" | §P3.3 | ½ hari | — |
-| **B-5** | Bendera di tiga pemilih bahasa | §P1, §2.6, §15.2 | ½ hari | — |
-| **B-6** | Glosarium: jenis kandidat sampai ke panel + keterangan asalnya | §P2 | ¾ hari | — |
-| **B-7** | Batal lapis A: `cancel()` di hook, `RunButton` dua keadaan | §P7 → *Lapis A* | 1 hari | — |
+| **B-4** | Proofreader: aksi `clearResults` + tombol "Clear results" | §P3.3 | ½ hari | - |
+| **B-5** | Bendera di tiga pemilih bahasa | §P1, §2.6, §15.2 | ½ hari | - |
+| **B-6** | Glosarium: jenis kandidat sampai ke panel + keterangan asalnya | §P2 | ¾ hari | - |
+| **B-7** | Batal lapis A: `cancel()` di hook, `RunButton` dua keadaan | §P7 → *Lapis A* | 1 hari | - |
 | **B-8** | Batal lapis B: status `cancelled`, rute batal, bendera Redis, migrasi | §P7 → *Lapis B*, §2.8 | 1–2 hari | B-7 |
 | **B-9** | Batal lapis C: titik periksa kooperatif di worker | §P7 → *Lapis C* | 1–2 hari | B-8 |
-| **B-10** | Worker: `JOB_DEADLINE_SECONDS` + `WORKER_CONCURRENCY` dari env | §P11, §2.9 | 1–2 hari | — |
+| **B-10** | Worker: `JOB_DEADLINE_SECONDS` + `WORKER_CONCURRENCY` dari env | §P11, §2.9 | 1–2 hari | - |
 | **B-11** | Konsistensi panel: "Clear results" di semua panel, `canRun` per-cakupan, `isStale` pada Accept All | §P12 butir 2–4 | 1 hari | B-4, B-7 |
 | **B-12** | Seragamkan bahasa UI ke Inggris | §P12 butir 1, §2.7 | 1½ hari | **paling akhir** |
 
@@ -121,7 +121,7 @@ menyentuh hampir semua berkas panel dan akan menabrak PR mana pun yang belum mas
 
 ---
 
-## 4. Berkas bersama — lima titik singgung
+## 4. Berkas bersama - lima titik singgung
 
 Hanya lima berkas yang benar-benar dibutuhkan kedua jalur. Semuanya punya aturan.
 
@@ -129,16 +129,16 @@ Hanya lima berkas yang benar-benar dibutuhkan kedua jalur. Semuanya punya aturan
 |---|---|---|---|
 | `apps/web/components/editor/tiptap-editor.tsx` | A-7: kirim `sheets[]` ke plugin paginasi (baris ±113) | B-2: `applySuggestion` (baris ±242) | Terpisah 130 baris **dan** terpisah waktu: B-2 selesai di hari ke-1, A-7 mulai setelah hari ke-4. **B duluan.** |
 | `apps/web/components/layout/menu-bar.tsx` | A-8: submenu Kolom bertambah cakupan | B-12: terjemahkan label | **A duluan**; B-12 memang dijadwalkan paling akhir |
-| `packages/shared/src/tools.ts` | A-8/A-7: `set_section_columns`, `set_section_setup` | — | Milik A. Kalau B perlu menambah alat, minta A yang menulis |
-| `apps/web/features/chat/tools.ts` | A-8/A-7: handler alat baru | — | Milik A |
-| `apps/web/features/document/export-docx.ts` | A-7: satu `Section` per section | — | Milik A (lihat §6 kalau B ikut membantu) |
+| `packages/shared/src/tools.ts` | A-8/A-7: `set_section_columns`, `set_section_setup` | - | Milik A. Kalau B perlu menambah alat, minta A yang menulis |
+| `apps/web/features/chat/tools.ts` | A-8/A-7: handler alat baru | - | Milik A |
+| `apps/web/features/document/export-docx.ts` | A-7: satu `Section` per section | - | Milik A (lihat §6 kalau B ikut membantu) |
 
 Berkas yang **terlihat** bersama tapi sebenarnya tidak:
 
-- `apps/web/app/globals.css` — hanya A. Jalur B memakai kelas Tailwind di komponen; kalau B
+- `apps/web/app/globals.css` - hanya A. Jalur B memakai kelas Tailwind di komponen; kalau B
   merasa perlu menulis CSS global, itu tanda rancangannya perlu ditinjau ulang.
-- `apps/web/components/panels/panel-parts.tsx` — hanya B (`RunButton`, `AcceptAllButton`).
-- `apps/web/features/editor/*` — milik A, **kecuali** `apply-text.ts` yang milik B. Satu
+- `apps/web/components/panels/panel-parts.tsx` - hanya B (`RunButton`, `AcceptAllButton`).
+- `apps/web/features/editor/*` - milik A, **kecuali** `apply-text.ts` yang milik B. Satu
   pengecualian ini murni sejarah: berkas itu melayani panel, bukan editor.
 
 ---
@@ -180,7 +180,7 @@ Jalur B bergabung ke P8/P9. Sub-pembagiannya mengikuti kontrak yang sudah dibeku
 
 **Syarat mulai:** A sudah menggabungkan (merge) tipe `SheetGeometry` dan atribut
 `sectionBreak` ke `main`, walau implementasinya belum lengkap. Bentuk data itulah kontraknya;
-selama ia belum ada di `main`, bagian permukaan tidak boleh dimulai — persis alasan kenapa
+selama ia belum ada di `main`, bagian permukaan tidak boleh dimulai - persis alasan kenapa
 `packages/shared/src/tools.ts` didaftarkan sebagai milik A di §4.
 
 ---
@@ -198,11 +198,11 @@ Tidak ada satu pun hari di mana kedua jalur memegang berkas yang sama.
 
 ---
 
-## 8. Catatan pasca-merge — utang yang diketahui
+## 8. Catatan pasca-merge - utang yang diketahui
 
 Kedua jalur digabungkan ke `main` pada 13 Agustus 2026. Uji-merge lebih dulu dijalankan di
 worktree terpisah: **nol konflik**, dan dari 13 berkas jalur A + 50 berkas jalur B hanya satu
-yang bersinggungan — `apps/web/components/editor/tiptap-editor.tsx`, persis berkas yang
+yang bersinggungan - `apps/web/components/editor/tiptap-editor.tsx`, persis berkas yang
 diperkirakan §4. Verifikasi setelah merge: `bun run typecheck` bersih di ketiga workspace,
 `bun run test` 366 lulus, `pytest` worker 11 lulus.
 
@@ -213,7 +213,7 @@ Yang **belum** selesai dan sengaja dibiarkan masuk apa adanya:
    - ✅ `set_page_setup` / `set_columns` punya `scope: from_here|this_page`, plus alat baru
      `insert_section_break`;
    - ✅ `export-docx.ts` menulis satu `sectPr` per section, lengkap dengan `w:cols`;
-   - ⬜ submenu Kolom di `menu-bar.tsx` belum punya pilihan cakupan — jalannya sudah ada lewat
+   - ⬜ submenu Kolom di `menu-bar.tsx` belum punya pilihan cakupan - jalannya sudah ada lewat
      dialog dan AI Chat, jadi ini kenyamanan, bukan penghalang;
    - ⬜ **impor** DOCX belum membaca `sectPr` (butir (d) yang ditunda): dokumen Word
      berorientasi campur tetap rata jadi satu section saat diimpor.
@@ -233,7 +233,7 @@ Yang **belum** selesai dan sengaja dibiarkan masuk apa adanya:
 4. **Dependensi baru `country-flag-icons`.** `bun install` wajib di tiap mesin dan di image
    Docker sebelum menjalankan web.
 
-5. ~~**`pytest` tidak ada di `services/worker/requirements.txt`.**~~ **Selesai** — dipisah ke
+5. ~~**`pytest` tidak ada di `services/worker/requirements.txt`.**~~ **Selesai** - dipisah ke
    `services/worker/requirements-dev.txt` (pytest + ruff), dengan cara menjalankannya dicatat di
    README §Perintah. Sengaja tidak digabung ke `requirements.txt` supaya image produksi tetap
    ramping.
@@ -246,7 +246,7 @@ Yang **belum** selesai dan sengaja dibiarkan masuk apa adanya:
 
 ---
 
-## 9. §6 — permukaan section (C-1…C-3)
+## 9. §6 - permukaan section (C-1…C-3)
 
 Dikerjakan langsung di `main` setelah merge, satu commit per bagian. Butir (d), impor `sectPr`
 DOCX, sengaja dilewati.

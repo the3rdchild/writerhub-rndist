@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 /**
- * Body `POST /tabs/:tabId/versions` — snapshot berlabel opsional.
+ * Body `POST /tabs/:tabId/versions` - snapshot berlabel opsional.
  *
  * `trigger` dibatasi ke dua nilai yang memang boleh diminta klien: snapshot
  * manual, dan titik pulih otomatis sebelum terjemahan menimpa naskah.

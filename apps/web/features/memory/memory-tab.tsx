@@ -135,7 +135,7 @@ These preferences are used by AI Chat, AI Rewriter, and Humanizer when writing o
 				</div>
 			</Field>
 
-			<Field label="Glossary — terms that must not be changed or translated">
+			<Field label="Glossary - terms that must not be changed or translated">
 				<div className="flex gap-2">
 					<input
 						type="text"
@@ -223,7 +223,7 @@ These preferences are used by AI Chat, AI Rewriter, and Humanizer when writing o
 
 			{save.isError && (
 				<p className="text-sm text-red-400">
-					Failed to save AI Memory: {save.error.message}. Your changes were not saved —
+					Failed to save AI Memory: {save.error.message}. Your changes were not saved -
 					try again.
 				</p>
 			)}

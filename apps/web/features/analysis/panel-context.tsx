@@ -54,7 +54,7 @@ interface PanelContextValue {
 	 * benar-benar membuang hasil: query analisis dimatikan (`enabled` jatuh ke
 	 * false), jadi cache yang dihapus lewat `queryClient.removeQueries` tidak
 	 * seketika di-fetch ulang (§P12 butir 2). Tanpa ini, klik Clear justru
-	 * menjalankan ulang job — lihat bug terpisah di `useAnalysis.clear`.
+	 * menjalankan ulang job - lihat bug terpisah di `useAnalysis.clear`.
 	 */
 	clearRun: (feature: AnalysisFeature) => void
 }

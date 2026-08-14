@@ -1,4 +1,4 @@
-# Rencana Implementasi — Glosarium Maker (fitur L, Tier V2)
+# Rencana Implementasi - Glosarium Maker (fitur L, Tier V2)
 
 **PRD fitur L:** Glossary / terminology lock.
 **Bentuk yang disepakati:** panel baru di tool rail yang membangun **daftar istilah akademik**
@@ -6,7 +6,7 @@
 
 Ini menyimpang dari sketsa §3.L `docs/FEATURE-GAP-PRD.md` dalam satu hal penting: di sana L
 digambarkan sebagai pelengkap File Translator (C) dan **bergantung padanya**. C ditunda, jadi
-rencana ini membuat L **berdiri sendiri** — glosarium dipakai untuk dokumen dan modul AI yang
+rencana ini membuat L **berdiri sendiri** - glosarium dipakai untuk dokumen dan modul AI yang
 sudah ada, bukan untuk terjemahan. Saat C akhirnya digarap, ia tinggal ikut membaca tabel yang
 sama.
 
@@ -22,7 +22,7 @@ sama.
    **Tidak termasuk:** pemeriksaan konsistensi di naskah, dan ekspor CSV/DOCX terpisah.
 
 Keputusan 1 dan 4a sejalan: definisi ada untuk dibaca manusia dan dicetak. Keputusan 4b hanya
-membutuhkan **string istilahnya saja** — persis bentuk yang sudah diterima
+membutuhkan **string istilahnya saja** - persis bentuk yang sudah diterima
 `style_memory.glossary` hari ini. Jadi definisi tidak perlu ikut ke prompt LLM.
 
 ---
@@ -65,7 +65,7 @@ CREATE UNIQUE INDEX glossaries_document_idx ON glossaries (document_id) WHERE do
 CREATE UNIQUE INDEX glossaries_project_idx  ON glossaries (project_id)  WHERE project_id  IS NOT NULL;
 ```
 
-- **Satu baris per dokumen atau per proyek**, entri di jsonb — bukan satu baris per istilah.
+- **Satu baris per dokumen atau per proyek**, entri di jsonb - bukan satu baris per istilah.
   Glosarium selalu dibaca dan ditulis utuh (panel menampilkan semuanya, prompt butuh semuanya),
   jadi tabel per-istilah hanya menambah query tanpa keuntungan. Pola yang sama dengan
   `user_memories` di fitur H.
@@ -79,7 +79,7 @@ Bentuk satu entri (`packages/shared`):
 ```ts
 export interface GlossaryEntry {
   term: string            // istilah, wajib
-  definition: string      // definisi, wajib — ini inti glosarium akademik
+  definition: string      // definisi, wajib - ini inti glosarium akademik
   abbreviation?: string   // singkatan, mis. "AKD"
   foreign?: string        // padanan asing, mis. "principal component analysis"
   source?: 'ai' | 'manual' // dari usulan analyzer atau diketik sendiri
@@ -91,7 +91,7 @@ nanti mengukur seberapa sering usulan AI diterima.
 
 ---
 
-## 3. Worker — analyzer `glossary`
+## 3. Worker - analyzer `glossary`
 
 ### Kontrak
 
@@ -107,7 +107,7 @@ export interface GlossaryResult {
     definition: string
     abbreviation?: string
     foreign?: string
-    /** Berapa kali istilah ini muncul di naskah — bahan urut & keyakinan. */
+    /** Berapa kali istilah ini muncul di naskah - bahan urut & keyakinan. */
     occurrences: number
   }>
 }
@@ -125,7 +125,7 @@ juga tidak menyentuh highlight layer maupun `shift-result.ts`.
 - istilah teknis/khusus domain yang layak masuk daftar istilah,
 - definisi ringkas **dalam bahasa naskah** (`language_name()` sudah tersedia),
 - singkatan dan padanan asing bila ada di naskah,
-- **melewatkan kata umum** — ini bagian yang paling menentukan kualitas hasil.
+- **melewatkan kata umum** - ini bagian yang paling menentukan kualitas hasil.
 
 Batas wajar: maksimum ~40 kandidat per panggilan. Naskah panjang dipotong seperti analyzer lain.
 
@@ -149,7 +149,7 @@ di `analysis_service.py:82` tetap hanya untuk rewriter & humanizer.
 | `GET` | `/api/v1/projects/:id/glossary` | Glosarium proyek |
 | `PUT` | `/api/v1/projects/:id/glossary` | Sunting glosarium proyek |
 
-Semua memverifikasi kepemilikan lebih dulu lewat `findDocumentById` / repository proyek — pola
+Semua memverifikasi kepemilikan lebih dulu lewat `findDocumentById` / repository proyek - pola
 `VersionsService.ownedDocument()`. Lapisan `repository/glossary.ts` sesuai mitigasi §5.4.
 
 ### Penggabungan dokumen + proyek
@@ -165,7 +165,7 @@ Responsnya memisahkan asal supaya panel bisa menampilkannya berbeda:
 Tanpa `inherited` yang eksplisit, pengguna akan menyunting entri warisan dan bingung kenapa
 perubahannya tidak tersimpan ke tempat yang ia kira.
 
-`promote` memindahkan entri terpilih ke glosarium proyek lalu membuangnya dari dokumen — bukan
+`promote` memindahkan entri terpilih ke glosarium proyek lalu membuangnya dari dokumen - bukan
 menyalin. Menyalin akan melahirkan dua sumber kebenaran yang langsung menyimpang.
 Dokumen tanpa proyek → 400 dengan pesan yang menjelaskan, bukan diam-diam gagal.
 
@@ -173,7 +173,7 @@ Dokumen tanpa proyek → 400 dengan pesan yang menjelaskan, bukan diam-diam gaga
 
 ## 5. Penguncian istilah di modul AI
 
-### 5.1 Rewriter & Humanizer — jalur sudah ada
+### 5.1 Rewriter & Humanizer - jalur sudah ada
 
 `AnalysisService.styleMemory()` (fitur H) sekarang mengembalikan preferensi user. Ia diperluas
 menjadi `resolveStyleMemory(documentId)`:
@@ -184,7 +184,7 @@ glossary = glossary efektif documentId          // baru
 style_memory.glossary = gabungan(memory.glossary, glossary.map(e => e.term))
 ```
 
-Worker tidak berubah sama sekali — `style_memory_instruction()` di `llm_client.py` sudah
+Worker tidak berubah sama sekali - `style_memory_instruction()` di `llm_client.py` sudah
 merangkai daftar istilah jadi "Never translate or alter these terms". Ini keuntungan langsung
 dari keputusan H sebelumnya.
 
@@ -192,13 +192,13 @@ Yang perlu dijaga: **deduplikasi** (istilah bisa ada di dua tempat) dan **batas 
 dengan 300 istilah akan menenggelamkan instruksi lain; potong di ~100 istilah dengan urutan
 dokumen dulu, lalu proyek, lalu user.
 
-### 5.2 AI Chat — perlu satu penambahan kontrak
+### 5.2 AI Chat - perlu satu penambahan kontrak
 
 Chat tidak tahu dokumen mana yang sedang dibuka: `ChatContext` hanya membawa `selection`,
 `surrounding`, `document`, dan `title`. Jadi glosarium per-dokumen tidak bisa diambil server-side
 seperti pada analisis.
 
-**Tambahkan `documentId?: string` ke `ChatBody`** (bukan ke `ChatContext` — ia identitas request,
+**Tambahkan `documentId?: string` ke `ChatBody`** (bukan ke `ChatContext` - ia identitas request,
 bukan potongan naskah). Server memvalidasi kepemilikannya persis seperti
 `createPoolRequest` (`job-submission.service.ts`), lalu menggabungkan glosarium ke `memoryPrompt()`.
 
@@ -218,32 +218,32 @@ Menambah panel non-analisis maupun analisis sama-sama menyentuh empat tempat:
 
 | Berkas | Perubahan |
 |---|---|
-| `features/analysis/panel-context.tsx:11` | `PanelId` ikut bertambah otomatis — `glossary` masuk lewat `AnalysisFeature` |
+| `features/analysis/panel-context.tsx:11` | `PanelId` ikut bertambah otomatis - `glossary` masuk lewat `AnalysisFeature` |
 | `components/panels/panel-rail.tsx:16` | entri `{ id: 'glossary', icon: BookMarked, label: 'Glosarium' }` |
 | `components/panels/panel-container.tsx` | `PANEL_TITLES` + cabang `PanelBody` |
 | `components/panels/glossary-panel.tsx` | panel baru |
 
 Rail jadi 8 panel. Karena `PanelId` diturunkan dari `AnalysisFeature`, menambah `'glossary'` ke
 `ANALYSIS_FEATURES` otomatis membuat TypeScript menuntut cabang baru di `PANEL_TITLES` dan
-`PanelBody` — kompilernya yang menjaga, tidak perlu diingat manual.
+`PanelBody` - kompilernya yang menjaga, tidak perlu diingat manual.
 
 **Konsekuensi yang harus dicek:** `run_module` di `packages/shared/src/tools.ts:152` memakai enum
 literal `['proofreader','ai_detector','ai_rewriter','humanizer','plagiarism']`. Ia **tidak**
 otomatis ikut. Putuskan sadar: biarkan chat tidak bisa memicu glosarium (rekomendasi untuk
-iterasi pertama — hasilnya butuh kurasi manusia, bukan sesuatu yang pantas dijalankan agen
+iterasi pertama - hasilnya butuh kurasi manusia, bukan sesuatu yang pantas dijalankan agen
 diam-diam), atau tambahkan sekalian.
 
 ### 6.2 Isi panel
 
 Tiga bagian dari atas ke bawah:
 
-1. **Tombol "Usulkan istilah"** — menjalankan analyzer lewat `useAnalysis('glossary')`, dapat
+1. **Tombol "Usulkan istilah"** - menjalankan analyzer lewat `useAnalysis('glossary')`, dapat
    antrean + SSE gratis. Hormati scoping seleksi seperti modul lain (`RunScopeBar`).
-2. **Kandidat AI** — kartu per kandidat: istilah, definisi draf yang bisa disunting inline,
+2. **Kandidat AI** - kartu per kandidat: istilah, definisi draf yang bisa disunting inline,
    jumlah kemunculan, tombol Terima / Tolak. Pola visual `SuggestionCard`/`ChangeListPanel`.
    Kandidat yang istilahnya sudah ada di glosarium ditandai "sudah ada", tidak ditampilkan
    sebagai baru.
-3. **Daftar glosarium** — entri tersimpan, terurut alfabetis, bisa disunting/dihapus, plus
+3. **Daftar glosarium** - entri tersimpan, terurut alfabetis, bisa disunting/dihapus, plus
    "+ Tambah manual". Entri warisan proyek ditampilkan dengan lencana "dari proyek" dan tidak
    bisa disunting dari sini (ada tautan ke glosarium proyek).
 
@@ -252,11 +252,11 @@ Di kaki panel: **"Sisipkan ke dokumen"** dan **"Angkat ke proyek"**.
 ### 6.3 Sisip tabel glosarium
 
 Tombol menyisipkan tabel 2 kolom (Istilah | Definisi) di posisi kursor, memakai `TableKit` yang
-sudah aktif. Kolom singkatan/padanan asing hanya ikut bila ada isinya — tabel dengan dua kolom
+sudah aktif. Kolom singkatan/padanan asing hanya ikut bila ada isinya - tabel dengan dua kolom
 kosong lebih buruk daripada tanpa kolom itu.
 
 Penyisipan lewat `editor.chain().insertContentAt(...)` dengan JSON ProseMirror, bukan HTML string
-— pola yang sama dengan `apply-text.ts` dan tool `insert_content`.
+- pola yang sama dengan `apply-text.ts` dan tool `insert_content`.
 
 **Menyisip ulang tidak menimpa tabel lama.** Mendeteksi dan mengganti "tabel glosarium yang dulu"
 butuh penanda node dan penanganan kasus yang tidak sebanding untuk iterasi pertama. Cukup
@@ -296,7 +296,7 @@ M1 dan M2 tidak saling bergantung.
 
 1. `bun run typecheck` (3 paket) + `bun test`.
 2. **Unit test** untuk `insert-table.ts` (fungsi murni: entri → node ProseMirror) dan penggabungan
-   dokumen+proyek di sisi API — termasuk kasus istilah bertabrakan beda kapitalisasi.
+   dokumen+proyek di sisi API - termasuk kasus istilah bertabrakan beda kapitalisasi.
 3. `bun run db:generate` → migrasi 0009 → `db:migrate`.
 4. Smoke E2E lewat proxy:
    - simpan glosarium dokumen → baca kembali;
@@ -314,18 +314,18 @@ M1 dan M2 tidak saling bergantung.
 
 | Bagian | Risiko |
 |---|---|
-| Skema + endpoint + panel CRUD | **Rendah** — pola persis fitur G/H |
-| Analyzer `glossary` | **Sedang** — kualitas hasil bergantung prompt; "mana yang layak jadi istilah" itu penilaian, bukan aturan. Rencanakan satu putaran penyetelan prompt dengan naskah nyata, jangan anggap selesai di percobaan pertama |
-| Penggabungan dokumen+proyek | **Sedang** — aturan menang/kalah dan `inherited` yang tidak bisa disunting adalah tempat bug halus bersembunyi. Diuji unit, bukan hanya lewat UI |
-| `documentId` di ChatBody | **Rendah-sedang** — menyentuh kontrak chat yang sudah stabil; wajib validasi kepemilikan seperti `createPoolRequest` |
-| Sisip tabel | **Rendah** — `TableKit` sudah aktif dan terpakai |
+| Skema + endpoint + panel CRUD | **Rendah** - pola persis fitur G/H |
+| Analyzer `glossary` | **Sedang** - kualitas hasil bergantung prompt; "mana yang layak jadi istilah" itu penilaian, bukan aturan. Rencanakan satu putaran penyetelan prompt dengan naskah nyata, jangan anggap selesai di percobaan pertama |
+| Penggabungan dokumen+proyek | **Sedang** - aturan menang/kalah dan `inherited` yang tidak bisa disunting adalah tempat bug halus bersembunyi. Diuji unit, bukan hanya lewat UI |
+| `documentId` di ChatBody | **Rendah-sedang** - menyentuh kontrak chat yang sudah stabil; wajib validasi kepemilikan seperti `createPoolRequest` |
+| Sisip tabel | **Rendah** - `TableKit` sudah aktif dan terpakai |
 
 ## 10. Yang sengaja tidak dikerjakan
 
-- **Pemeriksaan konsistensi di naskah** dan **ekspor CSV/DOCX** — tidak dipilih. Keduanya bisa
+- **Pemeriksaan konsistensi di naskah** dan **ekspor CSV/DOCX** - tidak dipilih. Keduanya bisa
   ditambahkan di atas skema yang sama tanpa migrasi baru bila kelak dibutuhkan.
-- **Varian terlarang per istilah** — konsekuensi dari memilih bentuk glosarium akademik. Kolom
+- **Varian terlarang per istilah** - konsekuensi dari memilih bentuk glosarium akademik. Kolom
   `entries` jsonb bisa menampungnya nanti tanpa mengubah tabel.
 - **File Translator (C)** tetap ditunda. Saat digarap, analyzer translator tinggal membaca
-  glosarium efektif lewat jalur yang sama dengan `resolveStyleMemory` — inilah bentuk asli
+  glosarium efektif lewat jalur yang sama dengan `resolveStyleMemory` - inilah bentuk asli
   fitur L di PRD, dan ia tidak memerlukan perubahan skema.

@@ -61,7 +61,7 @@ export default class ProjectsService extends BaseService {
 	}
 
 	/**
-	 * Hapus proyek. Dokumen di dalamnya tidak ikut terhapus — FK
+	 * Hapus proyek. Dokumen di dalamnya tidak ikut terhapus - FK
 	 * `documents.project_id` memakai ON DELETE SET NULL.
 	 */
 	async remove(): Promise<Response> {

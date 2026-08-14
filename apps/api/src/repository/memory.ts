@@ -4,7 +4,7 @@ import db from '@/db'
 import { userMemories } from '@/db/schemas'
 
 /**
- * Akses tabel `user_memories` yang selalu diskop ke pemilik (`owner_id`) —
+ * Akses tabel `user_memories` yang selalu diskop ke pemilik (`owner_id`) -
  * satu baris per user, preferensi tersimpan sebagai satu objek jsonb.
  */
 
@@ -19,7 +19,7 @@ export async function findMemoryByOwner(ownerId: string) {
 }
 
 /**
- * Upsert preferensi user. Menimpa SELURUH objek (bukan merge per field) —
+ * Upsert preferensi user. Menimpa SELURUH objek (bukan merge per field) -
  * klien selalu mengirim keadaan lengkap dari form-nya, dan merge diam-diam
  * membuat field yang dikosongkan user tidak pernah hilang.
  */

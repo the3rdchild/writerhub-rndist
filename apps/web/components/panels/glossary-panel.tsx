@@ -75,7 +75,7 @@ export function GlossaryPanel() {
 						) : (
 							<div className="flex flex-col gap-2">
 								<p className="px-1 text-[11px] leading-relaxed text-subtle">
-									Built from words and acronyms that <strong>repeat</strong> in this text —
+									Built from words and acronyms that <strong>repeat</strong> in this text -
 									terms that appear only once are not captured, except acronyms.
 								</p>
 								<p className="mb-1 px-1 text-[11px] text-subtle">

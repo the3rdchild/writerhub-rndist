@@ -18,7 +18,7 @@ import type { DocumentDetail, DocumentSummary, TabSummary } from './dto'
 const EMPTY_CONTENT: Record<string, unknown> = { type: 'doc', content: [] }
 
 /**
- * CRUD dokumen INDUK milik user (judul + proyek; naskahnya tinggal di tab —
+ * CRUD dokumen INDUK milik user (judul + proyek; naskahnya tinggal di tab -
  * lihat docs/DOCUMENT-TABS-RESTRUCTURE-PLAN.md). Semua operasi diskop ke
  * `userId` dari context (diisi `authMiddleware`; dev lokal memakai fallback
  * 'local-dev').
@@ -99,7 +99,7 @@ export default class DocumentsService extends BaseService {
 	}
 
 	/** Ubah dokumen induk: judul dan/atau keanggotaan proyek. Autosave naskah
-	 * tidak lagi lewat sini — pakai `PUT /tabs/:tabId`. */
+	 * tidak lagi lewat sini - pakai `PUT /tabs/:tabId`. */
 	async update(): Promise<Response> {
 		try {
 			const body = updateDocumentBodySchema.safeParse(await this.context.req.json())

@@ -5,7 +5,7 @@ import { timestamps } from '@/db/utils/common-table'
 /**
  * Snapshot riwayat versi sebuah TAB. Konten disimpan apa adanya sebagai
  * JSON Tiptap (ProseMirror), format sama dengan `document_tabs.content`.
- * Versi immutable — tidak ada `updated_at`.
+ * Versi immutable - tidak ada `updated_at`.
  */
 export const versionTriggerEnum = pgEnum('version_trigger', [
 	'manual',

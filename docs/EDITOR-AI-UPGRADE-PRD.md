@@ -1,4 +1,4 @@
-# WritingHub — PRD: Tata Letak Halaman & AI Mastermind
+# WritingHub - PRD: Tata Letak Halaman & AI Mastermind
 
 Status: **Draft untuk ditinjau** · Disusun 12 Agustus 2026 · Baseline kode `d9cf567` (branch `main`).
 
@@ -6,7 +6,7 @@ Dokumen ini merinci delapan fitur baru: lima di sisi editor (tata letak halaman,
 penggaris kiri, heading 9 tingkat, setelan daftar isi) dan tiga di sisi AI Chat (progres SSE,
 pengaman giliran percakapan, perluasan tools/skills).
 
-PRD ini berdiri sendiri dan **tidak** menggantikan `docs/FEATURE-GAP-PRD.md` — fitur A–O di sana
+PRD ini berdiri sendiri dan **tidak** menggantikan `docs/FEATURE-GAP-PRD.md` - fitur A–O di sana
 tetap berjalan dengan penomorannya. Penomoran di sini (A1–A5, B1–B3) baru dan tidak bertabrakan.
 
 ---
@@ -44,7 +44,7 @@ serta kerangka dokumen membaca hasil itu. **B2 memperbaiki bug** dan tidak berga
 | Ekspor DOCX | `apps/web/features/document/export-docx.ts:84` | Peta `HEADING_1..HEADING_6` |
 | Daftar isi | `apps/web/components/editor/toc-panel.tsx`, `features/editor/table-of-contents.ts` | Ekstensi Tiptap `TableOfContents` melapor ke storage; panel hanya untuk melompat. **Tidak ada yang disisipkan ke naskah**, tidak ada setelan |
 | Kerangka heading | `apps/web/features/editor/use-outline.ts` | Sidebar; dihitung ulang tiap transaksi |
-| Cari & ganti | `apps/web/components/editor/search-bar.tsx` | Mencari **isi naskah** — berbeda dari A2 yang mencari **perintah menu** |
+| Cari & ganti | `apps/web/components/editor/search-bar.tsx` | Mencari **isi naskah** - berbeda dari A2 yang mencari **perintah menu** |
 | SSE chat | `packages/shared/src/chat.ts:45` | Event `delta` / `tool_call` / `tools_unsupported` / `done` / `error` |
 | Alur giliran | `apps/web/features/chat/chat-context.tsx:138` | `runTurn` rekursif, maksimal 4 putaran alat baca; alat tulis berhenti jadi kartu aksi |
 | Tools | `packages/shared/src/tools.ts:32` | 8 alat: 3 baca (`get_outline`, `read_section`, `find_text`), 5 tulis |
@@ -59,7 +59,7 @@ serta kerangka dokumen membaca hasil itu. **B2 memperbaiki bug** dan tidak berga
    localStorage ke Y.Doc. Alasannya sama dengan alasan komentar ada di Y.Doc: begitu dokumen
    dibagikan, dua orang tidak boleh melihat dokumen yang sama pada ukuran kertas yang berbeda.
    Zoom, mode fokus, dan tampil/sembunyi penggaris tetap milik pemakai.
-2. **Cakupan "Terapkan ke"** — hanya dua nilai:
+2. **Cakupan "Terapkan ke"** - hanya dua nilai:
    - *Seluruh dokumen*: semua tab pada dokumen aktif.
    - *Dokumen terpilih*: tab yang sedang dibuka saja.
    **Tidak ada section break** (ukuran kertas berbeda antar-halaman dalam satu tab). Itu di luar
@@ -75,7 +75,7 @@ serta kerangka dokumen membaca hasil itu. **B2 memperbaiki bug** dan tidak berga
 
 ---
 
-## 3. Bagian A — Editor
+## 3. Bagian A - Editor
 
 ### A1. Penyiapan halaman
 
@@ -115,7 +115,7 @@ Penyimpanan (menyusul keputusan §2.1):
 
 Resolusi saat render: `tab.pageSetup ?? doc.pageSetup ?? user.defaultPageSetup ?? DEFAULT`.
 Menerapkan ke seluruh dokumen menulis `DocMeta.pageSetup` **dan menghapus** `TabMeta.pageSetup`
-di semua tab — kalau tidak, tab yang pernah ditimpa akan diam-diam mengabaikan perintah pengguna.
+di semua tab - kalau tidak, tab yang pernah ditimpa akan diam-diam mengabaikan perintah pengguna.
 
 Migrasi: saat dokumen lama dimuat pertama kali dan `DocMeta.pageSetup` kosong, nilainya diisi dari
 `Settings` yang ada sekarang (`pageSize`, `pageOrientation`, `pageMargins`) supaya tidak ada
@@ -146,7 +146,7 @@ Batas ukuran khusus: 3–48 inci per sisi, tetap tunduk pada `MIN_CONTENT_WIDTH`
 #### A1.4 Dialog "Penyiapan halaman"
 
 Dibuka dari **File → Penyiapan halaman…** (menggantikan submenu "Ukuran kertas") dan dari menu
-konteks penggaris. Satu dialog, satu tombol OK — bukan penerapan langsung, karena mengubah kertas
+konteks penggaris. Satu dialog, satu tombol OK - bukan penerapan langsung, karena mengubah kertas
 me-repaginasi seluruh naskah dan pratinjau langsung pada tiap ketukan terasa kacau.
 
 | Kolom | Kontrol | Catatan |
@@ -156,8 +156,8 @@ me-repaginasi seluruh naskah dan pratinjau langsung pada tiap ketukan terasa kac
 | Ukuran kertas | Dropdown + dua isian untuk *Ukuran khusus* | Menampilkan dimensi dalam satuan aktif |
 | Warna halaman | Contoh warna + pemilih (memakai `color-picker.tsx` yang sudah ada) | Termasuk "Ikuti tema" |
 | Margin | Empat isian angka: Atas, Bawah, Kiri, Kanan | Satuan cm atau inci; dua arah dengan penggaris |
-| — | Tombol *Setel sebagai default* | Menulis `Settings.defaultPageSetup` |
-| — | Tombol *Batal* / *OK* | |
+| - | Tombol *Setel sebagai default* | Menulis `Settings.defaultPageSetup` |
+| - | Tombol *Batal* / *OK* | |
 
 Satuan (cm/inci) jadi preferensi pemakai baru di `Settings.measurementUnit`, dipakai bersama oleh
 dialog ini, penggaris, dan indentasi TOC (A5).
@@ -180,14 +180,14 @@ Mode ini disimpan di `PageSetup.pageless` (jadi ikut dokumen), dan bisa dijangka
 
 #### A1.6 Dampak lintas modul
 
-- `document-canvas.tsx` — geometri tidak lagi dari `useSettings()`, melainkan dari hook baru
+- `document-canvas.tsx` - geometri tidak lagi dari `useSettings()`, melainkan dari hook baru
   `usePageSetup()`; menambahkan latar warna halaman dan cabang pageless.
-- `pagination.ts` — opsi plugin harus bisa dimatikan tanpa membongkar editor.
-- `document-ruler.tsx` — sumber margin berubah; penulisan margin masuk ke Y.Doc.
-- `export-docx.ts` / `export-pdf-dialog.tsx` / `export-docx-dialog.tsx` — ekspor bertab banyak
+- `pagination.ts` - opsi plugin harus bisa dimatikan tanpa membongkar editor.
+- `document-ruler.tsx` - sumber margin berubah; penulisan margin masuk ke Y.Doc.
+- `export-docx.ts` / `export-pdf-dialog.tsx` / `export-docx-dialog.tsx` - ekspor bertab banyak
   kini bisa punya geometri berbeda per tab; ekspor gabungan memakai geometri dokumen.
-- CSS cetak — ukuran `@page` mengikuti kertas tersimpan, bukan konstanta.
-- Riwayat versi & snapshot berbagi — `PageSetup` ikut dipotret supaya pemulihan versi juga
+- CSS cetak - ukuran `@page` mengikuti kertas tersimpan, bukan konstanta.
+- Riwayat versi & snapshot berbagi - `PageSetup` ikut dipotret supaya pemulihan versi juga
   memulihkan tata letaknya.
 
 #### A1.7 Kriteria terima
@@ -208,7 +208,7 @@ Mode ini disimpan di `PageSetup.pageless` (jadi ikut dokumen), dan bisa dijangka
 #### A2.1 Masalah
 
 Menu bar sekarang berisi puluhan butir yang ditulis langsung sebagai JSX di `menu-bar.tsx`
-(761 baris). Pengguna yang tahu nama fitur — "ruler", "daftar isi", "pageless" — tidak punya cara
+(761 baris). Pengguna yang tahu nama fitur - "ruler", "daftar isi", "pageless" - tidak punya cara
 menemukannya selain membuka menu satu per satu, dan tidak ada satu pun struktur data yang bisa
 dicari.
 
@@ -233,7 +233,7 @@ export interface Command {
 ```
 
 `MenuBar` lalu dirender **dari** registri ini, sehingga tidak mungkin ada perintah yang bisa
-diklik tapi tidak bisa dicari — masalah yang sama yang dulu diselesaikan `shortcuts/registry.ts`
+diklik tapi tidak bisa dicari - masalah yang sama yang dulu diselesaikan `shortcuts/registry.ts`
 untuk label pintasan.
 
 #### A2.3 Perilaku
@@ -257,7 +257,7 @@ mencari bantuan/dokumentasi.
 #### A2.5 Kriteria terima
 
 1. Setiap perintah yang bisa diklik di menu bar muncul di hasil pencarian (diuji dengan tes yang
-   membandingkan registri dengan menu yang dirender — bukan diperiksa manual).
+   membandingkan registri dengan menu yang dirender - bukan diperiksa manual).
 2. Mengetik "ruler" menemukan "Tampilkan penggaris"; "kertas" dan "page setup" menemukan
    "Penyiapan halaman".
 3. Menjalankan perintah dari pencarian memberi hasil yang identik dengan mengkliknya di menu.
@@ -274,7 +274,7 @@ Batang vertikal di sisi kiri lembar, tampil bersama penggaris atas dan tunduk pa
 
 - Menggambar skala inci/cm sesuai `measurementUnit`, dengan asal (0) di tepi atas lembar.
 - Dua penanda seret: **margin atas** dan **margin bawah**, dengan arsiran yang membedakan area
-  teks dari margin — konsisten dengan penggaris atas.
+  teks dari margin - konsisten dengan penggaris atas.
 - Seret menempel di 1/16 inci; `Shift` untuk gerak halus; panah atas/bawah menggeser saat penanda
   difokuskan (pola yang sama sudah dipakai `document-ruler.tsx`).
 - Pengetatan margin dibatasi `clampMargins` + `MIN_CONTENT_HEIGHT`, jadi area teks tidak pernah
@@ -348,9 +348,9 @@ tingkat sebelumnya.
 
 Dua hal, dipisah tegas:
 
-- **Blok TOC** — node baru yang benar-benar ada di dalam naskah, ikut tercetak dan terekspor.
+- **Blok TOC** - node baru yang benar-benar ada di dalam naskah, ikut tercetak dan terekspor.
   Disisipkan lewat **Sisipkan → Daftar isi**, perintah garis miring (`/toc`), dan alat AI.
-- **Panel TOC** — yang sudah ada; tetap sebagai alat navigasi, tidak ikut tercetak.
+- **Panel TOC** - yang sudah ada; tetap sebagai alat navigasi, tidak ikut tercetak.
 
 #### A5.2 Node dan atributnya
 
@@ -390,12 +390,12 @@ pemenggalan. Karena itu:
 Bilah kecil di sudut blok saat kursor berada di dalamnya (pola yang sama dengan
 `table-controls.tsx`):
 
-- **Segarkan** — menghitung ulang dari heading terkini.
-- **Tiga titik** — menu: *Setelan daftar isi…*, *Salin sebagai teks*, *Ubah jadi teks biasa*,
+- **Segarkan** - menghitung ulang dari heading terkini.
+- **Tiga titik** - menu: *Setelan daftar isi…*, *Salin sebagai teks*, *Ubah jadi teks biasa*,
   *Hapus*.
 
 Dialog setelan berisi persis kolom di §A5.2: Format (Teks polos / Bertitik / Tautan),
-Tampilkan nomor halaman, Tampilkan pengisi tab (Tidak ada / `…` / `- - -` / `———`), rentang
+Tampilkan nomor halaman, Tampilkan pengisi tab (Tidak ada / `…` / `- - -` / `---`), rentang
 tingkat heading, dan lekukan per tingkat dalam cm.
 
 #### A5.5 Kriteria terima
@@ -412,14 +412,14 @@ tingkat heading, dan lekukan per tingkat dalam cm.
 
 ---
 
-## 4. Bagian B — AI Chat
+## 4. Bagian B - AI Chat
 
 ### B1. SSE bertahap: proses yang terlihat
 
 #### B1.1 Masalah
 
 Jalur SSE sudah ada, tetapi satu-satunya hal yang terlihat pengguna adalah teks jawaban. Saat
-model memanggil alat baca, `runTurn` bisa berputar sampai empat kali (`chat-context.tsx:179`) —
+model memanggil alat baca, `runTurn` bisa berputar sampai empat kali (`chat-context.tsx:179`) -
 selama itu layar hanya menampilkan jawaban yang berhenti, tanpa keterangan apa pun. Pada dokumen
 panjang, jeda ini bisa puluhan detik dan tidak bisa dibedakan dari aplikasi yang menggantung.
 
@@ -434,7 +434,7 @@ panjang, jeda ini bisa puluhan detik dan tidak bisa dibedakan dari aplikasi yang
 | `tool_start` | `id`, `name`, `arguments` | Dikirim klien ke lini masa saat alat baca mulai dijalankan |
 | `tool_result` | `id`, `summary: string`, `ok: boolean` | Ringkasan pendek, bukan isi penuh |
 | `usage` | `promptTokens?`, `completionTokens?` | Ditampilkan halus di kaki giliran |
-| `ping` | — | Denyut tiap 15 detik supaya proksi tidak memutus koneksi menganggur |
+| `ping` | - | Denyut tiap 15 detik supaya proksi tidak memutus koneksi menganggur |
 
 Event lama (`delta`, `tool_call`, `tools_unsupported`, `done`, `error`) tidak berubah bentuknya,
 jadi klien lama tetap jalan. Klien mengabaikan event yang tidak dikenalnya.
@@ -471,8 +471,8 @@ Lini masa di atas jawaban yang sedang mengalir, satu baris per langkah, dengan i
 
 #### B2.1 Diagnosis
 
-Gejala yang dilaporkan — "sudah pernah chat dan ada hasilnya, lalu chat lagi dengan prompt berbeda,
-tapi AI malah meneruskan tugas sebelumnya" — punya tiga penyebab yang bisa ditunjukkan di kode:
+Gejala yang dilaporkan - "sudah pernah chat dan ada hasilnya, lalu chat lagi dengan prompt berbeda,
+tapi AI malah meneruskan tugas sebelumnya" - punya tiga penyebab yang bisa ditunjukkan di kode:
 
 1. **Seluruh riwayat dikirim ulang apa adanya.** `runTurn` mengirim `messages` lengkap, termasuk
    pesan `tool` dan `toolCalls` dari giliran-giliran lama. Bagi model, permintaan alat yang belum
@@ -484,7 +484,7 @@ tapi AI malah meneruskan tugas sebelumnya" — punya tiga penyebab yang bisa dit
    masuk ke naskah di tengah tugas baru.
 
 Ada pula bug kecil yang memperparahnya: pada `chat-context.tsx:165`, giliran yang berakhir tanpa
-teks dan tanpa panggilan alat langsung `return` — pesannya tidak pernah masuk riwayat, jadi model
+teks dan tanpa panggilan alat langsung `return` - pesannya tidak pernah masuk riwayat, jadi model
 melihat pertanyaan pengguna tanpa jawaban dan cenderung mengulang pekerjaan.
 
 #### B2.2 Mekanisme
@@ -501,13 +501,13 @@ melihat pertanyaan pengguna tanpa jawaban dan cenderung mengulang pekerjaan.
 
 #### B2.3 Kriteria terima
 
-1. Prompt baru yang tidak berhubungan tidak pernah menghasilkan kelanjutan tugas sebelumnya —
+1. Prompt baru yang tidak berhubungan tidak pernah menghasilkan kelanjutan tugas sebelumnya -
    diuji dengan skenario: minta ringkasan, lalu minta tabel; keluarannya harus tabel saja.
 2. Kartu aksi dari tugas sebelumnya tidak bisa diterapkan tanpa konfirmasi tambahan.
 3. Menekan Apply dua kali pada kartu yang sama hanya mengubah naskah sekali.
 4. Riwayat yang dikirim ke provider pada giliran ke-N tidak memuat pesan `tool` dari tugas lama
    (diuji langsung pada fungsi perakit pesan).
-5. Transkrip di layar tetap utuh — pemadatan hanya memengaruhi apa yang dikirim, bukan apa yang
+5. Transkrip di layar tetap utuh - pemadatan hanya memengaruhi apa yang dikirim, bukan apa yang
    dibaca pengguna.
 
 ---
@@ -516,7 +516,7 @@ melihat pertanyaan pengguna tanpa jawaban dan cenderung mengulang pekerjaan.
 
 #### B3.1 Tujuan
 
-Menjadikan AI Chat mampu mengoperasikan dokumen ini seutuhnya — termasuk tata letaknya — bukan
+Menjadikan AI Chat mampu mengoperasikan dokumen ini seutuhnya - termasuk tata letaknya - bukan
 hanya menyisipkan teks. Aturan `read` dijalankan langsung / `write` butuh Apply
 (`tools.ts:9-15`) tetap berlaku tanpa pengecualian.
 
@@ -537,7 +537,7 @@ hanya menyisipkan teks. Aturan `read` dijalankan langsung / `write` butuh Apply
 
 | Nama | Fungsi |
 |---|---|
-| `set_page_setup` | Ukuran kertas, orientasi, margin, warna halaman, pageless — cakupan `document` atau `tab` (A1) |
+| `set_page_setup` | Ukuran kertas, orientasi, margin, warna halaman, pageless - cakupan `document` atau `tab` (A1) |
 | `insert_toc` | Menyisipkan blok TOC dengan setelan tertentu (A5) |
 | `set_toc_options` | Mengubah setelan blok TOC yang sudah ada |
 | `insert_mermaid` | Menyisipkan blok diagram Mermaid (mesinnya sudah ada: `lazy-mermaid.ts`) |
@@ -568,7 +568,7 @@ Pengaman untuk dua alat pertama, semuanya di sisi server (`apps/api`), tidak per
 - Hanya `http`/`https`; alamat privat/loopback/link-local ditolak setelah resolusi DNS (SSRF).
 - Batas ukuran unduhan dan batas waktu; pengalihan diikuti maksimal tiga kali dan divalidasi ulang.
 - Daftar izin/tolak domain yang bisa diatur, plus kuota per pengguna per hari.
-- Isi halaman disisipkan ke percakapan dengan penanda **konten tak tepercaya** — instruksi di
+- Isi halaman disisipkan ke percakapan dengan penanda **konten tak tepercaya** - instruksi di
   dalamnya tidak boleh diperlakukan sebagai perintah.
 - Sakelar admin untuk mematikan riset web sepenuhnya.
 
@@ -589,7 +589,7 @@ Skill bersifat aditif dan tidak pernah memperluas izin: alat tulis di dalam skil
 #### B3.4 Kriteria terima
 
 1. "Ubah dokumen ini jadi A3 mendatar dengan margin 2 cm" menghasilkan satu kartu aksi yang, saat
-   diterapkan, mengubah tata letak persis — dan bisa diurungkan dengan satu Ctrl+Z.
+   diterapkan, mengubah tata letak persis - dan bisa diurungkan dengan satu Ctrl+Z.
 2. "Buatkan diagram alur proses ini" menghasilkan blok Mermaid yang benar-benar dirender.
 3. "Buat daftar isi sampai judul 3, dengan titik-titik" menghasilkan blok TOC bersetelan tepat.
 4. Alat tulis apa pun yang datang dari model tidak pernah menyentuh naskah tanpa Apply.
@@ -621,7 +621,7 @@ Skill bersifat aditif dan tidak pernah memperluas izin: alat tulis di dalam skil
 | `features/chat/chat-context.tsx` | | | | | | ● | ● | ● |
 | `features/chat/tools.ts` | ○ | | | ○ | ○ | | | ● |
 | `apps/api/src/services/chat/service.ts` | | | | | | ● | ● | ● |
-| `apps/api` — layanan riset web (baru) | | | | | | | | ● |
+| `apps/api` - layanan riset web (baru) | | | | | | | | ● |
 
 ● perubahan utama · ○ penyesuaian ikutan
 
@@ -631,13 +631,13 @@ Skill bersifat aditif dan tidak pernah memperluas izin: alat tulis di dalam skil
 
 | Fase | Isi | Alasan urutan |
 |---|---|---|
-| 1 | **B2** — pengaman giliran | Memperbaiki cacat yang sudah dirasakan pengguna; tidak bergantung pada apa pun; paling murah |
-| 2 | **A1** — penyiapan halaman | Fondasi data (pindah ke Y.Doc) yang dipakai A3 dan A5 |
-| 3 | **A4** — heading 1–9 | Mengubah skema; A5 dan kerangka membacanya |
-| 4 | **A3** + **A5** — penggaris kiri & setelan TOC | Keduanya bergantung pada fase 2–3; bisa paralel |
-| 5 | **B1** — SSE bertahap | Mandiri; sebaiknya mendahului B3 supaya alat baru punya tempat untuk menampilkan progresnya |
-| 6 | **A2** — telusuri menu | Butuh registri perintah, dan registri paling baik dibuat setelah semua butir menu baru (A1, A5) ada |
-| 7 | **B3** — tools & skills, lokal dulu | Alat dokumen dulu (butuh A1/A5 sudah jadi), riset web paling akhir |
+| 1 | **B2** - pengaman giliran | Memperbaiki cacat yang sudah dirasakan pengguna; tidak bergantung pada apa pun; paling murah |
+| 2 | **A1** - penyiapan halaman | Fondasi data (pindah ke Y.Doc) yang dipakai A3 dan A5 |
+| 3 | **A4** - heading 1–9 | Mengubah skema; A5 dan kerangka membacanya |
+| 4 | **A3** + **A5** - penggaris kiri & setelan TOC | Keduanya bergantung pada fase 2–3; bisa paralel |
+| 5 | **B1** - SSE bertahap | Mandiri; sebaiknya mendahului B3 supaya alat baru punya tempat untuk menampilkan progresnya |
+| 6 | **A2** - telusuri menu | Butuh registri perintah, dan registri paling baik dibuat setelah semua butir menu baru (A1, A5) ada |
+| 7 | **B3** - tools & skills, lokal dulu | Alat dokumen dulu (butuh A1/A5 sudah jadi), riset web paling akhir |
 
 ---
 
@@ -658,7 +658,7 @@ Skill bersifat aditif dan tidak pernah memperluas izin: alat tulis di dalam skil
 
 ## 8. Di luar cakupan
 
-- **Section break** — ukuran kertas/margin berbeda antar bagian di dalam satu tab.
+- **Section break** - ukuran kertas/margin berbeda antar bagian di dalam satu tab.
 - Header & footer, penomoran halaman kustom (angka Romawi, mulai dari N).
 - Kolom teks per bagian (`columns.ts` yang ada tidak diubah).
 - Peramban headless / otomasi peramban untuk AI.
@@ -673,16 +673,16 @@ Skill bersifat aditif dan tidak pernah memperluas izin: alat tulis di dalam skil
    malam hari) atau diredupkan di layar dan tetap asli saat dicetak?
 2. Blok TOC pada dokumen bertab banyak: apakah perlu opsi "sertakan seluruh tab"?
 3. Kuota riset web: per pengguna per hari, atau ikut kuota modul analisis yang sudah ada?
-4. `read_tab` membuka naskah tab lain ke konteks model — perlu persetujuan pengguna sekali per
+4. `read_tab` membuka naskah tab lain ke konteks model - perlu persetujuan pengguna sekali per
    sesi, atau cukup diperlakukan sebagai alat baca biasa?
 
 ---
 
 ## 10. Referensi
 
-- `docs/FEATURE-GAP-PRD.md` — peta fitur PRD utama dan status A–O.
-- `docs/DOCUMENT-TABS-RESTRUCTURE-PLAN.md` — model dokumen ↔ tab yang dipakai keputusan §2.1.
-- `ref/google-docs-clone/src/app/documents/[documentId]/ruler.tsx` — penggaris sederhana sebagai
+- `docs/FEATURE-GAP-PRD.md` - peta fitur PRD utama dan status A–O.
+- `docs/DOCUMENT-TABS-RESTRUCTURE-PLAN.md` - model dokumen ↔ tab yang dipakai keputusan §2.1.
+- `ref/google-docs-clone/src/app/documents/[documentId]/ruler.tsx` - penggaris sederhana sebagai
   pembanding; tidak punya sumbu vertikal maupun penyiapan halaman.
-- `ref/ferdocs/package/components/toc/` — pola panel TOC; tidak punya blok TOC di dalam naskah.
-- `ref/tiptap/packages/extension-table-of-contents/` — sumber ekstensi TOC yang sudah dipakai.
+- `ref/ferdocs/package/components/toc/` - pola panel TOC; tidak punya blok TOC di dalam naskah.
+- `ref/tiptap/packages/extension-table-of-contents/` - sumber ekstensi TOC yang sudah dipakai.

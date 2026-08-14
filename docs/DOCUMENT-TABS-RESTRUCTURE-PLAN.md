@@ -1,8 +1,8 @@
-# Rencana Restrukturisasi — Project ▸ Dokumen ▸ Tab
+# Rencana Restrukturisasi - Project ▸ Dokumen ▸ Tab
 
 Memperbaiki kesalahan pemodelan yang membuat "tab" dan "dokumen" jadi satu hal yang sama,
 lalu membangun alur Projects di atasnya. Ini prasyarat yang membuat fitur G (Projects) benar-benar
-berarti — bukan penambahan fitur baru.
+berarti - bukan penambahan fitur baru.
 
 ## 1. Masalah yang diperbaiki
 
@@ -10,13 +10,13 @@ Diverifikasi di kode, bukan dugaan:
 
 | # | Temuan | Bukti |
 |---|---|---|
-| 1 | **Import DOCX menimpa tab aktif.** Bukan tab baru, bukan dokumen baru — naskah yang sedang ditulis hilang | `features/document/import-context.tsx:73-74` — `editor.commands.setContent(result.content)` |
+| 1 | **Import DOCX menimpa tab aktif.** Bukan tab baru, bukan dokumen baru - naskah yang sedang ditulis hilang | `features/document/import-context.tsx:73-74` - `editor.commands.setContent(result.content)` |
 | 2 | **Judul melekat pada tab**, tidak ada lapisan dokumen di atasnya | `TabMeta.title` di `features/sessions/ydoc.ts:35-43` |
 | 3 | **Ekspor hanya tab aktif** | `exportDocx(editor, …)` bekerja atas satu instance editor |
-| 4 | **Tabel `documents` di server sebenarnya tabel tab** — satu tab ↔ satu baris | `SyncLinkage` 1:1 di `features/sync/sync-context.tsx` |
+| 4 | **Tabel `documents` di server sebenarnya tabel tab** - satu tab ↔ satu baris | `SyncLinkage` 1:1 di `features/sync/sync-context.tsx` |
 
 Akibat (4): Library, Projects, riwayat versi, share, dan Aktivitas AI semuanya beroperasi di
-tingkat tab. `documents.project_id` mengelompokkan tab, bukan dokumen — jadi "proyek berisi
+tingkat tab. `documents.project_id` mengelompokkan tab, bukan dokumen - jadi "proyek berisi
 dokumen" belum pernah benar-benar ada.
 
 ## 2. Model target
@@ -30,17 +30,17 @@ Project ──▶ Dokumen ──────────────▶ Tab
 
 ## 3. Keputusan yang sudah dikonfirmasi
 
-1. **Tab disimpan di tabel `document_tabs` terpisah**, bukan array jsonb di dalam dokumen —
+1. **Tab disimpan di tabel `document_tabs` terpisah**, bukan array jsonb di dalam dokumen -
    autosave satu tab tidak mengirim ulang seluruh dokumen.
 2. **Riwayat versi, share, dan glosarium tetap melekat pada TAB.** Hanya ekspor dan Projects yang
    naik ke tingkat dokumen.
 3. **Migrasi: tiap tab yang ada sekarang jadi dokumen berisi satu tab.**
 4. **Ekspor menawarkan pilihan: seluruh tab atau tab terpilih.**
-5. **Dokumen dibuat otomatis** — pengguna tetap bisa langsung mengetik tanpa memilih dokumen dulu.
+5. **Dokumen dibuat otomatis** - pengguna tetap bisa langsung mengetik tanpa memilih dokumen dulu.
 
 ### Konsekuensi yang diterima (dari keputusan 2)
 
-"Pulihkan dokumen ke keadaan kemarin" tidak ada — pemulihan versi selalu per tab. Untuk dokumen
+"Pulihkan dokumen ke keadaan kemarin" tidak ada - pemulihan versi selalu per tab. Untuk dokumen
 lima tab, memulihkan seluruhnya berarti lima kali restore. Ini harga dari migrasi yang jauh lebih
 murah (§4.1); bisa ditambahkan belakangan sebagai "restore semua tab" di atas skema yang sama.
 
@@ -67,14 +67,14 @@ documents (lama)  ──rename──▶  document_tabs
 ```
 
 Seluruh UUID yang sudah tersimpan di tiga tabel itu **tetap valid tanpa disentuh**. Tidak ada
-backfill FK, tidak ada risiko tautan putus. Ini keuntungan langsung dari keputusan 2 — opsi
+backfill FK, tidak ada risiko tautan putus. Ini keuntungan langsung dari keputusan 2 - opsi
 "semua naik ke tingkat dokumen" akan menuntut pemetaan ulang ketiganya.
 
-### 4.2 Migrasi 0009 — wajib ditulis tangan
+### 4.2 Migrasi 0009 - wajib ditulis tangan
 
 > ⚠️ **`bun run db:generate` TIDAK boleh dipakai untuk migrasi ini.** drizzle-kit tidak mengenali
 > penggantian nama tabel; ia akan menghasilkan `DROP TABLE documents` + `CREATE TABLE
-> document_tabs` — seluruh dokumen pengguna hilang. Sama berbahayanya dengan `db:push` yang
+> document_tabs` - seluruh dokumen pengguna hilang. Sama berbahayanya dengan `db:push` yang
 > dipakai `docker-compose.yml:74` di jalur dev.
 >
 > Tulis SQL-nya sendiri, daftarkan manual di `meta/_journal.json`, dan **uji di database salinan
@@ -113,7 +113,7 @@ ALTER TABLE document_tabs DROP COLUMN project_id;
 ```
 
 Cara paling aman untuk langkah 3–4 adalah satu statement `WITH … INSERT … RETURNING` yang
-memetakan balik seperti backfill di migrasi 0004 — di sana polanya sudah terbukti.
+memetakan balik seperti backfill di migrasi 0004 - di sana polanya sudah terbukti.
 
 `ON DELETE CASCADE` di langkah 4: menghapus dokumen menghapus tabnya. Versi dan share milik tab
 itu ikut lewat cascade yang sudah ada.
@@ -129,7 +129,7 @@ document_tabs   0 ──▶ n  pool_request         (tidak berubah)
 ```
 
 Nama kolom `document_id` di tiga tabel itu kini menunjuk tab. **Ganti namanya jadi `tab_id`** di
-lapisan Drizzle dan DTO supaya tidak menyesatkan pembaca berikutnya — kolom fisiknya boleh tetap,
+lapisan Drizzle dan DTO supaya tidak menyesatkan pembaca berikutnya - kolom fisiknya boleh tetap,
 tapi jangan biarkan namanya berbohong. Kalau memilih mengganti kolom fisiknya sekalian, lakukan di
 migrasi yang sama.
 
@@ -159,7 +159,7 @@ bekerja atas `tabId` seperti sekarang.
 
 ## 6. Perubahan alur
 
-### 6.1 Import — memperbaiki bug perusak naskah
+### 6.1 Import - memperbaiki bug perusak naskah
 
 `loadDocx` sekarang **menimpa tab aktif**. Diganti jadi:
 
@@ -175,7 +175,7 @@ Jalur PDF/TXT (`dispatch({ type: 'setFile' })` → worker) mengikuti aturan yang
 Perbaikan ini berdiri sendiri dan **bisa dirilis lebih dulu** tanpa menunggu restrukturisasi:
 cukup ganti "timpa tab aktif" jadi "buat tab baru". Lihat M0 di §8.
 
-### 6.2 Ekspor — pilihan seluruh/terpilih
+### 6.2 Ekspor - pilihan seluruh/terpilih
 
 Dialog ekspor mendapat pilihan: **seluruh tab** (digabung berurutan, dipisah page break) atau
 **tab terpilih** (kotak centang per tab; bawaan = tab aktif).
@@ -184,7 +184,7 @@ Dua jalur ekspor punya kendala berbeda dan **tidak sama biayanya**:
 
 | Format | Mekanisme sekarang | Yang dibutuhkan |
 |---|---|---|
-| DOCX | `exportDocx(editor, …)` membaca `editor.state.doc` | **Refactor**: terima `PMNode[]` alih-alih `Editor`. Naskah tab non-aktif diambil dari `fragmentToJSON` + `buildSchema().nodeFromJSON` — keduanya sudah ada di `features/sync/serialize.ts` |
+| DOCX | `exportDocx(editor, …)` membaca `editor.state.doc` | **Refactor**: terima `PMNode[]` alih-alih `Editor`. Naskah tab non-aktif diambil dari `fragmentToJSON` + `buildSchema().nodeFromJSON` - keduanya sudah ada di `features/sync/serialize.ts` |
 | PDF | `window.print()` atas halaman yang sedang dirender (`export-pdf-dialog.tsx:42-46`) | **Lebih berat**: hanya tab aktif yang ada di DOM. Perlu merender tab terpilih ke area cetak tersembunyi lebih dulu |
 
 Karena itu ekspor DOCX multi-tab dijadwalkan lebih dulu; PDF menyusul di tahap terpisah.
@@ -203,7 +203,7 @@ Nama tab disunting di sidebar tab (sudah bisa hari ini), bukan di TopBar.
 
 ### 6.4 Dokumen otomatis
 
-Membuka aplikasi tanpa dokumen apa pun membuat dokumen "Untitled" berisi satu tab, **lokal saja** —
+Membuka aplikasi tanpa dokumen apa pun membuat dokumen "Untitled" berisi satu tab, **lokal saja** -
 persis perilaku sekarang, hanya bertambah satu tingkat di metadata. Naik ke server saat "Simpan ke
 cloud", yang kini membuat baris `documents` **dan** `document_tabs`.
 
@@ -213,14 +213,14 @@ cloud", yang kini membuat baris `documents` **dan** `document_tabs`.
 
 | Fitur | Dampak |
 |---|---|
-| **A — Autosave** | `SyncLinkage` tetap per tab (`serverId` = `document_tabs.id`). Ditambah `documentId` induk supaya judul dokumen ikut tersinkron |
-| **B — Library** | Query berubah dari daftar tab jadi daftar dokumen + hitungan tab |
-| **G — Projects** | `project_id` pindah ke `documents`. Semua UI proyek tetap, isinya jadi benar |
-| **I — Riwayat versi** | **Tidak berubah** — tetap per tab |
-| **F — Aktivitas AI** | `pool_request.document_id` tetap menunjuk tab; daftar aktivitas menaikkan judul lewat join ke `documents` supaya tetap terbaca manusia |
-| **Share** | **Tidak berubah** — tetap membagikan satu tab |
-| **H — AI Memory** | Tidak tersentuh (per user) |
-| **L — Glosarium** (rencana) | Tetap per tab sesuai keputusan 2. `GLOSSARY-MAKER-PLAN.md` §2 menyebut `document_id` — **baca sebagai `tab_id`** setelah restrukturisasi ini; "angkat ke proyek" tetap berlaku lewat `documents.project_id` |
+| **A - Autosave** | `SyncLinkage` tetap per tab (`serverId` = `document_tabs.id`). Ditambah `documentId` induk supaya judul dokumen ikut tersinkron |
+| **B - Library** | Query berubah dari daftar tab jadi daftar dokumen + hitungan tab |
+| **G - Projects** | `project_id` pindah ke `documents`. Semua UI proyek tetap, isinya jadi benar |
+| **I - Riwayat versi** | **Tidak berubah** - tetap per tab |
+| **F - Aktivitas AI** | `pool_request.document_id` tetap menunjuk tab; daftar aktivitas menaikkan judul lewat join ke `documents` supaya tetap terbaca manusia |
+| **Share** | **Tidak berubah** - tetap membagikan satu tab |
+| **H - AI Memory** | Tidak tersentuh (per user) |
+| **L - Glosarium** (rencana) | Tetap per tab sesuai keputusan 2. `GLOSSARY-MAKER-PLAN.md` §2 menyebut `document_id` - **baca sebagai `tab_id`** setelah restrukturisasi ini; "angkat ke proyek" tetap berlaku lewat `documents.project_id` |
 
 ---
 
@@ -228,7 +228,7 @@ cloud", yang kini membuat baris `documents` **dan** `document_tabs`.
 
 | # | Isi | Selesai bila |
 |---|---|---|
-| **M0** | **Perbaiki bug import** — buat tab baru, jangan timpa tab aktif | Impor DOCX tidak lagi menghapus naskah yang sedang ditulis. Berdiri sendiri, bisa rilis duluan |
+| **M0** | **Perbaiki bug import** - buat tab baru, jangan timpa tab aktif | Impor DOCX tidak lagi menghapus naskah yang sedang ditulis. Berdiri sendiri, bisa rilis duluan |
 | **M1** | Migrasi 0009 ditulis tangan + diuji di DB salinan; skema Drizzle & rename `document_id`→`tab_id` | Data lama utuh; versi/share/aktivitas tetap tertaut |
 | **M2** | Endpoint dokumen & tab: CRUD dokumen, CRUD tab, reorder | Diverifikasi lewat `fetch` langsung |
 | **M3** | Model lokal Y.Doc bertingkat + migrasi hidrasi | Tab lama muncul sebagai dokumen 1-tab, naskah utuh |
@@ -238,7 +238,7 @@ cloud", yang kini membuat baris `documents` **dan** `document_tabs`.
 | **M7** | Ekspor DOCX: seluruh/terpilih | Satu berkas berisi tab terpilih berurutan |
 | **M8** | Ekspor PDF multi-tab | Sama untuk PDF |
 
-M0 tidak bergantung apa pun dan sebaiknya dikerjakan lebih dulu — ia memperbaiki kehilangan data
+M0 tidak bergantung apa pun dan sebaiknya dikerjakan lebih dulu - ia memperbaiki kehilangan data
 yang bisa terjadi hari ini.
 
 ---
@@ -254,7 +254,7 @@ yang bisa terjadi hari ini.
    (fungsi murni: daftar tab → `PMNode[]`).
 4. Smoke E2E: buat dokumen → tambah 3 tab → autosave → riwayat versi per tab → share satu tab →
    ekspor seluruh tab → pindahkan dokumen ke proyek → hapus dokumen (tab, versi, share ikut).
-5. Manual: impor DOCX saat sedang menulis — naskah lama **harus** utuh.
+5. Manual: impor DOCX saat sedang menulis - naskah lama **harus** utuh.
 
 ## 10. Risiko
 
@@ -263,12 +263,12 @@ yang bisa terjadi hari ini.
 | Migrasi 0009 | **Tertinggi.** Ditulis tangan, menyentuh tabel inti, dan `db:generate`/`db:push` akan merusaknya. Mitigasi: uji di salinan, dan bereskan `db:push` vs `db:migrate` di compose (catatan lama yang belum digarap) |
 | Model lokal Y.Doc | **Sedang-tinggi.** Data pengguna ada di IndexedDB; migrasi hidrasi hanya sekali dan tidak bisa diulang kalau salah. Tulis defensif, jangan hapus struktur lama sampai yang baru terbaca |
 | UI tiga tingkat | **Sedang.** Menyentuh TopBar, sidebar tab, nav, Library sekaligus |
-| Ekspor PDF multi-tab | **Sedang.** Berbasis DOM, bukan JSON — perlu render tersembunyi |
+| Ekspor PDF multi-tab | **Sedang.** Berbasis DOM, bukan JSON - perlu render tersembunyi |
 | Import multi-berkas | **Rendah** |
 
 ## 11. Yang sengaja tidak dikerjakan
 
-- **Restore seluruh dokumen sekaligus** — konsekuensi keputusan 2, bisa ditambahkan nanti tanpa
+- **Restore seluruh dokumen sekaligus** - konsekuensi keputusan 2, bisa ditambahkan nanti tanpa
   migrasi baru.
-- **Memindahkan tab antar dokumen** — masuk akal, tapi bukan bagian dari perbaikan ini.
-- **Share seluruh dokumen** — share tetap per tab.
+- **Memindahkan tab antar dokumen** - masuk akal, tapi bukan bagian dari perbaikan ini.
+- **Share seluruh dokumen** - share tetap per tab.

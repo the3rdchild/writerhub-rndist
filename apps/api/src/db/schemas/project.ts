@@ -3,7 +3,7 @@ import { timestamps } from '@/db/utils/common-table'
 
 /**
  * Proyek milik user: pengelompokan dokumen di File Library. Menghapus proyek
- * tidak menghapus dokumen di dalamnya — `documents.project_id` diset null
+ * tidak menghapus dokumen di dalamnya - `documents.project_id` diset null
  * (lihat skema `documents`), dokumennya kembali ke "Tanpa proyek".
  */
 export const projects = pgTable(

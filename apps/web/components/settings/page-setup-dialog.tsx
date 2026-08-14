@@ -242,7 +242,7 @@ export function PageSetupDialog() {
 					{draft.size === 'custom' && (
 						<div className="col-span-2 flex flex-col gap-1">
 							<span className="text-xs font-medium text-muted">
-								Custom size ({unitLabel}) — limits {roundUnit(fromPx(MIN_CUSTOM_SIDE, unit))}–
+								Custom size ({unitLabel}) - limits {roundUnit(fromPx(MIN_CUSTOM_SIDE, unit))}–
 								{roundUnit(fromPx(MAX_CUSTOM_SIDE, unit))}
 								{unitLabel}
 							</span>
