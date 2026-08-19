@@ -4,7 +4,6 @@ Editor dokumen kolaboratif berbasis AI untuk **Premium Portal Extended (PPE)** d
 satu draf sebagai *single source of truth*, dengan modul AI (grammar, paraphrase, AI detector,
 humanizer, plagiarism) bekerja di panel samping tanpa perlu berpindah aplikasi.
 
-
 ### run
 
 Butuh Bun ≥ 1.2 dan Python 3.12.
@@ -21,19 +20,20 @@ pip install -r services/worker/requirements.txt
 
 cd services/worker && python entry.py
 ```
+
 ### docker
 
-| Perintah                                                        |
-| ----------------------------------------------------------------|
-| `docker compose up --build`                                     |
-| `bun run docker:up` / `docker:down`                             |
-| `bun run dev:web` / `dev:api`                                   |
-| `bun run typecheck`                                             |
-| `bun run test`                                                  |
-| `bun run build`                                                 |
-| `bun run db:generate` / `db:migrate` / `db:push` / `db:studio`  |
+| Perintah                                                               |
+| ---------------------------------------------------------------------- |
+| `docker compose up --build`                                          |
+| `bun run docker:up` / `docker:down`                                |
+| `bun run dev:web` / `dev:api`                                      |
+| `bun run typecheck`                                                  |
+| `bun run test`                                                       |
+| `bun run build`                                                      |
+| `bun run db:generate` / `db:migrate` / `db:push` / `db:studio` |
 
-Uji worker Python berdiri sendiri - ia tidak menyentuh Redis maupun basis data, jadi tidak
+aUji worker Python berdiri sendiri - ia tidak menyentuh Redis maupun basis data, jadi tidak
 perlu stack yang menyala:
 
 ```bash

@@ -96,7 +96,13 @@ export function TocBlockView({ node, editor, getPos, selected, updateAttributes,
 	const attrsRef = useRef(attrs)
 	attrsRef.current = attrs
 
-	const refresh = useCallback(() => {
+	// `updateAttributes` dari NodeViewProps juga dibentuk ulang tiap render, jadi
+	// dibaca lewat ref dengan alasan yang sama - kalau jadi dependensi refresh,
+	// efek [refresh] memicu render tanpa henti.
+	const updateAttributesRef = useRef(updateAttributes)
+	updateAttributesRef.current = updateAttributes
+
+	const refresh = useCallback((writeSnapshot: boolean) => {
 		const attrs = attrsRef.current
 		const lo = Math.min(attrs.minLevel, attrs.maxLevel)
 		const hi = Math.max(attrs.minLevel, attrs.maxLevel)
@@ -131,31 +137,36 @@ export function TocBlockView({ node, editor, getPos, selected, updateAttributes,
 		setEntries(next)
 
 		// Snapshot teks untuk cetak/ekspor (§A5.2: node simpan potret terakhir).
-		// Hanya ditulis bila berubah - penyegaran dipicu juga oleh beforeprint,
-		// dan transaksi kosong tiap cetak itu sia-sia.
-		const snapshot = snapshotText(next, attrs)
-		if (snapshot !== attrs.snapshot) updateAttributes({ snapshot })
-	}, [editor, updateAttributes])
+		// Hanya ditulis dari jalur eksplisit (Segarkan/beforeprint/ekspor) dan bila
+		// berubah - menulis dari jalur efek otomatis memicu transaksi ProseMirror
+		// tiap render, yang menutup loop render.
+		if (writeSnapshot) {
+			const snapshot = snapshotText(next, attrs)
+			if (snapshot !== attrs.snapshot) updateAttributesRef.current({ snapshot })
+		}
+	}, [editor])
 
 	// Potret awal saat blok muncul + hitung ulang bila setelan yang memengaruhi
 	// isi berubah lewat dialog. Dokumen sengaja BUKAN dependensi (§A5.5 no. 2).
+	// Snapshot juga sengaja tidak ditulis di sini (jalur otomatis).
 	const minLevel = attrs.minLevel
 	const maxLevel = attrs.maxLevel
 	const listKind = attrs.listKind
 	const showPageNumbers = attrs.showPageNumbers
 	const style = attrs.style
 	useEffect(() => {
-		refresh()
+		refresh(false)
 	}, [refresh, minLevel, maxLevel, listKind, showPageNumbers, style])
 
 	// Segarkan saat mencetak (§A5.3) dan saat diminta dari luar (ekspor DOCX).
 	useEffect(() => {
 		const dom = editor.view.dom
-		window.addEventListener('beforeprint', refresh)
-		dom.addEventListener(TOC_REFRESH_EVENT, refresh)
+		const onRefreshRequest = () => refresh(true)
+		window.addEventListener('beforeprint', onRefreshRequest)
+		dom.addEventListener(TOC_REFRESH_EVENT, onRefreshRequest)
 		return () => {
-			window.removeEventListener('beforeprint', refresh)
-			dom.removeEventListener(TOC_REFRESH_EVENT, refresh)
+			window.removeEventListener('beforeprint', onRefreshRequest)
+			dom.removeEventListener(TOC_REFRESH_EVENT, onRefreshRequest)
 		}
 	}, [editor, refresh])
 
@@ -211,6 +222,10 @@ export function TocBlockView({ node, editor, getPos, selected, updateAttributes,
 	// Sisipkan celah tepat sebelum entri yang melanggar bawah area teks lembar.
 	// Sasaran celah bersifat absolut (kelipatan pageStride), jadi perhitungan
 	// ulang atas keadaan yang sama menghasilkan celah identik - loop berhenti.
+	// Dependensi dibatasi: efek ini membaca offsetTop/offsetHeight per entri
+	// (forced sync reflow), jadi tidak boleh ikut jalan di render yang dipicu
+	// state lain. `gaps` ikut jadi dependensi supaya hasilnya diverifikasi ulang
+	// setelah celah terpasang; pemeriksaan `same` di bawah menghentikannya.
 	useLayoutEffect(() => {
 		const pos = getPos()
 		const wrapper = pos === undefined ? null : editor.view.nodeDOM(pos)
@@ -224,25 +239,55 @@ export function TocBlockView({ node, editor, getPos, selected, updateAttributes,
 		const lis = Array.from(wrapper.querySelectorAll<HTMLElement>('[data-toc-entry]'))
 		const base = wrapper.offsetTop
 
+		// Memisah segmen tidak hanya menyisipkan celah: kotak segmen berikutnya
+		// membawa border + padding-nya sendiri. Memulihkan posisi alami dengan
+		// mengurangi tinggi celah saja menyisakan bingkai itu sebagai selisih
+		// semu - entri sesudahnya tampak lebih rendah dari aslinya, celah baru
+		// dipasang, dan perhitungan tak pernah konvergen (loop render sampai
+		// "Maximum update depth exceeded"). Bingkai diukur dari DOM dan ikut
+		// dikurangkan supaya perhitungan atas keadaan yang sama persis identik.
+		let normalSpacing = Number.POSITIVE_INFINITY
+		const splitAt = new Set(gaps.map((gap) => gap.before))
+		for (let i = 1; i < lis.length; i++) {
+			if (splitAt.has(i)) continue
+			normalSpacing = Math.min(
+				normalSpacing,
+				lis[i].offsetTop - (lis[i - 1].offsetTop + lis[i - 1].offsetHeight),
+			)
+		}
+		if (!Number.isFinite(normalSpacing)) normalSpacing = 0
+
+		// Tinggi bingkai ekstra per pemisahan, diukur dari celah yang sedang
+		// terpasang. 0 bila belum ada - putaran berikutnya mengukur nilai
+		// sebenarnya, mengoreksi celahnya sekali, lalu berhenti.
+		let chrome = 0
+		for (const gap of gaps) {
+			const i = gap.before
+			if (i <= 0 || i >= lis.length) continue
+			chrome = lis[i].offsetTop - (lis[i - 1].offsetTop + lis[i - 1].offsetHeight) - normalSpacing - gap.height
+			break
+		}
+
 		// offsetTop li mencerminkan celah yang sedang terpasang; pulihkan posisi
-		// alaminya dengan mengurangi celah yang mendahuluinya.
+		// alaminya dengan mengurangi celah + bingkai yang mendahuluinya.
 		const next: TocGap[] = []
 		let gapIndex = 0
+		let inserted = 0
 		let shift = 0
 		for (let i = 0; i < lis.length; i++) {
-			let natural = lis[i].offsetTop
 			while (gapIndex < gaps.length && gaps[gapIndex].before <= i) {
-				natural -= gaps[gapIndex].height
+				inserted += gaps[gapIndex].height + chrome
 				gapIndex++
 			}
-			const top = base + natural + shift
+			const top = base + (lis[i].offsetTop - inserted) + shift
 			const bottom = top + lis[i].offsetHeight
 			const sheet = Math.floor(top / pageStride)
 			if (bottom > sheet * pageStride + contentHeight + 0.5) {
 				// Entri melanggar bawah area teks: dorong ke puncak lembar berikutnya.
+				// Bingkai segmen baru ikut menggeser entri-entri sesudahnya.
 				const height = (sheet + 1) * pageStride - top
 				next.push({ before: i, height })
-				shift += height
+				shift += height + chrome
 			}
 		}
 
@@ -250,7 +295,7 @@ export function TocBlockView({ node, editor, getPos, selected, updateAttributes,
 			gaps.length === next.length &&
 			gaps.every((gap, i) => gap.before === next[i].before && Math.abs(gap.height - next[i].height) < 1)
 		if (!same) setGaps(next)
-	})
+	}, [editor, entries, gaps, pageTick])
 
 	// Kelompokkan entri per lembar: tiap segmen dibingkai kotaknya sendiri.
 	const segments: { entries: TocEntry[]; gapAfter?: number }[] = []
@@ -290,7 +335,7 @@ export function TocBlockView({ node, editor, getPos, selected, updateAttributes,
 								<TocControls
 									attrs={attrs}
 									selected={selected}
-									onRefresh={refresh}
+									onRefresh={() => refresh(true)}
 									onSettings={() => openTocSettings(editor.view.dom, attrs, updateAttributes)}
 									onCopy={() => copyAsText(entries, attrs)}
 									onConvert={convertToText}
