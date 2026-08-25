@@ -81,14 +81,31 @@ def get_last_total_tokens() -> int | None:
 
 
 def _build_language_rule(language: str | None) -> str:
-    """Perintah bahasa di depan prompt - lihat alasan di rewrite_sentences."""
+    """
+    Perintah bahasa di depan prompt - lihat alasan di rewrite_sentences.
+
+    Naskah nyata sering campur bahasa dengan sengaja (kutipan, istilah teknis,
+    abstrak Inggris di tengah paper Indonesia). Versi lama memaksa SEMUA
+    kalimat/istilah ikut satu bahasa dokumen tanpa pengecualian - itu mencegah
+    model "kembali ke Inggris" karena prompt-nya sendiri berbahasa Inggris,
+    tapi ikut menerjemahkan-paksa bagian yang justru sudah benar di bahasa
+    aslinya. Klausa pengecualian di bawah menutup lubang itu tanpa membuka
+    lagi bug lamanya - larangan "jangan drift ke Inggris" tetap berlaku untuk
+    apa pun yang memang berbahasa dokumen. Padanan di sisi checker: lihat
+    _MULTI_LANG_NOTE di ai_grammar.py.
+    """
     if not language:
         return ""
     name = language_name(language)
     return (
-        f"CRITICAL: every sentence you return MUST be written in {name}. "
-        f"The input is in {name}. Never translate it to English or any "
-        f"other language, not even partially.\n\n"
+        f"CRITICAL: match the language of each piece of input. This content "
+        f"is primarily written in {name}: write your output in {name} unless "
+        f"the specific sentence, term, or passage you are working on is "
+        f"unambiguously written in a different language on purpose - a "
+        f"quotation, a proper noun, a technical term, or another deliberate "
+        f"switch - in which case keep that piece in its own language instead "
+        f"of pulling it into {name}. Never translate anything into English or "
+        f"any other language, not even partially.\n\n"
     )
 
 
