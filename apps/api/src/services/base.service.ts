@@ -5,6 +5,7 @@ import redis from '@/config/redis'
 import db from '@/db'
 import type { AppEnv } from '@/lib/create-app'
 import { AppError } from '@/lib/error'
+import { resolveIdentityId } from '@/repository/identity'
 import LoggerClient from '@/utils/logger'
 
 const log = LoggerClient.getInstance()
@@ -76,6 +77,22 @@ export default abstract class BaseService {
 			{ err: { message, stack }, method: this.context.req.method, path: this.context.req.path },
 			message,
 		)
+	}
+
+	// ── identitas ────────────────────────────────────────────────────────────
+
+	/**
+	 * Resolve `userId` (id eksternal, dari `x-pp-user-id`/`x-ransel-user-id`)
+	 * + `identityOrigin` context jadi `identity.id` (uuid) - dipakai sebagai
+	 * `owner_id` di tabel yang sudah punya FK riil ke `identity` (`projects`,
+	 * `user_memories`). Bukan pengganti `context.get('userId')` di tempat yang
+	 * masih menyimpan id mentah (mis. `pool_request.user_id`).
+	 */
+	protected async identityId(): Promise<string> {
+		const userId = this.context.get('userId')
+		const origin = this.context.get('identityOrigin')
+		if (!userId || !origin) throw AppError.unauthorized('User tidak dikenal')
+		return resolveIdentityId(userId, origin)
 	}
 
 	// ── cache ────────────────────────────────────────────────────────────────

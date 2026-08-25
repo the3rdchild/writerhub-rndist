@@ -8,8 +8,8 @@ from core.configs.env import REDIS_URL
 from core.db.repository import (
     update_status,
     update_tokens,
-    get_request_id,
-    save_analysis_result,
+    get_request_info,
+    save_metadata_version,
     save_error,
 )
 from services.analyzers import (
@@ -57,10 +57,15 @@ def process(data: dict):
 
     _svc.log_start(job_id, feature=payload.get("feature"))
 
-    request_id = payload.get("request_id") or get_request_id(job_id)
+    # tab_id/user_id tidak dikirim di payload (cuma request_id) - selalu perlu
+    # lookup DB untuk itu, biarpun payload sudah bawa request_id-nya sendiri.
+    request = get_request_info(job_id) or {}
+    request_id = payload.get("request_id") or request.get("request_id")
     if not request_id:
         _svc.logger.error("[analysis_service] pool_request nga ketemu | job_id=%s", job_id)
         return
+    tab_id = request.get("tab_id")
+    user_id = request.get("user_id")
 
     update_status(job_id, "processing")
     channel = f"grammar:stream:{job_id}"
@@ -108,9 +113,11 @@ def process(data: dict):
         # Titik periksa batal sesudah analyzer: hasil dibuang, tidak disimpan.
         check_cancelled(job_id)
 
-        save_analysis_result(
+        save_metadata_version(
             request_id=request_id,
             job_id=job_id,
+            tab_id=tab_id,
+            user_id=user_id,
             feature=feature,
             result=result,
         )

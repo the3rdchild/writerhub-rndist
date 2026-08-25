@@ -6,23 +6,33 @@ import type { JSONContent } from '@tiptap/core'
 export type ShareAccess = 'anyone' | 'restricted'
 export type ShareRole = 'viewer' | 'commenter' | 'editor'
 
-export interface SharePayload {
+/** Satu tab beku di dalam snapshot proyek yang dibagikan. */
+export interface SharedTab {
+	id: string
 	title: string
+	emoji: string | null
+	language: string | null
 	content: JSONContent
+}
+
+/** Satu dokumen beku (daftar tabnya) di dalam snapshot proyek yang dibagikan. */
+export interface SharedDocument {
+	id: string
+	title: string
+	tabs: SharedTab[]
+}
+
+export interface SharePayload {
+	projectName: string
+	documents: SharedDocument[]
 	access: ShareAccess
 	role: ShareRole
 	createdAt: number
 }
 
+/** Share membagikan SATU PROYEK (seluruh dokumen + tab di dalamnya). */
 export interface CreateShareInput {
-	/**
-	 * Tab user yang sudah tersimpan di cloud (share membagikan SATU tab).
-	 * Tanpa ini, share dibuat dari `title` + `content` mentah seperti
-	 * sebelumnya dan server membuatkan dokumen + tab baru.
-	 */
-	tabId?: string
-	title?: string
-	content?: JSONContent
+	projectId: string
 	access: ShareAccess
 	role: ShareRole
 }
@@ -30,9 +40,8 @@ export interface CreateShareInput {
 export interface CreateShareResult {
 	token: string
 	url: string
-	/** Tab server yang ditautkan share ini; dipakai mencatat kaitan tab. */
-	tabId: string
-	title: string
+	projectId: string
+	projectName: string
 	access: ShareAccess
 	role: ShareRole
 	createdAt: number

@@ -8,8 +8,8 @@ from core.configs.env import GRAMMAR_LANGUAGE, REDIS_URL
 from core.db.repository import (
     update_status,
     update_tokens,
-    get_request_id,
-    save_grammar_result,
+    get_request_info,
+    save_metadata_version,
     save_error,
 )
 from core.provider import provider_from_payload
@@ -35,15 +35,15 @@ def process(data: dict):
 
     _svc.log_start(job_id)
 
-    request_id = get_request_id(job_id)
-    if not request_id:
+    request = get_request_info(job_id)
+    if not request:
         _svc.logger.error("[grammar_service] pool_request nga ketemu | job_id=%s", job_id)
         return
 
     update_status(job_id, "processing")
 
     try:
-        _run(job_id, request_id, payload)
+        _run(job_id, request, payload)
         _svc.log_end(job_id)
     except CancelledError:
         # Dibatalkan di tengah jalan (§P7 lapis C): hasil tidak disimpan, status
@@ -70,7 +70,7 @@ def _publish(channel: str, payload: dict):
         _svc.logger.warning("[grammar_service] gagal publish ke Redis channel %s", channel)
 
 
-def _run(job_id: str, request_id: str, payload: dict):
+def _run(job_id: str, request: dict, payload: dict):
     # 1. ambil teks (dari payload.text atau download + extract file)
     with _svc.timed_step("extract:text"):
         text = resolve_text(payload)
@@ -112,16 +112,21 @@ def _run(job_id: str, request_id: str, payload: dict):
     # Titik periksa batal sesudah analyzer: hasil dibuang, tidak disimpan.
     check_cancelled(job_id)
 
-    # 4. simpen hasil ke grammar_result
-    save_grammar_result(
-        request_id=request_id,
+    # 4. simpen hasil ke metadata_version (feature 'grammar')
+    save_metadata_version(
+        request_id=request["request_id"],
         job_id=job_id,
-        original_text=text,
-        corrected_text=result["corrected_text"],
-        suggestions=result["suggestions"],
-        scores=result["scores"],
-        writing_quality=result["writing_quality"],
-        quality_label=result["quality_label"],
+        tab_id=request["tab_id"],
+        user_id=request["user_id"],
+        feature="grammar",
+        result={
+            "original_text": text,
+            "corrected_text": result["corrected_text"],
+            "suggestions": result["suggestions"],
+            "scores": result["scores"],
+            "writing_quality": result["writing_quality"],
+            "quality_label": result["quality_label"],
+        },
     )
 
     # 5. broadcast done

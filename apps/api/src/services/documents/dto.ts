@@ -13,8 +13,14 @@ export const createDocumentBodySchema = z.object({
 	content: z.record(z.string(), z.unknown()).optional(),
 	emoji: z.string().max(32).nullish(),
 	language: z.string().max(32).nullish(),
-	/** Proyek tujuan; harus milik user. Tidak dikirim = "Tanpa proyek". */
-	projectId: z.uuid().nullish(),
+	/**
+	 * Proyek tujuan; harus milik user. Setiap dokumen wajib punya proyek, tapi
+	 * field ini boleh dikosongkan - server memakai proyek default milik user
+	 * (dibuat sekali, dipakai ulang) supaya jalur cloud-sync otomatis
+	 * (`features/sync/sync-context.tsx`, tidak pernah memilih proyek) tetap
+	 * jalan tanpa perlu UI pemilihan proyek di titik itu.
+	 */
+	projectId: z.uuid().optional(),
 })
 
 export type CreateDocumentBody = z.infer<typeof createDocumentBodySchema>
@@ -22,9 +28,9 @@ export type CreateDocumentBody = z.infer<typeof createDocumentBodySchema>
 /** Update dokumen induk: judul dan/atau keanggotaan proyek. */
 export const updateDocumentBodySchema = z.object({
 	title: z.string().min(1).max(500).optional(),
-	// `null` berarti keluarkan dokumen dari proyeknya; field tidak dikirim
-	// berarti jangan ubah keanggotaan proyek.
-	projectId: z.uuid().nullish(),
+	// Pindah dokumen ke proyek lain; field tidak dikirim berarti jangan ubah.
+	// Dokumen tidak bisa dilepas dari proyek (tidak ada "Tanpa proyek" lagi).
+	projectId: z.uuid().optional(),
 })
 
 export type UpdateDocumentBody = z.infer<typeof updateDocumentBodySchema>
@@ -33,7 +39,7 @@ export type UpdateDocumentBody = z.infer<typeof updateDocumentBodySchema>
 export interface DocumentSummary {
 	id: string
 	title: string
-	projectId: string | null
+	projectId: string
 	tabCount: number
 	updatedAt: number
 	createdAt: number

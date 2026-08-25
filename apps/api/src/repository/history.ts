@@ -1,6 +1,6 @@
 import { and, desc, eq, lt, sql } from 'drizzle-orm'
 import db from '@/db'
-import { analysisResult, documents, documentTabs, grammarResult, poolRequest } from '@/db/schemas'
+import { documents, documentTabs, metadataVersion, poolRequest } from '@/db/schemas'
 
 /**
  * Akses tabel `pool_request` (plus join hasilnya) untuk halaman Aktivitas AI,
@@ -24,18 +24,40 @@ export interface HistoryListFilter {
 }
 
 // Ringkasan dirakit di SQL supaya jsonb hasil (bisa ratusan kilobita untuk satu
-// dokumen panjang) tidak ikut terkirim hanya untuk daftar.
-const suggestionCount = sql<number>`jsonb_array_length(coalesce(${grammarResult.suggestions}, '[]'::jsonb))`
-const analysisChangeCount = sql<number | null>`CASE
-	WHEN ${analysisResult.result} ? 'changes' THEN jsonb_array_length(${analysisResult.result}->'changes')
+// dokumen panjang) tidak ikut terkirim hanya untuk daftar. `result` sekarang
+// generik (metadata_version) - grammar dan analysis dibedakan lewat `feature`.
+const suggestionCount = sql<number | null>`CASE
+	WHEN ${metadataVersion.feature} = 'grammar'
+	THEN jsonb_array_length(coalesce(${metadataVersion.result}->'suggestions', '[]'::jsonb))
 	ELSE NULL
 END`
-const analysisLabel = sql<string | null>`${analysisResult.result}->>'label'`
+const grammarScore = sql<number | null>`CASE
+	WHEN ${metadataVersion.feature} = 'grammar'
+	THEN (${metadataVersion.result}->>'writing_quality')::int
+	ELSE NULL
+END`
+const grammarLabel = sql<string | null>`CASE
+	WHEN ${metadataVersion.feature} = 'grammar'
+	THEN ${metadataVersion.result}->>'quality_label'
+	ELSE NULL
+END`
+const analysisChangeCount = sql<number | null>`CASE
+	WHEN ${metadataVersion.feature} != 'grammar' AND ${metadataVersion.result} ? 'changes'
+	THEN jsonb_array_length(${metadataVersion.result}->'changes')
+	ELSE NULL
+END`
+const analysisLabel = sql<string | null>`CASE
+	WHEN ${metadataVersion.feature} != 'grammar' THEN ${metadataVersion.result}->>'label'
+	ELSE NULL
+END`
 // overall_score untuk ai_detector, uniqueness_score untuk plagiarism.
-const analysisScore = sql<string | null>`coalesce(
-	${analysisResult.result}->>'overall_score',
-	${analysisResult.result}->>'uniqueness_score'
-)`
+const analysisScore = sql<string | null>`CASE
+	WHEN ${metadataVersion.feature} != 'grammar' THEN coalesce(
+		${metadataVersion.result}->>'overall_score',
+		${metadataVersion.result}->>'uniqueness_score'
+	)
+	ELSE NULL
+END`
 
 /** Daftar aktivitas milik user (ringkasan saja), terbaru di atas. */
 export async function findHistoryByUser(userId: string, filter: HistoryListFilter) {
@@ -55,8 +77,8 @@ export async function findHistoryByUser(userId: string, filter: HistoryListFilte
 			tabId: poolRequest.tab_id,
 			documentTitle: documents.title,
 			createdAt: poolRequest.created_at,
-			grammarScore: grammarResult.writing_quality,
-			grammarLabel: grammarResult.quality_label,
+			grammarScore,
+			grammarLabel,
 			suggestionCount,
 			analysisChangeCount,
 			analysisLabel,
@@ -65,35 +87,32 @@ export async function findHistoryByUser(userId: string, filter: HistoryListFilte
 		.from(poolRequest)
 		.leftJoin(documentTabs, eq(poolRequest.tab_id, documentTabs.id))
 		.leftJoin(documents, eq(documentTabs.document_id, documents.id))
-		.leftJoin(grammarResult, eq(grammarResult.job_id, poolRequest.job_id))
-		.leftJoin(analysisResult, eq(analysisResult.job_id, poolRequest.job_id))
+		.leftJoin(metadataVersion, eq(metadataVersion.job_id, poolRequest.job_id))
 		.where(and(...conditions))
 		.orderBy(desc(poolRequest.created_at))
 		.limit(filter.limit)
 }
 
-/** Satu entri lengkap beserta baris hasilnya (grammar atau analysis). */
+/** Satu entri lengkap beserta baris hasilnya (metadata_version). */
 export async function findHistoryEntry(userId: string, jobId: string) {
 	const [row] = await db
 		.select({
 			request: poolRequest,
 			documentTitle: documents.title,
-			grammar: grammarResult,
-			analysis: analysisResult,
+			result: metadataVersion,
 		})
 		.from(poolRequest)
 		.leftJoin(documentTabs, eq(poolRequest.tab_id, documentTabs.id))
 		.leftJoin(documents, eq(documentTabs.document_id, documents.id))
-		.leftJoin(grammarResult, eq(grammarResult.job_id, poolRequest.job_id))
-		.leftJoin(analysisResult, eq(analysisResult.job_id, poolRequest.job_id))
+		.leftJoin(metadataVersion, eq(metadataVersion.job_id, poolRequest.job_id))
 		.where(and(eq(poolRequest.user_id, userId), eq(poolRequest.job_id, jobId)))
 		.limit(1)
 	return row ?? null
 }
 
 /**
- * Hapus satu entri milik user. grammar_result/analysis_result ikut terhapus
- * lewat ON DELETE CASCADE pada request_id - sudah dicek di skema.
+ * Hapus satu entri milik user. metadata_version ikut terhapus lewat ON DELETE
+ * CASCADE pada request_id - sudah dicek di skema.
  */
 export async function deleteHistoryEntry(userId: string, jobId: string) {
 	const [row] = await db

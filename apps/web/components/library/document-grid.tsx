@@ -120,7 +120,10 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 							document={{
 								id: document.serverId,
 								title: document.title,
-								projectId: document.projectId,
+								// Baris server selalu punya proyek (setiap dokumen wajib
+								// berproyek) - projectId hanya null untuk dokumen lokal-saja,
+								// yang tidak masuk cabang ini (document.serverId truthy).
+								projectId: document.projectId as string,
 								tabCount: document.tabCount,
 								updatedAt: document.updatedAt,
 								createdAt: 0,

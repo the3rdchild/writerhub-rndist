@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import db from '@/db'
-import { analysisResult, grammarResult, poolRequest } from '@/db/schemas'
+import { metadataVersion, poolRequest } from '@/db/schemas'
 
 /**
  * Pembacaan baris job berdasarkan `job_id`. Dipakai bareng oleh PoolingService
@@ -35,12 +35,12 @@ export async function markPoolRequestCancelled(jobId: string): Promise<'pending'
 	return previous
 }
 
-export async function findGrammarResult(jobId: string) {
-	const [row] = await db.select().from(grammarResult).where(eq(grammarResult.job_id, jobId)).limit(1)
-	return row ?? null
-}
-
-export async function findAnalysisResult(jobId: string) {
-	const [row] = await db.select().from(analysisResult).where(eq(analysisResult.job_id, jobId)).limit(1)
+/** Hasil job (grammar maupun analysis) lewat `metadata_version`; null bila belum tersimpan. */
+export async function findMetadataVersion(jobId: string) {
+	const [row] = await db
+		.select()
+		.from(metadataVersion)
+		.where(eq(metadataVersion.job_id, jobId))
+		.limit(1)
 	return row ?? null
 }

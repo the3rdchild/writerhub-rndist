@@ -1,16 +1,19 @@
 import { index, pgTable, uuid, varchar } from 'drizzle-orm/pg-core'
 import { timestamps } from '@/db/utils/common-table'
+import { identity } from './identity'
 
 /**
- * Proyek milik user: pengelompokan dokumen di File Library. Menghapus proyek
- * tidak menghapus dokumen di dalamnya - `documents.project_id` diset null
- * (lihat skema `documents`), dokumennya kembali ke "Tanpa proyek".
+ * Proyek milik user: pengelompokan dokumen di File Library. Setiap dokumen
+ * wajib punya proyek (`documents.project_id` NOT NULL, ON DELETE RESTRICT) -
+ * proyek tidak bisa dihapus selagi masih berisi dokumen.
  */
 export const projects = pgTable(
 	'projects',
 	{
 		id: uuid('id').primaryKey().defaultRandom(),
-		owner_id: varchar('owner_id', { length: 255 }).notNull(),
+		owner_id: uuid('owner_id')
+			.notNull()
+			.references(() => identity.id),
 		name: varchar('name', { length: 255 }).notNull(),
 		color: varchar('color', { length: 32 }),
 

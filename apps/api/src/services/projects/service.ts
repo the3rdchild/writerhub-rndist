@@ -19,7 +19,7 @@ export default class ProjectsService extends BaseService {
 	/** Daftar proyek milik user, yang terakhir diubah di atas. */
 	async list(): Promise<Response> {
 		try {
-			const rows = await findProjectsByOwner(this.ownerId())
+			const rows = await findProjectsByOwner(await this.identityId())
 			return this.success({ data: rows.map((row) => this.toSummary(row, row.documentCount)) })
 		} catch (error) {
 			return this.failFromError(error)
@@ -34,7 +34,7 @@ export default class ProjectsService extends BaseService {
 				return this.error({ errors: body.error.issues.map((issue) => issue.message) })
 			}
 
-			const project = await insertProject({ ...body.data, owner_id: this.ownerId() })
+			const project = await insertProject({ ...body.data, owner_id: await this.identityId() })
 			if (!project) throw AppError.internalServerError('Gagal menyimpan proyek')
 
 			return this.success({ data: this.toSummary(project), status: 201 })
@@ -51,7 +51,7 @@ export default class ProjectsService extends BaseService {
 				return this.error({ errors: body.error.issues.map((issue) => issue.message) })
 			}
 
-			const project = await updateProject(this.projectId(), this.ownerId(), body.data)
+			const project = await updateProject(this.projectId(), await this.identityId(), body.data)
 			if (!project) throw AppError.notFound('Proyek tidak ditemukan')
 
 			return this.success({ data: this.toSummary(project) })
@@ -61,23 +61,17 @@ export default class ProjectsService extends BaseService {
 	}
 
 	/**
-	 * Hapus proyek. Dokumen di dalamnya tidak ikut terhapus - FK
-	 * `documents.project_id` memakai ON DELETE SET NULL.
+	 * Hapus proyek. Ditolak (409) selagi masih berisi dokumen - lihat
+	 * `deleteProject` di repository/project.ts.
 	 */
 	async remove(): Promise<Response> {
 		try {
-			const project = await deleteProject(this.projectId(), this.ownerId())
+			const project = await deleteProject(this.projectId(), await this.identityId())
 			if (!project) throw AppError.notFound('Proyek tidak ditemukan')
 			return this.success({ data: { id: project.id } })
 		} catch (error) {
 			return this.failFromError(error)
 		}
-	}
-
-	private ownerId(): string {
-		const userId = this.context.get('userId')
-		if (!userId) throw AppError.unauthorized('User tidak dikenal')
-		return userId
 	}
 
 	private projectId(): string {

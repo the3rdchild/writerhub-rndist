@@ -1,12 +1,13 @@
 import { and, asc, count, eq, sql } from 'drizzle-orm'
 import db from '@/db'
-import { documents, documentTabs } from '@/db/schemas'
+import { documents, documentTabs, projects } from '@/db/schemas'
 import type { NewDocumentTab } from '@/db/schemas'
 
 /**
  * Akses tabel `document_tabs`. Fungsi yang menerima `ownerId` memverifikasi
- * kepemilikan lewat join ke dokumen induk - tab user lain tidak pernah
- * terlihat lewat fungsi-fungsi ini.
+ * kepemilikan lewat join dua lapis: tab -> dokumen induk -> proyek
+ * (`projects.owner_id`) - tab user lain tidak pernah terlihat lewat
+ * fungsi-fungsi ini.
  */
 
 /** Seluruh tab sebuah dokumen, urut kiri-ke-kanan (`position`). */
@@ -23,10 +24,8 @@ export async function findTabById(tabId: string, ownerId: string) {
 	const [row] = await db
 		.select({ tab: documentTabs })
 		.from(documentTabs)
-		.innerJoin(
-			documents,
-			and(eq(documentTabs.document_id, documents.id), eq(documents.owner_id, ownerId)),
-		)
+		.innerJoin(documents, eq(documentTabs.document_id, documents.id))
+		.innerJoin(projects, and(eq(documents.project_id, projects.id), eq(projects.owner_id, ownerId)))
 		.where(eq(documentTabs.id, tabId))
 		.limit(1)
 	return row?.tab ?? null

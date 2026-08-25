@@ -12,8 +12,8 @@ import type { JSONContent } from '@tiptap/core'
 export interface DocumentSummary {
 	id: string
 	title: string
-	/** ID proyek tempat dokumen bernaung; null berarti "Tanpa proyek". */
-	projectId: string | null
+	/** ID proyek tempat dokumen bernaung - setiap dokumen server wajib punya proyek. */
+	projectId: string
 	tabCount: number
 	/** Epoch milidetik (server mengirim `Date.getTime()`). */
 	updatedAt: number
@@ -49,8 +49,8 @@ export interface CreateDocumentInput {
 	content?: JSONContent
 	emoji?: string | null
 	language?: string | null
-	/** Proyek tujuan; tidak dikirim berarti "Tanpa proyek". */
-	projectId?: string | null
+	/** Proyek tujuan; tidak dikirim berarti server memakai proyek default user. */
+	projectId?: string
 }
 
 /**
@@ -59,8 +59,8 @@ export interface CreateDocumentInput {
  */
 export interface UpdateDocumentInput {
 	title?: string
-	/** ID proyek tujuan; `null` mengeluarkan dokumen dari proyeknya. */
-	projectId?: string | null
+	/** Pindahkan dokumen ke proyek lain; tidak dikirim berarti jangan ubah. */
+	projectId?: string
 }
 
 export interface CreateTabInput {

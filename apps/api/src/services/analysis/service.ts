@@ -74,7 +74,7 @@ export default class AnalysisService extends JobSubmissionService {
 	private async styleMemory(): Promise<StyleMemory | null> {
 		const userId = this.context.get('userId')
 		if (!userId) return null
-		const row = await findMemoryByOwner(userId)
+		const row = await findMemoryByOwner(await this.identityId())
 		return row?.preferences ?? null
 	}
 }

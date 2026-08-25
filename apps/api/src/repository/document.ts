@@ -1,11 +1,13 @@
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import db from '@/db'
-import { documents, documentTabs } from '@/db/schemas'
+import { documents, documentTabs, projects } from '@/db/schemas'
 import type { NewDocument } from '@/db/schemas'
 
 /**
- * Akses tabel `documents` (induk) yang selalu diskop ke pemilik (`owner_id`) -
- * dokumen user lain tidak pernah terlihat lewat fungsi-fungsi ini.
+ * Akses tabel `documents` (induk) yang selalu diskop ke pemilik lewat join ke
+ * `projects` (`documents.project_id -> projects.owner_id`) - dokumen tidak
+ * punya `owner_id` sendiri, dan dokumen user lain tidak pernah terlihat lewat
+ * fungsi-fungsi ini.
  */
 
 // Jumlah tab dihitung di SQL supaya daftar Library tidak perlu N+1 query.
@@ -15,13 +17,11 @@ const tabCountFor = () => db.$count(documentTabs, eq(documentTabs.document_id, d
 
 /**
  * Metadata list dokumen milik user, terbaru di atas, beserta jumlah tabnya.
- * `projectId` menyaring per proyek; nilai khusus `'none'` berarti hanya
- * dokumen yang belum berproyek.
+ * `projectId` menyaring per proyek bila diisi.
  */
 export async function findDocumentsByOwner(ownerId: string, projectId?: string) {
-	const conditions = [eq(documents.owner_id, ownerId)]
-	if (projectId === 'none') conditions.push(isNull(documents.project_id))
-	else if (projectId) conditions.push(eq(documents.project_id, projectId))
+	const conditions = [eq(projects.owner_id, ownerId)]
+	if (projectId) conditions.push(eq(documents.project_id, projectId))
 
 	return db
 		.select({
@@ -33,17 +33,19 @@ export async function findDocumentsByOwner(ownerId: string, projectId?: string) 
 			createdAt: documents.created_at,
 		})
 		.from(documents)
+		.innerJoin(projects, eq(documents.project_id, projects.id))
 		.where(and(...conditions))
 		.orderBy(desc(documents.updated_at))
 }
 
 export async function findDocumentById(id: string, ownerId: string) {
 	const [row] = await db
-		.select()
+		.select({ document: documents })
 		.from(documents)
-		.where(and(eq(documents.id, id), eq(documents.owner_id, ownerId)))
+		.innerJoin(projects, eq(documents.project_id, projects.id))
+		.where(and(eq(documents.id, id), eq(projects.owner_id, ownerId)))
 		.limit(1)
-	return row ?? null
+	return row?.document ?? null
 }
 
 export async function insertDocument(values: NewDocument) {
@@ -53,11 +55,10 @@ export async function insertDocument(values: NewDocument) {
 
 /** Menimpa field yang dikirim; `updated_at` otomatis via `$onUpdateFn`. */
 export async function updateDocument(id: string, ownerId: string, values: Partial<NewDocument>) {
-	const [row] = await db
-		.update(documents)
-		.set(values)
-		.where(and(eq(documents.id, id), eq(documents.owner_id, ownerId)))
-		.returning()
+	const owned = await findDocumentById(id, ownerId)
+	if (!owned) return null
+
+	const [row] = await db.update(documents).set(values).where(eq(documents.id, id)).returning()
 	return row ?? null
 }
 
@@ -75,9 +76,9 @@ export async function touchDocument(id: string) {
  * masing-masing di tabel mereka.
  */
 export async function deleteDocument(id: string, ownerId: string) {
-	const [row] = await db
-		.delete(documents)
-		.where(and(eq(documents.id, id), eq(documents.owner_id, ownerId)))
-		.returning({ id: documents.id })
+	const owned = await findDocumentById(id, ownerId)
+	if (!owned) return null
+
+	const [row] = await db.delete(documents).where(eq(documents.id, id)).returning({ id: documents.id })
 	return row ?? null
 }

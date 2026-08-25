@@ -12,6 +12,9 @@ export const versionTriggerEnum = pgEnum('version_trigger', [
 	'interval',
 	'pre_translate',
 	'pre_restore',
+	// Snapshot otomatis saat job AI (grammar/analysis) selesai - lihat
+	// `metadata-version.ts`.
+	'ai_result',
 ])
 
 export const documentVersions = pgTable('document_versions', {

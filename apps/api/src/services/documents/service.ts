@@ -8,7 +8,7 @@ import {
 	updateDocument,
 } from '@/repository/document'
 import { findTabsByDocument, insertTab } from '@/repository/document-tab'
-import { findProjectById } from '@/repository/project'
+import { findOrCreateDefaultProject, findProjectById } from '@/repository/project'
 import BaseService from '@/services/base.service'
 import { snapshotIntervalTab } from '@/services/tabs/service'
 import { createDocumentBodySchema, updateDocumentBodySchema } from './dto'
@@ -25,10 +25,13 @@ const EMPTY_CONTENT: Record<string, unknown> = { type: 'doc', content: [] }
  */
 export default class DocumentsService extends BaseService {
 	/** List metadata dokumen milik user, terbaru di atas. Query `projectId`
-	 * menyaring per proyek; nilai `'none'` berarti yang belum berproyek. */
+	 * menyaring per proyek bila diisi. */
 	async list(): Promise<Response> {
 		try {
-			const rows = await findDocumentsByOwner(this.ownerId(), this.context.req.query('projectId'))
+			const rows = await findDocumentsByOwner(
+				await this.identityId(),
+				this.context.req.query('projectId'),
+			)
 			const result: DocumentSummary[] = rows.map((row) => ({
 				id: row.id,
 				title: row.title,
@@ -46,7 +49,7 @@ export default class DocumentsService extends BaseService {
 	/** Detail satu dokumen induk beserta daftar tabnya (urut `position`). */
 	async getById(): Promise<Response> {
 		try {
-			const document = await findDocumentById(this.documentId(), this.ownerId())
+			const document = await findDocumentById(this.documentId(), await this.identityId())
 			if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
 
 			const tabs = await findTabsByDocument(document.id)
@@ -69,18 +72,26 @@ export default class DocumentsService extends BaseService {
 			}
 
 			const { content, emoji, language, projectId, title } = body.data
-			if (projectId) await this.ownedProject(projectId)
+			const identityId = await this.identityId()
+			// Tidak dikirim = jalur cloud-sync otomatis - pakai proyek default
+			// user (dibuat sekali, dipakai ulang) supaya tidak perlu UI pemilihan
+			// proyek di titik itu.
+			let targetProjectId: string
+			if (projectId) {
+				await this.ownedProject(projectId)
+				targetProjectId = projectId
+			} else {
+				targetProjectId = (await findOrCreateDefaultProject(identityId)).id
+			}
 
 			const document = await insertDocument({
-				owner_id: this.ownerId(),
 				title,
-				project_id: projectId ?? null,
+				project_id: targetProjectId,
 			})
 			if (!document) throw AppError.internalServerError('Gagal menyimpan dokumen')
 
 			const tab = await insertTab({
 				document_id: document.id,
-				owner_id: this.ownerId(),
 				title,
 				content: content ?? EMPTY_CONTENT,
 				emoji: emoji ?? null,
@@ -110,9 +121,8 @@ export default class DocumentsService extends BaseService {
 			const { projectId, ...rest } = body.data
 			const values: Partial<NewDocument> = { ...rest }
 			if (projectId !== undefined) {
-				// `null` = keluarkan dari proyek; selain itu proyek tujuan harus
-				// benar-benar milik user ini.
-				if (projectId !== null) await this.ownedProject(projectId)
+				// Proyek tujuan harus benar-benar milik user ini.
+				await this.ownedProject(projectId)
 				values.project_id = projectId
 			}
 
@@ -122,7 +132,7 @@ export default class DocumentsService extends BaseService {
 				return this.error({ errors: ['Tidak ada field yang bisa diubah (title/projectId)'] })
 			}
 
-			const document = await updateDocument(this.documentId(), this.ownerId(), values)
+			const document = await updateDocument(this.documentId(), await this.identityId(), values)
 			if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
 
 			const tabs = await findTabsByDocument(document.id)
@@ -139,7 +149,7 @@ export default class DocumentsService extends BaseService {
 	 */
 	async remove(): Promise<Response> {
 		try {
-			const document = await deleteDocument(this.documentId(), this.ownerId())
+			const document = await deleteDocument(this.documentId(), await this.identityId())
 			if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
 			return this.success({ data: { id: document.id } })
 		} catch (error) {
@@ -155,7 +165,7 @@ export default class DocumentsService extends BaseService {
 
 	/** Proyek tujuan harus milik user; 400 bila bukan. */
 	private async ownedProject(projectId: string): Promise<void> {
-		const project = await findProjectById(projectId, this.ownerId())
+		const project = await findProjectById(projectId, await this.identityId())
 		if (!project) throw AppError.badRequest('Proyek tidak ditemukan')
 	}
 
@@ -169,7 +179,7 @@ export default class DocumentsService extends BaseService {
 		document: {
 			id: string
 			title: string
-			project_id: string | null
+			project_id: string
 			updated_at: Date
 			created_at: Date
 		},

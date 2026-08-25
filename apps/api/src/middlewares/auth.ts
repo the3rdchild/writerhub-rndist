@@ -35,6 +35,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 		// Fallback dev lokal: semua request dianggap milik satu user tetap supaya
 		// `owner_id` dokumen selalu terisi tanpa kredensial apa pun.
 		c.set('userId', 'local-dev')
+		c.set('identityOrigin', 'ppe')
 		await next()
 		return
 	}
@@ -43,6 +44,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 	const ppApiKey = c.req.header('x-pp-api-key')
 	const ppTimestamp = c.req.header('x-pp-timestamp')
 	const ranselAiApiKey = c.req.header('x-ransel-ai-api-key')
+	const ranselUserId = c.req.header('x-ransel-user-id')?.trim()
 
 	if (!client) {
 		return fail('Authentication required', ["Missing x-client header. Please provide 'x-client' header"], 401)
@@ -66,7 +68,10 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 		const authHeader = c.req.header('authorization') ?? ''
 		await verifyPpBearerToken(authHeader)
 		const ppUserId = c.req.header('x-pp-user-id')?.trim()
-		if (ppUserId) c.set('userId', ppUserId)
+		if (ppUserId) {
+			c.set('userId', ppUserId)
+			c.set('identityOrigin', 'ppe')
+		}
 		if (authHeader.startsWith('Bearer ')) c.set('bearerToken', authHeader.slice(7).trim())
 	} else if (client === 'ransel-ai') {
 		if (!ranselAiApiKey) {
@@ -78,6 +83,10 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 				['The API key you provided is invalid. Please double-check your credentials and try again.'],
 				401,
 			)
+		}
+		if (ranselUserId) {
+			c.set('userId', ranselUserId)
+			c.set('identityOrigin', 'ransel')
 		}
 	} else if (client === 'another-client') {
 		const apiKey = c.req.header('x-api-key')

@@ -18,7 +18,6 @@ export const documentTabs = pgTable(
 		document_id: uuid('document_id')
 			.notNull()
 			.references(() => documents.id, { onDelete: 'cascade' }),
-		owner_id: varchar('owner_id', { length: 255 }).notNull(),
 		title: text('title').notNull(),
 		content: jsonb('content').notNull().$type<Record<string, unknown>>(),
 		emoji: varchar('emoji', { length: 32 }),

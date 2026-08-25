@@ -1,20 +1,27 @@
 'use client'
 
-import { ArrowLeft, FileText, Lock } from 'lucide-react'
+import { ArrowLeft, FileText, Folder, Lock } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEditor, EditorContent } from '@tiptap/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { buildEditorExtensions } from '@/features/editor/extensions'
 import { pageGeometry } from '@/features/editor/page-geometry'
 import { fetchShare } from '@/features/share/api'
-import { SHARE_ACCESS_LABELS, SHARE_ROLE_LABELS, type SharePayload } from '@/features/share/types'
+import {
+	SHARE_ACCESS_LABELS,
+	SHARE_ROLE_LABELS,
+	type SharedTab,
+	type SharePayload,
+} from '@/features/share/types'
+import { cn } from '@/lib/utils'
 
 /**
- * Halaman pembuka dokumen yang dibagikan lewat link backend.
+ * Halaman pembuka PROYEK yang dibagikan lewat link backend.
  *
- * Token diambil dari path `/share/<token>`, lalu konten dokumen dibaca dari
- * `/api/shares/<token>`. Dokumen dirender dalam editor Tiptap read-only.
+ * Token diambil dari path `/share/<token>`, lalu pohon dokumen dibaca dari
+ * `/api/shares/<token>`. Sidebar kiri daftar dokumen (+ tabnya bila lebih
+ * dari satu); panel kanan merender tab terpilih dalam editor Tiptap read-only.
  */
 export default function SharePage() {
 	const params = useParams()
@@ -22,6 +29,7 @@ export default function SharePage() {
 	const [payload, setPayload] = useState<SharePayload | null>(null)
 	const [error, setError] = useState<string | null>(null)
 	const [loading, setLoading] = useState(true)
+	const [selectedTabId, setSelectedTabId] = useState<string | null>(null)
 
 	useEffect(() => {
 		if (!token) {
@@ -33,15 +41,27 @@ export default function SharePage() {
 		setLoading(true)
 		setError(null)
 		fetchShare(token)
-			.then(setPayload)
-			.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal memuat dokumen'))
+			.then((data) => {
+				setPayload(data)
+				setSelectedTabId(data.documents[0]?.tabs[0]?.id ?? null)
+			})
+			.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal memuat proyek'))
 			.finally(() => setLoading(false))
 	}, [token])
+
+	const selectedTab = useMemo<SharedTab | null>(() => {
+		if (!payload || !selectedTabId) return null
+		for (const document of payload.documents) {
+			const tab = document.tabs.find((item) => item.id === selectedTabId)
+			if (tab) return tab
+		}
+		return null
+	}, [payload, selectedTabId])
 
 	const editor = useEditor({
 		immediatelyRender: false,
 		extensions: buildEditorExtensions({ geometry: pageGeometry() }),
-		content: payload?.content,
+		content: selectedTab?.content,
 		editable: false,
 		editorProps: {
 			attributes: {
@@ -52,10 +72,10 @@ export default function SharePage() {
 	})
 
 	useEffect(() => {
-		if (editor && payload?.content) {
-			editor.commands.setContent(payload.content, { emitUpdate: false })
+		if (editor && selectedTab) {
+			editor.commands.setContent(selectedTab.content, { emitUpdate: false })
 		}
-	}, [editor, payload?.content])
+	}, [editor, selectedTab])
 
 	if (loading) {
 		return (
@@ -69,9 +89,9 @@ export default function SharePage() {
 		return (
 			<div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 text-center">
 				<FileText className="h-12 w-12 text-faint" />
-				<h1 className="mt-4 text-lg font-medium text-foreground">Dokumen tidak ditemukan</h1>
+				<h1 className="mt-4 text-lg font-medium text-foreground">Proyek tidak ditemukan</h1>
 				<p className="mt-1 max-w-md text-sm text-muted">
-					{error || 'Link dokumen ini rusak atau sudah tidak tersedia.'}
+					{error || 'Link proyek ini rusak atau sudah tidak tersedia.'}
 				</p>
 				<Link
 					href="/"
@@ -85,6 +105,7 @@ export default function SharePage() {
 
 	const accessLabel = SHARE_ACCESS_LABELS[payload.access]
 	const roleLabel = SHARE_ROLE_LABELS[payload.role]
+	const hasContent = payload.documents.some((document) => document.tabs.length > 0)
 
 	return (
 		<div className="flex min-h-screen flex-col bg-background">
@@ -99,7 +120,7 @@ export default function SharePage() {
 						<ArrowLeft className="h-5 w-5" />
 					</Link>
 					<div className="min-w-0">
-						<h1 className="truncate text-base font-medium text-foreground">{payload.title}</h1>
+						<h1 className="truncate text-base font-medium text-foreground">{payload.projectName}</h1>
 						<div className="flex items-center gap-1.5 text-xs text-muted">
 							<Lock className="h-3 w-3" />
 							<span>{accessLabel.label}</span>
@@ -116,14 +137,52 @@ export default function SharePage() {
 				</Link>
 			</header>
 
-			{/* Canvas */}
-			<main className="flex flex-1 justify-center overflow-y-auto px-4 py-6">
-				<div className="document-canvas w-full max-w-[816px]">
-					<div className="document-sheet min-h-[1056px] bg-surface-raised p-[96px] shadow-[var(--page-shadow)]">
-						<EditorContent editor={editor} />
-					</div>
+			{!hasContent ? (
+				<div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+					<Folder className="h-12 w-12 text-faint" />
+					<h2 className="mt-4 text-lg font-medium text-foreground">Proyek ini kosong</h2>
+					<p className="mt-1 max-w-md text-sm text-muted">Belum ada dokumen di dalamnya.</p>
 				</div>
-			</main>
+			) : (
+				<div className="flex flex-1 overflow-hidden">
+					{/* Sidebar dokumen/tab */}
+					<aside className="w-64 shrink-0 overflow-y-auto border-r border-line px-2 py-4">
+						{payload.documents.map((document) => (
+							<div key={document.id} className="mb-3">
+								<p className="flex items-center gap-2 truncate px-2 py-1 text-xs font-semibold uppercase tracking-wide text-faint">
+									<FileText className="h-3.5 w-3.5 shrink-0" />
+									{document.title}
+								</p>
+								{document.tabs.map((tab) => (
+									<button
+										key={tab.id}
+										type="button"
+										onClick={() => setSelectedTabId(tab.id)}
+										className={cn(
+											'flex w-full items-center gap-2 truncate rounded-lg px-3 py-1.5 text-left text-sm transition-colors',
+											selectedTabId === tab.id
+												? 'bg-[var(--overlay-active)] font-medium text-foreground'
+												: 'text-muted hover:bg-[var(--overlay-hover)] hover:text-foreground',
+										)}
+									>
+										{tab.emoji && <span className="shrink-0">{tab.emoji}</span>}
+										<span className="truncate">{tab.title}</span>
+									</button>
+								))}
+							</div>
+						))}
+					</aside>
+
+					{/* Canvas */}
+					<main className="flex flex-1 justify-center overflow-y-auto px-4 py-6">
+						<div className="document-canvas w-full max-w-[816px]">
+							<div className="document-sheet min-h-[1056px] bg-surface-raised p-[96px] shadow-[var(--page-shadow)]">
+								<EditorContent editor={editor} />
+							</div>
+						</div>
+					</main>
+				</div>
+			)}
 		</div>
 	)
 }

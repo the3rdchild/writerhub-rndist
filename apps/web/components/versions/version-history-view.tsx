@@ -42,6 +42,8 @@ function entryLabel(version: VersionSummary): string {
 			return 'Sebelum pemulihan'
 		case 'pre_translate':
 			return 'Sebelum terjemah'
+		case 'ai_result':
+			return 'Hasil AI'
 	}
 }
 

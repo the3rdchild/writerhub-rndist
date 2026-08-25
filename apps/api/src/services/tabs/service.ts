@@ -92,7 +92,6 @@ export default class TabsService extends BaseService {
 			const document = await this.ownedDocument()
 			const tab = await insertTab({
 				document_id: document.id,
-				owner_id: this.ownerId(),
 				title: body.data.title ?? 'Untitled',
 				content: body.data.content ?? EMPTY_CONTENT,
 				emoji: body.data.emoji ?? null,
@@ -168,7 +167,7 @@ export default class TabsService extends BaseService {
 
 			let documentDeleted = false
 			if (siblingCount === 1) {
-				await deleteDocument(tab.document_id, this.ownerId())
+				await deleteDocument(tab.document_id, await this.identityId())
 				documentDeleted = true
 			} else {
 				await touchDocument(tab.document_id)
@@ -219,14 +218,14 @@ export default class TabsService extends BaseService {
 
 	/** Dokumen induk milik user (dari route `/documents/:id/...`); 404 bila bukan. */
 	private async ownedDocument() {
-		const document = await findDocumentById(this.documentId(), this.ownerId())
+		const document = await findDocumentById(this.documentId(), await this.identityId())
 		if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
 		return document
 	}
 
 	/** Tab milik user (dari route `/tabs/:tabId`); 404 bila bukan. */
 	private async ownedTab() {
-		const tab = await findTabById(this.tabId(), this.ownerId())
+		const tab = await findTabById(this.tabId(), await this.identityId())
 		if (!tab) throw AppError.notFound('Tab tidak ditemukan')
 		return tab
 	}

@@ -1,7 +1,7 @@
 import { streamSSE } from 'hono/streaming'
 import { createRouter } from '@/lib/create-app'
 import { isTerminalEvent, subscribeToJob } from '@/lib/job-events'
-import { findAnalysisResult, findGrammarResult, findPoolRequest } from '@/repository/job-result'
+import { findMetadataVersion, findPoolRequest } from '@/repository/job-result'
 
 const HEARTBEAT_INTERVAL_MS = 8_000
 const STREAM_TIMEOUT_MS = 180_000
@@ -31,25 +31,16 @@ async function buildSettledEvent(jobId: string): Promise<string | null> {
 	}
 	if (request.status !== 'completed') return null
 
-	const grammar = await findGrammarResult(jobId).catch(() => null)
-	if (grammar) {
-		return JSON.stringify({
-			type: 'done',
-			original_text: grammar.original_text,
-			corrected_text: grammar.corrected_text,
-			suggestions: grammar.suggestions ?? [],
-			scores: grammar.scores,
-			writing_quality: grammar.writing_quality,
-			quality_label: grammar.quality_label,
-		})
-	}
+	const row = await findMetadataVersion(jobId).catch(() => null)
+	if (!row) return null
 
-	const analysis = await findAnalysisResult(jobId).catch(() => null)
-	if (analysis) {
-		return JSON.stringify({ type: 'done', result: analysis.result })
+	// Bentuk respons dipertahankan sama seperti sebelum penggabungan ke
+	// metadata_version: grammar di-flatten dari `result`, feature lain
+	// dibungkus `{ result }` seperti analysis_result dulu.
+	if (row.feature === 'grammar') {
+		return JSON.stringify({ type: 'done', ...row.result })
 	}
-
-	return null
+	return JSON.stringify({ type: 'done', result: row.result })
 }
 
 stream.get('/:jobId', async (c) => {

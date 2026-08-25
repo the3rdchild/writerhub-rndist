@@ -1,6 +1,6 @@
 'use client'
 
-import { Folder, Inbox, LibraryBig, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Folder, LibraryBig, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -13,8 +13,8 @@ import { cn } from '@/lib/utils'
 
 /**
  * Sidebar kiri /library: filter dokumen per proyek. Pilihan disimpan di query
- * string `?project=` (all / none / <id>) supaya bisa di-bookmark dan tombol
- * Kembali bekerja.
+ * string `?project=` (all / <id>) supaya bisa di-bookmark dan tombol Kembali
+ * bekerja.
  */
 export function ProjectSidebar({ active }: { active: string }) {
 	const router = useRouter()
@@ -59,13 +59,13 @@ export function ProjectSidebar({ active }: { active: string }) {
 		setActionError(null)
 		deleteProject(pendingDelete.id)
 			.then(() => {
-				// Dokumen di dalamnya pindah ke "Tanpa proyek" (FK set null),
-				// jadi daftar dokumen juga perlu ditarik ulang.
 				void invalidateProjects()
 				void invalidateDocuments()
 				if (active === pendingDelete.id) go('all')
 				setPendingDelete(null)
 			})
+			// Server menolak (409) selagi proyek masih berisi dokumen - pesannya
+			// sudah menjelaskan itu, tampilkan apa adanya.
 			.catch((cause) => failMessage(cause, 'Gagal menghapus proyek'))
 			.finally(() => setDeleting(false))
 	}
@@ -78,12 +78,6 @@ export function ProjectSidebar({ active }: { active: string }) {
 					label="Semua dokumen"
 					active={active === 'all'}
 					onSelect={() => go('all')}
-				/>
-				<SidebarItem
-					icon={<Inbox className="h-4 w-4" />}
-					label="Tanpa proyek"
-					active={active === 'none'}
-					onSelect={() => go('none')}
 				/>
 
 				{projects && projects.length > 0 && (
@@ -183,8 +177,10 @@ export function ProjectSidebar({ active }: { active: string }) {
 				description={
 					<>
 						Proyek <strong className="text-foreground">{pendingDelete?.name}</strong> dihapus.
-						Dokumen di dalamnya <strong className="text-foreground">tidak ikut terhapus</strong>{' '}
-						- mereka kembali ke &ldquo;Tanpa proyek&rdquo;.
+						Proyek yang masih berisi dokumen{' '}
+						<strong className="text-foreground">tidak bisa dihapus</strong> - pindahkan atau
+						hapus dokumennya dulu.
+						{actionError && <span className="mt-2 block text-red-500">{actionError}</span>}
 					</>
 				}
 				confirmLabel={deleting ? 'Menghapus…' : 'Hapus'}

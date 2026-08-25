@@ -292,7 +292,7 @@ function ProjectsSection({
 	const currentProjectId =
 		serverDocuments.data?.find((dok) => dok.id === docServerId)?.projectId ?? null
 
-	const move = (projectId: string | null) => {
+	const move = (projectId: string) => {
 		if (!docServerId || moving) return
 		setMoving(true)
 		setMoveError(null)
@@ -347,14 +347,6 @@ function ProjectsSection({
 				</p>
 			) : (
 				<>
-					<DropdownItem
-						icon={currentProjectId === null ? <Check className="h-4 w-4" /> : undefined}
-						active={currentProjectId === null}
-						disabled={moving}
-						onSelect={() => move(null)}
-					>
-						Tanpa proyek
-					</DropdownItem>
 					{projects.data?.map((project) => (
 						<DropdownItem
 							key={project.id}

@@ -1,7 +1,7 @@
 import type { JSONContent } from '@tiptap/core'
 
 /** Pemicu terciptanya sebuah versi (lihat skema `document_versions` di apps/api). */
-export type VersionTrigger = 'manual' | 'interval' | 'pre_translate' | 'pre_restore'
+export type VersionTrigger = 'manual' | 'interval' | 'pre_translate' | 'pre_restore' | 'ai_result'
 
 /**
  * Satu entri di lini masa versi. `VersionSummary` dipakai daftar riwayat,

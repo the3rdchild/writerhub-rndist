@@ -15,7 +15,7 @@ export const createVersionBodySchema = z.object({
 
 export type CreateVersionBody = z.infer<typeof createVersionBodySchema>
 
-export type VersionTrigger = 'manual' | 'interval' | 'pre_translate' | 'pre_restore'
+export type VersionTrigger = 'manual' | 'interval' | 'pre_translate' | 'pre_restore' | 'ai_result'
 
 export interface VersionSummary {
 	id: string

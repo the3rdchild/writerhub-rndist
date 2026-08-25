@@ -66,7 +66,7 @@ export default abstract class JobSubmissionService extends BaseService {
 		// "tanpa tautan", bukan menggagalkan job.
 		let tabId: string | null = null
 		if (meta?.tabId && userId) {
-			const tab = await findTabById(meta.tabId, userId)
+			const tab = await findTabById(meta.tabId, await this.identityId())
 			tabId = tab?.id ?? null
 		}
 

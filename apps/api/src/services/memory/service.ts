@@ -15,7 +15,7 @@ export default class MemoryService extends BaseService {
 	 */
 	async get(): Promise<Response> {
 		try {
-			const row = await findMemoryByOwner(this.ownerId())
+			const row = await findMemoryByOwner(await this.identityId())
 			return this.success({ data: row?.preferences ?? {} })
 		} catch (error) {
 			return this.failFromError(error)
@@ -36,18 +36,12 @@ export default class MemoryService extends BaseService {
 				return this.error({ errors: body.error.issues.map((issue) => issue.message) })
 			}
 
-			const row = await upsertMemory(this.ownerId(), body.data)
+			const row = await upsertMemory(await this.identityId(), body.data)
 			if (!row) throw AppError.internalServerError('Gagal menyimpan AI Memory')
 
 			return this.success({ data: row.preferences })
 		} catch (error) {
 			return this.failFromError(error)
 		}
-	}
-
-	private ownerId(): string {
-		const userId = this.context.get('userId')
-		if (!userId) throw AppError.unauthorized('User tidak dikenal')
-		return userId
 	}
 }

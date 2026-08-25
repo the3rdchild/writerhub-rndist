@@ -356,7 +356,7 @@ document_versions (
 | `pre_translate` | Otomatis sebelum translate in place menimpa editor (fitur C) |
 | `pre_restore` | Otomatis sebelum restore - restore **tidak pernah destructive** |
 
-### API (`apps/api`, di bawah `/api/v1`)
+### API (`apps/api`, di bawah `/v1`)
 
 - `GET /documents/:id/versions` - daftar versi (metadata saja, tanpa content).
 - `GET /documents/:id/versions/:versionId` - satu versi lengkap (untuk preview/diff).
@@ -396,7 +396,7 @@ document_versions (
 
 ## 5. Keputusan
 
-Empat keputusan di bawah sudah diisi dengan posisi default agar implementasi bisa jalan.
+Empat keputusan di bawah sudah api/diisi dengan posisi default agar implementasi bisa jalan.
 Statusnya: **DIPUTUSKAN** = kerjakan sesuai isinya; **BLOCKING EKSTERNAL** = butuh jawaban pihak lain.
 
 Perkembangan per 9 Agustus 2026:

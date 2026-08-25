@@ -118,7 +118,7 @@ export default class VersionsService extends BaseService {
 
 	/** Tab milik user; 404 bila bukan. */
 	private async ownedTab() {
-		const tab = await findTabById(this.tabId(), this.ownerId())
+		const tab = await findTabById(this.tabId(), await this.identityId())
 		if (!tab) throw AppError.notFound('Tab tidak ditemukan')
 		return tab
 	}

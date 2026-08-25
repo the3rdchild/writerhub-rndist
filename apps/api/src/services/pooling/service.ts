@@ -1,6 +1,6 @@
 import type { AnalysisJobStatus, GrammarJobStatus } from '@writer-hub/shared'
 import { AppError } from '@/lib/error'
-import { findAnalysisResult, findGrammarResult, findPoolRequest } from '@/repository/job-result'
+import { findMetadataVersion, findPoolRequest } from '@/repository/job-result'
 import BaseService from '@/services/base.service'
 import { poolingParamSchema } from './dto'
 
@@ -45,23 +45,35 @@ export default class PoolingService extends BaseService {
 			return { ...base, ...(request.error ? { error: request.error } : {}) }
 		}
 
-		// Job analisis menyimpan `feature` di params dan hasilnya di tabel terpisah.
+		const row = await findMetadataVersion(jobId)
+		if (!row) throw AppError.notFound('Job result not found')
+
+		// Job analisis menyimpan `feature` di params; hasilnya kini generik lewat
+		// metadata_version, grammar di-flatten seperti bentuk lama.
 		if (params?.feature) {
-			const analysis = await findAnalysisResult(jobId)
-			if (!analysis) throw AppError.notFound('Analysis result not found')
-			return { ...base, feature: analysis.feature, result: analysis.result }
+			return {
+				...base,
+				feature: row.feature as AnalysisJobStatus['feature'],
+				result: row.result as unknown as AnalysisJobStatus['result'],
+			}
 		}
 
-		const grammar = await findGrammarResult(jobId)
-		if (!grammar) throw AppError.notFound('Grammar result not found')
+		const result = row.result as unknown as {
+			original_text: string
+			corrected_text: string | null
+			suggestions: GrammarJobStatus['suggestions']
+			scores: GrammarJobStatus['scores']
+			writing_quality: number | null
+			quality_label: string | null
+		}
 		return {
 			...base,
-			original_text: grammar.original_text,
-			corrected_text: grammar.corrected_text,
-			suggestions: grammar.suggestions ?? [],
-			scores: grammar.scores,
-			writing_quality: grammar.writing_quality,
-			quality_label: grammar.quality_label,
+			original_text: result.original_text,
+			corrected_text: result.corrected_text,
+			suggestions: result.suggestions ?? [],
+			scores: result.scores,
+			writing_quality: result.writing_quality,
+			quality_label: result.quality_label,
 		}
 	}
 }

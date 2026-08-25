@@ -6,7 +6,6 @@ import {
 	FileText,
 	Folder,
 	FolderInput,
-	Inbox,
 	Link2,
 	Loader2,
 	MoreVertical,
@@ -20,7 +19,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown'
 import { getDocument, updateDocument } from '@/features/documents/api'
-import type { DocumentSummary, TabSummary } from '@/features/documents/types'
+import type { DocumentSummary } from '@/features/documents/types'
 import { useInvalidateDocuments } from '@/features/documents/use-documents'
 import { useProjects } from '@/features/projects/use-projects'
 import { createShare } from '@/features/share/api'
@@ -35,12 +34,6 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	hour: '2-digit',
 	minute: '2-digit',
 })
-
-/** Tab yang sedang menunggu dialog bagikannya dibuka. */
-interface ShareTarget {
-	tabId: string
-	title: string
-}
 
 /**
  * Satu dokumen di library.
@@ -63,9 +56,7 @@ export function DocumentCard({
 
 	const [renaming, setRenaming] = useState(false)
 	const [opening, setOpening] = useState(false)
-	const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null)
-	/** Pilihan tab untuk dibagikan; terisi hanya bila dokumennya punya >1 tab. */
-	const [shareTabs, setShareTabs] = useState<TabSummary[] | null>(null)
+	const [sharing, setSharing] = useState(false)
 	const [movingOpen, setMovingOpen] = useState(false)
 	const [actionError, setActionError] = useState<string | null>(null)
 
@@ -99,32 +90,8 @@ export function DocumentCard({
 			)
 	}
 
-	/**
-	 * Share tetap per TAB (keputusan 2 rencana restrukturisasi), jadi kartu
-	 * dokumen harus memilih tabnya dulu: langsung bila hanya ada satu, lewat
-	 * pilihan kecil bila lebih.
-	 */
-	const startShare = () => {
-		setActionError(null)
-		getDocument(document.id)
-			.then((detail) => {
-				if (detail.tabs.length === 0) {
-					setActionError('Dokumen ini tidak punya tab untuk dibagikan.')
-					return
-				}
-				if (detail.tabs.length === 1) {
-					setShareTarget({ tabId: detail.tabs[0].id, title: detail.tabs[0].title })
-				} else {
-					setShareTabs(detail.tabs)
-				}
-			})
-			.catch((cause) =>
-				setActionError(cause instanceof Error ? cause.message : 'Gagal membaca tab dokumen'),
-			)
-	}
-
-	/** Pindahkan ke proyek lain; `null` mengeluarkannya ke "Tanpa proyek". */
-	const moveToProject = (projectId: string | null) => {
+	/** Pindahkan ke proyek lain - setiap dokumen wajib punya proyek. */
+	const moveToProject = (projectId: string) => {
 		setActionError(null)
 		updateDocument(document.id, { projectId })
 			.then(() => void invalidate())
@@ -202,32 +169,12 @@ export function DocumentCard({
 							<DropdownItem
 								icon={<Share2 className="h-4 w-4" />}
 								onSelect={() => {
-									if (document.tabCount <= 1) close()
-									startShare()
+									close()
+									setSharing(true)
 								}}
 							>
-								Bagikan
+								Bagikan proyeknya
 							</DropdownItem>
-							{/* Share per tab: dokumen multi-tab menawarkan pilihan tabnya
-							    sebagai submenu kecil; dokumen satu tab langsung membuka
-							    dialog (menu sudah ditutup di atas). */}
-							{shareTabs && (
-								<div className="border-l border-line ml-5 flex flex-col">
-									{shareTabs.map((tab) => (
-										<DropdownItem
-											key={tab.id}
-											icon={<FileText className="h-4 w-4" />}
-											onSelect={() => {
-												close()
-												setShareTabs(null)
-												setShareTarget({ tabId: tab.id, title: tab.title })
-											}}
-										>
-											{tab.title}
-										</DropdownItem>
-									))}
-								</div>
-							)}
 							{/* Kartu library selalu dokumen server, jadi pemindahan proyek
 							    selalu bekerja; dokumen lokal-saja memang tidak muncul di sini. */}
 							<DropdownItem
@@ -238,22 +185,6 @@ export function DocumentCard({
 							</DropdownItem>
 							{movingOpen && (
 								<div className="border-l border-line ml-5 flex flex-col">
-									<DropdownItem
-										icon={
-											document.projectId === null ? (
-												<Check className="h-4 w-4" />
-											) : (
-												<Inbox className="h-4 w-4" />
-											)
-										}
-										onSelect={() => {
-											close()
-											setMovingOpen(false)
-											if (document.projectId !== null) moveToProject(null)
-										}}
-									>
-										Tanpa proyek
-									</DropdownItem>
 									{projects?.map((project) => (
 										<DropdownItem
 											key={project.id}
@@ -310,12 +241,8 @@ export function DocumentCard({
 				Buka di editor
 			</button>
 
-			{shareTarget && (
-				<CardShareDialog
-					tabId={shareTarget.tabId}
-					title={shareTarget.title}
-					onClose={() => setShareTarget(null)}
-				/>
+			{sharing && (
+				<CardShareDialog projectId={document.projectId} onClose={() => setSharing(false)} />
 			)}
 		</div>
 	)
@@ -361,22 +288,21 @@ export function CardNameInput({
 }
 
 /**
- * Dialog bagikan dari library: link dibuat dari `tabId`, tanpa membuka editor
- * dulu - kontennya diambil server dari tab yang tersimpan. Versi sederhana
- * dari dialog di menu bar: akses dan perannya bawaan, yang penting URL-nya
- * sampai ke tangan pemakai.
+ * Dialog bagikan dari library: link dibuat dari `projectId` proyek dokumen
+ * ini - seluruh dokumen di proyek yang sama ikut terbagikan (share sekarang
+ * per PROYEK, bukan per tab). Versi sederhana dari dialog di menu bar: akses
+ * dan perannya bawaan, yang penting URL-nya sampai ke tangan pemakai.
  */
 function CardShareDialog({
-	tabId,
-	title,
+	projectId,
 	onClose,
 }: {
-	tabId: string
-	title: string
+	projectId: string
 	onClose: () => void
 }) {
 	const overlayRef = useRef<HTMLDivElement>(null)
 	const [link, setLink] = useState('')
+	const [projectName, setProjectName] = useState('')
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const [copied, setCopied] = useState(false)
@@ -388,8 +314,11 @@ function CardShareDialog({
 		}
 		window.addEventListener('keydown', onKeyDown)
 
-		createShare({ tabId, access: 'anyone', role: 'viewer' })
-			.then((result) => setLink(`${window.location.origin}${result.url}`))
+		createShare({ projectId, access: 'anyone', role: 'viewer' })
+			.then((result) => {
+				setLink(`${window.location.origin}${result.url}`)
+				setProjectName(result.projectName)
+			})
 			.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal membuat link'))
 			.finally(() => setLoading(false))
 
@@ -398,7 +327,7 @@ function CardShareDialog({
 			window.removeEventListener('keydown', onKeyDown)
 		}
 		// biome-ignore lint/correctness/useExhaustiveDependencies: dialog hanya membuat link sekali saat dibuka
-	}, [tabId])
+	}, [projectId])
 
 	const copyLink = async () => {
 		if (!link) return
@@ -425,7 +354,7 @@ function CardShareDialog({
 			<div className="flex w-full max-w-md animate-in flex-col gap-4 rounded-2xl border border-line-strong bg-surface-raised p-5 shadow-2xl zoom-in-95 duration-200">
 				<div className="flex items-start justify-between gap-4">
 					<h2 className="text-base font-semibold text-foreground">
-						Bagikan &ldquo;{title}&rdquo;
+						{projectName ? `Bagikan proyek "${projectName}"` : 'Bagikan proyek'}
 					</h2>
 					<button
 						type="button"
@@ -464,7 +393,8 @@ function CardShareDialog({
 					<p className="text-xs text-red-500">{error}</p>
 				) : (
 					<p className="text-xs text-subtle">
-						Link merujuk salinan tab di server. Siapa pun yang memiliki link dapat membuka.
+						Link merujuk salinan beku seluruh dokumen di proyek ini. Siapa pun yang memiliki
+						link dapat membuka.
 					</p>
 				)}
 			</div>

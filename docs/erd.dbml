@@ -1,0 +1,165 @@
+// Source: apps/api/src/db/schemas/
+// `user_id` (pool_request) dan `created_by` (document_versions, shares) tetap
+// varchar mentah tanpa FK - hanya `owner_id` (projects, user_memories) yang
+// punya FK riil ke `identity.id`.
+
+Enum identity_origin {
+  ransel
+  ppe
+}
+
+Enum version_trigger {
+  manual
+  interval
+  pre_translate
+  pre_restore
+  ai_result
+}
+
+Enum share_access {
+  anyone
+  restricted
+}
+
+Enum share_role {
+  viewer
+  commenter
+  editor
+}
+
+Enum pool_request_status {
+  pending
+  processing
+  completed
+  failed
+  cancelled
+}
+
+Table identity {
+  id uuid [pk, not null]
+  user_id varchar(255) [not null]
+  origin identity_origin [not null]
+  created_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (user_id, origin) [unique]
+  }
+}
+
+Table projects {
+  id uuid [pk, not null]
+  owner_id uuid [not null]
+  name varchar(255) [not null]
+  color varchar(32)
+  updated_at timestamp [not null, default: `now()`]
+  created_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (owner_id, updated_at)
+  }
+}
+
+Table documents {
+  id uuid [pk, not null]
+  title text [not null]
+  project_id uuid [not null]
+  updated_at timestamp [not null, default: `now()`]
+  created_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (project_id, updated_at)
+  }
+}
+
+Table document_tabs {
+  id uuid [pk, not null]
+  document_id uuid [not null]
+  title text [not null]
+  content jsonb [not null]
+  emoji varchar(32)
+  language varchar(32)
+  position integer [not null, default: 0]
+  updated_at timestamp [not null, default: `now()`]
+  created_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (document_id, position)
+  }
+}
+
+Table document_versions {
+  id uuid [pk, not null]
+  tab_id uuid [not null]
+  content jsonb [not null]
+  trigger version_trigger [not null]
+  label varchar(255)
+  word_count integer [not null, default: 0]
+  created_by varchar(255)
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table metadata_version {
+  id uuid [pk, not null]
+  job_id varchar(255) [not null, unique]
+  request_id uuid [not null]
+  version_id uuid [not null]
+  feature varchar(50) [not null]
+  result jsonb [not null]
+  updated_at timestamp [not null, default: `now()`]
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table pool_request {
+  id uuid [pk, not null]
+  job_id varchar(255) [not null, unique]
+  status pool_request_status [not null, default: 'pending']
+  error text
+  params jsonb
+  total_tokens integer
+  model_record_id integer
+  user_id varchar(255)
+  tab_id uuid
+  feature varchar(50)
+  updated_at timestamp [not null, default: `now()`]
+  created_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (user_id, created_at)
+  }
+}
+
+Table shares {
+  id uuid [pk, not null]
+  project_id uuid
+  token varchar(255) [not null, unique]
+  access share_access [not null]
+  role share_role [not null]
+  created_by varchar(255)
+  updated_at timestamp [not null, default: `now()`]
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table share_snapshots {
+  id uuid [pk, not null]
+  share_id uuid [not null, unique]
+  content jsonb [not null]
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table user_memories {
+  owner_id uuid [pk, not null]
+  preferences jsonb [not null, default: `'{}'::jsonb`]
+  updated_at timestamp [not null, default: `now()`]
+  created_at timestamp [not null, default: `now()`]
+}
+
+Ref: projects.owner_id > identity.id
+Ref: user_memories.owner_id > identity.id
+Ref: documents.project_id > projects.id [delete: restrict]
+Ref: document_tabs.document_id > documents.id [delete: cascade]
+Ref: document_versions.tab_id > document_tabs.id [delete: cascade]
+Ref: metadata_version.request_id > pool_request.id [delete: cascade]
+Ref: metadata_version.version_id > document_versions.id [delete: cascade]
+Ref: pool_request.tab_id > document_tabs.id [delete: set null]
+Ref: shares.project_id > projects.id [delete: set null]
+Ref: share_snapshots.share_id > shares.id [delete: cascade]

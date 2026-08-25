@@ -2,100 +2,60 @@ import { randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { shares, shareSnapshots } from '@/db/schemas'
 import { AppError } from '@/lib/error'
-import { insertDocument } from '@/repository/document'
-import { findTabById, insertTab } from '@/repository/document-tab'
+import { findDocumentsByOwner } from '@/repository/document'
+import { findTabsByDocument } from '@/repository/document-tab'
+import { findProjectById } from '@/repository/project'
 import BaseService from '@/services/base.service'
 import { createShareBodySchema } from './dto'
-import type { CreateShareResponse, SharedDocumentResponse } from './dto'
+import type { CreateShareResponse, SharedDocument, SharedProjectResponse, SharedTab } from './dto'
 
 /**
- * Pembuatan dan pembacaan share link tab. Konten yang dibagikan dibekukan
- * di `share_snapshots` sehingga perubahan/penghapusan tab user tidak
- * memengaruhi link yang sudah tersebar.
+ * Pembuatan dan pembacaan share link PROYEK. Seluruh dokumen + tab di
+ * dalamnya dibekukan sekaligus ke `share_snapshots` saat share dibuat,
+ * sehingga perubahan/penghapusan proyek user tidak memengaruhi link yang
+ * sudah tersebar.
  */
 export default class ShareService extends BaseService {
-	/** Buat share link baru, dengan snapshot konten beku. */
+	/** Buat share link baru: bekukan seluruh isi proyek. */
 	async create(): Promise<Response> {
 		try {
 			const body = createShareBodySchema.safeParse(await this.context.req.json())
 			if (!body.success) {
 				return this.error({ errors: body.error.issues.map((issue) => issue.message) })
 			}
+			const { projectId, access, role } = body.data
 
-			const { title, content, access, role } = body.data
-			// `documentId` alias usang untuk `tabId` (id dokumen lama = id tab).
-			const requestedTabId = body.data.tabId ?? body.data.documentId
-			const userId = this.context.get('userId')
-			if (!userId) throw AppError.unauthorized('User tidak dikenal')
+			const identityId = await this.identityId()
+			const project = await findProjectById(projectId, identityId)
+			if (!project) throw AppError.notFound('Proyek tidak ditemukan')
 
-			let tabIdToLink: string
-			let snapshotTitle: string
-			let snapshotContent: Record<string, unknown>
+			const documents = await this.freezeProject(projectId)
 
-			if (requestedTabId) {
-				// Tab sudah tersimpan: pastikan milik user, lalu pakai konten
-				// terkini dari editor bila dikirim.
-				const tab = await findTabById(requestedTabId, userId)
-				if (!tab) throw AppError.notFound('Tab tidak ditemukan')
-
-				tabIdToLink = tab.id
-				snapshotTitle = title ?? tab.title
-				snapshotContent = content ?? tab.content
-			} else {
-				// Tab masih lokal: buat dulu dokumen induk + satu tab milik user
-				// supaya bisa di-autosave nanti.
-				if (!title || !content) throw AppError.badRequest('title dan content wajib diisi')
-				const document = await insertDocument({ owner_id: userId, title })
-				if (!document) throw AppError.internalServerError('Gagal menyimpan dokumen')
-				const tab = await insertTab({
-					document_id: document.id,
-					owner_id: userId,
-					title,
-					content,
-					position: 0,
-				})
-				if (!tab) throw AppError.internalServerError('Gagal menyimpan tab')
-
-				tabIdToLink = tab.id
-				snapshotTitle = title
-				snapshotContent = content
-			}
-
-			const [snapshot] = await this.db
-				.insert(shareSnapshots)
-				.values({ title: snapshotTitle, content: snapshotContent })
-				.returning({ id: shareSnapshots.id })
-			if (!snapshot) throw AppError.internalServerError('Gagal menyimpan snapshot share')
-
-			const token = this.generateToken()
-			const [share] = await this.db
+			const [snapshotShare] = await this.db
 				.insert(shares)
 				.values({
-					tab_id: tabIdToLink,
-					snapshot_id: snapshot.id,
-					token,
+					project_id: projectId,
+					token: this.generateToken(),
 					access,
 					role,
-					created_by: userId,
+					created_by: this.context.get('userId') ?? null,
 				})
-				.returning({
-					token: shares.token,
-					access: shares.access,
-					role: shares.role,
-					createdAt: shares.created_at,
-				})
+				.returning()
+			if (!snapshotShare) throw AppError.internalServerError('Gagal membuat share link')
 
-			if (!share) throw AppError.internalServerError('Gagal membuat share link')
+			await this.db.insert(shareSnapshots).values({
+				share_id: snapshotShare.id,
+				content: { projectName: project.name, documents } as Record<string, unknown>,
+			})
 
 			const result: CreateShareResponse = {
-				token: share.token,
-				url: `/share/${share.token}`,
-				tabId: tabIdToLink,
-				documentId: tabIdToLink,
-				title: snapshotTitle,
-				access: share.access,
-				role: share.role,
-				createdAt: share.createdAt.getTime(),
+				token: snapshotShare.token,
+				url: `/share/${snapshotShare.token}`,
+				projectId,
+				projectName: project.name,
+				access: snapshotShare.access,
+				role: snapshotShare.role,
+				createdAt: snapshotShare.created_at.getTime(),
 			}
 
 			return this.success({ data: result, status: 201 })
@@ -104,44 +64,61 @@ export default class ShareService extends BaseService {
 		}
 	}
 
-	/** Baca dokumen lewat token share (konten beku dari snapshot). */
+	/** Baca pohon dokumen lewat token share (konten beku dari snapshot). */
 	async getByToken(): Promise<Response> {
 		try {
 			const token = this.context.req.param('token')
 			if (!token) throw AppError.badRequest('Token share tidak ada')
 
-			const result = await this.db
+			const [row] = await this.db
 				.select({
-					title: shareSnapshots.title,
-					content: shareSnapshots.content,
 					access: shares.access,
 					role: shares.role,
 					createdAt: shares.created_at,
+					content: shareSnapshots.content,
 				})
 				.from(shares)
-				.innerJoin(shareSnapshots, eq(shares.snapshot_id, shareSnapshots.id))
+				.innerJoin(shareSnapshots, eq(shares.id, shareSnapshots.share_id))
 				.where(eq(shares.token, token))
 				.limit(1)
 
-			const share = result[0]
-			if (!share) throw AppError.notFound('Share link tidak ditemukan')
+			if (!row) throw AppError.notFound('Share link tidak ditemukan')
 
-			if (share.access === 'restricted' && !this.context.get('userId')) {
-				throw AppError.forbidden('Dokumen ini dibatasi, silakan masuk terlebih dahulu')
+			if (row.access === 'restricted' && !this.context.get('userId')) {
+				throw AppError.forbidden('Proyek ini dibatasi, silakan masuk terlebih dahulu')
 			}
 
-			const response: SharedDocumentResponse = {
-				title: share.title,
-				content: share.content as Record<string, unknown>,
-				access: share.access,
-				role: share.role,
-				createdAt: share.createdAt.getTime(),
+			const content = row.content as { projectName: string; documents: SharedDocument[] }
+			const response: SharedProjectResponse = {
+				projectName: content.projectName,
+				documents: content.documents,
+				access: row.access,
+				role: row.role,
+				createdAt: row.createdAt.getTime(),
 			}
 
 			return this.success({ data: response })
 		} catch (error) {
 			return this.failFromError(error)
 		}
+	}
+
+	/** Bekukan seluruh dokumen + tab sebuah proyek jadi pohon statis. */
+	private async freezeProject(projectId: string): Promise<SharedDocument[]> {
+		const documents = await findDocumentsByOwner(await this.identityId(), projectId)
+		const frozen: SharedDocument[] = []
+		for (const document of documents) {
+			const tabs = await findTabsByDocument(document.id)
+			const frozenTabs: SharedTab[] = tabs.map((tab) => ({
+				id: tab.id,
+				title: tab.title,
+				emoji: tab.emoji,
+				language: tab.language,
+				content: tab.content,
+			}))
+			frozen.push({ id: document.id, title: document.title, tabs: frozenTabs })
+		}
+		return frozen
 	}
 
 	private generateToken(): string {

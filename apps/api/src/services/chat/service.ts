@@ -38,7 +38,7 @@ export default class ChatService extends JobSubmissionService {
 			// supaya preferensi tidak bisa dipalsukan per request. `buildMessages`
 			// tetap fungsi murni; pengambilan dari DB terjadi di sini.
 			const userId = this.context.get('userId')
-			const memory = userId ? ((await findMemoryByOwner(userId))?.preferences ?? null) : null
+			const memory = userId ? ((await findMemoryByOwner(await this.identityId()))?.preferences ?? null) : null
 
 			// Mode lokal tidak punya provider dari admin-ppe; kredensial di env API
 			// yang dipakai. Kalau itu pun kosong, lebih baik bilang sekarang

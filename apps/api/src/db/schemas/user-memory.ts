@@ -1,7 +1,8 @@
 import { sql } from 'drizzle-orm'
-import { jsonb, pgTable, varchar } from 'drizzle-orm/pg-core'
+import { jsonb, pgTable, uuid } from 'drizzle-orm/pg-core'
 import type { StyleMemory } from '@writer-hub/shared'
 import { timestamps } from '@/db/utils/common-table'
+import { identity } from './identity'
 
 /**
  * AI Memory user: preferensi gaya yang ditulis eksplisit di Pengaturan.
@@ -11,7 +12,9 @@ import { timestamps } from '@/db/utils/common-table'
  * menambah query serta menggeser validasi ke runtime tanpa keuntungan nyata.
  */
 export const userMemories = pgTable('user_memories', {
-	owner_id: varchar('owner_id', { length: 255 }).primaryKey(),
+	owner_id: uuid('owner_id')
+		.primaryKey()
+		.references(() => identity.id),
 	preferences: jsonb('preferences').$type<StyleMemory>().notNull().default(sql`'{}'::jsonb`),
 
 	updated_at: timestamps.updatedAt,
