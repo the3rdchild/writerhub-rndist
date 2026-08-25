@@ -1,20 +1,22 @@
 import { pgEnum, pgTable, uuid, varchar } from 'drizzle-orm/pg-core'
 import { timestamps } from '@/db/utils/common-table'
-import { projects } from './project'
+import { documents } from './document'
 
 export const shareAccessEnum = pgEnum('share_access', ['anyone', 'restricted'])
 export const shareRoleEnum = pgEnum('share_role', ['viewer', 'commenter', 'editor'])
 
 /**
- * Share link untuk satu PROYEK (seluruh dokumen + tab di dalamnya). Token
- * acak menjadi identitas publik yang tertanam di URL `/share/<token>`.
- * Konten yang dilihat publik diambil dari snapshot beku (`share_snapshots`,
- * relasi 1:1 lewat `share_id`) - `project_id` cuma menunjuk proyek sumbernya
- * dan ikut kosong bila proyek itu dihapus, snapshot-nya tetap hidup.
+ * Share link untuk satu DOKUMEN (seluruh tab di dalamnya - pola Google Docs:
+ * "Share" membagikan satu file, bukan satu folder). Token acak menjadi
+ * identitas publik yang tertanam di URL `/share/<token>`. BUKAN salinan beku
+ * - kontennya dibaca LIVE dari `document_tabs` tiap kali link dibuka (lihat
+ * `services/share/service.ts`), sama seperti Google Docs. Konsekuensinya:
+ * `document_id` di-SET NULL kalau dokumennya dihapus, dan link itu ikut mati
+ * (tidak ada lagi apa pun yang bisa ditampilkan).
  */
 export const shares = pgTable('shares', {
 	id: uuid('id').primaryKey().defaultRandom(),
-	project_id: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
+	document_id: uuid('document_id').references(() => documents.id, { onDelete: 'set null' }),
 	token: varchar('token', { length: 255 }).notNull().unique(),
 	access: shareAccessEnum('access').notNull(),
 	role: shareRoleEnum('role').notNull(),

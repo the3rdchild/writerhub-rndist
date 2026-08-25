@@ -130,19 +130,12 @@ Table pool_request {
 
 Table shares {
   id uuid [pk, not null]
-  project_id uuid
+  document_id uuid
   token varchar(255) [not null, unique]
   access share_access [not null]
   role share_role [not null]
   created_by varchar(255)
   updated_at timestamp [not null, default: `now()`]
-  created_at timestamp [not null, default: `now()`]
-}
-
-Table share_snapshots {
-  id uuid [pk, not null]
-  share_id uuid [not null, unique]
-  content jsonb [not null]
   created_at timestamp [not null, default: `now()`]
 }
 
@@ -161,5 +154,4 @@ Ref: document_versions.tab_id > document_tabs.id [delete: cascade]
 Ref: metadata_version.request_id > pool_request.id [delete: cascade]
 Ref: metadata_version.version_id > document_versions.id [delete: cascade]
 Ref: pool_request.tab_id > document_tabs.id [delete: set null]
-Ref: shares.project_id > projects.id [delete: set null]
-Ref: share_snapshots.share_id > shares.id [delete: cascade]
+Ref: shares.document_id > documents.id [delete: set null]

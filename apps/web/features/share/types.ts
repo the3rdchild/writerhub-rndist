@@ -6,7 +6,7 @@ import type { JSONContent } from '@tiptap/core'
 export type ShareAccess = 'anyone' | 'restricted'
 export type ShareRole = 'viewer' | 'commenter' | 'editor'
 
-/** Satu tab beku di dalam snapshot proyek yang dibagikan. */
+/** Satu tab, dibaca live dari dokumen yang dibagikan (bukan salinan beku). */
 export interface SharedTab {
 	id: string
 	title: string
@@ -15,24 +15,17 @@ export interface SharedTab {
 	content: JSONContent
 }
 
-/** Satu dokumen beku (daftar tabnya) di dalam snapshot proyek yang dibagikan. */
-export interface SharedDocument {
-	id: string
-	title: string
-	tabs: SharedTab[]
-}
-
 export interface SharePayload {
-	projectName: string
-	documents: SharedDocument[]
+	documentTitle: string
+	tabs: SharedTab[]
 	access: ShareAccess
 	role: ShareRole
 	createdAt: number
 }
 
-/** Share membagikan SATU PROYEK (seluruh dokumen + tab di dalamnya). */
+/** Share membagikan SATU DOKUMEN (seluruh tab di dalamnya - pola Google Docs). */
 export interface CreateShareInput {
-	projectId: string
+	documentId: string
 	access: ShareAccess
 	role: ShareRole
 }
@@ -40,8 +33,8 @@ export interface CreateShareInput {
 export interface CreateShareResult {
 	token: string
 	url: string
-	projectId: string
-	projectName: string
+	documentId: string
+	documentTitle: string
 	access: ShareAccess
 	role: ShareRole
 	createdAt: number

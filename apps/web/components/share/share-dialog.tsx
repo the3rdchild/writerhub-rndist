@@ -2,7 +2,7 @@
 
 import { Check, Copy, Globe, Link2, Lock, Mail, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { getDocument, getTab } from '@/features/documents/api'
+import { getTab } from '@/features/documents/api'
 import { useSessions } from '@/features/sessions/session-context'
 import { createShare } from '@/features/share/api'
 import { useShare } from '@/features/share/share-context'
@@ -21,11 +21,11 @@ const ROLE_OPTIONS: ShareRole[] = ['viewer', 'commenter', 'editor']
 /**
  * Dialog bagikan ala Google Docs.
  *
- * Share membagikan SATU PROYEK (seluruh dokumen + tab di dalamnya, dibekukan
- * apa adanya saat link dibuat) - bukan lagi satu tab. Proyeknya ditentukan
- * lewat dokumen induk tab yang sedang aktif di editor (tab -> dokumen ->
- * proyek); dokumen yang belum tersimpan di cloud belum punya proyek sama
- * sekali, jadi dialog ini minta disimpan dulu.
+ * Share membagikan SATU DOKUMEN (seluruh tab di dalamnya, dibaca LIVE tiap
+ * link dibuka - BUKAN salinan beku) - persis pola Google Docs: "Share" satu
+ * file, bukan satu folder. Dokumennya ditentukan lewat tab yang sedang aktif di
+ * editor (tab -> dokumen induknya); tab yang belum tersimpan di cloud belum
+ * punya dokumen induk sama sekali, jadi dialog ini minta disimpan dulu.
  */
 export function ShareDialog() {
 	const { shareOpen, setShareOpen } = useShare()
@@ -38,7 +38,7 @@ export function ShareDialog() {
 	const [access, setAccess] = useState<ShareAccess>('anyone')
 	const [role, setRole] = useState<ShareRole>('viewer')
 	const [link, setLink] = useState('')
-	const [projectName, setProjectName] = useState('')
+	const [documentTitle, setDocumentTitle] = useState('')
 	const [loading, setLoading] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [notSynced, setNotSynced] = useState(false)
@@ -51,7 +51,7 @@ export function ShareDialog() {
 			setLoading(false)
 			setCopied(false)
 			setNotSynced(false)
-			setProjectName('')
+			setDocumentTitle('')
 			return
 		}
 
@@ -62,7 +62,7 @@ export function ShareDialog() {
 		window.addEventListener('keydown', onKeyDown)
 
 		// Tab lokal yang belum pernah tersimpan ke cloud belum punya dokumen
-		// induk, apalagi proyek - tidak ada yang bisa dibagikan.
+		// induk - tidak ada yang bisa dibagikan.
 		const serverId = activeId ? linkage[activeId]?.serverId : undefined
 		if (!serverId) {
 			setNotSynced(true)
@@ -71,11 +71,10 @@ export function ShareDialog() {
 			setError(null)
 			setNotSynced(false)
 			getTab(serverId)
-				.then((tab) => getDocument(tab.documentId))
-				.then((document) => createShare({ projectId: document.projectId, access, role }))
+				.then((tab) => createShare({ documentId: tab.documentId, access, role }))
 				.then((result) => {
 					setLink(`${window.location.origin}${result.url}`)
-					setProjectName(result.projectName)
+					setDocumentTitle(result.documentTitle)
 				})
 				.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal membuat link'))
 				.finally(() => setLoading(false))
@@ -108,7 +107,7 @@ export function ShareDialog() {
 			ref={overlayRef}
 			role="dialog"
 			aria-modal="true"
-			aria-label="Bagikan proyek"
+			aria-label="Bagikan dokumen"
 			className="fixed inset-0 z-[70] flex animate-in items-center justify-center bg-black/60 backdrop-blur-sm fade-in duration-200"
 			onClick={(event) => {
 				if (event.target === overlayRef.current) setShareOpen(false)
@@ -119,10 +118,10 @@ export function ShareDialog() {
 				<div className="flex items-start justify-between gap-4">
 					<div>
 						<h2 className="text-xl font-normal text-foreground">
-							{projectName ? `Bagikan proyek "${projectName}"` : 'Bagikan proyek'}
+							{documentTitle ? `Bagikan "${documentTitle}"` : 'Bagikan dokumen'}
 						</h2>
 						<p className="mt-1 text-sm text-muted">
-							Seluruh dokumen di proyek ini ikut dibagikan lewat satu link.
+							Seluruh tab di dokumen ini ikut dibagikan lewat satu link.
 						</p>
 					</div>
 					<button
@@ -170,7 +169,7 @@ export function ShareDialog() {
 
 				{/* Link preview */}
 				<div className="flex flex-col gap-1.5">
-					<label className="text-sm font-medium text-foreground">Link proyek</label>
+					<label className="text-sm font-medium text-foreground">Link dokumen</label>
 					<div className="flex items-center gap-2 rounded-lg border border-line-strong bg-surface-inset px-3 py-2">
 						<Link2 className="h-4 w-4 shrink-0 text-faint" />
 						<input
@@ -200,14 +199,14 @@ export function ShareDialog() {
 					{notSynced ? (
 						<p className="text-xs text-red-500">
 							Simpan dokumen ini ke cloud dulu (tombol Simpan di kartu Library) untuk
-							membagikan proyeknya.
+							membagikannya.
 						</p>
 					) : error ? (
 						<p className="text-xs text-red-500">{error}</p>
 					) : (
 						<p className="text-xs text-subtle">
-							Link merujuk salinan beku seluruh dokumen di proyek ini. Siapa pun yang
-							memiliki link dapat membuka.
+							Link menampilkan isi dokumen ini secara langsung (live) - perubahan terbaru
+							langsung terlihat. Siapa pun yang memiliki link dapat membuka.
 						</p>
 					)}
 				</div>

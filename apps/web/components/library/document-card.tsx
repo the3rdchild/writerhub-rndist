@@ -173,7 +173,7 @@ export function DocumentCard({
 									setSharing(true)
 								}}
 							>
-								Bagikan proyeknya
+								Bagikan
 							</DropdownItem>
 							{/* Kartu library selalu dokumen server, jadi pemindahan proyek
 							    selalu bekerja; dokumen lokal-saja memang tidak muncul di sini. */}
@@ -242,7 +242,7 @@ export function DocumentCard({
 			</button>
 
 			{sharing && (
-				<CardShareDialog projectId={document.projectId} onClose={() => setSharing(false)} />
+				<CardShareDialog documentId={document.id} onClose={() => setSharing(false)} />
 			)}
 		</div>
 	)
@@ -288,21 +288,21 @@ export function CardNameInput({
 }
 
 /**
- * Dialog bagikan dari library: link dibuat dari `projectId` proyek dokumen
- * ini - seluruh dokumen di proyek yang sama ikut terbagikan (share sekarang
- * per PROYEK, bukan per tab). Versi sederhana dari dialog di menu bar: akses
- * dan perannya bawaan, yang penting URL-nya sampai ke tangan pemakai.
+ * Dialog bagikan dari library: link dibuat dari `documentId` dokumen ini -
+ * seluruh tab di dalamnya ikut terbagikan (share per DOKUMEN, pola Google
+ * Docs). Versi sederhana dari dialog di menu bar: akses dan perannya bawaan,
+ * yang penting URL-nya sampai ke tangan pemakai.
  */
 function CardShareDialog({
-	projectId,
+	documentId,
 	onClose,
 }: {
-	projectId: string
+	documentId: string
 	onClose: () => void
 }) {
 	const overlayRef = useRef<HTMLDivElement>(null)
 	const [link, setLink] = useState('')
-	const [projectName, setProjectName] = useState('')
+	const [documentTitle, setDocumentTitle] = useState('')
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const [copied, setCopied] = useState(false)
@@ -314,10 +314,10 @@ function CardShareDialog({
 		}
 		window.addEventListener('keydown', onKeyDown)
 
-		createShare({ projectId, access: 'anyone', role: 'viewer' })
+		createShare({ documentId, access: 'anyone', role: 'viewer' })
 			.then((result) => {
 				setLink(`${window.location.origin}${result.url}`)
-				setProjectName(result.projectName)
+				setDocumentTitle(result.documentTitle)
 			})
 			.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal membuat link'))
 			.finally(() => setLoading(false))
@@ -327,7 +327,7 @@ function CardShareDialog({
 			window.removeEventListener('keydown', onKeyDown)
 		}
 		// biome-ignore lint/correctness/useExhaustiveDependencies: dialog hanya membuat link sekali saat dibuka
-	}, [projectId])
+	}, [documentId])
 
 	const copyLink = async () => {
 		if (!link) return
@@ -345,7 +345,7 @@ function CardShareDialog({
 			ref={overlayRef}
 			role="dialog"
 			aria-modal="true"
-			aria-label="Bagikan tab"
+			aria-label="Bagikan dokumen"
 			className="fixed inset-0 z-[70] flex animate-in items-center justify-center bg-black/60 backdrop-blur-sm fade-in duration-200"
 			onClick={(event) => {
 				if (event.target === overlayRef.current) onClose()
@@ -354,7 +354,7 @@ function CardShareDialog({
 			<div className="flex w-full max-w-md animate-in flex-col gap-4 rounded-2xl border border-line-strong bg-surface-raised p-5 shadow-2xl zoom-in-95 duration-200">
 				<div className="flex items-start justify-between gap-4">
 					<h2 className="text-base font-semibold text-foreground">
-						{projectName ? `Bagikan proyek "${projectName}"` : 'Bagikan proyek'}
+						{documentTitle ? `Bagikan "${documentTitle}"` : 'Bagikan dokumen'}
 					</h2>
 					<button
 						type="button"
@@ -393,8 +393,8 @@ function CardShareDialog({
 					<p className="text-xs text-red-500">{error}</p>
 				) : (
 					<p className="text-xs text-subtle">
-						Link merujuk salinan beku seluruh dokumen di proyek ini. Siapa pun yang memiliki
-						link dapat membuka.
+						Link menampilkan isi dokumen ini secara langsung (live) - perubahan terbaru
+						langsung terlihat. Siapa pun yang memiliki link dapat membuka.
 					</p>
 				)}
 			</div>
