@@ -31,7 +31,28 @@ _CONTRACT = (
     "If the text has no errors, return {\"suggestions\": []}."
 )
 
-_SYSTEM = "You are a professional English grammar, spelling, and style checker.\n" + _CONTRACT
+
+# Naskah nyata (paper, laporan) sering campur bahasa dengan sengaja - abstrak
+# Inggris di tengah paper Indonesia, kutipan asing, istilah teknis. Tanpa
+# klausa ini, memaksa "seluruh teks adalah bahasa X" (lihat komentar di bawah)
+# balik menghukum passage yang justru benar di bahasa aslinya.
+_MULTI_LANG_NOTE = (
+    "A document's primary language does not have to apply to every passage. "
+    "If a passage is unambiguously written in a different language on purpose "
+    "- a quotation, a proper noun, a technical term, an abstract, a heading, "
+    "or another deliberate switch (e.g. an English abstract inside an "
+    "otherwise Indonesian paper) - judge that passage by the grammar of the "
+    "language it is actually written in, not the document's primary language, "
+    "and do not flag the language switch itself as an error. Never turn a "
+    "correctly-spelled word from one language into a similar-sounding word "
+    "from another language; that rule applies in both directions.\n\n"
+)
+
+_SYSTEM = (
+    "You are a professional English grammar, spelling, and style checker.\n"
+    + _MULTI_LANG_NOTE
+    + _CONTRACT
+)
 
 
 def _system_prompt(language: str | None) -> str:
@@ -42,8 +63,9 @@ def _system_prompt(language: str | None) -> str:
     bahasa lain jadi kata Inggris yang mirip bunyi - `salah` jadi `salad`,
     `mata` jadi `data`. Pelajarannya sudah dicatat di llm_client: perintah
     "keep the original language" saja KALAH; bahasanya harus disebut namanya
-    di depan. Prompt Inggris dibiarkan persis seperti semula - ia sudah teruji,
-    dan mengubahnya tanpa alasan mengacaukan pembandingan hasil.
+    di depan. Tapi menyebut satu nama bahasa untuk SELURUH naskah menciptakan
+    bug baliknya pada dokumen multi-bahasa yang sah (lihat _MULTI_LANG_NOTE) -
+    karena itu klausa itu selalu disertakan, bukan cuma pengecualian.
     """
     if not language:
         return _SYSTEM
@@ -52,10 +74,11 @@ def _system_prompt(language: str | None) -> str:
         return _SYSTEM
     return (
         f"You are a professional grammar, spelling, and style checker for {name} text.\n"
-        f"The text is written in {name}. Judge it against the rules of {name}, never "
-        f"against English: a {name} word is not a misspelled English word, and a "
-        f"correct {name} sentence is not an error. Every replacement you propose "
-        f"must itself be written in {name}.\n"
+        f"The text is primarily written in {name}. Judge {name} passages against the "
+        f"rules of {name}, never against English: a {name} word is not a misspelled "
+        f"English word, and a correct {name} sentence is not an error. Replacements "
+        f"you propose for {name} passages must themselves be written in {name}.\n"
+        + _MULTI_LANG_NOTE
         + _CONTRACT
     )
 

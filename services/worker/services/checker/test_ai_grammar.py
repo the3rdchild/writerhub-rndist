@@ -51,6 +51,21 @@ def test_prompt_inggris_dan_kosong_persis_seperti_semula():
     assert _system_prompt(None) is _SYSTEM
 
 
+def test_prompt_mengizinkan_passage_bahasa_lain_yang_disengaja():
+    # Naskah nyata (paper) sering campur bahasa dengan sengaja - abstrak
+    # Inggris di paper Indonesia tidak boleh ikut dipaksa jadi bahasa Indonesia.
+    prompt = _system_prompt("id")
+
+    assert "different language on purpose" in prompt
+    assert "judge that passage by the grammar of the" in prompt
+    # Larangan koreksi-fonetik berlaku dua arah, bukan cuma bahasa lain -> Inggris.
+    assert "both directions" in prompt
+
+    # Klausa yang sama juga berlaku untuk prompt default Inggris - dokumen
+    # Inggris bisa saja punya kutipan/istilah bahasa lain yang sengaja.
+    assert "different language on purpose" in _SYSTEM
+
+
 def test_payload_llm_membawa_prompt_bahasa(monkeypatch):
     captured = {}
 
