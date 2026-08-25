@@ -6,6 +6,13 @@ import { timestamps } from '@/db/utils/common-table'
  * Snapshot riwayat versi sebuah TAB. Konten disimpan apa adanya sebagai
  * JSON Tiptap (ProseMirror), format sama dengan `document_tabs.content`.
  * Versi immutable - tidak ada `updated_at`.
+ *
+ * Siklus hidup beda per trigger: `manual`/`pre_restore` disimpan selamanya
+ * (aksi eksplisit user), `interval` dipangkas ke 50 terbaru per tab
+ * (`pruneIntervalVersions`, repository/document-version.ts), dan `ai_result`
+ * (anchor `metadata_version`) ikut terhapus saat entri Aktivitas AI-nya
+ * dipangkas/dihapus lewat retensi 90 hari (`deletePoolRequests`,
+ * repository/history.ts) - BUKAN oleh `pruneIntervalVersions`.
  */
 export const versionTriggerEnum = pgEnum('version_trigger', [
 	'manual',

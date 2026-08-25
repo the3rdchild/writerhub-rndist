@@ -1,6 +1,6 @@
-import { and, desc, eq, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm'
 import db from '@/db'
-import { documents, documentTabs, metadataVersion, poolRequest } from '@/db/schemas'
+import { documents, documentTabs, documentVersions, metadataVersion, poolRequest } from '@/db/schemas'
 
 /**
  * Akses tabel `pool_request` (plus join hasilnya) untuk halaman Aktivitas AI,
@@ -111,24 +111,55 @@ export async function findHistoryEntry(userId: string, jobId: string) {
 }
 
 /**
- * Hapus satu entri milik user. metadata_version ikut terhapus lewat ON DELETE
- * CASCADE pada request_id - sudah dicek di skema.
+ * Hapus baris `pool_request` (metadata_version ikut lewat ON DELETE CASCADE
+ * pada request_id) PLUS `document_versions` (trigger `ai_result`) yang jadi
+ * anchor-nya - FK `metadata_version.version_id` cuma cascade satu arah
+ * (dokumen versi dihapus -> metadata_version ikut hilang), bukan sebaliknya,
+ * jadi versi berkonten-penuh itu perlu dihapus manual di sini. Tanpa ini,
+ * versi `ai_result` jadi sampah permanen di `document_versions` setiap kali
+ * histori aktivitasnya dihapus/dipangkas - lihat catatan di document-version.ts.
  */
-export async function deleteHistoryEntry(userId: string, jobId: string) {
-	const [row] = await db
-		.delete(poolRequest)
+async function deletePoolRequests(ids: string[]): Promise<number> {
+	if (ids.length === 0) return 0
+
+	return db.transaction(async (tx) => {
+		const orphaned = await tx
+			.select({ versionId: metadataVersion.version_id })
+			.from(metadataVersion)
+			.where(inArray(metadataVersion.request_id, ids))
+
+		await tx.delete(poolRequest).where(inArray(poolRequest.id, ids))
+
+		if (orphaned.length > 0) {
+			await tx.delete(documentVersions).where(
+				inArray(
+					documentVersions.id,
+					orphaned.map((row) => row.versionId),
+				),
+			)
+		}
+
+		return ids.length
+	})
+}
+
+/** Hapus satu entri milik user. */
+export async function deleteHistoryEntry(userId: string, jobId: string): Promise<boolean> {
+	const [target] = await db
+		.select({ id: poolRequest.id })
+		.from(poolRequest)
 		.where(and(eq(poolRequest.user_id, userId), eq(poolRequest.job_id, jobId)))
-		.returning({ id: poolRequest.id })
-	return row !== undefined
+		.limit(1)
+	if (!target) return false
+
+	await deletePoolRequests([target.id])
+	return true
 }
 
 /** Hapus SELURUH aktivitas milik user ("Hapus semua aktivitas"). */
-export async function deleteAllHistoryForUser(userId: string) {
-	const rows = await db
-		.delete(poolRequest)
-		.where(eq(poolRequest.user_id, userId))
-		.returning({ id: poolRequest.id })
-	return rows.length
+export async function deleteAllHistoryForUser(userId: string): Promise<number> {
+	const rows = await db.select({ id: poolRequest.id }).from(poolRequest).where(eq(poolRequest.user_id, userId))
+	return deletePoolRequests(rows.map((row) => row.id))
 }
 
 /**
@@ -136,9 +167,11 @@ export async function deleteAllHistoryForUser(userId: string) {
  * ditulis (pola `pruneIntervalVersions` di fitur I) sehingga tidak butuh cron.
  * Hanya baris milik user ini yang disentuh; baris anonim lama dibiarkan.
  */
-export async function pruneOldHistory(userId: string, retentionDays = HISTORY_RETENTION_DAYS) {
+export async function pruneOldHistory(userId: string, retentionDays = HISTORY_RETENTION_DAYS): Promise<void> {
 	const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60_000)
-	return db
-		.delete(poolRequest)
+	const rows = await db
+		.select({ id: poolRequest.id })
+		.from(poolRequest)
 		.where(and(eq(poolRequest.user_id, userId), lt(poolRequest.created_at, cutoff)))
+	await deletePoolRequests(rows.map((row) => row.id))
 }
