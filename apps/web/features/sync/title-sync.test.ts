@@ -9,16 +9,12 @@ describe('penyelarasan judul dokumen', () => {
 	})
 
 	test('hanya server bergeser dari base: judul server diadopsi', () => {
-		// Skenario nyata: rename dari Library sementara dokumen terbuka.
 		expect(resolveTitle(side('Untitled document'), side('Bab 1'), 'Untitled document')).toBe(
 			'adopt-server',
 		)
 	})
 
 	test('server menang meski lokal baru saja disunting', () => {
-		// Inti bug lama: waktu SUNTING lokal tidak boleh ikut menilai judul.
-		// Di sini lokal tidak pernah di-rename (titleUpdatedAt 0) walau naskahnya
-		// aktif diketik, jadi rename dari server tetap harus menang.
 		expect(resolveTitle(side('Untitled document', 0), side('Bab 1', 5), 'Untitled document')).toBe(
 			'adopt-server',
 		)

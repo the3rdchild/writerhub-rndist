@@ -32,14 +32,10 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	hour: '2-digit',
 	minute: '2-digit',
 })
-
-/** Label modul AI dari `FEATURE_META`; null bila `feature` kosong/tak dikenal. */
 function featureLabel(feature: string | null): string | null {
 	if (!feature || !(feature in FEATURE_META)) return null
 	return FEATURE_META[feature as HistoryFeature].label
 }
-
-/** Nama tampil sebuah entri: label user untuk versi manual, jenisnya untuk yang otomatis. */
 function entryLabel(version: VersionSummary): string {
 	switch (version.trigger) {
 		case 'manual':
@@ -56,16 +52,6 @@ function entryLabel(version: VersionSummary): string {
 		}
 	}
 }
-
-/**
- * Mode layar penuh riwayat versi (§3.3 rencana): preview read-only versi
- * terpilih di tengah, lini masa berkelompok waktu di kanan.
- *
- * Editor preview adalah editor Tiptap kedua TANPA collaboration - naskah versi
- * dimuat lewat `setContent`, bukan fragmen Yjs. Draf aktif sebagai pembanding
- * diff dibaca dari Y.Doc (`fragmentToJSON`), karena editor utama ikut lepas
- * selama mode ini terbuka dan instance-nya tidak bisa diandalkan.
- */
 export function VersionHistoryView() {
 	const { versionMode, closeVersionMode, restoreToVersion } = useVersionMode()
 	const { doc, activeId } = useSessions()
@@ -80,9 +66,6 @@ export function VersionHistoryView() {
 	const versions = useVersions(versionMode)
 	const detail = useVersion(versionMode, selectedId)
 	const invalidateVersions = useInvalidateVersions()
-
-	// Potret draf aktif, diambil sekali saat mode dibuka: selama mode riwayat
-	// editor utama lepas dan naskah tidak berubah.
 	const [draftJson, setDraftJson] = useState<JSONContent | null>(null)
 	useEffect(() => {
 		if (activeId) setDraftJson(fragmentToJSON(doc, activeId))
@@ -103,19 +86,10 @@ export function VersionHistoryView() {
 			},
 		},
 	})
-
-	// Naskah dimuat hanya ketika versi terpilih berubah. `showDiff` sengaja bukan
-	// dependensi di sini: memanggil `setContent` lagi saat kotak centang ditoggle
-	// akan melempar posisi gulir kembali ke atas.
-	// `emitUpdate: false` mencegah onUpdate menembak tiap ganti versi.
 	useEffect(() => {
 		if (!editor || editor.isDestroyed || !selectedContent) return
 		editor.commands.setContent(selectedContent, { emitUpdate: false })
 	}, [editor, selectedContent])
-
-	// Dekorasi dipasang terpisah, setelah naskahnya ada. Efek ini ikut berjalan
-	// saat `selectedContent` berubah - urutan efek dalam satu render terjaga,
-	// jadi dokumennya sudah yang baru ketika rentang dihitung.
 	useEffect(() => {
 		if (!editor || editor.isDestroyed || !selectedContent) return
 		const ranges =
@@ -146,7 +120,6 @@ export function VersionHistoryView() {
 		setNameDialogOpen(false)
 		setActionError(null)
 		try {
-			// Cloud membekukan keadaan di server; lokal memotret fragmen saat ini.
 			if (versionMode.serverTabId) {
 				await createVersion(versionMode.serverTabId, label)
 			} else {
@@ -164,7 +137,6 @@ export function VersionHistoryView() {
 		setRestoring(true)
 		setActionError(null)
 		try {
-			// Berhasil: mode tertutup dari dalam context dan view ini terlepas.
 			await restoreToVersion(selectedId)
 		} catch (error) {
 			setActionError(error instanceof Error ? error.message : 'Pemulihan gagal')
@@ -323,11 +295,6 @@ export function VersionHistoryView() {
 		</div>
 	)
 }
-
-/**
- * Dialog input kecil untuk menamai versi (§3.7). Bentuknya mengikuti
- * ConfirmDialog: satu lapis, ditutup lewat Escape atau klik di luar.
- */
 function NameVersionDialog({
 	open,
 	onSubmit,

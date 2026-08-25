@@ -9,14 +9,6 @@ import type { MemoryPreferences } from './types'
 import { useMemory, useSaveMemory } from './use-memory'
 
 const NOTES_MAX = 500
-
-/**
- * Isi tab "AI Memory" di modal Pengaturan.
- *
- * Berbeda dari tab lain yang autosave ke localStorage lewat `useSettings()`:
- * tab ini bicara ke server, jadi ia memakai `useMemory()` dengan state
- * memuat/menyimpan/gagal sendiri dan tombol "Simpan" eksplisit.
- */
 export function MemoryTab() {
 	const memory = useMemory()
 	const save = useSaveMemory()
@@ -27,9 +19,6 @@ export function MemoryTab() {
 	const [term, setTerm] = useState('')
 	const [notes, setNotes] = useState('')
 	const [saved, setSaved] = useState(false)
-
-	// Isi form begitu data server tiba. Dialog bisa dibuka-tutup berkali-kali,
-	// jadi sinkronisasi ini perlu, bukan sekadar nilai awal useState.
 	useEffect(() => {
 		if (!memory.data) return
 		setTone(memory.data.tone ?? '')
@@ -48,8 +37,6 @@ export function MemoryTab() {
 	}
 
 	const onSave = () => {
-		// Field kosong tidak ikut dikirim - "tidak ada preferensi", bukan
-		// string kosong yang tetap ditempel ke prompt.
 		const preferences: MemoryPreferences = {}
 		if (tone.trim()) preferences.tone = tone.trim()
 		if (language) preferences.language = language

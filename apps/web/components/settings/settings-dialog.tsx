@@ -22,11 +22,6 @@ const THEMES: Array<{ value: Theme; label: string; icon: typeof Moon }> = [
 ]
 
 const FONT_SIZES: FontSize[] = ['small', 'medium', 'large']
-
-/**
- * Perubahan disimpan begitu diubah (bukan lewat tombol simpan), jadi dialog ini
- * cuma perlu menutup diri. Tidak ada state draf yang perlu dikelola.
- */
 export function SettingsDialog() {
 	const { settings, update, updateProfile, settingsOpen, setSettingsOpen } = useSettings()
 	const [tab, setTab] = useState<TabKey>('profile')

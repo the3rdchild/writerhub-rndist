@@ -34,8 +34,6 @@ interface SentenceState extends Sentence {
 	applied?: boolean
 	dismissed?: boolean
 }
-
-/** Menerima saran menurunkan skor kalimat, bukan menghilangkannya. */
 const acceptedScore = (score: number) => Math.max(5, Math.round(score * 0.25))
 
 export function AiDetectorPanel() {
@@ -50,12 +48,6 @@ export function AiDetectorPanel() {
 	useEffect(() => {
 		setSentences(result ? [...result.sentences] : [])
 	}, [result])
-
-	/*
-	 * Sorot tiap kalimat dengan warna mengikuti skornya. `sentences` adalah
-	 * state yang sama yang diperbarui saat saran diterima (skor diturunkan),
-	 * jadi warna sorotan ikut melembut tanpa jalur pembaruan terpisah.
-	 */
 	const highlightRanges = useMemo(
 		() =>
 			sentences.map(({ offset, length, score }) => ({
@@ -66,8 +58,6 @@ export function AiDetectorPanel() {
 		[sentences],
 	)
 	useAnalysisHighlight('ai_detector', highlightRanges)
-
-	// Suntingan tertunda untuk mode Compare: kalimat yang masih punya saran.
 	const diffEdits = useMemo(() => editsFromSentences(sentences), [sentences])
 	const compare = useAnalysisDiff('ai_detector', diffEdits)
 
@@ -75,9 +65,6 @@ export function AiDetectorPanel() {
 		const sentence = sentences[index]
 		const suggestion = sentence?.suggestion
 		if (!suggestion) return
-
-		// Terapkan langsung ke editor supaya format (cetak tebal, tabel, dst.)
-		// tetap utuh; state.text disinkronkan otomatis lewat onUpdate editor.
 		if (editor) {
 			replaceTextRange(
 				editor,
@@ -105,8 +92,6 @@ export function AiDetectorPanel() {
 	}
 
 	const acceptAll = () => {
-		// Dari offset terbesar ke terkecil, jadi satu penggantian tidak menggeser
-		// posisi rentang yang belum diproses di dalam dokumen editor.
 		const ordered = [...sentences]
 			.filter((sentence) => sentence.suggestion && !sentence.dismissed && !sentence.applied)
 			.sort((a, b) => b.offset - a.offset)
@@ -143,8 +128,6 @@ export function AiDetectorPanel() {
 			current.map((item, i) => (i === index ? { ...item, dismissed: true } : item)),
 		)
 	}
-
-	// Skor keseluruhan mengikuti kalimat yang sudah diperbaiki, bukan angka awal.
 	const overallScore =
 		sentences.length > 0
 			? Math.round(sentences.reduce((sum, s) => sum + s.score, 0) / sentences.length)

@@ -18,8 +18,6 @@ async function readCompletion(jobId: string): Promise<JobCompletion | null> {
 	if (row?.status !== 'completed' && row?.status !== 'failed') return null
 	return { status: row.status, totalTokens: row.total_tokens, modelRecordId: row.model_record_id }
 }
-
-/** Tunggu job mencapai status akhir, lewat pub/sub dengan pembacaan DB sebagai sumber kebenaran. */
 async function waitForCompletion(jobId: string, timeoutMs: number): Promise<JobCompletion> {
 	const already = await readCompletion(jobId)
 	if (already) return already
@@ -61,15 +59,6 @@ export interface RecordTokenUsageAfterCompletionParams {
 	serviceSlug: string
 	timeoutMs?: number
 }
-
-/**
- * Fire-and-forget: tunggu job selesai, lalu catat pemakaian token ke admin-ppe.
- *
- * `modelRecordId` sudah diresolve saat submit (lihat provider-resolver.ts) dan
- * tersimpan di baris pool_request, jadi di sini cukup membaca DB - tidak perlu
- * memanggil admin-ppe lagi. Job non-LLM tidak mengisi `total_tokens` dan
- * karenanya dilewati.
- */
 export function recordTokenUsageAfterCompletion({
 	jobId,
 	userId,

@@ -210,7 +210,6 @@ jobs:
         run: |
           BRANCH=${GITHUB_REF#refs/heads/}
           cat >> "$GITHUB_STEP_SUMMARY" << EOF
-          # ${{ inputs.service }} Release Summary
 
           ## Version Information
           - **Version**: \`${{ needs.validate.outputs.version }}\`

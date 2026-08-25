@@ -1,26 +1,4 @@
-/**
- * Daftar tunggal seluruh pintasan papan tik.
- *
- * Sebelumnya menu menampilkan `shortcut="Ctrl+Alt+N"` sebagai teks belaka -
- * tidak ada yang mendaftarkannya, jadi labelnya berbohong. Di sini kombinasi
- * tombol ditulis sekali, lalu dipakai bersama oleh tiga tempat: keymap Tiptap,
- * penangan tombol level aplikasi, dan label yang tampil di menu maupun dialog
- * bantuan. Label tidak bisa lagi menyimpang dari binding-nya karena keduanya
- * membaca baris yang sama.
- *
- * Notasi `keys` mengikuti Tiptap: `Mod` berarti Ctrl di Windows/Linux dan ⌘ di
- * macOS, bagian dipisah tanda hubung.
- */
-
 export type ShortcutCategory = 'Teks' | 'Paragraf' | 'Dokumen' | 'Tools' | 'Tampilan'
-
-/**
- * Siapa yang benar-benar mendaftarkan pintasannya.
- *
- * `tiptap` berarti binding-nya datang dari ekstensi bawaan dan baris di sini
- * hanya mendokumentasikannya - mengubah `keys` tidak akan memindahkan tombolnya.
- * `editor` dan `app` dibaca balik oleh kode kita, jadi barisnya memang mengikat.
- */
 export type ShortcutOwner = 'tiptap' | 'editor' | 'app'
 
 export interface Shortcut {
@@ -32,7 +10,6 @@ export interface Shortcut {
 }
 
 export type ShortcutId =
-	// Teks
 	| 'text.bold'
 	| 'text.italic'
 	| 'text.underline'
@@ -40,7 +17,6 @@ export type ShortcutId =
 	| 'text.code'
 	| 'text.highlight'
 	| 'text.link'
-	// Paragraf
 	| 'para.heading1'
 	| 'para.heading2'
 	| 'para.heading3'
@@ -61,7 +37,6 @@ export type ShortcutId =
 	| 'para.alignJustify'
 	| 'para.indent'
 	| 'para.outdent'
-	// Dokumen
 	| 'doc.pageBreak'
 	| 'doc.undo'
 	| 'doc.redo'
@@ -71,13 +46,11 @@ export type ShortcutId =
 	| 'doc.nextTab'
 	| 'doc.prevTab'
 	| 'doc.closeTab'
-	// Tools
 	| 'tools.proofreader'
 	| 'tools.aiDetector'
 	| 'tools.aiRewriter'
 	| 'tools.humanizer'
 	| 'tools.plagiarism'
-	// Tampilan
 	| 'view.focusMode'
 	| 'view.ruler'
 	| 'view.documentTabs'
@@ -133,7 +106,6 @@ export const SHORTCUTS: readonly Shortcut[] = [
 	{ id: 'tools.plagiarism', keys: 'Mod-Shift-5', label: 'Plagiarism Checker', category: 'Tools', owner: 'app' },
 
 	{ id: 'view.focusMode', keys: 'Mod-Shift-f', label: 'Mode fokus', category: 'Tampilan', owner: 'app' },
-	// Mod-Shift-r sengaja dihindari: itu muat ulang paksa di browser.
 	{ id: 'view.ruler', keys: 'Mod-Alt-r', label: 'Penggaris', category: 'Tampilan', owner: 'app' },
 	{ id: 'view.documentTabs', keys: 'Mod-Alt-b', label: 'Sidebar tab dokumen', category: 'Tampilan', owner: 'app' },
 	{ id: 'view.zoomIn', keys: 'Mod-=', label: 'Perbesar', category: 'Tampilan', owner: 'app' },
@@ -157,29 +129,16 @@ export function shortcut(id: ShortcutId): Shortcut {
 	if (!found) throw new Error(`Pintasan tidak terdaftar: ${id}`)
 	return found
 }
-
-/** Kombinasi dalam notasi Tiptap - untuk `addKeyboardShortcuts`. */
 export function shortcutKeys(id: ShortcutId): string {
 	return shortcut(id).keys
 }
-
-// ── pencocokan dengan KeyboardEvent ────────────────────────────────────────
 
 interface KeyCombo {
 	mod: boolean
 	shift: boolean
 	alt: boolean
-	/** `KeyboardEvent.code`, bukan `.key`. */
 	code: string
 }
-
-/**
- * Tombol dicocokkan lewat `event.code`, posisi fisiknya, bukan `event.key`.
- *
- * `event.key` berubah begitu Shift atau Alt ditekan - Shift+1 menghasilkan "!",
- * dan Alt+huruf di macOS menghasilkan karakter lain sama sekali - sehingga
- * "Mod-Shift-1" tidak akan pernah cocok kalau dibandingkan dengan `.key`.
- */
 function toCode(key: string): string {
 	if (/^[0-9]$/.test(key)) return `Digit${key}`
 	if (/^[a-z]$/i.test(key)) return `Key${key.toUpperCase()}`
@@ -216,8 +175,6 @@ export function isMacPlatform(): boolean {
 
 function matches(event: KeyboardEvent, combo: KeyCombo, mac: boolean): boolean {
 	const modPressed = mac ? event.metaKey : event.ctrlKey
-	// Modifier yang tidak diminta harus benar-benar tidak ditekan, supaya
-	// Mod-Shift-1 tidak ikut menyala saat Mod-1 yang ditekan.
 	const otherMod = mac ? event.ctrlKey : event.metaKey
 
 	return (
@@ -233,16 +190,12 @@ const APP_COMBOS = SHORTCUTS.filter((item) => item.owner === 'app').map((item) =
 	shortcut: item,
 	combo: parseCombo(item.keys),
 }))
-
-/** Pintasan level aplikasi yang cocok dengan event, atau null. */
 export function matchAppShortcut(event: KeyboardEvent, mac: boolean): Shortcut | null {
 	for (const entry of APP_COMBOS) {
 		if (matches(event, entry.combo, mac)) return entry.shortcut
 	}
 	return null
 }
-
-// ── tampilan ───────────────────────────────────────────────────────────────
 
 const SYMBOLS: Record<string, string> = {
 	ArrowLeft: '←',
@@ -251,11 +204,6 @@ const SYMBOLS: Record<string, string> = {
 	ArrowDown: '↓',
 	Enter: '↵',
 }
-
-/**
- * Label yang dibaca manusia. macOS memakai lambang modifier tanpa pemisah,
- * seperti aplikasi lain di sana; sisanya memakai gaya "Ctrl+Shift+1".
- */
 export function formatKeys(keys: string, mac: boolean): string {
 	const parts = keys.split('-')
 	const key = parts[parts.length - 1]

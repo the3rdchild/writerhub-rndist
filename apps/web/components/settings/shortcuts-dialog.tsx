@@ -10,15 +10,6 @@ import {
 } from '@/features/shortcuts/registry'
 import { useIsMac } from '@/features/shortcuts/use-shortcuts'
 import { useSettings } from '@/features/settings/settings-context'
-
-/**
- * Daftar pintasan, seluruhnya dihasilkan dari registry.
- *
- * Sebelumnya menu Bantuan memuat lima baris yang ditulis tangan dan tidak
- * pernah diperiksa kebenarannya. Di sini tidak ada teks kombinasi tombol yang
- * diketik manual: kalau sebuah pintasan tidak terdaftar, ia tidak akan muncul,
- * dan kalau binding-nya dipindah, tampilannya ikut pindah.
- */
 export function ShortcutsDialog() {
 	const { shortcutsOpen, setShortcutsOpen } = useSettings()
 	const mac = useIsMac()

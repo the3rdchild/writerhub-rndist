@@ -5,19 +5,10 @@ import { uploadDocument } from '@/lib/file'
 import QueueClient from '@/lib/queue'
 import JobSubmissionService from '@/services/job-submission.service'
 import { grammarBodySchema } from './dto'
-
-/**
- * Produksi memaksa tier `ai` (`GRAMMAR_FORCE_MODEL=ai`) karena provider LLM
- * berasal dari admin-ppe. Dengan variabel itu dikosongkan - seperti pada
- * pengembangan lokal - pilihan model dari klien dipakai apa adanya, dan
- * `standard`/`advanced` berjalan penuh di engine pure-Python tanpa LLM.
- */
 function resolveModel(requested: GrammarModel): GrammarModel {
 	const forced = env.GRAMMAR_FORCE_MODEL
 	return GRAMMAR_MODELS.includes(forced as GrammarModel) ? (forced as GrammarModel) : requested
 }
-
-/** `POST /api/v1/grammar` - terima teks atau dokumen, antrekan job grammar check. */
 export default class GrammarService extends JobSubmissionService {
 	async create(): Promise<Response> {
 		try {

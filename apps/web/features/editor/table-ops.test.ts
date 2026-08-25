@@ -9,13 +9,6 @@ import {
 	scaleColumnWidths,
 	writeColumnWidths,
 } from './table-ops'
-
-/**
- * Koreksi E3: tabel ber-`colwidth` tetap boleh sempit di kolomnya, tapi tidak
- * boleh meluber keluar petaknya. Yang dijaga di sini adalah aritmetika
- * penyempitan proporsionalnya - perhitungan yang sama dengan penggaris.
- */
-
 function cell(widths: number[] | null, text = 'sel'): JSONContent {
 	return {
 		type: 'tableCell',
@@ -50,8 +43,6 @@ describe('explicitColumnWidths', () => {
 	})
 
 	test('null bila ada satu kolom pun yang belum punya colwidth', () => {
-		// Tabel yang belum pernah diubah ukurannya tidak meluber - fixed layout
-		// sudah membaginya rata - jadi tidak ada yang perlu dikoreksi.
 		expect(explicitColumnWidths(tableNode([420], null))).toBeNull()
 		expect(explicitColumnWidths(tableNode(null, null))).toBeNull()
 	})
@@ -86,14 +77,10 @@ describe('clampColumnWidths (E3)', () => {
 	})
 
 	test('tabel yang meluber disempitkan ke lebar petak', () => {
-		// Lebar tetap 600 px di kolom selebar 190 px: menonjol keluar (E3).
 		expect(clampColumnWidths([420, 180], 190)).toEqual([133, 57])
 	})
 
 	test('petak lebih sempit dari lantai minimum: menyempit sebisanya lalu berhenti', () => {
-		// Lantai menang atas petak: tabel disempitkan ke lantai (melubernya
-		// berkurang), dan putaran berikutnya tidak menemukan apa pun untuk
-		// dikoreksi - di situlah putaran ukur-koreksi berhenti.
 		const widths = [MIN_COLUMN_WIDTH * 2, MIN_COLUMN_WIDTH * 2]
 		expect(clampColumnWidths(widths, MIN_COLUMN_WIDTH)).toEqual([MIN_COLUMN_WIDTH, MIN_COLUMN_WIDTH])
 		expect(clampColumnWidths([MIN_COLUMN_WIDTH, MIN_COLUMN_WIDTH], MIN_COLUMN_WIDTH)).toBeNull()

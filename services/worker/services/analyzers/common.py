@@ -81,8 +81,6 @@ def apply_sentence_candidates(
 
     for (sent, offset), candidates in zip(spans, candidates_all):
         original = sent.strip()
-        # Kandidat kosong/None diperlakukan sebagai "tidak ada usulan": kalimat
-        # asli yang dipakai, dan tidak ada change yang dibuat untuknya.
         usable = [c for c in (candidates or []) if isinstance(c, str) and c.strip()]
         primary = usable[0] if usable else original
 
@@ -99,8 +97,6 @@ def apply_sentence_candidates(
                 "offset": offset + len(leading),
                 "length": len(original),
             }
-            # Satu kandidat saja tidak perlu daftar - panel jatuh ke perilaku
-            # lama (satu tombol Apply) tanpa cabang tambahan.
             if len(usable) > 1:
                 change["candidates"] = usable
             changes.append(change)

@@ -11,11 +11,6 @@ import {
 	tabPreview,
 	tabsRoot,
 } from './ydoc'
-
-/**
- * Bangun struktur lama (sebelum dokumen ada): urutan tab global di
- * Y.Map('tabs')['order'], meta per tab, dan naskah di fragmen bernama id tab.
- */
 function legacyTab(doc: Y.Doc, id: string, title: string, text?: string): void {
 	const root = doc.getMap<unknown>('tabs')
 	let order = root.get('order') as Y.Array<string> | undefined
@@ -53,10 +48,7 @@ describe('migrasi struktur tab lama ke dokumen', () => {
 		expect(docs.map((dok) => dok.title)).toEqual(['Bab satu', 'Bab dua'])
 		expect(docs[0].tabOrder).toEqual(['tab-a'])
 		expect(docs[1].tabOrder).toEqual(['tab-b'])
-		// Waktu sunting tab ikut naik ke dokumennya.
 		expect(docs[0].updatedAt).toBe(42)
-
-		// Urutan baca lintas dokumen sama dengan urutan lama.
 		expect(readTabs(doc).map((tab) => tab.id)).toEqual(['tab-a', 'tab-b'])
 	})
 
@@ -98,9 +90,6 @@ describe('migrasi struktur tab lama ke dokumen', () => {
 		const doc = new Y.Doc()
 		legacyTab(doc, 'tab-a', 'Bab satu')
 		legacyTab(doc, 'tab-b', 'Bab dua')
-
-		// Seolah migrasi sebelumnya terputus di tengah: tab-a sudah punya
-		// dokumen, tab-b belum, dan kunci lama masih ada.
 		const docId = createDocument(doc, 'Sudah jadi dokumen')
 		const entry = docsRoot(doc).meta.get(docId)
 		const tabOrder = entry?.get('tabOrder') as Y.Array<string>
@@ -111,7 +100,6 @@ describe('migrasi struktur tab lama ke dokumen', () => {
 
 		const docs = readDocs(doc)
 		expect(docs).toHaveLength(2)
-		// Dokumen tab-a yang sudah ada dibiarkan apa adanya.
 		expect(docs[0].id).toBe(docId)
 		expect(docs[0].tabOrder).toEqual(['tab-a'])
 		expect(docs[1].tabOrder).toEqual(['tab-b'])
@@ -121,7 +109,6 @@ describe('migrasi struktur tab lama ke dokumen', () => {
 	test('id hantu di urutan lama diabaikan, sisanya tetap bermigrasi', () => {
 		const doc = new Y.Doc()
 		legacyTab(doc, 'tab-a', 'Bab satu')
-		// Id tanpa meta - tidak pernah ada tabnya.
 		;(legacyTabOrder(doc) as Y.Array<string>).push(['tab-hantu'])
 
 		migrateTabsToDocs(doc)

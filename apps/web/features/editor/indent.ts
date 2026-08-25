@@ -4,19 +4,6 @@ import { Extension } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { useEffect, useState } from 'react'
 import { shortcutKeys } from '@/features/shortcuts/registry'
-
-/**
- * Indentasi per blok - inti dari marker penggaris.
- *
- * Angkanya dipisah dari margin halaman: margin milik lembar dan berlaku untuk
- * seluruh dokumen, indentasi milik paragraf yang sedang dipilih. Penggaris
- * menampilkan keduanya bertumpuk, persis seperti pengolah kata pada umumnya.
- *
- * `firstLine` dihitung relatif terhadap `left`, mengikuti semantik `text-indent`
- * CSS: nilai positif menjorokkan baris pertama, nilai negatif menghasilkan
- * hanging indent tanpa menggeser sisa paragraf.
- */
-
 export interface BlockIndent {
 	left: number
 	right: number
@@ -24,32 +11,14 @@ export interface BlockIndent {
 }
 
 export const NO_INDENT: BlockIndent = { left: 0, right: 0, firstLine: 0 }
-
-/** Setengah inci: langkah tombol indent di toolbar dan tombol Tab. */
 export const INDENT_STEP = 48
-
-/**
- * `table` ikut di sini hanya untuk `indentLeft`-nya - marker tepi kiri di
- * penggaris menulis ke atribut itu. `indentRight`/`indentFirstLine` tidak
- * berarti bagi tabel, tapi membiarkannya ada jauh lebih murah daripada
- * menduplikasi seluruh definisi atribut demi menyisihkan dua yang tak terpakai.
- *
- * Catatan: `margin-left` dari `renderHTML` di bawah hanya berlaku saat dokumen
- * diserialkan ke HTML. Di editor, tabel digambar node view bawaan
- * prosemirror-tables yang tidak menerima atribut itu, jadi pergeserannya
- * dikerjakan ekstensi `TableIndent` lewat dekorasi node.
- */
 const INDENTABLE = ['paragraph', 'heading', 'blockquote', 'table']
-
-/** Batas seret marker supaya paragraf selalu menyisakan ruang untuk teks. */
 const MIN_INDENTED_WIDTH = 48
 
 declare module '@tiptap/core' {
 	interface Commands<ReturnType> {
 		blockIndent: {
-			/** Setel indentasi blok pada seleksi; nilai px, relatif ke margin lembar. */
 			setBlockIndent: (patch: Partial<BlockIndent>) => ReturnType
-			/** Geser indentasi kiri satu langkah - dipakai tombol toolbar dan Tab. */
 			shiftBlockIndent: (delta: number) => ReturnType
 		}
 	}
@@ -60,14 +29,11 @@ function readPx(value: string | undefined): number {
 	const parsed = Number.parseFloat(value)
 	return Number.isFinite(parsed) ? Math.round(parsed) : 0
 }
-
-/** Jarak maksimum yang boleh dipakai indentasi pada lebar area teks tertentu. */
 export function clampBlockIndent(indent: BlockIndent, contentWidth: number): BlockIndent {
 	const room = Math.max(0, contentWidth - MIN_INDENTED_WIDTH)
 
 	const left = Math.max(0, Math.min(indent.left, room))
 	const right = Math.max(0, Math.min(indent.right, room - left))
-	// Hanging indent tidak boleh melewati margin kiri lembar.
 	const firstLine = Math.max(-left, Math.min(indent.firstLine, room - left - right))
 
 	return { left, right, firstLine }
@@ -122,9 +88,6 @@ export const BlockIndentExtension = Extension.create({
 
 					const { from, to } = state.selection
 					let touched = false
-
-					// Ukuran node tidak berubah, jadi posisi dari doc lama tetap sahih
-					// selama iterasi ini.
 					state.doc.nodesBetween(from, to, (node, pos) => {
 						if (!INDENTABLE.includes(node.type.name)) return
 						for (const [key, value] of Object.entries(attributes)) {
@@ -149,9 +112,6 @@ export const BlockIndentExtension = Extension.create({
 
 	addKeyboardShortcuts() {
 		const shift = (delta: number) => () => {
-			// Di dalam daftar dan tabel, Tab sudah punya arti sendiri - naik tingkat
-			// butir, pindah sel. Mengembalikan false menyerahkannya ke keymap mereka
-			// alih-alih merebut tombolnya.
 			if (isInsideAny(this.editor, TAB_OWNERS)) return false
 			return this.editor.commands.shiftBlockIndent(delta)
 		}
@@ -162,8 +122,6 @@ export const BlockIndentExtension = Extension.create({
 		}
 	},
 })
-
-/** Node yang sudah memakai Tab untuk keperluannya sendiri. */
 const TAB_OWNERS = ['listItem', 'taskItem', 'tableCell', 'tableHeader']
 
 function isInsideAny(editor: Editor, types: readonly string[]): boolean {
@@ -173,8 +131,6 @@ function isInsideAny(editor: Editor, types: readonly string[]): boolean {
 	}
 	return false
 }
-
-/** Indentasi blok tempat kursor berada; NO_INDENT bila bloknya tidak mendukung. */
 export function blockIndentAt(editor: Editor): BlockIndent {
 	const { $from } = editor.state.selection
 
@@ -194,20 +150,7 @@ export function blockIndentAt(editor: Editor): BlockIndent {
 function sameIndent(a: BlockIndent, b: BlockIndent): boolean {
 	return a.left === b.left && a.right === b.right && a.firstLine === b.firstLine
 }
-
-/** Butir daftar yang punya tingkat sendiri; daftar centang memakai `taskItem`. */
 const LIST_ITEMS = ['listItem', 'taskItem'] as const
-
-/**
- * Naik/turun satu tingkat indentasi pada seleksi.
- *
- * Di dalam daftar, indentasi adalah tingkat butir - memakai margin di sana akan
- * merusak penomoran. Di luar daftar tidak ada tingkat apa pun untuk dinaiki,
- * jadi yang digeser adalah blok itu sendiri.
- *
- * Dipakai bersama oleh toolbar dan menu bar supaya keduanya tidak berbeda
- * perilaku - versi yang hanya menyebut `listItem` diam saja di daftar centang.
- */
 export function indentSelection(editor: Editor | null): void {
 	if (!editor) return
 	for (const item of LIST_ITEMS) {
@@ -218,8 +161,6 @@ export function indentSelection(editor: Editor | null): void {
 	}
 	editor.chain().focus().shiftBlockIndent(INDENT_STEP).run()
 }
-
-/** Kebalikan {@link indentSelection}. */
 export function outdentSelection(editor: Editor | null): void {
 	if (!editor) return
 	for (const item of LIST_ITEMS) {
@@ -230,13 +171,6 @@ export function outdentSelection(editor: Editor | null): void {
 	}
 	editor.chain().focus().shiftBlockIndent(-INDENT_STEP).run()
 }
-
-/**
- * Indentasi blok aktif sebagai state React.
- *
- * Penggaris ikut berpindah saat kursor pindah paragraf, jadi hook ini mengikuti
- * transaksi editor - bukan hanya perubahan dokumen.
- */
 export function useBlockIndent(editor: Editor | null): BlockIndent {
 	const [indent, setIndent] = useState<BlockIndent>(NO_INDENT)
 

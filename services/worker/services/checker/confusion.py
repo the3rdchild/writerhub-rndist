@@ -27,12 +27,7 @@ def _iss(offset, length, replacement, type_="Confused word", prio=0):
         "category": "grammar",
         "prio": prio,
     }
-
-
-# tag token setelah kata yang nandain "X is/are" (kontraksi), bukan posesif
 _CONTRACTION_NEXT = {"VBG", "MD", "RB", "DT"}
-
-# kata -ing yang setelah "its" nyaris selalu "it's ___ing" (spaCy sering salah tag NN)
 _ITS_VERBS = {
     "raining", "snowing", "pouring", "freezing", "working", "happening",
     "coming", "going", "getting", "becoming", "growing", "improving",

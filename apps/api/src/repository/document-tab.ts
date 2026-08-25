@@ -2,15 +2,6 @@ import { and, asc, count, eq, sql } from 'drizzle-orm'
 import db from '@/db'
 import { documents, documentTabs, projects } from '@/db/schemas'
 import type { NewDocumentTab } from '@/db/schemas'
-
-/**
- * Akses tabel `document_tabs`. Fungsi yang menerima `ownerId` memverifikasi
- * kepemilikan lewat join dua lapis: tab -> dokumen induk -> proyek
- * (`projects.owner_id`) - tab user lain tidak pernah terlihat lewat
- * fungsi-fungsi ini.
- */
-
-/** Seluruh tab sebuah dokumen, urut kiri-ke-kanan (`position`). */
 export async function findTabsByDocument(documentId: string) {
 	return db
 		.select()
@@ -18,8 +9,6 @@ export async function findTabsByDocument(documentId: string) {
 		.where(eq(documentTabs.document_id, documentId))
 		.orderBy(asc(documentTabs.position))
 }
-
-/** Satu tab lengkap dengan kontennya, diskop ke pemilik dokumen induknya. */
 export async function findTabById(tabId: string, ownerId: string) {
 	const [row] = await db
 		.select({ tab: documentTabs })
@@ -35,8 +24,6 @@ export async function insertTab(values: NewDocumentTab) {
 	const [row] = await db.insert(documentTabs).values(values).returning()
 	return row ?? null
 }
-
-/** Menimpa field yang dikirim; `updated_at` otomatis via `$onUpdateFn`. */
 export async function updateTab(tabId: string, values: Partial<NewDocumentTab>) {
 	const [row] = await db
 		.update(documentTabs)
@@ -61,8 +48,6 @@ export async function countTabs(documentId: string): Promise<number> {
 		.where(eq(documentTabs.document_id, documentId))
 	return row?.value ?? 0
 }
-
-/** Posisi untuk tab baru: paling kanan. */
 export async function nextTabPosition(documentId: string): Promise<number> {
 	const [row] = await db
 		.select({ max: sql<number | null>`max(${documentTabs.position})` })
@@ -70,11 +55,6 @@ export async function nextTabPosition(documentId: string): Promise<number> {
 		.where(eq(documentTabs.document_id, documentId))
 	return (row?.max ?? -1) + 1
 }
-
-/**
- * Terapkan urutan baru: `tabIds[i]` mendapat `position = i`. Dipanggil setelah
- * service memvalidasi bahwa semua id memang milik dokumen ini.
- */
 export async function reorderTabs(tabIds: string[]): Promise<void> {
 	await db.transaction(async (tx) => {
 		for (const [position, tabId] of tabIds.entries()) {

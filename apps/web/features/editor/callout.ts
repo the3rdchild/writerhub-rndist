@@ -2,19 +2,6 @@ import { mergeAttributes, Node } from '@tiptap/core'
 import { Fragment, type Node as ProseMirrorNode, Slice } from '@tiptap/pm/model'
 import { EditorView } from '@tiptap/pm/view'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
-
-/**
- * Blok catatan/seruan - kotak berwarna untuk info, peringatan, tips, dll.
- *
- * Diadaptasi dari ferdocs (callout.tsx) tanpa bergantung pada `dBlock`. Isinya
- * blok biasa (paragraf, daftar, dsb.), jadi ia kompatibel dengan sisa skema
- * naskah yang memakai grup `block` StarterKit.
- *
- * `isolating` membuat blok ini menahan kursor - menekan Enter di ujungnya
- * membuat paragraf baru di dalamnya, bukan keluar dari blok. Keluar dengan
- * tombol panah bawah di baris terakhir atau Escape (lihat addKeyboardShortcuts).
- */
-
 export type CalloutType = 'info' | 'note' | 'tip' | 'warning' | 'success' | 'error'
 
 export const CALLOUT_TYPES: Array<{ id: CalloutType; label: string; emoji: string }> = [
@@ -105,8 +92,6 @@ export const Callout = Node.create<CalloutOptions>({
 
 	addKeyboardShortcuts() {
 		return {
-			// Keluar dari callout di akhir isinya dengan panah bawah bila sudah di
-			// baris terakhir, atau Escape.
 			Escape: () => {
 				if (!this.editor.isActive('callout')) return false
 				return this.editor.commands.unsetCallout()
@@ -120,8 +105,6 @@ export const Callout = Node.create<CalloutOptions>({
 			new Plugin({
 				key: pluginKey,
 				props: {
-					// Menempel blok lain ke dalam callout: isinya diratakan supaya
-					// tidak ada callout bersarang atau blok yang tidak muat.
 					transformPasted(this: Plugin, slice: Slice, view: EditorView): Slice {
 						const { selection } = view.state
 						const $from = selection.$from

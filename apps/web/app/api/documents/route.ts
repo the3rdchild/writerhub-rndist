@@ -2,8 +2,6 @@ import { callUpstream, configErrorResponse } from '@/lib/server/upstream'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-/** Teruskan pembacaan daftar dokumen milik user ke apps/api. */
 export async function GET(request: Request): Promise<Response> {
 	try {
 		const { search } = new URL(request.url)
@@ -15,8 +13,6 @@ export async function GET(request: Request): Promise<Response> {
 		return configErrorResponse(error)
 	}
 }
-
-/** Teruskan pembuatan dokumen baru ke apps/api. */
 export async function POST(request: Request): Promise<Response> {
 	try {
 		return await callUpstream({

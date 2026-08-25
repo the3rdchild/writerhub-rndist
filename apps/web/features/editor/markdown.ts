@@ -1,17 +1,3 @@
-/**
- * Markdown seperlunya, diubah jadi HTML.
- *
- * Model menjawab dalam Markdown karena itu bahasa alaminya, sementara editor
- * menerima HTML dan mem-parsing-nya lewat skema Tiptap. Tanpa terjemahan ini,
- * tabel pipe masuk ke dokumen sebagai paragraf berisi garis tegak - persis
- * yang terlihat saat AI diminta "buatkan tabel".
- *
- * Cakupannya sengaja sempit: hanya bentuk yang benar-benar dipakai model saat
- * menyusun isi dokumen. Menulis parser Markdown penuh berarti memelihara
- * pustaka kecil, sedangkan yang dibutuhkan hanya segelintir blok - dan apa pun
- * yang tidak dikenali tetap keluar sebagai paragraf, bukan hilang.
- */
-
 import { latexToMarkdown, looksLikeLatexDocument } from './latex-document'
 import { wholeParagraphLatex } from './math'
 
@@ -22,23 +8,8 @@ function escapeHtml(value: string): string {
 function escapeAttribute(value: string): string {
 	return escapeHtml(value).replace(/"/g, '&quot;')
 }
-
-/**
- * Penanda sementara untuk rumus, dipakai selama teks diproses.
- *
- * LaTeX penuh karakter yang berarti lain di Markdown - `_`, `^`, `*`, `\\` -
- * jadi kalau ia ikut melewati pemroses penanda inline, `\\alpha*2` berubah jadi
- * miring dan rumusnya rusak. Rumus dicabut lebih dulu, sisanya diproses seperti
- * biasa, lalu rumusnya dikembalikan utuh.
- *
- * Karakter kendali dipakai sebagai pembungkus karena ia tidak mungkin muncul
- * di naskah yang ditulis manusia.
- */
 const MATH_PLACEHOLDER = '\u0000math'
-
-/** Penanda inline. Dijalankan setelah escaping supaya tag hasilnya tidak ikut lolos. */
 function inline(text: string): string {
-	// Rumus diamankan lebih dulu; lihat MATH_PLACEHOLDER.
 	const formulas: string[] = []
 
 	const stash = (latex: string, display: boolean): string => {
@@ -48,12 +19,6 @@ function inline(text: string): string {
 		formulas.push(`<${tag} data-latex="${escapeAttribute(trimmed)}"></${tag}>`)
 		return `${MATH_PLACEHOLDER}${formulas.length - 1}\u0000`
 	}
-
-	// Pembatas LaTeX - \[…\], \(…\), dan lingkungan equation/align - diproses
-	// lebih dulu: isinya bisa mengandung `$` yang tidak boleh tertangkap sebagai
-	// rumus dollar di bawah. Lalu `$…$`/`$$…$$` dengan aturan spasi yang sama
-	// seperti pengenalan rumus di dokumen - tanpa itu, "$5 dan $10" ikut
-	// tertangkap sebagai rumus.
 	const guarded = text
 		.replace(
 			/\\begin\{((?:equation|align|gather|multline)\*?)\}([\s\S]*?)\\end\{\1\}/g,
@@ -78,8 +43,6 @@ function inline(text: string): string {
 		(_whole, index: string) => formulas[Number(index)] ?? '',
 	)
 }
-
-/** Baris tabel pipe jadi daftar sel, tanpa pipa pembuka/penutup. */
 function tableCells(line: string): string[] {
 	return line
 		.replace(/^\s*\|/, '')
@@ -93,24 +56,12 @@ const TABLE_DIVIDER = /^\s*\|?[\s:-]*-[\s|:-]*\|?\s*$/
 function isTableRow(line: string): boolean {
 	return line.trim().startsWith('|') && line.includes('|', 1)
 }
-
-/**
- * Apakah teks ini mengandung Markdown yang layak diterjemahkan.
- *
- * Teks biasa dibiarkan lewat apa adanya: membungkusnya jadi HTML hanya
- * menambah risiko tanpa menambah apa pun.
- */
 export function looksLikeMarkdown(text: string): boolean {
 	return (
 		/^\s*(#{1,6}\s|[-*]\s|\d+\.\s|>\s|\|.*\|)/m.test(text) ||
-		// Garis mendatar berdiri sendiri sebaris penuh.
 		/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/m.test(text) ||
-		// Penanda inline saja (tebal, kode) juga berarti - jawaban obrolan
-		// sering hanya berisi kalimat dengan `**…**` tanpa blok apa pun.
 		/\*\*[^*\n]+\*\*|`[^`\n]+`/.test(text) ||
 		/```/.test(text) ||
-		// Rumus juga layak diterjemahkan walau sisanya kalimat biasa. Pembatas
-		// LaTeX `\[…\]`/`\(…\)` dan lingkungan equation/align ikut dikenali.
 		/\$\$?[^\s$][^$\n]*[^\s$]\$\$?|\$[^\s$]\$/.test(text) ||
 		/\\\[[\s\S]*?\\\]|\\\([^)\n]*?\\\)|\\begin\{(?:equation|align|gather|multline)\*?\}/.test(text)
 	)
@@ -129,8 +80,6 @@ export function markdownToHtml(markdown: string): string {
 			index += 1
 			continue
 		}
-
-		// ── blok kode ────────────────────────────────────────────────────────
 		if (trimmed.startsWith('```')) {
 			const body: string[] = []
 			index += 1
@@ -142,9 +91,6 @@ export function markdownToHtml(markdown: string): string {
 			out.push(`<pre><code>${escapeHtml(body.join('\n'))}</code></pre>`)
 			continue
 		}
-
-		// ── tabel ────────────────────────────────────────────────────────────
-		// Baris pemisah wajib ada; tanpa itu deretan pipa cuma teks biasa.
 		if (isTableRow(line) && index + 1 < lines.length && TABLE_DIVIDER.test(lines[index + 1])) {
 			const header = tableCells(line)
 			index += 2
@@ -158,7 +104,6 @@ export function markdownToHtml(markdown: string): string {
 			const head = header.map((cell) => `<th>${inline(cell)}</th>`).join('')
 			const body = rows
 				.map((row) => {
-					// Sel yang kurang diisi kosong supaya jumlah kolomnya tetap rata.
 					const cells = Array.from({ length: header.length }, (_, column) => row[column] ?? '')
 					return `<tr>${cells.map((cell) => `<td>${inline(cell)}</td>`).join('')}</tr>`
 				})
@@ -167,26 +112,17 @@ export function markdownToHtml(markdown: string): string {
 			out.push(`<table><tbody><tr>${head}</tr>${body}</tbody></table>`)
 			continue
 		}
-
-		// ── garis mendatar ─────────────────────────────────────────────────────
 		if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
 			out.push('<hr>')
 			index += 1
 			continue
 		}
-
-		// ── rumus blok ───────────────────────────────────────────────────────
-		// Sebaris penuh jadi node blok - `$$…$$`, `\[…\]`, maupun lingkungan
-		// equation/align. Kalau dibiarkan lewat cabang paragraf, hasilnya <div>
-		// di dalam <p> - bersarang yang tidak sah dan akan dibongkar browser.
 		const blockLatex = wholeParagraphLatex(trimmed)
 		if (blockLatex) {
 			out.push(`<div data-latex="${escapeAttribute(blockLatex)}"></div>`)
 			index += 1
 			continue
 		}
-
-		// ── heading ──────────────────────────────────────────────────────────
 		const heading = trimmed.match(/^(#{1,6})\s+(.*)$/)
 		if (heading) {
 			const level = heading[1].length
@@ -194,8 +130,6 @@ export function markdownToHtml(markdown: string): string {
 			index += 1
 			continue
 		}
-
-		// ── daftar ───────────────────────────────────────────────────────────
 		const bullet = trimmed.match(/^[-*]\s+(.*)$/)
 		const ordered = trimmed.match(/^\d+\.\s+(.*)$/)
 		if (bullet || ordered) {
@@ -213,8 +147,6 @@ export function markdownToHtml(markdown: string): string {
 			out.push(`<${tag}>${items.join('')}</${tag}>`)
 			continue
 		}
-
-		// ── kutipan ──────────────────────────────────────────────────────────
 		if (trimmed.startsWith('>')) {
 			const quoted: string[] = []
 			while (index < lines.length && lines[index].trim().startsWith('>')) {
@@ -224,18 +156,8 @@ export function markdownToHtml(markdown: string): string {
 			out.push(`<blockquote><p>${inline(quoted.join(' '))}</p></blockquote>`)
 			continue
 		}
-
-		// ── paragraf ─────────────────────────────────────────────────────────
-		//
-		// Baris pertama selalu ditelan, apa pun bentuknya. Cabang ini juga
-		// menampung sisa yang tidak dikenali blok mana pun - misalnya deretan
-		// pipa tanpa baris pemisah, yang bukan tabel. Kalau syarat berhenti ikut
-		// diberlakukan pada baris pertama, `index` tidak pernah maju dan
-		// perulangan luarnya menggantung selamanya.
 		const paragraph: string[] = [trimmed]
 		index += 1
-
-		// Baris berikutnya digabung ke paragraf yang sama, seperti Markdown.
 		while (index < lines.length) {
 			const current = lines[index].trim()
 			if (
@@ -255,17 +177,7 @@ export function markdownToHtml(markdown: string): string {
 
 	return out.join('')
 }
-
-/**
- * Bentuk yang siap diserahkan ke `insertContent`.
- *
- * Teks polos dikembalikan apa adanya - Tiptap memperlakukannya sebagai teks,
- * dan itu memang yang diinginkan untuk kalimat pengganti biasa.
- */
 export function toEditorContent(text: string): string {
-	// Dokumen LaTeX utuh diterjemahkan dulu jadi Markdown. Tanpa ini isinya
-	// masuk apa adanya - `&` dan `\\` sebagai teks, dan seluruh barisnya
-	// menyatu jadi satu paragraf yang lebih tinggi dari satu halaman.
 	const source = looksLikeLatexDocument(text) ? latexToMarkdown(text) : text
 	return looksLikeMarkdown(source) ? markdownToHtml(source) : source
 }

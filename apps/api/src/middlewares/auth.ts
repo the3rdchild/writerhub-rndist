@@ -28,12 +28,7 @@ function verifyPpApiKeySignature(signatureHex: string, timestamp: string): boole
 }
 
 export const authMiddleware = createMiddleware(async (c, next) => {
-	// Mode lokal: tidak ada kredensial yang dibagikan, jadi seluruh pemeriksaan
-	// dilewati. Jalur produksi di bawahnya sengaja dibiarkan utuh - cukup ubah
-	// AUTH_MODE untuk mengaktifkannya kembali.
 	if (isLocalAuth) {
-		// Fallback dev lokal: semua request dianggap milik satu user tetap supaya
-		// `owner_id` dokumen selalu terisi tanpa kredensial apa pun.
 		c.set('userId', 'local-dev')
 		c.set('identityOrigin', 'ppe')
 		await next()

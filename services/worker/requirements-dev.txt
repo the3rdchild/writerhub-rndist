@@ -1,17 +1,3 @@
-# Kebutuhan pengembangan worker - TIDAK ikut ke image produksi.
-#
-# Dipisah dari requirements.txt supaya image Docker tetap ramping: pytest dan
-# ruff tidak pernah dijalankan di dalam kontainer yang melayani antrean.
-#
-#   python -m venv .venv && . .venv/bin/activate
-#   pip install -r requirements.txt -r requirements-dev.txt
-#   pytest
-#
-# Uji worker sengaja tidak menyentuh Redis maupun basis data - yang diuji
-# bagian murninya (batas waktu job, bendera batal, kandidat glosarium), jadi
-# `pytest` bisa dijalankan tanpa stack yang menyala.
 
 pytest
-# Konfigurasinya sudah ada di pyproject.toml [tool.ruff]; lihat catatan di
-# README bahwa lint worker masih advisory sampai `ruff format .` dijalankan.
 ruff

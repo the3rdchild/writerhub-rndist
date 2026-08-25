@@ -8,20 +8,14 @@ import { apiFetch } from '@/lib/api-client'
 import { streamJob } from '@/lib/sse'
 
 const ANALYSIS_TIMEOUT_MS = 120_000
-
-/** Submit job analisis lalu tunggu hasilnya lewat SSE. */
 export async function runAnalysis<F extends AnalysisFeature>(
 	feature: F,
 	text: string,
 	language: string,
 	signal?: AbortSignal,
-	/** Tautan tab cloud untuk Aktivitas AI; tab lokal mengirim undefined. */
 	tabId?: string,
-	/** Tone pilihan user (hanya ai_rewriter); meng-override tone AI Memory. */
 	tone?: string,
-	/** Bahasa tujuan (hanya translator). */
 	targetLang?: string,
-	/** Dipanggil saat jobId diketahui, supaya hook bisa membatalkannya di server (§P7 lapis B). */
 	onJobId?: (jobId: string) => void,
 ): Promise<AnalysisResultFor<F>> {
 	const { jobId } = await apiFetch<JobSubmission>('/analyze', {

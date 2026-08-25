@@ -1,26 +1,9 @@
-/**
- * Penomoran otomatis Word.
- *
- * Nomor bab dan butir daftar tidak tersimpan sebagai teks di mana pun. Yang
- * disimpan hanya rujukan - "paragraf ini butir tingkat 2 dari daftar 40" - dan
- * angkanya baru muncul saat Word menggambar halaman. Membaca DOCX tanpa
- * menghitung ulang deret itu berarti seluruh "BAB I", "1.1", "2.3.1" lenyap.
- *
- * Deretnya dihitung per numId, bukan per abstractNum: dua daftar boleh memakai
- * definisi bentuk yang sama namun berjalan sebagai dua deret yang terpisah.
- */
-
 import { attr, child, children, intVal, onOff, val } from './xml'
-
-/** Satu tingkat dalam sebuah definisi penomoran. */
 export interface NumberingLevel {
 	start: number
 	format: string
-	/** Pola nomornya, `%1.%2` dan sejenisnya. */
 	text: string
-	/** Penomoran hukum: seluruh tingkat ditulis desimal, apa pun bentuk aslinya. */
 	isLegal: boolean
-	/** 0 berarti tingkat ini tidak pernah dimulai ulang oleh tingkat di atasnya. */
 	restart?: number
 }
 
@@ -30,7 +13,6 @@ interface AbstractNumbering {
 
 interface NumberingInstance {
 	abstractId: number
-	/** Penggantian per tingkat yang hanya berlaku pada deret ini. */
 	levels: Map<number, NumberingLevel>
 	starts: Map<number, number>
 }
@@ -78,9 +60,6 @@ export function readNumbering(root: Element | null): Numbering {
 		if (!Number.isFinite(id) || abstractId === undefined) continue
 
 		const instance: NumberingInstance = { abstractId, levels: new Map(), starts: new Map() }
-
-		// Sebuah deret boleh menimpa definisi bentuknya sendiri - paling sering
-		// hanya untuk memulai ulang hitungan, tapi kadang seluruh tingkatnya.
 		for (const override of children(num, 'lvlOverride')) {
 			const ilvl = Number.parseInt(attr(override, 'ilvl') ?? '', 10)
 			if (!Number.isFinite(ilvl)) continue
@@ -130,8 +109,6 @@ function toRoman(value: number): string {
 	}
 	return result
 }
-
-/** 1 jadi A, 26 jadi Z, 27 jadi AA - Word mengulang hurufnya, bukan menaikkannya. */
 function toLetter(value: number): string {
 	if (value <= 0) return String(value)
 
@@ -156,16 +133,6 @@ function formatCounter(value: number, format: string): string {
 			return String(value)
 	}
 }
-
-/**
- * Butir Word memakai huruf dari Symbol dan Wingdings, yang tersimpan di wilayah
- * pribadi Unicode.
- *
- * Tanpa dipetakan, huruf-huruf itu tampil sebagai kotak kosong di peramban yang
- * tidak punya font tersebut - dan hampir tidak ada yang punya. Yang tidak
- * dikenali pun tetap dijadikan bulatan biasa, karena butir yang bentuknya
- * kurang tepat masih jauh lebih baik daripada kotak.
- */
 const BULLETS: Record<string, string> = {
 	'\uf0b7': '•', // Symbol, butir bulat - yang paling sering dipakai
 	'\uf0a7': '▪', // Wingdings, kotak kecil pejal
@@ -182,14 +149,11 @@ function toBullet(text: string): string {
 		.map((character) => {
 			const mapped = BULLETS[character]
 			if (mapped) return mapped
-			// Sisa wilayah pribadi Unicode yang tidak kita kenali.
 			const code = character.codePointAt(0) ?? 0
 			return code >= 0xe000 && code <= 0xf8ff ? '•' : character
 		})
 		.join('')
 }
-
-/** Menghitung nomor berikutnya; dipanggil menurut urutan paragraf di dokumen. */
 export type Numberer = (numId: number, ilvl: number) => string | null
 
 const MAX_LEVELS = 9
@@ -234,9 +198,6 @@ export function createNumberer(numbering: Numbering): Numberer {
 			counter[ilvl] = startOf(numId, ilvl)
 			seen[ilvl] = true
 		}
-
-		// Tingkat yang lebih dalam mulai dari awal lagi, kecuali definisinya
-		// menyatakan ia tidak pernah dimulai ulang.
 		for (let deeper = ilvl + 1; deeper < MAX_LEVELS; deeper += 1) {
 			if (levelOf(numId, deeper)?.restart === 0) continue
 			counter[deeper] = startOf(numId, deeper)
@@ -244,8 +205,6 @@ export function createNumberer(numbering: Numbering): Numberer {
 		}
 
 		if (level.format === 'bullet') return toBullet(level.text)
-
-		// `%1` merujuk hitungan tingkat pertama, jadi indeksnya bergeser satu.
 		return level.text.replace(/%(\d)/g, (_, digit: string) => {
 			const index = Number.parseInt(digit, 10) - 1
 			if (index < 0 || index >= MAX_LEVELS) return ''

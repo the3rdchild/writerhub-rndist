@@ -15,31 +15,12 @@ import { canReapply, panelForFeature, remapResult, tabPlainText } from './reappl
 import type { HistoryDetail } from './types'
 
 export interface ReapplyController {
-	/** Tab tujuan entri adalah tab yang sedang aktif. */
 	documentReady: boolean
-	/** Sedang membuka dokumen tujuan. */
 	opening: boolean
-	/** Galat membuka dokumen (mis. batas tab tercapai). */
 	openError: string | null
-	/** Buka dokumen tujuan sebagai tab aktif (prasyarat terapkan ulang). */
 	openTargetDocument: () => Promise<void>
-	/** Dorong hasil ke panel fiturnya lalu kembali ke editor. */
 	reapply: () => void
 }
-
-/**
- * "Terapkan ulang" Aktivitas AI (§F.4).
- *
- * BUKAN jalur apply baru: hasil lama didorong ke state yang sudah dipakai
- * panel (tabView untuk grammar, cache query + lastRun untuk analisis), panel
- * fiturnya dibuka, dan pengguna memakai alur apply yang sudah ada
- * (ChangeListPanel / apply-text). Offset lama dipetakan ulang lewat
- * resolveSpan sebelum didorong - lihat remapResult.
- *
- * Prasyarat: tab tujuan = tab aktif. Entri dengan tabId berbeda harus
- * membuka dokumennya dulu (openTargetDocument); tidak ada penerapan lintas
- * dokumen.
- */
 export function useReapply(detail: HistoryDetail | null): ReapplyController {
 	const router = useRouter()
 	const queryClient = useQueryClient()
@@ -52,8 +33,6 @@ export function useReapply(detail: HistoryDetail | null): ReapplyController {
 	const [openError, setOpenError] = useState<string | null>(null)
 
 	const activeServerId = activeId ? linkage[activeId]?.serverId : undefined
-	// Entri tanpa tautan (tab lokal / tabnya sudah dihapus) diterapkan ke tab
-	// yang sedang aktif - tidak ada identitas tab lain untuk dilanggar.
 	const documentReady = !detail?.tabId || detail.tabId === activeServerId
 
 	const openTargetDocument = useCallback(async () => {
@@ -61,8 +40,6 @@ export function useReapply(detail: HistoryDetail | null): ReapplyController {
 		setOpening(true)
 		setOpenError(null)
 		try {
-			// Entri hanya membawa id tab; induknya diambil dulu supaya seluruh
-			// tab dokumennya ikut terbuka.
 			const tab = await getTab(detail.tabId)
 			const document = await getDocument(tab.documentId)
 			const tabId = await openFromLibrary(document)
@@ -80,18 +57,12 @@ export function useReapply(detail: HistoryDetail | null): ReapplyController {
 		const text = tabPlainText(doc, activeId)
 
 		if (detail.feature === 'grammar') {
-			// Hasil grammar ditulis ke tabView SEBELUM navigasi; efek muat tab di
-			// session-context mengangkatnya ke state dokumen begitu editor kembali
-			// terpasang, jadi tidak ada yang hilang di tengah jalan.
 			const result = detail.result as GrammarResultPayload
 			setTabResults(activeId, {
 				suggestions: reconcileSuggestions(text, result.suggestions ?? []),
 				scores: result.scores ?? null,
 			})
 		} else {
-			// Fitur analisis: isi cache query dengan hasil lama (offset sudah
-			// dipetakan ulang) dan tandai sebagai lastRun - useAnalysis membacanya
-			// dari cache tanpa menjalankan job baru.
 			const feature = detail.feature as AnalysisFeature
 			const remapped = remapResult(feature, detail.result, text)
 			markRun(feature, {

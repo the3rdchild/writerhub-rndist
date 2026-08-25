@@ -85,7 +85,6 @@ interface ToolbarState {
 	canUndo: boolean
 	canRedo: boolean
 	columns: boolean
-	/** Ada teks yang disorot - syarat untuk kontrol yang bekerja pada seleksi. */
 	hasSelection: boolean
 }
 
@@ -97,15 +96,10 @@ export function EditorToolbar({
 }: {
 	editor: Editor | null
 	disabled?: boolean
-	/** Membuka bilah cari & ganti. */
 	onOpenSearch?: () => void
-	/** Membuka panel daftar isi. */
 	onOpenToc?: () => void
 }) {
 	const { settings, update } = useSettings()
-
-	// useEditorState hanya me-render ulang saat nilai terpilih berubah - tanpa ini
-	// seluruh toolbar ikut render pada setiap ketukan tombol.
 	const active = useEditorState({
 		editor,
 		selector: ({ editor: instance }): ToolbarState | null => {
@@ -168,8 +162,6 @@ export function EditorToolbar({
 				width={128}
 				value={active?.style ?? 'paragraph'}
 				disabled={isOff}
-				// 6–9 tidak ada di daftar yang bisa dipilih (cuma 1–5), tapi tetap
-				// ditampilkan apa adanyanya - jangan menyesatkan jadi "Teks biasa".
 				fallbackLabel={ALL_PARAGRAPH_STYLES.find((item) => item.id === active?.style)?.label}
 				options={PARAGRAPH_STYLES.map((style) => ({
 					value: style.id,
@@ -189,15 +181,11 @@ export function EditorToolbar({
 				width={146}
 				value={active?.fontFamily ?? DEFAULT_FONT_FAMILY}
 				disabled={isOff}
-				// Naskah impor bisa memakai huruf di luar daftar - kotaknya tetap
-				// menyebut nama huruf itu alih-alih tumpukan CSS mentahnya.
 				fallbackLabel={fontFamilyLabel(active?.fontFamily ?? DEFAULT_FONT_FAMILY)}
 				options={FONT_FAMILIES.map((font) => ({
 					value: font.value,
 					label: font.label,
 					group: FONT_CATEGORY_LABELS[font.category],
-					// Setiap nama ditulis dengan hurufnya sendiri: memilih font dari
-					// daftar nama yang seragam berarti menebak-nebak.
 					previewStyle: { fontFamily: font.value },
 				}))}
 				onChange={(value) => editor?.chain().focus().setFontFamily(value).run()}
@@ -379,14 +367,6 @@ function AlignControls({
 		</>
 	)
 }
-
-/**
- * Ubah kapitalisasi teks terpilih.
- *
- * Dropdown, bukan tombol yang berputar antar mode: ketiga mode itu tujuan yang
- * berbeda, bukan siklus, dan menebak mana yang sedang aktif dari teks yang sudah
- * ada tidak mungkin dilakukan dengan andal.
- */
 function CapitalizationControl({
 	editor,
 	disabled,

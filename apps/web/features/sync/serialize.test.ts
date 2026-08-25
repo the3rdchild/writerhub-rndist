@@ -3,27 +3,15 @@ import type { JSONContent } from '@tiptap/core'
 import * as Y from 'yjs'
 import { createDocument, createTab, tabFragment, tabPreview } from '@/features/sessions/ydoc'
 import { fragmentToJSON, jsonToFragment } from './serialize'
-
-/** Tab baru di dalam dokumen baru, untuk keperluan test serialisasi. */
 function newTab(doc: Y.Doc): string {
 	return createTab(doc, createDocument(doc))
 }
-
-/** JSON → fragmen → JSON, pada dokumen baru. */
 function roundTrip(json: JSONContent): JSONContent {
 	const doc = new Y.Doc()
 	const tabId = newTab(doc)
 	jsonToFragment(doc, tabId, json)
 	return fragmentToJSON(doc, tabId)
 }
-
-/**
- * Skema editor menambahkan attrs bawaan (indentasi, spasi blok) ke node yang
- * tidak menyebutkannya, jadi JSON hasil baca bukan fotokopi persis JSON yang
- * ditulis. Jaminan yang berarti adalah titik-tetap: begitu naskah melewati
- * skema sekali, bolak-balik berikutnya tidak mengubah apa-apa lagi. Tanpa itu,
- * tiap autosave bisa menulis naskah yang makin berbeda dari asalnya.
- */
 describe('serialisasi naskah ke JSON', () => {
 	test('teks sederhana mencapai titik-tetap', () => {
 		const json: JSONContent = {

@@ -2,44 +2,17 @@ import { mergeAttributes, Node } from '@tiptap/core'
 import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/react'
 import katex from 'katex'
-
-/**
- * Rumus matematika sebagai node, bukan teks yang kebetulan terlihat seperti
- * rumus.
- *
- * Yang disimpan adalah **sumber LaTeX**-nya, bukan hasil render. Itu yang
- * membuat rumus tetap bisa disunting, ikut tersimpan ke tab, bertahan setelah
- * dimuat ulang, dan bisa dikembalikan jadi teks biasa. Menyimpan HTML hasil
- * KaTeX berarti rumusnya jadi gambar mati yang tak bisa diperbaiki.
- *
- * Dua node, bukan satu dengan penanda: inline hidup di dalam kalimat, blok
- * berdiri sendiri di barisnya. Bedanya bukan gaya - ProseMirror memperlakukan
- * inline dan blok sebagai hal yang berbeda, dan paginasi perlu mengukur yang
- * blok seperti blok lain.
- */
-
 export const MATH_INLINE = 'mathInline'
 export const MATH_BLOCK = 'mathBlock'
 
 declare module '@tiptap/core' {
 	interface Commands<ReturnType> {
 		math: {
-			/** Ganti seleksi dengan rumus; `display` untuk rumus blok. */
 			setMath: (latex: string, display?: boolean) => ReturnType
-			/** Kembalikan rumus di kursor jadi teks LaTeX biasa. */
 			unsetMath: () => ReturnType
 		}
 	}
 }
-
-/**
- * Render satu rumus jadi HTML.
- *
- * `throwOnError: false` disengaja: LaTeX yang belum selesai diketik bukan
- * kesalahan yang layak menggugurkan render seluruh dokumen. KaTeX menggambar
- * bagian yang bermasalah dengan warna galat, dan itu justru umpan balik yang
- * berguna sambil menyunting.
- */
 export function renderMath(latex: string, display: boolean): string {
 	try {
 		return katex.renderToString(latex, {
@@ -57,7 +30,6 @@ function buildDom(latex: string, display: boolean): HTMLElement {
 	const element = document.createElement(display ? 'div' : 'span')
 	element.className = display ? 'math-block' : 'math-inline'
 	element.setAttribute('data-latex', latex)
-	// Node atom: kursor tidak boleh masuk ke dalam hasil render.
 	element.contentEditable = 'false'
 	element.innerHTML = renderMath(latex, display)
 	return element
@@ -85,8 +57,6 @@ export const MathInline = Node.create({
 	},
 
 	renderHTML({ HTMLAttributes }) {
-		// Untuk serialisasi (salin, simpan, ekspor) yang penting atribut
-		// LaTeX-nya; hasil render digambar ulang oleh node view.
 		return ['span', mergeAttributes(HTMLAttributes, { class: 'math-inline' })]
 	},
 
@@ -143,26 +113,13 @@ export const MathBlock = Node.create({
 		}
 	},
 })
-
-// ── mengenali LaTeX di dalam teks ──────────────────────────────────────────
-
-/**
- * Pola pengenalan rumus, berurutan: blok lebih dulu, lalu inline.
- *
- * Urutan ini bukan kerapian. `$$…$$` dan `\[…\]` juga cocok dengan pola inline
- * kalau diperiksa setelahnya, dan hasilnya rumus terpotong di tengah. Setiap
- * pola tahu di grup tangkapan mana LaTeX-nya berada - lingkungan `equation`
- * memakai grup kedua karena yang pertama menangkap nama lingkungannya.
- */
 interface MathPattern {
 	pattern: RegExp
 	display: boolean
-	/** Indeks grup tangkapan yang berisi sumber LaTeX. */
 	latexGroup: number
 }
 
 const MATH_PATTERNS: readonly MathPattern[] = [
-	// ── blok ──────────────────────────────────────────────────────────────
 	{ pattern: /\$\$([^$]+?)\$\$/g, display: true, latexGroup: 1 },
 	{ pattern: /\\\[([\s\S]+?)\\\]/g, display: true, latexGroup: 1 },
 	{
@@ -170,13 +127,6 @@ const MATH_PATTERNS: readonly MathPattern[] = [
 		display: true,
 		latexGroup: 2,
 	},
-	// ── inline ────────────────────────────────────────────────────────────
-	/**
-	 * Aturan spasi yang sama seperti Markdown matematika pada umumnya: tidak
-	 * boleh ada spasi tepat setelah `$` pembuka maupun tepat sebelum `$`
-	 * penutup. Aturan itu yang memisahkan rumus dari harga - tanpa `(?<!\s)`,
-	 * "Harganya $5 dan $10 saja" membuat "5 dan " dibaca sebagai rumus.
-	 */
 	{ pattern: /(?<!\$)\$(?!\s)([^$\n]*?)(?<!\s)\$(?!\$)/g, display: false, latexGroup: 1 },
 	{ pattern: /\\\(([^)\n]*?)\\\)/g, display: false, latexGroup: 1 },
 ]
@@ -184,12 +134,9 @@ const MATH_PATTERNS: readonly MathPattern[] = [
 export interface FoundMath {
 	latex: string
 	display: boolean
-	/** Posisi di dalam teks yang diperiksa. */
 	from: number
 	to: number
 }
-
-/** Semua rumus di dalam sepotong teks, terurut dari depan. */
 export function findMath(text: string): FoundMath[] {
 	const found: FoundMath[] = []
 
@@ -198,8 +145,6 @@ export function findMath(text: string): FoundMath[] {
 		let match = pattern.exec(text)
 		while (match !== null) {
 			const latex = (match[latexGroup] ?? '').trim()
-			// Rumus blok sudah menelan wilayahnya; yang inline tidak boleh
-			// mengklaim potongan yang sama.
 			const overlaps = found.some((item) => match!.index < item.to && match!.index + match![0].length > item.from)
 			if (latex && !overlaps) {
 				found.push({ latex, display, from: match.index, to: match.index + match[0].length })
@@ -210,15 +155,6 @@ export function findMath(text: string): FoundMath[] {
 
 	return found.sort((a, b) => a.from - b.from)
 }
-
-/**
- * Apakah seluruh paragraf ini satu rumus blok? Kembalikan LaTeX-nya kalau ya.
- *
- * Dipakai untuk membedakan rumus blok yang sah (mengisi seluruh paragraf) dari
- * rumus yang sama mustahil jadi blok karena ia di tengah kalimat - dan karenanya
- * diperlakukan sebagai inline. Mendukung semua pembatas blok yang dikenal:
- * `$$…$$`, `\[…\]`, dan lingkungan `equation`/`align`/`gather`/`multline`.
- */
 export function wholeParagraphLatex(text: string): string | null {
 	const trimmed = text.trim()
 
@@ -235,21 +171,11 @@ export function wholeParagraphLatex(text: string): string | null {
 
 	return null
 }
-
-/** Apakah teks ini seluruhnya satu rumus, tanpa pembatas `$`. */
 export function looksLikeBareLatex(text: string): boolean {
 	const trimmed = text.trim()
 	if (!trimmed || trimmed.includes('$')) return false
-	// Perintah LaTeX, superskrip, subskrip, atau pecahan - penanda yang jarang
-	// muncul di kalimat biasa.
 	return /\\[a-zA-Z]+|[\^_]\{?[^\s]/.test(trimmed)
 }
-
-/**
- * Buang pembatas di ujung, kalau pengguna ikut menyorotnya.
- *
- * Mendukung `$…$`, `$$…$$`, `\[…\]`, dan `\(…\)`.
- */
 export function stripDelimiters(text: string): string {
 	return text
 		.trim()
@@ -257,15 +183,6 @@ export function stripDelimiters(text: string): string {
 		.replace(/(?:\$\$?$|\\\]|\\\))$/, '')
 		.trim()
 }
-
-// ── konversi ───────────────────────────────────────────────────────────────
-
-/**
- * Ubah teks yang sedang disorot jadi rumus.
- *
- * Pembatas `$` dibuang kalau ikut tersorot: pengguna yang menulis `$x^2$` lalu
- * menyeleksi seluruhnya jelas memaksudkan rumusnya, bukan tanda dolarnya.
- */
 export function convertSelectionToMath(editor: Editor, display: boolean): boolean {
 	const { from, to, empty } = editor.state.selection
 	if (empty) return false
@@ -275,18 +192,6 @@ export function convertSelectionToMath(editor: Editor, display: boolean): boolea
 
 	return editor.chain().focus().deleteSelection().setMath(latex, display).run()
 }
-
-/**
- * Ubah semua `$…$` dan `$$…$$` di seluruh dokumen sekaligus.
- *
- * Suntingan diterapkan dari belakang ke depan supaya posisi yang belum
- * diproses tetap sahih - mengganti dari depan menggeser semua yang di
- * belakangnya dan membuat penggantian berikutnya salah sasaran.
- *
- * Rumus `$$…$$` hanya jadi node blok kalau ia mengisi seluruh paragraf. Kalau
- * ia berada di tengah kalimat, node blok tidak sah di sana - jadi ia
- * diperlakukan sebagai inline daripada gagal diam-diam.
- */
 export function convertMathInDocument(editor: Editor): number {
 	const { state } = editor
 	const inlineType = state.schema.nodes[MATH_INLINE]
@@ -334,8 +239,6 @@ export function convertMathInDocument(editor: Editor): number {
 
 	return edits.length
 }
-
-/** Rumus tepat di posisi kursor, kalau ada. */
 export function mathAtSelection(editor: Editor): { latex: string; display: boolean } | null {
 	const { $from, node } = editor.state.selection as { $from: ResolvedPos; node?: PMNode }
 	const candidate = node ?? $from.nodeAfter ?? $from.nodeBefore

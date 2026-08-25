@@ -17,16 +17,6 @@ import { cn } from '@/lib/utils'
 
 const ACCESS_OPTIONS: ShareAccess[] = ['restricted', 'anyone']
 const ROLE_OPTIONS: ShareRole[] = ['viewer', 'commenter', 'editor']
-
-/**
- * Dialog bagikan ala Google Docs.
- *
- * Share membagikan SATU DOKUMEN (seluruh tab di dalamnya, dibaca LIVE tiap
- * link dibuka - BUKAN salinan beku) - persis pola Google Docs: "Share" satu
- * file, bukan satu folder. Dokumennya ditentukan lewat tab yang sedang aktif di
- * editor (tab -> dokumen induknya); tab yang belum tersimpan di cloud belum
- * punya dokumen induk sama sekali, jadi dialog ini minta disimpan dulu.
- */
 export function ShareDialog() {
 	const { shareOpen, setShareOpen } = useShare()
 	const { activeId } = useSessions()
@@ -45,7 +35,6 @@ export function ShareDialog() {
 
 	useEffect(() => {
 		if (!shareOpen) {
-			// Reset ringan saat dialog ditutup; tidak perlu menyentuh form.
 			setLink('')
 			setError(null)
 			setLoading(false)
@@ -60,9 +49,6 @@ export function ShareDialog() {
 			if (event.key === 'Escape') setShareOpen(false)
 		}
 		window.addEventListener('keydown', onKeyDown)
-
-		// Tab lokal yang belum pernah tersimpan ke cloud belum punya dokumen
-		// induk - tidak ada yang bisa dibagikan.
 		const serverId = activeId ? linkage[activeId]?.serverId : undefined
 		if (!serverId) {
 			setNotSynced(true)
@@ -84,7 +70,6 @@ export function ShareDialog() {
 			document.body.style.overflow = ''
 			window.removeEventListener('keydown', onKeyDown)
 		}
-		// biome-ignore lint/correctness/useExhaustiveDependencies: share dibuat ulang saat dialog dibuka atau akses/peran berubah
 	}, [shareOpen, activeId, linkage, access, role])
 
 	if (!shareOpen) return null
@@ -96,7 +81,6 @@ export function ShareDialog() {
 			setCopied(true)
 			setTimeout(() => setCopied(false), 2000)
 		} catch {
-			// Jatuhkan ke input yang bisa dipilih bila clipboard ditolak.
 		}
 	}
 

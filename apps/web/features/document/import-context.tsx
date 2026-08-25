@@ -12,24 +12,6 @@ import { createDocument, createTab, LOCAL_ORIGIN, readDocs, readTabs, setPageSet
 import { jsonToFragment } from '@/features/sync/serialize'
 import { useDocument } from './document-context'
 import { type DocxImport, importDocx, isDocx } from './import-docx'
-
-/**
- * Satu jalur masuk untuk berkas, dipakai bersama menu File dan tombol di bilah
- * status.
- *
- * Sebelumnya logika ini tinggal di dalam DocumentEditor bersama input berkasnya,
- * jadi satu-satunya cara memicunya adalah ikon tanpa label di pojok bawah -
- * fungsinya ada, tapi praktis tidak ditemukan. Yang memiliki input berkas
- * sekarang context ini, sehingga pemicunya boleh ada di mana saja.
- *
- * Dua bentuk impor:
- * - Satu berkas → tab baru di dokumen aktif (perilaku M0).
- * - Banyak berkas → SATU dokumen baru berisi satu tab per berkas, urut nama
- *   berkas (§6.1 rencana restrukturisasi). Judul dokumen diambil dari nama
- *   berkas pertama: bisa ditebak, dan sama dengan pola penamaan impor tunggal.
- */
-
-/** Jenis berkas yang diminta; menentukan filter pada dialog pemilih. */
 export type ImportKind = 'any' | 'docx' | 'text'
 
 const ACCEPT: Record<ImportKind, string> = {
@@ -39,27 +21,19 @@ const ACCEPT: Record<ImportKind, string> = {
 }
 
 interface ImportContextValue {
-	/** Buka dialog pemilih berkas. */
 	openImport: (kind?: ImportKind) => void
 	importing: boolean
-	/** Hal yang tidak punya padanan di editor ini; ditunjukkan, bukan disembunyikan. */
 	warnings: string[]
 	dismissWarnings: () => void
 }
 
 const ImportContext = createContext<ImportContextValue | null>(null)
-
-/** TXT dibaca di browser supaya isinya langsung terlihat. */
 function isPlainTextFile(file: File): boolean {
 	return file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt')
 }
-
-/** Nama berkas tanpa ekstensi, untuk judul tab/dokumen. */
 function baseName(file: File): string {
 	return file.name.replace(/\.[^.]+$/, '')
 }
-
-/** Teks polos dipecah per baris menjadi paragraf. */
 function textToDocContent(text: string): JSONContent {
 	const paragraphs: JSONContent[] = text
 		.split('\n')
@@ -73,12 +47,6 @@ function textToDocContent(text: string): JSONContent {
 		content: paragraphs.length > 0 ? paragraphs : [{ type: 'paragraph' }],
 	}
 }
-
-/**
- * Setelan halaman section pertama hasil impor (E4) jadi tata letak tab yang
- * lengkap: sisi yang tidak disebut `sectPr` - warna halaman, mode pageless -
- * mengikuti bawaan.
- */
 function resolveImportedSetup(patch: NonNullable<DocxImport['pageSetup']>): PageSetup {
 	return {
 		...DEFAULT_PAGE_SETUP,
@@ -101,35 +69,18 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 		input.accept = ACCEPT[kind]
 		input.click()
 	}, [])
-
-	/**
-	 * Berkas selalu masuk sebagai TAB BARU di dokumen aktif, tidak pernah menimpa
-	 * tab yang sedang ditulis - sebelumnya impor memanggil setContent pada tab
-	 * aktif dan naskah pengguna hilang. Judul tab diambil dari nama berkas tanpa
-	 * ekstensi.
-	 */
 	const importToNewTab = useCallback(
 		(title: string, content: JSONContent, pageSetup?: DocxImport['pageSetup']) => {
 			if (!activeDocId) return
 			const tabId = createTab(doc, activeDocId, title)
 			doc.transact(() => {
 				jsonToFragment(doc, tabId, content)
-				// Setelan section pertama ikut sebagai tata letak tab (E4) - bukan
-				// sebagai pembatas, karena ia milik naskah sejak awal.
 				if (pageSetup) setPageSetupForTab(doc, tabId, resolveImportedSetup(pageSetup))
 			}, LOCAL_ORIGIN)
 			selectSession(tabId)
 		},
 		[doc, activeDocId, selectSession],
 	)
-
-	/**
-	 * DOCX dibaca lengkap dengan formatnya, langsung di browser.
-	 *
-	 * Jalur worker (`setFile`) tetap dipakai untuk PDF: di sana yang bisa diambil
-	 * memang hanya teks. PDF tidak menyimpan struktur - ia menyimpan glyph
-	 * berposisi - jadi heading dan tabel hanya bisa ditebak, bukan dibaca.
-	 */
 	const loadDocx = useCallback(
 		async (file: File) => {
 			setImporting(true)
@@ -147,8 +98,6 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 		},
 		[importToNewTab],
 	)
-
-	/** TXT dipecah per baris menjadi paragraf di tab baru. */
 	const loadText = useCallback(
 		(file: File) => {
 			const reader = new FileReader()
@@ -160,17 +109,6 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 		},
 		[importToNewTab],
 	)
-
-	/**
-	 * Banyak berkas sekaligus → satu dokumen baru berisi satu tab per berkas.
-	 *
-	 * Hanya DOCX dan TXT yang ikut: keduanya terbaca penuh di browser, jadi
-	 * seluruh dokumen bisa dirakit dulu lalu ditulis dalam satu transaksi.
-	 * PDF dilewati dengan pesan - jalurnya (`setFile` → worker) menulis ke tab
-	 * AKTIF secara async, dan mengantre N PDF ke N tab yang baru dibuat berarti
-	 * menebak tab mana yang aktif saat tiap worker selesai; terlalu rapuh
-	 * dibanding manfaatnya. PDF tetap diimpor satu per satu lewat jalur lamanya.
-	 */
 	const importMany = useCallback(
 		async (files: File[]) => {
 			setImporting(true)
@@ -189,9 +127,6 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 				setImporting(false)
 				return
 			}
-
-			// Dokumen baru dibatasi seperti pembuatan tab biasa: kelebihannya
-			// ditolak dengan pesan, bukan dibuang diam-diam.
 			const limited = importable.slice(0, MAX_SESSIONS)
 			if (importable.length > MAX_SESSIONS) {
 				warn.push(`Hanya ${MAX_SESSIONS} berkas pertama yang diimpor - batas tab per dokumen.`)
@@ -202,9 +137,6 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 				setImporting(false)
 				return
 			}
-
-			// Semua berkas dibaca dulu, baru dokumennya ditulis - kegagalan baca
-			// satu berkas tidak meninggalkan dokumen setengah jadi.
 			const parsed: Array<{ title: string; content: JSONContent; pageSetup?: DocxImport['pageSetup'] }> = []
 			for (const file of limited) {
 				try {
@@ -227,9 +159,6 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 				setImporting(false)
 				return
 			}
-
-			// Satu transaksi untuk seluruh dokumen, pola yang sama dengan
-			// openFromLibrary: dokumen + semua tab + isinya lahir sekaligus.
 			let firstTabId = ''
 			doc.transact(() => {
 				const docId = createDocument(doc, parsed[0].title)
@@ -269,8 +198,6 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 			}
 
 			if (!isPlainTextFile(file)) {
-				// PDF lewat worker; ekstraksinya menulis ke tab aktif, jadi buat
-				// dan aktifkan tab kosong lebih dulu supaya naskah lain aman.
 				if (!activeDocId) return
 				const tabId = createTab(doc, activeDocId, baseName(file))
 				selectSession(tabId)

@@ -14,11 +14,6 @@ import {
 } from 'lucide-react'
 import { type PanelId, usePanels } from '@/features/analysis/panel-context'
 import { cn } from '@/lib/utils'
-
-/**
- * Daftar tunggal tool rail - juga dipakai menu Tools di menu bar, supaya label
- * dan ikon di kedua tempat tidak bisa melenceng satu sama lain.
- */
 export const PANELS: Array<{ id: PanelId; icon: LucideIcon; label: string }> = [
 	{ id: 'ai_chat', icon: MessagesSquare, label: 'AI Chat' },
 	{ id: 'proofreader', icon: SpellCheck, label: 'Proofreader' },
@@ -33,18 +28,6 @@ export const PANELS: Array<{ id: PanelId; icon: LucideIcon; label: string }> = [
 
 const COLLAPSED_WIDTH = 56
 const EXPANDED_WIDTH = 208
-
-/**
- * Tool rail: berpindah modul tanpa meninggalkan draf yang sedang dikerjakan.
- *
- * Melayang di atas konten dan hanya menampilkan ikon; label muncul saat kursor
- * masuk dan seluruh rail melebar ke kiri. Melebarnya rail - bukan tooltip per
- * ikon - membuat kelima label terbaca sekaligus, sehingga pengguna bisa memindai
- * pilihan tanpa menyapu kursor satu per satu.
- *
- * Rail dibuat `absolute`, jadi induknya perlu menyisakan ruang di kanan
- * (lihat WorkspacePage) agar konten tidak tertutup saat rail menyempit.
- */
 export function PanelRail() {
 	const { activePanel, togglePanel } = usePanels()
 

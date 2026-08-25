@@ -1,30 +1,16 @@
-/**
- * Properti paragraf dan run, dibaca apa adanya dari OOXML.
- *
- * Bentuknya sengaja masih memakai satuan Word - twip untuk jarak, setengah
- * poin untuk ukuran huruf - karena di sinilah kita masih setia pada berkas
- * aslinya. Penerjemahan ke satuan editor terjadi belakangan, di satu tempat,
- * supaya pembulatannya tidak tersebar.
- */
-
 import { attr, child, children, intVal, onOff, val } from './xml'
-
-/** Perataan paragraf, sudah dinamai seperti yang dipakai editor. */
 export type Alignment = 'left' | 'center' | 'right' | 'justify'
 
 export interface ParagraphProps {
 	outlineLevel?: number
 	alignment?: Alignment
-	/** Jarak dari margin, dalam twip. `firstLine` positif menjorok, negatif menggantung. */
 	indentLeft?: number
 	indentRight?: number
 	indentFirstLine?: number
-	/** Spasi baris dalam twip, beserta aturan pembacaannya. */
 	line?: number
 	lineRule?: 'auto' | 'exact' | 'atLeast'
 	spaceBefore?: number
 	spaceAfter?: number
-	/** Penomoran otomatis; angkanya baru dihitung di tahap penomoran. */
 	numId?: number
 	numLevel?: number
 	pageBreakBefore?: boolean
@@ -35,33 +21,16 @@ export interface RunProps {
 	italic?: boolean
 	underline?: boolean
 	strike?: boolean
-	/** Ukuran huruf dalam setengah poin, sebagaimana `w:sz` menyimpannya. */
 	halfPoints?: number
 	font?: string
-	/**
-	 * Rujukan ke font tema (`minorHAnsi`, `majorHAnsi`), bukan nama font.
-	 *
-	 * Disimpan mentah karena namanya baru diketahui setelah theme1.xml dibaca,
-	 * dan `font` yang disebut langsung selalu menang atas rujukan ini.
-	 */
 	fontTheme?: string
-	/** Warna heksa tanpa tanda pagar, atau 'auto'. */
 	color?: string
 	highlight?: string
 	caps?: boolean
 	smallCaps?: boolean
 	vertAlign?: 'superscript' | 'subscript'
-	/** Teks yang tidak boleh dieja-periksa; Word menandainya per run. */
 	noProof?: boolean
 }
-
-/**
- * Menyalin nilai yang benar-benar ada.
- *
- * Sebaran objek biasa (`{...base, ...over}`) menimpa dengan `undefined`, dan di
- * sini `undefined` justru berarti "tidak berpendapat, pakai warisan induk".
- * Membedakan keduanya adalah seluruh inti pewarisan gaya Word.
- */
 export function merge<T extends object>(base: T, over: T): T {
 	const result = { ...base }
 	for (const key of Object.keys(over) as (keyof T)[]) {
@@ -93,15 +62,12 @@ function twips(element: Element | null, name: string): number | undefined {
 	const parsed = Number.parseInt(raw, 10)
 	return Number.isFinite(parsed) ? parsed : undefined
 }
-
-/** Membaca satu blok `w:pPr`. */
 export function readParagraphProps(pPr: Element | null): ParagraphProps {
 	if (!pPr) return {}
 
 	const props: ParagraphProps = {}
 
 	const outline = intVal(child(pPr, 'outlineLvl'))
-	// 9 adalah nilai Word untuk "teks isi" - hadir, tapi justru berarti bukan judul.
 	if (outline !== undefined && outline < 9) props.outlineLevel = outline
 
 	const alignment = val(child(pPr, 'jc'))
@@ -109,15 +75,11 @@ export function readParagraphProps(pPr: Element | null): ParagraphProps {
 
 	const indent = child(pPr, 'ind')
 	if (indent) {
-		// `start`/`end` adalah nama baru untuk `left`/`right`; berkas dari Word
-		// versi berbeda memakai salah satunya.
 		props.indentLeft = twips(indent, 'left') ?? twips(indent, 'start')
 		props.indentRight = twips(indent, 'right') ?? twips(indent, 'end')
 
 		const firstLine = twips(indent, 'firstLine') ?? twips(indent, 'firstLineChars')
 		const hanging = twips(indent, 'hanging') ?? twips(indent, 'hangingChars')
-		// Word memisahkan menjorok dan menggantung jadi dua atribut; editor
-		// menyatukannya pada satu sumbu, seperti `text-indent` di CSS.
 		if (hanging !== undefined) props.indentFirstLine = -hanging
 		else if (firstLine !== undefined) props.indentFirstLine = firstLine
 	}
@@ -126,10 +88,6 @@ export function readParagraphProps(pPr: Element | null): ParagraphProps {
 	if (spacing) {
 		props.line = twips(spacing, 'line')
 		props.lineRule = LINE_RULES[attr(spacing, 'lineRule') ?? ''] ?? undefined
-
-		// Jarak "otomatis" berarti Word yang menghitungnya, dan angka yang
-		// tersimpan di sebelahnya diabaikan. Membacanya tetap sebagai jarak akan
-		// memaku nilai yang bahkan tidak dipakai Word sendiri.
 		const isOn = (name: string) => {
 			const raw = attr(spacing, name)
 			return raw !== undefined && raw !== '0' && raw !== 'false'
@@ -149,8 +107,6 @@ export function readParagraphProps(pPr: Element | null): ParagraphProps {
 
 	return props
 }
-
-/** Membaca satu blok `w:rPr`. */
 export function readRunProps(rPr: Element | null): RunProps {
 	if (!rPr) return {}
 
@@ -162,9 +118,6 @@ export function readRunProps(rPr: Element | null): RunProps {
 	props.caps = onOff(child(rPr, 'caps'))
 	props.smallCaps = onOff(child(rPr, 'smallCaps'))
 	props.noProof = onOff(child(rPr, 'noProof'))
-
-	// Garis bawah bukan properti nyala/mati: nilainya menyebut jenis garis, dan
-	// 'none' adalah cara mematikannya.
 	const underline = child(rPr, 'u')
 	if (underline) props.underline = (val(underline) ?? 'single') !== 'none'
 
@@ -185,17 +138,12 @@ export function readRunProps(rPr: Element | null): RunProps {
 
 	const vertAlign = val(child(rPr, 'vertAlign'))
 	if (vertAlign === 'superscript' || vertAlign === 'subscript') props.vertAlign = vertAlign
-
-	// Kunci yang tidak berpendapat dibuang, supaya `merge` bisa membedakan
-	// "tidak disebut" dari "disebut dan bernilai salah".
 	for (const key of Object.keys(props) as (keyof RunProps)[]) {
 		if (props[key] === undefined) delete props[key]
 	}
 
 	return props
 }
-
-/** Satu definisi gaya di `styles.xml`, sebelum rantai `basedOn`-nya ditelusuri. */
 export interface StyleDefinition {
 	id: string
 	name: string
@@ -207,10 +155,8 @@ export interface StyleDefinition {
 
 export interface DocxStyles {
 	byId: Map<string, StyleDefinition>
-	/** Gaya bawaan dokumen, dari `w:docDefaults`. */
 	defaultParagraph: ParagraphProps
 	defaultRun: RunProps
-	/** Gaya paragraf yang berlaku saat sebuah paragraf tidak menyebut gayanya. */
 	defaultParagraphStyleId?: string
 }
 
@@ -240,10 +186,6 @@ export function readStyles(root: Element | null): DocxStyles {
 			run: readRunProps(child(style, 'rPr')),
 		}
 		styles.byId.set(id, definition)
-
-		// `w:default` adalah atribut pada elemen gayanya, bukan anak seperti
-		// properti lain di styles.xml. Gaya inilah yang berlaku pada paragraf yang
-		// tidak menyebut gayanya sendiri - di sebuah naskah, itu hampir seluruhnya.
 		const isDefault = attr(style, 'default')
 		if (type === 'paragraph' && isDefault !== undefined && isDefault !== '0' && isDefault !== 'false') {
 			styles.defaultParagraphStyleId = id
@@ -252,16 +194,6 @@ export function readStyles(root: Element | null): DocxStyles {
 
 	return styles
 }
-
-/**
- * Menelusuri rantai `basedOn` sampai ke akar, lalu menumpuk kembali ke bawah.
- *
- * Arah ini penting: gaya paling umum harus dipasang lebih dulu supaya turunan
- * yang lebih khusus bisa menimpanya. Inilah yang membuat `Heading awal` -
- * turunan `heading 1` yang hanya membatalkan penomoran - tetap dikenali sebagai
- * judul, dan `Caption Tabel` tetap tebal dan rata tengah meski keduanya
- * mewarisi sifat itu dari induknya, bukan menyebutkannya sendiri.
- */
 export function resolveStyle(
 	styles: DocxStyles,
 	styleId: string | undefined,

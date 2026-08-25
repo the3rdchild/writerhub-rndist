@@ -3,11 +3,6 @@ import { env } from '@/config/env'
 import { RedisClient } from '@/config/redis'
 import { checkDatabaseConnection, disconnectDatabase } from '@/db'
 import QueueClient from '@/lib/queue'
-
-/**
- * `bun --hot` mengevaluasi ulang modul ini tanpa me-restart proses, jadi
- * handler sinyal lama harus dilepas dulu agar tidak menumpuk tiap reload.
- */
 const globalRuntime = globalThis as typeof globalThis & {
 	__signalHandlers?: { sigint: () => void; sigterm: () => void }
 }

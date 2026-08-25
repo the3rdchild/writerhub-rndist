@@ -5,24 +5,11 @@ import { ChevronDown, ChevronUp, Regex, Replace, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { searchAndReplacePluginKey } from '@/features/editor/search-replace'
 import { cn } from '@/lib/utils'
-
-/**
- * Bilah cari & ganti.
- *
- * Kondisi cari/ganti disimpan di storage ekstensi (bukan React) supaya dekorasi
- * ProseMirror diperbarui pada saat yang sama dengan transaksi dokumen. Bilah
- * ini membaca hasil dari storage dan men-trigger ulang bila editor berubah.
- *
- * Bila dipakai dengan dokumen Yjs, hasil dihitung ulang tiap transaksi, jadi
- * mengetik memperbarui sorotan seketika.
- */
 export function SearchBar({ editor, onClose }: { editor: Editor; onClose: () => void }) {
 	const [search, setSearch] = useState('')
 	const [replace, setReplace] = useState('')
 	const [caseSensitive, setCaseSensitive] = useState(false)
 	const [count, setCount] = useState({ index: 0, total: 0 })
-
-	// Tulis istilah cari/ganti ke storage ekstensi; plugin membaca dari situ.
 	useEffect(() => {
 		editor.commands.setSearchTerm(search)
 	}, [editor, search])
@@ -32,8 +19,6 @@ export function SearchBar({ editor, onClose }: { editor: Editor; onClose: () => 
 	useEffect(() => {
 		editor.commands.setCaseSensitive(caseSensitive)
 	}, [editor, caseSensitive])
-
-	// Baca hasil dari storage setiap kali editor bertransaksi (dokumen berubah).
 	useEffect(() => {
 		const readResults = () => {
 			const storage = (editor.storage as { searchAndReplace?: { results: unknown[]; resultIndex: number } })
@@ -48,8 +33,6 @@ export function SearchBar({ editor, onClose }: { editor: Editor; onClose: () => 
 			editor.off('transaction', readResults)
 		}
 	}, [editor])
-
-	// Tutup mencari juga membersihkan istilah pencarian.
 	const close = () => {
 		editor.commands.setSearchTerm('')
 		onClose()
@@ -139,6 +122,4 @@ export function SearchBar({ editor, onClose }: { editor: Editor; onClose: () => 
 		</div>
 	)
 }
-
-// pluginKey diekspor untuk pemakai yang ingin membaca dekorasi langsung.
 export { searchAndReplacePluginKey }

@@ -7,23 +7,11 @@ import { useSync } from '@/features/sync/sync-context'
 import { snapshotLocalVersion } from './local-snapshot'
 import { VERSIONS_QUERY_KEY } from './use-versions'
 import { useVersionMode } from './version-context'
-
-/**
- * Ctrl/Cmd+S cerdas sesuai status tab (Iterasi 2 rencana):
- * - Tab terhubung cloud → flush autosave sekarang (`saveToCloud`, PUT).
- * - Tab lokal → snapshot versi lokal trigger `interval` sebagai titik simpan
- *   cepat, tanpa penjaga 10 menit karena ini aksi eksplisit user.
- *
- * Shortcut dilewatkan saat mode riwayat terbuka: di sana tidak ada draf yang
- * bisa disunting, jadi tidak ada yang perlu disimpan.
- */
 export function useSaveShortcut(): void {
 	const { doc, activeId } = useSessions()
 	const { linkage, saveToCloud } = useSync()
 	const { versionMode } = useVersionMode()
 	const queryClient = useQueryClient()
-
-	// Listener global didaftarkan sekali; nilai terkini dibaca lewat ref.
 	const activeIdRef = useRef(activeId)
 	activeIdRef.current = activeId
 	const linkageRef = useRef(linkage)

@@ -49,8 +49,6 @@ describe('computeVersionDiff', () => {
 	test('rentang removed yang melintasi batas blok dipotong per blok', () => {
 		const versionText = 'satu\ndua\ntiga'
 		const ranges = computeVersionDiff(versionText, 'tiga')
-
-		// "satu\ndua\n" dihapus sekaligus, tapi harus jadi dua rentang tanpa `\n`.
 		expect(ranges).toEqual([
 			{ offset: 0, length: 4, kind: 'removed' },
 			{ offset: 5, length: 3, kind: 'removed' },

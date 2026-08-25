@@ -11,11 +11,6 @@ ALTER TABLE "shares" ALTER COLUMN "document_id" DROP NOT NULL;--> statement-brea
 ALTER TABLE "shares" ADD COLUMN "snapshot_id" uuid;--> statement-breakpoint
 ALTER TABLE "documents" ADD COLUMN "emoji" varchar(32);--> statement-breakpoint
 ALTER TABLE "documents" ADD COLUMN "language" varchar(32);--> statement-breakpoint
--- Backfill: bekukan konten tiap share link lama ke share_snapshots, tautkan
--- lewat snapshot_id, lalu hapus dokumen sumbernya - semua dalam satu statement
--- supaya CTE `src` (yang dibaca dari snapshot data yang sama) bisa menjadi
--- guard penghapusan. Menghapus dengan guard terpisah setelah document_id
--- di-NULL-kan akan menyapu SELURUH tabel documents, termasuk dokumen user.
 WITH src AS (
 	SELECT s."id" AS share_id, s."document_id" AS doc_id, gen_random_uuid() AS snapshot_id, d."title", d."content", d."created_at"
 	FROM "shares" s
@@ -29,14 +24,10 @@ WITH src AS (
 )
 DELETE FROM "documents" d WHERE d."id" IN (SELECT doc_id FROM src);
 --> statement-breakpoint
--- Shares legacy kini menunjuk dokumen yang sudah dihapus; NULL-kan hanya
--- mereka. Share yang dibuat kode baru (document_id ke dokumen user yang masih
--- ada) tidak tersentuh.
 UPDATE "shares" s SET "document_id" = NULL
 WHERE s."document_id" IS NOT NULL
 AND NOT EXISTS (SELECT 1 FROM "documents" d WHERE d."id" = s."document_id");
 --> statement-breakpoint
--- Defensif: sisa baris tanpa pemilik dianggap milik user dev lokal.
 UPDATE "documents" SET "owner_id" = 'local-dev' WHERE "owner_id" IS NULL;
 --> statement-breakpoint
 ALTER TABLE "documents" ALTER COLUMN "owner_id" SET NOT NULL;--> statement-breakpoint

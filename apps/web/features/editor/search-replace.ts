@@ -1,21 +1,9 @@
-// Adaptasi dari https://github.com/sereneinserenade/tiptap-search-and-replace
-// MIT License - (c) 2023-2024 Jeet Mandaliya
 
 import type { Dispatch, Range } from '@tiptap/core'
 import { Extension } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { type EditorState, Plugin, PluginKey, type Transaction } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
-
-/**
- * Cari & ganti: dekorasi ProseMirror menyorot semua kecocokan, perintah
- * menggerakkan index aktif dan mengganti teksnya.
- *
- * State cari/ganti disimpan di storage (bukan di React) supaya dekorasi
- * diperbarui pada saat yang sama dengan transaksi dokumen - mengetik mengubah
- * kecocokan seketika tanpa render ulang React.
- */
-
 export interface SearchAndReplaceOptions {
 	searchResultClass: string
 	disableRegex: boolean

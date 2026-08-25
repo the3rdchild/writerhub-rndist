@@ -18,18 +18,11 @@ import {
 	tabsRoot,
 	updateTab,
 } from './ydoc'
-
-/** Isi satu tab dengan satu paragraf berteks, tanpa lewat TipTap. */
 function writeParagraph(doc: Y.Doc, id: string, text: string): void {
 	const paragraph = new Y.XmlElement('paragraph')
 	paragraph.insert(0, [new Y.XmlText(text)])
 	tabFragment(doc, id).insert(0, [paragraph])
 }
-
-/**
- * Dokumen baru berisi tab-tab berjudul sesuai `titles`. Tab pertama memakai
- * tab bawaan `createDocument`, supaya tidak ada tab penggangguran.
- */
 function docWithTabs(doc: Y.Doc, titles: string[]): { docId: string; tabIds: string[] } {
 	const docId = createDocument(doc)
 	const first = readTabs(doc, docId)[0].id
@@ -120,11 +113,6 @@ describe('tab di dalam dokumen', () => {
 		const doc = new Y.Doc()
 		expect(() => createTab(doc, 'dokumen-hantu')).toThrow()
 	})
-
-	/**
-	 * Arah pindah harus cocok dengan penanda yang ditampilkan sidebar: ke bawah
-	 * berarti mendarat sesudah tab tujuan, ke atas berarti sebelumnya.
-	 */
 	test('pindah ke bawah mendarat sesudah tab tujuan', () => {
 		const doc = new Y.Doc()
 		const { tabIds } = docWithTabs(doc, ['A', 'B', 'C'])
@@ -161,7 +149,6 @@ describe('tab di dalam dokumen', () => {
 
 		expect(readTabs(doc, docId).map((tab) => tab.id)).toEqual([tabIds[1]])
 		expect(tabFragment(doc, tabIds[0]).length).toBe(0)
-		// Dokumennya tetap ada karena masih punya tab.
 		expect(readDocs(doc).map((dok) => dok.id)).toEqual([docId])
 	})
 
@@ -176,8 +163,6 @@ describe('tab di dalam dokumen', () => {
 		expect(readTabs(doc)).toEqual([])
 		expect(tabFragment(doc, tabIds[0]).length).toBe(0)
 	})
-
-	/** Id yatim di urutan tidak boleh muncul sebagai tab tanpa nama. */
 	test('urutan yang menyebut tab tak bermeta diabaikan', () => {
 		const doc = new Y.Doc()
 		const { docId, tabIds } = docWithTabs(doc, ['A'])
@@ -186,8 +171,6 @@ describe('tab di dalam dokumen', () => {
 
 		expect(readTabs(doc, docId).map((tab) => tab.id)).toEqual(tabIds)
 	})
-
-	/** Tab tanpa dokumen tetap terbaca, supaya naskahnya tidak hilang diam-diam. */
 	test('tab yatim ikut dibaca di ujung daftar', () => {
 		const doc = new Y.Doc()
 		docWithTabs(doc, ['Punya dokumen'])
@@ -212,12 +195,6 @@ describe('duplikat tab', () => {
 		expect(titles).toEqual(['Asli', 'Asli (salinan)', 'Lain'])
 		expect(tabPreview(doc, copy as string)).toBe('naskah asli')
 	})
-
-	/**
-	 * Komentar berjangkar pada mark bernama sama di dalam naskah. Kalau ikut
-	 * tersalin, satu utas akan muncul di dua naskah sekaligus dan membalasnya di
-	 * satu tempat mengubah yang lain.
-	 */
 	test('komentar tidak ikut tersalin', () => {
 		const doc = new Y.Doc()
 		const { docId, tabIds } = docWithTabs(doc, ['Asli'])

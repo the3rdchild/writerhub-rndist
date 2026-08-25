@@ -38,8 +38,6 @@ describe('penggabungan dokumen lokal dan server', () => {
 	})
 
 	test('judul sisi lokal yang dipakai untuk dokumen tertaut', () => {
-		// Sisi lokal adalah yang sedang dilihat pengguna; penyelarasan judul
-		// terpisah yang memastikan server menyusul.
 		const merged = mergeDocuments(
 			[local('L1', 'dokumen 5', 10)],
 			[server('S1', 'oke1', 5)],

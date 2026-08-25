@@ -6,18 +6,6 @@ import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { DocumentGrid } from '@/components/library/document-grid'
 import { ProjectSidebar } from '@/components/library/project-sidebar'
-
-/**
- * File Library: semua dokumen yang sudah tersimpan di cloud.
- *
- * Halaman berdiri sendiri dengan kepala sendiri (pola `app/share/[token]`),
- * bukan di dalam AppShell - editor dan daftarnya menjawab dua pertanyaan yang
- * berbeda, dan masing-masing layak mendapat layar penuh.
- *
- * Sidebar kiri menyaring per proyek; pilihan tinggal di query string
- * `?project=` (all / none / <id>) supaya bisa di-bookmark dan tombol Kembali
- * bekerja.
- */
 export default function LibraryPage() {
 	return (
 		<Suspense>

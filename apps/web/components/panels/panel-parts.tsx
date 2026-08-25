@@ -16,13 +16,6 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
-
-/**
- * Potongan UI yang dipakai bersama seluruh panel modul. Sebelumnya tiap panel
- * menyalin markup yang sama (tombol jalankan, banner basi, kartu diff), yang
- * membuat perubahan kecil harus disunting di empat berkas sekaligus.
- */
-
 export function PanelScroll({ children, className }: { children: ReactNode; className?: string }) {
 	return (
 		<div className={cn('flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-surface-inset p-4', className)}>
@@ -45,18 +38,6 @@ export function StaleNotice() {
 		</div>
 	)
 }
-
-/**
- * Apa yang akan diperiksa saat Run ditekan.
- *
- * Kedua keadaan diberi tanda, termasuk "seluruh dokumen". Versi sebelumnya
- * hanya menandai keadaan seleksi dan diam saat tidak ada - dan keheningan itu
- * justru terbaca sebagai "berarti seluruh dokumen", padahal ia sama saja dengan
- * "indikatornya memang tidak muncul". Pengguna tidak bisa membedakan keduanya.
- *
- * Non-interaktif: seleksi tetap terlihat di editor (lihat SelectionHighlight),
- * jadi untuk kembali ke mode dokumen-penuh pengguna cukup meng-klik editor.
- */
 export function ScopeIndicator({ wordCount }: { wordCount: number | null }) {
 	if (wordCount === null) {
 		return (
@@ -118,11 +99,6 @@ export function RunButton({
 	cancelLabel = 'Cancel',
 }: {
 	onClick: () => void
-	/**
-	 * Bila disediakan, tombol berubah jadi "Cancel" selama berjalan - satu
-	 * tombol, dua keadaan, pola yang sama dengan obrolan AI (§P7 lapis A).
-	 * Tanpa ini, tombol hanya jadi spinner & mati seperti sebelumnya.
-	 */
 	onCancel?: () => void
 	disabled: boolean
 	isRunning: boolean
@@ -173,12 +149,6 @@ export function AcceptAllButton({ onClick, disabled }: { onClick: () => void; di
 		</button>
 	)
 }
-
-/**
- * Buang hasil tanpa menerapkan (§P12 butir 2). Kembaran "Clear results" milik
- * Proofreader, dipakai panel berbasis hasil analisis yang meninggalkan sorotan.
- * Gaya sekunder (garis batas) supaya tidak bersaing dengan Run.
- */
 export function ClearResultsButton({ onClick }: { onClick: () => void }) {
 	return (
 		<button
@@ -191,17 +161,6 @@ export function ClearResultsButton({ onClick }: { onClick: () => void }) {
 		</button>
 	)
 }
-
-/**
- * Toggle mode "Compare" (§diff hasil dengan dokumen): tampilkan diff
- * accept-all virtual langsung di editor utama - coret merah untuk teks yang
- * akan diganti, penanda hijau untuk tambahan. Saat aktif, tombol terlihat
- * tertekan supaya pemakai tahu mode itu sedang menyala dan harus dimatikan
- * untuk menyelesaikan suntingan.
- *
- * Hanya satu panel yang boleh aktif pada satu waktu; mengaktifkan di satu
- * panel mematikan yang lain (lihat `AnalysisDiffContext`).
- */
 export function CompareButton({
 	active,
 	onToggle,
@@ -274,8 +233,6 @@ export function AcceptDismissRow({
 		</div>
 	)
 }
-
-/** Kartu diff sebelum/sesudah - dipakai panel AI Rewriter dan Humanizer. */
 export function ChangeCard({
 	original,
 	replacement,
@@ -304,15 +261,6 @@ export function ChangeCard({
 		</div>
 	)
 }
-
-/**
- * Kartu segmen dengan beberapa kandidat pengganti (AI Rewriter).
- *
- * Tiap kandidat punya barisnya sendiri: menjenguk (hover/klik) menampilkan
- * bayangannya di naskah, tombol Apply memasangnya. Segmen dengan satu kandidat
- * tidak memakai kartu ini - `ChangeCard` biasa sudah cukup dan tidak menuntut
- * pengguna memilih di antara satu pilihan.
- */
 export function CandidateCard({
 	original,
 	candidates,
@@ -325,7 +273,6 @@ export function CandidateCard({
 }: {
 	original: string
 	candidates: readonly string[]
-	/** Kandidat yang sedang dijenguk di naskah; null bila tidak ada. */
 	previewIndex: number | null
 	onPreview: (index: number) => void
 	onClearPreview: () => void
@@ -389,14 +336,6 @@ export function CandidateCard({
 		</div>
 	)
 }
-
-/**
- * Kartu segmen yang sudah diterapkan, dengan jalan kembali.
- *
- * Revert mati begitu teks yang dipasang tidak lagi ditemukan di naskah -
- * pengguna menyuntingnya sendiri sesudah menerapkan. Dimatikan berlabel, bukan
- * disembunyikan: kartu yang lenyap tanpa penjelasan terbaca seperti kesalahan.
- */
 export function AppliedCard({
 	original,
 	applied,

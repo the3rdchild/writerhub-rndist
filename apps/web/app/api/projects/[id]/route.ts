@@ -2,8 +2,6 @@ import { callUpstream, configErrorResponse } from '@/lib/server/upstream'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-/** Teruskan pembaruan proyek (rename / ganti warna) ke apps/api. */
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
 	try {
 		const { id } = await params
@@ -17,8 +15,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 		return configErrorResponse(error)
 	}
 }
-
-/** Teruskan penghapusan proyek ke apps/api. */
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
 	try {
 		const { id } = await params

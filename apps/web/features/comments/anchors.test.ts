@@ -12,7 +12,6 @@ function comment(id: string) {
 
 describe('rentang komentar', () => {
 	test('utas yang terpecah beberapa text node dibaca sebagai satu rentang', () => {
-		// "Satu " + tebal "kalimat" + " utuh", ketiganya ditandai komentar yang sama.
 		const doc = schema.node('doc', null, [
 			schema.node('paragraph', null, [
 				schema.text('Satu ', [comment('c-1')]),
@@ -26,7 +25,6 @@ describe('rentang komentar', () => {
 
 		const range = ranges.get('c-1')
 		expect(range).toBeDefined()
-		// Tepat sepanjang teksnya, bukan sepotong yang pertama saja.
 		expect(doc.textBetween(range?.from ?? 0, range?.to ?? 0)).toBe('Satu kalimat utuh')
 	})
 

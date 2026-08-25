@@ -4,22 +4,10 @@ import type { TextChange } from '@writer-hub/shared'
 import { useCallback, useEffect, useState } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { type CandidatePreview, candidatePreviewKey } from './candidate-preview'
-
-/** Kandidat mana yang sedang dijenguk: segmen ke-`index`, kandidat ke-`candidate`. */
 interface PreviewSelection {
 	index: number
 	candidate: number
 }
-
-/**
- * Pratinjau kandidat di naskah: menyalakan dekorasi bayangan lewat meta plugin,
- * dan memastikan ia selalu padam lagi.
- *
- * Bayangan hanya hidup selama panel memintanya. Ia dibersihkan saat kandidat
- * lain dijenguk, saat Escape ditekan, dan saat panel dilepas - yang terakhir
- * penting: berpindah panel dengan bayangan menyala akan meninggalkan coretan
- * di naskah yang tidak ada lagi cara mematikannya.
- */
 export function useCandidatePreview() {
 	const { editor } = useEditorInstance()
 	const [preview, setPreview] = useState<PreviewSelection | null>(null)
@@ -51,9 +39,6 @@ export function useCandidatePreview() {
 		},
 		[send],
 	)
-
-	// Escape membatalkan pratinjau. Didaftarkan di window supaya bekerja
-	// walaupun fokus sedang di dalam editor, bukan di kartunya.
 	useEffect(() => {
 		if (!preview) return
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -62,8 +47,6 @@ export function useCandidatePreview() {
 		window.addEventListener('keydown', onKeyDown)
 		return () => window.removeEventListener('keydown', onKeyDown)
 	}, [preview, clearPreview])
-
-	// Panel dilepas (ganti modul, tutup panel) - bayangan ikut padam.
 	useEffect(() => clearPreview, [clearPreview])
 
 	return { preview, showPreview, clearPreview }

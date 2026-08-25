@@ -13,10 +13,6 @@ from services.analyzers.llm_client import rewrite_sentences_candidates, style_me
 from core.provider import Provider
 
 logger = logging.getLogger(__name__)
-
-# Menulis ulang disebut lebih dulu, perbaikan tata bahasa menyusul: dibalik,
-# naskah yang sudah benar secara tata bahasa tidak menyisakan apa pun untuk
-# dikerjakan model - dan itulah yang membuat teks rapi pulang tanpa usulan.
 _INSTRUCTION = (
     "Rephrase each sentence so it reads more clearly and flows better, even "
     "when it is already correct. Fix any grammar mistakes along the way. Keep "
@@ -70,11 +66,6 @@ def run_ai_rewriter(
     rewritten_text, changes = apply_sentence_candidates(text, spans, candidates_all)
 
     if llm_used:
-        # Yang dicatat adalah hasil nyatanya, bukan bahwa LLM sempat dipanggil.
-        # Versi sebelumnya menulis "(%d kalimat, 2 kandidat)" dengan angka 2
-        # sebagai teks mati, jadi log itu tetap berbunyi sama persis ketika
-        # model membalas tanpa satu pun perubahan - dan panel yang lalu berkata
-        # "tidak ada perubahan yang disarankan" jadi tak bisa ditelusuri.
         logger.info(
             "[ai_rewriter] pakai LLM | kalimat=%d | berubah=%d | punya_alternatif=%d",
             len(stripped),

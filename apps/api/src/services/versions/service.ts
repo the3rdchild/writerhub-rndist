@@ -4,12 +4,6 @@ import { findVersionById, findVersionsByTab, insertVersion } from '@/repository/
 import BaseService from '@/services/base.service'
 import { createVersionBodySchema } from './dto'
 import type { VersionDetail, VersionSummary } from './dto'
-
-/**
- * Hitung jumlah kata dari JSON ProseMirror: rekursi seluruh node, jumlahkan
- * kata di tiap `node.text` (dipisah spasi). Helper murni - dipakai juga oleh
- * snapshot interval di `TabsService`.
- */
 export function countWords(content: Record<string, unknown>): number {
 	let count = 0
 	const walk = (node: Record<string, unknown>): void => {
@@ -23,14 +17,7 @@ export function countWords(content: Record<string, unknown>): number {
 	walk(content)
 	return count
 }
-
-/**
- * Riwayat versi sebuah TAB milik user (versi tetap per tab - keputusan 2 di
- * docs/DOCUMENT-TABS-RESTRUCTURE-PLAN.md). Semua operasi memverifikasi dulu
- * bahwa tabnya milik user (via `findTabById`) - 404 bila bukan.
- */
 export default class VersionsService extends BaseService {
-	/** List metadata versi (tanpa konten), terbaru di atas. */
 	async list(): Promise<Response> {
 		try {
 			await this.ownedTab()
@@ -48,8 +35,6 @@ export default class VersionsService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/** Detail satu versi beserta kontennya. */
 	async getById(): Promise<Response> {
 		try {
 			await this.ownedTab()
@@ -60,8 +45,6 @@ export default class VersionsService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/** Snapshot manual: beku dari `document_tabs.content` saat ini, label opsional. */
 	async create(): Promise<Response> {
 		try {
 			const body = createVersionBodySchema.safeParse(await this.context.req.json())
@@ -85,12 +68,6 @@ export default class VersionsService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/**
-	 * Pulihkan tab ke versi lampau: beku dulu keadaan sekarang sebagai
-	 * versi `pre_restore`, lalu timpa `document_tabs.content` dengan konten versi.
-	 * Idempoten - pengulangan menghasilkan pre_restore baru (tidak destructive).
-	 */
 	async restore(): Promise<Response> {
 		try {
 			const tab = await this.ownedTab()
@@ -116,8 +93,6 @@ export default class VersionsService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/** Tab milik user; 404 bila bukan. */
 	private async ownedTab() {
 		const tab = await findTabById(this.tabId(), await this.identityId())
 		if (!tab) throw AppError.notFound('Tab tidak ditemukan')
@@ -148,7 +123,6 @@ export default class VersionsService extends BaseService {
 		label: string | null
 		word_count: number
 		created_at: Date
-		/** Absen pada versi baru (`insertVersion` tidak pernah membuat trigger `ai_result`). */
 		feature?: string | null
 	}): VersionSummary {
 		return {

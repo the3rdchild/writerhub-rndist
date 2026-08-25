@@ -18,15 +18,6 @@ const CATEGORY_CLASS: Record<string, string> = {
 	spelling: 'suggestion-mark suggestion-mark--spelling',
 	style: 'suggestion-mark suggestion-mark--style',
 }
-
-/**
- * Bangun dekorasi dengan mencari ulang setiap `original` di dokumen saat ini.
- *
- * Offset yang tersimpan hanya jadi petunjuk. Karena posisinya dihitung ulang
- * setiap kali dokumen berubah, sorotan tidak pernah melenceng saat pengguna
- * mengetik - tidak ada offset tersimpan yang perlu digeser-geser, dan
- * suggestion yang teksnya sudah hilang otomatis berhenti disorot.
- */
 function buildDecorations(doc: PMNode, suggestions: readonly EditorSuggestion[]): DecorationSet {
 	const index = buildTextIndex(doc)
 	const decorations: Decoration[] = []
@@ -40,8 +31,6 @@ function buildDecorations(doc: PMNode, suggestions: readonly EditorSuggestion[])
 
 		const range = textRangeToPM(index, span.offset, span.length)
 		if (!range) continue
-
-		// Satu karakter tidak boleh masuk dua dekorasi - yang bertabrakan dilewati.
 		if (taken.some((other) => range.from < other.to && range.to > other.from)) continue
 		taken.push(range)
 
@@ -55,13 +44,6 @@ function buildDecorations(doc: PMNode, suggestions: readonly EditorSuggestion[])
 
 	return DecorationSet.create(doc, decorations)
 }
-
-/**
- * Ekstensi yang menyorot suggestion di dalam editor.
- *
- * Dipakai lewat dekorasi, bukan dengan menyisipkan node ke dokumen, supaya
- * sorotan tidak pernah ikut tersimpan sebagai isi draf.
- */
 export const SuggestionHighlight = Extension.create({
 	name: 'suggestionHighlight',
 

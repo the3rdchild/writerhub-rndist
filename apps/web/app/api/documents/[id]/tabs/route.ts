@@ -2,8 +2,6 @@ import { callUpstream, configErrorResponse } from '@/lib/server/upstream'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-/** Teruskan pembacaan daftar tab sebuah dokumen ke apps/api. */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
 	try {
 		const { id } = await params
@@ -15,8 +13,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 		return configErrorResponse(error)
 	}
 }
-
-/** Teruskan pembuatan tab baru di dalam dokumen ke apps/api. */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
 	try {
 		const { id } = await params

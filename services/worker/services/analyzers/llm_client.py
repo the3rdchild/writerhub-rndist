@@ -10,9 +10,6 @@ logger = logging.getLogger(__name__)
 _TIMEOUT = 60  # detik - satu batch request untuk semua kalimat
 
 _last_total_tokens: int | None = None
-
-# Kode BCP-47 -> nama bahasa dalam bahasa Inggris. Model jauh lebih patuh
-# pada "Indonesian" daripada pada "id".
 _LANGUAGE_NAMES = {
     "en": "English",
     "id": "Indonesian",
@@ -56,8 +53,6 @@ def style_memory_instruction(memory: dict | None) -> str:
         lines.append(f"- Tone: {tone}")
     language = memory.get("language")
     if language:
-        # memory.language disimpan sebagai label ("Bahasa Indonesia"), tapi
-        # klien lama bisa saja ngirim kode - dua-duanya lewat language_name.
         lines.append(f"- Write in {language_name(language)}.")
     glossary = memory.get("glossary") or []
     if glossary:
@@ -152,11 +147,6 @@ def rewrite_sentences(
     """
     if not sentences:
         return []
-
-    # Seluruh prompt ini berbahasa Inggris, dan model cenderung ikut bahasa
-    # prompt-nya. Menitipkan "keep the original language" di dalam instruksi
-    # saja terbukti kalah - naskah Indonesia balik jadi Inggris. Karena itu
-    # bahasanya disebut namanya, sebagai perintah tersendiri di depan.
     system = (
         f"{_build_language_rule(language)}{instruction}\n\n"
         "You will receive a JSON array of sentences. Respond ONLY with a JSON "
@@ -215,9 +205,6 @@ def rewrite_sentences_candidates(
         "the same number of elements, where element i holds the candidates "
         "for input sentence i. The first candidate should be the most "
         "faithful rewrite; the second may vary the phrasing more freely. "
-        # Tanpa kalimat ini model membalas naskah yang sudah rapi apa adanya,
-        # dan seluruh permintaan berakhir tanpa satu pun usulan. Menulis ulang
-        # memang tugasnya - "sudah bagus" bukan jawaban yang berguna di sini.
         "Always rephrase: each candidate must differ in wording from the input "
         "sentence. Returning a sentence unchanged is not an acceptable answer; "
         "if a sentence already reads well, vary its structure or word choice "
@@ -226,10 +213,6 @@ def rewrite_sentences_candidates(
     )
 
     parsed = _chat_json(system, sentences, provider)
-    # `_chat_json` sudah mencatat sebabnya saat requestnya sendiri yang gagal
-    # (mis. 401). Membiarkannya jatuh ke cabang "malformed" di bawah membuat
-    # log berbohong: yang terjadi bukan model membalas bentuk aneh, melainkan
-    # tidak ada balasan sama sekali.
     if parsed is None:
         return None
 
@@ -314,9 +297,6 @@ def translate_sentences(
         if isinstance(item, str) and item.strip():
             result.append(item.strip())
         else:
-            # Elemen yang tak terbaca dikembalikan sebagai kalimat aslinya:
-            # di hilir itu berarti "tidak ada usulan" untuk kalimat itu saja,
-            # bukan menggagalkan seluruh terjemahan.
             logger.warning("[llm_client] elemen terjemahan tidak valid: %r", item)
             result.append(source)
 
@@ -393,11 +373,8 @@ def define_terms(
         term, definition = term.strip(), definition.strip()
         expansion = item.get("expansion")
         expansion = expansion.strip() if isinstance(expansion, str) else ""
-        # Kepanjangan yang cuma mengulang istilahnya sendiri tidak berguna.
         if expansion.lower() == term.lower():
             expansion = ""
-        # Istilah yang tidak pernah dikirim berarti model mengarang - dibuang,
-        # supaya glosarium tidak memuat kata yang tak ada di naskah.
         if not term or not definition or term not in given:
             continue
         entries.append({"term": term, "expansion": expansion, "definition": definition})

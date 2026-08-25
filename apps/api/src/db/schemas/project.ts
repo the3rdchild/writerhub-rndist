@@ -1,12 +1,6 @@
 import { index, pgTable, uuid, varchar } from 'drizzle-orm/pg-core'
 import { timestamps } from '@/db/utils/common-table'
 import { identity } from './identity'
-
-/**
- * Proyek milik user: pengelompokan dokumen di File Library. Setiap dokumen
- * wajib punya proyek (`documents.project_id` NOT NULL, ON DELETE RESTRICT) -
- * proyek tidak bisa dihapus selagi masih berisi dokumen.
- */
 export const projects = pgTable(
 	'projects',
 	{

@@ -18,12 +18,6 @@ interface ExtendedUserPackageResponse {
 	data: ExtendedUserPackage
 	message: string
 }
-
-/**
- * Ambil paket berlangganan user dari pp-extended. Mengembalikan null (bukan
- * melempar) untuk semua kegagalan - pemanggil memperlakukan itu sebagai
- * "provider tidak tersedia" dan membalas 400 yang ramah ke user.
- */
 export async function getExtendedUserPackage(token: string): Promise<ExtendedUserPackage | null> {
 	if (!env.PP_BACKEND_URL) {
 		log.warn('[pp-backend] PP_BACKEND_URL belum dikonfigurasi, lewati getExtendedUserPackage')

@@ -16,50 +16,14 @@ import { cn } from '@/lib/utils'
 import { DocumentRuler } from './document-ruler'
 import { DocumentLeftRuler, LEFT_RULER_GAP, LEFT_RULER_WIDTH } from './document-left-ruler'
 import { TiptapEditor } from './tiptap-editor'
-
-/**
- * Bagian area teks yang boleh dipakai satu blok kode sebelum isinya digulung.
- *
- * Batas atasnya sudah pasti: satu blok tidak boleh lebih tinggi dari area teks,
- * sebab paginasi tidak bisa memenggal isi satu node - yang lebih tinggi dari
- * satu lembar hanya bisa dibiarkan meluber menembus margin dan celah.
- *
- * Angka di bawah batas itu adalah pilihan rasa: makin besar, makin jarang perlu
- * menggulung di dalam blok, tapi makin sering satu blok yang tidak muat
- * meninggalkan ruang kosong lebar di ujung halaman sebelumnya. 0.6 memberi
- * sekitar 30 baris kode pada A4 - cukup untuk dibaca sekali pandang tanpa
- * memakan satu halaman penuh.
- */
 const CODE_BLOCK_HEIGHT_RATIO = 0.6
-
-/** Toolbar bahasa di kepala blok, plus sedikit kelonggaran. */
 const CODE_BLOCK_CHROME = 48
-
-/** Sisa ruang sependek ini tidak lagi berguna untuk menampilkan kode. */
 const CODE_BLOCK_MIN_HEIGHT = 120
-
-/** Piksel 96 dpi → milimeter, dibulatkan 2 desimal untuk aturan `@page`. */
 const mm = (px: number) => Math.round((px / 96) * 25.4 * 100) / 100
-
-/** Satu aturan `@page`: ukuran kertas dan margin sebuah setelan halaman. */
 function pageRuleBody(setup: PageSetup): string {
 	const { width, height, margins } = pageGeometry(setup)
 	return `size: ${mm(width)}mm ${mm(height)}mm; margin: ${mm(margins.top)}mm ${mm(margins.right)}mm ${mm(margins.bottom)}mm ${mm(margins.left)}mm;`
 }
-
-/**
- * Aturan `@page` untuk mencetak, termasuk NAMED PAGES per section (§P8&P9).
- *
- * Satu `@page` tanpa nama tidak bisa membedakan ukuran antar bagian dokumen -
- * lampiran lanskap akan tercetak potret. Named page bisa: tiap section
- * mendapat `@page secN`, dan tiap blok miliknya menunjuk ke sana lewat properti
- * `page` (kelas penandanya dipasang plugin paginasi). Peramban yang belum
- * mendukungnya mengabaikan nama itu dan jatuh ke `@page` tanpa nama di bawah -
- * hasilnya sama seperti sebelum fitur ini ada, bukan rusak.
- *
- * Section pertama sengaja tidak diberi nama: ia memakai `@page` polos, sehingga
- * dokumen tanpa pembatas section menghasilkan CSS yang persis seperti dulu.
- */
 function printPageRules(base: PageSetup, sections: readonly PageSetup[]): string {
 	const rules = [`@page { ${pageRuleBody(base)} }`]
 
@@ -71,16 +35,6 @@ function printPageRules(base: PageSetup, sections: readonly PageSetup[]): string
 
 	return rules.join('\n')
 }
-
-/**
- * Kanvas tempat lembar dokumen berada.
- *
- * Lembar digambar sebagai lapisan latar, sementara teks mengalir di atasnya
- * sebagai satu dokumen utuh. Yang memindahkan teks melewati batas lembar adalah
- * spacer dari ekstensi Pagination - bukan pemotongan node - sehingga seleksi,
- * penyalinan, dan pemetaan offset untuk sorotan grammar tetap berjalan seperti
- * pada dokumen biasa.
- */
 export function DocumentCanvas({
 	containerRef,
 	onReady,
@@ -93,54 +47,25 @@ export function DocumentCanvas({
 	const { editor } = useEditorInstance()
 	const { activeId } = useSessions()
 	const [pageCount, setPageCount] = useState(1)
-	// Lembar hasil perhitungan paginasi; kosong pada bingkai-bingkai pertama.
-	// Dengan section (§P8&P9) lembar boleh berbeda ukuran dan orientasi.
 	const [sheets, setSheets] = useState<SheetGeometry[]>([])
-	/**
-	 * Setelan tiap section, untuk aturan `@page` bernama saat mencetak (§P8&P9).
-	 * Kosong berarti naskah tanpa pembatas section - satu `@page` sudah cukup.
-	 */
 	const [sectionSetups, setSectionSetups] = useState<PageSetup[]>([])
 
 	const geometry = useMemo(() => pageGeometry(setup), [setup])
 	const { width, height, margins, gap, pageStride, contentHeight } = geometry
-
-	/*
-	 * Blok kode dibatasi setinggi area teks dan sisanya digulung di dalam bloknya
-	 * sendiri. Tanpa itu, blok kode panjang tumbuh melewati batas lembar dan
-	 * isinya terbaca menyambung menembus celah antar halaman.
-	 *
-	 * Nilainya dikirim sebagai custom property, bukan ditulis di CSS: hanya di
-	 * sini geometri lembar diketahui, dan ia berubah tiap kali ukuran kertas atau
-	 * margin diubah. Mode pageless tidak punya batas lembar, jadi tidak dibatasi.
-	 */
 	const codeBlockMaxHeight = setup.pageless
 		? 'none'
 		: `${Math.max(
 				CODE_BLOCK_MIN_HEIGHT,
 				Math.min(contentHeight * CODE_BLOCK_HEIGHT_RATIO, contentHeight - CODE_BLOCK_CHROME),
 			)}px`
-
-	/*
-	 * Penggaris menulis perubahan margin langsung ke tata letak dokumen
-	 * (Y.Doc), bukan ke preferensi pemakai - keputusan §2.1. scope 'document'
-	 * menyamaratak semua tab; di sinilah ruler atas bekerja.
-	 */
 	const onMarginsChange = (patch: Partial<PageMargins>) =>
 		setPageSetup({ ...setup, margins: { ...margins, ...patch } }, 'document')
-
-	// Kanvas selebar lembar terlebar; lembar yang lebih sempit dipusatkan.
 	const canvasWidth = sheets.length > 0 ? Math.max(width, ...sheets.map((sheet) => sheet.width)) : width
 	const totalHeight =
 		sheets.length > 0
 			? sheets[sheets.length - 1].top + sheets[sheets.length - 1].height
 			: pageCount * height + (pageCount - 1) * gap
 	const zoom = settings.zoom
-
-	// Ruang penggaris kiri: lembar bergeser selebar ini ke kanan saat penggaris
-	// tampil. Penggaris atas ikut digeser (marginLeft) supaya keduanya tetap
-	// sejajar dengan tepi lembar. Pada pageless penggaris kiri disembunyikan
-	// (§A1.5) - tidak ada lembar yang bisa dijadikan asal skala.
 	const leftRulerRoom =
 		settings.showRuler && !setup.pageless ? LEFT_RULER_WIDTH + LEFT_RULER_GAP : 0
 
@@ -152,37 +77,10 @@ export function DocumentCanvas({
 			)}
 		>
 			{/*
-			 * Ukuran kertas & margin untuk pencetakan.
-			 *
-			 * Harus disuntikkan dari sini, bukan ditulis di globals.css: keduanya
-			 * milik naskah dan berubah kapan saja lewat dialog Penyiapan halaman,
-			 * sedangkan `@page` tidak menerima custom property.
-			 *
-			 * Di kertas, margin datang dari `@page` - bukan dari padding pembungkus
-			 * seperti di layar. Bedanya penting: di layar tiap lembar berhenti
-			 * sendiri di batas area teks, sementara saat dicetak naskah mengalir
-			 * menerus dan peramban yang memenggalnya, jadi hanya `@page` yang bisa
-			 * memberi margin pada halaman KEDUA dan seterusnya.
-			 *
-			 * Section berukuran berbeda (§P8&P9) memakai NAMED PAGES: tiap section
-			 * dapat `@page secN` sendiri, dan blok miliknya menunjuk ke sana lewat
-			 * properti `page`. Peramban yang belum mendukungnya mengabaikan nama itu
-			 * dan jatuh ke `@page` polos - hasilnya seperti sebelum fitur ini ada,
-			 * bukan rusak. Chrome mendukung penuh; Firefox dan Safari belum
-			 * konsisten pada `@page { size }`, jadi di sana ukuran kertas ikut
-			 * pilihan dialog cetak.
 			 */}
 			{!setup.pageless && <style media="print">{printPageRules(setup, sectionSetups)}</style>}
 			<div className="mx-auto" style={{ width: canvasWidth * zoom + leftRulerRoom }}>
 				{settings.showRuler && (
-					// Penggaris ikut menggulung mendatar bersama lembar, tapi menempel di
-					// atas saat menggulung vertikal - ia harus tetap terbaca sepanjang
-					// dokumen, bukan hanya di halaman pertama.
-					//
-					// z-10 = lapisan isi kanvas (lihat skala lapisan di globals.css), jauh
-					// di bawah TopBar: menu yang terbuka dari sana terkurung di stacking
-					// context TopBar, jadi penggaris yang menyamai nilainya akan menutupi
-					// seluruh dropdown.
 					<div
 						className="document-ruler-bar sticky top-0 z-10"
 						style={{ marginLeft: leftRulerRoom, width: width * zoom }}
@@ -198,8 +96,6 @@ export function DocumentCanvas({
 
 				<div className="flex">
 					{settings.showRuler && !setup.pageless && (
-						// Penggaris kiri menggulung bersama lembar ke dua arah - ia milik
-						// lembar, bukan bingkai layar.
 						<div className="shrink-0" style={{ width: leftRulerRoom, paddingRight: LEFT_RULER_GAP }}>
 							<DocumentLeftRuler
 								geometry={geometry}
@@ -247,12 +143,9 @@ export function DocumentCanvas({
 												className="document-sheet absolute"
 												style={{
 													top: sheet.top,
-													// Lembar yang lebih sempit dari kanvas dipusatkan (§P8&P9).
 													left: (canvasWidth - sheet.width) / 2,
 													width: sheet.width,
 													height: sheet.height,
-													// pageColor null = ikuti tema (kelas CSS). Diisi eksplisit
-													// hanya bila pengguna memilih warna (WYSIWYG, putusan §9).
 													...(setup.pageColor ? { background: setup.pageColor } : {}),
 												}}
 											>
@@ -305,12 +198,6 @@ export function DocumentCanvas({
 								}
 							>
 								{/*
-								 * Editor menunggu naskah tersimpan selesai dimuat.
-								 *
-								 * Ia terikat ke fragmen Y.Doc milik tab aktif, jadi membuatnya
-								 * sebelum tab itu diketahui berarti satu editor sia-sia yang
-								 * langsung dibuang - dan lembar kosong yang berkelebat sebelum
-								 * naskah muncul.
 								 */}
 								{activeId && (
 									<TiptapEditor

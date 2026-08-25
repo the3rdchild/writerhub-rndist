@@ -17,32 +17,12 @@ import {
 	PanelScroll,
 	RunButton,
 } from './panel-parts'
-
-/**
- * Glosarium: susun daftar istilah dari naskah, sisipkan sebagai tabel.
- *
- * Berbeda dari modul lain di rail, hasilnya bukan usulan per rentang teks
- * melainkan satu bagian utuh di akhir tab - jadi ia tidak memakai
- * `ChangeListPanel` maupun highlight layer.
- *
- * Sengaja selalu bekerja pada SELURUH tab, tanpa menghormati seleksi: daftar
- * istilah yang hanya mencakup satu paragraf yang kebetulan tersorot bukan
- * glosarium, dan kalau seleksi diam-diam mempersempitnya pengguna tidak punya
- * cara tahu.
- */
 export function GlossaryPanel() {
 	const { result, isRunning, error, canRun, run, cancel } = useAnalysis('glossary')
 	const { editor } = useEditorInstance()
 
 	const entries = (result as GlossaryResult | undefined)?.entries ?? []
 	const llmUnavailable = (result as GlossaryResult | undefined)?.llm_unavailable
-
-	/**
-	 * Sisipkan bagian Glosarium di akhir tab, atau ganti yang sudah ada.
-	 *
-	 * Menjalankan ulang tidak boleh meninggalkan dua tabel; yang diganti hanya
-	 * heading "Glosarium" yang diikuti tabel - lihat `findGlossarySection`.
-	 */
 	const insert = () => {
 		if (!editor || editor.isDestroyed || entries.length === 0) return
 

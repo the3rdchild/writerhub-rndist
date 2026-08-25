@@ -1,14 +1,4 @@
 import { Mark, mergeAttributes } from '@tiptap/core'
-
-/**
- * Penanda komentar pada teks.
- *
- * Dibuat sebagai mark, bukan sebagai rentang offset yang disimpan terpisah,
- * karena mark ikut bergerak sendiri saat naskah disunting - menyisipkan
- * paragraf di atasnya tidak membuat komentar menunjuk kalimat yang salah.
- * Itu jangkar yang tidak perlu dipelihara.
- */
-
 export const COMMENT_MARK = 'comment'
 
 declare module '@tiptap/core' {
@@ -22,8 +12,6 @@ declare module '@tiptap/core' {
 
 export const CommentMark = Mark.create({
 	name: COMMENT_MARK,
-
-	// Beberapa komentar boleh menumpuk pada kalimat yang sama.
 	excludes: '',
 	inclusive: false,
 

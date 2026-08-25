@@ -25,9 +25,6 @@ def _cap(sample: str, word: str) -> str:
 def _iss(offset, length, replacement, type_, prio=0):
     return {"offset": offset, "length": length, "replacement": replacement,
             "type": type_, "category": "grammar", "prio": prio}
-
-
-# ── morfologi ────────────────────────────────────────────────────────────────
 _IRREG_PLURAL = {"child": "children", "man": "men", "woman": "women",
                  "person": "people", "tooth": "teeth", "foot": "feet",
                  "mouse": "mice", "goose": "geese", "leaf": "leaves",
@@ -73,7 +70,6 @@ _PAST_BASE = {
     "grew": "grow", "threw": "throw", "flew": "fly", "blew": "blow",
     "shook": "shake", "gone": "go", "done": "do", "seen": "see", "taken": "take",
     "given": "give", "written": "write", "known": "know", "broken": "break",
-    # regular umum
     "continued": "continue", "started": "start", "finished": "finish",
     "worked": "work", "played": "play", "returned": "return", "stopped": "stop",
     "deleted": "delete", "expected": "expect", "needed": "need", "wanted": "want",
@@ -120,9 +116,6 @@ _SING_SUBJ = {"he", "she", "it", "this", "that", "nobody", "somebody", "anybody"
               "everybody", "everyone", "someone", "anyone", "nothing", "something",
               "each", "one", "either", "neither"}
 _PLUR_SUBJ = {"we", "they", "these", "those"}
-
-
-# ── rules ─────────────────────────────────────────────────────────────────────
 def _be_prep_governed(tagged, idx):
     """True kalau noun di idx didahului preposisi (object of prep, bukan subject).
     Contoh: 'one of my friends' → 'friends' di-govern 'of' → bukan subject."""
@@ -149,7 +142,6 @@ def _be_agreement(tagged, text):
         slw = sw.lower()
         if slw in ("there", "i", "you"):  # existential / subjunctive / ambigu
             continue
-        # prep-governed noun bukan subject ("one of my friends was" → benar)
         if st in ("NN", "NNP", "NNS", "NNPS") and _be_prep_governed(tagged, k):
             continue
         is_sing = st in ("NN", "NNP") or slw in _SING_SUBJ
@@ -171,13 +163,11 @@ def _noun_number(tagged, text):
     n = len(tagged)
     PLURAL_DET = {"several", "few", "both", "various", "multiple", "numerous",
                   "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"}
-    # cuma head yang JELAS minta objek jamak ("one of the students"); bukan most/some/all
     OF_HEAD = {"one", "each", "either", "neither"}
     for i in range(n - 1):
         lw = tagged[i][0].lower()
         if lw not in PLURAL_DET and lw not in ("every", "each", "many"):
             continue
-        # cari noun, lewatin adjektiva ("many important information", "several big task")
         j = i + 1
         while j < n and tagged[j][1] in ("JJ", "JJR", "JJS"):
             j += 1
@@ -193,7 +183,6 @@ def _noun_number(tagged, text):
             out.append(_iss(tagged[i][2], tagged[i][3], _cap(tagged[i][0], "much"), "Word choice"))
         elif lw in PLURAL_DET and nt[1] == "NN" and nlw not in _UNCOUNTABLE:
             out.append(_iss(nt[2], nt[3], _cap(nt[0], _pluralize(nt[0])), "Noun number"))
-    # "one of (det) noun-tunggal" → jamak
     for i in range(n - 2):
         if tagged[i][0].lower() in OF_HEAD and tagged[i + 1][0].lower() == "of":
             j = i + 2
@@ -214,7 +203,6 @@ def _modal_to_base(tagged, text):
             continue
         p = tagged[i - 1]
         pw = p[0].lower()
-        # didahului modal / "to" / "modal + n't" ("couldn't continued")
         after_modal = (
             p[1] == "MD"
             or pw == "to"
@@ -229,7 +217,6 @@ def _modal_to_base(tagged, text):
 
 def _each_other(text):
     out = []
-    # prio=-1 biar menang overlap sama agreement palsu di "others" ("each other" = tunggal)
     for m in re.finditer(r"\beach\s+others\b", text, re.IGNORECASE):
         out.append(_iss(m.start(), len(m.group(0)), _cap(m.group(0), "each other"), "Word choice", prio=-1))
     return out

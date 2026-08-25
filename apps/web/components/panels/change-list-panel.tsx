@@ -32,16 +32,12 @@ import {
 } from './panel-parts'
 import { RunScopeBar } from './run-scope-bar'
 import { editsFromChanges, useAnalysisDiff } from '@/features/analysis/use-analysis-diff'
-
-/** Nilai tone 'default' = tanpa arahan khusus (AI Memory tetap berlaku). */
 type ToneChoice = RewriterTone | 'default'
 
 const TONE_OPTIONS: ReadonlyArray<{ value: ToneChoice; label: string }> = [
 	{ value: 'default', label: 'Default' },
 	...REWRITE_TONES.map((tone) => ({ value: tone.id as ToneChoice, label: tone.label })),
 ]
-
-/** Bahasa tujuan Translator - memakai ulang daftar bahasa dokumen. */
 const LANGUAGE_CHOICES = LANGUAGE_OPTIONS.map((entry) => ({
 	value: entry.code,
 	label: entry.label,
@@ -55,20 +51,10 @@ export interface ChangeListPanelProps {
 	emptyDescription: string
 	runLabel: string
 	rerunLabel: string
-	/** Label saat Run akan bekerja pada seleksi, bukan seluruh naskah. */
 	scopedLabel: string
 	runningLabel: string
-	/** Pesan saat analisis selesai tapi tidak ada yang perlu diubah. */
 	noChangesLabel: (result: unknown) => string
 }
-
-/**
- * AI Rewriter, Humanizer, dan Translator punya alur yang persis sama - daftar
- * usulan pengganti yang bisa diterima per segmen - dan hanya berbeda pada teks,
- * ikon, serta satu kendali di kaki panel (tone untuk Rewriter, bahasa tujuan
- * untuk Translator). Ketiganya memakai komponen ini alih-alih menyalin ~200
- * baris markup yang sama.
- */
 export function ChangeListPanel({
 	feature,
 	icon,
@@ -89,40 +75,19 @@ export function ChangeListPanel({
 	const { rangeProps } = useRangeHighlight()
 	const { preview, showPreview, clearPreview } = useCandidatePreview()
 	const { ensureSnapshot, reset: resetSnapshot } = usePreTranslateSnapshot()
-
-	// Suntingan tertunda untuk mode Compare: change yang belum diterima.
-	// `editsFromChanges` membuang yang sudah masuk riwayat Applied.
 	const diffEdits = useMemo(
 		() => editsFromChanges(pending, applied),
 		[pending, applied],
 	)
 	const compare = useAnalysisDiff(feature, diffEdits)
-
-	/*
-	 * Sorot segmen yang masih pending di naskah. Daftarnya dihitung ulang dari
-	 * state pending - yang sudah menggeser offset sesudahnya tiap kali satu
-	 * change diterima - jadi terima/tolak/batal otomatis memperbarui sorotan.
-	 */
 	const highlightRanges = useMemo(
 		() => pending.map(({ offset, length }) => ({ offset, length, kind: 'change' as const })),
 		[pending],
 	)
 	useAnalysisHighlight(feature, highlightRanges)
-
-	/*
-	 * Terjemahan menimpa banyak kalimat sekaligus, jadi penerapan pertamanya
-	 * membuat versi `pre_translate` lebih dulu. Modul lain tidak: mereka
-	 * mengganti satu kalimat per klik, dan undef editor sudah cukup.
-	 */
 	const applyGuard = feature === 'translator' ? ensureSnapshot : undefined
-
-	// Pemilih tone hanya untuk AI Rewriter; pilihan terakhir diingat per browser.
 	const [tone, setTone] = usePersistentState<ToneChoice>('writer-hub-rewriter-tone', 'default')
 	const selectedTone = tone === 'default' ? undefined : tone
-
-	// Bahasa tujuan Translator, juga diingat per browser. Bawaannya Inggris:
-	// naskah di sini kebanyakan berbahasa Indonesia, jadi arah itu yang paling
-	// sering dipakai - dan pilihannya toh langsung terlihat di kaki panel.
 	const [targetLang, setTargetLang] = usePersistentState<string>(
 		'writer-hub-translator-target',
 		'en',
@@ -130,18 +95,12 @@ export function ChangeListPanel({
 
 	const runOptions =
 		feature === 'translator' ? { targetLang } : feature === 'ai_rewriter' ? { tone: selectedTone } : {}
-
-	// Mengganti tone langsung menjalankan ulang (bila sudah ada hasil) supaya
-	// perbedaannya terlihat tanpa harus menekan Rewrite Again dulu.
 	const handleToneChange = (value: ToneChoice) => {
 		setTone(value)
 		if (result && !isRunning) {
 			run(scope ?? undefined, { tone: value === 'default' ? undefined : value })
 		}
 	}
-
-	// Idem untuk bahasa tujuan: mengganti bahasa berarti minta terjemahan lain,
-	// bukan sekadar mengubah label.
 	const handleTargetLangChange = (value: string) => {
 		setTargetLang(value)
 		resetSnapshot()
@@ -165,9 +124,6 @@ export function ChangeListPanel({
 									{pending.length} {pending.length === 1 ? 'change' : 'changes'}
 								</p>
 								{pending.map((change, index) =>
-									// Dua kandidat atau lebih layak dipilih; satu kandidat
-									// tidak - kartu pilihan untuk satu pilihan cuma menambah
-									// klik tanpa menambah kuasa.
 									change.candidates && change.candidates.length > 1 ? (
 										<CandidateCard
 											key={`${change.offset}-${change.original}`}
@@ -202,10 +158,6 @@ export function ChangeListPanel({
 								)}
 							</div>
 						) : llmUnavailable ? (
-							// Gagal menjangkau AI dan "naskahmu memang sudah bagus"
-							// sama-sama berupa changes kosong. Menyamakan keduanya
-							// membuat kegagalan terbaca sebagai pujian - dan pengguna
-							// mengklik Rewrite berulang kali tanpa tahu apa yang salah.
 							<PanelError message="AI could not be reached, so no suggestions could be produced. Check the AI provider configuration, then try again." />
 						) : (changes ?? []).length === 0 ? (
 							<p className="py-4 text-center text-xs text-subtle">

@@ -17,9 +17,6 @@ def by_term(candidates):
 
 
 def test_akronim_diterima_walau_hanya_sekali_dengan_kind_acronym():
-    # Akronim "DCS" muncul sekali saja - tetap masuk, dan jenisnya 'acronym'
-    # (§P2). Inilah yang menjelaskan ke pengguna kenapa istilah sekali-muncul
-    # bisa ada di daftar.
     candidates = extract_candidates("The DCS regulates the flow.")
     kinds = by_term(candidates)
     assert "DCS" in kinds
@@ -27,8 +24,6 @@ def test_akronim_diterima_walau_hanya_sekali_dengan_kind_acronym():
 
 
 def test_frasa_berkapital_harus_berulang_dengan_kind_phrase():
-    # Frasa berkapital yang muncul sekali tidak masuk (biasanya kata pertama
-    # kalimat); yang berulang masuk sebagai 'phrase'.
     once = extract_candidates("Important Concept appeared here once.")
     assert "Important Concept" not in by_term(once)
 
@@ -43,7 +38,6 @@ def test_frasa_berkapital_harus_berulang_dengan_kind_phrase():
 
 
 def test_akronim_berlapis_tidak_dihitung_sebagai_frasa():
-    # Akronim yang juga cocok pola frasa tidak boleh ditandai 'phrase'.
     candidates = extract_candidates("GPT4 and GPT4 again.")
     kinds = by_term(candidates)
     assert kinds["GPT4"][1] == "acronym"
@@ -54,6 +48,5 @@ def test_hasil_diurutkan_terbanyak_dulu():
         "Rare Once. Repeated Thing here. Repeated Thing there. AAA AAA AAA."
     )
     kinds = by_term(candidates)
-    # 'AAA' muncul 3×, harus di atas 'Repeated Thing' (2×).
     order = [term for term, _, _ in candidates]
     assert order.index("AAA") < order.index("Repeated Thing")

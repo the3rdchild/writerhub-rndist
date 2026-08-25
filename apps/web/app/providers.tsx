@@ -19,8 +19,6 @@ function createQueryClient() {
 	return new QueryClient({
 		defaultOptions: {
 			queries: {
-				// Hasil analisis terikat ke isi teks tertentu lewat kunci query,
-				// jadi tidak pernah usang dengan sendirinya.
 				staleTime: Number.POSITIVE_INFINITY,
 				refetchOnWindowFocus: false,
 				retry: false,
@@ -31,8 +29,6 @@ function createQueryClient() {
 }
 
 export function Providers({ children }: { children: ReactNode }) {
-	// Satu QueryClient per mount browser; dibuat di state agar StrictMode
-	// tidak membuat dua instance dan membuang cache.
 	const [queryClient] = useState(createQueryClient)
 
 	return (

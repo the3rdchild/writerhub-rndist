@@ -1,10 +1,5 @@
 import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
-
-/**
- * Error HTTP dengan status eksplisit. Ditangkap `BaseService.failFromError`
- * dan `app.onError`, lalu diubah jadi envelope error yang seragam.
- */
 export class AppError extends HTTPException {
 	constructor(
 		public readonly statusCode: ContentfulStatusCode,

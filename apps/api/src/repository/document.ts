@@ -2,23 +2,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import db from '@/db'
 import { documents, documentTabs, projects } from '@/db/schemas'
 import type { NewDocument } from '@/db/schemas'
-
-/**
- * Akses tabel `documents` (induk) yang selalu diskop ke pemilik lewat join ke
- * `projects` (`documents.project_id -> projects.owner_id`) - dokumen tidak
- * punya `owner_id` sendiri, dan dokumen user lain tidak pernah terlihat lewat
- * fungsi-fungsi ini.
- */
-
-// Jumlah tab dihitung di SQL supaya daftar Library tidak perlu N+1 query.
-// `$count` menghasilkan subquery terkorelasi yang ter-kualifikasi tabel dengan
-// benar (sql`` manual merender kolom tanpa prefix tabel dan salah korelasi).
 const tabCountFor = () => db.$count(documentTabs, eq(documentTabs.document_id, documents.id))
-
-/**
- * Metadata list dokumen milik user, terbaru di atas, beserta jumlah tabnya.
- * `projectId` menyaring per proyek bila diisi.
- */
 export async function findDocumentsByOwner(ownerId: string, projectId?: string) {
 	const conditions = [eq(projects.owner_id, ownerId)]
 	if (projectId) conditions.push(eq(documents.project_id, projectId))
@@ -52,8 +36,6 @@ export async function insertDocument(values: NewDocument) {
 	const [row] = await db.insert(documents).values(values).returning()
 	return row ?? null
 }
-
-/** Menimpa field yang dikirim; `updated_at` otomatis via `$onUpdateFn`. */
 export async function updateDocument(id: string, ownerId: string, values: Partial<NewDocument>) {
 	const owned = await findDocumentById(id, ownerId)
 	if (!owned) return null
@@ -61,20 +43,9 @@ export async function updateDocument(id: string, ownerId: string, values: Partia
 	const [row] = await db.update(documents).set(values).where(eq(documents.id, id)).returning()
 	return row ?? null
 }
-
-/**
- * Sentuh `updated_at` induk tanpa mengubah isinya - dipakai saat salah satu
- * tab di-autosave supaya urutan "terbaru di atas" di Library tetap benar.
- */
 export async function touchDocument(id: string) {
 	await db.update(documents).set({ updated_at: new Date() }).where(eq(documents.id, id))
 }
-
-/**
- * Hard delete. Tab ikut terhapus lewat ON DELETE CASCADE
- * (`document_tabs.document_id`); versi/share/pool_request mengikuti aturan FK
- * masing-masing di tabel mereka.
- */
 export async function deleteDocument(id: string, ownerId: string) {
 	const owned = await findDocumentById(id, ownerId)
 	if (!owned) return null

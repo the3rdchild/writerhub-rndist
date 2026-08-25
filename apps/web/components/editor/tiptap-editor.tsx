@@ -44,12 +44,9 @@ export function TiptapEditor({
 	containerRef: React.RefObject<HTMLDivElement | null>
 	onReady?: (editor: Editor | null) => void
 	geometry?: PageGeometry
-	/** Setelan halaman dasar; mengaktifkan model section (§P8&P9). */
 	setup?: PageSetup
-	/** Mode pageless: pemenggalan halaman dimatikan. */
 	pageless?: boolean
 	onPageCountChange?: (pageCount: number) => void
-	/** Daftar lembar berubah; kanvas menggambar ulang latar (§P8&P9). */
 	onSheetsChange?: (sheets: SheetGeometry[]) => void
 	onSectionsChange?: (setups: PageSetup[]) => void
 }) {
@@ -57,37 +54,16 @@ export function TiptapEditor({
 	const { settings } = useSettings()
 	const { doc, activeId } = useSessions()
 	const [popover, setPopover] = useState<PopoverPosition | null>(null)
-
-	// State menu slash - dipasang ke ekstensi lewat callback stabil (refs).
 	const [slashState, setSlashState] = useState<SlashCommandState | null>(null)
 	const slashStateRef = useRef(setSlashState)
 	slashStateRef.current = setSlashState
-
-	// Ekstensi hanya dibuat sekali, jadi callback dilewatkan lewat ref agar
-	// pemanggil tetap boleh mengirim fungsi baru tiap render.
 	const pageCountRef = useRef(onPageCountChange)
 	pageCountRef.current = onPageCountChange
 	const sheetsRef = useRef(onSheetsChange)
 	sheetsRef.current = onSheetsChange
 	const sectionsRef = useRef(onSectionsChange)
 	sectionsRef.current = onSectionsChange
-
-	/**
-	 * Perubahan yang berasal dari editor sendiri tidak boleh dipantulkan balik
-	 * ke editor sebagai `setContent` - itu akan memindahkan kursor ke awal.
-	 */
 	const selfEditRef = useRef(false)
-
-	/*
-	 * Editor dibuat ulang tiap kali tab berganti - `activeId` jadi dependensinya.
-	 *
-	 * ferdocs menempuh jalan lain: menyusun ulang daftar ekstensi di tempat
-	 * supaya instance editornya bertahan, dan itu memang lebih cepat beberapa
-	 * puluh milidetik. Yang dibayar untuk itu adalah editor yang menyimpan sisa
-	 * keadaan tab sebelumnya - riwayat undo, dekorasi, plugin yang masih
-	 * memegang posisi lama. Membuat ulang memberi tiap tab editor yang bersih,
-	 * dan pada dokumen sepanjang naskah biasa selisih waktunya tidak terasa.
-	 */
 	const editor = useEditor(
 		{
 			immediatelyRender: false, // dokumen dirender di klien; hindari mismatch hidrasi
@@ -117,23 +93,10 @@ export function TiptapEditor({
 		},
 		[activeId],
 	)
-
-	// Instance yang ditinggalkan dicabut dari context, bukan dibiarkan menganggur
-	// di sana sampai penggantinya siap: yang membacanya di antara dua saat itu
-	// akan menemukan editor yang sudah dibubarkan.
 	useEffect(() => {
 		onReady?.(editor)
 		return () => onReady?.(null)
 	}, [editor, onReady])
-
-	/*
-	 * Migrasi naskah lama (E5 langkah 4): blok kolom pembungkus yang masih
-	 * tersimpan diganti sepasang pembatas section menerus saat naskah dibuka.
-	 * Editor dibuat ulang per tab, jadi tiap tab dimigrasi tepat sekali saat
-	 * isinya datang; `update` menjangkau isi yang tiba belakangan dari Yjs.
-	 * Fungsinya idempoten dan transaksinya di luar riwayat undo, jadi aman
-	 * dijalankan di setiap pembaruan.
-	 */
 	useEffect(() => {
 		if (!editor) return
 		const migrate = () => {
@@ -146,28 +109,13 @@ export function TiptapEditor({
 			editor.off('update', migrate)
 		}
 	}, [editor])
-
-	// Daftar ekstensi hanya dibuat sekali, sedangkan margin bisa diseret kapan
-	// saja lewat penggaris - geometri barunya dikirim sebagai meta transaksi.
 	useEffect(() => {
 		if (!editor) return
 		const transaction = editor.state.tr.setMeta(paginationKey, { geometry, setup, pageless })
 		transaction.setMeta('addToHistory', false)
 		editor.view.dispatch(transaction)
 	}, [editor, geometry, setup, pageless])
-
-	/**
-	 * Editor yang isinya sudah pernah disamakan dengan state.
-	 *
-	 * Editor yang baru lahir - halaman baru dibuka, atau tab baru dipilih -
-	 * isinya datang dari Y.Doc, dan pada render itu state dokumen masih memuat
-	 * naskah tab sebelumnya. Tanpa penanda ini, penyamaan di bawah akan menimpa
-	 * naskah tab yang baru dibuka dengan teks tab yang baru ditinggalkan.
-	 */
 	const syncedEditorRef = useRef<Editor | null>(null)
-
-	// Isi editor dari state saat teks datang dari luar: tempel, unggah, atau
-	// teks hasil ekstraksi dokumen dari worker.
 	useEffect(() => {
 		if (!editor) return
 		if (syncedEditorRef.current !== editor) {
@@ -182,18 +130,11 @@ export function TiptapEditor({
 
 		editor.commands.setContent(textToParagraphs(state.text), { emitUpdate: false })
 	}, [editor, state.text])
-
-	// Kirim daftar suggestion ke plugin dekorasi.
 	useEffect(() => {
 		if (!editor) return
 		editor.view.dispatch(editor.state.tr.setMeta(suggestionHighlightKey, state.suggestions))
 	}, [editor, state.suggestions])
-
-	// Jembatan diff analisis: kirim rentang aktif (bila ada panel sedang dalam
-	// mode Compare) ke plugin dekorasi `AnalysisDiffHighlight`.
 	useAnalysisDiffHost()
-
-	// ── popover pada penanda suggestion ──────────────────────────────────────
 
 	const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -210,9 +151,6 @@ export function TiptapEditor({
 	}, [cancelHide])
 
 	useEffect(() => () => cancelHide(), [cancelHide])
-
-	// Dekorasi dirender ulang oleh ProseMirror, jadi listener dipasang di root
-	// editor lewat event delegation alih-alih ke tiap span.
 	useEffect(() => {
 		const root = editor?.view.dom
 		const container = containerRef.current
@@ -244,8 +182,6 @@ export function TiptapEditor({
 		}
 	}, [editor, containerRef, cancelHide, scheduleHide])
 
-	// ── gulir & sorot rentang yang diklik dari panel ─────────────────────────
-
 	useEffect(() => {
 		if (!editor || !state.focusedRange) return
 
@@ -258,8 +194,6 @@ export function TiptapEditor({
 		const element = node instanceof HTMLElement ? node : node.parentElement
 		element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 	}, [editor, state.focusedRange, dispatch])
-
-	// Sorotan sementara saat kartu panel di-hover.
 	useEffect(() => {
 		if (!editor) return
 		const root = editor.view.dom
@@ -285,11 +219,6 @@ export function TiptapEditor({
 	const  applySuggestion = (id: string) => {
 		const suggestion = state.suggestions.find((item) => item.id === id)
 		if (!editor || !suggestion) return
-
-		// replaceTextRange memakai resolveSpan, jadi menyasar kemunculan yang
-		// benar walau kata itu muncul berkali-kali, dan tidak menggulir layar
-		// (§P3.1). Dulu memakai indexOf murni + .focus() yang selalu lompat ke
-		// kemunculan pertama dan menggulung ke sana.
 		replaceTextRange(
 			editor,
 			{ offset: suggestion.offset ?? 0, length: suggestion.length ?? suggestion.original.length, expected: suggestion.original },

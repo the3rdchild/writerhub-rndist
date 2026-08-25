@@ -15,16 +15,8 @@ export const poolRequest = pgTable(
 		params: jsonb('params').$type<Record<string, unknown>>(),
 		total_tokens: integer('total_tokens'),
 		model_record_id: integer('model_record_id'),
-
-		// Kepemilikan untuk halaman Aktivitas AI. Baris lama dibiarkan NULL dan
-		// tidak pernah muncul di daftar - pemiliknya tidak diketahui, dan menebak
-		// berarti membocorkan naskah orang lain (jangan di-backfill).
 		user_id: varchar('user_id', { length: 255 }),
-		// ON DELETE SET NULL: menghapus tab tidak boleh menghapus jejak
-		// kuota/token yang sudah tercatat; entri hanya kehilangan tautannya.
 		tab_id: uuid('tab_id').references(() => documentTabs.id, { onDelete: 'set null' }),
-		// Didenormalisasi ('grammar', 'ai_rewriter', …) supaya daftar aktivitas
-		// bisa difilter tanpa menjoin grammar_result/analysis_result dua-duanya.
 		feature: varchar('feature', { length: 50 }),
 
 		updated_at: timestamps.updatedAt,

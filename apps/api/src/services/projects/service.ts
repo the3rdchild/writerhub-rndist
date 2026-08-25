@@ -10,13 +10,7 @@ import BaseService from '@/services/base.service'
 import type { Project } from '@/db/schemas'
 import { createProjectBodySchema, updateProjectBodySchema } from './dto'
 import type { ProjectSummary } from './dto'
-
-/**
- * CRUD proyek milik user. Semua operasi diskop ke `userId` dari context
- * (diisi `authMiddleware`; dev lokal memakai fallback 'local-dev').
- */
 export default class ProjectsService extends BaseService {
-	/** Daftar proyek milik user, yang terakhir diubah di atas. */
 	async list(): Promise<Response> {
 		try {
 			const rows = await findProjectsByOwner(await this.identityId())
@@ -25,8 +19,6 @@ export default class ProjectsService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/** Buat proyek baru dari sidebar Library. */
 	async create(): Promise<Response> {
 		try {
 			const body = createProjectBodySchema.safeParse(await this.context.req.json())
@@ -42,8 +34,6 @@ export default class ProjectsService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/** Ubah nama/warna proyek; hanya field yang dikirim yang ditimpa. */
 	async update(): Promise<Response> {
 		try {
 			const body = updateProjectBodySchema.safeParse(await this.context.req.json())
@@ -59,11 +49,6 @@ export default class ProjectsService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/**
-	 * Hapus proyek. Ditolak (409) selagi masih berisi dokumen - lihat
-	 * `deleteProject` di repository/project.ts.
-	 */
 	async remove(): Promise<Response> {
 		try {
 			const project = await deleteProject(this.projectId(), await this.identityId())

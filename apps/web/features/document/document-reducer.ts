@@ -10,18 +10,13 @@ export type SuggestionFilter = 'all' | 'grammar' | 'style' | 'spelling'
 export interface DocumentState {
 	title: string
 	text: string
-	/** Dokumen yang menunggu diunggah; teks hasil ekstraksi datang dari worker. */
 	file: File | null
 	suggestions: EditorSuggestion[]
 	scores: GrammarScores | null
 	model: GrammarModel
 	filter: SuggestionFilter
-	/** Rentang yang diminta panel untuk di-scroll ke tampilan; dikonsumsi sekali. */
 	focusedRange: TextRange | null
-	/** Rentang yang sedang di-hover di panel - digambar sebagai overlay. */
 	hoveredRange: TextRange | null
-	/** Teks saat hasil pemeriksaan terakhir dibuat; null berarti belum diperiksa.
-	 *  Dipakai mengetahui apakah suggestion sudah basi (naskah berubah sejak itu). */
 	checkedText: string | null
 }
 
@@ -43,7 +38,6 @@ export type DocumentAction =
 			type: 'applyCheckResult'
 			suggestions: GrammarSuggestion[]
 			scores: GrammarScores | null
-			/** Untuk mode unggah dokumen: teks hasil ekstraksi jadi basis offset. */
 			extractedText?: string | null
 	  }
 	| { type: 'replaceText'; text: string }
@@ -62,8 +56,6 @@ export const initialDocumentState: DocumentState = {
 	hoveredRange: null,
 	checkedText: null,
 }
-
-/** Reset hasil pemeriksaan - dipakai setiap kali sumber teks berganti total. */
 const withClearedResults = (state: DocumentState) => ({
 	...state,
 	suggestions: [],
@@ -77,8 +69,6 @@ export function documentReducer(state: DocumentState, action: DocumentAction): D
 	switch (action.type) {
 		case 'setText':
 			return { ...withClearedResults(state), text: action.text, file: null }
-
-		// Pengetikan biasa: pertahankan suggestion supaya highlight tidak berkedip.
 		case 'editText':
 			return { ...state, text: action.text }
 
@@ -107,19 +97,12 @@ export function documentReducer(state: DocumentState, action: DocumentAction): D
 			return {
 				...state,
 				suggestions: reconcileSuggestions(state.text, action.suggestions),
-				// Catat baseline saat hasil pertama kali datang; selama streaming teks
-				// tidak berubah, jadi tidak perlu ditimpa tiap checkpoint.
 				checkedText: state.checkedText ?? state.text,
 			}
 
 		case 'acceptSuggestion': {
 			const target = state.suggestions.find((s) => s.id === action.id)
 			if (!target || target.dismissed) return state
-
-			// Teksnya diganti langsung di editor (lihat features/editor/apply-text)
-			// sebagai transaksi tertarget, supaya format blok - tabel, daftar, dst. -
-			// tidak ikut diratakan. Reducer hanya mencatat saran selesai dan
-			// menggeser offset saran lain yang menyusul.
 			const appliedLength = target.length ?? target.original.length
 			const delta = target.replacement.length - appliedLength
 			const marked = state.suggestions.map((s) =>
@@ -133,8 +116,6 @@ export function documentReducer(state: DocumentState, action: DocumentAction): D
 				hoveredRange: null,
 			}
 		}
-
-		// Dismiss hanya menyembunyikan highlight; teks tidak diubah.
 		case 'dismissSuggestion':
 			return {
 				...state,
@@ -147,23 +128,16 @@ export function documentReducer(state: DocumentState, action: DocumentAction): D
 		case 'acceptAllSuggestions': {
 			const pending = state.suggestions.filter((s) => !s.dismissed)
 			if (pending.length === 0) return state
-
-			// Setiap penggantian sudah diterapkan ke editor oleh panel; di sini
-			// saran cuma ditandai selesai.
 			return {
 				...state,
 				suggestions: state.suggestions.map((s) => ({ ...s, dismissed: true })),
 				hoveredRange: null,
 			}
 		}
-
-		// Buang seluruh hasil pemeriksaan tanpa menerimanya - sorotan dan kartu
-		// hilang sekaligus (§P3.3). Tidak merusak naskah; bisa diulang dengan Run.
 		case 'clearResults':
 			return withClearedResults(state)
 
 		case 'applyCheckResult': {
-			// Unggahan dokumen: teks asli ada di worker, bukan di editor.
 			const baseText = action.extractedText ?? state.text
 			return {
 				...state,

@@ -6,15 +6,6 @@ import { authorColor, authorInitials } from '@/features/comments/author'
 import { useComments } from '@/features/comments/comments-context'
 import type { CommentThread } from '@/features/sessions/session-context'
 import { cn } from '@/lib/utils'
-
-/**
- * Kartu komentar, dipakai panel kanan dan gutter di sisi lembar.
- *
- * Satu bentuk untuk dua tempat, bukan dua salinan yang pelan-pelan berselisih:
- * yang membedakan keduanya hanya lebar dan apakah kartunya sedang disorot,
- * bukan apa yang bisa dilakukan di dalamnya.
- */
-
 export function CommentAvatar({
 	name,
 	id,
@@ -39,14 +30,6 @@ export function CommentAvatar({
 		</span>
 	)
 }
-
-/**
- * Kotak ketik komentar.
- *
- * Tombol kirimnya selalu terlihat - tidak ada lagi keadaan di mana satu-satunya
- * jalan mengirim adalah menekan Enter yang tak tertulis di mana pun. Enter tetap
- * bekerja untuk yang sudah hafal, dan Shift+Enter memberi baris baru.
- */
 function CommentComposer({
 	value,
 	placeholder,
@@ -59,16 +42,12 @@ function CommentComposer({
 	value: string
 	placeholder: string
 	autoFocus?: boolean
-	/** Tombol berlabel teks dipakai kartu draft; utas yang sudah ada cukup ikon. */
 	submitLabel?: string
 	onChange: (text: string) => void
 	onSubmit: () => void
 	onCancel?: () => void
 }) {
 	const ref = useRef<HTMLTextAreaElement>(null)
-
-	// Kotaknya tumbuh mengikuti isi: komentar tiga baris tidak boleh dibaca lewat
-	// jendela satu baris yang harus digulung.
 	useEffect(() => {
 		const node = ref.current
 		if (!node) return
@@ -84,7 +63,6 @@ function CommentComposer({
 				ref={ref}
 				value={value}
 				rows={1}
-				// biome-ignore lint/a11y/noAutofocus: kartu draft memang dibuka untuk diketik
 				autoFocus={autoFocus}
 				onChange={(event) => onChange(event.target.value)}
 				onKeyDown={(event) => {
@@ -131,8 +109,6 @@ function CommentComposer({
 		</div>
 	)
 }
-
-/** Kartu untuk komentar yang rentangnya sudah dipilih tapi belum dikirim. */
 export function PendingCommentCard({
 	author,
 	quote,
@@ -172,15 +148,6 @@ export function PendingCommentCard({
 		</div>
 	)
 }
-
-/**
- * Usulan perubahan pada teks yang dikomentari.
- *
- * Tiga keadaan, satu tempat: belum ada usulan, usulan menunggu jawaban, dan
- * usulan yang sudah diputuskan. Yang sudah diputuskan tetap ditampilkan -
- * pertanyaan "kenapa kalimat ini berubah" paling sering datang justru setelah
- * perubahannya diterima.
- */
 function SuggestionSection({ thread }: { thread: CommentThread }) {
 	const { draftFor, setDraft, markedText, proposeSuggestion, acceptSuggestion, rejectSuggestion } =
 		useComments()
@@ -190,9 +157,6 @@ function SuggestionSection({ thread }: { thread: CommentThread }) {
 	const proposal = thread.suggestion
 
 	const startComposing = () => {
-		// Diisi dengan teks yang sekarang ditandai, bukan dengan kutipan lama:
-		// yang diusulkan adalah pengganti kalimat yang ada sekarang, dan mengedit
-		// dari kalimat itu jauh lebih mudah daripada mengetik ulang dari nol.
 		if (!draftFor(draftKey)) setDraft(draftKey, markedText(thread.id) ?? thread.quote)
 		setComposing(true)
 	}
@@ -288,8 +252,6 @@ function SuggestionSection({ thread }: { thread: CommentThread }) {
 		</button>
 	)
 }
-
-/** Kartu satu utas yang sudah ada di naskah. */
 export function CommentThreadCard({
 	thread,
 	active,
@@ -307,19 +269,8 @@ export function CommentThreadCard({
 }) {
 	const { draftFor, setDraft, submitDraft } = useComments()
 	const draft = draftFor(thread.id)
-
-	// Pembuka utas dicatat sejak utasnya lahir; utas lama belum punya field itu,
-	// jadi penulis balasan pertamanya yang menjawab.
 	const opener = thread.author ?? thread.replies[0]?.author ?? 'Tidak diketahui'
 	const openerId = thread.authorId ?? thread.replies[0]?.authorId
-
-	/*
-	 * Menyelesaikan utas ikut mengirim ketikan yang belum terkirim.
-	 *
-	 * Tombol ini duduk persis di sebelah kotak ketik dan dulu membuang isinya
-	 * diam-diam - persis kesalahan yang paling mudah dilakukan pengguna. Kalau
-	 * ada teks, ia jelas dimaksudkan untuk dikirim, bukan dibuang.
-	 */
 	const resolve = () => {
 		submitDraft(thread.id)
 		onResolve()

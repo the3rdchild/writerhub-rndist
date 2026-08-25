@@ -46,8 +46,6 @@ def process(data: dict):
         _run(job_id, request, payload)
         _svc.log_end(job_id)
     except CancelledError:
-        # Dibatalkan di tengah jalan (§P7 lapis C): hasil tidak disimpan, status
-        # ditandai batal, dan 'cancelled' diterbitkan supaya SSE tertutup rapi.
         _svc.logger.info("[grammar_service] dibatalkan | job_id=%s", job_id)
         update_status(job_id, "cancelled")
         _publish(f"grammar:stream:{job_id}", {"type": "cancelled"})
@@ -71,48 +69,30 @@ def _publish(channel: str, payload: dict):
 
 
 def _run(job_id: str, request: dict, payload: dict):
-    # 1. ambil teks (dari payload.text atau download + extract file)
     with _svc.timed_step("extract:text"):
         text = resolve_text(payload)
     if not text or not text.strip():
         raise ValueError("Teks kosong setelah ekstraksi")
-
-    # 2. ambil model tier dari payload (default: standard)
     model = payload.get("model", "standard")
     if model not in ("standard", "advanced", "ai"):
         model = "standard"
     _svc.logger.info("[grammar_service] model=%s | job_id=%s", model, job_id)
 
     provider = provider_from_payload(payload) if model == "ai" else None
-
-    # Bahasa dari payload menang atas GRAMMAR_LANGUAGE di env: env hanya
-    # cadangan untuk klien lama yang belum mengirim bahasanya.
     language = payload.get("language") or GRAMMAR_LANGUAGE
 
     channel = f"grammar:stream:{job_id}"
 
     def on_checkpoint(suggestions: list):
         _publish(channel, {"type": "checkpoint", "suggestions": suggestions})
-
-    # Titik periksa batal sebelum analyzer - job yang dibatalkan saat baru masuk
-    # tidak perlu menunggu satu putaran LLM (§P7 lapis C).
     check_cancelled(job_id)
-
-    # 3. analisa grammar - kirim snapshot per checker via Redis pub/sub
     with _svc.timed_step("grammar:analyze"):
         result = analyze_grammar(
             text, language=language, model=model,
             on_checkpoint=on_checkpoint, provider=provider,
         )
-
-    # Token sudah terpakai di sisi penyedia walau lalu dibatalkan, jadi tetap
-    # dicatat - SEBELUM titik periksa batal terakhir (§2.8).
     update_tokens(job_id, result.get("total_tokens"))
-
-    # Titik periksa batal sesudah analyzer: hasil dibuang, tidak disimpan.
     check_cancelled(job_id)
-
-    # 4. simpen hasil ke metadata_version (feature 'grammar')
     save_metadata_version(
         request_id=request["request_id"],
         job_id=job_id,
@@ -128,8 +108,6 @@ def _run(job_id: str, request: dict, payload: dict):
             "quality_label": result["quality_label"],
         },
     )
-
-    # 5. broadcast done
     update_status(job_id, "completed")
     _publish(channel, {
         "type": "done",

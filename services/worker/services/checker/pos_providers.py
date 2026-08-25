@@ -21,9 +21,6 @@ import requests
 from core.configs.env import AI_API_KEY, AI_APP_TITLE, AI_BASE_URL, AI_MODEL, AI_REFERER
 
 logger = logging.getLogger(__name__)
-
-# token = rangkaian word-char ATAU satu tanda baca; whitespace di-skip.
-# Niru tokenisasi spaCy (punctuation jadi token tersendiri) + offset char asli.
 _TOKEN_RE = re.compile(r"\w+|[^\w\s]")
 
 PosTags = list[tuple[str, str, int, int]]
@@ -70,11 +67,6 @@ class AiPosProvider(PosProvider):
         )
         try:
             resp = requests.post(
-                # AI_BASE_URL adalah base URL (mis. https://openrouter.ai/api/v1),
-                # sama seperti yang dipakai llm_client.py dan ai_grammar.py serta
-                # sama dengan `baseUrl` yang dikirim admin-ppe. Sebelumnya modul ini
-                # memperlakukannya sebagai URL lengkap, sehingga satu nilai env tidak
-                # mungkin benar untuk keduanya sekaligus.
                 f"{AI_BASE_URL.rstrip('/')}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {AI_API_KEY}",

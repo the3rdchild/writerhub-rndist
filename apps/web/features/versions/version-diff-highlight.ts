@@ -12,15 +12,6 @@ interface VersionDiffHighlightState {
 	ranges: VersionDiffRange[]
 	decorations: DecorationSet
 }
-
-/**
- * Bangun dekorasi diff di atas dokumen preview.
- *
- * `removed` (ada di versi, hilang di draf) disorot inline merah muda bercoret.
- * `added` (ada di draf, tidak di versi) tidak punya rentang di dokumen preview,
- * jadi ia dirender sebagai marker hijau di titik sisipnya - menampilkan teks
- * tambahan secara inline berarti merender teks yang tidak ada di dokumen.
- */
 function buildDecorations(doc: PMNode, ranges: readonly VersionDiffRange[]): DecorationSet {
 	if (ranges.length === 0) return DecorationSet.empty
 
@@ -34,9 +25,6 @@ function buildDecorations(doc: PMNode, ranges: readonly VersionDiffRange[]): Dec
 			decorations.push(Decoration.inline(pm.from, pm.to, { class: 'version-diff-removed' }))
 			continue
 		}
-
-		// Titik sisip berupa posisi tunggal; `textRangeToPM` menolak rentang
-		// nol-panjang, jadi petakan lewat `textPosToPM` langsung.
 		const pos = textPosToPM(index, range.offset)
 		if (pos === null) continue
 
@@ -58,15 +46,6 @@ function buildDecorations(doc: PMNode, ranges: readonly VersionDiffRange[]): Dec
 
 	return DecorationSet.create(doc, decorations)
 }
-
-/**
- * Ekstensi penyorot selisih versi, dipasang hanya di editor preview riwayat -
- * tidak lewat `buildEditorExtensions`, supaya editor utama tidak ikut membawanya.
- *
- * Rentang masuk lewat meta transaksi (`VersionDiffRange[]` untuk memasang,
- * `null` untuk melepas) dan dekorasi dibangun ulang dari dokumen saat itu,
- * pola yang sama dengan `SuggestionHighlight`.
- */
 export const VersionDiffHighlight = Extension.create({
 	name: 'versionDiffHighlight',
 

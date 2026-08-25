@@ -18,7 +18,6 @@ describe('aiScoreLevel', () => {
 	})
 
 	test('skor yang diturunkan setelah accept turun tingkatnya', () => {
-		// acceptedScore di panel membulatkan score * 0.25, minimal 5.
 		expect(aiScoreLevel(Math.max(5, Math.round(90 * 0.25)))).toBe('ai-low')
 	})
 })

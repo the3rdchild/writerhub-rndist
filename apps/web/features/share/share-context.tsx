@@ -1,12 +1,6 @@
 'use client'
 
 import { createContext, type ReactNode, useContext, useMemo, useState } from 'react'
-
-/**
- * State dialog bagikan. Versi ini hanya mengelola buka/tutup dialog;
- * pembuatan link sendiri dikerjakan di dalam komponen dialog karena ia
- * membutuhkan akses ke instance editor dan judul dokumen.
- */
 interface ShareContextValue {
 	shareOpen: boolean
 	setShareOpen: (open: boolean) => void

@@ -28,9 +28,6 @@ def _iss(offset: int, length: int, replacement: str, type_: str, prio: int = 0) 
         "category": "grammar",
         "prio": prio,
     }
-
-
-# --- kontraksi tanpa apostrof + singkatan umum --------------------------------
 _CONFUSIONS = {
     "doesnt": "doesn't", "didnt": "didn't", "cant": "can't",
     "wont": "won't", "isnt": "isn't", "arent": "aren't", "wasnt": "wasn't",
@@ -42,10 +39,6 @@ _CONFUSIONS = {
     "whats": "what's", "alot": "a lot", "teh": "the", "wanna": "want to",
     "gonna": "going to", "gotta": "got to", "kinda": "kind of",
 }
-
-# --- "didn't/don't/doesn't <past>" → "<aux> <base>" --------------------------
-# Rule ini pake prio=-1 (compound fix) supaya menang atas rule kontraksi pendek
-# (mis. "dont" → "don't") yang overlapping di span yang sama.
 _PAST_TO_BASE = {
     "knew": "know", "went": "go", "saw": "see", "ate": "eat", "took": "take",
     "came": "come", "made": "make", "said": "say", "got": "get", "gave": "give",
@@ -67,11 +60,7 @@ _PAST_TO_BASE = {
     "finished": "finish", "learned": "learn", "changed": "change",
     "followed": "follow", "created": "create",
 }
-
-# --- kata kerja irregular yang sering di-regularize salah -------------------
-# (spellchecker sering kasih koreksi ngawur untuk ini, jadi kita handle duluan)
 _REGULARIZED_PAST = {
-    # overly-regularized past → correct past
     "buyed": "bought", "gived": "gave", "taked": "took", "maked": "made",
     "goed": "went", "runned": "ran", "eated": "ate", "drinked": "drank",
     "sayed": "said", "telled": "told", "finded": "found", "writed": "wrote",
@@ -84,8 +73,6 @@ _REGULARIZED_PAST = {
     "heared": "heard", "feeled": "felt", "keeped": "kept", "meeted": "met",
     "payed": "paid", "selled": "sold", "thinked": "thought",
 }
-
-# --- mass noun yang sering salah dijamakin ------------------------------------
 _PLURAL_MASS = {
     "peoples": "people", "stuffs": "stuff", "childs": "children", "mans": "men",
     "womans": "women", "informations": "information", "advices": "advice",
@@ -94,8 +81,6 @@ _PLURAL_MASS = {
     "researches": "research", "homeworks": "homework", "luggages": "luggage",
     "baggages": "baggage", "musics": "music", "newses": "news",
 }
-
-# --- "to + gerund" → "to + base" (infinitive marker, bukan continuous) -------
 _ING_TO_BASE = {
     "walking": "walk", "running": "run", "sitting": "sit", "standing": "stand",
     "working": "work", "talking": "talk", "going": "go", "doing": "do",
@@ -117,8 +102,6 @@ _ING_TO_BASE = {
     "opening": "open", "closing": "close", "building": "build",
     "spending": "spend", "finding": "find", "keeping": "keep",
 }
-
-# --- eggcorn / salah idiom umum (Harper-inspired, pure lookup) --------------
 _PHRASE_FIXES = [
     (r"\byour welcome\b", "you're welcome"),
     (r"\bfor all intensive purposes\b", "for all intents and purposes"),
@@ -134,15 +117,11 @@ _PHRASE_FIXES = [
     (r"\bbeckon call\b", "beck and call"),
     (r"\bself of steam\b", "self-esteem"),
 ]
-
-# --- double negative: negated aux + kata negatif → bentuk "any" -------------
 _NEG_WORDS = {
     "no": "any", "nothing": "anything", "nobody": "anybody",
     "nowhere": "anywhere", "none": "any", "neither": "either",
 }
 _NEG_AUX = r"(?:do|does|did|ca|wo|could|would|should|is|are|was|were|have|has|had|ai)"
-
-# a/an: pengecualian bunyi
 _SILENT_H = ("hour", "honest", "honor", "honour", "heir")
 _CONS_SOUND = ("uni", "use", "usu", "ufo", "one", "once", "euro", "ewe", "unit",
                "user", "usual", "u-")
@@ -163,18 +142,10 @@ def _cap_like(sample: str, word: str) -> str:
 
 def check_grammar(text: str) -> list[dict]:
     out: list[dict] = []
-
-    # --- irregular past tense yang sering di-regularize salah ----------------
-    # (prio=0, menang atas spellchecker prio=1 untuk span yang sama)
     for m in re.finditer(r"\b[A-Za-z]+\b", text):
         repl = _REGULARIZED_PAST.get(m.group(0).lower())
         if repl:
             out.append(_iss(m.start(), len(m.group(0)), _cap_like(m.group(0), repl), "Verb form (irregular)"))
-
-    # --- "didn't/don't/doesnt + past" → "<aux> <base>" ----------------------
-    # prio=-1 biar compound fix ini menang atas rule kontraksi yang cuma nutupin
-    # sebagian span (mis. "dont" → "don't" tanpa benerin "knew")
-    # Pastiin negation outputnya pakai apostrof (dont → don't, didnt → didn't, dst)
     _NEG_APOS = {"dont": "don't", "doesnt": "doesn't", "didnt": "didn't"}
     for m in re.finditer(r"\b(did|does|do)(n['']?t)\s+([A-Za-z]+)\b", text, re.IGNORECASE):
         base = _PAST_TO_BASE.get(m.group(3).lower())
@@ -188,23 +159,16 @@ def check_grammar(text: str) -> list[dict]:
                 f"{neg} {base}",
                 "Verb form", prio=-1,
             ))
-
-    # --- kontraksi tanpa apostrof ---------------------------------------------
     for m in re.finditer(r"\b[A-Za-z]+\b", text):
         repl = _CONFUSIONS.get(m.group(0).lower())
         if repl:
             out.append(_iss(m.start(), len(m.group(0)), _cap_like(m.group(0), repl), "Grammar"))
-
-    # --- "dont" subject-aware (he/she/it → doesn't, lainnya → don't) ----------
-    # prio=-1 biar menang overlap sama POS agreement ("He do→does") yg salah potong
     for m in re.finditer(r"\b(he|she|it)(\s+)dont\b", text, re.IGNORECASE):
         out.append(_iss(m.start(), len(m.group(0)), f"{m.group(1)}{m.group(2)}doesn't", "Verb agreement", prio=-1))
     for m in re.finditer(r"\bdont\b", text, re.IGNORECASE):
         if re.search(r"(?:^|\W)(he|she|it)\s+$", text[:m.start()], re.IGNORECASE):
             continue  # udah ditangani rule he/she/it di atas
         out.append(_iss(m.start(), len(m.group(0)), _cap_like(m.group(0), "don't"), "Grammar", prio=-1))
-
-    # --- subject-verb agreement (was/were) ------------------------------------
     for m in re.finditer(r"\b(peoples?|men|women|children|they|we)\s+was\b", text, re.IGNORECASE):
         subj = m.group(1)
         fixed = "people" if subj.lower() == "peoples" else subj.lower()
@@ -212,61 +176,39 @@ def check_grammar(text: str) -> list[dict]:
         out.append(_iss(m.start(), len(m.group(0)), f"{fixed} were", "Subject-verb agreement"))
     for m in re.finditer(r"\b(he|she|it)\s+were\b", text, re.IGNORECASE):
         out.append(_iss(m.start(), len(m.group(0)), f"{m.group(1)} was", "Subject-verb agreement"))
-
-    # --- mass noun salah jamak -------------------------------------------------
     for m in re.finditer(r"\b[A-Za-z]+\b", text):
         repl = _PLURAL_MASS.get(m.group(0).lower())
         if repl:
             out.append(_iss(m.start(), len(m.group(0)), _cap_like(m.group(0), repl), "Word form"))
-
-    # --- "could/would/should of" → "could/would/should have" ------------------
     for m in re.finditer(r"\b(could|would|should|must|might)\s+of\b", text, re.IGNORECASE):
         out.append(_iss(m.start(), len(m.group(0)), f"{m.group(1)} have", "Verb phrase"))
-
-    # --- eggcorn / salah idiom -------------------------------------------------
     for pat, repl in _PHRASE_FIXES:
         for m in re.finditer(pat, text, re.IGNORECASE):
             out.append(_iss(m.start(), len(m.group(0)), _cap_like(m.group(0), repl), "Word choice"))
-
-    # --- double negative ("don't have no" → "don't have any") -----------------
     _neg_re = rf"\b{_NEG_AUX}n['']?t\s+(?:\w+\s+){{0,2}}({'|'.join(_NEG_WORDS)})\b"
     for m in re.finditer(_neg_re, text, re.IGNORECASE):
         neg = m.group(1)
         out.append(_iss(m.start(1), len(neg), _cap_like(neg, _NEG_WORDS[neg.lower()]), "Double negative"))
-
-    # --- a / an ---------------------------------------------------------------
     for m in re.finditer(r"\b(an?)(\s+)([A-Za-z]+)", text, re.IGNORECASE):
         art, ws, word = m.group(1), m.group(2), m.group(3)
         correct = "an" if _vowel_sound(word) else "a"
         if art.lower() != correct:
             correct = _cap_like(art, correct)
             out.append(_iss(m.start(), len(m.group(0)), f"{correct}{ws}{word}", "Article"))
-
-    # --- kata kembar ("the the") ----------------------------------------------
     for m in re.finditer(r"\b(\w+)(\s+)(\1)\b", text, re.IGNORECASE):
         out.append(_iss(m.start(), len(m.group(0)), m.group(1), "Repeated word"))
-
-    # --- "to + gerund" → "to + base" (infinitive) ----------------------------
     for m in re.finditer(r"\bto\s+([A-Za-z]+ing)\b", text):
         gerund = m.group(1).lower()
         base = _ING_TO_BASE.get(gerund)
         if base:
             out.append(_iss(m.start(), len(m.group(0)), f"to {base}", "Infinitive form"))
-
-    # --- "i" → "I" (dengan konteks kata berikut biar span unik) ---------------
     for m in re.finditer(r"\b(i)(\s+)([A-Za-z]+)", text):
         out.append(_iss(m.start(), len(m.group(0)), f"I{m.group(2)}{m.group(3)}", "Capitalize 'I'", prio=3))
-
-    # --- kapital awal kalimat -------------------------------------------------
     for m in re.finditer(r"(?:^|[.!?]+\s+)([a-z][A-Za-z]*)", text, re.MULTILINE):
         word = m.group(1)
         out.append(_iss(m.start(1), len(word), word[:1].upper() + word[1:], "Capitalization", prio=3))
-
-    # --- spasi sebelum tanda baca ("word ," → "word,") -----------------------
     for m in re.finditer(r"(\S)(\s+)([,.;:!?])", text):
         out.append(_iss(m.start(1), len(m.group(0)), m.group(1) + m.group(3), "Spacing", prio=2))
-
-    # --- tanda baca dobel ("!!!" → "!") --------------------------------------
     for m in re.finditer(r"([!?,])\1+", text):
         out.append(_iss(m.start(), len(m.group(0)), m.group(1), "Punctuation", prio=2))
 

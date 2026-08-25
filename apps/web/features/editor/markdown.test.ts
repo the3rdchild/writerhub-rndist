@@ -1,12 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import { looksLikeMarkdown, markdownToHtml, toEditorContent } from './markdown'
-
-/**
- * Yang diuji di sini adalah bentuk yang benar-benar dikirim model saat diminta
- * menyusun isi dokumen - terutama tabel pipe, yang sebelumnya masuk ke naskah
- * sebagai paragraf berisi garis tegak.
- */
-
 describe('tabel', () => {
 	const TABLE = `| No | Nama | Jabatan |
 |----|------|---------|
@@ -104,7 +97,6 @@ describe('rumus LaTeX', () => {
 	})
 
 	test('penanda Markdown di dalam LaTeX tidak ikut diproses', () => {
-		// `\alpha*2` akan jadi miring kalau rumusnya tidak diamankan lebih dulu.
 		const html = markdownToHtml('Rumus $\\alpha*2*\\beta$ saja.')
 		expect(html).toContain('data-latex="\\alpha*2*\\beta"')
 		expect(html).not.toContain('<em>')

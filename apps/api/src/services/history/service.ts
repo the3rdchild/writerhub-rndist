@@ -9,8 +9,6 @@ import {
 import BaseService from '@/services/base.service'
 import { HISTORY_FEATURES, historyListQuerySchema } from './dto'
 import type { HistoryDetail, HistoryFeature, HistoryListResponse, HistorySummary } from './dto'
-
-/** Bahan baku ringkasan; diisi dari query daftar maupun dari baris hasil lengkap. */
 interface SummarySource {
 	status: JobStatus
 	feature: string | null
@@ -20,12 +18,6 @@ interface SummarySource {
 	analysisLabel: string | null
 	analysisScore: string | null
 }
-
-/**
- * Rakit ringkasan satu baris per fitur: skor untuk grammar, jumlah perubahan
- * untuk rewriter/humanizer, label untuk detector/plagiarism. Job yang belum
- * selesai atau gagal tidak punya ringkasan - statusnya yang bicara.
- */
 function summarize(source: SummarySource): string | null {
 	if (source.status !== 'completed') return null
 
@@ -85,8 +77,6 @@ function scoreOf(result: AnalysisResultShape): string | null {
 }
 
 type ResultRow = DetailRow['result']
-
-/** `result.result` sisi analysis (bukan grammar); null bila tidak berlaku. */
 function analysisResultOf(result: ResultRow): AnalysisResultShape {
 	if (!result || result.feature === 'grammar') return null
 	return result.result as unknown as AnalysisResultData
@@ -103,8 +93,6 @@ function grammarSuggestionCountOf(result: ResultRow): number | null {
 	const suggestions = (result.result as Record<string, unknown>).suggestions
 	return Array.isArray(suggestions) ? suggestions.length : null
 }
-
-/** Hasil penuh sesuai fitur entri; null bila job belum selesai atau gagal. */
 function resultOf(row: DetailRow): HistoryDetail['result'] {
 	if (!row.result) return null
 	if (row.result.feature === 'grammar') {
@@ -112,18 +100,7 @@ function resultOf(row: DetailRow): HistoryDetail['result'] {
 	}
 	return row.result.result as unknown as AnalysisResultData
 }
-
-/**
- * Aktivitas AI milik user (fitur F): catatan pemakaian modul AI lintas
- * proofreader/rewriter/humanizer/detector/plagiarism. Semua operasi terskop
- * `user_id`; baris anonim lama (user_id NULL) tidak pernah terlihat di sini.
- */
 export default class HistoryService extends BaseService {
-	/**
-	 * Daftar aktivitas, terbaru di atas. Mengembalikan RINGKASAN saja - hasil
-	 * grammar satu dokumen panjang bisa ratusan kilobita, dan daftar 50 entri
-	 * akan meledak bila hasilnya ikut (alasan yang sama dengan daftar versi).
-	 */
 	async list(): Promise<Response> {
 		try {
 			const query = historyListQuerySchema.safeParse(this.context.req.query())
@@ -131,8 +108,6 @@ export default class HistoryService extends BaseService {
 				return this.error({ errors: query.error.issues.map((issue) => issue.message) })
 			}
 			const { feature, tabId, limit, cursor } = query.data
-
-			// Satu baris ekstra sebagai penanda halaman berikutnya (keyset).
 			const rows = await findHistoryByUser(this.ownerId(), {
 				feature,
 				tabId,
@@ -160,8 +135,6 @@ export default class HistoryService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/** Satu entri lengkap dengan hasilnya, untuk panel detail di /activity. */
 	async getById(): Promise<Response> {
 		try {
 			const row = await findHistoryEntry(this.ownerId(), this.jobId())
@@ -191,8 +164,6 @@ export default class HistoryService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/** Hapus satu entri milik user. */
 	async remove(): Promise<Response> {
 		try {
 			const deleted = await deleteHistoryEntry(this.ownerId(), this.jobId())
@@ -202,8 +173,6 @@ export default class HistoryService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/** "Hapus semua aktivitas" - seluruh entri milik user, sekaligus. */
 	async clear(): Promise<Response> {
 		try {
 			const deleted = await deleteAllHistoryForUser(this.ownerId())

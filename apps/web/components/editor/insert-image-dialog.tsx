@@ -2,12 +2,6 @@
 
 import { Image as ImageIcon, Link as LinkIcon, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-
-/**
- * Modal sisip gambar: pilih URL atau unggah berkas (jadi data URL), lengkap
- * dengan teks alternatif dan judul. Mengikuti pola dialog Ekspor PDF yang
- * sudah ada - satu lapis, tutup lewat Escape / klik luar.
- */
 export function InsertImageDialog({
 	open,
 	onInsert,
@@ -24,11 +18,6 @@ export function InsertImageDialog({
 	const [error, setError] = useState<string | null>(null)
 	const overlayRef = useRef<HTMLDivElement>(null)
 	const urlInputRef = useRef<HTMLInputElement>(null)
-
-	// Borang dikosongkan hanya saat modal berpindah ke keadaan terbuka. `onCancel`
-	// sengaja tidak ikut jadi dependensi: pemanggilnya membuat fungsi baru tiap
-	// render, jadi mengamatinya membuat isian terhapus sendiri di tengah
-	// pengisian setiap kali menu induk kebetulan re-render.
 	useEffect(() => {
 		if (!open) return
 		setSrc('')
@@ -36,13 +25,9 @@ export function InsertImageDialog({
 		setTitle('')
 		setMode('url')
 		setError(null)
-		// Fokus ke kolom URL saat modal terbuka.
 		const timer = setTimeout(() => urlInputRef.current?.focus(), 50)
 		return () => clearTimeout(timer)
 	}, [open])
-
-	// Kunci gulir latar dan tutup lewat Escape - ini memang harus mengikuti
-	// `onCancel` yang terbaru, dan aman diulang karena tidak menyentuh borang.
 	useEffect(() => {
 		if (!open) return
 		document.body.style.overflow = 'hidden'
@@ -60,7 +45,6 @@ export function InsertImageDialog({
 
 	const onFile = (file: File) => {
 		setError(null)
-		// Batas 5 MB untuk data URL - lebih besar membuat Yjs berat.
 		if (file.size > 5 * 1024 * 1024) {
 			setError('Berkas terlalu besar (maks 5 MB).')
 			return
@@ -68,15 +52,11 @@ export function InsertImageDialog({
 		const reader = new FileReader()
 		reader.onload = () => {
 			setSrc(reader.result as string)
-			// Isi teks alternatif dari nama berkas bila masih kosong.
 			setAlt((current) => current || file.name.replace(/\.[^.]+$/, ''))
 		}
 		reader.onerror = () => setError('Gagal membaca berkas.')
 		reader.readAsDataURL(file)
 	}
-
-	// Ganti mode = ganti sumber, jadi sumber lama dibuang. `alt` & `title`
-	// tetap - keduanya sah dimiliki bersama terlepas dari asal sumber.
 	const switchMode = (next: 'url' | 'upload') => {
 		if (next === mode) return
 		setMode(next)

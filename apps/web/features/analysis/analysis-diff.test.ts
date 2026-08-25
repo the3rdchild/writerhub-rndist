@@ -10,7 +10,6 @@ import {
 
 describe('synthesizeResultText', () => {
 	it('menerapkan satu suntingan pada posisi yang tepat', () => {
-		// 'kucing makan ikan': 'makan' di offset 7, panjang 5.
 		const result = synthesizeResultText('kucing makan ikan', [
 			{ offset: 7, length: 5, replacement: 'memakan' },
 		])
@@ -18,7 +17,6 @@ describe('synthesizeResultText', () => {
 	})
 
 	it('menerapkan beberapa suntingan dari offset terbesar tanpa menggeser yang belum diproses', () => {
-		// 'satu dua tiga': 'satu' di 0/4, 'tiga' di 9/4.
 		const result = synthesizeResultText('satu dua tiga', [
 			{ offset: 0, length: 4, replacement: 'ONE' },
 			{ offset: 9, length: 4, replacement: 'THREE' },

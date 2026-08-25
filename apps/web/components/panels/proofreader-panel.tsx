@@ -39,8 +39,6 @@ export function ProofreaderPanel() {
 	const { runCheck, cancel, isRunning, error, canRun, forcedAiTier } = useGrammarCheck()
 	const scope = useSelectionScope()
 	const [copied, setCopied] = useState(false)
-
-	/** Terapkan satu saran ke editor (transaksi tertarget) lalu tandai selesai. */
 	const acceptSuggestion = (id: string) => {
 		const target = state.suggestions.find((s) => s.id === id)
 		if (target && editor) {
@@ -52,8 +50,6 @@ export function ProofreaderPanel() {
 		}
 		dispatch({ type: 'acceptSuggestion', id })
 	}
-
-	/** Terapkan semua saran tertunda ke editor (offset tinggi→rendah) lalu tandai. */
 	const acceptAll = () => {
 		if (editor) {
 			const pending = state.suggestions
@@ -76,18 +72,11 @@ export function ProofreaderPanel() {
 			!suggestion.dismissed && (state.filter === 'all' || suggestion.category === state.filter),
 	)
 	const hasResults = state.suggestions.length > 0 || state.scores !== null
-
-	// Suntingan tertunda untuk mode Compare: saran yang belum diterima/di-dismiss.
-	// Di-memo menurut isi `state.suggestions` (bukan referensinya) supaya diff
-	// hanya dihitung ulang saat daftarnya benar-benar berubah.
 	const diffEdits = useMemo(
 		() => editsFromSuggestions(state.suggestions),
 		[state.suggestions],
 	)
 	const compare = useAnalysisDiff('proofreader', diffEdits)
-
-	// Hasil basi: naskah berubah sejak pemeriksaan terakhir. Accept All pada
-	// keadaan ini bisa menimpa massal dengan offset yang sudah tidak pas (§P12 butir 4).
 	const isStale = state.checkedText !== null && state.checkedText !== state.text
 
 	const average = state.scores
@@ -103,7 +92,6 @@ export function ProofreaderPanel() {
 			setCopied(true)
 			setTimeout(() => setCopied(false), 2000)
 		} catch {
-			// clipboard ditolak browser - abaikan, tombol tetap seperti semula
 		}
 	}
 

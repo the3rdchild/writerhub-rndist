@@ -35,8 +35,6 @@ def is_cancelled(job_id: str) -> bool:
     try:
         return _redis.exists(_flag_key(job_id)) == 1
     except Exception:
-        # Redis boleh gagal sesaat; jangan gantungkan job hanya karena cek batal
-        # tidak bisa dibaca. Pembatalan best-effort, bukan jaminan.
         return False
 
 

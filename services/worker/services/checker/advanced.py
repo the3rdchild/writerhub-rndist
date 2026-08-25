@@ -31,9 +31,6 @@ def _iss(offset, length, replacement, type_, prio=0):
         "category": "grammar",
         "prio": prio,
     }
-
-
-# ── data ─────────────────────────────────────────────────────────────────────
 _VBD_TO_VBN = {
     "went": "gone", "took": "taken", "ate": "eaten", "saw": "seen", "did": "done",
     "came": "come", "ran": "run", "gave": "given", "knew": "known", "grew": "grown",
@@ -59,7 +56,6 @@ _PRESENT_TO_PAST = {
     "finds": "found", "leave": "left", "leaves": "left", "meet": "met", "meets": "met",
     "pay": "paid", "pays": "paid", "say": "said", "says": "said", "sell": "sold",
     "send": "sent", "sit": "sat", "stand": "stood", "win": "won", "wear": "wore",
-    # regular umum (+ed sudah pasti)
     "walk": "walked", "walks": "walked", "play": "played", "plays": "played",
     "work": "worked", "works": "worked", "want": "wanted", "wants": "wanted",
     "watch": "watched", "talk": "talked", "talks": "talked", "look": "looked",
@@ -67,7 +63,6 @@ _PRESENT_TO_PAST = {
     "open": "opened", "close": "closed", "start": "started", "stay": "stayed",
     "live": "lived", "move": "moved", "use": "used", "like": "liked",
     "study": "studied", "studies": "studied", "try": "tried", "tries": "tried",
-    # common irregular yang sering miss
     "begin": "began", "begins": "began",
     "spend": "spent", "spends": "spent",
     "send": "sent", "sends": "sent",
@@ -138,9 +133,6 @@ def _to_3sg(w: str) -> str:
     if lw.endswith("y") and len(lw) > 1 and lw[-2] not in "aeiou":
         return _cap(w, lw[:-1] + "ies")
     return _cap(w, lw + "s")
-
-
-# ── rules ─────────────────────────────────────────────────────────────────────
 def _perfect_tense(tagged, text):
     out = []
     n = len(tagged)
@@ -173,7 +165,6 @@ def _existential_there(tagged, text):
         bw = be[0].lower()
         if bw not in ("is", "was"):
             continue
-        # cari noun pertama, lewatin det/adj/angka/adverb
         j = i + 2
         while j < n and tagged[j][1] in ("JJ", "DT", "CD", "RB", "JJR", "JJS", "PRP$"):
             j += 1
@@ -219,8 +210,6 @@ def _missing_article(tagged, text):
     for i in range(n - 1):
         if tagged[i][0].lower() not in BE_SING:
             continue
-        # cuma noun yang LANGSUNG setelah be (boleh lewatin 1 adverb), JANGAN lewatin
-        # adjektiva - biar "is bright red" (red ke-tag NN) ga jadi "is a bright red"
         j = i + 1
         if j < n and tagged[j][1] == "RB":
             j += 1
@@ -247,16 +236,12 @@ def _past_tense_marker(text):
         if past:
             out.append(_iss(m.start(3), len(verb), _cap(verb, past), "Verb tense", prio=-1))
     return out
-
-
-# Kata yang TIDAK diubah oleh narrative tense (auxiliaries, copulas, stative)
 _NARRATIVE_SKIP = {
     "is", "are", "am", "be", "been", "being",
     "have", "has", "do", "does", "did", "will", "would", "can", "could",
     "may", "might", "shall", "should", "must", "need", "dare",
     "don't", "doesn't", "won't", "can't",
 }
-# Regex penanda naratif lampau di teks (harus ada minimal satu)
 _PAST_SIGNAL_RE = re.compile(
     r"\b(yesterday|last\s+\w+|\d+\s+(?:days?|weeks?|months?|years?)\s+ago"
     r"|earlier|previously|once|at\s+that\s+time|that\s+day|that\s+night"
@@ -287,17 +272,13 @@ def _desinflect(w: str, tag: str) -> str:
 def _to_past_form(w: str, tag: str) -> str:
     """Convert present verb (VBP/VBZ) ke past tense yang benar."""
     base = _desinflect(w, tag)
-    # lookup irregular
     past = _PRESENT_TO_PAST.get(base)
     if past:
         return past
-    # regular +ed
     if base.endswith("e"):
         return base + "d"
     if base.endswith("y") and len(base) > 1 and base[-2] not in "aeiou":
         return base[:-1] + "ied"
-    # double consonant hanya untuk kata monosyllabic (stop→stopped, drop→dropped)
-    # "order", "enter", "suffer" dll TIDAK double karena bukan monosyllabic
     import re as _re
     is_monosyllabic = len(_re.findall(r"[aeiou]+", base)) == 1
     if (is_monosyllabic and len(base) >= 3 and base[-1] not in "aeiouywh"
@@ -319,17 +300,13 @@ def _narrative_tense(tagged, text):
 
     out = []
     for i, (w, t, o, l) in enumerate(tagged):
-        # VBP/VBZ: present tense (3sg dan non-3sg)
-        # VB: base form - handle kalau dalam posisi finite (setelah subj atau CC)
         if t == "VB":
             if i == 0:
                 continue
             prev_t = tagged[i - 1][1]
             prev_w = tagged[i - 1][0].lower()
-            # setelah modal/to/negasi → infinitive, JANGAN ubah
             if prev_t in ("MD", "TO") or prev_w in ("to", "n't", "not"):
                 continue
-            # setelah CC (and/or/but) ATAU setelah noun/pronoun subject → finite verb
             finite = prev_w in ("and", "or", "but") or prev_t in (
                 "NN", "NNS", "NNP", "NNPS", "PRP", "DT"
             )
@@ -339,14 +316,12 @@ def _narrative_tense(tagged, text):
             continue
         if w.lower() in _NARRATIVE_SKIP:
             continue
-        # skip kalau didahului negasi (don't/doesn't) - handle di rule lain
         before = text[max(0, o - 12):o].lower()
         if re.search(r"\b(do|does)n'?t\s+$", before):
             continue
         past = _to_past_form(w, t)
         if past == w.lower():
             continue
-        # prio=-1 supaya menang atas SVA (prio=0) yang overlap pada verb yang sama
         out.append(_iss(o, l, _cap(w, past), "Verb tense (narrative)", prio=-1))
     return out
 
@@ -370,21 +345,14 @@ def _was_base_verb(tagged, text):
         prev_t = tagged[i - 1][1]
         if prev_w not in ("was", "were") or prev_t != "VBD":
             continue
-        # VBG setelah was/were = progressive (benar), jangan ubah
-        # VB setelah was/were = salah bentuk → ganti ke simple past
         past = _to_past_form(w, "VBP")
         if past == w.lower():
             continue
-        # Span mencakup "was/were + verb" agar hasilnya bersih (hapus "was")
         prev_o, prev_l = tagged[i - 1][2], tagged[i - 1][3]
         span_start = prev_o
         repl = _cap(tagged[i - 1][0], past)
         out.append(_iss(span_start, (o + l) - span_start, repl, "Verb tense", prio=-1))
     return out
-
-
-# Konversi negasi present→past dalam narasi lampau
-# "don't/doesn't + verb" → "didn't + verb" (kalau konteks narasi)
 def _narrative_negation(text):
     out = []
     for m in re.finditer(
@@ -415,13 +383,11 @@ def check_advanced(text: str) -> list[dict]:
                 out += fn(tagged, text)
             except Exception:
                 pass
-    # rules berbasis regex (ga butuh POS)
     for fn in (_past_tense_marker,):
         try:
             out += fn(text)
         except Exception:
             pass
-    # narrative negation hanya kalau ada signal naratif
     if _PAST_SIGNAL_RE.search(text):
         try:
             out += _narrative_negation(text)

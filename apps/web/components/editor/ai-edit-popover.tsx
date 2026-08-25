@@ -7,16 +7,6 @@ import { streamChat } from '@/features/chat/api'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { type EditorSelection, selectionTextRange } from '@/features/editor/selection'
 import { cn } from '@/lib/utils'
-
-/**
- * Menulis ulang bagian yang disorot menurut instruksi bebas.
- *
- * Memakai jalur percakapan yang sama dengan panel AI Chat, tapi hasilnya tidak
- * masuk ke transkrip: yang diinginkan pengguna di sini bukan jawaban, melainkan
- * teks pengganti. Karena itu tampilannya kartu diff dengan Apply, sama seperti
- * modul lain - tidak ada suntingan yang terjadi tanpa dilihat lebih dulu.
- */
-
 const PRESETS = ['Make it shorter', 'Make it clearer', 'More formal', 'Fix grammar only']
 
 export function AiEditPopover({

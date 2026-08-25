@@ -88,14 +88,6 @@ import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { useShortcutLabel } from '@/features/shortcuts/use-shortcuts'
 import { cn, countWords } from '@/lib/utils'
-
-/**
- * Menu bar bergaya pengolah kata.
- *
- * Setiap butir benar-benar menjalankan sesuatu; tidak ada yang sekadar hiasan.
- * Butir yang belum punya perilaku lebih baik tidak dipasang sama sekali
- * daripada memberi kesan fitur yang sebenarnya belum ada.
- */
 export function MenuBar() {
 	const { editor } = useEditorInstance()
 	const { state, dispatch } = useDocument()
@@ -105,9 +97,6 @@ export function MenuBar() {
 	const { setup: activeSetup, setPageSetup } = usePageSetup()
 	const { openImport } = useDocumentImport()
 	const { activePanel, setActivePanel } = usePanels()
-
-	// Label pintasan datang dari registry, bukan diketik di sini - dulu teksnya
-	// ditulis manual dan sempat menjanjikan tombol yang tidak pernah didaftarkan.
 	const keys = useShortcutLabel()
 
 	const downloadText = () => {
@@ -119,24 +108,11 @@ export function MenuBar() {
 
 	const [exporting, setExporting] = useState(false)
 	const [imageDialogOpen, setImageDialogOpen] = useState(false)
-
-	// Kapitalisasi hanya bekerja pada teks yang disorot; tanpa seleksi butirnya
-	// dimatikan alih-alih diam-diam mengubah paragraf yang sedang ditulis.
-	//
-	// Sengaja fungsi, bukan nilai: MenuBar tidak berlangganan transaksi editor,
-	// jadi nilai yang dihitung di sini akan membeku pada render terakhir dan
-	// butirnya tetap mati meski teks sudah disorot. Dipanggil dari dalam render
-	// prop menu, pembacaannya terjadi saat menu dibuka - selalu terkini.
 	const hasSelection = () => Boolean(editor && !editor.state.selection.empty)
 
 	const downloadDocx = async () => {
 		if (!editor || exporting) return
-		// Segarkan snapshot blok TOC dulu supaya nomor halaman yang diekspor
-		// mutakhir (§A5.3); menulis node lewat Y.Doc jadi tab aktif ikut terbawa
-		// juga saat ekspor multi-tab.
 		refreshTocBlocks(editor.view.dom)
-		// Dokumen bertab banyak ditanyakan dulu tab mana yang ikut; dokumen satu
-		// tab langsung diekspor tanpa dialog.
 		if (sessions.length > 1) {
 			setDocxExportOpen(true)
 			return
@@ -505,9 +481,6 @@ export function MenuBar() {
 						{/* ── Gaya paragraf ── */}
 						<Submenu label="Gaya paragraf" icon={<TextCursor className="h-4 w-4" />}>
 							{() => {
-								// Tingkat 6–9 tidak bisa dipilih dari sini (cuma 1–5), tapi kalau
-								// kursor sedang di salah satunya, tampilkan apa adanyanya supaya
-								// tidak terlihat seperti tidak ada gaya aktif.
 								const activeStyle = editor
 									? ALL_PARAGRAPH_STYLES.find((s) => s.isActive(editor))
 									: undefined
@@ -746,16 +719,7 @@ export function MenuBar() {
 		</>
 	)
 }
-
-/** Ukuran huruf saat atribut `fontSize` belum pernah disetel. */
 const DEFAULT_FONT_SIZE = 11
-
-/**
- * Naik/turun satu poin dari ukuran yang sedang aktif.
- *
- * Batas 6-96 pt dan langkah 1 pt mengikuti tombol +/- di toolbar, supaya dua
- * jalan menuju hal yang sama tidak berakhir di angka yang berbeda.
- */
 function stepFontSize(editor: Editor | null, delta: number): void {
 	if (!editor) return
 	const parsed = Number.parseFloat(String(editor.getAttributes('textStyle').fontSize ?? ''))
@@ -763,8 +727,6 @@ function stepFontSize(editor: Editor | null, delta: number): void {
 	const next = Math.min(96, Math.max(6, Math.round(base) + delta))
 	editor.chain().focus().setFontSize(`${next}pt`).run()
 }
-
-/** Jalankan aksi lalu tutup menu - pola yang berulang di hampir semua butir. */
 function run(close: () => void, action: () => void) {
 	action()
 	close()

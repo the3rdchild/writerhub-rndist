@@ -4,11 +4,6 @@ import QueueClient from '@/lib/queue'
 import { findMemoryByOwner } from '@/repository/memory'
 import JobSubmissionService from '@/services/job-submission.service'
 import { analysisBodySchema } from './dto'
-
-/**
- * `POST /api/v1/analyze` - antrekan job AI detector / rewriter / humanizer /
- * plagiarism. Menerima JSON maupun form-data agar kompatibel dengan klien lama.
- */
 export default class AnalysisService extends JobSubmissionService {
 	async create(): Promise<Response> {
 		try {
@@ -20,12 +15,6 @@ export default class AnalysisService extends JobSubmissionService {
 
 			const provider = await this.authorizeAndResolveProvider()
 			const jobId = crypto.randomUUID()
-
-			// AI Memory dibaca di server dan ikut di PAYLOAD JOB (bukan di params
-			// pool_request - params untuk audit). Worker hanya memakainya di
-			// analyzer yang menulis ulang naskah (rewriter & humanizer).
-			// Tone pilihan user (panel AI Rewriter) meng-override tone memory
-			// untuk run ini - field memory lain (language/glossary/notes) tetap.
 			const styleMemory = await this.styleMemory()
 			const tone = body.tone ? REWRITE_TONES.find((item) => item.id === body.tone) : undefined
 			const effectiveMemory =
@@ -49,7 +38,6 @@ export default class AnalysisService extends JobSubmissionService {
 				text: body.text,
 				language: body.language ?? null,
 				style_memory: effectiveMemory,
-				// Hanya berarti untuk translator; analyzer lain mengabaikannya.
 				target_lang: body.targetLang ?? null,
 				...this.providerPayload(provider),
 			})
@@ -66,11 +54,6 @@ export default class AnalysisService extends JobSubmissionService {
 			? this.context.req.json().catch(() => ({}))
 			: this.context.req.parseBody({ all: true })
 	}
-
-	/**
-	 * AI Memory milik user untuk payload job; null bila belum pernah diisi.
-	 * Diambil dari userId context - klien tidak mengirimnya.
-	 */
 	private async styleMemory(): Promise<StyleMemory | null> {
 		const userId = this.context.get('userId')
 		if (!userId) return null

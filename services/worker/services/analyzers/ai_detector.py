@@ -19,10 +19,6 @@ from core.provider import Provider
 
 logger = logging.getLogger(__name__)
 
-
-
-# --- Fallback heuristik ---
-
 _FORMAL_PATTERNS = [
     r"\bit is important to note\b",
     r"\bit is worth (?:mentioning|noting)\b",
@@ -47,25 +43,17 @@ def _heuristic_overall(text: str) -> int:
     sent_lens = [len(s.split()) for s, _ in sentence_spans(text)]
     toks = words(text)
     score = 25  # baseline netral-rendah
-
-    # kalimat panjang seragam khas output LLM
     if sent_lens and (sum(sent_lens) / len(sent_lens)) > 25:
         score += 20
-
-    # lexical diversity rendah (type-token ratio)
     if toks:
         ttr = len(set(toks)) / len(toks)
         if ttr < 0.6:
             score += 15
-
-    # burstiness rendah = variasi panjang kalimat kecil
     if len(sent_lens) >= 3:
         mean = sum(sent_lens) / len(sent_lens)
         stdev = statistics.pstdev(sent_lens)
         if mean > 0 and (stdev / mean) < 0.35:
             score += 15
-
-    # frasa formal/akademik khas AI
     hits = sum(1 for p in _FORMAL_PATTERNS if re.search(p, text, re.IGNORECASE))
     score += min(hits * 5, 20)
 

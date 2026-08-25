@@ -12,20 +12,6 @@ import { useEditorInstance } from '@/features/editor/editor-context'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
-
-/**
- * Dialog setelan blok daftar isi (§A5.2).
- *
- * Dibuka dari menu tiga-titik blok TOC lewat event DOM yang membawa atribut
- * blok + callback `apply` milik NodeView pemanggil - jadi dialog menulis ke
- * node yang benar tanpa menebak lewat seleksi. Draf lokal diterapkan saat OK:
- * mengganti setelan memicu penyegaran isi + repaginasi blok, dan menjalankannya
- * pada tiap ketukan angka lekukan terbaca kacau.
- *
- * Nomor halaman otomatis dimatikan pada pageless (§A5.3).
- */
-
-/** Satuan panjang mengikuti Setelan (sama seperti Penyiapan halaman & penggaris). */
 function fromPx(px: number, unit: 'cm' | 'in'): number {
 	return unit === 'cm' ? (px / INCH) * 2.54 : px / INCH
 }
@@ -47,8 +33,6 @@ const TAB_LEADERS: ReadonlyArray<{ value: TocTabLeader; label: string; char: str
 
 const FIELD_CLASS =
 	'w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm text-foreground outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-50'
-
-/** Satu baris setelan: label kiri, kendali kanan - sejajar di seluruh dialog. */
 function Row({
 	label,
 	hint,
@@ -77,16 +61,6 @@ export function TocSettingsDialog() {
 	const [draft, setDraft] = useState<TocBlockAttrs>(DEFAULT_TOC_ATTRS)
 	const applyRef = useRef<((patch: Partial<TocBlockAttrs>) => void) | null>(null)
 	const overlayRef = useRef<HTMLDivElement>(null)
-
-	/*
-	 * Buka saat event dari NodeView; detail membawa atribut + apply blok itu.
-	 *
-	 * Simpul DOM-nya ditangkap sekali saat berlangganan, bukan dibaca ulang di
-	 * pembersihan: berpindah tab dokumen membubarkan editor view lebih dulu, dan
-	 * `editor.view` pada titik itu melempar ("The editor view is not available").
-	 * Melepas pendengar dari simpul yang sama dengan tempat ia dipasang juga
-	 * satu-satunya cara yang benar ketika view-nya sudah diganti.
-	 */
 	useEffect(() => {
 		if (!editor) return
 		const dom = editor.view.dom
@@ -100,8 +74,6 @@ export function TocSettingsDialog() {
 		dom.addEventListener(TOC_SETTINGS_EVENT, handler)
 		return () => {
 			dom.removeEventListener(TOC_SETTINGS_EVENT, handler)
-			// Editor berganti: `apply` yang tersimpan menunjuk NodeView dari
-			// dokumen lama, jadi dialog ditutup alih-alih menulis ke node hantu.
 			applyRef.current = null
 			setOpen(false)
 		}
@@ -132,9 +104,6 @@ export function TocSettingsDialog() {
 	const unitLabel = unit === 'cm' ? 'cm' : 'inci'
 	const showPages = draft.showPageNumbers && !pageless
 	const leaderChar = TAB_LEADERS.find((entry) => entry.value === draft.tabLeader)?.char ?? ' '
-
-	// Rentang tingkat tidak boleh terbalik: menggeser salah satu ujung mendorong
-	// ujung lainnya, bukan menghasilkan rentang kosong yang diam-diam tak berisi.
 	const setMinLevel = (value: number) =>
 		setDraft((c) => ({ ...c, minLevel: value, maxLevel: Math.max(value, c.maxLevel) }))
 	const setMaxLevel = (value: number) =>
@@ -156,10 +125,6 @@ export function TocSettingsDialog() {
 
 				<div className="flex flex-col gap-3">
 					{/*
-					 * Dua pilihan, bukan tiga: 'plain' dan 'dotted' dirender persis sama
-					 * (titik-titik datang dari Pengisi tab, bukan dari sini), jadi
-					 * menawarkan keduanya hanya membuat pengguna menebak bedanya. Nilai
-					 * lama 'dotted' tetap terbaca sebagai "Teks biasa".
 					 */}
 					<Row
 						label="Gaya butir"

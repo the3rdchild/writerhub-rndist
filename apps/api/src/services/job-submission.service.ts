@@ -10,27 +10,9 @@ import BaseService from '@/services/base.service'
 import LoggerClient from '@/utils/logger'
 
 const log = LoggerClient.getInstance()
-
-/**
- * Slug service & nama tool di admin-ppe. Keduanya dipakai grammar maupun
- * analysis karena keduanya dihitung ke kuota "grammar" yang sama.
- */
 export const USAGE_SERVICE_SLUG = 'grammar'
 export const USAGE_TOOL_NAME = 'grammar-check'
-
-/**
- * Bagian yang sama persis antara submit grammar dan submit analysis:
- * autentikasi user, resolve provider LLM, gerbang kuota, pembuatan baris
- * pool_request, dan penjadwalan pencatatan token setelah job selesai.
- *
- * Saat `AUTH_MODE=none` seluruh urusan admin-ppe dilewati: provider bernilai
- * null dan worker memakai konfigurasi LLM dari env-nya sendiri.
- */
 export default abstract class JobSubmissionService extends BaseService {
-	/**
-	 * Resolve provider LLM beserta gerbang kuotanya.
-	 * Mengembalikan null pada mode lokal - bukan kegagalan.
-	 */
 	protected async authorizeAndResolveProvider(): Promise<ResolvedProvider | null> {
 		if (isLocalAuth) return null
 
@@ -47,23 +29,13 @@ export default abstract class JobSubmissionService extends BaseService {
 		await ensureToolQuota(provider.userId, USAGE_SERVICE_SLUG, USAGE_TOOL_NAME)
 		return provider
 	}
-
-	/** Catat job baru sebagai `pending` dan kembalikan id barisnya. */
 	protected async createPoolRequest(
 		jobId: string,
 		provider: ResolvedProvider | null,
 		params: Record<string, unknown>,
 		meta?: { tabId?: string | null; feature?: string },
 	): Promise<string> {
-		// user_id diambil dari context (diisi authMiddleware di kedua mode auth),
-		// BUKAN dari provider - provider bernilai null pada AUTH_MODE=none, dan
-		// memakainya berarti aktivitas tidak tercatat sama sekali di dev lokal.
 		const userId = this.context.get('userId') ?? null
-
-		// Tautan tab hanya dicatat bila tabnya memang milik user ini.
-		// tabId dikirim klien dan bisa basi (tab sudah dihapus) atau
-		// menunjuk tab orang lain - keduanya cukup diperlakukan sebagai
-		// "tanpa tautan", bukan menggagalkan job.
 		let tabId: string | null = null
 		if (meta?.tabId && userId) {
 			const tab = await findTabById(meta.tabId, await this.identityId())
@@ -82,9 +54,6 @@ export default abstract class JobSubmissionService extends BaseService {
 				feature: meta?.feature ?? null,
 			})
 			.returning()
-
-		// Retensi 90 hari, dipangkas saat menulis entri baru (pola
-		// pruneIntervalVersions). Kegagalan prune tidak boleh menggagalkan job.
 		if (userId) {
 			try {
 				await pruneOldHistory(userId)
@@ -95,11 +64,6 @@ export default abstract class JobSubmissionService extends BaseService {
 
 		return request.id
 	}
-
-	/**
-	 * Field provider yang ikut dikirim ke worker lewat payload job.
-	 * Kosong pada mode lokal - worker jatuh ke konfigurasi env miliknya.
-	 */
 	protected providerPayload(provider: ResolvedProvider | null) {
 		if (!provider) return {}
 
@@ -112,10 +76,7 @@ export default abstract class JobSubmissionService extends BaseService {
 			sdkProvider: provider.sdkProvider,
 		}
 	}
-
-	/** Respons 202 standar untuk job yang berhasil masuk antrean. */
 	protected accepted(jobId: string, provider: ResolvedProvider | null): Response {
-		// Tidak ada kuota yang perlu dicatat kalau provider bukan dari admin-ppe.
 		if (provider) {
 			recordTokenUsageAfterCompletion({
 				jobId,

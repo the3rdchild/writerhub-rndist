@@ -1,13 +1,5 @@
 import { pgEnum, pgTable, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core'
 import { timestamps } from '@/db/utils/common-table'
-
-/**
- * Normalisasi identitas user lintas origin (client `pp-extended` vs
- * `ransel-ai`). `user_id` menyimpan id eksternal mentah (bisa non-UUID, mis.
- * `local-dev` di mode dev) - `id` adalah surrogate uuid yang dipakai sebagai
- * FK di tabel lain, supaya id eksternal yang sama dari origin berbeda tidak
- * pernah tertukar.
- */
 export const identityOriginEnum = pgEnum('identity_origin', ['ransel', 'ppe'])
 
 export const identity = pgTable(

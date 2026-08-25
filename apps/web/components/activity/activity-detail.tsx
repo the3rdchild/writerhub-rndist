@@ -26,8 +26,6 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	hour: '2-digit',
 	minute: '2-digit',
 })
-
-/** Satu usulan penggantian; nonaktif berlabel bila teks aslinya sudah hilang. */
 function ChangeRow({
 	original,
 	replacement,
@@ -35,7 +33,6 @@ function ChangeRow({
 }: {
 	original: string
 	replacement: string
-	/** Teks aslinya sudah tidak ada di naskah sekarang. */
 	stale: boolean
 }) {
 	return (
@@ -53,8 +50,6 @@ function ChangeRow({
 		</div>
 	)
 }
-
-/** Isi hasil per fitur. `text` = naskah tab aktif sekarang, untuk resolveSpan. */
 function ResultBody({ detail, text }: { detail: HistoryDetail; text: string }) {
 	const result = detail.result
 	if (!result) return null
@@ -132,11 +127,6 @@ function ResultBody({ detail, text }: { detail: HistoryDetail; text: string }) {
 
 	return null
 }
-
-/**
- * Panel detail satu entri Aktivitas AI: hasil lengkap dimuat lewat
- * GET /history/:jobId, plus aksi "Terapkan ulang" / "Buka di panel".
- */
 export function ActivityDetail({
 	jobId,
 	onClose,
@@ -151,9 +141,6 @@ export function ActivityDetail({
 	const [confirmOpen, setConfirmOpen] = useState(false)
 
 	const { documentReady, opening, openError, openTargetDocument, reapply } = useReapply(detail)
-
-	// Naskah tab aktif sekarang, untuk menandai segmen yang teksnya sudah berubah.
-	// Hanya bermakna bila dokumen entri memang tab yang sedang aktif.
 	const currentText = useMemo(
 		() => (activeId && documentReady ? tabPlainText(doc, activeId) : ''),
 		[doc, activeId, documentReady, detail?.jobId],
@@ -168,7 +155,6 @@ export function ActivityDetail({
 			await deleteEntry.mutateAsync(jobId)
 			onClose()
 		} catch {
-			// Galat jaringan: entri tetap ada; tidak ada yang perlu diubah di UI.
 		}
 	}
 

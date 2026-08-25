@@ -9,18 +9,6 @@ import { useEditorInstance } from '@/features/editor/editor-context'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { PanelEmptyState } from './panel-parts'
-
-/**
- * Komentar pada tab yang sedang dibuka.
- *
- * Jangkarnya adalah mark di dalam naskah, jadi klik sebuah utas berarti mencari
- * mark bernama sama - bukan menyimpan posisi yang harus dipelihara sendiri
- * setiap kali teks di atasnya berubah.
- *
- * Panel ini daftar lengkapnya; gutter di sisi lembar menampilkan utas yang sama
- * pada ketinggian kalimatnya. Keduanya membaca sumber yang satu dan menulis
- * lewat jalan yang satu juga - tidak ada salinan state di antara mereka.
- */
 export function CommentsPanel() {
 	const { comments, setCommentResolved, removeComment } = useSessions()
 	const { editor } = useEditorInstance()

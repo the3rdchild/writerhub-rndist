@@ -4,11 +4,6 @@ import { twMerge } from 'tailwind-merge'
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs))
 }
-
-/**
- * Sidik jari teks yang murah (djb2). Dipakai untuk mendeteksi apakah sebuah
- * hasil analisis masih cocok dengan isi dokumen saat ini.
- */
 export function fingerprint(text: string): string {
 	let hash = 5381
 	for (let i = 0; i < text.length; i += 1) {

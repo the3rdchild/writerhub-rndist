@@ -14,9 +14,6 @@ from services.analyzers.llm_client import language_name
 logger = logging.getLogger(__name__)
 
 _TIMEOUT = 90
-
-# Kontrak JSON-nya sengaja satu-satunya bagian yang dibagi semua bahasa:
-# bentuk respons tidak boleh berubah hanya karena naskahnya bukan Inggris.
 _CONTRACT = (
     "Analyze the given text and return every error you find.\n\n"
     "For each error produce a JSON object with these exact keys:\n"
@@ -30,12 +27,6 @@ _CONTRACT = (
     "Quote `original` verbatim from the text, long enough to be unambiguous.\n"
     "If the text has no errors, return {\"suggestions\": []}."
 )
-
-
-# Naskah nyata (paper, laporan) sering campur bahasa dengan sengaja - abstrak
-# Inggris di tengah paper Indonesia, kutipan asing, istilah teknis. Tanpa
-# klausa ini, memaksa "seluruh teks adalah bahasa X" (lihat komentar di bawah)
-# balik menghukum passage yang justru benar di bahasa aslinya.
 _MULTI_LANG_NOTE = (
     "A document's primary language does not have to apply to every passage. "
     "If a passage is unambiguously written in a different language on purpose "
@@ -119,7 +110,6 @@ def _resolve_offset(text: str, original: str, hint: int | None) -> int | None:
 
 def check_ai_grammar(
     text: str,
-    *,
     model_id: str | None,
     alias: str | None,
     is_nine_router: bool,
@@ -193,8 +183,6 @@ def check_ai_grammar(
                 "type":        str(s.get("type", "Grammar error")),
                 "category":    category,
                 "offset":      offset,
-                # Selalu panjang `original`, bukan `replacement` - `_apply` memakai
-                # ini untuk memotong teks sumber.
                 "length":      len(original),
                 "prio":        0,
             })

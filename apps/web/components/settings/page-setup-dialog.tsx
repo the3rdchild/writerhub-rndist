@@ -20,42 +20,13 @@ import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useSettings } from '@/features/settings/settings-context'
 import { useSessions } from '@/features/sessions/session-context'
 import { cn } from '@/lib/utils'
-
-/**
- * Dialog Penyiapan halaman (PRD EDITOR-AI-UPGRADE §A1.4, diperluas §P8&P9).
- *
- * Satu dialog, satu tombol OK - bukan penerapan langsung, karena mengganti
- * kertas me-repaginasi seluruh naskah dan pratinjau pada tiap ketukan terasa
- * kacau.
- *
- * "Apply to" memilih di antara dua tempat penyimpanan yang berbeda sifatnya,
- * dan itu bukan detail teknis melainkan inti fiturnya:
- *
- * - `document` / `tab` menulis ke Y.Doc - setelan DASAR naskah, berlaku untuk
- *   section pertama dan diwarisi semua section sesudahnya.
- * - `from_here` / `this_page` menulis ke NASKAH, sebagai node `sectionBreak`.
- *   Ia menempel pada potongan teks, bukan pada nomor halaman (§2.1), sehingga
- *   tetap benar saat isi bergeser.
- *
- * Satuan cm/inci mengikuti `Settings.measurementUnit`, dipakai bersama oleh
- * dialog ini, penggaris, dan lekukan TOC (A5).
- */
-
-/**
- * Cakupan penerapan. Dua yang pertama milik dokumen, dua yang terakhir milik
- * naskah - lihat catatan di atas.
- */
 type Scope = 'document' | 'tab' | 'from_here' | 'this_page'
-
-/** Konversi piksel 96 dpi ke satuan aktif. */
 function fromPx(px: number, unit: 'cm' | 'in'): number {
 	return unit === 'cm' ? (px / INCH) * 2.54 : px / INCH
 }
 function toPx(value: number, unit: 'cm' | 'in'): number {
 	return unit === 'cm' ? (value / 2.54) * INCH : value * INCH
 }
-
-/** Margin ditekuk ke 2 desimal supaya bolak-balik px↔satuan tidak menggeser. */
 function roundUnit(value: number): number {
 	return Math.round(value * 100) / 100
 }
@@ -66,14 +37,9 @@ export function PageSetupDialog() {
 	const { sessions, activeId } = useSessions()
 	const { editor } = useEditorInstance()
 	const overlayRef = useRef<HTMLDivElement>(null)
-
-	// Draf lokal; baru ditulis saat OK ditekan.
 	const [draft, setDraft] = useState<PageSetup>(setup)
 	const [scope, setScope] = useState<Scope>('document')
 	const [customError, setCustomError] = useState<string | null>(null)
-
-	// Segarkan draf tiap dialog dibuka (bukan tiap `setup` berubah - mengetik di
-	// dalam dialog tidak boleh menimpa apa yang sedang disusun pengguna).
 	useEffect(() => {
 		if (pageSetupOpen) {
 			setDraft(setup)
@@ -116,16 +82,9 @@ export function PageSetupDialog() {
 	const setCustomSide = (field: 'customWidth' | 'customHeight', rawPx: number) => {
 		setDraft((current) => ({ ...current, [field]: rawPx }))
 	}
-
-	/**
-	 * Cakupan per-section hanya masuk akal kalau ada editor yang sudah terukur:
-	 * "halaman ini" dibaca dari hasil paginasi, dan pada mode pageless tidak ada
-	 * halaman sama sekali (§A1.5).
-	 */
 	const sectionScopesAvailable = editor !== null && !editor.isDestroyed && !setup.pageless
 
 	const ok = () => {
-		// Validasi ukuran khusus sebelum menulis.
 		if (draft.size === 'custom') {
 			const err = validateCustomSize(draft.customWidth ?? 0, draft.customHeight ?? 0)
 			if (err) {
@@ -145,8 +104,6 @@ export function PageSetupDialog() {
 			setCustomError('Could not tell which page the cursor is on. Click in the document first.')
 			return
 		}
-		// `setup` adalah setelan dasar tab - itulah yang diwarisi section pertama,
-		// jadi ia juga yang dipakai menghitung apa yang harus dipulihkan di akhir.
 		editor.chain().focus().applySectionSetup(draft, range, setup).run()
 		setPageSetupOpen(false)
 	}
@@ -190,9 +147,6 @@ export function PageSetupDialog() {
 							</option>
 						</select>
 						{isSectionScope(scope) && (
-							// Kedua cakupan ini menulis ke naskah, bukan ke setelan dokumen -
-							// pemakai berhak tahu sebelum menekan OK, sebab hasilnya ikut
-							// tersalin dan ikut ke riwayat undo.
 							<span className="text-[11px] leading-relaxed text-subtle">
 								{scope === 'this_page'
 									? 'Inserts a section break before and after this page. Content may reflow onto another page if it no longer fits.'

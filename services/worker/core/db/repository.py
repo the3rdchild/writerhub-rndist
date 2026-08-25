@@ -38,16 +38,11 @@ _UPDATE_TOKENS = """
 """
 
 _GET_TAB_CONTENT = "SELECT content FROM document_tabs WHERE id = %s"
-
-# trigger 'ai_result': snapshot otomatis saat job AI selesai (lihat
-# metadata-version.ts di apps/api).
 _INSERT_VERSION = """
     INSERT INTO document_versions (tab_id, content, trigger, word_count, created_by)
     VALUES (%s, %s, 'ai_result', %s, %s)
     RETURNING id
 """
-
-# job_id unik → upsert biar idempotent kalau job diproses ulang
 _INSERT_METADATA_VERSION = """
     INSERT INTO metadata_version (job_id, request_id, version_id, feature, result)
     VALUES (%s, %s, %s, %s, %s)

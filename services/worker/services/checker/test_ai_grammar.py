@@ -39,9 +39,7 @@ def test_prompt_indonesia_menyebut_bahasanya():
     prompt = _system_prompt("id")
 
     assert prompt.startswith("You are a professional grammar, spelling, and style checker for Indonesian text.")
-    # Larangan mengoreksi ke bahasa lain adalah inti perbaikannya.
     assert "never against English" in prompt
-    # Kontrak JSON-nya tidak berubah.
     assert '"suggestions"' in prompt
     assert '"offset"' in prompt
 
@@ -52,17 +50,11 @@ def test_prompt_inggris_dan_kosong_persis_seperti_semula():
 
 
 def test_prompt_mengizinkan_passage_bahasa_lain_yang_disengaja():
-    # Naskah nyata (paper) sering campur bahasa dengan sengaja - abstrak
-    # Inggris di paper Indonesia tidak boleh ikut dipaksa jadi bahasa Indonesia.
     prompt = _system_prompt("id")
 
     assert "different language on purpose" in prompt
     assert "judge that passage by the grammar of the" in prompt
-    # Larangan koreksi-fonetik berlaku dua arah, bukan cuma bahasa lain -> Inggris.
     assert "both directions" in prompt
-
-    # Klausa yang sama juga berlaku untuk prompt default Inggris - dokumen
-    # Inggris bisa saja punya kutipan/istilah bahasa lain yang sengaja.
     assert "different language on purpose" in _SYSTEM
 
 
@@ -105,8 +97,6 @@ def test_bahasa_diteruskan_ke_checker_ai(monkeypatch):
     result = analyze_grammar("teks yang benar", language="id", model="ai", provider=_provider())
 
     assert captured["language"] == "id"
-    # Fallback aturan-Inggris dilewati: 'teks' dan 'yang' akan diflag kamus
-    # Inggris seandainya checker aturan jalan - kosong berarti ia tidak jalan.
     assert result["suggestions"] == []
     assert result["corrected_text"] == "teks yang benar"
 
@@ -118,6 +108,4 @@ def test_inggris_tetap_fallback_ke_checker_aturan(monkeypatch):
     )
 
     result = analyze_grammar("She has speling errror.", language="en", model="ai", provider=_provider())
-
-    # Kata yang memang salah-eja tetap tertangkap checker aturan.
     assert len(result["suggestions"]) >= 1

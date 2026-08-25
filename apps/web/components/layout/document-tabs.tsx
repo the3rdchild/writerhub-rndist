@@ -33,26 +33,7 @@ import { type Session, sessionLabel, useSessions } from '@/features/sessions/ses
 import { useSettings } from '@/features/settings/settings-context'
 import { type SyncStatus, useSync } from '@/features/sync/sync-context'
 import { cn } from '@/lib/utils'
-
-/**
- * Ikon tab dibatasi beberapa pilihan, bukan pemilih emoji penuh: gunanya hanya
- * membedakan tab sekilas, dan daftar pendek jauh lebih cepat dipakai.
- */
 const TAB_ICONS = ['📄', '📝', '📌', '⭐', '📊', '🔬', '💡', '🗂️'] as const
-
-/**
- * Sidebar tab milik dokumen yang sedang dibuka.
- *
- * Hanya satu tingkat: nama dokumen jadi kepala (konteks), lalu daftar tabnya.
- * Perpindahan antar dokumen sengaja tidak ada di sini - itu urusan menu
- * WritingHub dan /library, dan dua daftar yang sama di dua tempat hanya
- * menggandakan pekerjaan tanpa menambah kemampuan.
- *
- * Satu tab adalah satu naskah - daftarnya datang langsung dari penyimpanan
- * sesi, bukan salinan tersendiri, supaya tidak ada dua versi naskah yang sama.
- * Tab menjawab "naskah mana", dan kerangka heading (bersarang di bawah tab
- * aktif) menjawab "bagian mana".
- */
 export function DocumentTabsSidebar() {
 	const {
 		documents,
@@ -76,11 +57,6 @@ export function DocumentTabsSidebar() {
 	const [pendingDelete, setPendingDelete] = useState<Session | null>(null)
 
 	const activeDoc = documents.find((dok) => dok.id === activeDocId) ?? null
-
-	/**
-	 * Seret memakai DnD bawaan HTML, bukan pustaka: daftarnya satu kolom, pendek,
-	 * dan tidak ada yang perlu dipelajari peramban di luar apa yang sudah bisa.
-	 */
 	const [draggingId, setDraggingId] = useState<string | null>(null)
 	const [dragOverId, setDragOverId] = useState<string | null>(null)
 	const dragFrom = sessions.findIndex((s) => s.id === draggingId)
@@ -101,12 +77,6 @@ export function DocumentTabsSidebar() {
 			</div>
 
 			{/*
-			 * Nama dokumen aktif sebagai konteks, bukan daftar.
-			 *
-			 * Perpindahan antar dokumen tinggal di menu WritingHub (Riwayat) dan
-			 * di /library; menampilkannya di sini juga berarti dua tempat memelihara
-			 * daftar yang sama. Judulnya disunting di TopBar, jadi baris ini sengaja
-			 * tidak bisa diklik - ia menjawab "saya sedang di dokumen mana", titik.
 			 */}
 			{activeDoc && (
 				<div className="flex items-center gap-2 px-3 pb-3">
@@ -140,9 +110,6 @@ export function DocumentTabsSidebar() {
 							canRemove={sessions.length > 1}
 							canMoveUp={index > 0}
 							canMoveDown={index < sessions.length - 1}
-							// Yang dihitung hanya yang belum dibereskan: lencana ini
-							// bertanya "masih ada yang perlu dijawab di tab itu?", dan
-							// utas yang sudah selesai tidak menjawab apa pun.
 							commentCount={tab.comments.filter((thread) => !thread.resolved).length}
 							syncState={syncStatus(tab.id)}
 							onSaveToCloud={() => void saveToCloud(tab.id)}
@@ -168,9 +135,6 @@ export function DocumentTabsSidebar() {
 							onMoveUp={() => moveSession(tab.id, sessions[index - 1].id)}
 							onMoveDown={() => moveSession(tab.id, sessions[index + 1].id)}
 							onSelect={() => {
-								// Klik tab yang sudah aktif bukan pindah lagi - ia membuka/
-								// menutup daftar isi tab itu. Klik tab lain tetap berarti
-								// pindah dokumen, dan tab tujuan selalu mendarat tertutup.
 								if (tab.id === activeId) {
 									setSessionOutlineExpanded(tab.id, !tab.outlineExpanded)
 								} else {
@@ -257,12 +221,9 @@ function TabRow({
 	canRemove: boolean
 	canMoveUp: boolean
 	canMoveDown: boolean
-	/** Komentar yang belum dibereskan di tab ini. */
 	commentCount: number
-	/** Keadaan sinkronisasi tab ini ke cloud. */
 	syncState: SyncStatus
 	dragging: boolean
-	/** Sisi tempat garis penanda jatuh saat tab lain diseret ke sini. */
 	dropEdge: 'top' | 'bottom' | null
 	onSelect: () => void
 	onRename: (title: string) => void
@@ -283,24 +244,17 @@ function TabRow({
 	if (renaming) {
 		return <TabNameInput initialValue={tab.title} onCommit={onRename} onCancel={onCancelRename} />
 	}
-
-	// Naskah yang belum diberi judul dikenali dari baris pertamanya - daftar tab
-	// berisi "Untitled document" berulang tidak membantu siapa pun.
 	const label = sessionLabel(tab)
 
 	return (
 		<div
 			draggable
 			onDragStart={(event) => {
-				// Firefox tidak memulai seret sama sekali kalau tidak ada muatan yang
-				// disertakan, walaupun tujuan jatuhnya ada di halaman yang sama.
 				event.dataTransfer.setData('text/plain', tab.id)
 				event.dataTransfer.effectAllowed = 'move'
 				onDragStart()
 			}}
 			onDragEnter={onDragEnterRow}
-			// Tanpa preventDefault peramban menolak jatuhnya - bawaan HTML memang
-			// menganggap tidak ada tempat yang menerima sampai dikatakan sebaliknya.
 			onDragOver={(event) => event.preventDefault()}
 			onDrop={(event) => {
 				event.preventDefault()
@@ -321,8 +275,6 @@ function TabRow({
 				type="button"
 				onClick={onSelect}
 				onDoubleClick={onStartRename}
-				// Pada tab aktif tombolnya merangkap pembuka daftar isi, jadi
-				// keadaannya perlu terbaca pembaca layar juga.
 				aria-expanded={active ? tab.outlineExpanded : undefined}
 				className="flex min-w-0 flex-1 items-center gap-2 text-left"
 			>
@@ -357,7 +309,6 @@ function TabRow({
 						aria-controls={id}
 						className={cn(
 							'flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-[var(--overlay-active)]',
-							// Menu hanya muncul saat baris disentuh, supaya daftar tetap tenang.
 							open || active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
 						)}
 					>
@@ -412,10 +363,6 @@ function TabRow({
 						</DropdownItem>
 
 						{/*
-						 * Naik/turun ada di samping seret, bukan menggantikannya: seret
-						 * cepat untuk yang bertetikus, sedangkan menu ini satu-satunya
-						 * jalan lewat papan tik - dan jalan yang pasti saat daftarnya
-						 * panjang dan tujuannya di luar layar.
 						 */}
 						{(canMoveUp || canMoveDown) && <DropdownSeparator />}
 						{canMoveUp && (
@@ -532,14 +479,6 @@ function TabNameInput({
 		/>
 	)
 }
-
-/**
- * Penanda kecil keadaan sinkronisasi sebuah tab.
- *
- * Tab yang belum terhubung tetap mendapat ikonnya sendiri: "belum tersimpan
- * di cloud" adalah informasi, bukan hiasan - naskah yang hilang karena
- * dikira sudah di cloud jauh lebih mahal daripada satu ikon tambahan.
- */
 function SyncBadge({ status }: { status: SyncStatus }) {
 	if (status === 'saving') {
 		return (
@@ -582,11 +521,6 @@ function SyncBadge({ status }: { status: SyncStatus }) {
 		</span>
 	)
 }
-
-/**
- * Kerangka heading. Level dipetakan ke indentasi, bukan ke ukuran huruf, supaya
- * daftar panjang tetap terbaca sebagai satu kolom.
- */
 function OutlineTree({
 	items,
 	activePos,
@@ -596,8 +530,6 @@ function OutlineTree({
 	activePos: number | null
 	onSelect: (pos: number) => void
 }) {
-	// Naskah tanpa heading tetap menjawab kliknya: tanpa baris ini daftar isi
-	// yang dibuka terlihat seperti tombol yang rusak.
 	if (items.length === 0) {
 		return (
 			<p className="mb-1 ml-4 mt-0.5 border-l border-line py-1 pl-2.5 pr-2 text-[13px] text-subtle">

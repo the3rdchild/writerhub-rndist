@@ -23,15 +23,6 @@ import { CODE_LANGUAGES } from '@/features/editor/code-block'
 import { CALLOUT_TYPES } from '@/features/editor/callout'
 import type { SlashCommandState } from '@/features/editor/slash-command'
 import { cn } from '@/lib/utils'
-
-/**
- * Menu yang muncul saat mengetik "/" - daftar blok yang bisa disisipkan.
- *
- * Komponen ini menerima state dari ekstensi SlashCommand (via props) dan
- * menerapkan perintah editor saat item dipilih. Navigasi panah/Enter diatur di
- * sini; ekstensi sudah menelan panah saat menu terbuka.
- */
-
 interface SlashItem {
 	id: string
 	label: string
@@ -64,7 +55,6 @@ function buildItems(editor: Editor): SlashItem[] {
 			const url = window.prompt('URL gambar:')
 			if (url) e.chain().focus().setImage({ src: url }).run()
 		} },
-		// Sebutkan bahasa kode sebagai kata kunci agar "/py" menemukan blok kode.
 		...CALLOUT_TYPES.map((c) => ({
 			id: `callout-${c.id}`,
 			label: `Callout (${c.label})`,
@@ -98,8 +88,6 @@ export function SlashCommandMenu({
 			)
 		})
 	}, [items, state.query])
-
-	// Reset indeks aktif saat filter berubah.
 	useEffect(() => setActive(0), [state.query])
 	useEffect(() => {
 		if (active >= filtered.length) setActive(0)
@@ -109,7 +97,6 @@ export function SlashCommandMenu({
 
 	const apply = (item: SlashItem | undefined) => {
 		if (!item || !state.range) return
-		// Hapus "/" + filter dulu, lalu sisipkan blok.
 		editor
 			.chain()
 			.focus()
@@ -118,8 +105,6 @@ export function SlashCommandMenu({
 		item.run(editor)
 		onClose()
 	}
-
-	// Keyboard: panah turun/naik, Enter pilih, Escape tutup.
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (!state.open) return
@@ -139,7 +124,6 @@ export function SlashCommandMenu({
 		}
 		window.addEventListener('keydown', onKeyDown, true)
 		return () => window.removeEventListener('keydown', onKeyDown, true)
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [filtered, active, state.open, state.query])
 
 	if (!rect) return null
@@ -152,7 +136,6 @@ export function SlashCommandMenu({
 			ref={listRef}
 			className="slash-command-menu fixed z-50 max-h-72 w-64 overflow-y-auto rounded-xl border border-line-strong bg-surface-raised p-1 shadow-[var(--menu-shadow)]"
 			style={{ top, left }}
-			// Menahan mousedown supaya kursor editor tidak hilang.
 			onMouseDown={(e) => e.preventDefault()}
 		>
 			{filtered.length === 0 && (

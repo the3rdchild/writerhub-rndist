@@ -52,8 +52,6 @@ function PanelBody({ panel }: { panel: PanelId }) {
 export function PanelContainer({ panel }: { panel: PanelId }) {
 	const { setActivePanel } = usePanels()
 	const { dispatch } = useDocument()
-
-	// Sorotan milik panel sebelumnya harus hilang saat berganti modul.
 	useEffect(() => {
 		dispatch({ type: 'setHoveredRange', range: null })
 		dispatch({ type: 'setFocusedRange', range: null })

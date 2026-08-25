@@ -1,15 +1,5 @@
 import type { Editor } from '@tiptap/react'
 import { HEADING_LEVELS, VISIBLE_HEADING_LEVELS } from '@/features/editor/heading-extension'
-
-/**
- * Daftar pilihan yang muncul di toolbar, dipisah dari komponennya supaya
- * menu bar Format dan toolbar memakai sumber yang sama.
- *
- * Tingkat mana yang ada dan mana yang boleh dipilih datang dari
- * heading-extension - di situ skemanya ditentukan, jadi tidak ada daftar
- * tingkat kedua yang bisa menyimpang darinya.
- */
-
 export interface ParagraphStyle {
 	id: string
 	label: string
@@ -17,8 +7,6 @@ export interface ParagraphStyle {
 	isActive: (editor: Editor) => boolean
 	previewStyle: React.CSSProperties
 }
-
-/** Ukuran relatif per tingkat heading (em) - satu tangga menurun. */
 const HEADING_FONT_SIZE: Record<number, string> = {
 	1: '1.35rem',
 	2: '1.15rem',
@@ -30,11 +18,7 @@ const HEADING_FONT_SIZE: Record<number, string> = {
 	8: '0.8rem',
 	9: '0.78rem',
 }
-
-/** Satu entri gaya heading untuk satu tingkat. */
 function headingStyle(level: number): ParagraphStyle {
-	// `level` dilewatkan sebagai `1` untuk melewati tipe `Level` (1-6) resmi;
-	// skema heading kita menerima sampai 9, jadi nilai sebenarnya tetap valid.
 	const typedLevel = level as 1
 	return {
 		id: `h${level}`,
@@ -44,11 +28,6 @@ function headingStyle(level: number): ParagraphStyle {
 		previewStyle: { fontSize: HEADING_FONT_SIZE[level] ?? '0.8rem', fontWeight: 600 },
 	}
 }
-
-/**
- * Yang tampil di toolbar dan menu Format: Teks biasa + Judul 1–5.
- * Tingkat 6–9 dijangkau lewat papan tik dan dialog pintasan.
- */
 export const PARAGRAPH_STYLES: ParagraphStyle[] = [
 	{
 		id: 'paragraph',
@@ -59,8 +38,6 @@ export const PARAGRAPH_STYLES: ParagraphStyle[] = [
 	},
 	...VISIBLE_HEADING_LEVELS.map(headingStyle),
 ]
-
-/** Daftar lengkap Judul 1–9, dipakai pintasan papan tik dan panel TOC (A5). */
 export const ALL_PARAGRAPH_STYLES: ParagraphStyle[] = [
 	PARAGRAPH_STYLES[0],
 	...HEADING_LEVELS.map(headingStyle),

@@ -1,14 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import { CHAT_MODELS, DEFAULT_CHAT_MODEL, findChatModel, isKnownChatModel } from '@writer-hub/shared'
-
-/**
- * Daftar model chat (A8).
- *
- * Yang paling mahal salahnya di sini adalah `isKnownChatModel`: id yang lolos
- * diteruskan apa adanya sebagai `model` ke provider, memakai kunci API pengguna.
- * Daftar inilah satu-satunya yang berdiri di antara klien dan tagihan itu.
- */
-
 describe('registri model chat', () => {
 	test('id unik', () => {
 		const ids = CHAT_MODELS.map((model) => model.id)
@@ -16,8 +7,6 @@ describe('registri model chat', () => {
 	})
 
 	test('pilihan bawaan ada, berid kosong, dan berada di urutan pertama', () => {
-		// Id kosong berarti "jangan kirim `model` sama sekali" - jalan kembali ke
-		// provider akun, dan satu-satunya pilihan yang selalu sah.
 		expect(CHAT_MODELS[0].id).toBe(DEFAULT_CHAT_MODEL)
 		expect(DEFAULT_CHAT_MODEL).toBe('')
 	})
@@ -29,8 +18,6 @@ describe('registri model chat', () => {
 	})
 
 	test('setiap model mendukung tool calling', () => {
-		// Panel ini mengoperasikan editor lewat alat. Model tanpa tool calling
-		// jatuh ke protokol blok teks dan tampak rusak, jadi ia tidak ditawarkan.
 		for (const model of CHAT_MODELS) expect(model.tools).toBe(true)
 	})
 

@@ -12,43 +12,21 @@ import {
 	shortcut,
 	type ShortcutId,
 } from './registry'
-
-/**
- * Apakah sedang berjalan di macOS.
- *
- * Selalu `false` pada render pertama supaya hasil server dan klien identik;
- * lambang ⌘ baru menggantikan "Ctrl" setelah mount. Menebaknya saat render akan
- * membuat hidrasi tidak cocok.
- */
 export function useIsMac(): boolean {
 	const [mac, setMac] = useState(false)
 	useEffect(() => setMac(isMacPlatform()), [])
 	return mac
 }
-
-/** Label pintasan siap tampil, mis. "Ctrl+Shift+1" atau "⌘⇧1". */
 export function useShortcutLabel(): (id: ShortcutId) => string {
 	const mac = useIsMac()
 	return useCallback((id: ShortcutId) => formatKeys(shortcut(id).keys, mac), [mac])
 }
-
-/** Naik atau turun satu tingkat pada daftar perbesaran yang tersedia. */
 function stepZoom(current: number, direction: 1 | -1): number {
 	const index = ZOOM_LEVELS.indexOf(current as (typeof ZOOM_LEVELS)[number])
-	// Nilai di luar daftar (mis. dari versi lama) diperlakukan sebagai 100%.
 	const from = index === -1 ? ZOOM_LEVELS.indexOf(1) : index
 	const next = Math.min(ZOOM_LEVELS.length - 1, Math.max(0, from + direction))
 	return ZOOM_LEVELS[next]
 }
-
-/**
- * Pintasan yang bekerja di seluruh aplikasi, bukan hanya di dalam editor.
- *
- * Semuanya memakai Mod plus Shift atau Alt, jadi tidak pernah bertabrakan
- * dengan pengetikan biasa dan tidak perlu memeriksa elemen mana yang sedang
- * fokus. Yang cocok selalu `preventDefault` - termasuk perbesaran, yang memang
- * dimaksudkan menggantikan zoom bawaan browser selama berada di aplikasi.
- */
 export function useAppShortcuts(): void {
 	const mac = useIsMac()
 	const { togglePanel } = usePanels()
@@ -60,7 +38,6 @@ export function useAppShortcuts(): void {
 			if (sessions.length < 2) return
 			const at = sessions.findIndex((session) => session.id === activeId)
 			if (at === -1) return
-			// Berputar di ujung: dari tab terakhir maju berarti kembali ke yang pertama.
 			const next = (at + direction + sessions.length) % sessions.length
 			selectSession(sessions[next].id)
 		}
@@ -84,8 +61,6 @@ export function useAppShortcuts(): void {
 			'doc.nextTab': stepTab(1),
 			'doc.prevTab': stepTab(-1),
 			'doc.closeTab': () => {
-				// Menutup tab terakhir akan mengosongkan naskah tanpa diminta;
-				// lebih baik tidak terjadi karena salah tekan.
 				if (activeId && sessions.length > 1) deleteSession(activeId)
 			},
 		}

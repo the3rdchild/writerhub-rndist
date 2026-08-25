@@ -2,8 +2,6 @@ import { callUpstream, configErrorResponse } from '@/lib/server/upstream'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-/** Teruskan pembacaan daftar proyek milik user ke apps/api. */
 export async function GET(): Promise<Response> {
 	try {
 		return await callUpstream({
@@ -14,8 +12,6 @@ export async function GET(): Promise<Response> {
 		return configErrorResponse(error)
 	}
 }
-
-/** Teruskan pembuatan proyek baru ke apps/api. */
 export async function POST(request: Request): Promise<Response> {
 	try {
 		return await callUpstream({

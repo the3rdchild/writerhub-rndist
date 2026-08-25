@@ -11,14 +11,6 @@ import { countWords } from '@/lib/utils'
 import { DocumentCanvas } from './document-canvas'
 import { TocSettingsDialog } from './toc-settings-dialog'
 import { TableControls } from './table-controls'
-
-/**
- * Area dokumen: kanvas berhalaman, ditambah keadaan khusus saat ada berkas
- * menunggu diproses dan bilah status di bawah.
- *
- * Judul, menu, dan toolbar sudah pindah ke TopBar, jadi komponen ini kini
- * hanya mengurus dokumennya sendiri.
- */
 export function DocumentEditor() {
 	const { state, dispatch } = useDocument()
 	const { settings } = useSettings()
@@ -34,7 +26,6 @@ export function DocumentEditor() {
 			const text = await navigator.clipboard.readText()
 			if (text) dispatch({ type: 'setText', text })
 		} catch {
-			// izin clipboard ditolak - pengguna masih bisa menempel manual
 		}
 	}
 

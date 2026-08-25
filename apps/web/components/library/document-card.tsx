@@ -25,8 +25,6 @@ import { useProjects } from '@/features/projects/use-projects'
 import { createShare } from '@/features/share/api'
 import { useSync } from '@/features/sync/sync-context'
 import { cn } from '@/lib/utils'
-
-/** Tanggal dibaca manusia, tanpa pustaka tanggal. */
 const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	day: 'numeric',
 	month: 'short',
@@ -34,14 +32,6 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	hour: '2-digit',
 	minute: '2-digit',
 })
-
-/**
- * Satu dokumen di library.
- *
- * "Buka" mengambil detailnya dulu (kartu hanya memegang ringkasan), lalu
- * menyerahkannya ke sync context untuk dijadikan dokumen baru di editor,
- * lengkap dengan seluruh tabnya.
- */
 export function DocumentCard({
 	document,
 	onDelete,
@@ -89,8 +79,6 @@ export function DocumentCard({
 				setActionError(cause instanceof Error ? cause.message : 'Gagal mengganti nama'),
 			)
 	}
-
-	/** Pindahkan ke proyek lain - setiap dokumen wajib punya proyek. */
 	const moveToProject = (projectId: string) => {
 		setActionError(null)
 		updateDocument(document.id, { projectId })
@@ -286,13 +274,6 @@ export function CardNameInput({
 		/>
 	)
 }
-
-/**
- * Dialog bagikan dari library: link dibuat dari `documentId` dokumen ini -
- * seluruh tab di dalamnya ikut terbagikan (share per DOKUMEN, pola Google
- * Docs). Versi sederhana dari dialog di menu bar: akses dan perannya bawaan,
- * yang penting URL-nya sampai ke tangan pemakai.
- */
 function CardShareDialog({
 	documentId,
 	onClose,
@@ -326,7 +307,6 @@ function CardShareDialog({
 			window.document.body.style.overflow = ''
 			window.removeEventListener('keydown', onKeyDown)
 		}
-		// biome-ignore lint/correctness/useExhaustiveDependencies: dialog hanya membuat link sekali saat dibuka
 	}, [documentId])
 
 	const copyLink = async () => {
@@ -336,7 +316,6 @@ function CardShareDialog({
 			setCopied(true)
 			setTimeout(() => setCopied(false), 2000)
 		} catch {
-			// Jatuhkan ke input yang bisa dipilih bila clipboard ditolak.
 		}
 	}
 

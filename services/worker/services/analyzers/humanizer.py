@@ -24,8 +24,6 @@ _INSTRUCTION = (
     "rhythm. Avoid stiff or formal AI-sounding phrasing. Keep the original "
     "meaning and language."
 )
-
-# frasa panjang duluan biar ga ketabrak subset-nya
 FORMAL_TO_NATURAL = {
     "it is important to note that": "note that",
     "it is worth mentioning that": "notably,",
@@ -117,14 +115,11 @@ def _collect_matches(text: str, mapping: dict[str, str]) -> list[tuple[int, int,
     dan tidak ada yang overlap.
     """
     raw: list[tuple[int, int, str, str]] = []
-    # proses frasa terpanjang dulu → subset tidak akan menimpa
     for phrase in sorted(mapping, key=len, reverse=True):
         pattern = re.compile(r"\b" + re.escape(phrase) + r"\b", re.IGNORECASE)
         for m in pattern.finditer(text):
             repl = _match_case(mapping[phrase], m.group(0))
             raw.append((m.start(), m.end(), m.group(0), repl))
-
-    # urutkan berdasar posisi, lalu hapus yang overlap
     raw.sort(key=lambda x: x[0])
     deduped: list[tuple[int, int, str, str]] = []
     last_end = -1

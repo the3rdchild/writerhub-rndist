@@ -7,16 +7,7 @@ import { findTabsByDocument } from '@/repository/document-tab'
 import BaseService from '@/services/base.service'
 import { createShareBodySchema } from './dto'
 import type { CreateShareResponse, SharedDocumentResponse } from './dto'
-
-/**
- * Pembuatan dan pembacaan share link DOKUMEN. Berbeda dari share tab lama:
- * ini BUKAN salinan beku - `getByToken` membaca `document_tabs` LIVE, pola
- * yang sama dengan Google Docs (buka link = lihat keadaan dokumen SEKARANG,
- * bukan snapshot saat link dibuat). Konsekuensinya: dokumen yang dihapus
- * setelah dibagikan membuat link ikut mati (lihat `getByToken`).
- */
 export default class ShareService extends BaseService {
-	/** Buat share link baru untuk sebuah dokumen. */
 	async create(): Promise<Response> {
 		try {
 			const body = createShareBodySchema.safeParse(await this.context.req.json())
@@ -56,14 +47,6 @@ export default class ShareService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/**
-	 * Baca daftar tab lewat token share - LIVE dari `document_tabs`, bukan
-	 * salinan beku. `innerJoin` ke `documents` sekaligus jadi penjaga: token
-	 * yang dokumennya sudah dihapus (`document_id` di-SET NULL oleh FK, atau
-	 * baris dokumennya sendiri sudah tidak ada) otomatis jatuh ke 404 tanpa
-	 * perlu pengecekan terpisah.
-	 */
 	async getByToken(): Promise<Response> {
 		try {
 			const token = this.context.req.param('token')

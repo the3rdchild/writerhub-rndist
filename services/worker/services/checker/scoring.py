@@ -39,7 +39,6 @@ def compute_scores(text: str, issues: list[dict]) -> tuple[dict, int, str]:
     flesch = _clamp(_safe(lambda: textstat.flesch_reading_ease(text), 60.0))
     sentences = max(int(_safe(lambda: textstat.sentence_count(text), 1)), 1)
     avg_sent_len = w / sentences
-    # penalti kalimat kepanjangan (run-on): cuma di atas 30 kata, di-cap biar ga 0
     long_pen = min(25.0, max(0.0, (avg_sent_len - 30) * 0.8))
 
     unique = len({x.lower() for x in words})

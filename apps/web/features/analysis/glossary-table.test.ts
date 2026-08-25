@@ -14,8 +14,6 @@ const entries = [
 	{ term: 'AKD', definition: 'Analisis Komponen Data', occurrences: 3 },
 	{ term: 'latensi', definition: 'Jeda antara permintaan dan respons', occurrences: 2 },
 ]
-
-/** Rakit dokumen dari daftar node, lewat skema editor sungguhan. */
 const docOf = (content: unknown[]) => schema.nodeFromJSON({ type: 'doc', content })
 
 const paragraph = (text: string) => ({
@@ -40,8 +38,6 @@ describe('label kolom Istilah', () => {
 	})
 
 	test('kepanjangan kosong atau berisi spasi diperlakukan sebagai tidak ada', () => {
-		// Model kadang mengisi "" atau " " alih-alih menghilangkan fieldnya;
-		// keduanya tidak boleh menghasilkan kurung kosong di tabel.
 		expect(glossaryTermLabel({ term: 'AKD', expansion: '', definition: '…', occurrences: 1 })).toBe(
 			'AKD',
 		)
@@ -77,8 +73,6 @@ describe('perakitan tabel glosarium', () => {
 	})
 
 	test('hasilnya diterima skema editor', () => {
-		// Node yang tidak sah baru meledak saat disisipkan ke dokumen sungguhan;
-		// diuji di sini supaya tidak lolos sampai ke naskah pengguna.
 		expect(() => docOf(buildGlossarySection(entries))).not.toThrow()
 	})
 
@@ -96,21 +90,14 @@ describe('pencarian bagian glosarium yang sudah ada', () => {
 		const doc = docOf([paragraph('Pembuka.'), ...buildGlossarySection(entries)])
 		const found = findGlossarySection(doc)
 		expect(found).not.toBeNull()
-		// Rentangnya mulai di page break pembuka bagian ini - yaitu tepat sesudah
-		// paragraf pembuka - bukan di paragraf itu sendiri.
 		expect(found?.from).toBe(doc.child(0).nodeSize)
 		expect(found?.to).toBe(doc.content.size)
 	})
 
 	test('page break pembuka ikut diklaim, jadi pindai ulang tidak menumpuknya', () => {
-		// Ini kegagalan yang paling sulit disadari: tanpa mengklaim page break,
-		// tiap pindai ulang menyisakan break lama dan menambah yang baru, dan
-		// dokumen tumbuh satu halaman kosong setiap kali.
 		const doc = docOf([paragraph('Pembuka.'), ...buildGlossarySection(entries)])
 		const found = findGlossarySection(doc)
 		if (!found) throw new Error('bagian glosarium tidak ketemu')
-
-		// Ganti seperti yang dilakukan panel, lalu pastikan page break tetap satu.
 		const replaced = docOf([
 			paragraph('Pembuka.'),
 			...buildGlossarySection([{ term: 'baru', definition: 'entri lain', occurrences: 1 }]),
@@ -123,8 +110,6 @@ describe('pencarian bagian glosarium yang sudah ada', () => {
 	})
 
 	test('heading Glosarium tanpa tabel TIDAK diklaim', () => {
-		// Tulisan pengguna sendiri: judul "Glosarium" lalu paragraf biasa.
-		// Menimpanya berarti menghapus naskah yang bukan buatan fitur ini.
 		const doc = docOf([
 			{ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Glosarium' }] },
 			paragraph('Daftar istilah saya tulis manual di sini.'),
@@ -135,7 +120,6 @@ describe('pencarian bagian glosarium yang sudah ada', () => {
 	test('heading lain yang diikuti tabel tidak diklaim', () => {
 		const doc = docOf([
 			{ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Lampiran' }] },
-			// Indeks 2 = tabelnya; indeks 0 page break, 1 heading.
 			buildGlossarySection(entries)[2],
 		])
 		expect(findGlossarySection(doc)).toBeNull()

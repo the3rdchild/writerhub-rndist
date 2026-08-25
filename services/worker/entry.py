@@ -13,8 +13,6 @@ if __name__ == "__main__":
     conn = db_get_connection()
     conn.close()
     print("[db] konek!")
-
-    # dua listener paralel: grammar + analysis (masing-masing blocking BRPOP)
     grammar_thread = threading.Thread(
         target=start, args=(grammar_handle, QUEUE_NAME), daemon=True, name="grammar-listener",
     )

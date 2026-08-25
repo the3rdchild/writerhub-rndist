@@ -1,27 +1,9 @@
-/**
- * Alat yang boleh dipakai AI untuk mengoperasikan editor.
- *
- * Definisinya hidup di shared karena tiga pihak harus sepakat pada bentuk yang
- * sama: apps/api mengirimkannya ke provider sebagai parameter `tools`, browser
- * yang menjalankannya, dan prompt cadangan menuliskannya kembali sebagai teks
- * saat provider tidak mendukung tool calling.
- *
- * Alat dipisah tegas jadi dua jenis, dan pembedanya bukan selera:
- *
- * - `read` tidak mengubah apa pun, jadi ia dijalankan langsung dan percakapan
- *   berlanjut sendiri. Tidak ada yang perlu ditinjau dari membaca.
- * - `write` menyentuh naskah atau menghabiskan kuota, jadi ia berhenti sebagai
- *   kartu aksi sampai pengguna menekan Apply. Pada dokumen puluhan halaman,
- *   suntingan yang tidak dilihat hampir mustahil ditelusuri kembali.
- */
-
 export type ToolKind = 'read' | 'write'
 
 export interface ToolDefinition {
 	name: string
 	kind: ToolKind
 	description: string
-	/** JSON Schema untuk argumennya, sesuai format tool calling OpenAI. */
 	parameters: {
 		type: 'object'
 		properties: Record<string, unknown>
@@ -366,18 +348,6 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 			required: ['find'],
 		},
 	},
-	/*
-	 * Alat tata letak paragraf (A6).
-	 *
-	 * Semuanya berbagi satu kebiasaan: `find` bersifat opsional, dan bila
-	 * dihilangkan alatnya berlaku untuk SELURUH naskah. Itu bukan kemalasan -
-	 * "buat semuanya rata kiri-kanan, spasi 1,5, baris pertama menjorok 1,27 cm"
-	 * adalah bentuk paling lazim dari permintaan ini, dan memaksanya dikutip per
-	 * paragraf berarti puluhan panggilan alat untuk satu keinginan tunggal.
-	 *
-	 * Satuannya sentimeter dan poin, bukan piksel: itu satuan yang dipakai
-	 * panduan penulisan yang jadi sumber permintaannya.
-	 */
 	{
 		name: 'set_alignment',
 		kind: 'write',
@@ -568,25 +538,16 @@ export function findTool(name: string): ToolDefinition | undefined {
 export function isReadTool(name: string): boolean {
 	return BY_NAME.get(name)?.kind === 'read'
 }
-
-/** Satu panggilan alat, sudah utuh argumennya. */
 export interface ToolCall {
 	id: string
 	name: string
-	/** Argumen hasil parsing; objek kosong kalau modelnya mengirim JSON rusak. */
 	arguments: Record<string, unknown>
 }
-
-/** Hasil eksekusi yang dikirim balik ke model pada giliran berikutnya. */
 export interface ToolResult {
 	id: string
 	name: string
 	content: string
 }
-
-/**
- * Bentuk `tools` yang dikirim ke provider OpenAI-compatible.
- */
 export function toProviderTools(): unknown[] {
 	return EDITOR_TOOLS.map((tool) => ({
 		type: 'function',
@@ -597,14 +558,6 @@ export function toProviderTools(): unknown[] {
 		},
 	}))
 }
-
-/**
- * Instruksi cadangan saat provider tidak mendukung tool calling.
- *
- * Model diminta menulis panggilan sebagai blok berpagar bertanda `writerhub`.
- * Penanda itu sengaja tidak lazim supaya tidak tertukar dengan blok JSON biasa
- * yang kebetulan ada di dalam jawaban.
- */
 export function fallbackToolPrompt(): string {
 	const list = EDITOR_TOOLS.map((tool) => {
 		const params = Object.keys(tool.parameters.properties).join(', ') || '(none)'
@@ -623,6 +576,4 @@ export function fallbackToolPrompt(): string {
 		list,
 	].join('\n')
 }
-
-/** Pola blok cadangan; dipakai klien saat memindai jawaban. */
 export const FALLBACK_TOOL_FENCE = /```writerhub\s*\n([\s\S]*?)```/g

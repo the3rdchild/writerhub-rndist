@@ -8,12 +8,6 @@ import {
 	setSectionColumnsCommand,
 	unsetSectionColumnsCommand,
 } from './section-break'
-
-/**
- * Rentang section diuji tanpa editor: cukup skema minimal berisi paragraph dan
- * sectionBreak, karena `sectionSpans` hanya membaca atribut node tingkat atas.
- */
-
 const schema = new Schema({
 	nodes: {
 		doc: { content: 'block+' },
@@ -56,7 +50,6 @@ describe('sectionSpans (§P8&P9)', () => {
 
 		expect(spans).toHaveLength(2)
 		expect(spans[1].setup.orientation).toBe('landscape')
-		// Hanya orientasi yang berubah; margin mewarisi setelan dasar.
 		expect(spans[1].setup.margins).toEqual(DEFAULT_PAGE_SETUP.margins)
 	})
 
@@ -66,9 +59,7 @@ describe('sectionSpans (§P8&P9)', () => {
 		)
 
 		expect(spans).toHaveLength(3)
-		// Orientasi lanskap dari section kedua tetap berlaku di section ketiga.
 		expect(spans[2].setup.orientation).toBe('landscape')
-		// Margin: top berubah, sisi lain tetap mewarisi.
 		expect(spans[2].setup.margins.top).toBe(INCH / 2)
 		expect(spans[2].setup.margins.left).toBe(DEFAULT_PAGE_SETUP.margins.left)
 	})
@@ -88,9 +79,7 @@ describe('columnRegions (§P8)', () => {
 		const regions = columnRegions(doc)
 
 		expect(regions).toHaveLength(1)
-		// Pembatas pertama di pos 2 (paragraf pertama nodeSize 2), atomik (nodeSize 1).
 		expect(regions[0].from).toBe(3)
-		// Pembatas kedua mengakhiri rentang walau section-nya tidak berkolom.
 		expect(regions[0].to).toBe(5)
 	})
 
@@ -108,17 +97,9 @@ describe('columnRegions (§P8)', () => {
 	})
 })
 describe('pembatas penutup mengembalikan setelan sebelumnya (§P8&P9)', () => {
-	/**
-	 * "Halaman ini saja" bekerja dengan mengurung rentang di antara dua pembatas.
-	 * Yang diuji di sini bukan perintahnya - itu butuh editor - melainkan sifat
-	 * yang membuatnya benar: pembatas penutup yang membawa setelan sebelumnya
-	 * SELENGKAPNYA mengembalikan section berikutnya ke keadaan semula, apa pun
-	 * yang diubah di tengah.
-	 */
 	test('section sesudah rentang kembali persis ke setelan dasar', () => {
 		const doc = docWith(
 			{ pageSetup: { orientation: 'landscape', size: 'a3' } },
-			// Penutup membawa setelan dasar selengkapnya, bukan selisihnya.
 			{ pageSetup: { ...DEFAULT_PAGE_SETUP } },
 		)
 		const spans = sectionSpans(doc, DEFAULT_PAGE_SETUP)
@@ -129,8 +110,6 @@ describe('pembatas penutup mengembalikan setelan sebelumnya (§P8&P9)', () => {
 	})
 
 	test('selisih saja tidak cukup - inilah alasan penutup membawa semuanya', () => {
-		// Penutup yang hanya membatalkan orientasi meninggalkan ukuran A3 menetap,
-		// karena section mewarisi section sebelumnya, bukan setelan dasar.
 		const doc = docWith(
 			{ pageSetup: { orientation: 'landscape', size: 'a3' } },
 			{ pageSetup: { orientation: 'portrait' } },
@@ -155,12 +134,6 @@ describe('pembatas penutup mengembalikan setelan sebelumnya (§P8&P9)', () => {
 })
 
 describe('kolom section tidak diwarisi (§P8)', () => {
-	/**
-	 * Kolom berbeda sifat dari setelan halaman: `sectionSpans` membaca atribut
-	 * tiap pembatas apa adanya, tanpa menggabungkannya dengan section sebelumnya.
-	 * Itu yang membuat pembatas penutup `columns: null` benar-benar berarti
-	 * "kembali satu kolom" - dan `applySectionColumns` bersandar padanya.
-	 */
 	test('pembatas tanpa atribut kolom berarti satu kolom, bukan meneruskan', () => {
 		const doc = docWith({ columns: { count: 2 } }, {})
 		const spans = sectionSpans(doc, DEFAULT_PAGE_SETUP)
@@ -170,8 +143,6 @@ describe('kolom section tidak diwarisi (§P8)', () => {
 	})
 
 	test('setelan halaman tetap diwarisi walau kolomnya tidak', () => {
-		// Dua sifat yang berbeda pada node yang sama - gampang tertukar saat
-		// menyunting `sectionSpans`, dan akibatnya baru kelihatan di halaman ketiga.
 		const doc = docWith({ pageSetup: { orientation: 'landscape' }, columns: { count: 2 } }, {})
 		const spans = sectionSpans(doc, DEFAULT_PAGE_SETUP)
 
@@ -181,10 +152,6 @@ describe('kolom section tidak diwarisi (§P8)', () => {
 })
 
 describe('setSectionColumns - kolomkan seleksi sebagai section menerus (E5)', () => {
-	/**
-	 * Perintahnya diuji tanpa DOM: `setSectionColumnsCommand` menerima state dan
-	 * dispatch, jadi transaksinya bisa diterapkan langsung pada EditorState.
-	 */
 	function stateOf(texts: string[], from: number, to = from): EditorState {
 		const doc = schema.node(
 			'doc',
@@ -196,8 +163,6 @@ describe('setSectionColumns - kolomkan seleksi sebagai section menerus (E5)', ()
 	}
 
 	function run(state: EditorState, count: number): EditorState {
-		// Konvensi perintah ProseMirror: perintah memutasi `tr` yang diberikan;
-		// dispatch hanya penanda "boleh mengubah dokumen".
 		const tr = state.tr
 		const ok = setSectionColumnsCommand(state, tr, () => {}, count)
 		expect(ok).toBe(true)
@@ -205,7 +170,6 @@ describe('setSectionColumns - kolomkan seleksi sebagai section menerus (E5)', ()
 	}
 
 	test('sepasang pembatas menerus mengurung blok yang tersentuh seleksi', () => {
-		// Tiga paragraf @6px: p1 di 0, p2 di 6, p3 di 12. Seleksi p1..p2.
 		const next = run(stateOf(['satu', 'dua', 'tiga'], 1, 7), 2)
 
 		expect(next.doc.childCount).toBe(5)
@@ -215,7 +179,6 @@ describe('setSectionColumns - kolomkan seleksi sebagai section menerus (E5)', ()
 		const close = next.doc.child(3)
 		expect(close.type.name).toBe('sectionBreak')
 		expect(close.attrs).toMatchObject({ columns: null, continuous: true })
-		// Paragrafnya utuh - tidak ada yang terbelah atau berpindah.
 		expect(next.doc.child(1).textContent).toBe('satu')
 		expect(next.doc.child(2).textContent).toBe('dua')
 		expect(next.doc.child(4).textContent).toBe('tiga')
@@ -262,7 +225,6 @@ describe('unsetSectionColumns - hapus sepasang pembatas berkolom (E5)', () => {
 	}
 
 	test('kedua pembatas terhapus dan isinya kembali satu kolom', () => {
-		// p1 @6, pembuka @2 (pos 6), p2 @6 (pos 8) - kursor di dalam p2.
 		const state = columnedDoc()
 		const selected = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 9)))
 		const tr = selected.tr

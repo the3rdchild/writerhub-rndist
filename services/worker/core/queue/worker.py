@@ -49,7 +49,6 @@ def _run_with_deadline(handler, data: dict, job_id: str | None, label: str) -> N
     worker.join(timeout=JOB_DEADLINE_SECONDS)
 
     if worker.is_alive():
-        # Lewat batas waktu. Antrian maju; thread anak dibiarkan selesai sendiri.
         logger.error(
             "[%s] job melebihi batas waktu %ds | id=%s", label, JOB_DEADLINE_SECONDS, job_id
         )
@@ -78,15 +77,11 @@ def _consumer(handler, queue_name: str, r, label: str) -> None:
         rawdata = r.hgetall(f"bull:{queue_name}:{job_id}")
         job = {k.decode(): v.decode() for k, v in rawdata.items()}
         data = json.loads(job.get("data", "{}"))
-        # jobId untuk penandaan batas waktu/batal (§P11) - ambil dari payload,
-        # bukan dari kunci hash, sebab service membacanya dari sini.
         payload_job_id = data.get("jobId") if isinstance(data, dict) else None
 
         logger.info(f"[job masuk] queue={queue_name} id={job_id}")
 
         _run_with_deadline(handler, data, payload_job_id, label)
-
-        # bersihin hash job biar ga numpuk (kita konsumsi pake BRPOP, bypass lifecycle BullMQ)
         r.delete(f"bull:{queue_name}:{job_id}")
 
 

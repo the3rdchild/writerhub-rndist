@@ -6,17 +6,6 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { MATH_BLOCK, MATH_INLINE, renderMath } from '@/features/editor/math'
 import { cn } from '@/lib/utils'
-
-/**
- * Menyunting rumus yang sudah jadi.
- *
- * Ini bukan tambahan yang manis-manis: begitu teks berubah jadi node, sumber
- * LaTeX-nya tidak lagi bisa disentuh lewat mengetik biasa. Tanpa jalan masuk
- * ini, satu salah ketik berarti hapus dan tulis ulang seluruh rumus.
- *
- * Pratinjau digambar ulang tiap ketikan, jadi kesalahan sintaks terlihat sambil
- * menulis - bukan setelah ditutup.
- */
 export function MathPopover({
 	editor,
 	containerRef,
@@ -32,9 +21,6 @@ export function MathPopover({
 	} | null>(null)
 	const [latex, setLatex] = useState('')
 	const inputRef = useRef<HTMLTextAreaElement>(null)
-
-	// Klik pada rumus dibaca lewat event delegation di akar editor: node view
-	// digambar ulang terus, jadi listener per elemen akan hilang bersamanya.
 	useEffect(() => {
 		const root = editor?.view.dom
 		const container = containerRef.current
@@ -83,8 +69,6 @@ export function MathPopover({
 		editor.view.dispatch(transaction)
 		close()
 	}
-
-	/** Kembalikan jadi teks LaTeX biasa, supaya bisa disunting seperti teks. */
 	const toText = () => {
 		const node = editor.state.doc.nodeAt(target.pos)
 		if (!node) return
@@ -97,18 +81,6 @@ export function MathPopover({
 			.run()
 		close()
 	}
-
-	/*
-	 * Dirender lewat portal ke container dokumen, bukan di tempatnya berada di
-	 * pohon komponen - pola yang sama dengan SelectionMenu, dan karena alasan
-	 * yang sama.
-	 *
-	 * `top`/`left` di atas diukur terhadap container yang diam, sedangkan
-	 * offsetParent-nya kalau dibiarkan di sini adalah isi halaman: ikut
-	 * tergulung dan ikut diperbesar `transform: scale(zoom)`. Selisih dua
-	 * sistem koordinat itu membuat popover mendarat di dekat awal dokumen, dan
-	 * fokus otomatis ke kolom LaTeX menyeret tampilan ikut ke sana.
-	 */
 	return createPortal(
 		<div
 			className="absolute z-40 flex w-[320px] flex-col gap-2 rounded-xl border border-line-strong bg-surface-raised p-3 shadow-[var(--menu-shadow)]"
@@ -150,7 +122,6 @@ export function MathPopover({
 			{/* Pratinjau dari sumber yang sedang diketik, bukan dari yang tersimpan. */}
 			<div
 				className="min-h-[2.2rem] overflow-x-auto rounded-lg bg-[var(--overlay-hover)] px-2.5 py-2 text-center"
-				// biome-ignore lint/security/noDangerouslySetInnerHtml: keluaran KaTeX, dari sumber yang diketik pengguna sendiri
 				dangerouslySetInnerHTML={{ __html: renderMath(latex, target.display) }}
 			/>
 

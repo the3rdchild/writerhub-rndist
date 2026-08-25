@@ -15,8 +15,6 @@ logger = logging.getLogger(__name__)
 
 _SIMILARITY_THRESHOLD = 0.7
 _JACCARD_PREFILTER = 0.5
-
-# ~200 frasa/kalimat klise yang sangat umum di internet (lowercase)
 COMMON_PHRASES = [
     "at the end of the day",
     "in this day and age",
@@ -270,12 +268,10 @@ def run_plagiarism(text: str, provider: Provider | None = None, language: str | 
     for phrase, phrase_set, n_words in _phrase_index():
         if n_words < 4 or n_words > len(spans):
             continue
-        # window seukuran frasa, geser per kata
         i = 0
         while i + n_words <= len(spans):
             window = spans[i:i + n_words]
             window_words = frozenset(w for w, _, _ in window)
-            # prefilter murah: overlap kata harus cukup tinggi
             inter = len(phrase_set & window_words)
             union = len(phrase_set | window_words)
             if union == 0 or inter / union < _JACCARD_PREFILTER:
@@ -286,7 +282,6 @@ def run_plagiarism(text: str, provider: Provider | None = None, language: str | 
             if similarity >= _SIMILARITY_THRESHOLD:
                 start = window[0][1]
                 end = window[-1][2]
-                # skip kalau overlap dengan yang sudah ke-flag
                 if not any(s < end and start < e for s, e in flagged_ranges):
                     flagged.append({
                         "text": text[start:end],

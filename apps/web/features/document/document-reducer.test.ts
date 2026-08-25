@@ -40,14 +40,12 @@ describe('documentReducer: clearResults (§P3.3, B-4)', () => {
 		expect(after.scores).toBeNull()
 		expect(after.focusedRange).toBeNull()
 		expect(after.hoveredRange).toBeNull()
-		// Teks tidak ikut berubah - aksinya tidak merusak naskah.
 		expect(after.text).toBe('naskah yang tetap utuh')
 	})
 })
 
 describe('documentReducer: acceptSuggestion (§P3.2, B-3)', () => {
 	test('menandai saran selesai dan menggeser offset saran yang menyusul', () => {
-		// "yang" (4 huruf) diganti "that is" (7 huruf) → delta +3.
 		const before = stateWith({
 			text: 'yang satu dan yang dua',
 			suggestions: [
@@ -60,10 +58,6 @@ describe('documentReducer: acceptSuggestion (§P3.2, B-3)', () => {
 
 		const accepted = after.suggestions.find((s) => s.id === 'first')
 		expect(accepted?.dismissed).toBe(true)
-
-		// Reducer hanya mencatat; penggantian teks sebenarnya dilakukan panel
-		// lewat replaceTextRange (lihat apply-text.ts). Yang diuji di sini adalah
-		// geseran offset saran kedua sebesar delta.
 		const remaining = after.suggestions.find((s) => s.id === 'second')
 		expect(remaining?.offset).toBe(17 + 3)
 	})
@@ -86,12 +80,9 @@ describe('documentReducer: checkedText / isStale (§P12 butir 4, B-11)', () => {
 			{ type: 'applyCheckResult', suggestions: [], scores: null },
 		)
 		expect(checked.checkedText).toBe('naskah asli')
-
-		// Pemakai mengetik satu huruf - teks berubah, baseline tidak.
 		const edited = documentReducer(checked, { type: 'editText', text: 'naskah aslix' })
 		expect(edited.checkedText).toBe('naskah asli')
 		expect(edited.text).toBe('naskah aslix')
-		// isStale = checkedText !== null && checkedText !== text
 		expect(edited.checkedText !== null && edited.checkedText !== edited.text).toBe(true)
 	})
 

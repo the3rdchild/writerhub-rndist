@@ -2,8 +2,6 @@ import { callUpstream, configErrorResponse } from '@/lib/server/upstream'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-/** Polling status job - dipakai sebagai cadangan kalau SSE terputus. */
 export async function GET(
 	_request: Request,
 	{ params }: { params: Promise<{ jobId: string }> },

@@ -23,18 +23,13 @@ import logging
 from .pos import tag
 
 logger = logging.getLogger(__name__)
-
-# ── subjects ────────────────────────────────────────────────────────────────
 _PLURAL_SUBJ = {"i", "we", "you", "they", "these", "those"}
 _SINGULAR_SUBJ = {"he", "she", "it", "this", "that"}
 _NOUN_TAGS = {"NN", "NNP", "NNS", "NNPS"}
-# tag/penanda yang kalau muncul SEBELUM subject → subject kemungkinan object
 _OBJECT_SIGNAL = {"VB", "VBP", "VBZ", "VBD", "VBG", "TO", "MD"}
 
 _VBZ_IRREGULAR = {"is": "are", "was": "were", "has": "have", "does": "do", "goes": "go"}
 _VBP_IRREGULAR = {"are": "is", "were": "was", "have": "has", "do": "does", "go": "goes"}
-
-# ── adjective → adverb (manner) ──────────────────────────────────────────────
 _ADJ_TO_ADV = {
     "good": "well", "quick": "quickly", "slow": "slowly", "bad": "badly",
     "quiet": "quietly", "clear": "clearly", "easy": "easily", "real": "really",
@@ -46,7 +41,6 @@ _ADJ_TO_ADV = {
     "rare": "rarely", "smooth": "smoothly", "nice": "nicely", "safe": "safely",
     "cheap": "cheaply", "neat": "neatly", "fierce": "fiercely", "polite": "politely",
 }
-# verba kopula → diikuti adjective itu BENER ("looks good"), jangan dikoreksi
 _LINKING_VERBS = {
     "be", "is", "are", "was", "were", "been", "being", "am",
     "look", "looks", "looked", "looking", "seem", "seems", "seemed",
@@ -120,8 +114,6 @@ def _prep_governed(tagged, idx):
     while j >= 0 and tagged[j][1] in ("DT", "JJ", "CD", "PRP$", "NN", "NNP"):
         j -= 1
     if j >= 0 and tagged[j][1] == "IN":
-        # cek apakah token sebelum preposisi itu quantifier (one/each/none/etc.)
-        # "one of my friends" → friends di-govern "of" setelah quantifier → prep-governed
         return True
     return False
 
@@ -132,9 +124,6 @@ def _np_start(tagged, idx):
     while j - 1 >= 0 and tagged[j - 1][1] in ("DT", "JJ", "CD", "PRP$"):
         j -= 1
     return j
-
-
-# ── rule 1: subject-verb agreement ───────────────────────────────────────────
 def _agreement(tagged, text):
     out = []
     for i, (w, t, o, l) in enumerate(tagged):
@@ -146,11 +135,8 @@ def _agreement(tagged, text):
 
         sw, st = tagged[si][0], tagged[si][1]
         slw = sw.lower()
-
-        # object guard: token sebelum subject = verb/TO/MD → subject kemungkinan object
         if si > 0 and tagged[si - 1][1] in _OBJECT_SIGNAL:
             continue
-        # compound subject guard: "X and he/the cat ..." → skip (jamak)
         if si > 0 and tagged[si - 1][1] == "CC":
             continue
 
@@ -181,9 +167,6 @@ def _agreement(tagged, text):
         end = o + l
         out.append(_iss(start, end - start, text[start:o] + fixed, "Subject-verb agreement"))
     return out
-
-
-# ── rule 2: adjective dipakai sebagai adverb ─────────────────────────────────
 def _adverb_form(tagged, text):
     out = []
     for i in range(len(tagged) - 1):
@@ -198,14 +181,10 @@ def _adverb_form(tagged, text):
         adv = _ADJ_TO_ADV.get(w2.lower())
         if not adv:
             continue
-        # guard: adjective diikuti noun → atributif (modifying noun), bukan adverb
         if i + 2 < len(tagged) and tagged[i + 2][1] in ("NN", "NNS", "NNP", "NNPS"):
             continue
         out.append(_iss(o, (o2 + l2) - o, text[o:o2] + _cap(w2, adv), "Adverb form"))
     return out
-
-
-# ── rule 3: double comparative / superlative ─────────────────────────────────
 def _double_comparison(tagged, text):
     out = []
     for i in range(len(tagged) - 1):
@@ -213,8 +192,6 @@ def _double_comparison(tagged, text):
         w2, t2, o2, l2 = tagged[i + 1]
         lw = w.lower()
         if lw == "more" and t2 in ("JJR", "RBR"):
-            # "much/far/even/still more better" → span include intensifier di depan
-            # supaya jadi satu fix: "much more better" → "much better"
             if i > 0 and tagged[i - 1][0].lower() in ("much", "far", "even", "still"):
                 prev_o, prev_l = tagged[i - 1][2], tagged[i - 1][3]
                 out.append(_iss(prev_o, (o2 + l2) - prev_o,
@@ -224,9 +201,6 @@ def _double_comparison(tagged, text):
         elif lw == "most" and t2 in ("JJS", "RBS"):
             out.append(_iss(o, (o2 + l2) - o, _cap(w, w2), "Double superlative"))
     return out
-
-
-# ── rule 4: determiner-noun number agreement ─────────────────────────────────
 def _determiner_number(tagged, text):
     out = []
     for i in range(len(tagged) - 1):

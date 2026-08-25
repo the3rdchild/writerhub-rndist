@@ -1,15 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { getSchema } from '@tiptap/core'
 import { buildEditorExtensions } from './extensions'
-
-/**
- * Skema editor harus mempertahankan atribut dasar node image.
- *
- * ImageWithMarkdown menambahkan width/height lewat addAttributes; kalau ia
- * tidak memanggil this.parent(), atribut src/alt/title bawaan Tiptap akan
- * hilang, dan gambar yang diimpor dari DOCX (berupa data URL) jadi kotak kosong
- * tanpa isi.
- */
 describe('image schema', () => {
 	test('node image membawa atribut src, alt, title, width, dan height', () => {
 		const schema = getSchema(buildEditorExtensions({}))

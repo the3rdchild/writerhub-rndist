@@ -2,8 +2,6 @@ import { callUpstream, configErrorResponse } from '@/lib/server/upstream'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-/** Teruskan pembacaan daftar versi satu tab ke apps/api. */
 export async function GET(_request: Request, { params }: { params: Promise<{ tabId: string }> }): Promise<Response> {
 	try {
 		const { tabId } = await params
@@ -15,8 +13,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tab
 		return configErrorResponse(error)
 	}
 }
-
-/** Teruskan pembuatan versi manual (snapshot berlabel) ke apps/api. */
 export async function POST(request: Request, { params }: { params: Promise<{ tabId: string }> }): Promise<Response> {
 	try {
 		const { tabId } = await params

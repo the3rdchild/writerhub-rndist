@@ -1,31 +1,5 @@
 import { TableCell, TableHeader } from '@tiptap/extension-table'
-
-/**
- * Sel & kepala tabel dengan atribut kustomisasi: warna latar + warna bingkai.
- *
- * Mengikuti pola demo resmi Tiptap (demos/src/Examples/Tables) - memperluas
- * TableCell/TableHeader bawaan dengan atribut baru, lalu mendaftarkannya lewat
- * `TableKit.configure({ tableCell: false, tableHeader: false })` dan
- * menambahkan versi kustom ini secara terpisah.
- *
- * Atribut dituang ke `data-*` + `style` supaya:
- *  - `data-background-color`/`data-border-color` bertahan saat menyalin-tempel
- *    antar tab dan saat impor HTML,
- *  - `style` langsung menerapkan warnanya tanpa CSS tambahan per sel.
- */
-
-/**
- * Nilai "sengaja tanpa warna", dibedakan dari `null` yang berarti "tidak
- * disetel".
- *
- * Keduanya perlu ada: melepas atribut warna hanya membuang `style` inline,
- * lalu CSS bawaan (`th { background }`, `th, td { border }`) langsung mengambil
- * alih - sehingga "hapus warna" justru mengembalikan warna. Menulis
- * `transparent` secara eksplisit-lah yang benar-benar mengosongkannya.
- */
 export const NO_COLOR = 'transparent'
-
-/** Atribut warna yang dipakai bersama sel & kepala. */
 const colorAttributes = {
 	backgroundColor: {
 		default: null,
@@ -52,8 +26,6 @@ const colorAttributes = {
 		},
 	},
 }
-
-/** Sel tabel dengan warna latar & warna bingkai. */
 export const CustomTableCell = TableCell.extend({
 	addAttributes() {
 		return {
@@ -62,8 +34,6 @@ export const CustomTableCell = TableCell.extend({
 		}
 	},
 })
-
-/** Kepala tabel dengan warna latar & warna bingkai. */
 export const CustomTableHeader = TableHeader.extend({
 	addAttributes() {
 		return {

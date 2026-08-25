@@ -1,21 +1,6 @@
 import { mergeAttributes, Node } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
-
-/**
- * Catatan kaki dua bagian:
- *
- * 1. `footnoteRef` - rujukan inline (angkat naik) yang menunjuk ke catatan di
- *    bawah. Atom (tidak bisa diketik di dalamnya), jadi perilakunya seperti
- *    tanda petik tunggal yang tidak bisa dipisah.
- * 2. `footnote` - isi catatan kakinya, node blok di akhir dokumen (bisa
- *    diperluas ke daftar khusus nanti; untuk sekarang ia hidup bebas di mana
- *    saja di tingkat blok).
- *
- * Penyorot: rujukan yang ditunjuk kursor diberi dekorasi supaya pemakai tahu
- * catatan mana yang sedang aktif.
- */
-
 export interface FootnoteOptions {
 	HTMLAttributes: Record<string, unknown>
 }
@@ -53,8 +38,6 @@ export const Footnote = Node.create<FootnoteOptions>({
 
 	addCommands() {
 		return {
-			// Hanya rujukan yang disisipkan dari sini; isi catatan kakinya ditulis
-			// manual di node blok. Id dipakai sebagai jangkar tautan.
 			insertFootnote:
 				(id: string) =>
 				({ commands }) =>
@@ -99,9 +82,7 @@ export const FootnoteRef = Node.create({
 						const sel = tr.selection
 						const decorations: Decoration[] = []
 						if (sel && sel.empty === false) {
-							// noop
 						}
-						// Dekorasi rujukan di bawah kursor.
 						tr.doc.nodesBetween(sel.from, sel.to, (node, pos) => {
 							if (node.type.name === 'footnoteRef') {
 								decorations.push(

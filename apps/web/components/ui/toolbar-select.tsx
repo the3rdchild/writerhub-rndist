@@ -8,25 +8,10 @@ import { Dropdown, DropdownItem, DropdownLabel } from './dropdown'
 export interface SelectOption<T> {
 	value: T
 	label: string
-	/** Gaya pratinjau pada daftar, dipakai pemilih font dan gaya paragraf. */
 	previewStyle?: React.CSSProperties
-	/**
-	 * Ikon di depan label - mis. bendera pada pemilih bahasa (§P1). Ditampilkan
-	 * baik di pemicu maupun di daftar, kecuali saat pilihan aktif (diganti centang).
-	 */
 	icon?: ReactNode
-	/**
-	 * Judul kelompok. Ditulis sekali di awal rentetan pilihan yang bernilai
-	 * sama, jadi daftarnya harus sudah urut menurut kelompok.
-	 */
 	group?: string
 }
-
-/**
- * Bawa pilihan yang sedang aktif ke tengah daftar saat menu dibuka. Pada daftar
- * panjang - pemilih font sekarang berisi hampir tiga puluh nama - membuka menu
- * dan mendarat di huruf A tidak memberi tahu huruf apa yang sedang dipakai.
- */
 function centerActiveOption(node: HTMLDivElement | null): void {
 	const list = node?.parentElement
 	if (!node || !list) return
@@ -38,12 +23,9 @@ interface ToolbarSelectProps<T extends string | number> {
 	options: ReadonlyArray<SelectOption<T>>
 	onChange: (value: T) => void
 	label: string
-	/** Lebar tetap supaya toolbar tidak bergeser saat pilihan berganti. */
 	width?: number
 	disabled?: boolean
-	/** Teks yang ditampilkan bila nilai sekarang tidak ada di daftar. */
 	fallbackLabel?: string
-	/** 'top' untuk pemilih yang duduk di footer/dekat dasar layar. */
 	side?: 'bottom' | 'top'
 }
 
@@ -87,8 +69,6 @@ export function ToolbarSelect<T extends string | number>({
 			)}
 		>
 			{({ close }) => (
-				// relative supaya offsetTop pilihan aktif terukur dari daftar ini,
-				// bukan dari kotak menunya.
 				<div className="relative max-h-[320px] overflow-y-auto">
 					{options.map((option, index) => {
 						const selected = option.value === value

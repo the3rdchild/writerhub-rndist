@@ -1,7 +1,5 @@
 import { CHAT_CONTEXT_LIMITS } from '@writer-hub/shared'
 import { z } from 'zod'
-
-/** Batas jumlah giliran yang ikut dikirim, supaya percakapan panjang tidak membengkak. */
 export const MAX_CHAT_MESSAGES = CHAT_CONTEXT_LIMITS.messages
 
 export const chatBodySchema = z.object({
@@ -9,7 +7,6 @@ export const chatBodySchema = z.object({
 		.array(
 			z.object({
 				role: z.enum(['user', 'assistant', 'tool']),
-				// Pesan asisten yang hanya berisi panggilan alat sah tanpa teks.
 				content: z.string().max(20_000),
 				toolCalls: z
 					.array(z.object({ id: z.string(), name: z.string(), arguments: z.string() }))
@@ -28,15 +25,7 @@ export const chatBodySchema = z.object({
 			title: z.string().max(500).optional(),
 		})
 		.optional(),
-
-	/** Aktifkan tool calling; klien mematikannya saat sudah tahu provider menolak. */
 	tools: z.boolean().optional().default(true),
-
-	/**
-	 * Model pilihan pengguna. Divalidasi terhadap daftar kurasi di service -
-	 * bukan di sini - supaya id tak dikenal diabaikan dengan tenang alih-alih
-	 * menggugurkan seluruh permintaan chat.
-	 */
 	model: z.string().max(200).optional(),
 })
 

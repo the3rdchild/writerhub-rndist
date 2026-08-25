@@ -35,9 +35,6 @@ _ANALYZERS = {
     "translator": run_translator,
     "glossary": run_glossary,
 }
-
-# Plagiarism murni heuristik - tidak memanggil LLM sama sekali, jadi tetap bisa
-# jalan tanpa provider. Sisanya butuh LLM.
 _NEEDS_PROVIDER = frozenset(
     {"ai_detector", "ai_rewriter", "humanizer", "translator", "glossary"}
 )
@@ -56,9 +53,6 @@ def process(data: dict):
         return
 
     _svc.log_start(job_id, feature=payload.get("feature"))
-
-    # tab_id/user_id tidak dikirim di payload (cuma request_id) - selalu perlu
-    # lookup DB untuk itu, biarpun payload sudah bawa request_id-nya sendiri.
     request = get_request_info(job_id) or {}
     request_id = payload.get("request_id") or request.get("request_id")
     if not request_id:
@@ -73,14 +67,8 @@ def process(data: dict):
     try:
         feature = payload.get("feature")
         text = payload.get("text") or ""
-        # Bahasa naskah, dideteksi di web. None berarti klien lama yang
-        # belum mengirimnya - analyzer jatuh ke perilaku sebelumnya.
         language = payload.get("language") or None
-        # AI Memory user, dikirim API di payload job. Cuma diterusin ke
-        # analyzer yang NULIS ULANG naskah (rewriter & humanizer) - detector
-        # dan plagiarism cuma menilai, jadi ga disentuh.
         style_memory = payload.get("style_memory") or None
-        # Bahasa tujuan; cuma dipakai translator, divalidasi wajib di API.
         target_lang = payload.get("target_lang") or None
         analyzer = _ANALYZERS.get(feature)
         if not analyzer:
@@ -94,8 +82,6 @@ def process(data: dict):
                 f"Fitur '{feature}' butuh LLM. Isi AI_API_KEY dan AI_BASE_URL di env worker, "
                 "atau jalankan lewat apps/api yang terhubung ke admin-ppe."
             )
-
-        # Titik periksa batal sebelum analyzer (§P7 lapis C).
         check_cancelled(job_id)
 
         with _svc.timed_step(f"analyze:{feature}"):
@@ -105,12 +91,7 @@ def process(data: dict):
                 result = analyzer(text, provider, language, style_memory)
             else:
                 result = analyzer(text, provider, language)
-
-        # Token sudah terpakai walau lalu dibatalkan - dicatat SEBELUM titik periksa
-        # batal terakhir (§2.8).
         update_tokens(job_id, get_last_total_tokens())
-
-        # Titik periksa batal sesudah analyzer: hasil dibuang, tidak disimpan.
         check_cancelled(job_id)
 
         save_metadata_version(

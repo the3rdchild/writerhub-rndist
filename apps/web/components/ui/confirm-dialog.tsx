@@ -3,17 +3,6 @@
 import { TriangleAlert } from 'lucide-react'
 import { type ReactNode, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
-
-/**
- * Tanya sekali sebelum tindakan yang tidak bisa ditarik kembali.
- *
- * Dibuat sendiri mengikuti bentuk dialog Ekspor PDF, bukan memakai pustaka
- * dialog: kebutuhannya satu lapis, ditutup lewat Escape atau klik di luar.
- *
- * Fokus awal jatuh pada tombol batal, bukan tombol merahnya. Dialog ini muncul
- * justru saat tangan sedang bergerak cepat, dan Enter yang refleks ditekan
- * tidak boleh menghapus apa pun.
- */
 export function ConfirmDialog({
 	open,
 	title,
@@ -29,7 +18,6 @@ export function ConfirmDialog({
 	description: ReactNode
 	confirmLabel: string
 	cancelLabel?: string
-	/** Nada merah untuk tindakan yang menghilangkan sesuatu. */
 	danger?: boolean
 	onConfirm: () => void
 	onCancel: () => void

@@ -10,26 +10,8 @@ import {
 import { clamp, rulerNudge, useRulerDrag } from '@/features/editor/ruler-drag'
 import type { MeasurementUnit } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
-
-/**
- * Penggaris vertikal di sisi kiri lembar (§A3).
- *
- * Berulang mengikuti tiap lembar yang terlihat - asal skala (0) kembali ke
- * tepi atas di tiap lembar, sehingga angkanya tetap bermakna saat menggulir.
- * Dua penanda seret per lembar (margin atas & bawah) mengatur margin yang sama
- * untuk seluruh dokumen, persis seperti dialog Penyiapan halaman: keduanya
- * menulis lewat `onMarginsChange` dan clamp `MIN_CONTENT_HEIGHT` yang sama.
- *
- * Aturan seret/snap/nudge dibagi dengan penggaris atas lewat `ruler-drag.ts`.
- * Sasaran tambahan (tabel, gambar) sengaja tidak dipasang di fase ini (§A3.1).
- */
-
-/** Lebar batang; sisir kanvas menyisakan ruang selebar ini + celahnya. */
 export const LEFT_RULER_WIDTH = 28
-/** Celah antara batang penggaris dan tepi kiri lembar. */
 export const LEFT_RULER_GAP = 8
-
-/** `page` ikut dicatat supaya seretan tahu marker lembar mana yang dipegang. */
 type Handle = { kind: 'marginTop' | 'marginBottom'; page: number }
 
 export function DocumentLeftRuler({
@@ -47,8 +29,6 @@ export function DocumentLeftRuler({
 }) {
 	const { height, margins, gap, pageStride } = geometry
 	const trackRef = useRef<HTMLDivElement>(null)
-
-	/** Terapkan satu posisi (piksel dokumen, diukur dari puncak kanvas). */
 	const applyHandle = (handle: Handle, y: number) => {
 		const inPage = y - handle.page * pageStride
 		if (handle.kind === 'marginTop') {
@@ -57,9 +37,6 @@ export function DocumentLeftRuler({
 			onMarginsChange({ bottom: clamp(height - inPage, 0, height - margins.top - MIN_CONTENT_HEIGHT) })
 		}
 	}
-
-	// Margin menulis langsung tiap gerakan (tidak ada sasaran deferred di sini,
-	// berbeda dari marker tabel/gambar di penggaris atas).
 	const { dragging, startDrag } = useRulerDrag<Handle>({
 		axis: 'y',
 		zoom,
@@ -67,9 +44,6 @@ export function DocumentLeftRuler({
 		onMove: applyHandle,
 		onUp: () => {},
 	})
-
-	// Nudge keyboard memakai lembar pertama sebagai acuan - margin berlaku sama
-	// untuk semua lembar, jadi lembar mana pun akan memberi nilai yang sama.
 	const nudgeTop = rulerNudge('y', { kind: 'marginTop', page: 0 }, margins.top, applyHandle)
 	const nudgeBottom = rulerNudge(
 		'y',
@@ -120,14 +94,6 @@ export function DocumentLeftRuler({
 		</div>
 	)
 }
-
-/**
- * Garis skala, diukur dari tepi atas lembar, dalam satuan aktif (inci/cm).
- *
- * Pada zoom kecil garis-garis kecil saling menempel dan hanya jadi bercak abu,
- * jadi kerapatannya diturunkan alih-alih digambar sia-sia - pola yang sama
- * dengan penggaris atas.
- */
 function Ticks({ height, zoom, unit }: { height: number; zoom: number; unit: MeasurementUnit }) {
 	const unitPx = unit === 'cm' ? INCH / 2.54 : INCH
 	const step = zoom < 0.75 ? unitPx / 2 : unitPx / 4
@@ -141,7 +107,6 @@ function Ticks({ height, zoom, unit }: { height: number; zoom: number; unit: Mea
 				const isHalf = Math.abs(y % (unitPx / 2)) < 0.01
 
 				if (isUnit) {
-					// Angka nol tidak digambar: tepi lembar sudah jadi penandanya.
 					if (y === 0) return null
 					return (
 						<span key={y} className="document-left-ruler__label" style={{ top: y * zoom }}>
@@ -161,8 +126,6 @@ function Ticks({ height, zoom, unit }: { height: number; zoom: number; unit: Mea
 		</>
 	)
 }
-
-/** Batas margin: garis mendatar yang bisa diseret. */
 function MarginHandle({
 	label,
 	y,

@@ -1,13 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import { latexToMarkdown, looksLikeLatexDocument } from './latex-document'
-
-/**
- * Kasus yang memicu berkas ini: AI diminta membuat tabel anggaran, lalu
- * mengarang dokumen LaTeX utuh. Isinya masuk sebagai teks berisi `&` dan `\\`,
- * dan karena barisnya menyatu jadi satu paragraf raksasa, ia menembus batas
- * lembar.
- */
-
 const DOCUMENT = String.raw`\documentclass{article}
 \usepackage[bahasa]{babel}
 \begin{document}

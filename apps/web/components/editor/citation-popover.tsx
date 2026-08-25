@@ -5,14 +5,6 @@ import { ExternalLink, Loader2, Plus, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { Citation } from '@/app/api/citations/route'
 import type { EditorSelection } from '@/features/editor/selection'
-
-/**
- * Cari referensi yang cocok dengan bagian yang disorot.
- *
- * Pencariannya lewat route Next sendiri, bukan langsung dari browser ke
- * Crossref - lihat app/api/citations/route.ts. Perlu diketahui pengguna:
- * potongan teks yang dicari memang dikirim ke layanan luar.
- */
 export function CitationPopover({
 	editor,
 	selection,
@@ -43,8 +35,6 @@ export function CitationPopover({
 
 		return () => controller.abort()
 	}, [selection.text])
-
-	/** Sisipkan sitasi ringkas setelah bagian yang disorot. */
 	const insert = (citation: Citation) => {
 		const author = citation.authors[0]?.split(' ').pop() ?? 'Anon'
 		const year = citation.year ?? 'n.d.'

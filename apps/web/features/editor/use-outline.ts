@@ -3,29 +3,14 @@
 import type { Node as PMNode } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
-// Sumber tunggal kerangka, dipakai bersama blok TOC (A5).
 export { type OutlineItem } from './use-outline-plain'
 import { type OutlineItem, readOutlineItems } from './use-outline-plain'
-
-/**
- * Kerangka dokumen: daftar heading yang tampil bersarang di bawah tab aktif.
- *
- * Dibaca langsung dari dokumen ProseMirror, bukan disimpan terpisah, supaya
- * tidak pernah ada dua versi kebenaran saat pengguna mengetik. `pos` dipakai
- * untuk melompat - nilainya ikut berubah setiap dokumen berubah, jadi daftar
- * ini memang dihitung ulang pada tiap transaksi.
- */
-
 export interface Outline {
 	items: OutlineItem[]
-	/** Heading terdekat sebelum kursor; penanda "kamu sedang di sini". */
 	activePos: number | null
 }
 
 const EMPTY: Outline = { items: [], activePos: null }
-
-// readHeadings dipindahkan ke `use-outline-plain` (sumber bersama blok TOC);
-// bungkus namanya di sini supaya pemanggil lama tak berubah.
 const readHeadings = (doc: PMNode): OutlineItem[] => readOutlineItems(doc)
 
 function activeHeading(items: readonly OutlineItem[], cursor: number): number | null {
@@ -55,9 +40,6 @@ function sameOutline(a: Outline, b: Outline): boolean {
 
 export function useOutline(editor: Editor | null): Outline {
 	const [outline, setOutline] = useState<Outline>(EMPTY)
-
-	// Dokumen yang terakhir dipindai. Sebagian besar transaksi hanya memindahkan
-	// kursor, dan untuk itu daftar heading yang sudah ada tetap sahih.
 	const scannedDoc = useRef<PMNode | null>(null)
 	const scannedItems = useRef<OutlineItem[]>([])
 
@@ -92,8 +74,6 @@ export function useOutline(editor: Editor | null): Outline {
 
 	return outline
 }
-
-/** Gulirkan tampilan ke heading dan taruh kursor di sana. */
 export function scrollToOutlineItem(editor: Editor, pos: number): void {
 	editor.chain().focus().setTextSelection(pos + 1).run()
 

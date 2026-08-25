@@ -27,19 +27,9 @@ from services.analyzers.llm_client import define_terms
 from core.provider import Provider
 
 logger = logging.getLogger(__name__)
-
-# Sebanyak-banyaknya kandidat yang dikirim ke LLM. Lebih dari ini hanya
-# menambah token tanpa menambah istilah yang layak masuk daftar.
 MAX_CANDIDATES = 60
-
-# Akronim: 2-6 huruf kapital, boleh berangka (mis. "AKD", "GPT4").
 _ACRONYM = re.compile(r"\b[A-Z][A-Z0-9]{1,5}\b")
-
-# Frasa berkapital 1-3 kata (mis. "Analisis Komponen Data"). Kata pertama
-# kalimat ikut terjaring - disaring lagi lewat ambang frekuensi di bawah.
 _CAPPED = re.compile(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b")
-
-# Kata yang sering berkapital karena posisi, bukan karena istilah.
 _STOPWORDS = {
     "the", "this", "that", "and", "for", "with", "from", "into",
     "ini", "itu", "dan", "atau", "untuk", "dengan", "dari", "pada",
@@ -79,7 +69,6 @@ def extract_candidates(text: str, limit: int = MAX_CANDIDATES) -> list[tuple[str
         phrase = _normalize(match.group())
         if phrase.lower() in _STOPWORDS:
             continue
-        # Frasa satu kata yang sudah terhitung sebagai akronim tidak dihitung dua kali.
         if phrase in counts:
             continue
         phrase_counts[phrase] += 1
@@ -127,15 +116,10 @@ def run_glossary(
     if defined is None:
         logger.warning("[glossary] LLM tidak tersedia - daftar istilah tidak dibuat")
         return {"entries": [], "llm_unavailable": True}
-
-    # Peta term → (jumlah, jenis) supaya definisi LLM bisa diperkaya kembali
-    # dengan asal kandidatnya setelah LLM membuang yang bukan istilah.
     meta = {term: (n, kind) for term, n, kind in candidates}
     entries = [
         {
             "term": item["term"],
-            # Kunci `expansion` selalu ada tapi boleh kosong; web yang memutuskan
-            # menampilkannya atau tidak.
             "expansion": item.get("expansion") or "",
             "definition": item["definition"],
             "occurrences": meta.get(item["term"], (1, "phrase"))[0],

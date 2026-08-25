@@ -4,77 +4,29 @@ import * as Y from 'yjs'
 import type { PageSetup } from '@/features/editor/page-geometry'
 import { DEFAULT_PAGE_SETUP } from '@/features/editor/page-geometry'
 import type { CommentThread } from './types'
-
-/**
- * Bentuk dokumen di dalam Y.Doc.
- *
- * ```
- * Y.Doc
- * ├── Y.Map('docs')
- * │   ├── 'order': Y.Array<docId>        urutan tampil dokumen
- * │   └── 'meta':  Y.Map<docId, Y.Map>   judul dokumen + tabOrder + updatedAt
- * ├── Y.Map('tabs')
- * │   └── 'meta':  Y.Map<tabId, Y.Map>   judul, ikon, bahasa, komentar
- * └── Y.XmlFragment(tabId)               naskah tiap tab
- * ```
- *
- * Urutan tab TIDAK lagi global: ia tinggal di `tabOrder` milik masing-masing
- * dokumen. Naskahnya tidak berpindah sama sekali - fragmen tetap bernama id
- * tab, jadi serialisasi, riwayat versi lokal, dan kaitan sync yang bekerja
- * atas tabId tidak perlu tahu bahwa dokumen ada.
- *
- * Id tab sekaligus jadi nama fragmennya - tidak ada field penunjuk terpisah,
- * jadi tidak ada kemungkinan keduanya berselisih.
- *
- * Yang TIDAK ada di sini sama pentingnya dengan yang ada. Tab yang sedang
- * dibuka, daftar isi yang sedang terbuka, dan hasil pemeriksaan AI adalah milik
- * satu pemakai, bukan milik naskahnya: begitu dokumen ini dibagikan, menaruhnya
- * di sini berarti Proofreader yang dijalankan satu orang muncul di layar semua
- * orang, dan tab yang dia buka ikut memindahkan layar temannya. Semua itu
- * disimpan terpisah - lihat `local-view.ts`.
- */
-
 const TABS = 'tabs'
 const DOCS = 'docs'
 const ORDER = 'order'
 const META = 'meta'
 const TAB_ORDER = 'tabOrder'
-
-/** Asal transaksi untuk perubahan dari sesi ini sendiri. */
 export const LOCAL_ORIGIN = 'local'
 
 export interface TabMeta {
 	id: string
 	title: string
 	emoji: string | null
-	/** Bahasa pilihan pengguna; null berarti ikut hasil deteksi. */
 	language: string | null
 	comments: CommentThread[]
 	updatedAt: number
-	/** Penimpa tata letak halaman untuk tab ini; null/undefined = ikut dokumen. */
 	pageSetup: PageSetup | null
 }
 
 export interface DocMeta {
 	id: string
 	title: string
-	/** Id tab milik dokumen ini, menurut urutan tampilnya. */
 	tabOrder: string[]
-	/**
-	 * Kapan dokumen ini terakhir DISUNTING - ikut naik tiap ketukan lewat
-	 * `touchTab`. Dipakai mengurutkan "dokumen terakhir", bukan untuk menilai
-	 * judul.
-	 */
 	updatedAt: number
-	/**
-	 * Kapan JUDULNYA terakhir diubah; 0 bila belum pernah diganti nama.
-	 *
-	 * Sengaja terpisah dari `updatedAt`: menilai judul dengan waktu sunting
-	 * membuat rename dari perangkat/halaman lain hampir selalu kalah, karena
-	 * mengetik satu huruf saja sudah menaikkan `updatedAt`.
-	 */
 	titleUpdatedAt: number
-	/** Tata letak halaman bawaan dokumen; dipakai tab yang tidak menimpanya. */
 	pageSetup: PageSetup | null
 }
 
@@ -82,8 +34,6 @@ export function createTabId(): string {
 	if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
 	return `t_${Date.now()}_${Math.random().toString(36).slice(2)}`
 }
-
-/** Id dokumen dan tab ditarik dari ruang yang sama - keduanya kunci Y.Map. */
 export function createDocId(): string {
 	return createTabId()
 }
@@ -98,18 +48,6 @@ interface DocsRoot {
 	order: Y.Array<string>
 	meta: Y.Map<Y.Map<unknown>>
 }
-
-/**
- * Wadah meta tab, dibuat kalau belum ada.
- *
- * Selalu lewat sini, jangan `doc.getMap('tabs').get('meta')` langsung: Yjs
- * membuat tipe berbeda untuk nama yang sama kalau dua tempat menebak beda,
- * dan dokumennya baru pecah belakangan saat sudah berisi naskah.
- *
- * Kunci 'order' yang dulu tinggal di sini sudah pensiun - urutan tab kini
- * milik dokumennya. Sisa lamanya hanya dibaca migrasi (`migrate-to-docs.ts`)
- * lewat `legacyTabOrder`.
- */
 export function tabsRoot(doc: Y.Doc): TabsRoot {
 	const root = doc.getMap<unknown>(TABS)
 
@@ -124,12 +62,6 @@ export function tabsRoot(doc: Y.Doc): TabsRoot {
 
 	return { root, meta }
 }
-
-/**
- * Wadah dokumen, dibuat kalau belum ada. Aturan yang sama dengan `tabsRoot`
- * berlaku: selalu lewat sini supaya tidak ada dua tebakan tipe untuk nama
- * yang sama.
- */
 export function docsRoot(doc: Y.Doc): DocsRoot {
 	const root = doc.getMap<unknown>(DOCS)
 
@@ -147,26 +79,14 @@ export function docsRoot(doc: Y.Doc): DocsRoot {
 
 	return { root, order, meta }
 }
-
-/**
- * Sisa struktur sebelum dokumen ada: urutan tab global di Y.Map('tabs').
- * Hanya `migrate-to-docs.ts` yang boleh menyentuhnya.
- */
 export function legacyTabOrder(doc: Y.Doc): Y.Array<string> | undefined {
 	return doc.getMap<unknown>(TABS).get(ORDER) as Y.Array<string> | undefined
 }
-
-/**
- * Hapus sisa struktur lama. Dipanggil migrasi SETELAH struktur baru terbaca
- * benar - tidak pernah sebelumnya.
- */
 export function clearLegacyTabOrder(doc: Y.Doc): void {
 	doc.transact(() => {
 		doc.getMap<unknown>(TABS).delete(ORDER)
 	}, LOCAL_ORIGIN)
 }
-
-/** Naskah satu tab. Id tab adalah nama fragmennya. */
 export function tabFragment(doc: Y.Doc, id: string): Y.XmlFragment {
 	return doc.getXmlFragment(id)
 }
@@ -192,28 +112,15 @@ function readDocMeta(meta: Y.Map<Y.Map<unknown>>, id: string): DocMeta {
 		title: (entry?.get('title') as string) ?? 'Untitled document',
 		tabOrder: tabOrder?.toArray() ?? [],
 		updatedAt: (entry?.get('updatedAt') as number) ?? 0,
-		// Dokumen dari sebelum field ini ada dianggap belum pernah diganti nama;
-		// judul server yang eksplisit karena itu berhak menang atasnya.
 		titleUpdatedAt: (entry?.get('titleUpdatedAt') as number) ?? 0,
 		pageSetup: readPageSetup(entry),
 	}
 }
-
-/**
- * Baca PageSetup dari sebuah entri meta Yjs.
- *
- * Disimpan sebagai objek polos (bukan Y.Map bersarang): tata letak berubah
- * jarang (hanya lewat dialog/ruler), dan seluruh objeknya ditulis ulang tiap
- * kali, jadi reaktivitasnya cukup bagi penimpaan menyeluruh. null bila field
- * belum ada - penanda migrasi yang belum jalan.
- */
 function readPageSetup(entry: Y.Map<unknown> | undefined): PageSetup | null {
 	if (!entry) return null
 	const raw = entry.get('pageSetup')
 	if (!raw || typeof raw !== 'object') return null
 	const value = raw as Partial<PageSetup>
-	// Field wajib dipakai apa adanya; yang hilang diisi dari bawaan supaya
-	// dokumen yang disimpan di versi antara tidak rusak.
 	return {
 		size: value.size ?? DEFAULT_PAGE_SETUP.size,
 		orientation: value.orientation ?? DEFAULT_PAGE_SETUP.orientation,
@@ -225,13 +132,6 @@ function readPageSetup(entry: Y.Map<unknown> | undefined): PageSetup | null {
 			: {}),
 	}
 }
-
-/**
- * Resolusi tata letak yang berlaku untuk sebuah tab.
- *
- * `tab.pageSetup ?? doc.pageSetup ?? fallback` - fallback biasanya bawaan
- * pemakai (`Settings.defaultPageSetup`), atau DEFAULT_PAGE_SETUP bila tidak ada.
- */
 export function resolvePageSetup(
 	doc: Y.Doc,
 	tabId: string,
@@ -244,14 +144,6 @@ export function resolvePageSetup(
 	const documentSetup = docId ? readDocMeta(docsRoot(doc).meta, docId).pageSetup : null
 	return documentSetup ?? fallback
 }
-
-/**
- * Terapkan tata letak ke seluruh dokumen (§A1 "Terapkan ke: Seluruh dokumen").
- *
- * Menulis `DocMeta.pageSetup` sekaligus MENGHAPUS `TabMeta.pageSetup` di semua
- * tabnya - kalau tidak, tab yang pernah ditimpa diam-diam mengabaikan perintah
- * ini dan menampilkan ukuran lamanya.
- */
 export function setPageSetupForDoc(doc: Y.Doc, docId: string, setup: PageSetup): void {
 	const { meta: docsMeta } = docsRoot(doc)
 	const { meta: tabsMeta } = tabsRoot(doc)
@@ -259,30 +151,17 @@ export function setPageSetupForDoc(doc: Y.Doc, docId: string, setup: PageSetup):
 
 	doc.transact(() => {
 		docsMeta.get(docId)?.set('pageSetup', setup)
-		// Penimpaan tab dibersihkan supaya dokumen betul-betul seragam.
 		for (const tabId of tabIds) {
 			const entry = tabsMeta.get(tabId)
 			if (entry?.get('pageSetup') !== undefined) entry.delete('pageSetup')
 		}
 	}, LOCAL_ORIGIN)
 }
-
-/**
- * Terapkan tata letak hanya ke tab aktif (§A1 "Terapkan ke: Dokumen terpilih").
- */
 export function setPageSetupForTab(doc: Y.Doc, tabId: string, setup: PageSetup): void {
 	doc.transact(() => {
 		tabsRoot(doc).meta.get(tabId)?.set('pageSetup', setup)
 	}, LOCAL_ORIGIN)
 }
-
-/**
- * Migrasi sekali jalan: bila dokumen belum punya tata letak, isi dari bawaan.
- *
- * check-then-set di dalam satu transaksi melindungi dari dua tab browser yang
- * membuka dokumen yang sama via BroadcastChannel (persistensi IndexedDB bersifat
- * lokal, bukan server). Mengembalikan true bila migrasi benar-benar menulis.
- */
 export function migratePageSetup(doc: Y.Doc, docId: string, fallback: PageSetup): boolean {
 	const { meta: docsMeta } = docsRoot(doc)
 	const entry = docsMeta.get(docId)
@@ -293,14 +172,6 @@ export function migratePageSetup(doc: Y.Doc, docId: string, fallback: PageSetup)
 	}, LOCAL_ORIGIN)
 	return true
 }
-
-/**
- * Beberapa kata pertama naskah, untuk menamai tab yang belum diberi judul.
- *
- * Dibaca dari delta-nya, bukan `toString()`: yang terakhir mengembalikan XML
- * lengkap dengan tag penanda tebal dan miring, dan nama tab bukan tempat untuk
- * `<strong>`.
- */
 export function tabPreview(doc: Y.Doc, id: string, limit = 64): string {
 	const pieces: string[] = []
 	let total = 0
@@ -323,7 +194,6 @@ export function tabPreview(doc: Y.Doc, id: string, limit = 64): string {
 				walk(child)
 				if (total >= limit) return
 			}
-			// Batas blok jadi spasi supaya dua paragraf tidak menyatu jadi satu kata.
 			pieces.push(' ')
 		}
 	}
@@ -331,12 +201,6 @@ export function tabPreview(doc: Y.Doc, id: string, limit = 64): string {
 	walk(doc.getXmlFragment(id))
 	return pieces.join('').replace(/\s+/g, ' ').trim().slice(0, limit)
 }
-
-/**
- * Tandai tab baru saja disunting. Dipakai daftar "dokumen terakhir" - waktu
- * sunting dokumen induknya ikut diperbarui, karena daftar itu membaca waktu
- * dari dokumen, bukan dari tab.
- */
 export function touchTab(doc: Y.Doc, id: string): void {
 	const parentId = findTabDoc(doc, id)
 	doc.transact(() => {
@@ -344,13 +208,6 @@ export function touchTab(doc: Y.Doc, id: string): void {
 		if (parentId) docsRoot(doc).meta.get(parentId)?.set('updatedAt', Date.now())
 	}, LOCAL_ORIGIN)
 }
-
-/**
- * Semua tab menurut urutan tampilnya. Dengan `docId`, hanya tab milik dokumen
- * itu. Tanpa `docId`, semua tab lintas dokumen (urutan dokumen, lalu urutan
- * tab di dalamnya); tab yatim yang belum terdaftar di dokumen mana pun ikut
- * dibaca di ujung supaya naskahnya tidak hilang diam-diam dari daftar.
- */
 export function readTabs(doc: Y.Doc, docId?: string): TabMeta[] {
 	const { meta } = tabsRoot(doc)
 
@@ -367,8 +224,6 @@ export function readTabs(doc: Y.Doc, docId?: string): TabMeta[] {
 		.filter((id) => meta.has(id))
 		.map((id) => readMeta(meta, id))
 }
-
-/** Semua dokumen menurut urutan tampilnya. */
 export function readDocs(doc: Y.Doc): DocMeta[] {
 	const { order, meta } = docsRoot(doc)
 	return order
@@ -376,8 +231,6 @@ export function readDocs(doc: Y.Doc): DocMeta[] {
 		.filter((id) => meta.has(id))
 		.map((id) => readDocMeta(meta, id))
 }
-
-/** Dokumen yang memiliki tab ini; null bila tabnya yatim. */
 export function findTabDoc(doc: Y.Doc, tabId: string): string | null {
 	const { order, meta } = docsRoot(doc)
 	for (const docId of order.toArray()) {
@@ -386,10 +239,6 @@ export function findTabDoc(doc: Y.Doc, tabId: string): string | null {
 	}
 	return null
 }
-
-// ── penulis tingkat rendah; harus dipanggil dari dalam transaksi ────────────
-
-/** Catat meta tab baru dan daftarkan fragmennya. */
 function writeTabEntry(doc: Y.Doc, tabId: string, title: string): void {
 	const entry = new Y.Map<unknown>()
 	entry.set('title', title)
@@ -398,12 +247,8 @@ function writeTabEntry(doc: Y.Doc, tabId: string, title: string): void {
 	entry.set('comments', [])
 	entry.set('updatedAt', Date.now())
 	tabsRoot(doc).meta.set(tabId, entry)
-	// Fragmennya didaftarkan sekarang juga supaya tab kosong tetap ada
-	// wujudnya di dokumen, bukan baru lahir saat huruf pertama diketik.
 	doc.getXmlFragment(tabId)
 }
-
-/** Catat meta dokumen baru beserta urutan tab awalnya. */
 function writeDocEntry(doc: Y.Doc, docId: string, title: string, tabIds: string[]): void {
 	const tabOrder = new Y.Array<string>()
 	tabOrder.push(tabIds)
@@ -413,22 +258,10 @@ function writeDocEntry(doc: Y.Doc, docId: string, title: string, tabIds: string[
 	entry.set('updatedAt', Date.now())
 	docsRoot(doc).meta.set(docId, entry)
 }
-
-/** Hapus naskah sebuah fragmen; meta dan fragmen kosong dibiarkan tercatat. */
 function clearFragment(doc: Y.Doc, tabId: string): void {
 	const fragment = doc.getXmlFragment(tabId)
 	if (fragment.length > 0) fragment.delete(0, fragment.length)
 }
-
-// ── dokumen ──────────────────────────────────────────────────────────────────
-
-/**
- * Dokumen baru, langsung berisi satu tab berjudul sama.
- *
- * Dokumen tidak pernah boleh kosong (lihat `deleteTab`), jadi pembuatannya
- * sekaligus membuat tab pertamanya - dengan begini dokumen kosong tidak
- * pernah ada wujudnya, bahkan sesaat.
- */
 export function createDocument(doc: Y.Doc, title = 'Untitled document', atIndex?: number): string {
 	const { order } = docsRoot(doc)
 	const id = createDocId()
@@ -442,13 +275,6 @@ export function createDocument(doc: Y.Doc, title = 'Untitled document', atIndex?
 
 	return id
 }
-
-/**
- * Dokumen dihapus beserta seluruh tab dan naskahnya.
- *
- * Catatan tentang soft-delete di `deleteTab` berlaku juga di sini, lebih kuat
- * malah: satu dokumen bisa memuat banyak naskah sekaligus.
- */
 export function deleteDocument(doc: Y.Doc, id: string): void {
 	doc.transact(() => {
 		const docs = docsRoot(doc)
@@ -467,18 +293,6 @@ export function deleteDocument(doc: Y.Doc, id: string): void {
 		if (at !== -1) docs.order.delete(at, 1)
 	}, LOCAL_ORIGIN)
 }
-
-/**
- * Ganti judul dokumen.
- *
- * `titleUpdatedAt` ikut dicatat supaya penyelarasan judul dengan server punya
- * ukuran yang benar saat bentrok - `updatedAt` tidak bisa dipakai karena ia
- * naik pada tiap ketukan, bukan hanya saat nama diubah.
- *
- * `origin` bisa diisi pemanggil yang menulis atas nama server (penyelarasan
- * judul di sync-context): dengan origin sinkronisasi, tulisan ini tidak
- * terbaca sebagai suntingan pengguna sehingga tidak memicu autosave balik.
- */
 export function renameDocument(doc: Y.Doc, id: string, title: string, origin: unknown = LOCAL_ORIGIN): void {
 	const entry = docsRoot(doc).meta.get(id)
 	if (!entry) return
@@ -489,8 +303,6 @@ export function renameDocument(doc: Y.Doc, id: string, title: string, origin: un
 		entry.set('updatedAt', Date.now())
 	}, origin)
 }
-
-/** Pindahkan dokumen ke posisi dokumen lain; sisanya bergeser. */
 export function moveDocument(doc: Y.Doc, movedId: string, destId: string): void {
 	if (movedId === destId) return
 	const { order } = docsRoot(doc)
@@ -505,10 +317,6 @@ export function moveDocument(doc: Y.Doc, movedId: string, destId: string): void 
 		order.insert(to, [movedId])
 	}, LOCAL_ORIGIN)
 }
-
-// ── tab ──────────────────────────────────────────────────────────────────────
-
-/** Tab baru di dalam dokumen `docId`; dokumennya harus ada. */
 export function createTab(doc: Y.Doc, docId: string, title = 'Untitled document', atIndex?: number): string {
 	const entry = docsRoot(doc).meta.get(docId)
 	if (!entry) throw new Error(`createTab: dokumen "${docId}" tidak ada`)
@@ -524,18 +332,6 @@ export function createTab(doc: Y.Doc, docId: string, title = 'Untitled document'
 
 	return id
 }
-
-/**
- * Isi tab dihapus bersama metanya.
- *
- * ferdocs menyimpan naskahnya (soft-delete) untuk undo yang belum ada. Di sini
- * dialog konfirmasi sudah berdiri di depan tombolnya, jadi menyimpan naskah
- * yang tidak bisa dipanggil kembali hanya berarti berkas yang membengkak diam-
- * diam.
- *
- * Dokumen tidak boleh kosong: menghapus tab terakhir sebuah dokumen sekaligus
- * menghapus dokumennya.
- */
 export function deleteTab(doc: Y.Doc, id: string): void {
 	doc.transact(() => {
 		const { meta } = tabsRoot(doc)
@@ -575,12 +371,6 @@ export function updateTab(
 		for (const [key, value] of Object.entries(patch)) entry.set(key, value)
 	}, LOCAL_ORIGIN)
 }
-
-/**
- * Pindahkan tab ke posisi tab lain DI DALAM DOKUMEN YANG SAMA; sisanya
- * bergeser. Memindahkan tab antar dokumen sengaja tidak didukung (§11 rencana
- * restrukturisasi) - pemanggil dengan tab beda dokumen diabaikan.
- */
 export function moveTab(doc: Y.Doc, movedId: string, destId: string): void {
 	if (movedId === destId) return
 	const parentId = findTabDoc(doc, destId)
@@ -600,17 +390,7 @@ export function moveTab(doc: Y.Doc, movedId: string, destId: string): void {
 		tabOrder.insert(to, [movedId])
 	}, LOCAL_ORIGIN)
 }
-
-/**
- * Salin isi satu fragmen ke fragmen lain.
- *
- * Lewat `clone()` milik Yjs, bukan lewat HTML: memutar naskah melalui teks
- * berarti menyerahkannya pada parser sekali lagi, dan yang tidak terbaca di
- * situ hilang tanpa suara.
- */
 function cloneFragment(source: Y.XmlFragment, target: Y.XmlFragment): void {
-	// XmlHook tidak ikut: TipTap tidak pernah membuatnya, dan fragmen memang
-	// tidak menerimanya sebagai anak.
 	const copies = source
 		.toArray()
 		.map((node) =>
@@ -620,8 +400,6 @@ function cloneFragment(source: Y.XmlFragment, target: Y.XmlFragment): void {
 
 	target.insert(target.length, copies)
 }
-
-/** Salinan duduk tepat setelah aslinya, di dalam dokumen yang sama. */
 export function duplicateTab(doc: Y.Doc, id: string): string | null {
 	const { meta } = tabsRoot(doc)
 	const source = meta.get(id)
@@ -635,9 +413,6 @@ export function duplicateTab(doc: Y.Doc, id: string): string | null {
 		entry.set('title', `${(source.get('title') as string) ?? 'Untitled document'} (salinan)`)
 		entry.set('emoji', source.get('emoji') ?? null)
 		entry.set('language', source.get('language') ?? null)
-		// Komentar tidak ikut: jangkarnya adalah mark bernama sama di dalam
-		// naskah, dan dua tab yang memakai id jangkar yang sama membuat satu
-		// utas muncul di dua naskah sekaligus.
 		entry.set('comments', [])
 		entry.set('updatedAt', Date.now())
 		meta.set(copyId, entry)

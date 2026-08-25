@@ -1,6 +1,3 @@
--- DITULIS TANGAN (bagian backfill) - lihat metadata-version.ts. Tabel dibuat
--- kosong oleh generate, lalu diisi dari grammar_result/analysis_result lama
--- sebelum keduanya di-drop di migrasi berikutnya (0016).
 
 CREATE TABLE "metadata_version" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -16,17 +13,6 @@ CREATE TABLE "metadata_version" (
 --> statement-breakpoint
 ALTER TABLE "metadata_version" ADD CONSTRAINT "metadata_version_request_id_pool_request_id_fk" FOREIGN KEY ("request_id") REFERENCES "public"."pool_request"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "metadata_version" ADD CONSTRAINT "metadata_version_version_id_document_versions_id_fk" FOREIGN KEY ("version_id") REFERENCES "public"."document_versions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-
--- Backfill grammar_result -> metadata_version. Tiap baris butuh satu
--- document_versions baru (trigger 'ai_result') karena metadata_version.version_id
--- wajib ada - konten snapshotnya adalah konten TAB SAAT INI (histori konten
--- persis saat job itu selesai tidak pernah direkam sebelumnya), dan
--- word_count diisi 0 (perkiraan, bukan dihitung ulang - baris migrasi lama).
---
--- Baris yang tab_id-nya sudah NULL/basi (pool_request.tab_id IS NULL, atau
--- tabnya sudah dihapus) TIDAK BISA dimigrasi dan akan HILANG permanen - cek
--- dulu di produksi seberapa banyak sebelum migrasi ini dijalankan:
---   SELECT count(*) FROM grammar_result gr JOIN pool_request pr ON pr.id = gr.request_id WHERE pr.tab_id IS NULL;
 WITH src AS (
 	SELECT
 		gr.job_id, gr.request_id, pr.tab_id, dt.content,
@@ -49,8 +35,6 @@ WITH src AS (
 )
 INSERT INTO "metadata_version" ("job_id", "request_id", "version_id", "feature", "result")
 SELECT job_id, request_id, version_id, 'grammar', result FROM src;--> statement-breakpoint
-
--- Backfill analysis_result -> metadata_version, pola sama.
 WITH src AS (
 	SELECT
 		ar.job_id, ar.request_id, pr.tab_id, dt.content, ar.feature, ar.result,

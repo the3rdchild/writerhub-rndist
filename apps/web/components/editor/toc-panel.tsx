@@ -5,17 +5,6 @@ import { List } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { TableOfContentDataItem } from '@tiptap/extension-table-of-contents'
 import { cn } from '@/lib/utils'
-
-/**
- * Panel daftar isi - daftar heading yang bisa diklik untuk melompat.
- *
- * Data dibaca dari storage ekstensi `tableOfContents`; ia diperbarui tiap
- * dokumen berubah. Lompatan dilakukan lewat perintah TextSelection ke posisi
- * heading (bukan anchor scroll) supaya bekerja pada kanvas berhalaman yang
- * dirender oleh Pagination.
- *
- * `onClose` opsional; bila tidak diberikan, panel tetap tampil (mis. di sidebar).
- */
 export function TocPanel({ editor, onClose }: { editor: Editor; onClose?: () => void }) {
 	const [items, setItems] = useState<TableOfContentDataItem[]>([])
 
@@ -33,10 +22,8 @@ export function TocPanel({ editor, onClose }: { editor: Editor; onClose?: () => 
 	}, [editor])
 
 	const jump = (item: TableOfContentDataItem) => {
-		// Pindahkan kursor ke heading lalu gulir tampilan ke sana.
 		editor.commands.focus()
 		editor.commands.setTextSelection(item.pos + 1)
-		// Gulir node DOM heading ke tampilan bila ada.
 		const el = editor.view.dom.querySelector(`[data-toc-id="${item.id}"]`)
 		el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 	}

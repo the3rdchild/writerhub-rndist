@@ -9,12 +9,6 @@ import { resolveIdentityId } from '@/repository/identity'
 import LoggerClient from '@/utils/logger'
 
 const log = LoggerClient.getInstance()
-
-/**
- * Kelas dasar service HTTP: menyeragamkan bentuk respons, penanganan error,
- * dan akses ke db/redis. Turunannya menangani satu endpoint (lihat
- * `GrammarService`, `AnalysisService`, `PoolingService`).
- */
 export default abstract class BaseService {
 	protected readonly db: typeof db
 	protected readonly redis: typeof redis
@@ -25,8 +19,6 @@ export default abstract class BaseService {
 		this.redis = redis
 		this.context = context
 	}
-
-	// ── respons ──────────────────────────────────────────────────────────────
 
 	protected success<T>({
 		data,
@@ -56,11 +48,6 @@ export default abstract class BaseService {
 		const response: ErrorResponse = { message, errors }
 		return this.context.json(response)
 	}
-
-	/**
-	 * Ubah exception apa pun jadi respons error. `AppError` membawa status
-	 * sendiri; sisanya dianggap 500 dan dicatat lengkap dengan stack.
-	 */
 	protected failFromError(error: unknown): Response {
 		if (error instanceof AppError) {
 			if (error.statusCode >= 500) this.logError(error.message, error.stack)
@@ -78,24 +65,12 @@ export default abstract class BaseService {
 			message,
 		)
 	}
-
-	// ── identitas ────────────────────────────────────────────────────────────
-
-	/**
-	 * Resolve `userId` (id eksternal, dari `x-pp-user-id`/`x-ransel-user-id`)
-	 * + `identityOrigin` context jadi `identity.id` (uuid) - dipakai sebagai
-	 * `owner_id` di tabel yang sudah punya FK riil ke `identity` (`projects`,
-	 * `user_memories`). Bukan pengganti `context.get('userId')` di tempat yang
-	 * masih menyimpan id mentah (mis. `pool_request.user_id`).
-	 */
 	protected async identityId(): Promise<string> {
 		const userId = this.context.get('userId')
 		const origin = this.context.get('identityOrigin')
 		if (!userId || !origin) throw AppError.unauthorized('User tidak dikenal')
 		return resolveIdentityId(userId, origin)
 	}
-
-	// ── cache ────────────────────────────────────────────────────────────────
 
 	protected async cacheGet<T>(key: string): Promise<T | null> {
 		try {

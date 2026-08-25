@@ -8,16 +8,9 @@ import {
 	initialDocumentState,
 } from './document-reducer'
 import { applySuggestions } from './suggestions'
-
-/**
- * State dokumen adalah client state murni: pengguna mengubahnya terus-menerus
- * (mengetik, accept, dismiss) tanpa perlu sinkron ke server. Karena itu dia
- * memakai reducer + context, bukan TanStack Query yang mengurus server state.
- */
 interface DocumentContextValue {
 	state: DocumentState
 	dispatch: (action: DocumentAction) => void
-	/** Teks setelah semua suggestion aktif diterapkan, tanpa mengubah state. */
 	correctedText: string
 	hasContent: boolean
 }

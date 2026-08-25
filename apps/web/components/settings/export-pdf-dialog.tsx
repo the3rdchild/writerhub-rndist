@@ -3,21 +3,6 @@
 import { FileDown, Printer } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useSettings } from '@/features/settings/settings-context'
-
-/**
- * Ekspor PDF lewat dialog cetak browser.
- *
- * Ini bukan jalan pintas - ini rute dengan hasil paling setia yang kita punya.
- * Tata letak berhalaman yang dipakai layar sudah dirancang untuk cetak: page
- * break manual jadi `break-after: page`, spacer paginasi dan lembar latar
- * disembunyikan, margin diambil dari `@page`. Browser menata ulang isinya
- * memakai aturan itu, sedangkan pustaka PDF di sisi klien menghitung tata letak
- * sendiri dan justru lebih sering merusak tabel dan pemenggalan halaman.
- *
- * Yang tidak bisa dikendalikan dari CSS adalah kepala/kaki halaman bawaan
- * browser (URL dan tanggal). Karena itu langkahnya ditulis di sini, bukan
- * dibiarkan jadi kejutan di berkas hasil.
- */
 export function ExportPdfDialog() {
 	const { exportOpen, setExportOpen } = useSettings()
 	const overlayRef = useRef<HTMLDivElement>(null)
@@ -41,8 +26,6 @@ export function ExportPdfDialog() {
 
 	const print = () => {
 		setExportOpen(false)
-		// Dialog harus benar-benar hilang dari layar sebelum cetak dipanggil,
-		// kalau tidak ia ikut terbawa ke halaman pertama.
 		setTimeout(() => window.print(), 100)
 	}
 

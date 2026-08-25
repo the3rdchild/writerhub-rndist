@@ -6,14 +6,6 @@ import { useSync } from '@/features/sync/sync-context'
 import { getDocument } from './api'
 import { mergeDocuments, type MergedDocument } from './merged'
 import { useDocuments } from './use-documents'
-
-/**
- * Daftar dokumen gabungan (lokal + server) beserta cara membukanya.
- *
- * Dipakai Riwayat di menu WritingHub dan halaman Library supaya keduanya
- * menampilkan himpunan yang sama - lihat `merged.ts` untuk aturan
- * penggabungannya.
- */
 export function useMergedDocuments() {
 	const { documents, selectDocument } = useSessions()
 	const { serverDocId, openFromLibrary } = useSync()
@@ -33,15 +25,6 @@ export function useMergedDocuments() {
 		openFromLibrary,
 	}
 }
-
-/**
- * Membuka satu entri gabungan.
- *
- * Dokumen yang sudah ada di perangkat ini cukup diaktifkan. Yang baru ada di
- * server perlu diunduh dulu jadi tab-tab lokal (`openFromLibrary`), jadi
- * pemanggilnya butuh keadaan memuat dan galat - karena itu dipisah dari
- * daftarnya.
- */
 export function useOpenDocument() {
 	const { selectDocument } = useSessions()
 	const { openFromLibrary } = useSync()

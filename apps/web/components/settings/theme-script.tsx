@@ -1,12 +1,4 @@
 import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY } from '@/features/settings/settings-context'
-
-/**
- * Terapkan tema sebelum paint pertama.
- *
- * Tanpa ini halaman berkedip putih lalu gelap, karena React baru bisa membaca
- * localStorage setelah hidrasi. Skrip ditulis inline dan sengaja dibuat kecil
- * serta defensif - kegagalan apa pun jatuh ke tema bawaan.
- */
 export function ThemeScript() {
 	const script = `
 (function () {

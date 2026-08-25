@@ -2,19 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { type NodeViewProps, NodeViewWrapper } from '@tiptap/react'
-
-/**
- * Tampilan node gambar blok yang bisa diubah ukurannya dari kedelapan arah.
- *
- * Delapan handle: empat POJOK (mempertahankan rasio aspek) dan empat SISI
- * (menyempit/memanjang hanya satu dimensi, membiaskan rasio). Lebar & tinggi
- * disimpan dalam piksel supaya hasilnya konsisten lintas perbesaran halaman;
- * rasio asli gambar diukur saat dimuat untuk perhitungan handle pojok.
- *
- * Perataan (`data-align`) memindahkan gambar ke kiri/tengah/kanan bloknya tanpa
- * mengganggu perataan teks paragraf di sekitarnya.
- */
-
 type HandleId = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
 
 const CORNERS: HandleId[] = ['nw', 'ne', 'se', 'sw']
@@ -37,20 +24,11 @@ export function ResizableImageView({
 		align: 'left' | 'center' | 'right' | null
 		offsetX: number | null
 	}
-
-	// Dokumen lama menyimpan `width` sebagai persen kontainer (10-100) dan tidak
-	// pernah menulis `height`. Versi ini selalu menulis keduanya dalam piksel,
-	// jadi lebar tanpa tinggi yang masih <= 100 pasti warisan format lama -
-	// menafsirkannya sebagai piksel akan menyusutkan gambar jadi seukuran ikon.
 	const isLegacyPercent = height === null && width !== null && width <= 100
 
 	const imgRef = useRef<HTMLImageElement>(null)
 	const [naturalRatio, setNaturalRatio] = useState(0)
 	const [drag, setDrag] = useState<{ handle: HandleId; startX: number; startY: number; startW: number; startH: number } | null>(null)
-	// Pratinjau ukuran saat menyeret; null = pakai atribut node. Disimpan ganda:
-	// state untuk merender, ref untuk dibaca `pointerup`. Efek React di-flush
-	// asinkron, jadi tanpa ref penutupan `onUp` bisa tertinggal satu gerakan
-	// dan menyimpan ukuran yang basi.
 	const previewRef = useRef<{ w: number; h: number } | null>(null)
 	const [preview, setPreview] = useState<{ w: number; h: number } | null>(null)
 
@@ -60,7 +38,6 @@ export function ResizableImageView({
 	}, [])
 
 	useEffect(() => {
-		// Reset pratinjau bila atribut berubah dari luar (mis. undo).
 		previewRef.current = null
 		setPreview(null)
 	}, [width, height])
@@ -77,9 +54,6 @@ export function ResizableImageView({
 			event.stopPropagation()
 			const img = imgRef.current
 			if (!img) return
-			// Ukuran render nyata dipakai sebagai titik awal, bukan atribut node:
-			// itu benar untuk lebar piksel maupun persen warisan, dan seretan
-			// pertama sekaligus mengubah yang persen jadi piksel.
 			const startW = img.offsetWidth
 			const startH = img.offsetHeight
 			setDrag({ handle, startX: event.clientX, startY: event.clientY, startW, startH })
@@ -106,12 +80,7 @@ export function ResizableImageView({
 
 			w = Math.max(MIN_PX, w)
 			h = Math.max(MIN_PX, h)
-
-			// POJOK menjaga rasio aspek: turunkan satu dimensi dari yang lain.
-			// SISI dibiarkan mengubah satu dimensi saja sehingga rasionya memang
-			// terdistorsi - itulah gunanya handle sisi.
 			if (isCorner && naturalRatio > 0) {
-				// Pakai dimensi yang berubah paling banyak sebagai acuan.
 				if (Math.abs(w - drag.startW) >= Math.abs(h - drag.startH)) {
 					h = Math.round(w / naturalRatio)
 				} else {
@@ -123,13 +92,10 @@ export function ResizableImageView({
 		}
 		const onUp = () => {
 			setDrag(null)
-			// Simpan ke atribut saat selesai, bukan tiap gerakan - supaya riwayat
-			// undo tidak berisik dan Yjs tidak kebanjiran transaksi.
 			const final = previewRef.current
 			if (final) {
 				updateAttributes({ width: final.w, height: final.h })
 			}
-			// preview direset oleh efek [width,height] saat updateAttributes selesai.
 		}
 
 		window.addEventListener('pointermove', onMove)
@@ -138,18 +104,9 @@ export function ResizableImageView({
 			window.removeEventListener('pointermove', onMove)
 			window.removeEventListener('pointerup', onUp)
 		}
-		// `preview` sengaja di luar dependensi: nilainya dibaca lewat ref, jadi
-		// listener tidak perlu dipasang ulang tiap gerakan pointer.
 	}, [drag, naturalRatio, putPreview, updateAttributes])
-
-	// Figure memegang lebarnya; <img> mengikuti penuh lewat class `w-full`
-	// kecuali tinggi piksel eksplisit ikut disetel.
 	const figureWidth = preview ? preview.w : isLegacyPercent ? `${width}%` : (width ?? undefined)
 	const imgHeight = preview ? preview.h : isLegacyPercent ? undefined : (height ?? undefined)
-
-	// Posisi bebas menang atas perataan: saat `offsetX` ada, gambar berlabuh di
-	// kiri lalu digeser sejauh itu. Atribut `renderHTML` tidak sampai ke sini -
-	// node view menggambar DOM-nya sendiri - jadi jaraknya dipasang eksplisit.
 	const justify = align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start'
 
 	return (

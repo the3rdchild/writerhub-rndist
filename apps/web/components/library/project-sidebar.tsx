@@ -10,12 +10,6 @@ import { createProject, deleteProject, updateProject } from '@/features/projects
 import type { ProjectSummary } from '@/features/projects/types'
 import { useInvalidateProjects, useProjects } from '@/features/projects/use-projects'
 import { cn } from '@/lib/utils'
-
-/**
- * Sidebar kiri /library: filter dokumen per proyek. Pilihan disimpan di query
- * string `?project=` (all / <id>) supaya bisa di-bookmark dan tombol Kembali
- * bekerja.
- */
 export function ProjectSidebar({ active }: { active: string }) {
 	const router = useRouter()
 	const { data: projects } = useProjects()
@@ -64,8 +58,6 @@ export function ProjectSidebar({ active }: { active: string }) {
 				if (active === pendingDelete.id) go('all')
 				setPendingDelete(null)
 			})
-			// Server menolak (409) selagi proyek masih berisi dokumen - pesannya
-			// sudah menjelaskan itu, tampilkan apa adanya.
 			.catch((cause) => failMessage(cause, 'Gagal menghapus proyek'))
 			.finally(() => setDeleting(false))
 	}
@@ -221,8 +213,6 @@ function SidebarItem({
 		</button>
 	)
 }
-
-/** Input nama inline, dipakai untuk membuat dan mengganti nama proyek. */
 function ProjectNameInput({
 	initialValue,
 	placeholder,

@@ -4,16 +4,6 @@ import { documents } from './document'
 
 export const shareAccessEnum = pgEnum('share_access', ['anyone', 'restricted'])
 export const shareRoleEnum = pgEnum('share_role', ['viewer', 'commenter', 'editor'])
-
-/**
- * Share link untuk satu DOKUMEN (seluruh tab di dalamnya - pola Google Docs:
- * "Share" membagikan satu file, bukan satu folder). Token acak menjadi
- * identitas publik yang tertanam di URL `/share/<token>`. BUKAN salinan beku
- * - kontennya dibaca LIVE dari `document_tabs` tiap kali link dibuka (lihat
- * `services/share/service.ts`), sama seperti Google Docs. Konsekuensinya:
- * `document_id` di-SET NULL kalau dokumennya dihapus, dan link itu ikut mati
- * (tidak ada lagi apa pun yang bisa ditampilkan).
- */
 export const shares = pgTable('shares', {
 	id: uuid('id').primaryKey().defaultRandom(),
 	document_id: uuid('document_id').references(() => documents.id, { onDelete: 'set null' }),

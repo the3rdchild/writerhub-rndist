@@ -13,19 +13,8 @@ import BaseService from '@/services/base.service'
 import { snapshotIntervalTab } from '@/services/tabs/service'
 import { createDocumentBodySchema, updateDocumentBodySchema } from './dto'
 import type { DocumentDetail, DocumentSummary, TabSummary } from './dto'
-
-/** Konten bawaan tab pertama: dokumen Tiptap kosong. */
 const EMPTY_CONTENT: Record<string, unknown> = { type: 'doc', content: [] }
-
-/**
- * CRUD dokumen INDUK milik user (judul + proyek; naskahnya tinggal di tab -
- * lihat docs/DOCUMENT-TABS-RESTRUCTURE-PLAN.md). Semua operasi diskop ke
- * `userId` dari context (diisi `authMiddleware`; dev lokal memakai fallback
- * 'local-dev').
- */
 export default class DocumentsService extends BaseService {
-	/** List metadata dokumen milik user, terbaru di atas. Query `projectId`
-	 * menyaring per proyek bila diisi. */
 	async list(): Promise<Response> {
 		try {
 			const rows = await findDocumentsByOwner(
@@ -45,8 +34,6 @@ export default class DocumentsService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/** Detail satu dokumen induk beserta daftar tabnya (urut `position`). */
 	async getById(): Promise<Response> {
 		try {
 			const document = await findDocumentById(this.documentId(), await this.identityId())
@@ -58,12 +45,6 @@ export default class DocumentsService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/**
-	 * Buat dokumen baru beserta satu tab awal (misalnya saat "Simpan ke cloud"
-	 * pertama kali). `content`/`emoji`/`language` di body menjadi milik tab
-	 * pertama; timeline versi tab langsung punya snapshot awal.
-	 */
 	async create(): Promise<Response> {
 		try {
 			const body = createDocumentBodySchema.safeParse(await this.context.req.json())
@@ -73,9 +54,6 @@ export default class DocumentsService extends BaseService {
 
 			const { content, emoji, language, projectId, title } = body.data
 			const identityId = await this.identityId()
-			// Tidak dikirim = jalur cloud-sync otomatis - pakai proyek default
-			// user (dibuat sekali, dipakai ulang) supaya tidak perlu UI pemilihan
-			// proyek di titik itu.
 			let targetProjectId: string
 			if (projectId) {
 				await this.ownedProject(projectId)
@@ -99,8 +77,6 @@ export default class DocumentsService extends BaseService {
 				position: 0,
 			})
 			if (!tab) throw AppError.internalServerError('Gagal menyimpan tab pertama')
-
-			// Versi interval pertama: timeline tidak pernah kosong.
 			await snapshotIntervalTab(tab.id, tab.content, this.ownerId())
 
 			return this.success({ data: this.toDetail(document, [tab]), status: 201 })
@@ -108,9 +84,6 @@ export default class DocumentsService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/** Ubah dokumen induk: judul dan/atau keanggotaan proyek. Autosave naskah
-	 * tidak lagi lewat sini - pakai `PUT /tabs/:tabId`. */
 	async update(): Promise<Response> {
 		try {
 			const body = updateDocumentBodySchema.safeParse(await this.context.req.json())
@@ -121,13 +94,9 @@ export default class DocumentsService extends BaseService {
 			const { projectId, ...rest } = body.data
 			const values: Partial<NewDocument> = { ...rest }
 			if (projectId !== undefined) {
-				// Proyek tujuan harus benar-benar milik user ini.
 				await this.ownedProject(projectId)
 				values.project_id = projectId
 			}
-
-			// Field tak dikenal sudah di-strip zod; patch kosong berarti tidak
-			// ada yang bisa diupdate (drizzle melempar "No values to set").
 			if (Object.keys(values).length === 0) {
 				return this.error({ errors: ['Tidak ada field yang bisa diubah (title/projectId)'] })
 			}
@@ -141,12 +110,6 @@ export default class DocumentsService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/**
-	 * Hard delete dokumen induk: seluruh tab ikut terhapus lewat ON DELETE
-	 * CASCADE, dan versi/share/pool_request mengikuti aturan FK masing-masing
-	 * (share link tetap hidup lewat snapshot-nya).
-	 */
 	async remove(): Promise<Response> {
 		try {
 			const document = await deleteDocument(this.documentId(), await this.identityId())
@@ -162,8 +125,6 @@ export default class DocumentsService extends BaseService {
 		if (!userId) throw AppError.unauthorized('User tidak dikenal')
 		return userId
 	}
-
-	/** Proyek tujuan harus milik user; 400 bila bukan. */
 	private async ownedProject(projectId: string): Promise<void> {
 		const project = await findProjectById(projectId, await this.identityId())
 		if (!project) throw AppError.badRequest('Proyek tidak ditemukan')

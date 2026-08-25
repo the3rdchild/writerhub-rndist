@@ -1,35 +1,8 @@
-/**
- * Menebak bahasa naskah.
- *
- * Tujuannya bukan mengalahkan pustaka deteksi bahasa, melainkan menjawab satu
- * pertanyaan dengan andal: naskah ini bahasa apa, supaya AI diminta menjawab
- * dalam bahasa itu alih-alih hanyut ke bahasa prompt-nya. Untuk itu, membedakan
- * Inggris dari bukan-Inggris jauh lebih penting daripada membedakan Portugis
- * dari Spanyol - kalau pun keliru di antara keduanya, model tetap menerima nama
- * bahasa yang masuk akal dan hasilnya tidak berpindah bahasa.
- *
- * Tebakannya bisa ditimpa pengguna, jadi kekeliruan tidak pernah jadi jalan
- * buntu.
- */
-
 export interface DetectedLanguage {
-	/** Kode BCP-47 pendek, mis. "id". */
 	code: string
 	label: string
-	/**
-	 * False kalau naskahnya terlalu pendek atau tidak ada penanda yang menonjol.
-	 * UI memakainya untuk menyarankan pengguna memilih sendiri.
-	 */
 	confident: boolean
 }
-
-/**
- * Pilihan pada penukar bahasa; `null` berarti ikut hasil deteksi.
- *
- * `flag` adalah kode negara ISO 3166 (huruf kecil) untuk bendera pendamping
- * label - bukan pengganti label (bahasa bukan negara), hanya mempercepat pindai
- * (§P1, §2.6). Dipetakan per keputusan §15.2.
- */
 export const LANGUAGE_OPTIONS: ReadonlyArray<{ code: string; label: string; flag: string }> = [
 	{ code: 'en', label: 'English', flag: 'us' },
 	{ code: 'id', label: 'Bahasa Indonesia', flag: 'id' },
@@ -54,28 +27,14 @@ const LABELS = new Map(LANGUAGE_OPTIONS.map((option) => [option.code, option.lab
 export function languageLabel(code: string): string {
 	return LABELS.get(code) ?? code.toUpperCase()
 }
-
-/**
- * Aksara yang menentukan bahasanya sendiri.
- *
- * Diperiksa lebih dulu karena jauh lebih pasti daripada hitung-hitungan kata:
- * naskah beraksara Hangul tidak mungkin bahasa Inggris.
- */
 const SCRIPTS: ReadonlyArray<{ code: string; pattern: RegExp }> = [
 	{ code: 'ko', pattern: /[가-힯]/ },
 	{ code: 'ja', pattern: /[぀-ヿ]/ },
-	// Han diperiksa setelah kana: teks Jepang memakai kanji juga.
 	{ code: 'zh', pattern: /[一-鿿]/ },
 	{ code: 'ar', pattern: /[؀-ۿ]/ },
 	{ code: 'ru', pattern: /[Ѐ-ӿ]/ },
 	{ code: 'th', pattern: /[฀-๿]/ },
 ]
-
-/**
- * Kata fungsi per bahasa - kata yang sering muncul dan jarang dipinjam bahasa
- * lain. Sengaja pendek: menambah kata umum lintas-bahasa justru mengaburkan
- * bedanya.
- */
 const STOPWORDS: Readonly<Record<string, readonly string[]>> = {
 	en: ['the', 'and', 'of', 'to', 'is', 'in', 'that', 'for', 'with', 'this', 'are', 'was', 'be', 'it'],
 	id: ['yang', 'dan', 'untuk', 'dengan', 'pada', 'tidak', 'ini', 'dari', 'akan', 'adalah', 'dalam', 'atau', 'juga', 'bisa'],
@@ -89,16 +48,10 @@ const STOPWORDS: Readonly<Record<string, readonly string[]>> = {
 	tr: ['bir', 'için', 'bu', 'daha', 'olarak', 'ile', 'çok', 'ancak'],
 	vi: ['của', 'và', 'là', 'không', 'được', 'trong', 'người', 'những'],
 }
-
-// Dicocokkan lewat Set: pencarian ini berjalan untuk tiap kata dikali tiap
-// bahasa, dan pemindaian larik di dalam dua perulangan itu terasa mahal.
 const STOPWORD_SETS = Object.entries(STOPWORDS).map(
 	([code, words]) => [code, new Set(words)] as const,
 )
-
-/** Naskah lebih pendek dari ini terlalu sedikit buktinya untuk ditebak. */
 const MIN_WORDS = 12
-/** Selisih minimum agar pemenang dianggap meyakinkan, bukan menang tipis. */
 const MIN_LEAD = 2
 
 const DEFAULT: DetectedLanguage = { code: 'en', label: 'English', confident: false }
@@ -132,12 +85,6 @@ export function detectLanguage(text: string): DetectedLanguage {
 		confident: best[1] - (runnerUp?.[1] ?? 0) >= MIN_LEAD,
 	}
 }
-
-/**
- * Tier `standard` dan `advanced` bekerja di atas model POS dan daftar kata
- * bahasa Inggris, jadi bahasa lain harus lewat tier AI. Ini batas kemampuan
- * pipeline-nya, bukan pilihan produk.
- */
 export function requiresAiTier(code: string): boolean {
 	return code !== 'en'
 }

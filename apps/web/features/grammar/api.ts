@@ -13,13 +13,9 @@ export interface GrammarCheckInput {
 	file: File | null
 	title: string
 	model: GrammarModel
-	/** Bahasa naskah; worker memakainya agar AI tidak berpindah bahasa. */
 	language: string
-	/** Tautan tab cloud untuk Aktivitas AI; tab lokal mengirim undefined. */
 	tabId?: string
 }
-
-/** Antrekan job grammar check. Mengembalikan jobId untuk dipantau lewat SSE. */
 export async function submitGrammarCheck(input: GrammarCheckInput): Promise<JobSubmission> {
 	const form = new FormData()
 	if (input.file) form.append('file', input.file)
@@ -35,20 +31,15 @@ export async function submitGrammarCheck(input: GrammarCheckInput): Promise<JobS
 export function fetchGrammarJobStatus(jobId: string): Promise<GrammarJobStatus> {
 	return apiFetch<GrammarJobStatus>(`/status/${encodeURIComponent(jobId)}`)
 }
-
-/** Batas tunggu per mode - jalur AI jauh lebih lama dari pemeriksaan lokal. */
 export function streamTimeoutFor(model: GrammarModel): number {
 	return model === 'standard' ? 60_000 : 180_000
 }
 
 export interface StreamGrammarOptions {
-	/** Hasil parsial per checker, supaya suggestion muncul bertahap. */
 	onCheckpoint?: (event: Extract<GrammarStreamEvent, { type: 'checkpoint' }>) => void
 	timeoutMs?: number
 	signal?: AbortSignal
 }
-
-/** Ikuti job sampai selesai dan kembalikan hasil akhirnya. */
 export async function streamGrammarCheck(
 	jobId: string,
 	{ onCheckpoint, timeoutMs, signal }: StreamGrammarOptions = {},

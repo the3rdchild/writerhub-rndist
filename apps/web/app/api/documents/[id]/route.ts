@@ -2,8 +2,6 @@ import { callUpstream, configErrorResponse } from '@/lib/server/upstream'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-/** Teruskan pembacaan satu dokumen ke apps/api. */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
 	try {
 		const { id } = await params
@@ -15,12 +13,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 		return configErrorResponse(error)
 	}
 }
-
-/**
- * Teruskan pembaruan dokumen ke apps/api. Body diteruskan apa adanya - sejak
- * restrukturisasi dokumen/tab, PUT dokumen hanya menerima judul dan projectId;
- * autosave konten berpindah ke PUT /tabs/:tabId.
- */
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
 	try {
 		const { id } = await params
@@ -34,8 +26,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 		return configErrorResponse(error)
 	}
 }
-
-/** Teruskan penghapusan dokumen ke apps/api. */
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
 	try {
 		const { id } = await params

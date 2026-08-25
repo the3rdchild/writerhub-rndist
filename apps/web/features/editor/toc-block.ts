@@ -1,21 +1,4 @@
 import { mergeAttributes, Node } from '@tiptap/core'
-
-/**
- * Blok daftar isi di dalam naskah (PRD EDITOR-AI-UPGRADE §A5).
- *
- * Berbeda dari panel TOC (yang sudah ada, cuma navigasi), node ini benar-benar
- * ada di dokumen, ikut tercetak dan terekspor. Isinya DIHASILKAN dari sumber
- * heading yang sama dengan kerangka (`use-outline`), bukan diketik - makanya
- * nodenya `atom`: tidak bisa disunting bebas, hanya disegarkan.
- *
- * Tiga jenis daftar, memanfaatkan `OutlineItem.kind` (A4):
- *  - 'isi'   : heading biasa (kind 'heading')
- *  - 'gambar': caption gambar (kind 'caption' level 7-9 yang dipakai penulis)
- *  - 'tabel' : caption tabel (sama, pilihan penulis)
- *
- * Nomor halaman dibaca dari keadaan paginasi (§A5.3); dimatikan pada pageless.
- */
-
 export const TOC_BLOCK = 'tocBlock'
 
 export type TocListKind = 'isi' | 'gambar' | 'tabel'
@@ -26,18 +9,12 @@ export interface TocBlockAttrs {
 	style: TocStyle
 	showPageNumbers: boolean
 	tabLeader: TocTabLeader
-	/** Rentang tingkat heading yang ikut. */
 	minLevel: number
 	maxLevel: number
-	/** Lekukan per tingkat, piksel 96 dpi (disimpan piksel, ditampilkan cm/in). */
 	indentPerLevel: number
-	/** Jenis daftar: isi (heading) atau caption gambar/tabel. */
 	listKind: TocListKind
-	/** Potret teks terakhir (untuk cetak/ekspor), bukan sumber kebenaran. */
 	snapshot: string
 }
-
-/** Bawaan §A5.2. indentPerLevel 0,5 cm ≈ 19 px pada 96 dpi. */
 export const DEFAULT_TOC_ATTRS: TocBlockAttrs = {
 	style: 'dotted',
 	showPageNumbers: true,
@@ -74,7 +51,6 @@ export const TocBlock = Node.create({
 			maxLevel: { default: DEFAULT_TOC_ATTRS.maxLevel },
 			indentPerLevel: { default: DEFAULT_TOC_ATTRS.indentPerLevel },
 			listKind: { default: DEFAULT_TOC_ATTRS.listKind },
-			// `snapshot` tidak dirender ke atribut HTML - ia hanya cadangan cetak.
 			snapshot: { default: '', rendered: false },
 		}
 	},
@@ -107,8 +83,6 @@ declare module '@tiptap/core' {
 		}
 	}
 }
-
-/** Label ramah untuk tiap jenis daftar (menu Sisipkan + slash). */
 export const TOC_KIND_LABEL: Record<TocListKind, string> = {
 	isi: 'Daftar isi',
 	gambar: 'Daftar gambar',

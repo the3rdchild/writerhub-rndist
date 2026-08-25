@@ -12,17 +12,6 @@ interface AnalysisDiffHighlightState {
 	ranges: VersionDiffRange[]
 	decorations: DecorationSet
 }
-
-/**
- * Bangun dekorasi diff analisis di atas editor UTAMA (bukan pratinjau
- * riwayat). Pola sama persis dengan `version-diff-highlight.ts` - hanya plugin
- * key-nya yang beda, supaya keduanya bisa hidup bersama (riwayat versi di
- * editor pratinjau, diff hasil analisis di editor aktif).
- *
- * Kelas CSS dipakai ulang (`version-diff-removed` / `version-diff-added`) supaya
- * dua mode diff terlihat identik - kurang lebih seperti Google Docs yang tidak
- * membedakan warna diff menurut sumbernya.
- */
 function buildDecorations(doc: PMNode, ranges: readonly VersionDiffRange[]): DecorationSet {
 	if (ranges.length === 0) return DecorationSet.empty
 
@@ -36,9 +25,6 @@ function buildDecorations(doc: PMNode, ranges: readonly VersionDiffRange[]): Dec
 			decorations.push(Decoration.inline(pm.from, pm.to, { class: 'version-diff-removed' }))
 			continue
 		}
-
-		// Titik sisip berupa posisi tunggal; `textRangeToPM` menolak rentang
-		// nol-panjang, jadi petakan lewat `textPosToPM` langsung.
 		const pos = textPosToPM(index, range.offset)
 		if (pos === null) continue
 
@@ -60,17 +46,6 @@ function buildDecorations(doc: PMNode, ranges: readonly VersionDiffRange[]): Dec
 
 	return DecorationSet.create(doc, decorations)
 }
-
-/**
- * Ekstensi penyorot diff hasil analisis, dipasang di editor utama lewat
- * `buildEditorExtensions`. Rentang masuk lewat meta transaksi
- * (`VersionDiffRange[]` untuk memasang, `null` untuk melepas) dan dekorasi
- * dibangun ulang dari dokumen saat itu - pola yang sama dengan
- * `SuggestionHighlight` dan `AnalysisHighlight`.
- *
- * Saat dokumen berubah (`tr.docChanged`), dekorasi dihitung ulang dari rentang
- * yang sama supaya penanda tetap menempel pada teksnya walau paragraf bergeser.
- */
 export const AnalysisDiffHighlight = Extension.create({
 	name: 'analysisDiffHighlight',
 

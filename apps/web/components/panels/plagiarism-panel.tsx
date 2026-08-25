@@ -17,8 +17,6 @@ import {
 	StaleNotice,
 } from './panel-parts'
 import { RunScopeBar } from './run-scope-bar'
-
-/** Uniqueness tinggi berarti bagus, jadi skalanya kebalikan dari skor risiko. */
 function uniquenessColor(score: number): string {
 	if (score > 85) return 'text-green-400'
 	if (score > 70) return 'text-yellow-400'
@@ -31,13 +29,6 @@ export function PlagiarismPanel() {
 	const { result, isRunning, error, isStale, canRun, run, cancel, clear } = useAnalysis('plagiarism', scope)
 	const { rangeProps } = useRangeHighlight()
 	const { lastRun } = usePanels()
-
-	/*
-	 * Seleksi runtuh begitu pengguna mengklik editor, jadi tanpa ini re-check
-	 * setelah run per-seleksi akan diam-diam mengirim SELURUH naskah. Selagi
-	 * tidak ada seleksi baru, re-check memakai kembali scope run terakhir -
-	 * teks dan offsetnya tersimpan lengkap di `lastRun`.
-	 */
 	const lastScoped = lastRun.plagiarism?.scoped ? lastRun.plagiarism : null
 	const recheckScope = lastScoped ? { text: lastScoped.text, offset: lastScoped.offset } : undefined
 

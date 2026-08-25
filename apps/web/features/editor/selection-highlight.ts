@@ -1,21 +1,6 @@
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
-
-/**
- * Mempertahankan tampilan seleksi teks saat editor kehilangan fokus.
- *
- * Seleksi bawaan browser hanya terlihat utuh saat contenteditable sedang
- * difokuskan; begitu pengguna mengklik panel kanan, warna birunya memudar
- * meski seleksinya tetap ada di state. Ekstensi ini menggambar ulang rentang
- * yang sama sebagai dekorasi ProseMirror, jadi sorotannya bertahan terlepas
- * dari fokus - sama seperti halaman kertas yang tetap menampilkan blok yang
- * di-block meski buku ditaruh di meja.
- *
- * Saat editor kembali difokuskan, dekorasi diturunkan agar tidak menumpuk
- * dengan seleksi bawaan browser (yang menggambar sendiri di atasnya).
- */
-
 const SELECTION_HIGHLIGHT_CLASS = 'selection-persist'
 
 interface FocusState {
@@ -41,7 +26,6 @@ export const SelectionHighlight = Extension.create({
 				props: {
 					decorations(state) {
 						const status = selectionHighlightKey.getState(state)
-						// Sedang difokuskan: biarkan browser menggambar seleksinya sendiri.
 						if (!status || status.focused) return null
 
 						const { selection } = state

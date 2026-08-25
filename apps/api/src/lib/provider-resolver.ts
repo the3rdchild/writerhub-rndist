@@ -12,12 +12,6 @@ export interface ResolvedProvider {
 	sdkProvider: 'openai' | 'anthropic'
 	modelRecordId: number
 }
-
-/**
- * Resolve provider LLM (model, base URL, API key) dari admin-ppe (/api/info)
- * buat sebuah service. Dipanggil SEBELUM job di-enqueue - worker Python full
- * bergantung ke hasil ini, gak ada fallback hardcode lagi.
- */
 export async function resolveProvider(bearerToken: string, serviceSlug: string): Promise<ResolvedProvider | null> {
 	const userPackage = await getExtendedUserPackage(bearerToken)
 	if (!userPackage) return null
@@ -46,12 +40,6 @@ export async function resolveProvider(bearerToken: string, serviceSlug: string):
 		modelRecordId: Number(provider.modelRecordId),
 	}
 }
-
-/**
- * Gerbang kuota: catat pemakaian tool ke admin-ppe SEBELUM job di-enqueue.
- * Kalau kuota habis (429) request ditolak. Kalau admin-ppe sendiri yang
- * bermasalah, request tetap dilanjutkan.
- */
 export async function ensureToolQuota(userId: string, serviceSlug: string, toolName: string): Promise<void> {
 	const result = await recordToolUsage({ userId, serviceSlug, toolName })
 	if (result.ok) return

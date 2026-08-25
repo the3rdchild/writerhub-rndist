@@ -31,8 +31,6 @@ def test_handler_cepat_tidak_ditandai_failed(monkeypatch):
 def test_handler_lewat_batas_waktu_ditandai_failed(monkeypatch):
     marked = {}
     monkeypatch.setattr(worker, "_mark_failed", lambda job_id, msg: marked.update(job_id=job_id, msg=msg))
-
-    # Paksa batas waktu sangat pendek untuk uji, dengan handler yang tidur lebih lama.
     monkeypatch.setattr(worker, "JOB_DEADLINE_SECONDS", 0.05)
 
     started = threading.Event()
@@ -49,12 +47,8 @@ def test_handler_lewat_batas_waktu_ditandai_failed(monkeypatch):
 
 
 def test_handler_melempar_pengecualian_tidak_ditandai_failed(monkeypatch):
-    # Handler sendiri menangani error-nya (service menandai failed secara internal);
-    # _run_with_deadline hanya menandai kalau LEWAT BATAS WAKTU, bukan kalau melempar.
     monkeypatch.setattr(worker, "_mark_failed", lambda *a, **k: pytest.fail("tidak boleh ditandai"))
 
     def handler(_data):
         raise RuntimeError("boom")
-
-    # Tidak boleh melempar keluar - pengecualian handler ditelan & dicatat.
     worker._run_with_deadline(handler, {}, "job-3", "test")

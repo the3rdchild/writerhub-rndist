@@ -36,19 +36,7 @@ import {
 } from '@/features/editor/table-ops'
 import { type MenuOrigin } from '@/features/editor/table-handles'
 import { cn } from '@/lib/utils'
-
-/**
- * Menu konteks tabel (grip baris, tombol ••• kolom, atau klik kanan).
- *
- * Menu dijangkarkan ke elemen pemicunya: posisinya dihitung ulang tiap kali
- * halaman digulir atau jendela berubah ukuran, jadi menu ikut bergerak bersama
- * tabel alih-alih diam menempel di layar. Menu juga membalik ke atas/kiri bila
- * ruang di bawah/kanan tak cukup, dan menutup diri bila jangkarnya lenyap dari
- * DOM (mis. barisnya terhapus).
- */
 export interface TableMenuState {
-	/** Dari mana menu dibuka - dipakai pemanggil untuk menentukan apa yang ikut
-	 *  terpilih; isi menunya sendiri sama untuk ketiganya. */
 	origin: MenuOrigin
 	tablePos: number
 	rowIndex: number
@@ -56,8 +44,6 @@ export interface TableMenuState {
 	rowCount: number
 	colCount: number
 	anchor: HTMLElement
-	/** Geseran titik buka terhadap sudut kiri-atas jangkar. Dipakai klik kanan
-	 *  supaya menu muncul di penunjuk, tapi tetap ikut bergerak bersama selnya. */
 	offset?: { x: number; y: number }
 }
 
@@ -68,8 +54,6 @@ interface MenuRow {
 	disabled?: boolean
 	separatorBefore?: boolean
 }
-
-/** Jarak menu dari jangkar & dari tepi layar. */
 const GAP = 4
 const EDGE = 8
 
@@ -90,8 +74,6 @@ export function TableMenu({
 	const items = buildItems(editor, menu, onClose)
 
 	useEffect(() => setActive(0), [menu])
-
-	// Tandai handle pemicunya supaya tetap terlihat selama menu terbuka.
 	useEffect(() => {
 		const handle = anchor.closest('.table-handle')
 		handle?.classList.add('table-handle--open')
@@ -107,12 +89,10 @@ export function TableMenu({
 		}
 		const a = anchor.getBoundingClientRect()
 		const { width, height } = el.getBoundingClientRect()
-		// Titik buka: di penunjuk (klik kanan) atau tepat di bawah handle.
 		const originTop = offset ? a.top + offset.y : a.bottom + GAP
 		const originBottom = offset ? a.top + offset.y : a.top
 		let top = originTop
 		let left = offset ? a.left + offset.x : a.left
-		// Balik ke atas titik buka bila tak muat di bawah.
 		if (top + height > window.innerHeight - EDGE) {
 			top = originBottom - height - GAP
 			if (top < EDGE) top = Math.max(EDGE, window.innerHeight - height - EDGE)
@@ -122,9 +102,6 @@ export function TableMenu({
 	}, [anchor, offset, onClose])
 
 	useLayoutEffect(place, [place, items.length])
-
-	// Ikuti gulir/resize. `capture: true` supaya gulir di dalam kanvas dokumen
-	// (bukan window) juga tertangkap.
 	useEffect(() => {
 		let frame = 0
 		const onMove = () => {
@@ -213,7 +190,6 @@ function buildItems(
 		fn()
 		onClose()
 	}
-	/** Perintah TableKit yang bekerja atas seleksi sel. */
 	const onCell = (run: (e: Editor) => void) => wrap(() => withCellTarget(editor, target, run))
 
 	return [

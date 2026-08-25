@@ -33,7 +33,6 @@ def _fake_redis(monkeypatch):
 
 
 def test_titik_periksa_tidak_melempar_saat_bendera_mati(_fake_redis):
-    # Tidak ada bendera → job dianggap masih berjalan, tidak ada pengecualian.
     cancel.check_cancelled("job-1")
 
 

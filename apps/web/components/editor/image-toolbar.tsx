@@ -6,14 +6,6 @@ import { AlignCenter, AlignLeft, AlignRight, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
-
-/**
- * Bilah melayang yang muncul saat sebuah node gambar terpilih.
- *
- * Menawarkan perataan (kiri/tengah/kanan) dan hapus. Posisi dihitung dari
- * elemen gambar yang terpilih di DOM; bila gambar keluar layar (mis. bergulung)
- * bilah ikut disembunyikan.
- */
 export function ImageToolbar({ editor }: { editor: Editor | null }) {
 	const state = useEditorState({
 		editor,
@@ -26,8 +18,6 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
 	})
 
 	const [rect, setRect] = useState<DOMRect | null>(null)
-
-	// Posisi bilah mengikuti elemen gambar yang terpilih.
 	useEffect(() => {
 		if (!editor || !state) {
 			setRect(null)
@@ -36,7 +26,6 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
 		const update = () => {
 			const view = editor.view
 			if (!view) return
-			// Cari node gambar pada seleksi node saat ini.
 			const { from } = view.state.selection
 			const node = view.state.doc.nodeAt(from)
 			if (!node || node.type.name !== 'image') {
@@ -49,8 +38,6 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
 				return
 			}
 			const box = dom.getBoundingClientRect()
-			// Bilahnya `position: fixed`, jadi kalau gambarnya tergulung keluar
-			// layar bilah harus ikut hilang - bukan menggantung di tempat lama.
 			if (box.bottom < 0 || box.top > window.innerHeight) {
 				setRect(null)
 				return
@@ -59,9 +46,6 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
 		}
 		update()
 		editor.on('transaction', update)
-		// Menggulung tidak menghasilkan transaksi, jadi posisinya harus ikut
-		// diperbarui dari event gulir mana pun (capture: kanvas dokumen menggulung
-		// di elemennya sendiri, bukan di window) dan saat jendela diubah ukurannya.
 		window.addEventListener('scroll', update, true)
 		window.addEventListener('resize', update)
 		return () => {
@@ -72,9 +56,6 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
 	}, [editor, state])
 
 	if (!editor || !state || !rect) return null
-
-	// Mengklik perataan yang sedang tersimpan mengembalikannya ke bawaan (ikut
-	// paragraf) - tanpa ini `align` tidak punya jalan pulang ke `null` lewat UI.
 	const setAlign = (align: 'left' | 'center' | 'right') =>
 		state.align === align
 			? editor.chain().focus().unsetImageAlign().run()

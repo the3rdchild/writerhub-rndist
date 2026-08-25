@@ -6,19 +6,10 @@ import type { AnalysisFeature, TextRange } from '@writer-hub/shared'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
 
 export const analysisHighlightKey = new PluginKey<AnalysisHighlightState>('analysisHighlight')
-
-/** Jenis sorotan; tiap jenis punya kelas CSS sendiri di globals.css. */
 export type AnalysisHighlightKind = 'change' | 'ai-low' | 'ai-medium' | 'ai-high'
-
-/** Rentang dalam koordinat teks polos dokumen - koordinat yang dipakai API. */
 export interface AnalysisHighlightRange extends TextRange {
 	kind: AnalysisHighlightKind
 }
-
-/**
- * Perintah meta transaksi: pasang ulang SELURUH rentang milik satu sumber.
- * Kirim `ranges: []` untuk membersihkan sumber itu.
- */
 export interface AnalysisHighlightUpdate {
 	source: AnalysisFeature
 	ranges: AnalysisHighlightRange[]
@@ -35,8 +26,6 @@ const KIND_CLASS: Record<AnalysisHighlightKind, string> = {
 	'ai-medium': 'analysis-highlight--ai-medium',
 	'ai-high': 'analysis-highlight--ai-high',
 }
-
-/** Tingkat sorotan AI detector dari skor kalimat: rendah kuning, tinggi merah. */
 export function aiScoreLevel(score: number): AnalysisHighlightKind {
 	if (score < 40) return 'ai-low'
 	if (score <= 70) return 'ai-medium'
@@ -60,15 +49,6 @@ function buildDecorations(
 
 	return decorations.length > 0 ? DecorationSet.create(doc, decorations) : DecorationSet.empty
 }
-
-/**
- * Sorotan hasil analisis (Humanizer, Translator, AI Detector) di dalam editor.
- *
- * Rentang masuk lewat meta transaksi per sumber (`AnalysisHighlightUpdate`),
- * dibangun ulang dari dokumen saat itu. Saat naskah disunting, dekorasi ikut
- * bergeser lewat `DecorationSet.map` - offset tersimpan tidak dihitung ulang
- * karena posisinya memang hanya perkiraan sampai run berikutnya.
- */
 export const AnalysisHighlight = Extension.create({
 	name: 'analysisHighlight',
 

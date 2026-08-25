@@ -2,8 +2,6 @@ import { callUpstream, configErrorResponse } from '@/lib/server/upstream'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-/** Teruskan pembacaan satu tab (beserta naskahnya) ke apps/api. */
 export async function GET(_request: Request, { params }: { params: Promise<{ tabId: string }> }): Promise<Response> {
 	try {
 		const { tabId } = await params
@@ -15,8 +13,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tab
 		return configErrorResponse(error)
 	}
 }
-
-/** Teruskan pembaruan tab (autosave konten) ke apps/api. */
 export async function PUT(request: Request, { params }: { params: Promise<{ tabId: string }> }): Promise<Response> {
 	try {
 		const { tabId } = await params
@@ -30,8 +26,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ tabI
 		return configErrorResponse(error)
 	}
 }
-
-/** Teruskan penghapusan tab ke apps/api. */
 export async function DELETE(_request: Request, { params }: { params: Promise<{ tabId: string }> }): Promise<Response> {
 	try {
 		const { tabId } = await params

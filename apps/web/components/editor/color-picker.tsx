@@ -4,12 +4,6 @@ import { Ban } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Dropdown } from '@/components/ui/dropdown'
 import { cn } from '@/lib/utils'
-
-/**
- * Palet ringkas: satu baris abu-abu netral, lalu satu baris warna.
- * Sengaja terbatas - pilihan yang sedikit membuat dokumen tetap konsisten,
- * dan warna sebanyak Google Docs jarang benar-benar dipakai.
- */
 export const PALETTE = [
 	['#000000', '#434343', '#666666', '#999999', '#b7b7b7', '#d9d9d9', '#efefef', '#ffffff'],
 	['#e11d48', '#ea580c', '#eab308', '#16a34a', '#0891b2', '#2563eb', '#7c3aed', '#db2777'],
@@ -26,7 +20,6 @@ export function ColorPicker({
 }: {
 	icon: ReactNode
 	label: string
-	/** Ditampilkan sebagai garis warna di bawah ikon. */
 	value?: string
 	onSelect: (color: string) => void
 	onClear: () => void

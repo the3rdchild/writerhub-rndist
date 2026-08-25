@@ -12,15 +12,10 @@ export const analysisBodySchema = z
 			.trim()
 			.min(MIN_ANALYSIS_TEXT_LENGTH, `Text is too short (min ${MIN_ANALYSIS_TEXT_LENGTH} characters)`)
 			.max(MAX_TEXT_LENGTH, `Text is too long (max ${MAX_TEXT_LENGTH.toLocaleString('en-US')} characters)`),
-		/** Bahasa naskah; worker memakainya agar AI menjawab dalam bahasa yang sama. */
 		language: z.string().trim().min(2).max(12).optional(),
-		/** Tautan ke tab cloud untuk Aktivitas AI; tab lokal mengirim tanpa ini. */
 		tabId: z.uuid().optional(),
-		/** Alias usang untuk `tabId` (id dokumen lama = id tab setelah migrasi 0009). */
 		documentId: z.uuid().optional(),
-		/** Tone pilihan user untuk run ini; meng-override `tone` AI Memory. */
 		tone: z.enum(REWRITE_TONE_IDS).optional(),
-		/** Bahasa tujuan Translator (BCP-47, mis. 'en'); wajib untuk fitur itu. */
 		targetLang: z.string().trim().min(2).max(12).optional(),
 	})
 	.refine((data) => !data.tone || data.feature === 'ai_rewriter', {

@@ -2,8 +2,6 @@ import { callUpstream, configErrorResponse } from '@/lib/server/upstream'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-/** Teruskan pemulihan tab ke versi lampau ke apps/api. */
 export async function POST(
 	_request: Request,
 	{ params }: { params: Promise<{ tabId: string; versionId: string }> },

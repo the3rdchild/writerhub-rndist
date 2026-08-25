@@ -10,17 +10,6 @@ import { sessionLabel, useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { buildSchema, fragmentToJSON } from '@/features/sync/serialize'
 import { cn } from '@/lib/utils'
-
-/**
- * Ekspor DOCX tingkat dokumen: seluruh tab, atau tab terpilih.
- *
- * Dialog ini hanya dibuka untuk dokumen bertab banyak - dokumen satu tab
- * langsung diekspor dari menu File tanpa pertanyaan (menu-bar.tsx).
- *
- * Naskah tab yang tidak sedang terbuka dibaca dari Y.Doc lewat
- * `fragmentToJSON` lalu dirakit `mergeTabContents` menjadi satu dokumen
- * ber-page-break; hanya setelah itu pustaka docx disentuh.
- */
 export function ExportDocxDialog() {
 	const { docxExportOpen, setDocxExportOpen } = useSettings()
 	const { setup } = usePageSetup()
@@ -30,9 +19,6 @@ export function ExportDocxDialog() {
 	const [mode, setMode] = useState<'all' | 'pick'>('all')
 	const [picked, setPicked] = useState<Set<string>>(new Set())
 	const [exporting, setExporting] = useState(false)
-
-	// Keadaan awal tiap kali dialog dibuka: seluruh tab, dan untuk pilihan
-	// manual bawaannya adalah tab yang sedang aktif.
 	useEffect(() => {
 		if (!docxExportOpen) return
 		setMode('all')
@@ -57,7 +43,6 @@ export function ExportDocxDialog() {
 	if (!docxExportOpen) return null
 
 	const title = documents.find((dok) => dok.id === activeDocId)?.title ?? 'Untitled document'
-	// Urutan tab terpilih mengikuti urutan tampilnya di dokumen, bukan urutan klik.
 	const chosen = mode === 'all' ? sessions : sessions.filter((tab) => picked.has(tab.id))
 
 	const toggle = (id: string) => {

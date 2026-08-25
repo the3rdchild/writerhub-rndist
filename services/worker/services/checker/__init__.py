@@ -53,9 +53,6 @@ def analyze_grammar(
             base_url=provider.base_url,
             api_key=provider.api_key,
             sdk_provider=provider.sdk_provider,
-            # Bahasa naskah WAJIB sampai ke prompt - tanpanya model menganggap
-            # teksnya Inggris dan "memperbaiki" kata bahasa lain jadi kata
-            # Inggris yang mirip bunyi (salah→salad, mata→data).
             language=language,
         )
         if ai_raw:
@@ -83,10 +80,6 @@ def analyze_grammar(
                 "corrected_text": corrected_text,
                 "total_tokens":   ai_total_tokens,
             }
-        # Naskah non-Inggris tidak punya fallback yang masuk akal: checker
-        # berbasis aturan berdiri di atas kamus Inggris, jadi "cadangan" baginya
-        # adalah saran yang SALAH, bukan saran yang sedikit. Kosong lebih jujur -
-        # pengguna bisa mencoba lagi.
         if language and language.split("-")[0].lower() != "en":
             logger.info("[checker] AI gagal untuk bahasa '%s'; fallback aturan-Inggris dilewati", language)
             scores, writing_quality, quality_label = compute_scores(text, [])
@@ -114,7 +107,6 @@ def analyze_grammar(
         try:
             new_issues = fn()
             raw += new_issues
-            # Kirim snapshot suggestion yang sudah resolved sejauh ini
             if on_checkpoint and new_issues:
                 try:
                     partial_cleaned = _clean(text, list(raw))

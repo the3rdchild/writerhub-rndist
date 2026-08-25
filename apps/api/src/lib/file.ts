@@ -2,8 +2,6 @@ import { env } from '@/config/env'
 import { baseMimeType } from '@/constants/mime'
 import { getPresignedUrl, uploadFile } from '@/lib/cdn'
 import { localFileUrl, writeLocalFile } from '@/lib/storage/local'
-
-/** TTL presigned URL dokumen - worker harus sempat mengunduhnya sebelum kedaluwarsa. */
 export const PRESIGNED_TTL_SECONDS = 24 * 60 * 60
 
 const MIME_TO_EXTENSION: Record<string, string> = {
@@ -16,7 +14,6 @@ export interface UploadResult {
 	originalFileName: string
 	mimeType: string
 	key: string
-	/** URL yang dipakai worker untuk mengunduh dokumen ini. */
 	downloadUrl: string
 }
 
@@ -30,14 +27,6 @@ export function sanitizeFileName(name: string): string {
 		.replace(/[^a-z0-9]+/g, '-')
 		.replace(/^-+|-+$/g, '')
 }
-
-/**
- * Simpan dokumen unggahan dan kembalikan URL unduhnya.
- *
- * Driver dipilih lewat `STORAGE_DRIVER`; keduanya sama-sama menghasilkan URL
- * sehingga worker tidak perlu tahu yang mana yang aktif. Validasi tipe & ukuran
- * sudah dilakukan `grammarBodySchema` sebelum sampai ke sini.
- */
 export async function uploadDocument(file: File): Promise<UploadResult> {
 	const extension = getFileExtension(file.type)
 	const stem = sanitizeFileName(file.name.replace(/\.[^.]+$/, ''))

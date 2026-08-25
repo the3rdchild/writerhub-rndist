@@ -22,9 +22,7 @@ export const grammarBodySchema = z
 		title: z.string().trim().max(255).optional(),
 		model: z.enum(GRAMMAR_MODELS).optional().default('standard'),
 		language: z.string().trim().min(2).max(12).optional(),
-		/** Tautan ke tab cloud untuk Aktivitas AI; tab lokal mengirim tanpa ini. */
 		tabId: z.uuid().optional(),
-		/** Alias usang untuk `tabId` (id dokumen lama = id tab setelah migrasi 0009). */
 		documentId: z.uuid().optional(),
 	})
 	.refine((data) => data.text || data.file, {

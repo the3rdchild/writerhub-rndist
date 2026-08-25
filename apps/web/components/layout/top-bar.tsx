@@ -16,14 +16,6 @@ import { useVersionMode } from '@/features/versions/version-context'
 import { cn } from '@/lib/utils'
 import { MenuBar } from './menu-bar'
 import { NavMenu } from './nav-menu'
-
-/**
- * Kepala aplikasi: navigasi, judul, menu, dan toolbar.
- *
- * Pada mode fokus seluruh blok ini menyusut jadi garis tipis dan baru muncul
- * kembali saat kursor mendekat, sehingga menulis panjang tidak terganggu
- * perkakas yang sebenarnya jarang disentuh.
- */
 export function TopBar() {
 	const { state, dispatch } = useDocument()
 	const { editor } = useEditorInstance()
@@ -36,32 +28,14 @@ export function TopBar() {
 
 	const [searchOpen, setSearchOpen] = useState(false)
 	const [tocOpen, setTocOpen] = useState(false)
-
-	// Riwayat versi tersedia untuk semua tab: tab cloud memakai API server,
-	// tab lokal memakai versi IndexedDB (Iterasi 2).
 	const serverId = activeId ? linkage[activeId]?.serverId : undefined
-	// Mode versi menampilkan riwayat SATU tab, jadi judulnya judul tab - bukan
-	// judul dokumen (state.title) yang tampil di kepala aplikasi.
 	const activeTabTitle =
 		sessions.find((tab) => tab.id === activeId)?.title ?? state.title
-
-	/*
-	 * Selama mode riwayat, editor utama lepas dan `useEditorInstance().editor`
-	 * bernilai null. Kendali yang bekerja lewat editor itu karena itu dimatikan,
-	 * bukan dibiarkan tampak hidup: dialog Bagikan misalnya membangun link dari
-	 * `editor.getJSON()`, jadi tanpa ini ia terbuka dengan kotak link kosong
-	 * tanpa loading maupun pesan galat - buntu yang tidak bisa dijelaskan
-	 * pemakainya.
-	 */
 	const inVersionMode = versionMode !== null
 
 	return (
 		<header
 			className={cn(
-				// z-60: lihat skala lapisan di globals.css. Nilai ini harus di atas
-				// seluruh overlay editor (30-50) - `relative z-*` di sini membentuk
-				// stacking context, jadi dropdown menu bar yang menjulur ke area
-				// editor terkurung di angka ini, berapa pun z-index panelnya sendiri.
 				'group/topbar relative z-[60] shrink-0 bg-surface',
 				settings.focusMode && 'h-2 overflow-hidden hover:h-auto hover:overflow-visible',
 			)}

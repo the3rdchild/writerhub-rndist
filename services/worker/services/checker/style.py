@@ -10,8 +10,6 @@ import re
 import logging
 
 logger = logging.getLogger(__name__)
-
-# frasa bertele-tele → ringkas (pattern, replacement)
 _PHRASES = [
     (r"\ba bit\b", "somewhat"),
     (r"\ba lot of\b", "many"),
@@ -61,7 +59,6 @@ def _proselint(text: str) -> list[dict]:
         from proselint import tools
 
         for s in tools.lint(text):
-            # tuple: (check, message, line, col, start, end, extent, severity, replacements)
             start = s[4]
             end = s[5]
             replacements = s[8] if len(s) > 8 else None

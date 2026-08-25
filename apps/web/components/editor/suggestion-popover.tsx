@@ -9,8 +9,6 @@ export interface PopoverPosition {
 	top: number
 	left: number
 }
-
-/** Kartu kecil yang muncul saat penanda suggestion di editor di-hover. */
 export function SuggestionPopover({
 	suggestion,
 	position,

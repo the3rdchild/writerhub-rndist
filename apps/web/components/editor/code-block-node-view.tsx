@@ -6,20 +6,6 @@ import { type NodeViewProps, NodeViewContent, NodeViewWrapper } from '@tiptap/re
 import { CODE_LANGUAGES } from '@/features/editor/code-block'
 import { getMermaid } from '@/features/editor/lazy-mermaid'
 import { cn } from '@/lib/utils'
-
-/**
- * Tampilan node blok kode: pemilih bahasa + tombol salin, plus toggle
- * sumber/pratinjau untuk diagram Mermaid (render SVG real-time).
- *
- * Lowlight (highlight.js) menangani pewarnaan sintaks lewat dekorasi - jadi
- * `NodeViewContent` tetap dipakai untuk teks kodenya. Untuk Mermaid, pratinjau
- * menggantikan teks kode dengan SVG yang dirender malas.
- *
- * Diadaptasi dari ferdocs (code-block-node-view.tsx) tanpa dependensi
- * @fileverse/ui, mermaid limits, atau CodeMirror - editor ini memakai area teks
- * bawaan Tiptap.
- */
-
 type MermaidView = 'source' | 'preview'
 
 export function CodeBlockNodeView({
@@ -34,8 +20,6 @@ export function CodeBlockNodeView({
 	const [copied, setCopied] = useState(false)
 
 	const code = node.textContent
-
-	// ── Mermaid ──────────────────────────────────────────────────────────
 	const [mermaidView, setMermaidView] = useState<MermaidView>('source')
 	const [mermaidSvg, setMermaidSvg] = useState('')
 	const [mermaidError, setMermaidError] = useState<string | null>(null)
@@ -58,13 +42,9 @@ export function CodeBlockNodeView({
 			setMermaidError(err instanceof Error ? err.message : String(err))
 		}
 	}, [mermaidId])
-
-	// Render pratinjau Mermaid saat masuk mode preview atau saat sumber berubah
-	// (debounce ringan agar mengetik tidak memicu render tiap ketukan).
 	useEffect(() => {
 		if (!isMermaid) return
 		if (mermaidView !== 'preview') return
-		// Cache hit: sumber sama dengan yang sudah dirender.
 		if (lastRenderedRef.current.source === code && lastRenderedRef.current.svg) {
 			setMermaidSvg(lastRenderedRef.current.svg)
 			return
@@ -147,8 +127,6 @@ export function CodeBlockNodeView({
 					{mermaidError ? (
 						<pre className="code-block-mermaid-error">{mermaidError}</pre>
 					) : mermaidSvg ? (
-						// dangerouslySetInnerHTML aman: SVG berasal dari Mermaid dengan
-						// securityLevel 'strict', yang melarang HTML/JS berbahaya.
 						<div dangerouslySetInnerHTML={{ __html: mermaidSvg }} />
 					) : (
 						<p className="code-block-mermaid-empty">Merender diagram…</p>

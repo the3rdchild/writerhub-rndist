@@ -38,7 +38,5 @@ class RedisClient {
 }
 
 export { RedisClient }
-
-// Shared ioredis instance used by BaseService cache helpers.
 const redis = RedisClient.getInstance()
 export default redis

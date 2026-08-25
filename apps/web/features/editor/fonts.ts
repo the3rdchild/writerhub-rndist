@@ -23,55 +23,17 @@ import {
 	Source_Serif_4,
 	Spectral,
 } from 'next/font/google'
-
-/**
- * Pemuatan berkas font.
- *
- * Semuanya lewat `next/font/google`, yang mengunduh dan menyajikan fontnya dari
- * domain kita sendiri saat build - tidak ada permintaan ke fonts.googleapis.com
- * dari peramban pembaca, jadi editor tetap utuh di jaringan tertutup dan tidak
- * membocorkan siapa yang sedang membuka dokumen.
- *
- * Nama pilihan dan nilai CSS-nya ada di `font-catalog.ts`; berkas ini hanya
- * memuat. Nama variabel di bawah harus sama persis dengan yang disebut katalog.
- *
- * Tiap font wajib jadi `const` tersendiri di lingkup modul - itu syarat
- * next/font, yang membaca panggilannya saat kompilasi, bukan saat jalan.
- */
-
-/** Antarmuka: sidebar, panel, toolbar. */
 const ui = Inter({
 	subsets: ['latin'],
 	variable: '--font-ui',
 	weight: ['400', '500', '600', '700'],
 })
-
-/**
- * Badan dokumen. Serif dengan tinggi-x besar dan italic sungguhan - dirancang
- * untuk teks panjang, sehingga draf terbaca seperti naskah akademik alih-alih
- * seperti isian formulir.
- */
 const document = Source_Serif_4({
 	subsets: ['latin'],
 	variable: '--font-document',
 	weight: ['400', '600', '700'],
 	style: ['normal', 'italic'],
 })
-
-/*
- * Huruf pilihan untuk isi dokumen.
- *
- * `preload: false` di semuanya, dan itu bukan penghematan kecil: memuat awal
- * dua puluh keluarga huruf berarti mengunduh berkas untuk font yang mungkin
- * tidak dipakai satu pun di naskah yang sedang dibuka. Yang terunduh hanya yang
- * benar-benar dipakai teks di layar - deklarasinya sendiri tidak berbiaya.
- *
- * Berat huruf dibiarkan kosong bila keluarganya punya versi variable: satu
- * berkas itu sudah mencakup tebal dan biasa sekaligus. Beberapa keluarga -
- * Lexend, Oswald, Roboto Slab, Caveat, Lobster, Pacifico - memang tidak punya
- * italic di Google Fonts; miringnya nanti dibuatkan peramban.
- */
-
 const lato = Lato({
 	subsets: ['latin'],
 	variable: '--font-lato',
@@ -188,12 +150,6 @@ const pacifico = Pacifico({
 	weight: '400',
 	preload: false,
 })
-
-/**
- * Kelas yang mendefinisikan seluruh variabel font. Dipasang di `<html>` supaya
- * `var(--font-x)` di dalam naskah - termasuk yang tersimpan dari sesi lama -
- * selalu punya nilai.
- */
 export const FONT_VARIABLES = [
 	ui,
 	document,

@@ -35,8 +35,6 @@ def run_translator(
     ikut dialihbahasakan.
     """
     if not target_lang:
-        # Seharusnya sudah ditolak validasi API; dijaga di sini supaya worker
-        # tidak diam-diam menerjemahkan ke bahasa yang tidak diminta siapa pun.
         raise ValueError("target_lang wajib diisi untuk fitur translator")
 
     spans = sentence_spans(text)

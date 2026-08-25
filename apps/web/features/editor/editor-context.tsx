@@ -2,15 +2,6 @@
 
 import type { Editor } from '@tiptap/react'
 import { createContext, type ReactNode, useContext, useMemo, useState } from 'react'
-
-/**
- * Instance Tiptap dibuat jauh di dalam kanvas, tapi menu bar dan toolbar berada
- * di atasnya pada pohon komponen. Context ini menjembatani keduanya tanpa
- * meneruskan prop lewat setiap lapisan tata letak.
- *
- * Bernilai null sampai editor selesai dipasang - pemanggil harus siap menerima
- * itu dan menonaktifkan kontrolnya.
- */
 interface EditorInstanceContextValue {
 	editor: Editor | null
 	setEditor: (editor: Editor | null) => void

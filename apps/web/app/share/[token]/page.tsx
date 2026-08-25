@@ -15,14 +15,6 @@ import {
 	type SharePayload,
 } from '@/features/share/types'
 import { cn } from '@/lib/utils'
-
-/**
- * Halaman pembuka DOKUMEN yang dibagikan lewat link backend.
- *
- * Token diambil dari path `/share/<token>`, lalu daftar tab dibaca dari
- * `/api/shares/<token>`. Sidebar kiri daftar tab (cuma tampil kalau lebih
- * dari satu); panel kanan merender tab terpilih dalam editor Tiptap read-only.
- */
 export default function SharePage() {
 	const params = useParams()
 	const token = typeof params.token === 'string' ? params.token : ''

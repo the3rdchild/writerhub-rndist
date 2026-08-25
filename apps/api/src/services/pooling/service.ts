@@ -7,8 +7,6 @@ import { poolingParamSchema } from './dto'
 const COMPLETED_CACHE_TTL_SECONDS = 60
 
 type JobStatusResponse = GrammarJobStatus | AnalysisJobStatus
-
-/** Endpoint polling `/status/:jobId` - alternatif SSE untuk klien tanpa EventSource. */
 export default class PoolingService extends BaseService {
 	async getById(): Promise<Response> {
 		try {
@@ -23,7 +21,6 @@ export default class PoolingService extends BaseService {
 			if (cached) return this.success({ data: cached })
 
 			const result = await this.getStatus(jobId)
-			// Hasil selesai bersifat immutable, jadi aman di-cache; status berjalan tidak.
 			if (result.status === 'completed') {
 				await this.cacheSet(cacheKey, result, COMPLETED_CACHE_TTL_SECONDS)
 			}
@@ -47,9 +44,6 @@ export default class PoolingService extends BaseService {
 
 		const row = await findMetadataVersion(jobId)
 		if (!row) throw AppError.notFound('Job result not found')
-
-		// Job analisis menyimpan `feature` di params; hasilnya kini generik lewat
-		// metadata_version, grammar di-flatten seperti bentuk lama.
 		if (params?.feature) {
 			return {
 				...base,

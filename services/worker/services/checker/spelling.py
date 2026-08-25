@@ -20,8 +20,6 @@ _WORD_RE = re.compile(r"[A-Za-z][A-Za-z']*")
 
 def _strip_accents(s: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c))
-
-# SpellChecker berat di-load (kamus frekuensi), jadi di-cache per bahasa
 _cache: dict[str, SpellChecker] = {}
 _MAX_WORD_LEN = 15
 
@@ -62,8 +60,6 @@ def check_spelling(text: str, language: str = "en") -> list[dict]:
         core = word.lower()
         if len(core) < 3 or len(core) > _MAX_WORD_LEN:
             continue
-
-        # kata Kapital di tengah kalimat → kemungkinan nama, skip
         if word[0].isupper() and start not in sent_starts:
             continue
 
@@ -77,8 +73,6 @@ def check_spelling(text: str, language: str = "en") -> list[dict]:
             corr_cache[core] = correction
         if not correction or correction == core:
             continue
-
-        # skip koreksi yang cuma beda aksen (cafe/café, resume/résumé) - bukan typo
         if _strip_accents(correction).lower() == _strip_accents(core).lower():
             continue
 

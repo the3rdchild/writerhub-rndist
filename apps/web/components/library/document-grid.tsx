@@ -11,19 +11,6 @@ import { useMergedDocuments } from '@/features/documents/use-merged-documents'
 import { useSessions } from '@/features/sessions/session-context'
 import { DocumentCard } from './document-card'
 import { LocalDocumentCard } from './local-document-card'
-
-/**
- * Daftar dokumen, sebagai kartu-kartu.
- *
- * Menampilkan dokumen server DAN dokumen yang baru ada di perangkat ini. Dulu
- * halaman ini khusus cloud sementara Riwayat di menu khusus lokal, jadi dua
- * daftar yang tampak setara sebenarnya berisi himpunan berbeda - dokumen yang
- * belum disimpan hanya ada di satu tempat, dokumen lama yang sudah ditutup
- * hanya ada di tempat lain. Aturan penggabungannya di `features/documents/merged.ts`.
- *
- * `projectFilter` dari query string: 'all' (semua), 'none' (belum berproyek),
- * atau ID proyek.
- */
 export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 	const { documents, isPending, isError, error } = useMergedDocuments()
 	const invalidate = useInvalidateDocuments()
@@ -84,13 +71,6 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 			</div>
 		)
 	}
-
-	/**
-	 * Dokumen server dihapus lewat API; dokumen lokal-saja dihapus dari Y.Doc.
-	 * Dokumen yang sudah tersinkron dihapus di dua tempat - baris servernya dan
-	 * salinannya di perangkat ini - supaya tidak muncul lagi sebagai "lokal
-	 * saja" sesaat setelah dihapus.
-	 */
 	const confirmDelete = () => {
 		if (!pendingDelete) return
 		const { serverId, localId } = pendingDelete
@@ -120,9 +100,6 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 							document={{
 								id: document.serverId,
 								title: document.title,
-								// Baris server selalu punya proyek (setiap dokumen wajib
-								// berproyek) - projectId hanya null untuk dokumen lokal-saja,
-								// yang tidak masuk cabang ini (document.serverId truthy).
 								projectId: document.projectId as string,
 								tabCount: document.tabCount,
 								updatedAt: document.updatedAt,

@@ -1,13 +1,4 @@
-/**
- * Konsumsi stream job sebagai Promise.
- *
- * Menggantikan pola callback + cleanup manual di versi lama: pemanggil cukup
- * `await`, dan event antara (checkpoint) dikirim lewat `onEvent`. Stream selalu
- * ditutup - baik saat selesai, error, timeout, maupun dibatalkan.
- */
-
 export interface StreamOptions<TEvent> {
-	/** Dipanggil untuk setiap event; kembalikan true kalau event itu event terakhir. */
 	isTerminal: (event: TEvent) => boolean
 	onEvent?: (event: TEvent) => void
 	timeoutMs?: number
@@ -66,9 +57,6 @@ export function streamJob<TEvent>(
 			onEvent?.(event)
 			if (isTerminal(event)) succeed(event)
 		}
-
-		// EventSource juga memicu onerror saat server menutup koneksi secara normal
-		// sesudah event terakhir, jadi error hanya berarti kalau belum settled.
 		source.onerror = () => fail(new StreamError('Koneksi ke server terputus'))
 	})
 }

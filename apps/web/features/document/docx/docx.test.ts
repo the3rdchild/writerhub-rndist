@@ -2,14 +2,6 @@ import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
 import { strToU8, zipSync } from 'fflate'
 import { readDocx } from './index'
-
-/**
- * Yang diuji di sini adalah hal-hal yang membuat hasil impor terasa keliru di
- * dokumen sungguhan: gaya bawaan Word yang menyimpan sifatnya di styles.xml,
- * gaya turunan yang hanya membatalkan sebagian induknya, dan kode field yang
- * kalau ikut terbaca akan muncul sebagai teks asing di tengah naskah.
- */
-
 const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
 const R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
 const REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
@@ -27,7 +19,6 @@ function docx({
 	rels?: string
 	theme?: { major: string; minor: string }
 	numbering?: string
-	/** Berkas media tambahan, misalnya gambar yang dirujuk `w:drawing`. */
 	media?: Record<string, Uint8Array>
 }): Uint8Array {
 	const mediaPart = media ? Object.fromEntries(
@@ -82,8 +73,6 @@ function docx({
 		),
 	})
 }
-
-/** Paragraf teks biasa, ditulis pendek supaya isi tesnya yang terbaca. */
 function p(content: string, pPr = ''): string {
 	return `<w:p>${pPr ? `<w:pPr>${pPr}</w:pPr>` : ''}${content}</w:p>`
 }
@@ -101,14 +90,6 @@ function textOf(node: JSONContent | undefined): string {
 	if (node.type === 'text') return node.text ?? ''
 	return (node.content ?? []).map(textOf).join('')
 }
-
-/**
- * Mark penekanan sebuah run.
- *
- * `textStyle` sengaja tidak ikut: ia hampir selalu ada - rupa dan ukuran huruf
- * ditulis pada tiap run - jadi memasukkannya membuat tes tentang tebal-miring
- * ikut goyah tiap kali urusan rupa huruf berubah.
- */
 function marksOf(block: JSONContent | undefined, index = 0): string[] {
 	const run = block?.content?.[index]
 	return (run?.marks ?? []).map((mark) => mark.type).filter((type) => type !== 'textStyle')
@@ -134,9 +115,6 @@ describe('teks dan penekanan', () => {
 	})
 
 	test('run yang membatalkan tebal warisan tidak jadi tebal', async () => {
-		// `<w:b w:val="0"/>` adalah satu-satunya cara Word mematikan sifat yang
-		// datang dari gaya; membacanya sebagai "ada, berarti tebal" akan
-		// menebalkan justru bagian yang sengaja dinormalkan.
 		const styles = `<w:style w:type="paragraph" w:styleId="Tebal"><w:name w:val="Tebal"/><w:rPr><w:b/></w:rPr></w:style>`
 		const result = await readDocx(
 			docx({
@@ -154,11 +132,6 @@ describe('teks dan penekanan', () => {
 })
 
 describe('sifat yang diwarisi dari definisi gaya', () => {
-	/**
-	 * Persis kasus "Caption Tabel" di dokumen nyata: tebalnya tidak pernah
-	 * disebut di paragrafnya, hanya di styles.xml. Inilah yang membuat seluruh
-	 * caption datang sebagai teks biasa saat impor masih lewat mammoth.
-	 */
 	const CAPTION = `
 		<w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="caption"/><w:rPr><w:i/></w:rPr></w:style>
 		<w:style w:type="paragraph" w:styleId="CaptionTabel">
@@ -208,12 +181,6 @@ describe('judul', () => {
 		expect(block?.type).toBe('heading')
 		expect(block?.attrs?.level).toBe(1)
 	})
-
-	/**
-	 * Gaya bernama bebas tidak akan pernah cocok dengan pencocokan nama, tapi
-	 * ia mewarisi outlineLvl dari induknya - dan di dokumen nyata justru gaya
-	 * semacam inilah yang dipakai untuk judul bab.
-	 */
 	test('turunan heading tetap dikenali meski namanya bebas', async () => {
 		const result = await readDocx(
 			docx({ styles: HEADINGS, body: p(r('BAB I'), '<w:pStyle w:val="Headingawal"/>') }),
@@ -236,11 +203,6 @@ describe('judul', () => {
 })
 
 describe('field', () => {
-	/**
-	 * Sebuah field menyimpan dua hal: kodenya dan hasil terakhirnya. Word hanya
-	 * pernah menampilkan hasilnya. Kalau kodenya ikut terbaca, daftar isi masuk
-	 * ke naskah diawali teks semacam ` TOC \\o "1-4" \\h `.
-	 */
 	test('kode field tidak jadi teks, hasilnya iya', async () => {
 		const field = `
 			<w:r><w:fldChar w:fldCharType="begin"/></w:r>
@@ -278,8 +240,6 @@ describe('revisi dan tautan', () => {
 		expect(link).toBeDefined()
 		expect(link?.attrs?.href).toBe('https://contoh.id')
 	})
-
-	/** Isian daftar isi menunjuk penanda di dalam dokumen; tautannya buntu di editor. */
 	test('tautan ke penanda internal hanya menyisakan teksnya', async () => {
 		const body = p(`<w:hyperlink w:anchor="_Toc1">${r('Bab I')}</w:hyperlink>`)
 		const block = blocks((await readDocx(docx({ body }))).content)[0]
@@ -306,11 +266,6 @@ describe('pemisah halaman', () => {
 })
 
 describe('peringatan', () => {
-	/**
-	 * Tabel kini terbawa, bukan dilewati. Yang masih dilaporkan hanyalah sifat
-	 * yang belum punya padanan - di sini penggabungan sel, yang membuat tabel
-	 * gagal dirender apa adanya.
-	 */
 	test('tabel bersih tidak lagi dilaporkan sebagai hilang', async () => {
 		const table = `<w:tbl><w:tr><w:tc>${p(r('sel'))}</w:tc></w:tr></w:tbl>`
 		const result = await readDocx(docx({ body: table + table }))
@@ -343,8 +298,6 @@ describe('tabel', () => {
 		expect(block?.content?.[0]?.content?.map((cell) => cell.type)).toEqual(['tableCell', 'tableCell'])
 		expect(textOf(block?.content?.[0]?.content?.[0])).toBe('A')
 	})
-
-	/** Baris judul Word (`tblHeader`) menjadi baris `tableHeader` yang berulang. */
 	test('baris tblHeader jadi tableHeader dan repeatHeader hidup', async () => {
 		const table = `<w:tbl>
 			<w:tr><w:trPr><w:tblHeader/></w:trPr><w:tc>${p(r('judul'))}</w:tc></w:tr>
@@ -363,12 +316,9 @@ describe('tabel', () => {
 		const block = blocks((await readDocx(docx({ body: table }))).content)[0]
 		expect(block?.attrs?.repeatHeader).toBe(false)
 	})
-
-	/** Format di dalam sel mengikuti jalur paragraf biasa - termasuk tebal. */
 	test('tebal di dalam sel ikut terbawa', async () => {
 		const table = `<w:tbl><w:tr><w:tc>${p(r('tegas', '<w:b/>'))}</w:tc></w:tr></w:tbl>`
 		const block = blocks((await readDocx(docx({ body: table }))).content)[0]
-		// table → row → cell → paragraf di dalamnya; marksOf membaca run pertamanya.
 		const cellParagraph = block?.content?.[0]?.content?.[0]?.content?.[0]
 		expect(marksOf(cellParagraph)).toContain('bold')
 	})
@@ -394,7 +344,6 @@ describe('tabel', () => {
 })
 
 describe('gambar', () => {
-	// PNG 1x1 piksel valid terkecil, dipakai sebagai media uji.
 	const PNG_1x1 = Uint8Array.from([
 		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // tanda tangan
 		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, // IHDR
@@ -404,8 +353,6 @@ describe('gambar', () => {
 		0x00, 0x00, 0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4,
 		0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
 	])
-
-	/** `wp:extent` 9525 EMU = 1 piksel di 96 dpi. */
 	function drawing(embedId: string, name = 'gambar', cx = 9525, cy = 9525): string {
 		return `<w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
 			<wp:extent cx="${cx}" cy="${cy}"/>
@@ -427,8 +374,6 @@ describe('gambar', () => {
 		expect(String(block?.attrs?.src)).toMatch(/^data:image\/png;base64,/)
 		expect(block?.attrs?.alt).toBe('gambar')
 	})
-
-	/** Ukuran tampilan dari extent (EMU) dipakai, bukan resolusi piksel berkas. */
 	test('ukuran dari extent EMU jadi piksel', async () => {
 		const rels = `<Relationship Id="rIdImg" Type="${REL_NS}/image" Target="media/gambar1.png"/>`
 		const run = `<w:r>${drawing('rIdImg', 'g', 19050, 9525)}</w:r>`
@@ -446,8 +391,6 @@ describe('gambar', () => {
 
 		expect(blocks(result.content).map((block) => block.type)).toEqual(['image'])
 	})
-
-	/** Hubungan atau media yang hilang tidak boleh membuat naskah rusak. */
 	test('gambar tanpa media ditangani tanpa gagal', async () => {
 		const run = `<w:r>${drawing('rIdHilang')}</w:r>`
 		const result = await readDocx(docx({ body: p(r('teks') + run) }))
@@ -462,7 +405,6 @@ describe('perataan dan indentasi', () => {
 	})
 
 	test('indentasi twip jadi piksel', async () => {
-		// 720 twip adalah setengah inci, yang di layar 96 dpi berarti 48 px.
 		const result = await readDocx(docx({ body: p(r('isi'), '<w:ind w:left="720"/>') }))
 		expect(blocks(result.content)[0]?.attrs?.indentLeft).toBe(48)
 	})
@@ -474,13 +416,6 @@ describe('perataan dan indentasi', () => {
 		expect(attrs?.indentLeft).toBe(48)
 		expect(attrs?.indentFirstLine).toBe(-24)
 	})
-
-	/**
-	 * Atribut di dalam `w:ind` diwariskan satu per satu, bukan sebagai satu
-	 * kesatuan. Gaya yang hanya menyebut `left` tidak membatalkan `hanging` yang
-	 * datang dari bawaan dokumen - dan di dokumen nyata itulah yang terjadi pada
-	 * seluruh paragraf daftar.
-	 */
 	test('gaya yang hanya menyebut left tidak menghapus hanging warisan', async () => {
 		const styles = `
 			<w:docDefaults><w:pPrDefault><w:pPr><w:ind w:left="567" w:hanging="567"/></w:pPr></w:pPrDefault></w:docDefaults>
@@ -495,8 +430,6 @@ describe('perataan dan indentasi', () => {
 
 describe('spasi', () => {
 	test('spasi 1,5 Word lebih longgar dari 1,5 CSS', async () => {
-		// Kelipatan Word diukur terhadap tinggi baris alami font, kelipatan CSS
-		// terhadap ukuran hurufnya; memakai 1.5 apa adanya akan merapatkan naskah.
 		const result = await readDocx(
 			docx({ body: p(r('isi'), '<w:spacing w:line="360" w:lineRule="auto"/>') }),
 		)
@@ -516,8 +449,6 @@ describe('spasi', () => {
 		)
 		expect(blocks(result.content)[0]?.attrs?.lineHeight).toBe('24px')
 	})
-
-	/** Diamnya Word berarti rapat, sedangkan diamnya editor berarti renggang. */
 	test('paragraf tanpa keterangan spasi tetap dinyatakan rapat', async () => {
 		const attrs = blocks((await readDocx(docx({ body: p(r('isi')) }))).content)[0]?.attrs
 
@@ -549,12 +480,6 @@ describe('rupa huruf', () => {
 		)
 		expect(textStyle(blocks(result.content)[0])?.fontFamily).toBe('"Times New Roman", serif')
 	})
-
-	/**
-	 * Lewat variabelnya, bukan namanya: nama telanjang kehilangan font cadangan
-	 * bermetrik dan tidak cocok dengan isi katalog, jadi toolbar tidak bisa
-	 * menyebut huruf yang sedang dipakai naskah impor.
-	 */
 	test('font yang kita muat sendiri dipetakan ke variabelnya', async () => {
 		const result = await readDocx(docx({ body: p(r('isi', '<w:rFonts w:ascii="Lora"/>')) }))
 		expect(textStyle(blocks(result.content)[0])?.fontFamily).toBe('var(--font-lora), serif')
@@ -569,11 +494,6 @@ describe('rupa huruf', () => {
 		)
 		expect(textStyle(blocks(result.content)[0])?.fontFamily).toBe('Calibri, sans-serif')
 	})
-
-	/**
-	 * Bawaan dokumen menyebut font lewat tema, lalu gaya Normal menimpanya dengan
-	 * nama tegas. Kalau rujukan tema yang menang, seluruh naskah berganti rupa.
-	 */
 	test('font bernama menang atas rujukan tema yang diwarisi', async () => {
 		const styles = `
 			<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:asciiTheme="minorHAnsi"/></w:rPr></w:rPrDefault></w:docDefaults>
@@ -585,8 +505,6 @@ describe('rupa huruf', () => {
 		)
 		expect(textStyle(blocks(result.content)[0])?.fontFamily).toBe('"Times New Roman", serif')
 	})
-
-	/** `w:default` adalah atribut, bukan anak - salah baca dan Normal tak pernah dipakai. */
 	test('gaya bawaan berlaku pada paragraf yang tidak menyebut gayanya', async () => {
 		const styles = `<w:style w:type="paragraph" w:default="1" w:styleId="Normal">
 			<w:name w:val="Normal"/><w:rPr><w:sz w:val="28"/></w:rPr></w:style>`
@@ -606,11 +524,6 @@ describe('rupa huruf', () => {
 		const result = await readDocx(docx({ body: p(r('isi', '<w:highlight w:val="yellow"/>')) }))
 		expect(markNamed(blocks(result.content)[0], 'highlight')?.attrs?.color).toBe('#ffff00')
 	})
-
-	/**
-	 * Judul di naskah ilmiah kerap setipis teks isi. Tanpa pernyataan tegas ini,
-	 * CSS editor yang menebalkan judul akan menang dan mengubah rupa dokumen.
-	 */
 	test('teks yang tidak tebal menyatakan bobotnya', async () => {
 		const result = await readDocx(docx({ body: p(r('judul tipis')) }))
 		expect(textStyle(blocks(result.content)[0])?.fontWeight).toBe('normal')
@@ -623,7 +536,6 @@ describe('rupa huruf', () => {
 })
 
 describe('penomoran otomatis', () => {
-	/** Susunan bab khas naskah ilmiah: "BAB I", lalu "1.1", lalu "1.1.1". */
 	const BERTINGKAT = `
 		<w:abstractNum w:abstractNumId="0">
 			<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="upperRoman"/><w:lvlText w:val="BAB %1"/></w:lvl>
@@ -634,13 +546,6 @@ describe('penomoran otomatis', () => {
 
 	const numbered = (ilvl: number, numId = 1) =>
 		`<w:numPr><w:ilvl w:val="${ilvl}"/><w:numId w:val="${numId}"/></w:numPr>`
-
-	/**
-	 * Nomor otomatis Word bukan teks - ia digambar Word dari deret penomoran.
-	 * Editor ini tidak menghitungnya hidup; sebagai gantinya nomor dihitung sekali
-	 * saat impor lalu dibakar sebagai teks di awal paragraf. Maka teks heading
-	 * hasil impor berisi nomornya: "BAB I Pendahuluan".
-	 */
 	test('nomor otomatis dibakar sebagai teks di awal paragraf', async () => {
 		const result = await readDocx(
 			docx({ numbering: BERTINGKAT, body: p(r('Pendahuluan'), `${numbered(0)}<w:outlineLvl w:val="0"/>`) }),
@@ -660,12 +565,6 @@ describe('penomoran otomatis', () => {
 			'BAB II Dua',
 		])
 	})
-
-	/**
-	 * numId 0 bukan deret bernomor nol - ia cara Word membatalkan penomoran yang
-	 * datang dari gaya paragrafnya. Tanpa nomor yang bisa dibakar, teksnya tetap
-	 * polos - "DAFTAR PUSTAKA", bukan "BAB I DAFTAR PUSTAKA".
-	 */
 	test('numId nol tidak menyisipkan nomor', async () => {
 		const styles = `<w:style w:type="paragraph" w:styleId="Bab">
 			<w:name w:val="Bab"/><w:pPr>${numbered(0)}<w:outlineLvl w:val="0"/></w:pPr></w:style>
@@ -682,12 +581,9 @@ describe('penomoran otomatis', () => {
 			'Daftar Pustaka',
 		])
 	})
-
-	/** Rupa nomor mengikuti properti tanda paragraf - termasuk tebalnya. */
 	test('nomor tebal dibakar sebagai run bertanda tebal', async () => {
 		const body = p(r('isi'), `${numbered(0)}<w:rPr><w:b/></w:rPr><w:outlineLvl w:val="0"/>`)
 		const block = blocks((await readDocx(docx({ numbering: BERTINGKAT, body }))).content)[0]
-		// Run pertama adalah nomornya; tandanya harus tebal.
 		expect(marksOf(block, 0)).toContain('bold')
 	})
 
@@ -727,8 +623,6 @@ describe('impor section (E4)', () => {
 	})
 
 	test('kertas standar pulang dengan namanya, bukan ukuran khusus', async () => {
-		// Jebakan E4: A4/letter yang terbaca sebagai "Ukuran khusus" dengan angka
-		// yang kebetulan sama adalah impor yang gagal menyebut namanya.
 		const letter = await readDocx(docx({ body: sectPr(pgSz(12240, 15840)) }))
 		expect(letter.pageSetup?.size).toBe('letter')
 	})
@@ -740,7 +634,6 @@ describe('impor section (E4)', () => {
 	})
 
 	test('lanskap bentuk pustaka docx: sisi tegak + w:orient', async () => {
-		// Bentuk yang ditulis ekspor kita sendiri - keduanya harus pulang sama.
 		const result = await readDocx(docx({ body: sectPr(pgSz(11906, 16838, 'landscape')) }))
 		expect(result.pageSetup?.size).toBe('a4')
 		expect(result.pageSetup?.orientation).toBe('landscape')
@@ -754,8 +647,6 @@ describe('impor section (E4)', () => {
 	})
 
 	test('dua section: pembatas dibawa sectPr KEDUA, yang pertama milik naskah', async () => {
-		// Jebakan E4: sectPr MENUTUP section-nya. Membaca keduanya sebagai hal
-		// yang sama menggeser seluruh section satu langkah.
 		const body =
 			p(r('satu'), sectPr(pgSz(12240, 15840) + pgMar())) +
 			p(r('dua')) +
@@ -785,7 +676,6 @@ describe('impor section (E4)', () => {
 	})
 
 	test('kolom di section pertama dilaporkan, bukan dibuang diam-diam', async () => {
-		// Section dasar editor tidak bisa berkolom - kolom selalu dibuka pembatas.
 		const result = await readDocx(
 			docx({ body: p(r('isi')) + sectPr(pgSz(11906, 16838) + '<w:cols w:num="2"/>') }),
 		)
@@ -795,8 +685,6 @@ describe('impor section (E4)', () => {
 	})
 
 	test('pembatas tetap dibuat walau kedua section ber setelan sama', async () => {
-		// Section berikutnya selalu memulai halaman baru di Word - menghapus
-		// pembatasnya karena setelannya sama berarti menghapus pemenggalannya.
 		const body = p(r('satu'), sectPr(pgSz(11906, 16838))) + p(r('dua')) + sectPr(pgSz(11906, 16838))
 		const result = await readDocx(docx({ body }))
 		expect(sectionBreaksOf(result.content)).toHaveLength(1)
@@ -846,8 +734,6 @@ describe('impor section (E4)', () => {
 	})
 
 	test('sectPr continuous yang mengubah ukuran turun pangkat jadi pembatas biasa (E5)', async () => {
-		// Satu lembar hanya punya satu ukuran kertas: "menerus" yang mengubah
-		// geometri masuk sebagai pembatas halaman biasa, bukan menerus yang berbohong.
 		const body =
 			p(r('satu'), sectPr(pgSz(11906, 16838))) +
 			p(r('dua')) +

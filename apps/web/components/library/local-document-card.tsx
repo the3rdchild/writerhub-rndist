@@ -16,16 +16,6 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	hour: '2-digit',
 	minute: '2-digit',
 })
-
-/**
- * Kartu dokumen yang baru ada di perangkat ini.
- *
- * Dipisah dari `DocumentCard` karena separuh aksinya memang tidak berlaku:
- * bagikan, pindah proyek, dan riwayat versi server semuanya butuh baris di
- * server. Menyatukannya berarti satu komponen penuh cabang "kalau lokal jangan
- * tampilkan ini" - lebih jujur dipisah, dengan satu aksi yang justru khas
- * miliknya: menyimpannya ke cloud.
- */
 export function LocalDocumentCard({
 	document,
 	onDelete,

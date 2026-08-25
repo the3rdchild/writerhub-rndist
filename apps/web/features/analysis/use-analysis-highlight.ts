@@ -4,14 +4,6 @@ import type { AnalysisFeature } from '@writer-hub/shared'
 import { useEffect } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { analysisHighlightKey, type AnalysisHighlightRange } from './analysis-highlight'
-
-/**
- * Pasang sorotan analisis di editor untuk satu sumber.
- *
- * Rentang dikirim ulang setiap kali berubah (mis. satu change diterima), dan
- * sumbernya dibersihkan saat komponen dilepas atau editor berganti tab. Editor
- * yang sudah dibubarkan tidak dikirimi transaksi apa pun.
- */
 export function useAnalysisHighlight(
 	source: AnalysisFeature,
 	ranges: readonly AnalysisHighlightRange[],

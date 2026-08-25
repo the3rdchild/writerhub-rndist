@@ -5,20 +5,7 @@ import { findMetadataVersion, findPoolRequest } from '@/repository/job-result'
 
 const HEARTBEAT_INTERVAL_MS = 8_000
 const STREAM_TIMEOUT_MS = 180_000
-
-/**
- * Endpoint SSE ini sengaja tidak memakai `authMiddleware`: browser tidak bisa
- * mengirim header kustom lewat EventSource, dan klien ekstensi berlangganan
- * langsung ke sini. Perlindungannya adalah jobId berupa UUID acak yang hanya
- * diketahui pemilik job. apps/web mengaksesnya lewat proxy Next yang sudah
- * terautentikasi (lihat apps/web/app/api/stream/[jobId]/route.ts).
- */
 const stream = createRouter().basePath('/stream')
-
-/**
- * Snapshot hasil job yang sudah selesai sebelum SSE sempat tersambung -
- * tanpa ini, job yang rampung lebih cepat dari koneksi klien akan menggantung.
- */
 async function buildSettledEvent(jobId: string): Promise<string | null> {
 	const request = await findPoolRequest(jobId).catch(() => null)
 	if (!request) return null
@@ -33,10 +20,6 @@ async function buildSettledEvent(jobId: string): Promise<string | null> {
 
 	const row = await findMetadataVersion(jobId).catch(() => null)
 	if (!row) return null
-
-	// Bentuk respons dipertahankan sama seperti sebelum penggabungan ke
-	// metadata_version: grammar di-flatten dari `result`, feature lain
-	// dibungkus `{ result }` seperti analysis_result dulu.
 	if (row.feature === 'grammar') {
 		return JSON.stringify({ type: 'done', ...row.result })
 	}
@@ -54,9 +37,6 @@ stream.get('/:jobId', async (c) => {
 		}
 
 		let finish = () => {}
-
-		// Callback streamSSE harus tetap hidup selama stream terbuka: Hono menutup
-		// koneksi begitu promise ini selesai.
 		const closed = new Promise<void>((resolve) => {
 			finish = resolve
 		})

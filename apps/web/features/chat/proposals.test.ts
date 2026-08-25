@@ -1,14 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import { extractProposals, stripProposals } from './chat-context'
-
-/**
- * Bagian mana dari jawaban AI yang layak diberi tombol Apply.
- *
- * Kasus yang memicu berkas ini: model menjawab "buatkan tabel" dengan tabel
- * pipe di tengah prosa, bukan di dalam pagar - jadi tidak ada satu pun tombol
- * untuk memasukkannya ke dokumen.
- */
-
 const WITH_TABLE = `Baik, berikut contoh tabel yang bisa langsung disalin ke dokumen Anda:
 
 | No | Nama | Jabatan |

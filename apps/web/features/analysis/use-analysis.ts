@@ -14,47 +14,24 @@ import { type AnalysisRun, usePanels } from './panel-context'
 import { shiftAnalysisResult } from './shift-result'
 
 const MIN_TEXT_LENGTH = 10
-/** Simpan hasil selama sesi berlangsung; berpindah panel tidak menghilangkannya. */
 const RESULT_GC_TIME_MS = 30 * 60_000
 
 export interface AnalysisController<F extends AnalysisFeature> {
 	result: AnalysisResultFor<F> | undefined
 	isRunning: boolean
 	error: Error | null
-	/** Ada hasil, tapi dokumen sudah berubah sejak hasil itu dibuat. */
 	isStale: boolean
 	canRun: boolean
-	/** Hasil yang ditampilkan berasal dari bagian yang disorot, bukan seluruh naskah. */
 	isScoped: boolean
-	/** Tanpa argumen berarti seluruh dokumen. */
-	/**
-	 * `options` membawa parameter khusus fitur: `tone` untuk AI Rewriter,
-	 * `targetLang` untuk Translator. Keduanya ikut ke kunci query, jadi
-	 * mengganti salah satunya menghasilkan hasil baru, bukan hasil lama.
-	 */
 	run: (
 		scope?: { text: string; offset: number },
 		options?: { tone?: RewriterTone; targetLang?: string },
 	) => void
-	/** Batalkan analisis yang sedang berjalan (§P7 lapis A): UI bebas seketika. */
 	cancel: () => void
-	/** Buang hasil yang ditampilkan (§P12 butir 2). */
 	clear: () => void
 }
-
-/**
- * Satu fitur analisis sebagai query TanStack.
- *
- * Kunci query memuat sidik jari teks yang diperiksa, jadi "hasil sudah basi"
- * jatuh sendirinya dari perbandingan kunci - versi lama harus memanggil
- * `markOthersStale()` secara manual di setiap handler accept, dan itu gampang
- * terlewat. Menjalankan ulang pada teks yang sama juga langsung memakai cache.
- */
 export function useAnalysis<F extends AnalysisFeature>(
 	feature: F,
-	/** Seleksi aktif; kalau ada, canRun menghitung panjangnya, bukan seluruh
-	 *  naskah - seleksi 3 kata pada dokumen panjang tidak boleh menghabiskan kuota
-	 *  untuk hasil yang pasti kosong (§P12 butir 3). */
 	scope?: { text: string } | null,
 ): AnalysisController<F> {
 	const { state } = useDocument()
@@ -63,8 +40,6 @@ export function useAnalysis<F extends AnalysisFeature>(
 	const { linkage } = useSync()
 	const { activeId } = useSessions()
 	const queryClient = useQueryClient()
-
-	/** jobId analisis yang sedang berjalan - dipakai untuk membatalkan di server (§P7 lapis B). */
 	const jobIdRef = useRef<string | null>(null)
 
 	const currentText = state.text
@@ -91,13 +66,10 @@ export function useAnalysis<F extends AnalysisFeature>(
 				run.tabId,
 				run.tone,
 				run.targetLang,
-				// Catat jobId seketika setelah submit supaya cancel() bisa menyasar server.
 				(jobId) => {
 					jobIdRef.current = jobId
 				},
 			)
-			// Digeser di sini, sekali, supaya seluruh pemakainya tidak perlu tahu
-			// apakah hasil ini datang dari potongan atau dari naskah penuh.
 			return shiftAnalysisResult(feature, raw, run.offset)
 		},
 		enabled: requested !== undefined,
@@ -112,8 +84,6 @@ export function useAnalysis<F extends AnalysisFeature>(
 			scope?: { text: string; offset: number },
 			options?: { tone?: RewriterTone; targetLang?: string },
 		) => {
-			// Tautan tab cloud ikut dicatat supaya job ini muncul di Aktivitas
-			// AI dengan tautannya; tab lokal-saja mengirim undefined.
 			const tabId = activeId ? linkage[activeId]?.serverId : undefined
 			const common = {
 				language: language.code,
@@ -125,9 +95,6 @@ export function useAnalysis<F extends AnalysisFeature>(
 				? { text: scope.text, offset: scope.offset, scoped: true, ...common }
 				: { text: currentText, offset: 0, scoped: false, ...common }
 			markRun(feature, next)
-
-			// Permintaan identik dengan yang terakhir: kunci query tidak berubah,
-			// jadi minta ulang eksplisit agar tombol "Run Again" tetap bekerja.
 			if (
 				requested?.text === next.text &&
 				requested?.offset === next.offset &&
@@ -139,8 +106,6 @@ export function useAnalysis<F extends AnalysisFeature>(
 		},
 		[markRun, feature, currentText, requested, query, language.code, linkage, activeId],
 	)
-
-	/** Batalkan analisis berjalan (§P7 lapis A+B). cancelQueries membatalkan queryFn
 	     yang sedang menunggu SSE; panel kembali ke keadaan sebelum Run, tanpa
 	     dianggap error. Bendera cancel juga dikirim ke server (best effort). */
 	const cancel = useCallback(() => {
@@ -151,28 +116,9 @@ export function useAnalysis<F extends AnalysisFeature>(
 		}
 		void queryClient.cancelQueries({ queryKey: ['analysis', feature], exact: false })
 	}, [queryClient, feature])
-
-	/** Buang hasil analisis yang ditampilkan tanpa menerimanya (§P12 butir 2) -
-	 *  kembaran 'Clear results' milik Proofreader. Hasil dan sorotannya hilang
-	 *  sekaligus; bisa diulang dengan Run.
-	 *
-	 *  `clearRun` didahulukan: ia mematikan query (`enabled` → false lewat
-	 *  `requested` jadi undefined) SEBELUM cache dihapus, supaya observer yang
-	 *  masih hidup tidak seketika mem-fetch ulang - itulah bug "klik Clear malah
-	 *  re-run job". Penghapusan cache sisanya dilakukan di efek terpisah di
-	 *  bawah, setelah re-render memindahkan observer ke kunci yang dimatikan. */
 	const clear = useCallback(() => {
 		clearRun(feature)
 	}, [clearRun, feature])
-
-	/*
-	 * Begitu `requested` jadi undefined (setelah `clear`, atau saat panel baru
-	 * dibuka tanpa pernah di-Run), bersihkan sisa cache fitur ini. Dijalankan
-	 * SETELAH re-render, jadi observer sudah tidak lagi menonton kunci lama
-	 * yang `enabled`-nya true - `removeQueries` di sini tidak memicu refetch.
-	 * Tanpa langkah ini, menjalankan ulang pada teks yang sama setelah Clear
-	 * akan mengembalikan hasil lama dari cache tanpa memanggil worker.
-	 */
 	useEffect(() => {
 		if (requested === undefined) {
 			queryClient.removeQueries({ queryKey: ['analysis', feature], exact: false })
@@ -183,8 +129,6 @@ export function useAnalysis<F extends AnalysisFeature>(
 		result: query.data,
 		isRunning: query.isFetching,
 		error: query.error,
-		// Hasil per-seleksi tidak dianggap basi hanya karena bagian lain dokumen
-		// disunting - yang diperiksa memang bukan seluruh naskah.
 		isStale:
 			query.data !== undefined && !requested?.scoped && requested?.text !== currentText,
 		canRun:

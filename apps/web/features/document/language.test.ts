@@ -1,15 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import { detectLanguage, LANGUAGE_OPTIONS, requiresAiTier } from './language'
-
-/**
- * Deteksi bahasa diuji dengan naskah asli, bukan kata lepas.
- *
- * Yang paling penting bukan membedakan Portugis dari Spanyol, melainkan
- * membedakan Inggris dari bukan-Inggris: itulah keputusan yang menentukan
- * apakah AI menjawab dalam bahasa yang salah dan apakah tier non-AI dipakai
- * pada naskah yang tidak didukungnya.
- */
-
 const INDONESIAN = `
 Fitur ini bertujuan untuk memberikan fleksibilitas pada pengguna yang ingin
 membuat slide dari template manual atau dari hasil AI. Sistem akan menyediakan

@@ -24,23 +24,8 @@ import { createTabBodySchema, reorderTabsBodySchema, updateTabBodySchema } from 
 import type { TabDetail, TabSummary } from './dto'
 
 const log = LoggerClient.getInstance()
-
-/** Jarak minimal antar snapshot interval otomatis (10 menit). */
 const INTERVAL_SNAPSHOT_MS = 10 * 60_000
-
-/** Konten bawaan tab baru: dokumen Tiptap kosong. */
 const EMPTY_CONTENT: Record<string, unknown> = { type: 'doc', content: [] }
-
-/**
- * Snapshot `interval` otomatis sebuah tab: dibuat bila belum ada versi sama
- * sekali atau versi terakhir lebih tua dari `INTERVAL_SNAPSHOT_MS`, dan
- * dilewati bila konten identik dengan versi terakhir (PUT metadata tidak boleh
- * melahirkan versi kembar). Best-effort - kegagalan snapshot tidak boleh
- * menggagalkan autosave; cukup dicatat.
- *
- * Dipindah dari `DocumentsService` saat restrukturisasi (versi tetap per tab);
- * dipakai juga saat dokumen/tab baru dibuat supaya timeline tidak pernah kosong.
- */
 export async function snapshotIntervalTab(
 	tabId: string,
 	content: Record<string, unknown>,
@@ -63,14 +48,7 @@ export async function snapshotIntervalTab(
 		log.error({ err: error, tabId }, 'Gagal membuat snapshot interval tab')
 	}
 }
-
-/**
- * CRUD tab di dalam dokumen induk. Kepemilikan selalu diverifikasi lewat
- * dokumen induknya (`findTabById` join `documents`) - tab user lain tidak
- * pernah terlihat.
- */
 export default class TabsService extends BaseService {
-	/** Daftar tab sebuah dokumen, urut kiri-ke-kanan (`position`). */
 	async list(): Promise<Response> {
 		try {
 			await this.ownedDocument()
@@ -80,8 +58,6 @@ export default class TabsService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/** Tab baru di paling kanan; timeline versinya langsung punya snapshot awal. */
 	async create(): Promise<Response> {
 		try {
 			const body = createTabBodySchema.safeParse(await this.context.req.json())
@@ -99,8 +75,6 @@ export default class TabsService extends BaseService {
 				position: await nextTabPosition(document.id),
 			})
 			if (!tab) throw AppError.internalServerError('Gagal menyimpan tab')
-
-			// Versi interval pertama: timeline tidak pernah kosong.
 			await snapshotIntervalTab(tab.id, tab.content, this.ownerId())
 			await touchDocument(document.id)
 
@@ -109,8 +83,6 @@ export default class TabsService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/** Detail satu tab beserta kontennya. */
 	async getById(): Promise<Response> {
 		try {
 			const tab = await this.ownedTab()
@@ -119,12 +91,6 @@ export default class TabsService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/**
-	 * Autosave tab: menimpa field yang dikirim saja, lalu memicu snapshot
-	 * interval (penjaga 10 menit + konten identik + prune 50). Ini pengganti
-	 * `PUT /documents/:id` lama.
-	 */
 	async update(): Promise<Response> {
 		try {
 			const body = updateTabBodySchema.safeParse(await this.context.req.json())
@@ -134,8 +100,6 @@ export default class TabsService extends BaseService {
 
 			const existing = await this.ownedTab()
 			const values: Partial<NewDocumentTab> = { ...body.data }
-			// Patch kosong (field tak dikenal sudah di-strip zod) membuat drizzle
-			// melempar "No values to set" - tangkap sebagai 400.
 			if (Object.keys(values).length === 0) {
 				return this.error({ errors: ['Tidak ada field yang bisa diubah (title/content/emoji/language)'] })
 			}
@@ -143,8 +107,6 @@ export default class TabsService extends BaseService {
 			if (!tab) throw AppError.internalServerError('Gagal menyimpan tab')
 
 			await snapshotIntervalTab(tab.id, body.data.content ?? tab.content, this.ownerId())
-			// Induk ikut naik di urutan "terbaru" Library saat salah satu tabnya
-			// di-autosave.
 			await touchDocument(tab.document_id)
 
 			return this.success({ data: this.toDetail(tab) })
@@ -152,11 +114,6 @@ export default class TabsService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/**
-	 * Hapus satu tab. Aturan minimal 1 tab per dokumen: menghapus tab TERAKHIR
-	 * menghapus dokumen induknya sekalian (versi/share ikut sesuai aturan FK).
-	 */
 	async remove(): Promise<Response> {
 		try {
 			const tab = await this.ownedTab()
@@ -180,12 +137,6 @@ export default class TabsService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
-
-	/**
-	 * Atur ulang urutan tab: `tabIds[0]` jadi paling kiri. Body harus memuat
-	 * seluruh tab dokumen tepat sekali - reorder parsial ditolak supaya tidak
-	 * ada tab yang kehilangan posisi.
-	 */
 	async reorder(): Promise<Response> {
 		try {
 			const body = reorderTabsBodySchema.safeParse(await this.context.req.json())
@@ -215,15 +166,11 @@ export default class TabsService extends BaseService {
 		if (!userId) throw AppError.unauthorized('User tidak dikenal')
 		return userId
 	}
-
-	/** Dokumen induk milik user (dari route `/documents/:id/...`); 404 bila bukan. */
 	private async ownedDocument() {
 		const document = await findDocumentById(this.documentId(), await this.identityId())
 		if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
 		return document
 	}
-
-	/** Tab milik user (dari route `/tabs/:tabId`); 404 bila bukan. */
 	private async ownedTab() {
 		const tab = await findTabById(this.tabId(), await this.identityId())
 		if (!tab) throw AppError.notFound('Tab tidak ditemukan')

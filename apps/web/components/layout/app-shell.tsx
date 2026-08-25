@@ -11,8 +11,6 @@ import { useAppShortcuts } from '@/features/shortcuts/use-shortcuts'
 import { TopBar } from './top-bar'
 
 export function AppShell({ children }: { children: ReactNode }) {
-	// Dipasang sekali di sini, bukan per komponen: pintasan level aplikasi
-	// berlaku di mana pun fokus berada.
 	useAppShortcuts()
 
 	return (

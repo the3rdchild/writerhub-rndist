@@ -4,15 +4,11 @@ import { cn } from '@/lib/utils'
 
 const RADIUS = 16
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
-
-/** Warna default: makin tinggi makin baik (skor kualitas tulisan). */
 export function qualityColor(value: number): string {
 	if (value >= 75) return '#22c55e'
 	if (value >= 60) return '#eab308'
 	return '#ef4444'
 }
-
-/** Kebalikannya: makin tinggi makin buruk (probabilitas teks buatan AI). */
 export function riskColor(value: number): string {
 	if (value < 30) return '#22c55e'
 	if (value <= 70) return '#eab308'
@@ -23,7 +19,6 @@ interface ScoreRingProps {
 	value: number
 	color?: string
 	label?: string
-	/** Diameter dalam piksel. */
 	size?: number
 	strokeWidth?: number
 	suffix?: string

@@ -31,15 +31,6 @@ import { looksLikeMarkdown, markdownToHtml, toEditorContent } from '@/features/e
 import { useSelectionScope } from '@/features/editor/selection'
 import { cn } from '@/lib/utils'
 import { PanelError } from './panel-parts'
-
-/**
- * Percakapan tentang naskah yang sedang dibuka.
- *
- * Berbeda dari modul lain yang menjalankan satu analisis atas seluruh dokumen,
- * panel ini bergiliran: pengguna bertanya, jawabannya mengalir masuk. Usulan
- * teks datang sebagai kartu ber-Apply - idiom yang sama dengan kartu saran di
- * modul lain, supaya tidak ada suntingan yang terjadi tanpa dilihat.
- */
 export function AiChatPanel() {
 	const {
 		messages,
@@ -63,29 +54,12 @@ export function AiChatPanel() {
 
 	const [draft, setDraft] = useState('')
 	const scrollRef = useRef<HTMLDivElement>(null)
-
-	/*
-	 * Seleksi yang sedang aktif menempel sendiri, sama seperti panel lain yang
-	 * mengarahkan Run-nya ke potongan terpilih.
-	 *
-	 * Yang sudah dilepas pengguna diingat supaya tidak langsung menempel lagi -
-	 * tanpa itu tombol × tidak akan pernah berhasil selama seleksinya masih ada.
-	 */
 	const scope = useSelectionScope()
 	const dismissedRef = useRef<string | null>(null)
 	const selectionKey = scope ? `${scope.offset}:${scope.length}` : null
 
 	useEffect(() => {
 		if (!scope || selectionKey === null || dismissedRef.current === selectionKey) return
-
-		/*
-		 * Seleksi yang muncul selagi AI bekerja bukan isyarat pengguna - itu jejak
-		 * alat tulis yang menggeser seleksi untuk menunjuk sasarannya. Menempelkannya
-		 * membuat giliran berikutnya diberi tahu "pengguna menyorot ini dan
-		 * menanyakannya", dan AI menjawab jejak kakinya sendiri. Ditandai sudah
-		 * dilihat, bukan sekadar dilewati, supaya ia tidak menempel belakangan saat
-		 * giliran selesai.
-		 */
 		if (isRunning) {
 			dismissedRef.current = selectionKey
 			return
@@ -103,8 +77,6 @@ export function AiChatPanel() {
 		dismissedRef.current = selectionKey
 		clearAttachment()
 	}
-
-	// Jawaban yang mengalir harus tetap terlihat tanpa pengguna menggulung.
 	useEffect(() => {
 		const element = scrollRef.current
 		if (element) element.scrollTop = element.scrollHeight
@@ -131,12 +103,7 @@ export function AiChatPanel() {
 				)}
 
 				{messages.map((message, index) => {
-					// Pesan `tool` adalah percakapan internal antara AI dan editor -
-					// pengguna melihat hasilnya, bukan transkrip mekanismenya.
 					if (message.role === 'tool') return null
-					// Idem giliran asisten yang isinya cuma permintaan alat baca: ia ada
-					// di riwayat karena protokol provider menuntutnya, bukan karena ada
-					// yang perlu dibaca. Lini masa langkah sudah menceritakannya.
 					if (message.intermediate) return null
 
 					const prev = messages[index - 1]
@@ -190,12 +157,6 @@ export function AiChatPanel() {
 				)}
 
 				{/*
-				 * Satu baris di panel selebar 340px, jadi hanya pemilih model yang
-				 * menyandang label - dua saklar konteks menyusut jadi ikon berkeadaan.
-				 *
-				 * Pemilih model diletakkan paling kiri karena menunya terbentang dari
-				 * tepi kiri pemicunya: dari tengah baris, ia melewati batas panel dan
-				 * terpotong `overflow-hidden` milik wadahnya.
 				 */}
 				<div className="flex items-center gap-1.5">
 					<ModelPicker />
@@ -209,9 +170,6 @@ export function AiChatPanel() {
 					/>
 
 					{/*
-					 * Terapkan-otomatis melewati kartu aksi sepenuhnya. Saklarnya duduk
-					 * di sini, bukan di Setelan, karena ia mengubah cara panel ini
-					 * bekerja dan pengguna perlu melihat keadaannya saat memutuskan.
 					 */}
 					<ToggleIcon
 						icon={Zap}
@@ -254,8 +212,6 @@ export function AiChatPanel() {
 						value={draft}
 						onChange={(event) => setDraft(event.target.value)}
 						onKeyDown={(event) => {
-							// Enter mengirim; Shift+Enter untuk baris baru, seperti kotak
-							// pesan pada umumnya.
 							if (event.key === 'Enter' && !event.shiftKey) {
 								event.preventDefault()
 								submit()
@@ -313,10 +269,8 @@ function Bubble({
 	content: string
 	pending?: boolean
 	actions?: ToolCall[]
-	/** Lini masa langkah giliran ini (§B1); diringkas jadi satu baris. */
 	steps?: ChatStep[]
 	usage?: ChatUsage
-	/** Asal dari tugas sebelumnya: kartu aksanya butuh konfirmasi tambahan. */
 	expired?: boolean
 }) {
 	const proposals = role === 'assistant' ? extractProposals(content) : []
@@ -329,8 +283,6 @@ function Bubble({
 			</div>
 		)
 	}
-
-	// Giliran terminal yang kosong (M6): tampilkan penanda, bukan bubble hilang.
 	const emptyMarker =
 		!pending && !prose && proposals.length === 0 && !(actions && actions.length > 0)
 
@@ -341,11 +293,6 @@ function Bubble({
 
 			{prose &&
 				(looksLikeMarkdown(prose) ? (
-					/*
-					 * Model menjawab dalam Markdown - render sebagai HTML, bukan teks
-					 * mentah penuh `**` dan `###`. markdownToHtml meng-escape HTML
-					 * bawaan, jadi aman untuk dangerouslySetInnerHTML.
-					 */
 					<div className="chat-md text-sm leading-relaxed text-foreground">
 						<div dangerouslySetInnerHTML={{ __html: markdownToHtml(prose) }} />
 						{pending && <span className="animate-pulse text-accent">▍</span>}
@@ -382,15 +329,12 @@ function ProposalCard({ text, expired }: { text: string; expired?: boolean }) {
 	const { attachment } = useChat()
 	const [applied, setApplied] = useState(false)
 	const [failed, setFailed] = useState(false)
-	// Kartu dari tugas sebelumnya butuh konfirmasi tambahan sebelum diterapkan.
 	const [confirming, setConfirming] = useState(false)
 
 	const apply = () => {
 		if (!editor) return
 
 		if (!attachment) {
-			// Tanpa seleksi yang ditempel, tidak ada rentang yang jelas untuk
-			// diganti - usulannya disisipkan di posisi kursor.
 			editor.chain().focus().insertContent(toEditorContent(text)).run()
 			setApplied(true)
 			return
@@ -449,15 +393,6 @@ function ProposalCard({ text, expired }: { text: string; expired?: boolean }) {
 		</div>
 	)
 }
-
-/**
- * Saklar konteks berbentuk ikon.
- *
- * Labelnya hidup di tooltip dan `aria-label`, bukan di layar: kaki panel hanya
- * punya ~308px dan tiga kendali berlabel tidak muat - versi sebelumnya memecah
- * "Whole document" jadi dua baris. Keadaan nyala ditandai warna aksen dan
- * `aria-pressed`, jadi ia tetap terbaca tanpa teks.
- */
 function ToggleIcon({
 	icon: Icon,
 	label,
@@ -489,18 +424,6 @@ function ToggleIcon({
 		</button>
 	)
 }
-
-/**
- * Pemilih model percakapan.
- *
- * Duduk di kaki panel bersama saklar lain, bukan di Setelan: model menentukan
- * ongkos dan mutu jawaban berikutnya, jadi ia perlu terbaca saat bertanya -
- * bukan tersembunyi di dialog yang dibuka sekali setahun.
- *
- * Daftarnya kurasi bersama server (`CHAT_MODELS`); pilihan yang tidak dikenal
- * ditolak di sana dan mundur ke bawaan, jadi tidak ada jalan dari sini untuk
- * mengarahkan kunci API pengguna ke model sembarangan.
- */
 function ModelPicker() {
 	const { model, setModel } = useChat()
 	const active = findChatModel(model) ?? CHAT_MODELS[0]
@@ -510,12 +433,6 @@ function ModelPicker() {
 			align="start"
 			side="top"
 			className="min-w-0"
-			/*
-			 * Lebar dipatok, bukan dibiarkan mengikuti isi: keterangan model
-			 * membuatnya melar melewati tepi panel. Digulung juga - sepuluh butir
-			 * dua baris lebih tinggi dari panelnya sendiri. Menu ini tidak punya
-			 * submenu, jadi `overflow-y` di sini tidak memangkas apa pun.
-			 */
 			menuClassName="w-[272px] max-h-[min(60vh,340px)] overflow-y-auto"
 			trigger={({ open, toggle }) => (
 				<button
@@ -568,15 +485,6 @@ function ModelPicker() {
 		</Dropdown>
 	)
 }
-
-/**
- * Kelompok kartu aksi satu giliran.
- *
- * Keputusan atas kartu-kartu ini yang melanjutkan giliran AI, dan kelanjutan
- * itu baru berjalan setelah SEMUANYA diputuskan (lihat `settleActions`). Karena
- * itu kelompok ini punya tombol "Terapkan semua": pada pekerjaan format sepuluh
- * langkah, memutuskan satu per satu bukan kehati-hatian, hanya kerja tangan.
- */
 function ActionGroup({ actions, expired }: { actions: ToolCall[]; expired?: boolean }) {
 	const { applyActions, isActionSettled } = useChat()
 	const pending = actions.filter((call) => !isActionSettled(call.id))
@@ -599,24 +507,11 @@ function ActionGroup({ actions, expired }: { actions: ToolCall[]; expired?: bool
 		</div>
 	)
 }
-
-/**
- * Aksi yang diminta AI, menunggu persetujuan.
- *
- * Alat tulis sengaja tidak langsung berjalan: pada naskah puluhan halaman,
- * suntingan yang tidak dilihat hampir mustahil ditelusuri kembali. Kartu ini
- * memakai idiom yang sama dengan kartu saran di modul lain.
- *
- * "Lewati" bukan sekadar kenyamanan: giliran AI baru dilanjutkan setelah setiap
- * kartu diputuskan, jadi tanpa jalan untuk menolak, satu kartu yang tak
- * diinginkan menghentikan sisa rencananya selamanya.
- */
 function ActionCard({ call, expired }: { call: ToolCall; expired?: boolean }) {
 	const { applyAction, skipAction, isActionApplied, isActionSettled } = useChat()
 	const applied = isActionApplied(call.id)
 	const settled = isActionSettled(call.id)
 	const [outcome, setOutcome] = useState<{ ok: boolean; message: string } | null>(null)
-	// Kartu dari tugas sebelumnya butuh satu klik konfirmasi lagi (M3).
 	const [confirming, setConfirming] = useState(false)
 
 	const onClick = () => {
@@ -677,8 +572,6 @@ function ActionCard({ call, expired }: { call: ToolCall; expired?: boolean }) {
 		</div>
 	)
 }
-
-/** Pemisah visual antar tugas di transkrip (M7). */
 function TaskSeparator() {
 	return (
 		<div className="flex items-center gap-2 py-1" role="separator" aria-label="New topic">
@@ -688,10 +581,6 @@ function TaskSeparator() {
 		</div>
 	)
 }
-
-// ── lini masa langkah (§B1.3) ────────────────────────────────────────────────
-
-/** Durasi langkah dalam detik, koma Indonesia ("0,4 dtk"). */
 function formatDuration(step: ChatStep, now: number): string {
 	const ms = (step.endedAt ?? now) - step.startedAt
 	return `${(Math.max(0, ms) / 1000).toFixed(1).replace('.', ',')} dtk`
@@ -709,16 +598,8 @@ function StepIcon({ status }: { status: ChatStep['status'] }) {
 			return <Ban className="h-3 w-3 shrink-0 text-subtle" />
 	}
 }
-
-/**
- * Lini masa langkah satu giliran: satu baris per langkah, dengan ikon keadaan
- * dan durasi. Menekan baris membuka rinciannya (argumen alat, ringkasan hasil,
- * atau penalaran).
- */
 function StepTimeline({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
 	const [open, setOpen] = useState<string | null>(null)
-	// Detak 1 dtk supaya durasi langkah berjalan terlihat bergerak - tidak ada
-	// jeda panjang tanpa perubahan di layar (§B1.4 no. 2).
 	const [now, setNow] = useState(() => Date.now())
 	useEffect(() => {
 		if (!live) return
@@ -772,8 +653,6 @@ function StepTimeline({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
 		</div>
 	)
 }
-
-/** Ringkasan lini masa giliran yang sudah selesai: "3 langkah · 2,1 dtk". */
 function StepSummary({ steps, usage }: { steps: ChatStep[]; usage?: ChatUsage }) {
 	const [open, setOpen] = useState(false)
 	const first = steps[0]

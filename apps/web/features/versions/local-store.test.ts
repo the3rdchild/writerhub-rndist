@@ -5,13 +5,6 @@ import {
 	shouldSnapshotInterval,
 } from './local-snapshot'
 import { countWords, selectIntervalIdsToPrune } from './local-store'
-
-/**
- * Bagian store versi lokal yang bisa diuji tanpa IndexedDB (fake-indexeddb
- * sengaja tidak ditambahkan sebagai dependency): penghitung kata, pemilihan
- * versi untuk prune, dan aturan penjaga 10 menit snapshot interval.
- */
-
 describe('countWords', () => {
 	test('teks sederhana dihitung per kata', () => {
 		const json: JSONContent = {
@@ -113,7 +106,6 @@ describe('selectIntervalIdsToPrune', () => {
 			entry('i1', 'interval', 100),
 			entry('i2', 'interval', 200),
 		]
-		// i3 (terbaru) dipertahankan; yang dipangkas i2 dan i1.
 		expect(selectIntervalIdsToPrune(versions, 1).sort()).toEqual(['i1', 'i2'])
 	})
 })

@@ -1,16 +1,5 @@
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-/**
- * Pencarian referensi lewat Crossref.
- *
- * Diperantarai di sisi server, bukan dipanggil langsung dari browser: dengan
- * begitu alamat IP pembaca tidak ikut terkirim ke layanan luar, dan kalau
- * sumbernya suatu saat diganti (Semantic Scholar, OpenAlex) yang berubah hanya
- * berkas ini.
- *
- * Perlu diketahui: potongan teks yang dicari memang dikirim keluar ke Crossref.
- */
 const CROSSREF_URL = 'https://api.crossref.org/works'
 const MAX_QUERY_LENGTH = 400
 const RESULT_COUNT = 5
@@ -63,8 +52,6 @@ export async function GET(request: Request): Promise<Response> {
 	try {
 		const response = await fetch(url, {
 			headers: {
-				// Crossref meminta kontak di User-Agent supaya lalu lintasnya bisa
-				// ditelusuri; tanpa itu permintaan bisa dibatasi lebih ketat.
 				'user-agent': 'writer-hub/0.1 (https://github.com/the3rdchild/writer-hub)',
 			},
 			signal: AbortSignal.timeout(TIMEOUT_MS),

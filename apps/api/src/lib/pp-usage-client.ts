@@ -8,8 +8,6 @@ const SERVICE_INFO_PATH = '/api/info'
 const USAGE_TOOL_PATH = '/api/usage/tool'
 const USAGE_TOKEN_PATH = '/api/usage/token'
 
-// ── bentuk respons admin-ppe ─────────────────────────────────────────────────
-
 export interface PeriodLimit {
 	usage: number
 	limit: number
@@ -57,13 +55,6 @@ export interface ServiceInfo {
 	limits: ServiceLimit[]
 	tools: ServiceTool[]
 }
-
-// ── klien ────────────────────────────────────────────────────────────────────
-
-/**
- * Semua endpoint admin-ppe ditandatangani HMAC atas `METHOD\npath\nbody\ntimestamp`.
- * Helper ini menyatukan penandatanganan, pengiriman, dan penanganan error.
- */
 async function postSigned(
 	path: string,
 	payload: Record<string, unknown>,
@@ -97,8 +88,6 @@ export interface ServiceInfoParams {
 	categoryId: string
 	serviceSlug: string
 }
-
-/** Konfigurasi provider LLM yang berhak dipakai user untuk sebuah service. */
 export async function getServiceInfo(params: ServiceInfoParams): Promise<ServiceInfo | null> {
 	if (!env.PP_EXTENDED_ADMIN_URL) {
 		log.warn('[pp-usage-client] PP_EXTENDED_ADMIN_URL belum dikonfigurasi, lewati getServiceInfo')
@@ -133,12 +122,6 @@ export type ToolUsageResult =
 	| { ok: true }
 	| { ok: false; reason: 'limit_exceeded'; message: string }
 	| { ok: false; reason: 'error' }
-
-/**
- * Catat satu pemakaian tool. Status 429 berarti kuota user habis dan request
- * harus ditolak; kegagalan lain dianggap masalah admin-ppe sehingga request
- * tetap diteruskan (fail-open) - lihat `ensureToolQuota`.
- */
 export async function recordToolUsage(params: RecordToolUsageParams): Promise<ToolUsageResult> {
 	if (!env.PP_EXTENDED_ADMIN_URL) {
 		log.warn('[pp-usage-client] PP_EXTENDED_ADMIN_URL belum dikonfigurasi, lewati recordToolUsage')
@@ -165,7 +148,6 @@ export async function recordToolUsage(params: RecordToolUsageParams): Promise<To
 			const parsed = JSON.parse(result.body) as { message?: string; errors?: string[] }
 			message = parsed.errors?.[0] ?? parsed.message ?? message
 		} catch {
-			// body bukan JSON - pakai pesan default
 		}
 		return { ok: false, reason: 'limit_exceeded', message }
 	}
@@ -179,8 +161,6 @@ export interface RecordTokenUsageParams {
 	modelRecordId: number
 	token: number
 }
-
-/** Catat konsumsi token setelah job selesai (lihat job-usage-wait.ts). */
 export async function recordTokenUsage(params: RecordTokenUsageParams): Promise<boolean> {
 	if (!env.PP_EXTENDED_ADMIN_URL) {
 		log.warn('[pp-usage-client] PP_EXTENDED_ADMIN_URL belum dikonfigurasi, lewati recordTokenUsage')

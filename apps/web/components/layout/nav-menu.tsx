@@ -32,28 +32,11 @@ import { useSync } from '@/features/sync/sync-context'
 import { cn } from '@/lib/utils'
 
 const RECENT_DOCUMENT_LIMIT = 10
-
-/**
- * Navigasi utama, dipadatkan ke satu tombol di kiri menu bar.
- *
- * Sebelumnya semua ini menempati sidebar tetap; dipindahkan ke popup agar
- * kanvas dokumen mendapat lebar penuh - dokumen yang jadi bintangnya, bukan
- * navigasinya.
- */
 export function NavMenu() {
 	const { activeDocId, hydrated, newDocument } = useSessions()
 	const { setSettingsOpen } = useSettings()
 	const router = useRouter()
 	const [projectsOpen, setProjectsOpen] = useState(false)
-
-	/*
-	 * Riwayat menampilkan DOKUMEN terakhir dari lokal DAN server, sudah
-	 * digabungkan dan diurut waktu. Sebelumnya ia hanya membaca yang lokal
-	 * sementara Library hanya membaca yang server, jadi dua daftar yang tampak
-	 * setara sebenarnya berisi himpunan berbeda.
-	 *
-	 * Tab milik dokumen dipilih lewat sidebar tab, bukan dari sini.
-	 */
 	const { documents } = useMergedDocuments()
 	const { open, openingKey, openError } = useOpenDocument()
 	const recent = documents.slice(0, RECENT_DOCUMENT_LIMIT)
@@ -132,15 +115,6 @@ export function NavMenu() {
 						Aktivitas AI
 					</DropdownItem>
 					{/*
-					 * Projects sengaja tidak langsung melompat ke Library: dari editor,
-					 * yang paling sering dibutuhkan adalah "dokumen ini masuk proyek
-					 * mana", bukan "buka halaman proyek". Jadi entri ini membentang di
-					 * tempat - daftar proyek beserta isinya, lalu penempatan dokumen
-					 * yang sedang dibuka.
-					 *
-					 * Dibentangkan inline, bukan submenu bersarang: `Dropdown` tidak
-					 * punya tingkat kedua, dan membangunnya hanya untuk ini berarti
-					 * menambah perkakas navigasi demi satu pemakai.
 					 */}
 					<DropdownItem
 						icon={<FolderOpen className="h-4 w-4" />}
@@ -187,9 +161,6 @@ export function NavMenu() {
 								type="button"
 								disabled={openingKey !== null}
 								onClick={() => {
-									// Dokumen yang sudah ada di perangkat ini langsung aktif;
-									// yang baru ada di server perlu diunduh dulu, jadi menunya
-									// baru ditutup setelah pembukaannya berhasil.
 									if (dok.localId) {
 										void open(dok)
 										close()
@@ -259,20 +230,6 @@ export function NavMenu() {
 		</Dropdown>
 	)
 }
-
-/**
- * Isi bentangan "Projects": daftar proyek beserta jumlah dokumennya, lalu
- * penempatan dokumen yang sedang dibuka.
- *
- * Dua pertanyaan berbeda dijawab di satu tempat karena keduanya muncul
- * bersamaan saat pengguna sedang menulis: "proyek saya apa saja" dan "yang ini
- * masuk mana". Yang pertama menavigasi ke Library, yang kedua mengubah data -
- * karena itu keduanya dipisah label, bukan dicampur jadi satu daftar.
- *
- * Dokumen yang belum tersimpan di cloud tidak punya baris di server, jadi ia
- * tidak bisa ditempatkan ke proyek. Bagian itu diganti ajakan menyimpan, bukan
- * daftar mati yang tidak menjelaskan apa-apa.
- */
 function ProjectsSection({
 	activeDocId,
 	onNavigate,
@@ -298,7 +255,6 @@ function ProjectsSection({
 		setMoveError(null)
 		updateDocument(docServerId, { projectId })
 			.then(() => {
-				// Hitungan dokumen per proyek ikut berubah, jadi keduanya ditarik ulang.
 				void invalidateDocuments()
 				void invalidateProjects()
 			})

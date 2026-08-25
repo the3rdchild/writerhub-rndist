@@ -13,29 +13,6 @@ import { clamp, rulerNudge, useRulerDrag } from '@/features/editor/ruler-drag'
 import { type ColumnsRulerTarget, type TableRulerTarget, useRulerTarget } from '@/features/editor/ruler-targets'
 import { MIN_COLUMN_WIDTH, scaleColumnWidths, setColumnWidths, setTableIndent } from '@/features/editor/table-ops'
 import { cn } from '@/lib/utils'
-
-/**
- * Penggaris horizontal di atas lembar.
- *
- * Dua besaran berbeda hidup di satu batang yang sama: margin lembar (berlaku
- * untuk seluruh dokumen) dan indentasi paragraf yang sedang dipilih. Batas
- * margin ditandai pergantian arsiran, indentasi ditandai marker segitiga -
- * pembagian yang sama dipakai Word maupun Google Docs, jadi tidak perlu
- * dijelaskan ulang ke pengguna.
- *
- * Semua posisi dihitung dalam piksel dokumen lalu dikalikan zoom saat digambar,
- * sehingga marker tetap seukuran jari berapa pun perbesarannya.
- *
- * Aturan seret/snap/nudge-nya dibagi dengan penggaris kiri lewat
- * `features/editor/ruler-drag.ts` (§A3.2).
- */
-
-/**
- * Marker paragraf & margin berlaku terus-menerus; marker tabel/gambar/kolom
- * hanya muncul saat sasarannya aktif. `tableCol` membawa indeks batas kolom
- * yang diseret (0 = batas antara kolom pertama dan kedua). `columnsGap`
- * membawa indeks celah dan sisi mana yang diseret (§P5).
- */
 type Handle =
 	| { kind: 'marginLeft' }
 	| { kind: 'marginRight' }
@@ -48,8 +25,6 @@ type Handle =
 	| { kind: 'imageX' }
 	| { kind: 'columnsGap'; index: number; side: 'left' | 'right' }
 	| { kind: 'columnsGapBand'; index: number }
-
-/** Marker yang menulis ke dokumen hanya saat pointer dilepas. */
 const DEFERRED: ReadonlySet<Handle['kind']> = new Set([
 	'tableLeft',
 	'tableRight',
@@ -58,8 +33,6 @@ const DEFERRED: ReadonlySet<Handle['kind']> = new Set([
 	'columnsGap',
 	'columnsGapBand',
 ])
-
-/** Celah antar kolom masih harus terbaca sebagai celah. */
 const MIN_COLUMN_GAP = 8
 
 const RULER_HEIGHT = 24
@@ -81,16 +54,8 @@ export function DocumentRuler({
 	const indent = useBlockIndent(editor)
 	const target = useRulerTarget(editor)
 	const trackRef = useRef<HTMLDivElement>(null)
-	// Posisi sementara selama menyeret marker tabel/gambar. Marker itu menulis
-	// ke dokumen saat pointer dilepas, bukan tiap gerakan: satu langkah seret
-	// pada kolom menulis ke SETIAP sel di kolom itu, dan menulisnya per piksel
-	// membanjiri Yjs sekaligus membuat riwayat undo tak terpakai.
 	const [preview, setPreview] = useState<number | null>(null)
 	const previewRef = useRef<number | null>(null)
-
-	// Di dalam blok kolom, penanda indentasi diikat ke kolom tempat kursor
-	// berada - indentasi di dalam kolom diukur dari tepi kolomnya, bukan dari
-	// margin lembar (§P5 butir 4).
 	const activeColumn = target?.kind === 'columns' ? target.active : undefined
 	const indentBase = margins.left + (activeColumn?.left ?? 0)
 	const indentWidth = activeColumn?.width ?? contentWidth
@@ -103,8 +68,6 @@ export function DocumentRuler({
 		},
 		[editor, indent, indentWidth],
 	)
-
-	/** Terapkan satu posisi (piksel dokumen, diukur dari tepi kiri lembar). */
 	const applyHandle = useCallback(
 		(handle: Handle, x: number) => {
 			switch (handle.kind) {
@@ -133,7 +96,6 @@ export function DocumentRuler({
 				}
 				case 'imageX': {
 					if (!editor || target?.kind !== 'image') return
-					// Ditahan supaya gambar tidak bisa didorong keluar area konten.
 					const room = Math.max(0, contentWidth - target.width)
 					editor.commands.setImageOffsetX(clamp(x - margins.left, 0, room))
 					return
@@ -152,10 +114,6 @@ export function DocumentRuler({
 		},
 		[width, margins.left, margins.right, indent.left, indentBase, indentWidth, contentWidth, editor, target, onMarginsChange, setIndent],
 	)
-
-	// Plumbing seret (listener window, snap, posisi pointer) dipinjam dari modul
-	// bersama; di sini tinggal memutuskan mana yang langsung menulis dan mana
-	// yang ditunda sampai pointer dilepas.
 	const { dragging, startDrag } = useRulerDrag<Handle>({
 		axis: 'x',
 		zoom,
@@ -182,13 +140,7 @@ export function DocumentRuler({
 	const firstLineX = indentBase + indent.left + indent.firstLine
 	const indentLeftX = indentBase + indent.left
 	const indentRightX = indentBase + indentWidth - indent.right
-
-	// Marker paragraf disembunyikan selama tabel aktif: di dalam sel, ketiganya
-	// menyasar paragraf DI DALAM sel, dan berdesakan dengan marker tepi serta
-	// batas kolom di batang setinggi 24 px hanya menghasilkan salah klik.
 	const hasIndentControls = editor !== null && target?.kind !== 'table'
-
-	/** Posisi marker yang sedang diseret mengikuti pointer, bukan dokumen. */
 	const live = (x: number, match: (handle: Handle) => boolean) =>
 		preview !== null && dragging !== null && match(dragging) ? preview : x
 
@@ -201,9 +153,6 @@ export function DocumentRuler({
 					return { left, edges, right: edges[edges.length - 1] }
 				})()
 			: null
-
-	// Celah antar kolom: dari tepi kanan sebuah kolom ke tepi kiri kolom
-	// berikutnya, diukur dari tepi kiri lembar.
 	const columns =
 		target?.kind === 'columns'
 			? (() => {
@@ -221,9 +170,6 @@ export function DocumentRuler({
 	const image =
 		target?.kind === 'image'
 			? {
-					// Tanpa posisi bebas, marker berdiri di tepi kiri gambar seperti yang
-					// digambar perataannya saat ini - jadi ia selalu menunjuk ke tempat
-					// gambar itu benar-benar berada.
 					x:
 						target.offsetX !== null
 							? margins.left + target.offsetX
@@ -331,8 +277,6 @@ export function DocumentRuler({
 								onPointerDown={startDrag({ kind: 'columnsGapBand', index: gap.index })}
 								onKeyDown={nudge({ kind: 'columnsGapBand', index: gap.index }, gap.left)}
 								onDoubleClick={() => {
-									// Klik-ganda mengembalikan semua kolom ke lebar rata -
-									// jalan keluar tanpa harus menyeret dengan presisi (§P5).
 									if (target?.kind === 'columns') {
 										editor?.commands.setColumnsLayout(target.pos, { widths: null })
 									}
@@ -412,18 +356,6 @@ const ALIGNMENTS = [
 	{ value: 'center' as const, label: 'Gambar rata tengah' },
 	{ value: 'right' as const, label: 'Gambar rata kanan' },
 ]
-
-/**
- * Terjemahkan seretan marker tabel jadi perubahan dokumen.
- *
- * Tepi kiri dan tepi kanan adalah dua kendali yang menentukan lebar; lebar
- * bukan kendali ketiga. Menggeser satu tepi menahan tepi lainnya, lalu seluruh
- * kolom diskala ulang - jadi tidak ada keadaan yang saling bertentangan dan
- * tidak perlu aturan "siapa mengalah".
- *
- * Menggeser BATAS KOLOM berbeda sifatnya: ia hanya memindahkan pinjaman lebar
- * antara dua kolom bertetangga, sehingga kedua tepi tabel tidak bergerak.
- */
 function applyTableHandle(
 	editor: Editor,
 	handle: Extract<Handle, { kind: 'tableLeft' | 'tableRight' | 'tableCol' }>,
@@ -459,19 +391,6 @@ function applyTableHandle(
 	next[index + 1] = pair - next[index]
 	setColumnWidths(editor, tablePos, next)
 }
-
-/**
- * Terjemahkan seretan penanda celah kolom jadi perubahan dokumen (§P5).
- *
- * Dua kendali berbeda, mengikuti penggaris kolom Google Docs:
- * - Menyeret SATU SISI celah memindahkan tepi itu saja: kolom di sisinya
- *   melebar/menyempit dan celahnya ikut berubah, lebar total tetap.
- * - Menyeret PITA celah memindahkan seluruh celah: kedua kolom bertetangga
- *   bertukar lebar, celahnya sendiri tidak berubah.
- *
- * Keduanya menahan lebar minimum kolom dan celah, dan keduanya menulis satu
- * transaksi saat pointer dilepas (lihat DEFERRED di atas).
- */
 function applyColumnsHandle(
 	editor: Editor,
 	handle: Extract<Handle, { kind: 'columnsGap' | 'columnsGapBand' }>,
@@ -515,13 +434,6 @@ function applyColumnsHandle(
 	next[index + 1] = Math.round(last)
 	editor.commands.setColumnsLayout(pos, { widths: next, gap: Math.round(widths[index + 1] + gap - last) })
 }
-
-/**
- * Garis skala, diukur dari tepi kiri lembar.
- *
- * Pada zoom kecil garis 1/8 inci saling menempel dan hanya jadi bercak abu,
- * jadi kerapatannya diturunkan alih-alih digambar sia-sia.
- */
 function Ticks({ width, zoom }: { width: number; zoom: number }) {
 	const step = zoom < 0.75 ? INCH / 4 : INCH / 8
 	const count = Math.floor(width / step)
@@ -534,7 +446,6 @@ function Ticks({ width, zoom }: { width: number; zoom: number }) {
 				const isHalf = Math.abs(x % (INCH / 2)) < 0.01
 
 				if (isInch) {
-					// Angka nol tidak digambar: tepi lembar sudah jadi penandanya.
 					if (x === 0) return null
 					return (
 						<span key={x} className="document-ruler__label" style={{ left: x * zoom }}>
@@ -578,8 +489,6 @@ function MarginHandle({
 		/>
 	)
 }
-
-/** Marker tepi/batas untuk tabel & gambar - bentuknya beda dari marker paragraf. */
 function ObjectHandle({
 	variant,
 	label,
@@ -605,8 +514,6 @@ function ObjectHandle({
 		/>
 	)
 }
-
-/** Pita celah antar kolom: diseret untuk memindahkan celah, klik-ganda meratakannya. */
 function GapMarker({
 	label,
 	left,
@@ -635,8 +542,6 @@ function GapMarker({
 		/>
 	)
 }
-
-/** Titik perataan gambar: diklik, tidak diseret. */
 function AlignPip({
 	label,
 	x,
@@ -656,8 +561,6 @@ function AlignPip({
 			aria-pressed={active}
 			className={cn('document-ruler__align', active && 'document-ruler__align--active')}
 			style={{ left: x }}
-			// Tanpa ini fokus pindah dari editor dan seleksi node gambar hilang,
-			// sehingga perintahnya kehilangan sasaran.
 			onPointerDown={(event) => event.preventDefault()}
 			onClick={onSelect}
 		/>

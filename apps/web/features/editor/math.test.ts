@@ -1,12 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import { findMath, looksLikeBareLatex, stripDelimiters, wholeParagraphLatex } from './math'
-
-/**
- * Yang diuji di sini pengenalan LaTeX di dalam teks - bagian yang paling mudah
- * salah tanpa ketahuan, karena `$$…$$` juga cocok dengan pola inline dan
- * hasilnya rumus terpotong di tengah.
- */
-
 describe('menemukan rumus', () => {
 	test('inline sederhana', () => {
 		const found = findMath('Misalkan $x^2 + y^2 = z^2$ berlaku.')

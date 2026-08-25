@@ -21,17 +21,6 @@ import type { CommentThread } from '@/features/sessions/types'
 import { countWords } from '@/lib/utils'
 import { editorPlainText } from '@/features/editor/text-content'
 
-/**
- * Menjalankan alat yang diminta AI, di browser - karena editornya ada di sini.
- *
- * Alat baca dijalankan langsung dan hasilnya dikembalikan ke model, jadi ia
- * bisa membaca kerangka dokumen lalu memutuskan langkah berikutnya sendiri.
- * Alat tulis tidak: ia hanya diuraikan jadi kalimat, dan baru dijalankan kalau
- * pengguna menekan Apply.
- */
-
-// ── alat baca ──────────────────────────────────────────────────────────────
-
 interface Heading {
 	index: number
 	level: number
@@ -56,8 +45,6 @@ function headings(editor: Editor): Heading[] {
 
 	return found
 }
-
-/** Batas bawah sebuah bagian: heading berikutnya yang setara atau lebih tinggi. */
 function sectionEnd(editor: Editor, list: Heading[], at: number): number {
 	const current = list[at]
 	for (let index = at + 1; index < list.length; index += 1) {
@@ -69,21 +56,12 @@ function sectionEnd(editor: Editor, list: Heading[], at: number): number {
 const SNIPPET_RADIUS = 80
 const MAX_HITS = 8
 const MAX_SECTION_CHARS = 6_000
-/** Batas teks satu tab yang dibaca lintas bab (read_tab). */
 const MAX_TAB_CHARS = 20_000
-
-/**
- * Yang dibutuhkan alat baca di luar editor: tata letak, daftar tab, komentar.
- * Dirakit chat-context dari sumbernya masing-masing (Y.Doc, bukan state basi).
- */
 export interface ReadToolContext {
 	editor: Editor
-	/** Jumlah halaman dari plugin paginasi. */
 	pageCount: number
 	setup: PageSetup
-	/** Tab pada dokumen aktif; id untuk read_tab, label untuk dikenali model. */
 	tabs: { id: string; label: string; active: boolean }[]
-	/** Teks polos sebuah tab; null bila id-nya tidak dikenal. */
 	readTab: (tabId: string) => string | null
 	comments: CommentThread[]
 }
@@ -107,8 +85,6 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 			}
 
 			const text = editor.state.doc.textBetween(list[at].pos, sectionEnd(editor, list, at), '\n', ' ')
-			// Dipotong daripada membanjiri jendela konteks: model bisa meminta
-			// bagian berikutnya kalau memang perlu.
 			return text.length > MAX_SECTION_CHARS
 				? `${text.slice(0, MAX_SECTION_CHARS)}\n…(truncated)`
 				: text
@@ -213,9 +189,6 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 				})
 				.join('\n')
 		}
-
-		// plan/think dicegat chat-context untuk efek lini masanya; sampai di sini
-		// berarti tidak ada UI yang mendengarkan - jawab seadanya.
 		case 'plan':
 		case 'think':
 			return 'OK.'
@@ -224,8 +197,6 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 			return `Unknown read tool: ${call.name}`
 	}
 }
-
-/** Label baris langkah lini masa untuk alat baca (§B1.3) - apa yang sedang dibuka. */
 export function readToolLabel(editor: Editor, call: ToolCall): string {
 	switch (call.name) {
 		case 'get_outline':
@@ -255,32 +226,19 @@ export function readToolLabel(editor: Editor, call: ToolCall): string {
 			return `Menjalankan ${call.name}`
 	}
 }
-
-/**
- * Ringkasan satu baris dari hasil alat baca (§B1.2 `tool_result.summary`) -
- * cukup untuk mengenali hasilnya saat baris langkah dibuka, tanpa menyalin
- * isi penuhnya ke lini masa.
- */
 export function summarizeToolResult(result: string): string {
 	const lines = result.split('\n')
 	const first = lines[0].slice(0, 100)
 	return lines.length > 1 ? `${first} … (+${lines.length - 1} baris)` : first
 }
 
-// ── alat tulis ─────────────────────────────────────────────────────────────
-
 export interface WriteToolContext {
 	editor: Editor
-	// Bentuk utasnya diambil dari sumbernya, bukan disalin ulang di sini: salinan
-	// lama mematok `replies: []`, dan itulah yang membuat isi komentar buatan AI
-	// hilang tanpa satu pun keluhan dari pemeriksa tipe.
 	addComment: (thread: CommentThread) => void
 	openPanel: (panel: PanelId) => void
 	runModule: (feature: AnalysisFeature) => void
-	/** Tata letak yang berlaku + penuliskannya (A1) - untuk set_page_setup. */
 	setup: PageSetup
 	setPageSetup: (setup: PageSetup, scope: 'document' | 'tab') => void
-	/** Buat tab baru berisi naskah awal (create_tab). */
 	createTab: (title: string | undefined, markdown: string | undefined) => void
 }
 
@@ -288,8 +246,6 @@ export interface ToolOutcome {
 	ok: boolean
 	message: string
 }
-
-/** Kalimat pendek untuk kartu aksi - apa yang akan terjadi kalau Apply ditekan. */
 export function describeToolCall(call: ToolCall): string {
 	switch (call.name) {
 		case 'insert_content': {
@@ -397,42 +353,21 @@ export function describeToolCall(call: ToolCall): string {
 			return call.name
 	}
 }
-
-/** "the whole document" atau kutipan pendeknya - untuk kalimat kartu aksi. */
 function scopeLabel(call: ToolCall): string {
 	const find = String(call.arguments.find ?? '')
 	return find ? `“${find.slice(0, 32)}…”` : 'the whole document'
 }
-
-/* Satuan panduan penulisan → piksel 96 dpi, satuan yang dipakai atribut node. */
+ Satuan panduan penulisan → piksel 96 dpi, satuan yang dipakai atribut node. */
 const PX_PER_CM = 96 / 2.54
 const PX_PER_PT = 96 / 72
-
-/**
- * Rentang yang jadi sasaran alat tata letak.
- *
- * Tanpa `find`, sasarannya seluruh naskah - lihat catatan di registri alat.
- * Mengembalikan null berarti kutipannya tidak ditemukan; pemanggil melaporkannya
- * sebagai kegagalan, bukan diam-diam mengubah seluruh dokumen.
- */
 function layoutRange(editor: Editor, call: ToolCall): { from: number; to: number } | null {
 	const find = typeof call.arguments.find === 'string' ? call.arguments.find : ''
 	if (!find.trim()) return { from: 0, to: editor.state.doc.content.size }
 	return findExactRange(editor, find)
 }
-
-/** Sentimeter → piksel 96 dpi, satuan yang dipakai seluruh modul tata letak. */
 function cmToPx(cm: number): number {
 	return Math.round((cm / 2.54) * INCH)
 }
-
-/**
- * Setelan halaman dari argumen alat, di atas setelan yang berlaku.
- *
- * Dipakai bersama `set_page_setup` dan `insert_section_break` supaya keduanya
- * memahami argumen yang sama persis - model tidak punya cara menebak bahwa dua
- * alat bersaudara ternyata membaca `margins_cm` dengan aturan berbeda.
- */
 function pageSetupFromArgs(args: Record<string, unknown>, base: PageSetup): PageSetup {
 	const next: PageSetup = { ...base, margins: { ...base.margins } }
 
@@ -451,21 +386,9 @@ function pageSetupFromArgs(args: Record<string, unknown>, base: PageSetup): Page
 	}
 	if (typeof args.page_color === 'string') next.pageColor = args.page_color || null
 	if (typeof args.pageless === 'boolean') next.pageless = args.pageless
-
-	// clampMargins yang sama dengan dialog Penyiapan halaman: area teks tidak
-	// pernah hilang seberapa pun angka yang dikirim model.
 	next.margins = clampMargins(next.margins, next)
 	return next
 }
-
-/**
- * Bagian setelan yang benar-benar DISEBUT model, sudah lewat validasi yang sama.
- *
- * Pembatas section membawa patch, bukan setelan utuh: yang tidak disebut harus
- * diwarisi section sebelumnya. Menyimpan setelan utuh di sini akan membekukan
- * ukuran kertas yang kebetulan berlaku saat alat dipanggil, sehingga mengubah
- * kertas dokumen belakangan tidak lagi menyentuh section mana pun.
- */
 function pageSetupPatch(
 	args: Record<string, unknown>,
 	base: PageSetup,
@@ -477,15 +400,10 @@ function pageSetupPatch(
 	if (args.orientation === 'portrait' || args.orientation === 'landscape') {
 		patch.orientation = merged.orientation
 	}
-	// Margin ikut utuh begitu satu sisi pun disebut: `clampMargins` sudah
-	// memperhitungkan keempatnya bersama, jadi memisah satu sisi darinya
-	// menghasilkan angka yang tidak pernah diperiksa terhadap sisi lainnya.
 	if (args.margins_cm && typeof args.margins_cm === 'object') patch.margins = merged.margins
 
 	return Object.keys(patch).length > 0 ? patch : null
 }
-
-/** Atribut kolom sebuah section dari argumen alat; null = satu kolom biasa. */
 function columnsFromArgs(count: number, gapCm: unknown): { count: number; gap?: number } | null {
 	if (count < 2) return null
 	const gap = Number(gapCm)
@@ -493,20 +411,6 @@ function columnsFromArgs(count: number, gapCm: unknown): { count: number; gap?: 
 }
 
 const ANALYSIS_MODULES: readonly string[] = ['ai_detector', 'ai_rewriter', 'humanizer', 'plagiarism']
-
-/**
- * Alat yang menggeser seleksi HANYA untuk menunjuk sasarannya.
- *
- * Seleksi di ProseMirror adalah cara perintah-perintah ini menyatakan "yang
- * ini" - bukan sesuatu yang dimaksudkan untuk dilihat pengguna. Meninggalkannya
- * di sana punya dua akibat buruk: kursor penulis melompat ke tempat yang tidak
- * ia pilih, dan panel chat menempelkan sorotan itu sebagai lampiran, sehingga
- * giliran AI berikutnya diberi tahu bahwa "pengguna menyorot teks ini dan
- * menanyakannya". Model lalu menjawab jejak kakinya sendiri.
- *
- * Alat penyisip TIDAK ada di sini: berpindah ke isi yang baru saja disisipkan
- * memang tempat yang benar untuk kursor sesudahnya.
- */
 const SELECTION_NEUTRAL_TOOLS: readonly string[] = [
 	'set_alignment',
 	'set_indent',
@@ -520,11 +424,6 @@ const SELECTION_NEUTRAL_TOOLS: readonly string[] = [
 
 export function applyWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 	const { editor } = context
-
-	// Seleksi penulis sebelum alat berjalan; dipulihkan di bawah bila alat ini
-	// hanya memakainya sebagai penunjuk. Dipetakan lewat panjang dokumen karena
-	// tiap alat melepas transaksinya sendiri - tidak ada satu mapping bersama
-	// yang bisa dititipi.
 	const before = { from: editor.state.selection.from, to: editor.state.selection.to }
 	const sizeBefore = editor.state.doc.content.size
 
@@ -556,9 +455,6 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const find = String(call.arguments.find ?? '')
 			const replace = String(call.arguments.replace ?? '')
 			if (!find) return { ok: false, message: 'Nothing to find.' }
-
-			// offset/length nol memaksa pencarian lewat teks aslinya - model tidak
-			// pernah tahu offset, ia hanya bisa mengutip.
 			const ok = replaceTextRange(editor, { offset: 0, length: 0, expected: find }, replace)
 			return ok
 				? { ok: true, message: 'Replaced.' }
@@ -568,9 +464,6 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 		case 'insert_math': {
 			const latex = stripDelimiters(String(call.arguments.latex ?? ''))
 			if (!latex) return { ok: false, message: 'Nothing to insert.' }
-
-			// Pembatas $ dibuang kalau model tetap mengirimnya - instruksinya sudah
-			// menyebut tanpa $, tapi model tidak selalu menurut.
 			editor.chain().focus().setMath(latex, call.arguments.display === true).run()
 			return { ok: true, message: 'Formula inserted.' }
 		}
@@ -598,10 +491,6 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 				.setTextSelection(range)
 				.setMark(COMMENT_MARK, { commentId: id })
 				.run()
-
-			// `body` adalah isi komentarnya - ia masuk sebagai kalimat pertama utas,
-			// bukan dibuang setelah divalidasi. Penulisnya ditulis apa adanya:
-			// pembaca berhak tahu catatan ini datang dari asisten, bukan dari rekan.
 			const at_ = Date.now()
 			context.addComment({
 				id,
@@ -633,11 +522,6 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 		case 'set_page_setup': {
 			const args = call.arguments
 			const next = pageSetupFromArgs(args, context.setup)
-
-			// Cakupan per-section menulis ke NASKAH sebagai pembatas, bukan ke
-			// setelan dokumen (§P8&P9) - jalur yang sama dengan dialog Penyiapan
-			// halaman, lewat helper yang sama, supaya "halaman ini" tidak pernah
-			// berarti dua hal berbeda.
 			if (isSectionScope(args.scope)) {
 				const range = sectionRange(editor, args.scope)
 				if (!range) {
@@ -665,9 +549,6 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 
 			const count = Number(args.columns)
 			const attrs = {
-				// Hanya yang benar-benar disebut yang ikut; sisanya diwarisi section
-				// sebelumnya - itulah gunanya pembatas membawa patch, bukan setelan
-				// utuh (lihat section-break.ts).
 				pageSetup: pageSetupPatch(args, context.setup),
 				columns: Number.isInteger(count) ? columnsFromArgs(count, args.gap_cm) : null,
 			}
@@ -782,19 +663,6 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			editor.view.dispatch(tr)
 			return { ok: true, message: 'Formatted.' }
 		}
-
-		/*
-		 * Alat tata letak (A6). Semuanya berjalan lewat perintah editor yang sudah
-		 * ada - `setTextAlign`, `setBlockIndent`, `setLineHeight`, `setFontSize`,
-		 * dan seterusnya - dengan seleksi digeser lebih dulu ke rentang sasaran.
-		 * Menulis transaksinya sendiri di sini berarti menduplikasi aturan yang
-		 * sudah diuji lewat toolbar, termasuk hal-hal halus seperti node mana saja
-		 * yang boleh diindentasi.
-		 *
-		 * Seleksi disetel di dalam rantai yang sama dengan perintahnya, jadi
-		 * keadaan editor tidak pernah tertinggal di seleksi buatan kalau
-		 * perintahnya gagal.
-		 */
 		case 'set_alignment': {
 			const align = String(call.arguments.align ?? '')
 			if (!['left', 'center', 'right', 'justify'].includes(align)) {
@@ -892,9 +760,6 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 
 			const kind = String(call.arguments.kind ?? '')
 			const chain = editor.chain().focus().setTextSelection(range)
-			// `toggle*` di seleksi yang sudah berupa daftar jenis itu akan mematikannya,
-			// jadi jenis yang sudah benar dibiarkan apa adanya - permintaan "jadikan
-			// daftar bernomor" tidak boleh membatalkan daftar bernomor yang sudah ada.
 			if (kind === 'bullet') {
 				if (!editor.isActive('bulletList')) chain.toggleBulletList()
 			} else if (kind === 'ordered') {
@@ -917,10 +782,6 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			if (!Number.isInteger(count) || count < 1 || count > 3) {
 				return { ok: false, message: 'count must be 1, 2 or 3.' }
 			}
-
-			// Kolom per-section: bentuk yang benar-benar dipakai jurnal, dan
-			// satu-satunya yang bisa diekspor ke DOCX apa adanya (kolom di DOCX
-			// selalu properti section, tidak pernah properti paragraf).
 			if (isSectionScope(call.arguments.scope)) {
 				const scoped = sectionRange(editor, call.arguments.scope)
 				if (!scoped) {
@@ -957,9 +818,6 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 
 			const footnoteType = editor.state.schema.nodes.footnote
 			if (!footnoteType) return { ok: false, message: 'This editor has no footnotes.' }
-
-			// Rujukan dan isinya dipasang dalam satu rantai: dua transaksi terpisah
-			// bisa meninggalkan rujukan tanpa catatan kalau yang kedua gagal.
 			const ok = editor
 				.chain()
 				.focus()
@@ -1016,7 +874,6 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 				const { tr } = editor.state
 				const slice = editor.state.doc.slice(from, to)
 				tr.delete(from, to)
-				// Setelah pemotongan, sasaran di bawah rentang bergeser sejauh isinya.
 				const insertAt = targetPos > to ? targetPos - (to - from) : targetPos
 				tr.insert(insertAt, slice.content)
 				editor.view.dispatch(tr)
@@ -1046,8 +903,6 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			return { ok: false, message: `Unknown tool: ${call.name}` }
 	}
 }
-
-/** Petakan argumen model ke atribut blok TOC (§A5.2); yang tak disebut tak diubah. */
 function tocAttrsFromArgs(args: Record<string, unknown>): Partial<TocBlockAttrs> {
 	const attrs: Partial<TocBlockAttrs> = {}
 	const listKind = args.list_kind ?? args.listKind
@@ -1066,20 +921,12 @@ function tocAttrsFromArgs(args: Record<string, unknown>): Partial<TocBlockAttrs>
 	}
 	return attrs
 }
-
-/** Rentang PM dari kemunculan pertama sebuah kutipan persis. */
 function findExactRange(editor: Editor, find: string): { from: number; to: number } | null {
 	const index = buildTextIndex(editor.state.doc)
 	const at = index.text.indexOf(find)
 	if (at === -1) return null
 	return textRangeToPM(index, at, find.length)
 }
-
-/**
- * Penyaring URL gambar (§B3.2): hanya http(s) publik. Literal alamat
- * privat/loopback/link-local ditolak di sini; validasi pasca-DNS yang penuh
- * milik fetch_url di sisi server (fase riset web).
- */
 function publicImageUrl(src: string): string | null {
 	let url: URL
 	try {

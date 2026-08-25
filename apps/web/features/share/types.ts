@@ -1,12 +1,6 @@
 import type { JSONContent } from '@tiptap/core'
-
-/**
- * Tipe akses dan peran share. Sama dengan enum di backend.
- */
 export type ShareAccess = 'anyone' | 'restricted'
 export type ShareRole = 'viewer' | 'commenter' | 'editor'
-
-/** Satu tab, dibaca live dari dokumen yang dibagikan (bukan salinan beku). */
 export interface SharedTab {
 	id: string
 	title: string
@@ -22,8 +16,6 @@ export interface SharePayload {
 	role: ShareRole
 	createdAt: number
 }
-
-/** Share membagikan SATU DOKUMEN (seluruh tab di dalamnya - pola Google Docs). */
 export interface CreateShareInput {
 	documentId: string
 	access: ShareAccess
