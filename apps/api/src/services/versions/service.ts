@@ -41,6 +41,7 @@ export default class VersionsService extends BaseService {
 				label: row.label,
 				wordCount: row.wordCount,
 				createdAt: row.createdAt.getTime(),
+				feature: row.feature,
 			}))
 			return this.success({ data: result })
 		} catch (error) {
@@ -147,6 +148,8 @@ export default class VersionsService extends BaseService {
 		label: string | null
 		word_count: number
 		created_at: Date
+		/** Absen pada versi baru (`insertVersion` tidak pernah membuat trigger `ai_result`). */
+		feature?: string | null
 	}): VersionSummary {
 		return {
 			id: version.id,
@@ -154,6 +157,7 @@ export default class VersionsService extends BaseService {
 			label: version.label,
 			wordCount: version.word_count,
 			createdAt: version.created_at.getTime(),
+			feature: version.feature ?? null,
 		}
 	}
 
@@ -164,6 +168,7 @@ export default class VersionsService extends BaseService {
 		word_count: number
 		created_at: Date
 		content: Record<string, unknown>
+		feature?: string | null
 	}): VersionDetail {
 		return { ...this.toSummary(version), content: version.content }
 	}

@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import db from '@/db'
-import { documentVersions } from '@/db/schemas'
+import { documentVersions, metadataVersion } from '@/db/schemas'
 import type { NewDocumentVersion } from '@/db/schemas'
 
 /**
@@ -8,7 +8,11 @@ import type { NewDocumentVersion } from '@/db/schemas'
  * wajib memverifikasi tab milik user lewat `findTabById` dulu.
  */
 
-/** Metadata versi sebuah tab (tanpa `content`), terbaru di atas. */
+/**
+ * Metadata versi sebuah tab (tanpa `content`), terbaru di atas. `feature`
+ * ikut lewat left join ke `metadata_version` - terisi hanya untuk versi
+ * trigger `ai_result`, null untuk trigger lain (manual/interval/dst).
+ */
 export async function findVersionsByTab(tabId: string) {
 	return db
 		.select({
@@ -17,17 +21,30 @@ export async function findVersionsByTab(tabId: string) {
 			label: documentVersions.label,
 			wordCount: documentVersions.word_count,
 			createdAt: documentVersions.created_at,
+			feature: metadataVersion.feature,
 		})
 		.from(documentVersions)
+		.leftJoin(metadataVersion, eq(metadataVersion.version_id, documentVersions.id))
 		.where(eq(documentVersions.tab_id, tabId))
 		.orderBy(desc(documentVersions.created_at))
 }
 
-/** Satu versi lengkap dengan kontennya, diskop ke tabnya. */
+/** Satu versi lengkap dengan kontennya (+ `feature`, lihat `findVersionsByTab`), diskop ke tabnya. */
 export async function findVersionById(versionId: string, tabId: string) {
 	const [row] = await db
-		.select()
+		.select({
+			id: documentVersions.id,
+			tab_id: documentVersions.tab_id,
+			content: documentVersions.content,
+			trigger: documentVersions.trigger,
+			label: documentVersions.label,
+			word_count: documentVersions.word_count,
+			created_by: documentVersions.created_by,
+			created_at: documentVersions.created_at,
+			feature: metadataVersion.feature,
+		})
 		.from(documentVersions)
+		.leftJoin(metadataVersion, eq(metadataVersion.version_id, documentVersions.id))
 		.where(and(eq(documentVersions.id, versionId), eq(documentVersions.tab_id, tabId)))
 		.limit(1)
 	return row ?? null

@@ -15,6 +15,8 @@ export interface VersionSummary {
 	wordCount: number
 	/** Epoch milidetik (server mengirim `Date.getTime()`). */
 	createdAt: number
+	/** Nama fitur AI (mis. 'grammar', 'plagiarism') untuk trigger `ai_result`; null untuk trigger lain. */
+	feature: string | null
 }
 
 export interface VersionDetail extends VersionSummary {

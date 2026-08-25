@@ -24,6 +24,8 @@ export interface VersionSummary {
 	wordCount: number
 	/** Epoch ms, konsisten dengan respons documents. */
 	createdAt: number
+	/** Nama fitur AI (mis. 'grammar', 'plagiarism') untuk trigger `ai_result`; null untuk trigger lain. */
+	feature: string | null
 }
 
 export interface VersionDetail extends VersionSummary {

@@ -114,6 +114,8 @@ function toSummary(entry: LocalVersionEntry): VersionSummary {
 		label: entry.label,
 		wordCount: entry.wordCount,
 		createdAt: entry.createdAt,
+		// Versi lokal tidak pernah trigger `ai_result` (lihat LocalVersionTrigger).
+		feature: null,
 	}
 }
 

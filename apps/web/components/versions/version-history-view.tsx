@@ -4,9 +4,11 @@ import type { JSONContent } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { ArrowLeft, Pin, Plus } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { FEATURE_META } from '@/components/activity/feature-meta'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { buildEditorExtensions } from '@/features/editor/extensions'
 import { pageGeometry } from '@/features/editor/page-geometry'
+import type { HistoryFeature } from '@/features/history/types'
 import { useSessions } from '@/features/sessions/session-context'
 import { fragmentToJSON } from '@/features/sync/serialize'
 import { GROUP_ORDER, groupOf } from '@/lib/day-groups'
@@ -31,6 +33,12 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	minute: '2-digit',
 })
 
+/** Label modul AI dari `FEATURE_META`; null bila `feature` kosong/tak dikenal. */
+function featureLabel(feature: string | null): string | null {
+	if (!feature || !(feature in FEATURE_META)) return null
+	return FEATURE_META[feature as HistoryFeature].label
+}
+
 /** Nama tampil sebuah entri: label user untuk versi manual, jenisnya untuk yang otomatis. */
 function entryLabel(version: VersionSummary): string {
 	switch (version.trigger) {
@@ -42,8 +50,10 @@ function entryLabel(version: VersionSummary): string {
 			return 'Sebelum pemulihan'
 		case 'pre_translate':
 			return 'Sebelum terjemah'
-		case 'ai_result':
-			return 'Hasil AI'
+		case 'ai_result': {
+			const label = featureLabel(version.feature)
+			return label ? `Hasil AI: ${label}` : 'Hasil AI'
+		}
 	}
 }
 
