@@ -20,18 +20,21 @@ import {
 	X,
 	Zap,
 } from 'lucide-react'
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChatUsage, ToolCall } from '@writer-hub/shared'
 import { CHAT_MODELS, findChatModel } from '@writer-hub/shared'
 import { type ChatStep, extractProposals, stripProposals, useChat } from '@/features/chat/chat-context'
 import { Dropdown, DropdownItem } from '@/components/ui/dropdown'
+import { type ChatCommand, applyCommand, matchCommands } from '@/features/chat/commands'
 import { describeToolCall } from '@/features/chat/tools'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { looksLikeMarkdown, markdownToHtml, toEditorContent } from '@/features/editor/markdown'
 import { useSelectionScope } from '@/features/editor/selection'
 import { cn } from '@/lib/utils'
+import { ChatCommandMenu } from './chat-command-menu'
 import { PanelError } from './panel-parts'
+import { ResearchSourcesCard } from './research-sources-card'
 export function AiChatPanel() {
 	const {
 		messages,
@@ -56,6 +59,9 @@ export function AiChatPanel() {
 	} = useChat()
 
 	const [draft, setDraft] = useState('')
+	const commands = useMemo(() => matchCommands(draft), [draft])
+	const [activeCommand, setActiveCommand] = useState(0)
+	const draftRef = useRef<HTMLTextAreaElement>(null)
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const scope = useSelectionScope()
 	const dismissedRef = useRef<string | null>(null)
@@ -89,6 +95,43 @@ export function AiChatPanel() {
 		if (!draft.trim() || isRunning) return
 		send(draft)
 		setDraft('')
+	}
+
+	const pickCommand = (command: ChatCommand) => {
+		if (command.enablesResearch) setResearch(true)
+		setDraft(applyCommand(command))
+		setActiveCommand(0)
+		draftRef.current?.focus()
+	}
+
+	const onDraftKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		if (commands.length > 0) {
+			if (event.key === 'ArrowDown') {
+				event.preventDefault()
+				setActiveCommand((at) => (at + 1) % commands.length)
+				return
+			}
+			if (event.key === 'ArrowUp') {
+				event.preventDefault()
+				setActiveCommand((at) => (at - 1 + commands.length) % commands.length)
+				return
+			}
+			if (event.key === 'Enter' || event.key === 'Tab') {
+				event.preventDefault()
+				pickCommand(commands[Math.min(activeCommand, commands.length - 1)])
+				return
+			}
+			if (event.key === 'Escape') {
+				event.preventDefault()
+				setDraft('')
+				return
+			}
+		}
+
+		if (event.key === 'Enter' && !event.shiftKey) {
+			event.preventDefault()
+			submit()
+		}
 	}
 
 	const isEmpty = messages.length === 0 && streaming === null
@@ -222,18 +265,24 @@ export function AiChatPanel() {
 					)}
 				</div>
 
+				<ChatCommandMenu
+					commands={commands}
+					active={Math.min(activeCommand, Math.max(commands.length - 1, 0))}
+					onPick={pickCommand}
+					onHover={setActiveCommand}
+				/>
+
 				<div className="flex items-end gap-2 rounded-2xl bg-surface-raised p-2">
 					<textarea
+						ref={draftRef}
 						value={draft}
-						onChange={(event) => setDraft(event.target.value)}
-						onKeyDown={(event) => {
-							if (event.key === 'Enter' && !event.shiftKey) {
-								event.preventDefault()
-								submit()
-							}
+						onChange={(event) => {
+							setDraft(event.target.value)
+							setActiveCommand(0)
 						}}
+						onKeyDown={onDraftKeyDown}
 						rows={2}
-						placeholder="Ask anything about this draft…"
+						placeholder="Ask anything about this draft… atau ketik / untuk perintah"
 						aria-label="Message"
 						className="min-h-0 flex-1 resize-none bg-transparent px-2 py-1 text-sm text-foreground outline-none placeholder:text-faint"
 					/>
@@ -644,6 +693,9 @@ function StepTimeline({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
 							{formatDuration(step, now)}
 						</span>
 					</button>
+					{step.sources && step.sources.length > 0 && (
+						<ResearchSourcesCard sources={step.sources} />
+					)}
 					{open === step.id && step.checklist && (
 						<div className="mx-1.5 mb-1 flex flex-col gap-0.5 rounded-md bg-surface-inset px-2 py-1.5">
 							{step.checklist.map((item, index) => (

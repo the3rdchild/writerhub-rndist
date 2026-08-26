@@ -33,10 +33,11 @@ export interface RemoteToolResult {
 	sources: ResearchSource[]
 }
 
-function requestBody(call: ToolCall): Record<string, unknown> {
+function requestBody(call: ToolCall, tabId: string | null): Record<string, unknown> {
 	const args = call.arguments
 	if (call.name === 'web_search') {
 		return {
+			...(tabId ? { tabId } : {}),
 			query: String(args.query ?? ''),
 			topic: args.topic,
 			language: args.language,
@@ -47,6 +48,7 @@ function requestBody(call: ToolCall): Record<string, unknown> {
 	}
 
 	return {
+		...(tabId ? { tabId } : {}),
 		urls: Array.isArray(args.urls) ? args.urls.slice(0, 5).map(String) : [],
 		query: args.query,
 	}
@@ -60,6 +62,7 @@ function requestBody(call: ToolCall): Record<string, unknown> {
 export async function runRemoteReadTool(
 	call: ToolCall,
 	signal?: AbortSignal,
+	tabId: string | null = null,
 ): Promise<RemoteToolResult> {
 	const path = ENDPOINT[call.name]
 	if (!path) return { text: `Alat ${call.name} tidak dikenal.`, sources: [] }
@@ -68,7 +71,7 @@ export async function runRemoteReadTool(
 		const response = await fetch(path, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify(requestBody(call)),
+			body: JSON.stringify(requestBody(call, tabId)),
 			signal,
 		})
 

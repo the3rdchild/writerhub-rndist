@@ -77,13 +77,17 @@ export default class ResearchService extends BaseService {
 			.filter((source) => !isDenied(source.url, denied))
 			.map((source) => ({ ...source, extracted: false, fetchedAt: now }))
 
-		await this.record(input.tabId, {
-			query: input.query,
-			topic,
-			language: input.language ?? null,
-			sources,
-			credits: cached ? 0 : result.credits,
-		})
+		// Hit cache bukan riset baru: mencatatnya lagi hanya menggandakan baris
+		// di Aktivitas untuk pekerjaan yang sudah ada entrinya.
+		if (!cached) {
+			await this.record(input.tabId, {
+				query: input.query,
+				topic,
+				language: input.language ?? null,
+				sources,
+				credits: result.credits,
+			})
+		}
 
 		return {
 			text: searchToolText(input.query, sources),
@@ -135,7 +139,7 @@ export default class ResearchService extends BaseService {
 			fetchedAt: now,
 		}))
 
-		if (sources.length > 0) {
+		if (sources.length > 0 && missing.length > 0) {
 			await this.record(input.tabId, {
 				query: input.query ?? allowed.join(', '),
 				topic,

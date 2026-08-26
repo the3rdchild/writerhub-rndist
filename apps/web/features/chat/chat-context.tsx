@@ -7,6 +7,7 @@ import {
 	type ChatMessage,
 	type ChatStreamPhase,
 	type ChatUsage,
+	type ResearchSource,
 	type ToolCall,
 } from '@writer-hub/shared'
 import { DEFAULT_CHAT_MODEL, isReadTool } from '@writer-hub/shared'
@@ -31,6 +32,7 @@ import { editorPlainText } from '@/features/editor/text-content'
 import { sessionLabel, useSessions } from '@/features/sessions/session-context'
 import { createTab as createTabInDoc } from '@/features/sessions/ydoc'
 import { buildSchema, fragmentToJSON, jsonToFragment } from '@/features/sync/serialize'
+import { useSync } from '@/features/sync/sync-context'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import { parseFallbackCalls, streamChat, stripFallbackCalls } from './api'
 import { isRemoteReadTool, remoteToolLabel, runRemoteReadTool } from './remote-tools'
@@ -56,6 +58,8 @@ export interface ChatStep {
 	endedAt?: number
 	detail?: string
 	checklist?: { text: string; done: boolean }[]
+	/** Hanya untuk langkah riset web - dipakai kartu verifikasi. */
+	sources?: ResearchSource[]
 }
 export interface ChatTurn extends ChatMessage {
 	actions?: ToolCall[]
@@ -193,6 +197,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const [research, setResearch] = usePersistentState('writer-hub-chat-research', false)
 	const researchRef = useRef(research)
 	researchRef.current = research
+	// Riset dicatat ke Aktivitas; tautkan ke tab server supaya entrinya tidak
+	// yatim di halaman itu.
+	const { linkage } = useSync()
+	const researchTabRef = useRef<string | null>(null)
+	researchTabRef.current = activeId ? (linkage[activeId]?.serverId ?? null) : null
 	const applyActionsRef = useRef<((calls: ToolCall[]) => void) | null>(null)
 	const pendingAutoApplyRef = useRef<ToolCall[] | null>(null)
 	const messagesRef = useRef<ChatTurn[]>(messages)
@@ -460,11 +469,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 				if (isRemoteReadTool(call.name)) {
 					pushStep(remoteToolLabel(call))
-					const remote = await runRemoteReadTool(call, controller.signal)
+					const remote = await runRemoteReadTool(call, controller.signal, researchTabRef.current)
 					patchRunningStep({
 						status: 'done',
 						endedAt: Date.now(),
-						detail: `${remote.sources.length} sumber\n→ ${summarizeToolResult(remote.text)}`,
+						detail: `${JSON.stringify(call.arguments)}\n→ ${summarizeToolResult(remote.text)}`,
+						sources: remote.sources,
 					})
 					advancePlan()
 					results.push({ role: 'tool', content: remote.text, toolCallId: call.id, taskId })
