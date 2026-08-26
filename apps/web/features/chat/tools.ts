@@ -357,7 +357,7 @@ function scopeLabel(call: ToolCall): string {
 	const find = String(call.arguments.find ?? '')
 	return find ? `“${find.slice(0, 32)}…”` : 'the whole document'
 }
- Satuan panduan penulisan → piksel 96 dpi, satuan yang dipakai atribut node. */
+/* Satuan panduan penulisan → piksel 96 dpi, satuan yang dipakai atribut node. */
 const PX_PER_CM = 96 / 2.54
 const PX_PER_PT = 96 / 72
 function layoutRange(editor: Editor, call: ToolCall): { from: number; to: number } | null {

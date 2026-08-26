@@ -106,6 +106,7 @@ export function useAnalysis<F extends AnalysisFeature>(
 		},
 		[markRun, feature, currentText, requested, query, language.code, linkage, activeId],
 	)
+	/** Batalkan analisis berjalan (§P7 lapis A+B). cancelQueries membatalkan queryFn
 	     yang sedang menunggu SSE; panel kembali ke keadaan sebelum Run, tanpa
 	     dianggap error. Bendera cancel juga dikirim ke server (best effort). */
 	const cancel = useCallback(() => {

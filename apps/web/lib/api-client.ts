@@ -28,6 +28,6 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 }
 export function cancelJob(jobId: string): void {
 	apiFetch(`/jobs/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' }).catch(() => {
- best effort - lihat komentar di atas */
+		/* best effort - lihat komentar di atas */
 	})
 }

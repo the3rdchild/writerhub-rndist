@@ -397,7 +397,7 @@ function TocEntries({
 							<span className="min-w-0 max-w-[80%] shrink-0 truncate">{item.text || 'Tanpa judul'}</span>
 						)}
 						{showPage && attrs.tabLeader !== 'none' && (
- Pengisi merentang sampai kolom nomor: karakter diulang jauh
+							/* Pengisi merentang sampai kolom nomor: karakter diulang jauh
 							   melebihi lebar teks lalu dipotong overflow (§A5.5 no. 5). */
 							<span
 								aria-hidden

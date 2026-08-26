@@ -84,6 +84,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
 	const timers = useRef(new Map<string, SaveTimers>())
 	const titleTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+	/** Hitungan suntingan per tab; dipakai agar status 'dirty' tidak hilang
 	    saat PUT yang berangkat lebih awal selesai. */
 	const revisions = useRef(new Map<string, number>())
 	const activeIdRef = useRef(activeId)
