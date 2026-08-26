@@ -47,3 +47,6 @@ ref/
 coverage/
 .turbo/
 docs/Writerhub-rnd-POC.pptx
+
+# FUSE leftovers
+.fuse_hidden*
