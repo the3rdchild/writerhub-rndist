@@ -43,7 +43,14 @@ export default class PoolingService extends BaseService {
 		}
 
 		const row = await findMetadataVersion(jobId)
-		if (!row) throw AppError.notFound('Job result not found')
+		if (!row) {
+			// Job-nya sendiri ada dan sudah selesai, hasilnya yang tidak tersimpan:
+			// metadata_version wajib menempel ke satu document_versions, jadi worker
+			// melewatinya kalau job tidak tertaut tab (atau tabnya keburu dihapus) -
+			// lihat save_metadata_version di services/worker/core/db/repository.py.
+			// Balas status apa adanya; 404 di sini berbohong soal jobId tidak dikenal.
+			return { ...base, error: 'Hasil job tidak tersimpan karena job tidak tertaut ke tab dokumen' }
+		}
 		if (params?.feature) {
 			return {
 				...base,

@@ -1,9 +1,9 @@
 INSERT INTO "identity" ("user_id", "origin")
-SELECT DISTINCT "owner_id", 'ppe' FROM "projects"
+SELECT DISTINCT "owner_id", 'ppe'::"public"."identity_origin" FROM "projects"
 ON CONFLICT ("user_id", "origin") DO NOTHING;--> statement-breakpoint
 
 INSERT INTO "identity" ("user_id", "origin")
-SELECT DISTINCT "owner_id", 'ppe' FROM "user_memories"
+SELECT DISTINCT "owner_id", 'ppe'::"public"."identity_origin" FROM "user_memories"
 ON CONFLICT ("user_id", "origin") DO NOTHING;--> statement-breakpoint
 ALTER TABLE "projects" ADD COLUMN "owner_identity_id" uuid;--> statement-breakpoint
 UPDATE "projects" p SET "owner_identity_id" = i."id"

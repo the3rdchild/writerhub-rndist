@@ -106,15 +106,11 @@ export default class VersionsService extends BaseService {
 	}
 
 	private tabId(): string {
-		const id = this.context.req.param('tabId')
-		if (!id) throw AppError.badRequest('ID tab tidak ada')
-		return id
+		return this.uuidParam('tabId', 'ID tab')
 	}
 
 	private versionId(): string {
-		const id = this.context.req.param('versionId')
-		if (!id) throw AppError.badRequest('ID versi tidak ada')
-		return id
+		return this.uuidParam('versionId', 'ID versi')
 	}
 
 	private toSummary(version: {

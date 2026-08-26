@@ -18,8 +18,17 @@ async function buildSettledEvent(jobId: string): Promise<string | null> {
 	}
 	if (request.status !== 'completed') return null
 
+	// Worker menyimpan metadata_version SEBELUM menandai completed, jadi baris
+	// yang hilang di sini bukan balapan: hasilnya memang tidak tersimpan karena
+	// job tidak tertaut tab (lihat save_metadata_version di worker). Balas error
+	// alih-alih null - null membuat klien menunggu event yang tidak akan datang.
 	const row = await findMetadataVersion(jobId).catch(() => null)
-	if (!row) return null
+	if (!row) {
+		return JSON.stringify({
+			type: 'error',
+			message: 'Hasil job tidak tersimpan karena job tidak tertaut ke tab dokumen',
+		})
+	}
 	if (row.feature === 'grammar') {
 		return JSON.stringify({ type: 'done', ...row.result })
 	}
@@ -30,12 +39,6 @@ stream.get('/:jobId', async (c) => {
 	const jobId = c.req.param('jobId')
 
 	return streamSSE(c, async (sse) => {
-		const settled = await buildSettledEvent(jobId)
-		if (settled) {
-			await sse.writeSSE({ data: settled })
-			return
-		}
-
 		let finish = () => {}
 		const closed = new Promise<void>((resolve) => {
 			finish = resolve
@@ -50,7 +53,16 @@ stream.get('/:jobId', async (c) => {
 			}
 		}
 
-		const unsubscribe = await subscribeToJob(jobId, (raw) => void forward(raw))
+		// Berlangganan DULU, baru baca keadaan tersimpan. Kalau urutannya dibalik,
+		// job yang selesai tepat di antara kedua langkah tidak terbaca di basis data
+		// dan event pub/sub-nya lewat begitu saja - klien menggantung sampai timeout.
+		// Event yang masuk sebelum pembacaan selesai ditahan dulu di `pending`.
+		let live = false
+		const pending: string[] = []
+		const unsubscribe = await subscribeToJob(jobId, (raw) => {
+			if (live) void forward(raw)
+			else pending.push(raw)
+		})
 
 		const heartbeat = setInterval(() => {
 			sse.writeSSE({ event: 'ping', data: 'ok' }).catch(() => finish())
@@ -64,6 +76,16 @@ stream.get('/:jobId', async (c) => {
 		sse.onAbort(() => finish())
 
 		try {
+			const settled = await buildSettledEvent(jobId)
+			if (settled) {
+				await sse.writeSSE({ data: settled })
+				return
+			}
+
+			live = true
+			for (const raw of pending) await forward(raw)
+			pending.length = 0
+
 			await closed
 		} finally {
 			clearInterval(heartbeat)

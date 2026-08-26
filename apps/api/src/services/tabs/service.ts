@@ -178,15 +178,11 @@ export default class TabsService extends BaseService {
 	}
 
 	private documentId(): string {
-		const id = this.context.req.param('id')
-		if (!id) throw AppError.badRequest('ID dokumen tidak ada')
-		return id
+		return this.uuidParam('id', 'ID dokumen')
 	}
 
 	private tabId(): string {
-		const id = this.context.req.param('tabId')
-		if (!id) throw AppError.badRequest('ID tab tidak ada')
-		return id
+		return this.uuidParam('tabId', 'ID tab')
 	}
 
 	private toSummary(tab: {

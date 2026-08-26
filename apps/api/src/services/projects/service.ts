@@ -60,9 +60,7 @@ export default class ProjectsService extends BaseService {
 	}
 
 	private projectId(): string {
-		const id = this.context.req.param('id')
-		if (!id) throw AppError.badRequest('ID proyek tidak ada')
-		return id
+		return this.uuidParam('id', 'ID proyek')
 	}
 
 	private toSummary(project: Project, documentCount = 0): ProjectSummary {

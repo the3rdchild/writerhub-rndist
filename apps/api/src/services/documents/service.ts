@@ -19,7 +19,7 @@ export default class DocumentsService extends BaseService {
 		try {
 			const rows = await findDocumentsByOwner(
 				await this.identityId(),
-				this.context.req.query('projectId'),
+				this.optionalUuidQuery('projectId', 'ID proyek'),
 			)
 			const result: DocumentSummary[] = rows.map((row) => ({
 				id: row.id,
@@ -131,9 +131,7 @@ export default class DocumentsService extends BaseService {
 	}
 
 	private documentId(): string {
-		const id = this.context.req.param('id')
-		if (!id) throw AppError.badRequest('ID dokumen tidak ada')
-		return id
+		return this.uuidParam('id', 'ID dokumen')
 	}
 
 	private toDetail(
