@@ -1,6 +1,7 @@
 # WritingHub — PRD Induk
 
-Status: **Referensi tetap** · Disusun 25 Agustus 2026 · Baseline kode `66dfe5e` (branch `main`)
+Status: **Referensi tetap** · Disusun 25 Agustus 2026, diperbarui 26 Agustus 2026 · Baseline
+kode `66dfe5e` (branch `main`)
 
 Dokumen ini adalah **PRD tingkat produk**: apa yang WritingHub coba jadi, untuk siapa, dan
 fitur apa saja yang termasuk di dalamnya beserta tier dan status implementasinya.
@@ -209,6 +210,7 @@ Cakupan di hub: **dokumen + teks saja**. Lihat §7 untuk yang dikecualikan.
 | Preset perintah menulis | V2 | ✅ (tools/commands + slash command) |
 | Linimasa langkah AI / visibilitas penalaran | — | ✅ (di luar rencana awal) |
 | Rujukan ke File Library / Project | V2 | ⬜ |
+| **Riset web** (cari & baca halaman langsung dari chat, sumber terlampir di jawaban) | — | ✅ (di luar rencana awal, ditambah 26 Agustus 2026 — integrasi Tavily, lihat `docs/WEB-RESEARCH-PLAN.md`; butuh `TAVILY_API_KEY`, lihat `docs/agents.md` §3.10) |
 
 ### 4.8 Core Platform (dipakai bersama seluruh PPE)
 
@@ -296,6 +298,7 @@ detail teknis, mereka yang menang.**
 | `VERSION-HISTORY-PLAN.md` | Version history (fitur I) |
 | `HISTORY-PROJECTS-MEMORY-PLAN.md` | History sesi (F), Projects (G), AI Memory (H) |
 | `GLOSSARY-MAKER-PLAN.md` | Glosarium Maker (fitur L) |
+| `WEB-RESEARCH-PLAN.md` | Riset web via Tavily — di luar rencana awal, ditambah 26 Agustus 2026 |
 | `WORKPLAN-P1-P12-DUA-JALUR.md` | Pembagian kerja dua jalur berdasarkan kepemilikan berkas |
 | `design.md` | Arsitektur sistem & batas modul |
 | `coding_standard.md` | Standar penulisan kode + hasil audit tanggung jawab tunggal |

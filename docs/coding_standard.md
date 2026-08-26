@@ -1,12 +1,14 @@
 # Standar Penulisan Kode — WritingHub
 
-Status: **Aturan tetap + hasil audit** · Disusun 25 Agustus 2026 · Baseline kode `66dfe5e`
+Status: **Aturan tetap + hasil audit** · Disusun 25 Agustus 2026, diverifikasi ulang 26 Agustus
+2026 · Baseline kode `66dfe5e`, verifikasi ulang di `3bc8243`
 
 Dokumen ini menetapkan **isi di dalam satu berkas**: apa yang boleh tinggal bersama, dan apa
 yang harus pindah. Batas *antar* modul ada di `docs/design.md`.
 
 Bagian §1–§5 adalah aturan. Bagian §6 adalah hasil audit terhadap seluruh monorepo per baseline
-di atas — 414 berkas sumber, 55.700 baris.
+di atas — 414 berkas sumber, 55.700 baris pada saat audit; 434 berkas, 47.181 baris pada saat
+verifikasi ulang (§6.10 menjelaskan kenapa jumlah barisnya justru turun).
 
 ---
 
@@ -329,7 +331,7 @@ menyimpangnya baru ketahuan saat streaming diam-diam berhenti bekerja di produks
 
 | Temuan | Keterangan |
 |---|---|
-| `packages/shared/src/.fuse_hidden00002c8200000009` | **Terlacak git** (masuk lewat commit `e115b08`). Salinan yatim `analysis.ts` — artefak filesystem yang tak sengaja ter-commit. Satu berkas kontrak punya dua wujud di repo |
+| `packages/shared/src/.fuse_hidden00002c8200000009` | **Masih terlacak git** per verifikasi 26 Agustus. Pola `.fuse_hidden*` sudah ditambahkan ke `.gitignore` (commit `70848bb`) supaya tidak terulang, tapi berkas lama yang sudah ter-commit belum dihapus — `.gitignore` tidak retroaktif. Tinggal `git rm` |
 | `features/editor/editor-polish.ts` | `ImageWithMarkdown` **mati** — `extensions.ts` memakai `ResizableImage`. Satu-satunya ekspor hidup adalah `TrailingParagraph` |
 | `features/sessions/ydoc.ts:660` | `readComments`/`writeComments` tidak terpakai — `session-context.tsx` membaca komentar langsung dari `TabMeta`. Dua jalur untuk data yang sama, satu mati |
 | `checker/pos_providers.py:121` | Mesin registri "pilih yang pertama tersedia" me-resolve daftar berisi **satu** elemen; docstring-nya masih mengiklankan `SpacyPosProvider` yang sudah tidak ada |
@@ -395,6 +397,19 @@ Ditulis eksplisit supaya tidak ada yang "merapikannya":
 - `components/panels/change-list-panel.tsx` — menyusun tujuh hook bertujuan tunggal dan hanya
   memegang rendering. Model untuk panel lain.
 - `LoggerClient`, `RedisClient`, `AppError`, dan kelas galat `extract/errors.py`.
+- **Seluruh modul Web Research** yang ditambahkan 26 Agustus 2026 (§6.10) —
+  `apps/api/src/lib/tavily-client.ts` (transport), `lib/research-cache.ts` (cache Redis),
+  `services/research/dto.ts` (validasi), `services/research/tool-text.ts` (perakit teks murni,
+  header-nya sendiri menyebut "tidak menyentuh jaringan, basis data, atau Redis"),
+  `services/research/service.ts` (orkestrasi), `repository/research-activity.ts` (persistensi),
+  `packages/shared/src/research.ts` + `research-tools.ts` (kontrak & katalog alat, sengaja
+  dipisah dari `tools.ts` dengan alasan tertulis), `apps/web/features/chat/remote-tools.ts`
+  (dispatch alat baca jarak-jauh, terpisah dari `chat/tools.ts` karena alasan tertulis yang
+  sama), dan `apps/web/features/chat/commands.ts` (pencocokan perintah garis-miring, murni,
+  header-nya menyebut eksplisit "tanpa React dan tanpa jaringan"). Modul ini juga satu-satunya
+  di seluruh repo yang menempatkan penulisan tabel lewat `repository/`, bukan `this.db.insert`
+  langsung di service — persis pola yang diminta §6.3 tidak ada di `share/service.ts` dan
+  `job-submission.service.ts`. Jadikan cetakan kedua di samping `services/extract/**`.
 
 ### 6.9 Kalau harus memilih urutan
 
@@ -412,3 +427,44 @@ Bukan rencana kerja — pengguna yang memutuskan. Tapi kalau ditanya dari mana:
 5. **Hapus berkas hantu** (§6.6). Beberapa menit.
 6. Baru sesudahnya, tiga provider besar (§6.7 no. 1–3) — paling bernilai, paling berisiko,
    paling banyak pengimpor. Lakukan bertahap, dan patuhi §5.
+
+### 6.10 Verifikasi ulang — 26 Agustus 2026
+
+Antara baseline audit (`66dfe5e`) dan verifikasi ulang ini (`3bc8243`) ada 14 commit, 434 berkas
+tersentuh. Sebelum menelusurinya satu per satu, penting dicatat **apa yang membuat diff-nya
+sebesar itu**, supaya angka baris berubah tidak dibaca sebagai "sudah banyak diperbaiki":
+
+**Nyaris seluruh perubahan itu adalah pelucutan komentar, bukan restrukturisasi.** Verifikasi
+memeriksa file-file yang paling parah di §6.7 satu per satu — `session-context.tsx` kehilangan
+174 baris **tanpa satu baris pun ditambahkan**; `sync-context.tsx` kehilangan 203; `chat/tools.ts`
+kehilangan 153; `jobs.route.ts` kehilangan 28. Membaca diff mentahnya menunjukkan pola yang sama
+di semuanya: yang hilang adalah blok `/** … */` dan komentar `//` penjelas rasional, bukan kode.
+Setiap fungsi dan setiap anggota antarmuka yang disebut di §6.7 **masih ada**, di berkas yang
+sama, tanpa perubahan bentuk — `addComment`, `replyToComment`, `setTabResults`, `readToolLabel`,
+`describeToolCall`, `cmToPx`, semuanya diverifikasi masih di tempatnya. Inilah kenapa total baris
+kode turun dari 55.700 ke 47.181 meski ada fitur baru ditambahkan (di bawah) — bukan karena
+tanggung jawabnya dirampingkan.
+
+**Kesimpulan: tidak satu pun dari 39 temuan §6.7 sudah diperbaiki.** Nomor baris yang dikutip di
+seluruh §6 dicatat pada baseline `66dfe5e` dan sekarang bergeser — beberapa signifikan, karena
+komentar yang dihapus itu sendiri memakan banyak baris — tapi **nama simbol dan strukturnya
+tetap sah**. Pakai nama fungsi/variabel untuk mencari lokasinya, jangan berpegang penuh pada
+nomor baris tercetak.
+
+**Yang genuinely baru dan genuinely bagus:** fitur **Web Research** (integrasi Tavily, lihat
+`docs/WEB-RESEARCH-PLAN.md`) — kira-kira 14 berkas baru, ~1.100 baris. Ini bukan perbaikan atas
+temuan lama, tapi kode baru yang ditulis dengan disiplin yang persis diminta §1–§5: transport
+terpisah dari cache terpisah dari validasi terpisah dari orkestrasi, perhitungan murni ditandai
+eksplisit di header-nya sendiri, dan — pertama di seluruh repo — penulisan tabel lewat
+`repository/` alih-alih SQL mentah di service. Daftar lengkapnya di §6.8.
+
+Juga di commit `b9b4f6c`: `BaseService` mendapat `uuidParam()`/`optionalUuidQuery()` (validasi
+param path/query sebagai UUID) dan berhenti membocorkan pesan galat SQL mentah ke klien. Ini
+tambahan yang tepat pada tempatnya — sejalan dengan "coherent core" `base.service.ts` di §6.2
+(pembentukan response), bukan tambahan tanggung jawab baru. Temuan `cacheGet`/`cacheSet` yang
+tidak sejalan di file yang sama **tetap berlaku, tidak disentuh**.
+
+**Satu gotcha operasional yang ditemukan langsung saat verifikasi** (bukan temuan SRP, tapi
+layak dicatat karena baru kejadian): `RESEARCH_ENABLED` default `true` di `env.ts`, dan
+`validateEnv()` mewajibkan `TAVILY_API_KEY` begitu itu menyala — `apps/api` **menolak boot**
+tanpa key meski di `AUTH_MODE=none`. Dicatat di `docs/agents.md` §3.

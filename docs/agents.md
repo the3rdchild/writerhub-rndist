@@ -1,6 +1,7 @@
 # Aturan Kerja Agen AI — WritingHub
 
-Status: **Aturan tetap** · Disusun 25 Agustus 2026 · Baseline kode `66dfe5e` (branch `main`)
+Status: **Aturan tetap** · Disusun 25 Agustus 2026, diperbarui 26 Agustus 2026 · Baseline kode
+`66dfe5e` (branch `main`)
 
 Dokumen ini berlaku untuk **setiap agen AI** yang menulis kode di repo ini, kapan pun, sesi
 mana pun. Ia bukan catatan satu tugas.
@@ -112,6 +113,12 @@ pernah terjadi, bukan kehati-hatian teoretis.
 9. **Verifikasi bentuk berkas ekspor, bukan keberadaannya.** Bug orientasi di butir 6 hanya
    ketahuan karena ujinya membongkar `.docx` dan membaca `word/document.xml`. Memeriksa
    "berkasnya jadi" tidak akan pernah menangkapnya.
+
+10. **`RESEARCH_ENABLED` default `true`, dan `validateEnv()` mewajibkan `TAVILY_API_KEY` begitu
+    itu menyala** (`apps/api/src/config/env.ts`). Tanpa key, `apps/api` **menolak boot** —
+    termasuk di `AUTH_MODE=none` untuk pengembangan lokal. Kalau belum ada key Tavily, set
+    `RESEARCH_ENABLED=false` secara eksplisit di `.env`; jangan biarkan kosong berharap ia
+    default mati, karena defaultnya justru nyala.
 
 ---
 

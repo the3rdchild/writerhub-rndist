@@ -1,6 +1,7 @@
 # WritingHub — Desain Sistem & Batas Modul
 
-Status: **Referensi tetap** · Disusun 25 Agustus 2026 · Baseline kode `66dfe5e` (branch `main`)
+Status: **Referensi tetap** · Disusun 25 Agustus 2026, diperbarui 26 Agustus 2026 · Baseline
+kode `66dfe5e` (branch `main`)
 
 Dokumen ini menjelaskan **bentuk sistem**: bagian apa saja yang ada, siapa boleh memanggil
 siapa, dan ke mana sepotong kode baru semestinya diletakkan.
@@ -213,6 +214,13 @@ dengan mengubah env. Jangan menghapus cabang kode `pp` karena "tidak terpakai di
 
 Token pengguna diambil dari header `Authorization` bila WritingHub disematkan di shell yang
 meneruskannya, atau dari cookie `AUTH_COOKIE_NAME` bila berdiri sendiri.
+
+**Dependensi eksternal langsung dari `apps/api`** (di luar admin-ppe/pp-extended): provider AI
+(`AI_BASE_URL`/`AI_API_KEY`, dipakai AI Chat) dan, sejak 26 Agustus 2026, **Tavily**
+(`TAVILY_API_KEY`, dipakai fitur Riset Web — `docs/WEB-RESEARCH-PLAN.md`). Keduanya secret yang
+tunduk pada aturan yang sama di atas: tidak pernah sampai ke browser, hanya dibaca sisi server.
+`RESEARCH_ENABLED` default **menyala**, dan `validateEnv()` menolak boot tanpa `TAVILY_API_KEY`
+selama itu menyala — lihat `docs/agents.md` §3.10.
 
 ---
 
