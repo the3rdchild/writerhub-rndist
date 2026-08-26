@@ -431,12 +431,3 @@ export function duplicateTab(doc: Y.Doc, id: string): string | null {
 
 	return copyId
 }
-
-export function readComments(doc: Y.Doc, id: string): CommentThread[] {
-	const { meta } = tabsRoot(doc)
-	return (meta.get(id)?.get('comments') as CommentThread[]) ?? []
-}
-
-export function writeComments(doc: Y.Doc, id: string, comments: CommentThread[]): void {
-	updateTab(doc, id, { comments })
-}
