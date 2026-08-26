@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { EDITOR_TOOLS, isReadTool } from '@writer-hub/shared'
+import { ALL_TOOLS, EDITOR_TOOLS, RESEARCH_TOOLS, isReadTool, toProviderTools } from '@writer-hub/shared'
 describe('registri alat editor', () => {
 	test('nama alat unik', () => {
 		const names = EDITOR_TOOLS.map((tool) => tool.name)
@@ -116,5 +116,32 @@ describe('alat section (§P8&P9)', () => {
 	test('set_columns tetap tidak mewajibkan find setelah scope ditambahkan', () => {
 		const tool = EDITOR_TOOLS.find((item) => item.name === 'set_columns')
 		expect(tool?.parameters.required ?? []).toEqual(['count'])
+	})
+})
+
+describe('alat riset web', () => {
+	test('nama tidak bentrok dengan alat editor', () => {
+		const names = ALL_TOOLS.map((tool) => tool.name)
+		expect(new Set(names).size).toBe(names.length)
+	})
+
+	test('keduanya alat baca - tidak pernah butuh Apply', () => {
+		expect(RESEARCH_TOOLS.every((tool) => tool.kind === 'read')).toBe(true)
+		expect(isReadTool('web_search')).toBe(true)
+		expect(isReadTool('fetch_url')).toBe(true)
+	})
+
+	test('tidak dikirim ke model saat mode riset mati', () => {
+		const names = toProviderTools().map((tool) => (tool as { function: { name: string } }).function.name)
+		expect(names).toHaveLength(EDITOR_TOOLS.length)
+		expect(names).not.toContain('web_search')
+	})
+
+	test('dikirim ke model saat mode riset menyala', () => {
+		const names = toProviderTools({ research: true }).map(
+			(tool) => (tool as { function: { name: string } }).function.name,
+		)
+		expect(names).toContain('web_search')
+		expect(names).toContain('fetch_url')
 	})
 })

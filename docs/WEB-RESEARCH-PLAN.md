@@ -19,8 +19,10 @@ kuota, dan penanda konten tak tepercaya.
    Palette **dua tingkat** (intent dulu, tool mentah menyusul), bukan 35 tool datar.
 3. **Sumber disimpan di `metadata_version.result`**, muncul di `/activity` sebagai
    `feature = 'research'`. Butuh `version_id` jadi nullable (§2).
-4. **Bahasa global.** Tidak ada hardcode `id`; bahasa dikirim per-permintaan dari bahasa dokumen
-   aktif, model boleh meng-override.
+4. **Bahasa global.** Tidak ada hardcode `id`, **dan tidak ada penyuntikan otomatis dari bahasa
+   dokumen**: `language` hanya dikirim kalau model menyebutkannya. Terbukti di uji R4 - model
+   memilih `language: "id"` sendiri untuk query berbahasa Indonesia, jadi penyuntikan paksa hanya
+   akan menyaring sumber berbahasa lain tanpa manfaat.
 5. **Cache Redis**, TTL terpisah: berita 3 jam, umum 24 jam.
 6. **Kartu verifikasi.** Chip sumber yang bisa diklik sebelum writer menekan Apply.
 
@@ -356,15 +358,18 @@ Tiap tahap bisa di-merge sendiri dan tidak merusak yang sudah jalan.
 
 | Tahap | Isi | Bisa diuji dengan |
 |---|---|---|
-| **R1** | `lib/tavily-client.ts` + env + `lib/research-cache.ts` | Unit test dengan `fetch` yang di-stub |
-| **R2** | Migrasi 0022, guard `deletePoolRequests`, `feature = 'research'` di `/activity` | Baris riset muncul di `/activity`, hapus riwayat tidak menghapus versi dokumen |
-| **R3** | `services/research/*` + `routes/v1/research.route.ts` | `curl` ke endpoint; kuota & cache terbukti jalan |
-| **R4** | Dua tool di `packages/shared`, `remote-tools.ts`, `await` di loop, panduan prompt | Prompt "cari X lalu masukkan ke dokumen" jalan utuh |
-| **R5** | `commands.ts` + `chat-command-menu.tsx` + toggle | `/riset` dan toggle menyalakan mode yang sama |
+| **R1** ✅ | `lib/tavily-client.ts` + env + `lib/research-cache.ts` | Unit test dengan `fetch` yang di-stub |
+| **R2** ✅ | Migrasi 0022, guard `deletePoolRequests`, `feature = 'research'` di `/activity` | Baris riset muncul di `/activity`, hapus riwayat tidak menghapus versi dokumen |
+| **R3** ✅ | `services/research/*` + `routes/v1/research.route.ts` + proksi Next | `curl` ke endpoint; baris aktivitas tercatat |
+| **R4** ✅ | `packages/shared/src/research-tools.ts`, `remote-tools.ts`, `await` di loop, panduan prompt, **toggle** | Model memanggil `web_search`; mode mati menyuruh menyalakan toggle |
+| **R5** | `commands.ts` + `chat-command-menu.tsx` (palette `/`) | `/riset` menyalakan mode yang sama dengan toggle |
 | **R6** | `research-sources-card.tsx` | Chip sumber tampil dan bisa diklik |
 
 R1–R3 murni server dan tidak terlihat pengguna. R4 adalah titik fitur ini mulai berguna; R5–R6
 mempernyaman.
+
+**Perubahan urutan:** toggle ditarik maju dari R5 ke R4 - tanpanya R4 selesai tapi pengguna tidak
+punya cara menyalakan mode riset. Palette `/` tetap di R5.
 
 ---
 

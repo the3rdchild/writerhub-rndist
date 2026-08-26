@@ -33,6 +33,7 @@ import { createTab as createTabInDoc } from '@/features/sessions/ydoc'
 import { buildSchema, fragmentToJSON, jsonToFragment } from '@/features/sync/serialize'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import { parseFallbackCalls, streamChat, stripFallbackCalls } from './api'
+import { isRemoteReadTool, remoteToolLabel, runRemoteReadTool } from './remote-tools'
 import {
 	applyWriteTool,
 	type ReadToolContext,
@@ -164,6 +165,8 @@ interface ChatContextValue {
 	isActionSettled: (id: string) => boolean
 	autoApply: boolean
 	setAutoApply: (value: boolean) => void
+	research: boolean
+	setResearch: (value: boolean) => void
 	model: string
 	setModel: (value: string) => void
 }
@@ -187,6 +190,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const [autoApply, setAutoApply] = usePersistentState('writer-hub-chat-auto-apply', false)
 	const autoApplyRef = useRef(autoApply)
 	autoApplyRef.current = autoApply
+	const [research, setResearch] = usePersistentState('writer-hub-chat-research', false)
+	const researchRef = useRef(research)
+	researchRef.current = research
 	const applyActionsRef = useRef<((calls: ToolCall[]) => void) | null>(null)
 	const pendingAutoApplyRef = useRef<ToolCall[] | null>(null)
 	const messagesRef = useRef<ChatTurn[]>(messages)
@@ -352,6 +358,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						messages: buildOutboundMessages(history, taskId),
 						context: buildContext(),
 						tools: toolsRef.current,
+						research: researchRef.current,
 						model: modelRef.current,
 					},
 					{
@@ -419,7 +426,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 			const editor = editorRef.current
 			const budgetSpent = round >= MAX_TOOL_ROUNDS || readsUsed >= MAX_READ_CALLS
-			if (reads.length === 0 || sealed || !editor) {
+			if (reads.length === 0 || sealed) {
 				if (reads.length > 0 && sealed) {
 					pushStep('Penelusuran ditutup')
 					patchRunningStep({
@@ -434,7 +441,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				return
 			}
 			const results: ChatTurn[] = []
-			const readContext = buildReadContext(editor)
+			const readContext = editor ? buildReadContext(editor) : null
 			for (const call of reads) {
 				if (call.name === 'plan') {
 					const items = Array.isArray(call.arguments.steps)
@@ -448,6 +455,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					pushStep('Berpikir sejenak')
 					patchRunningStep({ status: 'done', endedAt: Date.now(), detail: String(call.arguments.thought ?? '') })
 					results.push({ role: 'tool', content: 'OK.', toolCallId: call.id, taskId })
+					continue
+				}
+
+				if (isRemoteReadTool(call.name)) {
+					pushStep(remoteToolLabel(call))
+					const remote = await runRemoteReadTool(call, controller.signal)
+					patchRunningStep({
+						status: 'done',
+						endedAt: Date.now(),
+						detail: `${remote.sources.length} sumber\n→ ${summarizeToolResult(remote.text)}`,
+					})
+					advancePlan()
+					results.push({ role: 'tool', content: remote.text, toolCallId: call.id, taskId })
+					continue
+				}
+
+				if (!editor || !readContext) {
+					results.push({
+						role: 'tool',
+						content: 'Editor sedang tidak tersedia, jadi alat baca dokumen tidak bisa dijalankan.',
+						toolCallId: call.id,
+						taskId,
+					})
 					continue
 				}
 
@@ -669,6 +699,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			isActionSettled: (id: string) => settledActionIds.has(id),
 			autoApply,
 			setAutoApply,
+			research,
+			setResearch,
 			model,
 			setModel,
 		}),
@@ -691,6 +723,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			settledActionIds,
 			autoApply,
 			setAutoApply,
+			research,
+			setResearch,
 			model,
 			setModel,
 		],

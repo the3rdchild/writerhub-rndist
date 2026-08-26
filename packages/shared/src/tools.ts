@@ -1,3 +1,5 @@
+import { RESEARCH_TOOLS } from './research-tools'
+
 export type ToolKind = 'read' | 'write'
 
 export interface ToolDefinition {
@@ -529,7 +531,10 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 	},
 ]
 
-const BY_NAME = new Map(EDITOR_TOOLS.map((tool) => [tool.name, tool]))
+/** Semua alat yang bisa dipanggil model, apa pun modenya. */
+export const ALL_TOOLS: readonly ToolDefinition[] = [...EDITOR_TOOLS, ...RESEARCH_TOOLS]
+
+const BY_NAME = new Map(ALL_TOOLS.map((tool) => [tool.name, tool]))
 
 export function findTool(name: string): ToolDefinition | undefined {
 	return BY_NAME.get(name)
@@ -548,8 +553,17 @@ export interface ToolResult {
 	name: string
 	content: string
 }
-export function toProviderTools(): unknown[] {
-	return EDITOR_TOOLS.map((tool) => ({
+export interface ToolScope {
+	/** Alat riset web hanya dikirim ke model saat mode riset menyala. */
+	research?: boolean
+}
+
+function toolsInScope(scope: ToolScope | undefined): readonly ToolDefinition[] {
+	return scope?.research ? ALL_TOOLS : EDITOR_TOOLS
+}
+
+export function toProviderTools(scope?: ToolScope): unknown[] {
+	return toolsInScope(scope).map((tool) => ({
 		type: 'function',
 		function: {
 			name: tool.name,
@@ -558,8 +572,8 @@ export function toProviderTools(): unknown[] {
 		},
 	}))
 }
-export function fallbackToolPrompt(): string {
-	const list = EDITOR_TOOLS.map((tool) => {
+export function fallbackToolPrompt(scope?: ToolScope): string {
+	const list = toolsInScope(scope).map((tool) => {
 		const params = Object.keys(tool.parameters.properties).join(', ') || '(none)'
 		return `- ${tool.name}(${params}) - ${tool.description}`
 	}).join('\n')

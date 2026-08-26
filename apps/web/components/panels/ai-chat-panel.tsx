@@ -8,6 +8,7 @@ import {
 	ChevronRight,
 	Cpu,
 	FileText,
+	Globe,
 	Loader2,
 	type LucideIcon,
 	Plus,
@@ -50,6 +51,8 @@ export function AiChatPanel() {
 		currentTaskId,
 		autoApply,
 		setAutoApply,
+		research,
+		setResearch,
 	} = useChat()
 
 	const [draft, setDraft] = useState('')
@@ -181,6 +184,18 @@ export function AiChatPanel() {
 						}
 						active={autoApply}
 						onClick={() => setAutoApply(!autoApply)}
+					/>
+
+					<ToggleIcon
+						icon={Globe}
+						label="Riset web"
+						hint={
+							research
+								? 'AI boleh mencari dan membaca halaman web - hasilnya tercatat di Aktivitas'
+								: 'Nyalakan agar AI bisa mencari di web, bukan cuma membaca dokumen'
+						}
+						active={research}
+						onClick={() => setResearch(!research)}
 					/>
 
 					{messages.length > 0 && (

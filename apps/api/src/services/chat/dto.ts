@@ -7,7 +7,7 @@ export const chatBodySchema = z.object({
 		.array(
 			z.object({
 				role: z.enum(['user', 'assistant', 'tool']),
-				content: z.string().max(20_000),
+				content: z.string().max(CHAT_CONTEXT_LIMITS.message),
 				toolCalls: z
 					.array(z.object({ id: z.string(), name: z.string(), arguments: z.string() }))
 					.optional(),
@@ -26,6 +26,7 @@ export const chatBodySchema = z.object({
 		})
 		.optional(),
 	tools: z.boolean().optional().default(true),
+	research: z.boolean().optional().default(false),
 	model: z.string().max(200).optional(),
 })
 

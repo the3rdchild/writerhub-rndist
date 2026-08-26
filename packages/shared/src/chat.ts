@@ -40,4 +40,6 @@ export const CHAT_CONTEXT_LIMITS = {
 	surrounding: 4_000,
 	document: 60_000,
 	messages: 40,
+	/** Satu pesan - longgar karena hasil `fetch_url` masuk lewat sini. */
+	message: 64_000,
 } as const
