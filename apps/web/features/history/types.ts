@@ -3,8 +3,9 @@ import type {
 	AnalysisResultData,
 	GrammarResultPayload,
 	JobStatus,
+	ResearchResultPayload,
 } from '@writer-hub/shared'
-export type HistoryFeature = 'grammar' | AnalysisFeature
+export type HistoryFeature = 'grammar' | 'research' | AnalysisFeature
 
 export interface HistoryEntry {
 	jobId: string
@@ -23,5 +24,5 @@ export interface HistoryListResponse {
 
 export interface HistoryDetail extends HistoryEntry {
 	error: string | null
-	result: GrammarResultPayload | AnalysisResultData | null
+	result: GrammarResultPayload | AnalysisResultData | ResearchResultPayload | null
 }

@@ -1,4 +1,9 @@
-import type { AnalysisResultData, GrammarResultPayload, JobStatus } from '@writer-hub/shared'
+import type {
+	AnalysisResultData,
+	GrammarResultPayload,
+	JobStatus,
+	ResearchResultPayload,
+} from '@writer-hub/shared'
 import { AppError } from '@/lib/error'
 import {
 	deleteAllHistoryForUser,
@@ -17,6 +22,7 @@ interface SummarySource {
 	analysisChangeCount: number | null
 	analysisLabel: string | null
 	analysisScore: string | null
+	researchSourceCount: number | null
 }
 function summarize(source: SummarySource): string | null {
 	if (source.status !== 'completed') return null
@@ -28,6 +34,10 @@ function summarize(source: SummarySource): string | null {
 			const count = source.suggestionCount ?? 0
 			parts.push(count === 1 ? '1 saran' : `${count} saran`)
 			return parts.join(' · ')
+		}
+		case 'research': {
+			const count = source.researchSourceCount ?? 0
+			return count === 1 ? '1 sumber' : `${count} sumber`
 		}
 		case 'ai_rewriter':
 		case 'humanizer': {
@@ -77,8 +87,14 @@ function scoreOf(result: AnalysisResultShape): string | null {
 }
 
 type ResultRow = DetailRow['result']
+function researchSourceCountOf(result: ResultRow): number | null {
+	if (!result || result.feature !== 'research') return null
+	const sources = (result.result as Record<string, unknown>).sources
+	return Array.isArray(sources) ? sources.length : 0
+}
+
 function analysisResultOf(result: ResultRow): AnalysisResultShape {
-	if (!result || result.feature === 'grammar') return null
+	if (!result || result.feature === 'grammar' || result.feature === 'research') return null
 	return result.result as unknown as AnalysisResultData
 }
 
@@ -97,6 +113,9 @@ function resultOf(row: DetailRow): HistoryDetail['result'] {
 	if (!row.result) return null
 	if (row.result.feature === 'grammar') {
 		return row.result.result as unknown as GrammarResultPayload
+	}
+	if (row.result.feature === 'research') {
+		return row.result.result as unknown as ResearchResultPayload
 	}
 	return row.result.result as unknown as AnalysisResultData
 }
@@ -155,6 +174,7 @@ export default class HistoryService extends BaseService {
 					analysisChangeCount: changeCountOf(analysisResultOf(row.result)),
 					analysisLabel: labelOf(analysisResultOf(row.result)),
 					analysisScore: scoreOf(analysisResultOf(row.result)),
+					researchSourceCount: researchSourceCountOf(row.result),
 				}),
 				error: row.request.error,
 				result: resultOf(row),

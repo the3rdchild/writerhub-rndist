@@ -1,6 +1,7 @@
 import {
 	BookMarked,
 	Bot,
+	Globe,
 	Languages,
 	type LucideIcon,
 	RefreshCw,
@@ -11,6 +12,7 @@ import {
 import type { HistoryFeature } from '@/features/history/types'
 export const FEATURE_META: Record<HistoryFeature, { label: string; icon: LucideIcon }> = {
 	grammar: { label: 'Proofreader', icon: SpellCheck },
+	research: { label: 'Riset Web', icon: Globe },
 	ai_detector: { label: 'AI Detector', icon: Bot },
 	ai_rewriter: { label: 'AI Rewriter', icon: RefreshCw },
 	humanizer: { label: 'Humanizer', icon: UserCheck },

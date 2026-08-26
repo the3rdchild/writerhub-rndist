@@ -1,0 +1,1 @@
+ALTER TABLE "metadata_version" ALTER COLUMN "version_id" DROP NOT NULL;

@@ -1,7 +1,12 @@
-import { ANALYSIS_FEATURES } from '@writer-hub/shared'
-import type { AnalysisResultData, GrammarResultPayload, JobStatus } from '@writer-hub/shared'
+import { ANALYSIS_FEATURES, RESEARCH_FEATURE } from '@writer-hub/shared'
+import type {
+	AnalysisResultData,
+	GrammarResultPayload,
+	JobStatus,
+	ResearchResultPayload,
+} from '@writer-hub/shared'
 import { z } from 'zod'
-export const HISTORY_FEATURES = ['grammar', ...ANALYSIS_FEATURES] as const
+export const HISTORY_FEATURES = ['grammar', RESEARCH_FEATURE, ...ANALYSIS_FEATURES] as const
 export type HistoryFeature = (typeof HISTORY_FEATURES)[number]
 
 export const historyListQuerySchema = z.object({
@@ -21,7 +26,7 @@ export interface HistorySummary {
 }
 export interface HistoryDetail extends HistorySummary {
 	error: string | null
-	result: GrammarResultPayload | AnalysisResultData | null
+	result: GrammarResultPayload | AnalysisResultData | ResearchResultPayload | null
 }
 
 export interface HistoryListResponse {

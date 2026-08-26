@@ -8,9 +8,8 @@ export const metadataVersion = pgTable('metadata_version', {
 	request_id: uuid('request_id')
 		.notNull()
 		.references(() => poolRequest.id, { onDelete: 'cascade' }),
-	version_id: uuid('version_id')
-		.notNull()
-		.references(() => documentVersions.id, { onDelete: 'cascade' }),
+	// Nullable: hasil riset web tidak menghasilkan versi dokumen apa pun.
+	version_id: uuid('version_id').references(() => documentVersions.id, { onDelete: 'cascade' }),
 	feature: varchar('feature', { length: 50 }).notNull(),
 	result: jsonb('result').notNull().$type<Record<string, unknown>>(),
 

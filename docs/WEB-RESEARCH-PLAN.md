@@ -98,6 +98,11 @@ semantiknya "biaya satu permintaan", jadi tidak perlu kolom baru.
 - `components/activity/activity-view.tsx` — satu entri baru di `FILTERS`.
 - `repository/history.ts` — satu `CASE` baru untuk ringkasan: jumlah sumber
   (`jsonb_array_length(result->'sources')`), sejajar dengan `suggestionCount` yang sudah ada.
+- `features/history/reapply.ts` — `canOpenInPanel()`. **Entri riset bersifat baca-saja:** tidak
+  punya panel, tidak bisa diterapkan ulang, dan tombol aksinya tidak ditampilkan. Tanpa penjaga
+  ini `panelForFeature('research')` mengembalikan `PanelId` yang tidak ada.
+- `components/activity/activity-detail.tsx` — daftar sumber yang bisa diklik (judul, domain,
+  tanggal terbit, penanda "dibaca penuh").
 
 **Retensi:** `HISTORY_RETENTION_DAYS = 90` berlaku apa adanya. Sumber ikut terhapus setelah 90
 hari — diterima, karena sitasi yang perlu bertahan sudah tertulis di naskah.

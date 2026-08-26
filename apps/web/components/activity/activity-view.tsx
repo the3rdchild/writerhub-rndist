@@ -16,6 +16,7 @@ const timeFormat = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '
 const FILTERS: Array<{ key: HistoryFeature | 'all'; label: string }> = [
 	{ key: 'all', label: 'Semua' },
 	{ key: 'grammar', label: 'Proofreader' },
+	{ key: 'research', label: 'Riset Web' },
 	{ key: 'ai_detector', label: 'AI Detector' },
 	{ key: 'ai_rewriter', label: 'AI Rewriter' },
 	{ key: 'humanizer', label: 'Humanizer' },

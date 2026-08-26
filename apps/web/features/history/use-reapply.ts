@@ -1,6 +1,6 @@
 'use client'
 
-import type { AnalysisFeature, GrammarResultPayload } from '@writer-hub/shared'
+import type { AnalysisFeature, AnalysisResultData, GrammarResultPayload } from '@writer-hub/shared'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useCallback, useState } from 'react'
@@ -11,7 +11,7 @@ import { getDocument, getTab } from '@/features/documents/api'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSync } from '@/features/sync/sync-context'
 import { fingerprint } from '@/lib/utils'
-import { canReapply, panelForFeature, remapResult, tabPlainText } from './reapply'
+import { canOpenInPanel, canReapply, panelForFeature, remapResult, tabPlainText } from './reapply'
 import type { HistoryDetail } from './types'
 
 export interface ReapplyController {
@@ -52,7 +52,7 @@ export function useReapply(detail: HistoryDetail | null): ReapplyController {
 	}, [detail?.tabId, openFromLibrary])
 
 	const reapply = useCallback(() => {
-		if (!detail?.result || !detail.feature || !activeId || !documentReady) return
+		if (!detail?.result || !canOpenInPanel(detail.feature) || !activeId || !documentReady) return
 
 		const text = tabPlainText(doc, activeId)
 
@@ -64,7 +64,7 @@ export function useReapply(detail: HistoryDetail | null): ReapplyController {
 			})
 		} else {
 			const feature = detail.feature as AnalysisFeature
-			const remapped = remapResult(feature, detail.result, text)
+			const remapped = remapResult(feature, detail.result as AnalysisResultData, text)
 			markRun(feature, {
 				text,
 				offset: 0,

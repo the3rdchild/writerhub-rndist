@@ -17,7 +17,13 @@ import type { HistoryFeature } from './types'
 export function tabPlainText(doc: Doc, tabId: string): string {
 	return versionPlainText(fragmentToJSON(doc, tabId))
 }
-export function panelForFeature(feature: HistoryFeature): PanelId {
+/** Riset web hanya catatan sumber - tidak punya panel dan tidak bisa diterapkan. */
+export type ApplicableFeature = Exclude<HistoryFeature, 'research'>
+
+export function canOpenInPanel(feature: HistoryFeature | null): feature is ApplicableFeature {
+	return feature !== null && feature !== 'research'
+}
+export function panelForFeature(feature: ApplicableFeature): PanelId {
 	return feature === 'grammar' ? 'proofreader' : feature
 }
 export function canReapply(feature: HistoryFeature | null): boolean {
@@ -30,7 +36,7 @@ function remapChanges(text: string, changes: readonly TextChange[]): TextChange[
 	})
 }
 export function remapResult(
-	feature: HistoryFeature,
+	feature: ApplicableFeature,
 	result: GrammarResultPayload | AnalysisResultData,
 	text: string,
 ): GrammarResultPayload | AnalysisResultData {

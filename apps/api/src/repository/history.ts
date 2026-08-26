@@ -29,6 +29,11 @@ const analysisChangeCount = sql<number | null>`CASE
 	THEN jsonb_array_length(${metadataVersion.result}->'changes')
 	ELSE NULL
 END`
+const researchSourceCount = sql<number | null>`CASE
+	WHEN ${metadataVersion.feature} = 'research'
+	THEN jsonb_array_length(coalesce(${metadataVersion.result}->'sources', '[]'::jsonb))
+	ELSE NULL
+END`
 const analysisLabel = sql<string | null>`CASE
 	WHEN ${metadataVersion.feature} != 'grammar' THEN ${metadataVersion.result}->>'label'
 	ELSE NULL
@@ -59,6 +64,7 @@ export async function findHistoryByUser(userId: string, filter: HistoryListFilte
 			analysisChangeCount,
 			analysisLabel,
 			analysisScore,
+			researchSourceCount,
 		})
 		.from(poolRequest)
 		.leftJoin(documentTabs, eq(poolRequest.tab_id, documentTabs.id))
@@ -94,13 +100,14 @@ async function deletePoolRequests(ids: string[]): Promise<number> {
 
 		await tx.delete(poolRequest).where(inArray(poolRequest.id, ids))
 
-		if (orphaned.length > 0) {
-			await tx.delete(documentVersions).where(
-				inArray(
-					documentVersions.id,
-					orphaned.map((row) => row.versionId),
-				),
-			)
+		// Riset web tidak punya versi dokumen - version_id-nya NULL dan tidak
+		// boleh ikut masuk daftar hapus.
+		const versionIds = orphaned
+			.map((row) => row.versionId)
+			.filter((versionId): versionId is string => versionId !== null)
+
+		if (versionIds.length > 0) {
+			await tx.delete(documentVersions).where(inArray(documentVersions.id, versionIds))
 		}
 
 		return ids.length

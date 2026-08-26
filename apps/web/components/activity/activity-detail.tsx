@@ -6,12 +6,13 @@ import type {
 	GrammarResultPayload,
 	HumanizerResult,
 	PlagiarismResult,
+	ResearchResultPayload,
 } from '@writer-hub/shared'
 import { ArrowRight, Trash2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { resolveSpan } from '@/features/document/suggestions'
-import { canReapply, tabPlainText } from '@/features/history/reapply'
+import { canOpenInPanel, canReapply, tabPlainText } from '@/features/history/reapply'
 import { useReapply } from '@/features/history/use-reapply'
 import { useDeleteHistoryEntry, useHistoryEntry } from '@/features/history/use-history'
 import type { HistoryDetail } from '@/features/history/types'
@@ -48,6 +49,37 @@ function ChangeRow({
 				<p className="mt-2 text-[11px] font-medium text-yellow-400">teks sudah berubah</p>
 			)}
 		</div>
+	)
+}
+function hostOf(url: string): string {
+	try {
+		return new URL(url).hostname.replace(/^www\./, '')
+	} catch {
+		return url
+	}
+}
+function SourceRow({ source }: { source: ResearchResultPayload['sources'][number] }) {
+	return (
+		<a
+			href={source.url}
+			target="_blank"
+			rel="noreferrer noopener"
+			className="rounded-xl border border-line bg-surface-raised p-3 transition-colors hover:border-accent/40"
+		>
+			<p className="text-xs font-medium leading-relaxed text-foreground">{source.title}</p>
+			<p className="mt-1 text-[11px] text-subtle">
+				{[
+					hostOf(source.url),
+					source.publishedAt,
+					source.extracted ? 'dibaca penuh' : null,
+				]
+					.filter(Boolean)
+					.join(' · ')}
+			</p>
+			{source.snippet && (
+				<p className="mt-1 line-clamp-3 text-[11px] leading-relaxed text-muted">{source.snippet}</p>
+			)}
+		</a>
 	)
 }
 function ResultBody({ detail, text }: { detail: HistoryDetail; text: string }) {
@@ -106,6 +138,20 @@ function ResultBody({ detail, text }: { detail: HistoryDetail; text: string }) {
 		)
 	}
 
+	if (detail.feature === 'research') {
+		const research = result as ResearchResultPayload
+		return (
+			<div className="flex flex-col gap-2">
+				<p className="px-1 text-[11px] text-subtle">
+					&ldquo;{research.query}&rdquo; · {research.sources.length} sumber
+				</p>
+				{research.sources.map((source) => (
+					<SourceRow key={source.url} source={source} />
+				))}
+			</div>
+		)
+	}
+
 	if (detail.feature === 'plagiarism') {
 		const plagiarism = result as PlagiarismResult
 		return (
@@ -147,7 +193,10 @@ export function ActivityDetail({
 	)
 
 	const meta = detail?.feature ? FEATURE_META[detail.feature] : null
-	const canAct = detail !== null && detail.status === 'completed' && detail.result !== null
+	// Riset web cuma catatan sumber - tidak ada yang bisa diterapkan ke naskah.
+	const actionable = canOpenInPanel(detail?.feature ?? null)
+	const canAct =
+		actionable && detail !== null && detail.status === 'completed' && detail.result !== null
 
 	async function handleDelete() {
 		setConfirmOpen(false)
@@ -221,7 +270,7 @@ export function ActivityDetail({
 
 			{detail && (
 				<div className="flex shrink-0 flex-col gap-2 border-t border-line px-4 py-3">
-					{!documentReady && detail.tabId && (
+					{!documentReady && detail.tabId && actionable && (
 						<>
 							<button
 								type="button"

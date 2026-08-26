@@ -1,3 +1,4 @@
+import type { ResearchTopic } from '@writer-hub/shared'
 import { env } from '@/config/env'
 import { AppError } from '@/lib/error'
 import LoggerClient from '@/utils/logger'
@@ -15,7 +16,6 @@ const EXTRACT_URL_LIMIT = 20
 /** Satu kredit menanggung 5 ekstraksi yang berhasil. */
 const EXTRACT_URLS_PER_CREDIT = 5
 
-export type ResearchTopic = 'general' | 'news'
 export type ResearchTimeRange = 'day' | 'week' | 'month' | 'year'
 
 export interface TavilySource {
