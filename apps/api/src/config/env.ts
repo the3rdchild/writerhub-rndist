@@ -41,6 +41,15 @@ export const env = {
 	AI_BASE_URL: str('AI_BASE_URL', 'https://openrouter.ai/api/v1'),
 	AI_API_KEY: str('AI_API_KEY'),
 	AI_MODEL: str('AI_MODEL', 'openai/gpt-4o-mini'),
+	TAVILY_API_KEY: str('TAVILY_API_KEY'),
+	RESEARCH_ENABLED: str('RESEARCH_ENABLED', 'true') !== 'false',
+	RESEARCH_MAX_SEARCHES: num('RESEARCH_MAX_SEARCHES', 5),
+	RESEARCH_MAX_EXTRACTS: num('RESEARCH_MAX_EXTRACTS', 8),
+	RESEARCH_MAX_RESULTS: num('RESEARCH_MAX_RESULTS', 8),
+	RESEARCH_MAX_ROUNDS: num('RESEARCH_MAX_ROUNDS', 20),
+	RESEARCH_CACHE_TTL_NEWS: num('RESEARCH_CACHE_TTL_NEWS', 10_800),
+	RESEARCH_CACHE_TTL_GENERAL: num('RESEARCH_CACHE_TTL_GENERAL', 86_400),
+	RESEARCH_DENY_DOMAINS: str('RESEARCH_DENY_DOMAINS'),
 	PP_EXTENDED_ADMIN_URL: str('PP_EXTENDED_ADMIN_URL'),
 	PP_EXTENDED_ADMIN_HMAC_SECRET: str('PP_EXTENDED_ADMIN_HMAC_SECRET'),
 } as const
@@ -55,10 +64,14 @@ const S3_REQUIRED = [
 	'CDN_ACCESS_KEY_ID',
 	'CDN_SECRET_ACCESS_KEY',
 ] as const satisfies readonly (keyof typeof env)[]
+const RESEARCH_REQUIRED = ['TAVILY_API_KEY'] as const satisfies readonly (keyof typeof env)[]
 
 export function validateEnv(): void {
-	const required: readonly (keyof typeof env)[] =
-		env.STORAGE_DRIVER === 's3' ? [...BASE_REQUIRED, ...S3_REQUIRED] : BASE_REQUIRED
+	const required: readonly (keyof typeof env)[] = [
+		...BASE_REQUIRED,
+		...(env.STORAGE_DRIVER === 's3' ? S3_REQUIRED : []),
+		...(env.RESEARCH_ENABLED ? RESEARCH_REQUIRED : []),
+	]
 
 	const missing = required.filter((key) => !env[key])
 	if (missing.length > 0) {
@@ -68,5 +81,7 @@ export function validateEnv(): void {
 	if (isLocalAuth) {
 		console.warn('🔓 AUTH_MODE=none - endpoint terbuka tanpa autentikasi. Jangan dipakai di produksi.')
 	}
-	console.info(`🔑 Environment validated | auth=${env.AUTH_MODE} | storage=${env.STORAGE_DRIVER}`)
+	console.info(
+		`🔑 Environment validated | auth=${env.AUTH_MODE} | storage=${env.STORAGE_DRIVER} | research=${env.RESEARCH_ENABLED ? 'on' : 'off'}`,
+	)
 }
