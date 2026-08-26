@@ -196,10 +196,11 @@ ruff check --select F821 . && pytest -q
   menangkap kesalahan tipe, bukan kesalahan struktur. Impor tak terpakai dan berkas
   serba-guna lolos begitu saja. Standar di `coding_standard.md` ditegakkan lewat tinjauan,
   bukan otomatis.
-- **`bun run test` tidak menguji API.** Seluruh uji TypeScript ada di `apps/web/features/**`.
-  `apps/api` bahkan tidak punya skrip `test`, jadi perintah itu **terlihat hijau** padahal
-  seluruh lapisan API tidak pernah dijalankan. Kalau kamu menyentuh `apps/api`, uji manual dan
-  katakan begitu.
+- **Cakupan uji `apps/api` masih tipis.** Sejak 26 Agustus 2026 `apps/api` punya skrip `test`
+  dan dua berkas uji (dari fitur Riset Web), jadi `bun run test` sekarang benar-benar
+  menjalankannya — tapi baru dua berkas, jauh dari seluruh lapisan. `packages/shared` masih
+  tidak punya skrip `test` sama sekali. Kalau kamu menyentuh bagian `apps/api` yang belum ada
+  ujinya, uji manual dan katakan begitu.
 - **Lint & format Python masih advisory** di CI (`continue-on-error`), kecuali F821.
 
 **Uji apa yang kamu tambahkan.** Jalur tata letak menambah kasus di `columns.test.ts` /

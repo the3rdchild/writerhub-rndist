@@ -275,7 +275,7 @@ adalah calon konflik merge.
 | TypeScript | `tsc --noEmit` (strict, `noImplicitOverride`, `noFallthroughCasesInSwitch`) | Wajib lulus di CI |
 | TypeScript | Build `apps/web` | Wajib lulus di CI |
 | TypeScript | **Linter** | ⚠️ **Tidak ada.** Tidak ada ESLint, Prettier, maupun Biome di repo |
-| TypeScript | `bun test` | Hanya ada di `apps/web`; `apps/api` & `packages/shared` tidak punya skrip `test` |
+| TypeScript | `bun test` | Mayoritas di `apps/web`; `apps/api` dapat skrip `test` + 2 berkas uji pertama 26 Agustus 2026 (fitur Riset Web); `packages/shared` masih tidak punya skrip `test` |
 | Python | `python -m compileall` | Wajib lulus |
 | Python | `ruff check --select F821` (nama tak terdefinisi) | Wajib lulus — **blocking tersendiri** |
 | Python | `ruff check` & `ruff format --check` selengkapnya | Masih advisory (`continue-on-error`) |
@@ -297,15 +297,18 @@ Dicatat supaya tidak "ditemukan ulang" tiap beberapa minggu.
    lolos. Ini juga sebabnya standar di `coding_standard.md` harus ditegakkan lewat tinjauan
    manusia, bukan otomatis.
 
-2. **Cakupan uji timpang.** Seluruh uji TypeScript ada di `apps/web/features/**`.
-   `apps/api` dan `packages/shared` tidak punya satu pun uji, dan `apps/api` bahkan tidak
-   punya skrip `test` — sehingga `bun run test` di root **terlihat hijau** padahal seluruh
-   lapisan API tidak pernah diuji.
+2. **Cakupan uji masih timpang, meski membaik.** Mayoritas uji TypeScript ada di
+   `apps/web/features/**`. **Diperbarui 26 Agustus 2026** — `apps/api` sekarang punya skrip
+   `test` dan dua berkas uji (dari fitur Riset Web), jadi `bun run test` benar-benar
+   menjalankannya, tapi cakupannya masih jauh dari seluruh lapisan API. `packages/shared`
+   masih tidak punya satu pun uji atau skrip `test`.
 
 3. **`packages/shared` mengekspor lewat barrel sekaligus subpath, dan keduanya tidak
-   sinkron.** `index.ts` mengekspor ulang ketujuh modul, tapi peta `exports` hanya menamai
-   lima subpath — `chat`, `models`, dan `tools` tidak bisa diimpor per subpath. Akibatnya
-   konsumen menarik seluruh paket untuk satu tipe.
+   sinkron — makin lebar.** `index.ts` mengekspor ulang sembilan modul (bertambah `research`
+   dan `research-tools` 26 Agustus 2026), tapi peta `exports` masih hanya menamai empat
+   subpath (`grammar`, `analysis`, `job`, `http`) — lima modul (`chat`, `models`, `tools`,
+   `research`, `research-tools`) tidak bisa diimpor per subpath. Akibatnya konsumen menarik
+   seluruh paket untuk satu tipe.
 
 4. **Kontrak ke worker tidak dijamin compiler.** `packages/shared` tidak dibaca Python.
    Perubahan bentuk payload job harus diubah manual di kedua sisi.

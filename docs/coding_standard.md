@@ -196,10 +196,12 @@ yang ditulis ulang di tiap pemakainya akan menyimpang diam-diam (§6.4).
 - Uji **bentuk** keluaran, bukan keberadaannya. Bug orientasi ekspor DOCX hanya ketahuan karena
   ujinya membongkar `.docx` dan membaca `word/document.xml`.
 
-**Ketimpangan cakupan yang harus diketahui sebelum percaya pada hijau:** seluruh 30 uji
-TypeScript ada di `apps/web/features/**`. `apps/api` dan `packages/shared` **tidak punya satu
-pun uji**, dan `apps/api` bahkan tidak punya skrip `test` — sehingga `bun run test` di root
-terlihat hijau padahal seluruh lapisan API tidak pernah dijalankan.
+**Ketimpangan cakupan yang harus diketahui sebelum percaya pada hijau:** mayoritas uji
+TypeScript ada di `apps/web/features/**`. **Diperbarui 26 Agustus 2026** — fitur Riset Web
+menambahkan skrip `test` ke `apps/api/package.json` beserta dua berkas uji pertamanya
+(`tavily-client.test.ts`, `research/tool-text.test.ts`); `bun run test` sekarang benar-benar
+menjalankan lapisan API, meski cakupannya masih tipis. `packages/shared` **masih tidak punya
+skrip `test` sama sekali** — bagian klaim ini tetap berlaku untuknya.
 
 ---
 
