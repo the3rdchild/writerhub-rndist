@@ -9,6 +9,7 @@ from core.configs.env import (
     JOB_DEADLINE_SECONDS,
     WORKER_CONCURRENCY,
 )
+from core.queue.keys import job_hash_key, wait_key
 
 logger = logging.getLogger(__name__)
 
@@ -56,11 +57,11 @@ def _run_with_deadline(handler, data: dict, job_id: str | None, label: str) -> N
 
 
 def _consumer(handler, queue_name: str, r, label: str) -> None:
-    wait_key = f"bull:{queue_name}:wait"
+    queue_wait_key = wait_key(queue_name)
 
     while True:
         try:
-            result = r.brpop(wait_key, timeout=5)
+            result = r.brpop(queue_wait_key, timeout=5)
         except redis.exceptions.TimeoutError:
             continue  # idle, ga ada job (socket read timeout pas blocking) - normal
         except redis.exceptions.ConnectionError as e:
@@ -74,7 +75,7 @@ def _consumer(handler, queue_name: str, r, label: str) -> None:
         _, job_id = result
         job_id = job_id.decode()
 
-        rawdata = r.hgetall(f"bull:{queue_name}:{job_id}")
+        rawdata = r.hgetall(job_hash_key(queue_name, job_id))
         job = {k.decode(): v.decode() for k, v in rawdata.items()}
         data = json.loads(job.get("data", "{}"))
         payload_job_id = data.get("jobId") if isinstance(data, dict) else None
@@ -82,7 +83,7 @@ def _consumer(handler, queue_name: str, r, label: str) -> None:
         logger.info(f"[job masuk] queue={queue_name} id={job_id}")
 
         _run_with_deadline(handler, data, payload_job_id, label)
-        r.delete(f"bull:{queue_name}:{job_id}")
+        r.delete(job_hash_key(queue_name, job_id))
 
 
 def start(handler, queue_name: str = QUEUE_NAME, concurrency: int = WORKER_CONCURRENCY):
@@ -94,11 +95,11 @@ def start(handler, queue_name: str = QUEUE_NAME, concurrency: int = WORKER_CONCU
     memakan puluhan detik; tanpa ini satu pemakai mengunci yang lain.
     """
     r = redis.from_url(REDIS_URL)
-    wait_key = f"bull:{queue_name}:wait"
+    queue_wait_key = wait_key(queue_name)
     label = f"worker-{queue_name.lower()}"
 
     logger.info(
-        f"[{label}] dengerin {wait_key} (concurrency={concurrency}, deadline={JOB_DEADLINE_SECONDS}s)..."
+        f"[{label}] dengerin {queue_wait_key} (concurrency={concurrency}, deadline={JOB_DEADLINE_SECONDS}s)..."
     )
 
     if concurrency <= 1:

@@ -27,6 +27,8 @@ class CancelledError(Exception):
 
 
 def _flag_key(job_id: str) -> str:
+    """Harus sama persis dengan `cancelFlagKey` di
+    `apps/api/src/lib/job-events.ts`."""
     return f"job:{job_id}:cancel"
 
 

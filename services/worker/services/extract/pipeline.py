@@ -1,9 +1,9 @@
-from core.base_service import BaseService
+from core.job_logger import JobLogger
 
 from . import detect, normalize, parsers, sources
 from .errors import EmptyTextError, ScannedPdfError, UnsupportedFormatError
 
-_svc = BaseService("extract")
+_svc = JobLogger("extract")
 
 
 def run(payload: dict) -> str:

@@ -2,9 +2,10 @@ import json
 
 import redis as redis_lib
 
-from core.base_service import BaseService
+from core.job_logger import JobLogger
 from core.cancel import CancelledError, check_cancelled, clear_flag
 from core.configs.env import REDIS_URL
+from core.queue.keys import stream_channel
 from core.db.repository import (
     update_status,
     update_tokens,
@@ -23,7 +24,7 @@ from services.analyzers.glossary import run_glossary
 from services.analyzers.translator import run_translator
 from core.provider import resolve_provider
 
-_svc = BaseService("analysis_service")
+_svc = JobLogger("analysis_service")
 
 _redis = redis_lib.from_url(REDIS_URL, decode_responses=True)
 
@@ -52,7 +53,7 @@ def process(data: dict):
         _svc.logger.error("[analysis_service] job_id kagak ada, skip")
         return
 
-    _svc.log_start(job_id, feature=payload.get("feature"))
+    started_at = _svc.log_start(job_id, feature=payload.get("feature"))
     request = get_request_info(job_id) or {}
     request_id = payload.get("request_id") or request.get("request_id")
     if not request_id:
@@ -62,7 +63,7 @@ def process(data: dict):
     user_id = request.get("user_id")
 
     update_status(job_id, "processing")
-    channel = f"grammar:stream:{job_id}"
+    channel = stream_channel(job_id)
 
     try:
         feature = payload.get("feature")
@@ -104,7 +105,7 @@ def process(data: dict):
         )
         update_status(job_id, "completed")
         _publish(channel, {"type": "done", "result": result})
-        _svc.log_end(job_id)
+        _svc.log_end(job_id, started_at)
     except CancelledError:
         _svc.logger.info("[analysis_service] dibatalkan | job_id=%s", job_id)
         update_status(job_id, "cancelled")
@@ -112,7 +113,7 @@ def process(data: dict):
         clear_flag(job_id)
     except Exception as e:
         _svc.logger.exception("[analysis_service] error | job_id=%s", job_id)
-        _svc.log_error(job_id)
+        _svc.log_error(job_id, started_at)
         try:
             save_error(job_id, str(e))
         except Exception:
