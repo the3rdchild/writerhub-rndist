@@ -102,7 +102,8 @@ Table metadata_version {
   id uuid [pk, not null]
   job_id varchar(255) [not null, unique]
   request_id uuid [not null]
-  version_id uuid [not null]
+  // Nullable: hasil riset web tidak menghasilkan versi dokumen apa pun.
+  version_id uuid
   feature varchar(50) [not null]
   result jsonb [not null]
   updated_at timestamp [not null, default: `now()`]
