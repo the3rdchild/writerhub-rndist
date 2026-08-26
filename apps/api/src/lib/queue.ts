@@ -50,6 +50,21 @@ class QueueClient {
 		)
 	}
 
+	/**
+	 * Kunci Redis List BullMQ tempat job menunggu diambil (BRPOP) - harus sama
+	 * persis dengan `wait_key` di `services/worker/core/queue/keys.py`. Python
+	 * tidak membaca `packages/shared` (lihat docs/design.md §5), jadi
+	 * kecocokannya cuma dijaga lewat konvensi tertulis ini.
+	 */
+	static waitKey(queueName: string): string {
+		return `bull:${queueName}:wait`
+	}
+
+	/** Hash BullMQ berisi data satu job - pasangan {@link waitKey}. */
+	static jobHashKey(queueName: string, jobId: string): string {
+		return `bull:${queueName}:${jobId}`
+	}
+
 	static async close(): Promise<void> {
 		if (QueueClient.instance) {
 			await QueueClient.instance.close()
