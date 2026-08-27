@@ -16,7 +16,7 @@ export function TabNameInput({
 	const [value, setValue] = useState(initialValue)
 	const inputRef = useRef<HTMLInputElement>(null)
 
-	useEffect(function pilihSeluruhTeksSaatMuncul() {
+	useEffect(function selectNameOnMount() {
 		inputRef.current?.select()
 	}, [])
 

@@ -230,9 +230,12 @@ function ProjectNameInput({
 	const [value, setValue] = useState(initialValue)
 	const inputRef = useRef<HTMLInputElement>(null)
 
-	useEffect(() => {
-		if (autoFocus) inputRef.current?.select()
-	}, [autoFocus])
+	useEffect(
+		function selectNameWhenAutoFocused() {
+			if (autoFocus) inputRef.current?.select()
+		},
+		[autoFocus],
+	)
 
 	const commit = () => {
 		const trimmed = value.trim()

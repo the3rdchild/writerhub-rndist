@@ -104,17 +104,23 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 	const [exportOpen, setExportOpen] = useState(false)
 	const [docxExportOpen, setDocxExportOpen] = useState(false)
 	const [pageSetupOpen, setPageSetupOpen] = useState(false)
-	useEffect(() => {
-		applyTheme(settings.theme)
-	}, [settings.theme])
+	useEffect(
+		function applyThemeOnChange() {
+			applyTheme(settings.theme)
+		},
+		[settings.theme],
+	)
 
-	useEffect(() => {
-		if (settings.theme !== 'system') return
-		const media = window.matchMedia('(prefers-color-scheme: dark)')
-		const onChange = () => applyTheme('system')
-		media.addEventListener('change', onChange)
-		return () => media.removeEventListener('change', onChange)
-	}, [settings.theme])
+	useEffect(
+		function followSystemThemeChanges() {
+			if (settings.theme !== 'system') return
+			const media = window.matchMedia('(prefers-color-scheme: dark)')
+			const onChange = () => applyTheme('system')
+			media.addEventListener('change', onChange)
+			return () => media.removeEventListener('change', onChange)
+		},
+		[settings.theme],
+	)
 
 	const value = useMemo<SettingsContextValue>(
 		() => ({

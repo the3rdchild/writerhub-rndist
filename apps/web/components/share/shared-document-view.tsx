@@ -43,7 +43,7 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 	})
 
 	useEffect(
-		function tampilkanTabTerpilih() {
+		function showSelectedTab() {
 			if (!editor || !selectedTab) return
 
 			editor.commands.setContent(selectedTab.content, { emitUpdate: false })

@@ -9,7 +9,9 @@ import { formatKeys, isMacPlatform, matchAppShortcut, type ShortcutId, shortcut 
 
 export function useIsMac(): boolean {
 	const [mac, setMac] = useState(false)
-	useEffect(() => setMac(isMacPlatform()), [])
+	useEffect(function detectMacPlatform() {
+		setMac(isMacPlatform())
+	}, [])
 	return mac
 }
 
@@ -77,19 +79,22 @@ export function useAppShortcuts(): void {
 		deleteSession,
 	])
 
-	useEffect(() => {
-		const onKeyDown = (event: KeyboardEvent) => {
-			const matched = matchAppShortcut(event, mac)
-			if (!matched) return
+	useEffect(
+		function bindGlobalShortcuts() {
+			const onKeyDown = (event: KeyboardEvent) => {
+				const matched = matchAppShortcut(event, mac)
+				if (!matched) return
 
-			const handler = handlers[matched.id]
-			if (!handler) return
+				const handler = handlers[matched.id]
+				if (!handler) return
 
-			event.preventDefault()
-			handler()
-		}
+				event.preventDefault()
+				handler()
+			}
 
-		window.addEventListener('keydown', onKeyDown)
-		return () => window.removeEventListener('keydown', onKeyDown)
-	}, [mac, handlers])
+			window.addEventListener('keydown', onKeyDown)
+			return () => window.removeEventListener('keydown', onKeyDown)
+		},
+		[mac, handlers],
+	)
 }

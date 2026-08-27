@@ -52,10 +52,13 @@ function PanelBody({ panel }: { panel: PanelId }) {
 export function PanelContainer({ panel }: { panel: PanelId }) {
 	const { setActivePanel } = usePanels()
 	const { dispatch } = useDocument()
-	useEffect(() => {
-		dispatch({ type: 'setHoveredRange', range: null })
-		dispatch({ type: 'setFocusedRange', range: null })
-	}, [panel, dispatch])
+	useEffect(
+		function clearRangeHighlightsOnPanelChange() {
+			dispatch({ type: 'setHoveredRange', range: null })
+			dispatch({ type: 'setFocusedRange', range: null })
+		},
+		[panel, dispatch],
+	)
 
 	return (
 		<div className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-2xl bg-surface">

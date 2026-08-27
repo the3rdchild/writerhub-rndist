@@ -9,9 +9,12 @@ export function useAnalysisDiffHost(): void {
 	const { editor } = useEditorInstance()
 	const { activeDiff } = useAnalysisDiffContext()
 
-	useEffect(() => {
-		if (!editor) return
-		const ranges = activeDiff?.ranges ?? null
-		editor.view.dispatch(editor.state.tr.setMeta(analysisDiffHighlightKey, ranges))
-	}, [editor, activeDiff])
+	useEffect(
+		function pushDiffHighlights() {
+			if (!editor) return
+			const ranges = activeDiff?.ranges ?? null
+			editor.view.dispatch(editor.state.tr.setMeta(analysisDiffHighlightKey, ranges))
+		},
+		[editor, activeDiff],
+	)
 }

@@ -34,44 +34,47 @@ export function ShareDialog() {
 	const [error, setError] = useState<string | null>(null)
 	const [notSynced, setNotSynced] = useState(false)
 
-	useEffect(() => {
-		if (!shareOpen) {
-			setLink('')
-			setError(null)
-			setLoading(false)
-			setCopied(false)
-			setNotSynced(false)
-			setDocumentTitle('')
-			return
-		}
+	useEffect(
+		function resetStateWhenClosed() {
+			if (!shareOpen) {
+				setLink('')
+				setError(null)
+				setLoading(false)
+				setCopied(false)
+				setNotSynced(false)
+				setDocumentTitle('')
+				return
+			}
 
-		document.body.style.overflow = 'hidden'
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') setShareOpen(false)
-		}
-		window.addEventListener('keydown', onKeyDown)
-		const serverId = activeId ? linkage[activeId]?.serverId : undefined
-		if (!serverId) {
-			setNotSynced(true)
-		} else {
-			setLoading(true)
-			setError(null)
-			setNotSynced(false)
-			getTab(serverId)
-				.then((tab) => createShare({ documentId: tab.documentId, access, role }))
-				.then((result) => {
-					setLink(`${window.location.origin}${result.url}`)
-					setDocumentTitle(result.documentTitle)
-				})
-				.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal membuat link'))
-				.finally(() => setLoading(false))
-		}
+			document.body.style.overflow = 'hidden'
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') setShareOpen(false)
+			}
+			window.addEventListener('keydown', onKeyDown)
+			const serverId = activeId ? linkage[activeId]?.serverId : undefined
+			if (!serverId) {
+				setNotSynced(true)
+			} else {
+				setLoading(true)
+				setError(null)
+				setNotSynced(false)
+				getTab(serverId)
+					.then((tab) => createShare({ documentId: tab.documentId, access, role }))
+					.then((result) => {
+						setLink(`${window.location.origin}${result.url}`)
+						setDocumentTitle(result.documentTitle)
+					})
+					.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal membuat link'))
+					.finally(() => setLoading(false))
+			}
 
-		return () => {
-			document.body.style.overflow = ''
-			window.removeEventListener('keydown', onKeyDown)
-		}
-	}, [shareOpen, activeId, linkage, access, role])
+			return () => {
+				document.body.style.overflow = ''
+				window.removeEventListener('keydown', onKeyDown)
+			}
+		},
+		[shareOpen, activeId, linkage, access, role],
+	)
 
 	if (!shareOpen) return null
 

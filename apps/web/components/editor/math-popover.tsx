@@ -22,41 +22,47 @@ export function MathPopover({
 	} | null>(null)
 	const [latex, setLatex] = useState('')
 	const inputRef = useRef<HTMLTextAreaElement>(null)
-	useEffect(() => {
-		const root = editor?.view.dom
-		const container = containerRef.current
-		if (!root || !container || !editor) return
+	useEffect(
+		function openPopoverOnFormulaClick() {
+			const root = editor?.view.dom
+			const container = containerRef.current
+			if (!root || !container || !editor) return
 
-		const onClick = (event: MouseEvent) => {
-			const element = (event.target as HTMLElement).closest<HTMLElement>('[data-latex]')
-			if (!element) {
-				setTarget(null)
-				return
+			const onClick = (event: MouseEvent) => {
+				const element = (event.target as HTMLElement).closest<HTMLElement>('[data-latex]')
+				if (!element) {
+					setTarget(null)
+					return
+				}
+
+				const pos = editor.view.posAtDOM(element, 0)
+				const node = editor.state.doc.nodeAt(pos)
+				if (!node || (node.type.name !== MATH_INLINE && node.type.name !== MATH_BLOCK)) return
+
+				const rect = element.getBoundingClientRect()
+				const bounds = container.getBoundingClientRect()
+
+				setLatex(node.attrs.latex ?? '')
+				setTarget({
+					pos,
+					display: node.type.name === MATH_BLOCK,
+					top: rect.bottom - bounds.top + 8,
+					left: Math.max(8, Math.min(rect.left - bounds.left, bounds.width - 320)),
+				})
 			}
 
-			const pos = editor.view.posAtDOM(element, 0)
-			const node = editor.state.doc.nodeAt(pos)
-			if (!node || (node.type.name !== MATH_INLINE && node.type.name !== MATH_BLOCK)) return
+			root.addEventListener('click', onClick)
+			return () => root.removeEventListener('click', onClick)
+		},
+		[editor, containerRef],
+	)
 
-			const rect = element.getBoundingClientRect()
-			const bounds = container.getBoundingClientRect()
-
-			setLatex(node.attrs.latex ?? '')
-			setTarget({
-				pos,
-				display: node.type.name === MATH_BLOCK,
-				top: rect.bottom - bounds.top + 8,
-				left: Math.max(8, Math.min(rect.left - bounds.left, bounds.width - 320)),
-			})
-		}
-
-		root.addEventListener('click', onClick)
-		return () => root.removeEventListener('click', onClick)
-	}, [editor, containerRef])
-
-	useEffect(() => {
-		if (target) inputRef.current?.focus()
-	}, [target])
+	useEffect(
+		function focusInputOnTarget() {
+			if (target) inputRef.current?.focus()
+		},
+		[target],
+	)
 
 	if (!editor || !target || !containerRef.current) return null
 

@@ -9,18 +9,21 @@ import { cn } from '@/lib/utils'
 export function TocPanel({ editor, onClose }: { editor: Editor; onClose?: () => void }) {
 	const [items, setItems] = useState<TableOfContentDataItem[]>([])
 
-	useEffect(() => {
-		const read = () => {
-			const storage = (editor.storage as { tableOfContents?: { content: TableOfContentDataItem[] } })
-				.tableOfContents
-			setItems(storage?.content ?? [])
-		}
-		read()
-		editor.on('transaction', read)
-		return () => {
-			editor.off('transaction', read)
-		}
-	}, [editor])
+	useEffect(
+		function readOutlineFromStorage() {
+			const read = () => {
+				const storage = (editor.storage as { tableOfContents?: { content: TableOfContentDataItem[] } })
+					.tableOfContents
+				setItems(storage?.content ?? [])
+			}
+			read()
+			editor.on('transaction', read)
+			return () => {
+				editor.off('transaction', read)
+			}
+		},
+		[editor],
+	)
 
 	const jump = (item: TableOfContentDataItem) => {
 		editor.commands.focus()

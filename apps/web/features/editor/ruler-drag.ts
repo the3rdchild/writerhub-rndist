@@ -29,37 +29,40 @@ export function useRulerDrag<H>({ axis, zoom, trackRef, onMove, onUp }: RulerDra
 	const onUpRef = useRef(onUp)
 	onUpRef.current = onUp
 
-	useEffect(() => {
-		if (!dragging) return
+	useEffect(
+		function trackRulerDrag() {
+			if (!dragging) return
 
-		const positionOf = (event: PointerEvent) => {
-			const rect = trackRef.current?.getBoundingClientRect()
-			if (!rect) return null
-			const raw = (axis === 'x' ? event.clientX - rect.left : event.clientY - rect.top) / zoom
-			return snapRulerPosition(raw, event.shiftKey)
-		}
+			const positionOf = (event: PointerEvent) => {
+				const rect = trackRef.current?.getBoundingClientRect()
+				if (!rect) return null
+				const raw = (axis === 'x' ? event.clientX - rect.left : event.clientY - rect.top) / zoom
+				return snapRulerPosition(raw, event.shiftKey)
+			}
 
-		const handleMove = (event: PointerEvent) => {
-			const pos = positionOf(event)
-			if (pos === null) return
-			lastRef.current = pos
-			onMoveRef.current(dragging, pos)
-		}
-		const handleUp = () => {
-			onUpRef.current(dragging, lastRef.current)
-			lastRef.current = null
-			setDragging(null)
-		}
+			const handleMove = (event: PointerEvent) => {
+				const pos = positionOf(event)
+				if (pos === null) return
+				lastRef.current = pos
+				onMoveRef.current(dragging, pos)
+			}
+			const handleUp = () => {
+				onUpRef.current(dragging, lastRef.current)
+				lastRef.current = null
+				setDragging(null)
+			}
 
-		window.addEventListener('pointermove', handleMove)
-		window.addEventListener('pointerup', handleUp)
-		window.addEventListener('pointercancel', handleUp)
-		return () => {
-			window.removeEventListener('pointermove', handleMove)
-			window.removeEventListener('pointerup', handleUp)
-			window.removeEventListener('pointercancel', handleUp)
-		}
-	}, [dragging, axis, zoom, trackRef])
+			window.addEventListener('pointermove', handleMove)
+			window.addEventListener('pointerup', handleUp)
+			window.addEventListener('pointercancel', handleUp)
+			return () => {
+				window.removeEventListener('pointermove', handleMove)
+				window.removeEventListener('pointerup', handleUp)
+				window.removeEventListener('pointercancel', handleUp)
+			}
+		},
+		[dragging, axis, zoom, trackRef],
+	)
 
 	const startDrag = (handle: H) => (event: React.PointerEvent) => {
 		event.preventDefault()

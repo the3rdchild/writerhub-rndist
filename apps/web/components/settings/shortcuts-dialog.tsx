@@ -29,20 +29,23 @@ export function ShortcutsDialog() {
 		})).filter((group) => group.items.length > 0)
 	}, [])
 
-	useEffect(() => {
-		if (!shortcutsOpen) return
+	useEffect(
+		function lockScrollAndCloseOnEscape() {
+			if (!shortcutsOpen) return
 
-		document.body.style.overflow = 'hidden'
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') setShortcutsOpen(false)
-		}
-		window.addEventListener('keydown', onKeyDown)
+			document.body.style.overflow = 'hidden'
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') setShortcutsOpen(false)
+			}
+			window.addEventListener('keydown', onKeyDown)
 
-		return () => {
-			document.body.style.overflow = ''
-			window.removeEventListener('keydown', onKeyDown)
-		}
-	}, [shortcutsOpen, setShortcutsOpen])
+			return () => {
+				document.body.style.overflow = ''
+				window.removeEventListener('keydown', onKeyDown)
+			}
+		},
+		[shortcutsOpen, setShortcutsOpen],
+	)
 
 	if (!shortcutsOpen) return null
 

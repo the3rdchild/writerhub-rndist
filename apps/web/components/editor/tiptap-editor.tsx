@@ -98,47 +98,62 @@ export function TiptapEditor({
 		},
 		[activeId],
 	)
-	useEffect(() => {
-		onReady?.(editor)
-		return () => onReady?.(null)
-	}, [editor, onReady])
-	useEffect(() => {
-		if (!editor) return
-		const migrate = () => {
-			const tr = migrateLegacyColumns(editor.state)
-			if (tr) editor.view.dispatch(tr)
-		}
-		migrate()
-		editor.on('update', migrate)
-		return () => {
-			editor.off('update', migrate)
-		}
-	}, [editor])
-	useEffect(() => {
-		if (!editor) return
-		const transaction = editor.state.tr.setMeta(paginationKey, { geometry, setup, pageless })
-		transaction.setMeta('addToHistory', false)
-		editor.view.dispatch(transaction)
-	}, [editor, geometry, setup, pageless])
+	useEffect(
+		function reportEditorToParent() {
+			onReady?.(editor)
+			return () => onReady?.(null)
+		},
+		[editor, onReady],
+	)
+	useEffect(
+		function migrateLegacyColumnNodes() {
+			if (!editor) return
+			const migrate = () => {
+				const tr = migrateLegacyColumns(editor.state)
+				if (tr) editor.view.dispatch(tr)
+			}
+			migrate()
+			editor.on('update', migrate)
+			return () => {
+				editor.off('update', migrate)
+			}
+		},
+		[editor],
+	)
+	useEffect(
+		function pushPageGeometry() {
+			if (!editor) return
+			const transaction = editor.state.tr.setMeta(paginationKey, { geometry, setup, pageless })
+			transaction.setMeta('addToHistory', false)
+			editor.view.dispatch(transaction)
+		},
+		[editor, geometry, setup, pageless],
+	)
 	const syncedEditorRef = useRef<Editor | null>(null)
-	useEffect(() => {
-		if (!editor) return
-		if (syncedEditorRef.current !== editor) {
-			syncedEditorRef.current = editor
-			return
-		}
-		if (selfEditRef.current) {
-			selfEditRef.current = false
-			return
-		}
-		if (editorPlainText(editor) === state.text) return
+	useEffect(
+		function syncTextFromDocumentState() {
+			if (!editor) return
+			if (syncedEditorRef.current !== editor) {
+				syncedEditorRef.current = editor
+				return
+			}
+			if (selfEditRef.current) {
+				selfEditRef.current = false
+				return
+			}
+			if (editorPlainText(editor) === state.text) return
 
-		editor.commands.setContent(textToParagraphs(state.text), { emitUpdate: false })
-	}, [editor, state.text])
-	useEffect(() => {
-		if (!editor) return
-		editor.view.dispatch(editor.state.tr.setMeta(suggestionHighlightKey, state.suggestions))
-	}, [editor, state.suggestions])
+			editor.commands.setContent(textToParagraphs(state.text), { emitUpdate: false })
+		},
+		[editor, state.text],
+	)
+	useEffect(
+		function pushSuggestionHighlights() {
+			if (!editor) return
+			editor.view.dispatch(editor.state.tr.setMeta(suggestionHighlightKey, state.suggestions))
+		},
+		[editor, state.suggestions],
+	)
 	useAnalysisDiffHost()
 
 	const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -155,67 +170,81 @@ export function TiptapEditor({
 		hideTimer.current = setTimeout(() => setPopover(null), POPOVER_HIDE_DELAY_MS)
 	}, [cancelHide])
 
-	useEffect(() => () => cancelHide(), [cancelHide])
-	useEffect(() => {
-		const root = editor?.view.dom
-		const container = containerRef.current
-		if (!root || !container) return
+	useEffect(
+		function cancelPendingHideOnUnmount() {
+			return () => cancelHide()
+		},
+		[cancelHide],
+	)
+	useEffect(
+		function showSuggestionPopoverOnHover() {
+			const root = editor?.view.dom
+			const container = containerRef.current
+			if (!root || !container) return
 
-		const onOver = (event: Event) => {
-			const mark = (event.target as HTMLElement).closest<HTMLElement>('[data-suggestion-id]')
-			if (!mark) return
+			const onOver = (event: Event) => {
+				const mark = (event.target as HTMLElement).closest<HTMLElement>('[data-suggestion-id]')
+				if (!mark) return
 
-			cancelHide()
-			const markRect = mark.getBoundingClientRect()
-			const containerRect = container.getBoundingClientRect()
-			setPopover({
-				id: mark.dataset.suggestionId as string,
-				top: markRect.bottom - containerRect.top + 6,
-				left: Math.min(markRect.left - containerRect.left, containerRect.width - 240),
-			})
-		}
+				cancelHide()
+				const markRect = mark.getBoundingClientRect()
+				const containerRect = container.getBoundingClientRect()
+				setPopover({
+					id: mark.dataset.suggestionId as string,
+					top: markRect.bottom - containerRect.top + 6,
+					left: Math.min(markRect.left - containerRect.left, containerRect.width - 240),
+				})
+			}
 
-		const onOut = (event: Event) => {
-			if ((event.target as HTMLElement).closest('[data-suggestion-id]')) scheduleHide()
-		}
+			const onOut = (event: Event) => {
+				if ((event.target as HTMLElement).closest('[data-suggestion-id]')) scheduleHide()
+			}
 
-		root.addEventListener('mouseover', onOver)
-		root.addEventListener('mouseout', onOut)
-		return () => {
-			root.removeEventListener('mouseover', onOver)
-			root.removeEventListener('mouseout', onOut)
-		}
-	}, [editor, containerRef, cancelHide, scheduleHide])
+			root.addEventListener('mouseover', onOver)
+			root.addEventListener('mouseout', onOut)
+			return () => {
+				root.removeEventListener('mouseover', onOver)
+				root.removeEventListener('mouseout', onOut)
+			}
+		},
+		[editor, containerRef, cancelHide, scheduleHide],
+	)
 
-	useEffect(() => {
-		if (!editor || !state.focusedRange) return
+	useEffect(
+		function scrollToFocusedRange() {
+			if (!editor || !state.focusedRange) return
 
-		const index = buildTextIndex(editor.state.doc)
-		const range = textRangeToPM(index, state.focusedRange.offset, state.focusedRange.length)
-		dispatch({ type: 'setFocusedRange', range: null })
-		if (!range) return
+			const index = buildTextIndex(editor.state.doc)
+			const range = textRangeToPM(index, state.focusedRange.offset, state.focusedRange.length)
+			dispatch({ type: 'setFocusedRange', range: null })
+			if (!range) return
 
-		const node = editor.view.domAtPos(range.from).node
-		const element = node instanceof HTMLElement ? node : node.parentElement
-		element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-	}, [editor, state.focusedRange, dispatch])
-	useEffect(() => {
-		if (!editor) return
-		const root = editor.view.dom
+			const node = editor.view.domAtPos(range.from).node
+			const element = node instanceof HTMLElement ? node : node.parentElement
+			element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+		},
+		[editor, state.focusedRange, dispatch],
+	)
+	useEffect(
+		function paintHoveredRange() {
+			if (!editor) return
+			const root = editor.view.dom
 
-		const previous = root.querySelectorAll('.range-preview')
-		for (const element of previous) element.classList.remove('range-preview')
+			const previous = root.querySelectorAll('.range-preview')
+			for (const element of previous) element.classList.remove('range-preview')
 
-		if (!state.hoveredRange) return
+			if (!state.hoveredRange) return
 
-		const index = buildTextIndex(editor.state.doc)
-		const range = textRangeToPM(index, state.hoveredRange.offset, state.hoveredRange.length)
-		if (!range) return
+			const index = buildTextIndex(editor.state.doc)
+			const range = textRangeToPM(index, state.hoveredRange.offset, state.hoveredRange.length)
+			if (!range) return
 
-		const node = editor.view.domAtPos(range.from).node
-		const element = node instanceof HTMLElement ? node : node.parentElement
-		element?.classList.add('range-preview')
-	}, [editor, state.hoveredRange])
+			const node = editor.view.domAtPos(range.from).node
+			const element = node instanceof HTMLElement ? node : node.parentElement
+			element?.classList.add('range-preview')
+		},
+		[editor, state.hoveredRange],
+	)
 
 	const popoverSuggestion = popover
 		? state.suggestions.find((suggestion) => suggestion.id === popover.id)

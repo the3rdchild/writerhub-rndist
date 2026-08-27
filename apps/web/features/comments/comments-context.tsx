@@ -67,33 +67,39 @@ export function CommentsProvider({ children }: { children: ReactNode }) {
 		setActiveThread((current) => (current === id ? null : current))
 	}, [])
 	usePruneOrphanComments(forgetThread)
-	useEffect(() => {
-		setPending(null)
-		setDrafts({})
-		setActiveThread(null)
-	}, [activeId])
-	useEffect(() => {
-		if (!editor || editor.isDestroyed) return
-		const view = editor.view
+	useEffect(
+		function resetDraftsOnTabChange() {
+			setPending(null)
+			setDrafts({})
+			setActiveThread(null)
+		},
+		[activeId],
+	)
+	useEffect(
+		function paintActiveThreadMark() {
+			if (!editor || editor.isDestroyed) return
+			const view = editor.view
 
-		const paint = () => {
-			for (const node of view.dom.querySelectorAll('.comment-mark--active')) {
-				node.classList.remove('comment-mark--active')
+			const paint = () => {
+				for (const node of view.dom.querySelectorAll('.comment-mark--active')) {
+					node.classList.remove('comment-mark--active')
+				}
+				if (!activeThreadId) return
+
+				const selector = `[data-comment-id="${CSS.escape(activeThreadId)}"]`
+				for (const node of view.dom.querySelectorAll(selector)) {
+					node.classList.add('comment-mark--active')
+				}
 			}
-			if (!activeThreadId) return
 
-			const selector = `[data-comment-id="${CSS.escape(activeThreadId)}"]`
-			for (const node of view.dom.querySelectorAll(selector)) {
-				node.classList.add('comment-mark--active')
+			paint()
+			editor.on('update', paint)
+			return () => {
+				editor.off('update', paint)
 			}
-		}
-
-		paint()
-		editor.on('update', paint)
-		return () => {
-			editor.off('update', paint)
-		}
-	}, [activeThreadId, editor])
+		},
+		[activeThreadId, editor],
+	)
 
 	const startPending = useCallback(
 		(next: Omit<PendingComment, 'tabId'>) => {

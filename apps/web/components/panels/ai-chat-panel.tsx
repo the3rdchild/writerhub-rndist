@@ -68,29 +68,35 @@ export function AiChatPanel() {
 	const dismissedRef = useRef<string | null>(null)
 	const selectionKey = scope ? `${scope.offset}:${scope.length}` : null
 
-	useEffect(() => {
-		if (!scope || selectionKey === null || dismissedRef.current === selectionKey) return
-		if (isRunning) {
-			dismissedRef.current = selectionKey
-			return
-		}
+	useEffect(
+		function attachSelectionToPrompt() {
+			if (!scope || selectionKey === null || dismissedRef.current === selectionKey) return
+			if (isRunning) {
+				dismissedRef.current = selectionKey
+				return
+			}
 
-		attach({
-			text: scope.text,
-			surrounding: scope.surrounding,
-			offset: scope.offset,
-			length: scope.length,
-		})
-	}, [scope, selectionKey, attach, isRunning])
+			attach({
+				text: scope.text,
+				surrounding: scope.surrounding,
+				offset: scope.offset,
+				length: scope.length,
+			})
+		},
+		[scope, selectionKey, attach, isRunning],
+	)
 
 	const dismissAttachment = () => {
 		dismissedRef.current = selectionKey
 		clearAttachment()
 	}
-	useEffect(() => {
-		const element = scrollRef.current
-		if (element) element.scrollTop = element.scrollHeight
-	}, [messages, streaming, steps])
+	useEffect(
+		function scrollToLatestMessage() {
+			const element = scrollRef.current
+			if (element) element.scrollTop = element.scrollHeight
+		},
+		[messages, streaming, steps],
+	)
 
 	const submit = () => {
 		if (!draft.trim() || isRunning) return
@@ -663,11 +669,14 @@ function StepIcon({ status }: { status: ChatStep['status'] }) {
 function StepTimeline({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
 	const [open, setOpen] = useState<string | null>(null)
 	const [now, setNow] = useState(() => Date.now())
-	useEffect(() => {
-		if (!live) return
-		const timer = setInterval(() => setNow(Date.now()), 1000)
-		return () => clearInterval(timer)
-	}, [live])
+	useEffect(
+		function tickElapsedTimer() {
+			if (!live) return
+			const timer = setInterval(() => setNow(Date.now()), 1000)
+			return () => clearInterval(timer)
+		},
+		[live],
+	)
 
 	return (
 		<div className="flex flex-col gap-0.5 rounded-xl bg-surface-raised p-2">

@@ -129,21 +129,24 @@ function same(a: RulerTarget, b: RulerTarget): boolean {
 export function useRulerTarget(editor: Editor | null): RulerTarget {
 	const [target, setTarget] = useState<RulerTarget>(null)
 
-	useEffect(() => {
-		if (!editor) {
-			setTarget(null)
-			return
-		}
-		const sync = () => {
-			const next = readTarget(editor)
-			setTarget((current) => (same(current, next) ? current : next))
-		}
-		sync()
-		editor.on('transaction', sync)
-		return () => {
-			editor.off('transaction', sync)
-		}
-	}, [editor])
+	useEffect(
+		function syncRulerTarget() {
+			if (!editor) {
+				setTarget(null)
+				return
+			}
+			const sync = () => {
+				const next = readTarget(editor)
+				setTarget((current) => (same(current, next) ? current : next))
+			}
+			sync()
+			editor.on('transaction', sync)
+			return () => {
+				editor.off('transaction', sync)
+			}
+		},
+		[editor],
+	)
 
 	return target
 }

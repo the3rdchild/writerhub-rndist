@@ -40,23 +40,26 @@ export function Dropdown({
 	const close = useCallback(() => setOpen(false), [])
 	const toggle = useCallback(() => setOpen((current) => !current), [])
 
-	useEffect(() => {
-		if (!open) return
+	useEffect(
+		function closeOnOutsideClickOrEscape() {
+			if (!open) return
 
-		const onPointerDown = (event: PointerEvent) => {
-			if (!containerRef.current?.contains(event.target as Node)) close()
-		}
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') close()
-		}
+			const onPointerDown = (event: PointerEvent) => {
+				if (!containerRef.current?.contains(event.target as Node)) close()
+			}
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') close()
+			}
 
-		document.addEventListener('pointerdown', onPointerDown)
-		document.addEventListener('keydown', onKeyDown)
-		return () => {
-			document.removeEventListener('pointerdown', onPointerDown)
-			document.removeEventListener('keydown', onKeyDown)
-		}
-	}, [open, close])
+			document.addEventListener('pointerdown', onPointerDown)
+			document.addEventListener('keydown', onKeyDown)
+			return () => {
+				document.removeEventListener('pointerdown', onPointerDown)
+				document.removeEventListener('keydown', onKeyDown)
+			}
+		},
+		[open, close],
+	)
 
 	return (
 		<div ref={containerRef} className={cn('relative', className)}>
@@ -167,7 +170,9 @@ export function Submenu({
 			closeTimer.current = null
 		}
 	}
-	useEffect(() => cancelClose, [])
+	useEffect(function cancelPendingCloseOnUnmount() {
+		return cancelClose
+	}, [])
 
 	const openNow = () => {
 		cancelClose()

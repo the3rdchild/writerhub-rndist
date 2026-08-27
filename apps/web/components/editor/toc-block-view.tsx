@@ -117,19 +117,25 @@ export function TocBlockView({
 	const listKind = attrs.listKind
 	const showPageNumbers = attrs.showPageNumbers
 	const style = attrs.style
-	useEffect(() => {
-		refresh(false)
-	}, [refresh, minLevel, maxLevel, listKind, showPageNumbers, style])
-	useEffect(() => {
-		const dom = editor.view.dom
-		const onRefreshRequest = () => refresh(true)
-		window.addEventListener('beforeprint', onRefreshRequest)
-		dom.addEventListener(TOC_REFRESH_EVENT, onRefreshRequest)
-		return () => {
-			window.removeEventListener('beforeprint', onRefreshRequest)
-			dom.removeEventListener(TOC_REFRESH_EVENT, onRefreshRequest)
-		}
-	}, [editor, refresh])
+	useEffect(
+		function refreshOnOptionChange() {
+			refresh(false)
+		},
+		[refresh, minLevel, maxLevel, listKind, showPageNumbers, style],
+	)
+	useEffect(
+		function refreshOnPrintOrRequest() {
+			const dom = editor.view.dom
+			const onRefreshRequest = () => refresh(true)
+			window.addEventListener('beforeprint', onRefreshRequest)
+			dom.addEventListener(TOC_REFRESH_EVENT, onRefreshRequest)
+			return () => {
+				window.removeEventListener('beforeprint', onRefreshRequest)
+				dom.removeEventListener(TOC_REFRESH_EVENT, onRefreshRequest)
+			}
+		},
+		[editor, refresh],
+	)
 	const convertToText = () => {
 		const pos = getPos()
 		if (pos === undefined) return
@@ -156,28 +162,31 @@ export function TocBlockView({
 	}
 	const [gaps, setGaps] = useState<TocGap[]>([])
 	const [pageTick, setPageTick] = useState(0)
-	useEffect(() => {
-		let last = paginationKey.getState(editor.state)
-		const onTransaction = () => {
-			const current = paginationKey.getState(editor.state)
-			if (!current || !last) {
-				last = current
-				return
+	useEffect(
+		function refreshOnPaginationChange() {
+			let last = paginationKey.getState(editor.state)
+			const onTransaction = () => {
+				const current = paginationKey.getState(editor.state)
+				if (!current || !last) {
+					last = current
+					return
+				}
+				if (
+					current.spacers !== last.spacers ||
+					current.geometry !== last.geometry ||
+					current.pageless !== last.pageless
+				) {
+					last = current
+					setPageTick((t) => t + 1)
+				}
 			}
-			if (
-				current.spacers !== last.spacers ||
-				current.geometry !== last.geometry ||
-				current.pageless !== last.pageless
-			) {
-				last = current
-				setPageTick((t) => t + 1)
+			editor.on('transaction', onTransaction)
+			return () => {
+				editor.off('transaction', onTransaction)
 			}
-		}
-		editor.on('transaction', onTransaction)
-		return () => {
-			editor.off('transaction', onTransaction)
-		}
-	}, [editor])
+		},
+		[editor],
+	)
 	useLayoutEffect(() => {
 		const pos = getPos()
 		const wrapper = pos === undefined ? null : editor.view.nodeDOM(pos)

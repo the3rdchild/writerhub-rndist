@@ -46,34 +46,37 @@ export function useOutline(editor: Editor | null): Outline {
 	const scannedDoc = useRef<PMNode | null>(null)
 	const scannedItems = useRef<OutlineItem[]>([])
 
-	useEffect(() => {
-		if (!editor) {
-			setOutline(EMPTY)
-			return
-		}
-
-		const sync = () => {
-			const { doc, selection } = editor.state
-
-			if (scannedDoc.current !== doc) {
-				scannedDoc.current = doc
-				scannedItems.current = readHeadings(doc)
+	useEffect(
+		function syncOutlineFromDocument() {
+			if (!editor) {
+				setOutline(EMPTY)
+				return
 			}
 
-			const next: Outline = {
-				items: scannedItems.current,
-				activePos: activeHeading(scannedItems.current, selection.from),
+			const sync = () => {
+				const { doc, selection } = editor.state
+
+				if (scannedDoc.current !== doc) {
+					scannedDoc.current = doc
+					scannedItems.current = readHeadings(doc)
+				}
+
+				const next: Outline = {
+					items: scannedItems.current,
+					activePos: activeHeading(scannedItems.current, selection.from),
+				}
+
+				setOutline((current) => (sameOutline(current, next) ? current : next))
 			}
 
-			setOutline((current) => (sameOutline(current, next) ? current : next))
-		}
-
-		sync()
-		editor.on('transaction', sync)
-		return () => {
-			editor.off('transaction', sync)
-		}
-	}, [editor])
+			sync()
+			editor.on('transaction', sync)
+			return () => {
+				editor.off('transaction', sync)
+			}
+		},
+		[editor],
+	)
 
 	return outline
 }

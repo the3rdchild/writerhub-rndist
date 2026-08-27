@@ -11,15 +11,20 @@ export function useAnalysisHighlight(
 ): void {
 	const { editor } = useEditorInstance()
 
-	useEffect(() => {
-		if (!editor) return
-		editor.view.dispatch(editor.state.tr.setMeta(analysisHighlightKey, { source, ranges }))
-	}, [editor, source, ranges])
+	useEffect(
+		function pushHighlights() {
+			if (!editor) return
+			editor.view.dispatch(editor.state.tr.setMeta(analysisHighlightKey, { source, ranges }))
+		},
+		[editor, source, ranges],
+	)
 
 	useEffect(
-		() => () => {
-			if (!editor || editor.isDestroyed) return
-			editor.view.dispatch(editor.state.tr.setMeta(analysisHighlightKey, { source, ranges: [] }))
+		function clearHighlightsOnUnmount() {
+			return () => {
+				if (!editor || editor.isDestroyed) return
+				editor.view.dispatch(editor.state.tr.setMeta(analysisHighlightKey, { source, ranges: [] }))
+			}
 		},
 		[editor, source],
 	)

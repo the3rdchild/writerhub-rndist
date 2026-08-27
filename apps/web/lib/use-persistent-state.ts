@@ -22,13 +22,16 @@ export function usePersistentState<T>(
 	const initialRef = useRef(initialValue)
 	initialRef.current = initialValue
 
-	useEffect(() => {
-		try {
-			const raw = window.localStorage.getItem(key)
-			if (raw !== null) setValue(withDefaults(JSON.parse(raw), initialRef.current))
-		} catch {}
-		setHydrated(true)
-	}, [key])
+	useEffect(
+		function hydrateFromLocalStorage() {
+			try {
+				const raw = window.localStorage.getItem(key)
+				if (raw !== null) setValue(withDefaults(JSON.parse(raw), initialRef.current))
+			} catch {}
+			setHydrated(true)
+		},
+		[key],
+	)
 
 	const update = useCallback((next: T | ((current: T) => T)) => {
 		setValue((current) => {

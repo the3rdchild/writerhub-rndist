@@ -19,42 +19,45 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
 	})
 
 	const [rect, setRect] = useState<DOMRect | null>(null)
-	useEffect(() => {
-		if (!editor || !state) {
-			setRect(null)
-			return
-		}
-		const update = () => {
-			const view = editor.view
-			if (!view) return
-			const { from } = view.state.selection
-			const node = view.state.doc.nodeAt(from)
-			if (!node || node.type.name !== 'image') {
+	useEffect(
+		function trackToolbarPosition() {
+			if (!editor || !state) {
 				setRect(null)
 				return
 			}
-			const dom = view.nodeDOM(from) as HTMLElement | null
-			if (!dom) {
-				setRect(null)
-				return
+			const update = () => {
+				const view = editor.view
+				if (!view) return
+				const { from } = view.state.selection
+				const node = view.state.doc.nodeAt(from)
+				if (!node || node.type.name !== 'image') {
+					setRect(null)
+					return
+				}
+				const dom = view.nodeDOM(from) as HTMLElement | null
+				if (!dom) {
+					setRect(null)
+					return
+				}
+				const box = dom.getBoundingClientRect()
+				if (box.bottom < 0 || box.top > window.innerHeight) {
+					setRect(null)
+					return
+				}
+				setRect(box)
 			}
-			const box = dom.getBoundingClientRect()
-			if (box.bottom < 0 || box.top > window.innerHeight) {
-				setRect(null)
-				return
+			update()
+			editor.on('transaction', update)
+			window.addEventListener('scroll', update, true)
+			window.addEventListener('resize', update)
+			return () => {
+				editor.off('transaction', update)
+				window.removeEventListener('scroll', update, true)
+				window.removeEventListener('resize', update)
 			}
-			setRect(box)
-		}
-		update()
-		editor.on('transaction', update)
-		window.addEventListener('scroll', update, true)
-		window.addEventListener('resize', update)
-		return () => {
-			editor.off('transaction', update)
-			window.removeEventListener('scroll', update, true)
-			window.removeEventListener('resize', update)
-		}
-	}, [editor, state])
+		},
+		[editor, state],
+	)
 
 	if (!editor || !state || !rect) return null
 	const setAlign = (align: 'left' | 'center' | 'right') =>

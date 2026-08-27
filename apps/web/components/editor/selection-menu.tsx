@@ -51,9 +51,12 @@ export function SelectionMenu({
 	const selection = useEditorSelection(editor)
 	const [section, setSection] = useState<OpenSection>(null)
 	const menuRef = useRef<HTMLDivElement>(null)
-	useEffect(() => {
-		setSection(null)
-	}, [selection?.from, selection?.to])
+	useEffect(
+		function clearSectionOnSelectionChange() {
+			setSection(null)
+		},
+		[selection?.from, selection?.to],
+	)
 
 	const anchor = useSelectionAnchor(editor, selection, containerRef)
 	const top = useFlippedTop(anchor, menuRef, containerRef, section)
@@ -204,33 +207,36 @@ function useSelectionAnchor(
 ): Anchor | null {
 	const [anchor, setAnchor] = useState<Anchor | null>(null)
 
-	useEffect(() => {
-		const container = containerRef.current
-		if (!editor || !selection || !container) {
-			setAnchor(null)
-			return
-		}
+	useEffect(
+		function anchorMenuToSelection() {
+			const container = containerRef.current
+			if (!editor || !selection || !container) {
+				setAnchor(null)
+				return
+			}
 
-		const update = () => {
-			const from = editor.view.coordsAtPos(selection.from)
-			const to = editor.view.coordsAtPos(selection.to)
-			const rect = container.getBoundingClientRect()
-			setAnchor({
-				top: Math.min(from.top, to.top) - rect.top,
-				bottom: Math.max(from.bottom, to.bottom) - rect.top,
-				left: Math.max(8, Math.min(from.left - rect.left, rect.width - MENU_MAX_WIDTH - 8)),
-			})
-		}
+			const update = () => {
+				const from = editor.view.coordsAtPos(selection.from)
+				const to = editor.view.coordsAtPos(selection.to)
+				const rect = container.getBoundingClientRect()
+				setAnchor({
+					top: Math.min(from.top, to.top) - rect.top,
+					bottom: Math.max(from.bottom, to.bottom) - rect.top,
+					left: Math.max(8, Math.min(from.left - rect.left, rect.width - MENU_MAX_WIDTH - 8)),
+				})
+			}
 
-		update()
-		const canvas = container.querySelector('.document-canvas')
-		canvas?.addEventListener('scroll', update, { passive: true })
-		window.addEventListener('resize', update)
-		return () => {
-			canvas?.removeEventListener('scroll', update)
-			window.removeEventListener('resize', update)
-		}
-	}, [editor, selection, containerRef])
+			update()
+			const canvas = container.querySelector('.document-canvas')
+			canvas?.addEventListener('scroll', update, { passive: true })
+			window.addEventListener('resize', update)
+			return () => {
+				canvas?.removeEventListener('scroll', update)
+				window.removeEventListener('resize', update)
+			}
+		},
+		[editor, selection, containerRef],
+	)
 
 	return anchor
 }

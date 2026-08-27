@@ -28,20 +28,23 @@ export function SettingsDialog() {
 	const [tab, setTab] = useState<TabKey>('profile')
 	const overlayRef = useRef<HTMLDivElement>(null)
 
-	useEffect(() => {
-		if (!settingsOpen) return
+	useEffect(
+		function lockScrollAndCloseOnEscape() {
+			if (!settingsOpen) return
 
-		document.body.style.overflow = 'hidden'
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') setSettingsOpen(false)
-		}
-		window.addEventListener('keydown', onKeyDown)
+			document.body.style.overflow = 'hidden'
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') setSettingsOpen(false)
+			}
+			window.addEventListener('keydown', onKeyDown)
 
-		return () => {
-			document.body.style.overflow = ''
-			window.removeEventListener('keydown', onKeyDown)
-		}
-	}, [settingsOpen, setSettingsOpen])
+			return () => {
+				document.body.style.overflow = ''
+				window.removeEventListener('keydown', onKeyDown)
+			}
+		},
+		[settingsOpen, setSettingsOpen],
+	)
 
 	if (!settingsOpen) return null
 

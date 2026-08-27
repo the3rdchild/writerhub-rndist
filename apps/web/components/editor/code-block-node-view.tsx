@@ -41,16 +41,19 @@ export function CodeBlockNodeView({ node, updateAttributes, selected, deleteNode
 		},
 		[mermaidId],
 	)
-	useEffect(() => {
-		if (!isMermaid) return
-		if (mermaidView !== 'preview') return
-		if (lastRenderedRef.current.source === code && lastRenderedRef.current.svg) {
-			setMermaidSvg(lastRenderedRef.current.svg)
-			return
-		}
-		const timer = setTimeout(() => void renderMermaid(code), 300)
-		return () => clearTimeout(timer)
-	}, [isMermaid, mermaidView, code, renderMermaid])
+	useEffect(
+		function renderMermaidPreview() {
+			if (!isMermaid) return
+			if (mermaidView !== 'preview') return
+			if (lastRenderedRef.current.source === code && lastRenderedRef.current.svg) {
+				setMermaidSvg(lastRenderedRef.current.svg)
+				return
+			}
+			const timer = setTimeout(() => void renderMermaid(code), 300)
+			return () => clearTimeout(timer)
+		},
+		[isMermaid, mermaidView, code, renderMermaid],
+	)
 
 	const copyCode = useCallback(() => {
 		navigator.clipboard.writeText(code).then(() => {

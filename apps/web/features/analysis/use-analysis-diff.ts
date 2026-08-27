@@ -41,12 +41,17 @@ export function useAnalysisDiff(
 	}, [baseText, edits])
 
 	const enabled = isEnabled(feature)
-	useEffect(() => {
-		if (enabled) publish(feature, ranges)
-	}, [enabled, feature, ranges, publish])
 	useEffect(
-		() => () => {
-			disableCtx(feature)
+		function publishDiffWhenEnabled() {
+			if (enabled) publish(feature, ranges)
+		},
+		[enabled, feature, ranges, publish],
+	)
+	useEffect(
+		function disableDiffOnUnmount() {
+			return () => {
+				disableCtx(feature)
+			}
 		},
 		[disableCtx, feature],
 	)

@@ -41,15 +41,23 @@ export function useCandidatePreview() {
 		},
 		[send],
 	)
-	useEffect(() => {
-		if (!preview) return
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') clearPreview()
-		}
-		window.addEventListener('keydown', onKeyDown)
-		return () => window.removeEventListener('keydown', onKeyDown)
-	}, [preview, clearPreview])
-	useEffect(() => clearPreview, [clearPreview])
+	useEffect(
+		function closePreviewOnEscape() {
+			if (!preview) return
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') clearPreview()
+			}
+			window.addEventListener('keydown', onKeyDown)
+			return () => window.removeEventListener('keydown', onKeyDown)
+		},
+		[preview, clearPreview],
+	)
+	useEffect(
+		function clearPreviewOnUnmount() {
+			return clearPreview
+		},
+		[clearPreview],
+	)
 
 	return { preview, showPreview, clearPreview }
 }

@@ -49,27 +49,30 @@ export function VersionProvider({ children }: { children: ReactNode }) {
 
 	const openVersionMode = useCallback((mode: VersionMode) => setVersionMode(mode), [])
 	const closeVersionMode = useCallback(() => setVersionMode(null), [])
-	useEffect(() => {
-		const onUpdate = (_update: Uint8Array, origin: unknown) => {
-			if (origin === SYNC_ORIGIN || origin instanceof IndexeddbPersistence) return
-			const tabId = activeIdRef.current
-			if (!tabId || linkageRef.current[tabId]) return
-			void maybeSnapshotLocalInterval(doc, tabId)
-				.then((inserted) => {
-					if (inserted) {
-						void queryClient.invalidateQueries({
-							queryKey: [...VERSIONS_QUERY_KEY, 'local', tabId],
-						})
-					}
-				})
-				.catch(() => {})
-		}
+	useEffect(
+		function snapshotLocalIntervalOnEdit() {
+			const onUpdate = (_update: Uint8Array, origin: unknown) => {
+				if (origin === SYNC_ORIGIN || origin instanceof IndexeddbPersistence) return
+				const tabId = activeIdRef.current
+				if (!tabId || linkageRef.current[tabId]) return
+				void maybeSnapshotLocalInterval(doc, tabId)
+					.then((inserted) => {
+						if (inserted) {
+							void queryClient.invalidateQueries({
+								queryKey: [...VERSIONS_QUERY_KEY, 'local', tabId],
+							})
+						}
+					})
+					.catch(() => {})
+			}
 
-		doc.on('update', onUpdate)
-		return () => {
-			doc.off('update', onUpdate)
-		}
-	}, [doc, queryClient])
+			doc.on('update', onUpdate)
+			return () => {
+				doc.off('update', onUpdate)
+			}
+		},
+		[doc, queryClient],
+	)
 
 	const restoreToVersion = useCallback(
 		async (versionId: string) => {

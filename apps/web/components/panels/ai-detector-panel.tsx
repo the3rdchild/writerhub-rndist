@@ -46,9 +46,12 @@ export function AiDetectorPanel() {
 
 	const [sentences, setSentences] = useState<SentenceState[]>([])
 
-	useEffect(() => {
-		setSentences(result ? [...result.sentences] : [])
-	}, [result])
+	useEffect(
+		function resetSentencesOnResult() {
+			setSentences(result ? [...result.sentences] : [])
+		},
+		[result],
+	)
 	const highlightRanges = useMemo(
 		() =>
 			sentences.map(({ offset, length, score }) => ({

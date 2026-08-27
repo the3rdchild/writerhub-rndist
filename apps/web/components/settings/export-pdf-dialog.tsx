@@ -8,20 +8,23 @@ export function ExportPdfDialog() {
 	const { exportOpen, setExportOpen } = useSettings()
 	const overlayRef = useRef<HTMLDivElement>(null)
 
-	useEffect(() => {
-		if (!exportOpen) return
+	useEffect(
+		function lockScrollAndCloseOnEscape() {
+			if (!exportOpen) return
 
-		document.body.style.overflow = 'hidden'
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') setExportOpen(false)
-		}
-		window.addEventListener('keydown', onKeyDown)
+			document.body.style.overflow = 'hidden'
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') setExportOpen(false)
+			}
+			window.addEventListener('keydown', onKeyDown)
 
-		return () => {
-			document.body.style.overflow = ''
-			window.removeEventListener('keydown', onKeyDown)
-		}
-	}, [exportOpen, setExportOpen])
+			return () => {
+				document.body.style.overflow = ''
+				window.removeEventListener('keydown', onKeyDown)
+			}
+		},
+		[exportOpen, setExportOpen],
+	)
 
 	if (!exportOpen) return null
 

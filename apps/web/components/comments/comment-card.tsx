@@ -42,12 +42,15 @@ function CommentComposer({
 	onCancel?: () => void
 }) {
 	const ref = useRef<HTMLTextAreaElement>(null)
-	useEffect(() => {
-		const node = ref.current
-		if (!node) return
-		node.style.height = 'auto'
-		node.style.height = `${Math.min(node.scrollHeight, 160)}px`
-	}, [value])
+	useEffect(
+		function growTextareaToFit() {
+			const node = ref.current
+			if (!node) return
+			node.style.height = 'auto'
+			node.style.height = `${Math.min(node.scrollHeight, 160)}px`
+		},
+		[value],
+	)
 
 	const filled = value.trim().length > 0
 

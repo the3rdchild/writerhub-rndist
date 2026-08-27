@@ -20,10 +20,13 @@ export function usePendingChanges(changes: readonly TextChange[] | undefined) {
 	const [applied, setApplied] = useState<AppliedChange[]>([])
 	const [nextId, setNextId] = useState(0)
 
-	useEffect(() => {
-		setPending(changes ? [...changes] : [])
-		setApplied([])
-	}, [changes])
+	useEffect(
+		function resetPendingOnChanges() {
+			setPending(changes ? [...changes] : [])
+			setApplied([])
+		},
+		[changes],
+	)
 	const accept = useCallback(
 		(index: number, candidate?: string) => {
 			const change = pending[index]

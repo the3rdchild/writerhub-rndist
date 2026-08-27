@@ -118,50 +118,56 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	const { state, dispatch } = useDocument()
 	const { editor } = useEditorInstance()
 
-	useEffect(() => {
-		const provider = new IndexeddbPersistence(YDOC_NAME, doc)
+	useEffect(
+		function hydrateFromIndexeddb() {
+			const provider = new IndexeddbPersistence(YDOC_NAME, doc)
 
-		const onSynced = () => {
-			const migrated = migrateLegacySessions(doc)
-			migrateTabsToDocs(doc)
-			if (readDocs(doc).length === 0) createDocument(doc)
-			const migratedTabId = migrated?.activeId ?? null
-			if (migratedTabId) {
-				setView((current) =>
-					storedActiveTabId(current)
-						? current
-						: {
-								...current,
-								activeTabId: migratedTabId,
-								activeDocId: findTabDoc(doc, migratedTabId),
-							},
-				)
+			const onSynced = () => {
+				const migrated = migrateLegacySessions(doc)
+				migrateTabsToDocs(doc)
+				if (readDocs(doc).length === 0) createDocument(doc)
+				const migratedTabId = migrated?.activeId ?? null
+				if (migratedTabId) {
+					setView((current) =>
+						storedActiveTabId(current)
+							? current
+							: {
+									...current,
+									activeTabId: migratedTabId,
+									activeDocId: findTabDoc(doc, migratedTabId),
+								},
+					)
+				}
+				setLoaded(true)
 			}
-			setLoaded(true)
-		}
 
-		provider.on('synced', onSynced)
-		return () => {
-			provider.off('synced', onSynced)
-			provider.destroy()
-		}
-	}, [doc, setView])
-	useEffect(() => {
-		const docs = docsRoot(doc)
-		const tabsRoot_ = tabsRoot(doc)
-		const rebuild = () => {
-			setDocuments(readDocs(doc))
-			setTabs(readTabs(doc).map((meta) => ({ ...meta, preview: tabPreview(doc, meta.id) })))
-		}
+			provider.on('synced', onSynced)
+			return () => {
+				provider.off('synced', onSynced)
+				provider.destroy()
+			}
+		},
+		[doc, setView],
+	)
+	useEffect(
+		function rebuildOnYdocChange() {
+			const docs = docsRoot(doc)
+			const tabsRoot_ = tabsRoot(doc)
+			const rebuild = () => {
+				setDocuments(readDocs(doc))
+				setTabs(readTabs(doc).map((meta) => ({ ...meta, preview: tabPreview(doc, meta.id) })))
+			}
 
-		rebuild()
-		docs.root.observeDeep(rebuild)
-		tabsRoot_.root.observeDeep(rebuild)
-		return () => {
-			docs.root.unobserveDeep(rebuild)
-			tabsRoot_.root.unobserveDeep(rebuild)
-		}
-	}, [doc])
+			rebuild()
+			docs.root.observeDeep(rebuild)
+			tabsRoot_.root.observeDeep(rebuild)
+			return () => {
+				docs.root.unobserveDeep(rebuild)
+				tabsRoot_.root.unobserveDeep(rebuild)
+			}
+		},
+		[doc],
+	)
 	const storedTabId = storedActiveTabId(view)
 
 	const activeDocId = useMemo(() => {
@@ -192,61 +198,76 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	}, [documents, activeDocId, tabs, view])
 	const pendingLoad = useRef<{ id: string; text: string } | null>(null)
 	const touchedText = useRef<string | null>(null)
-	useEffect(() => {
-		if (!loaded || !editor || editor.isDestroyed || !activeId) return
-		const text = editorPlainText(editor)
-		const title = readDocs(doc).find((dok) => dok.id === activeDocId)?.title ?? 'Untitled document'
-		const local = tabView(view, activeId)
+	useEffect(
+		function loadActiveTabIntoEditor() {
+			if (!loaded || !editor || editor.isDestroyed || !activeId) return
+			const text = editorPlainText(editor)
+			const title = readDocs(doc).find((dok) => dok.id === activeDocId)?.title ?? 'Untitled document'
+			const local = tabView(view, activeId)
 
-		pendingLoad.current = { id: activeId, text }
-		touchedText.current = text
+			pendingLoad.current = { id: activeId, text }
+			touchedText.current = text
 
-		dispatch({
-			type: 'load',
-			document: { title, text, suggestions: local.suggestions, scores: local.scores },
-		})
-	}, [loaded, editor, activeId, activeDocId, doc, dispatch])
-	useEffect(() => {
-		if (!loaded || !activeId || !activeDocId) return
+			dispatch({
+				type: 'load',
+				document: { title, text, suggestions: local.suggestions, scores: local.scores },
+			})
+		},
+		[loaded, editor, activeId, activeDocId, doc, dispatch],
+	)
+	useEffect(
+		function writeBackEditorState() {
+			if (!loaded || !activeId || !activeDocId) return
 
-		const pending = pendingLoad.current
-		if (pending) {
-			if (pending.id !== activeId || state.text === pending.text) {
-				pendingLoad.current = null
+			const pending = pendingLoad.current
+			if (pending) {
+				if (pending.id !== activeId || state.text === pending.text) {
+					pendingLoad.current = null
+				}
+				return
 			}
-			return
-		}
 
-		const stored = readDocs(doc).find((dok) => dok.id === activeDocId)?.title
-		if (stored !== undefined && stored !== state.title) {
-			ydocRenameDocument(doc, activeDocId, state.title)
-		}
-	}, [loaded, activeId, activeDocId, doc, state.title, state.text])
-	useEffect(() => {
-		if (!loaded || !activeId || pendingLoad.current) return
-		if (state.text === touchedText.current) return
+			const stored = readDocs(doc).find((dok) => dok.id === activeDocId)?.title
+			if (stored !== undefined && stored !== state.title) {
+				ydocRenameDocument(doc, activeDocId, state.title)
+			}
+		},
+		[loaded, activeId, activeDocId, doc, state.title, state.text],
+	)
+	useEffect(
+		function touchTabAfterEdit() {
+			if (!loaded || !activeId || pendingLoad.current) return
+			if (state.text === touchedText.current) return
 
-		const timer = setTimeout(() => {
-			touchedText.current = state.text
-			touchTab(doc, activeId)
-		}, TOUCH_DEBOUNCE_MS)
+			const timer = setTimeout(() => {
+				touchedText.current = state.text
+				touchTab(doc, activeId)
+			}, TOUCH_DEBOUNCE_MS)
 
-		return () => clearTimeout(timer)
-	}, [loaded, activeId, doc, state.text])
-	useEffect(() => {
-		if (!loaded || !activeId || pendingLoad.current) return
-		setView((current) =>
-			patchTabView(current, activeId, { suggestions: state.suggestions, scores: state.scores }),
-		)
-	}, [loaded, activeId, setView, state.suggestions, state.scores])
-	useEffect(() => {
-		if (!loaded || tabs.length === 0) return
-		const ids = tabs.map((tab) => tab.id)
-		setView((current) => {
-			const pruned = pruneTabViews(current, ids)
-			return Object.keys(pruned.tabs).length === Object.keys(current.tabs).length ? current : pruned
-		})
-	}, [loaded, tabs, setView])
+			return () => clearTimeout(timer)
+		},
+		[loaded, activeId, doc, state.text],
+	)
+	useEffect(
+		function storeSuggestionsAndScores() {
+			if (!loaded || !activeId || pendingLoad.current) return
+			setView((current) =>
+				patchTabView(current, activeId, { suggestions: state.suggestions, scores: state.scores }),
+			)
+		},
+		[loaded, activeId, setView, state.suggestions, state.scores],
+	)
+	useEffect(
+		function pruneViewsForRemovedTabs() {
+			if (!loaded || tabs.length === 0) return
+			const ids = tabs.map((tab) => tab.id)
+			setView((current) => {
+				const pruned = pruneTabViews(current, ids)
+				return Object.keys(pruned.tabs).length === Object.keys(current.tabs).length ? current : pruned
+			})
+		},
+		[loaded, tabs, setView],
+	)
 
 	const newSession = useCallback(() => {
 		if (!activeDocId) return

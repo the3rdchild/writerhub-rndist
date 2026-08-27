@@ -53,36 +53,42 @@ export function TocSettingsDialog() {
 	const [draft, setDraft] = useState<TocBlockAttrs>(DEFAULT_TOC_ATTRS)
 	const applyRef = useRef<((patch: Partial<TocBlockAttrs>) => void) | null>(null)
 	const overlayRef = useRef<HTMLDivElement>(null)
-	useEffect(() => {
-		if (!editor) return
-		const dom = editor.view.dom
-		const handler = (e: Event) => {
-			const detail = (e as CustomEvent<TocSettingsRequest>).detail
-			if (!detail) return
-			applyRef.current = detail.apply
-			setDraft({ ...DEFAULT_TOC_ATTRS, ...detail.attrs })
-			setOpen(true)
-		}
-		dom.addEventListener(TOC_SETTINGS_EVENT, handler)
-		return () => {
-			dom.removeEventListener(TOC_SETTINGS_EVENT, handler)
-			applyRef.current = null
-			setOpen(false)
-		}
-	}, [editor])
+	useEffect(
+		function openOnSettingsRequest() {
+			if (!editor) return
+			const dom = editor.view.dom
+			const handler = (e: Event) => {
+				const detail = (e as CustomEvent<TocSettingsRequest>).detail
+				if (!detail) return
+				applyRef.current = detail.apply
+				setDraft({ ...DEFAULT_TOC_ATTRS, ...detail.attrs })
+				setOpen(true)
+			}
+			dom.addEventListener(TOC_SETTINGS_EVENT, handler)
+			return () => {
+				dom.removeEventListener(TOC_SETTINGS_EVENT, handler)
+				applyRef.current = null
+				setOpen(false)
+			}
+		},
+		[editor],
+	)
 
-	useEffect(() => {
-		if (!open) return
-		document.body.style.overflow = 'hidden'
-		const onKey = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') setOpen(false)
-		}
-		window.addEventListener('keydown', onKey)
-		return () => {
-			document.body.style.overflow = ''
-			window.removeEventListener('keydown', onKey)
-		}
-	}, [open])
+	useEffect(
+		function lockScrollAndCloseOnEscape() {
+			if (!open) return
+			document.body.style.overflow = 'hidden'
+			const onKey = (e: KeyboardEvent) => {
+				if (e.key === 'Escape') setOpen(false)
+			}
+			window.addEventListener('keydown', onKey)
+			return () => {
+				document.body.style.overflow = ''
+				window.removeEventListener('keydown', onKey)
+			}
+		},
+		[open],
+	)
 
 	const ok = () => {
 		applyRef.current?.(draft)

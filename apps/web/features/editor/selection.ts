@@ -37,26 +37,29 @@ function same(a: EditorSelection | null, b: EditorSelection | null): boolean {
 export function useEditorSelection(editor: Editor | null): EditorSelection | null {
 	const [selection, setSelection] = useState<EditorSelection | null>(null)
 
-	useEffect(() => {
-		if (!editor) {
-			setSelection(null)
-			return
-		}
+	useEffect(
+		function syncSelectionFromEditor() {
+			if (!editor) {
+				setSelection(null)
+				return
+			}
 
-		const sync = () =>
-			setSelection((current) => {
-				const next = read(editor)
-				return same(current, next) ? current : next
-			})
+			const sync = () =>
+				setSelection((current) => {
+					const next = read(editor)
+					return same(current, next) ? current : next
+				})
 
-		sync()
-		editor.on('selectionUpdate', sync)
-		editor.on('transaction', sync)
-		return () => {
-			editor.off('selectionUpdate', sync)
-			editor.off('transaction', sync)
-		}
-	}, [editor])
+			sync()
+			editor.on('selectionUpdate', sync)
+			editor.on('transaction', sync)
+			return () => {
+				editor.off('selectionUpdate', sync)
+				editor.off('transaction', sync)
+			}
+		},
+		[editor],
+	)
 
 	return selection
 }

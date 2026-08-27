@@ -44,26 +44,32 @@ export function PageSetupDialog() {
 	const [draft, setDraft] = useState<PageSetup>(setup)
 	const [scope, setScope] = useState<Scope>('document')
 	const [customError, setCustomError] = useState<string | null>(null)
-	useEffect(() => {
-		if (pageSetupOpen) {
-			setDraft(setup)
-			setScope('document')
-			setCustomError(null)
-		}
-	}, [pageSetupOpen, setup])
+	useEffect(
+		function resetDraftOnOpen() {
+			if (pageSetupOpen) {
+				setDraft(setup)
+				setScope('document')
+				setCustomError(null)
+			}
+		},
+		[pageSetupOpen, setup],
+	)
 
-	useEffect(() => {
-		if (!pageSetupOpen) return
-		document.body.style.overflow = 'hidden'
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') setPageSetupOpen(false)
-		}
-		window.addEventListener('keydown', onKeyDown)
-		return () => {
-			document.body.style.overflow = ''
-			window.removeEventListener('keydown', onKeyDown)
-		}
-	}, [pageSetupOpen, setPageSetupOpen])
+	useEffect(
+		function lockScrollAndCloseOnEscape() {
+			if (!pageSetupOpen) return
+			document.body.style.overflow = 'hidden'
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') setPageSetupOpen(false)
+			}
+			window.addEventListener('keydown', onKeyDown)
+			return () => {
+				document.body.style.overflow = ''
+				window.removeEventListener('keydown', onKeyDown)
+			}
+		},
+		[pageSetupOpen, setPageSetupOpen],
+	)
 
 	const activeTab = sessions.find((s) => s.id === activeId)
 	const unit = settings.measurementUnit

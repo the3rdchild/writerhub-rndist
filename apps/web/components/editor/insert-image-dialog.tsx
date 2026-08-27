@@ -19,28 +19,34 @@ export function InsertImageDialog({
 	const [error, setError] = useState<string | null>(null)
 	const overlayRef = useRef<HTMLDivElement>(null)
 	const urlInputRef = useRef<HTMLInputElement>(null)
-	useEffect(() => {
-		if (!open) return
-		setSrc('')
-		setAlt('')
-		setTitle('')
-		setMode('url')
-		setError(null)
-		const timer = setTimeout(() => urlInputRef.current?.focus(), 50)
-		return () => clearTimeout(timer)
-	}, [open])
-	useEffect(() => {
-		if (!open) return
-		document.body.style.overflow = 'hidden'
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') onCancel()
-		}
-		window.addEventListener('keydown', onKeyDown)
-		return () => {
-			document.body.style.overflow = ''
-			window.removeEventListener('keydown', onKeyDown)
-		}
-	}, [open, onCancel])
+	useEffect(
+		function resetFormOnOpen() {
+			if (!open) return
+			setSrc('')
+			setAlt('')
+			setTitle('')
+			setMode('url')
+			setError(null)
+			const timer = setTimeout(() => urlInputRef.current?.focus(), 50)
+			return () => clearTimeout(timer)
+		},
+		[open],
+	)
+	useEffect(
+		function lockScrollAndCloseOnEscape() {
+			if (!open) return
+			document.body.style.overflow = 'hidden'
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') onCancel()
+			}
+			window.addEventListener('keydown', onKeyDown)
+			return () => {
+				document.body.style.overflow = ''
+				window.removeEventListener('keydown', onKeyDown)
+			}
+		},
+		[open, onCancel],
+	)
 
 	if (!open) return null
 

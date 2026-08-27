@@ -234,7 +234,7 @@ export function CardNameInput({
 	const [value, setValue] = useState(initialValue)
 	const inputRef = useRef<HTMLInputElement>(null)
 
-	useEffect(() => {
+	useEffect(function selectNameOnMount() {
 		inputRef.current?.select()
 	}, [])
 
@@ -269,26 +269,29 @@ function CardShareDialog({ documentId, onClose }: { documentId: string; onClose:
 	const [error, setError] = useState<string | null>(null)
 	const [copied, setCopied] = useState(false)
 
-	useEffect(() => {
-		window.document.body.style.overflow = 'hidden'
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') onClose()
-		}
-		window.addEventListener('keydown', onKeyDown)
+	useEffect(
+		function lockScrollAndCloseOnEscape() {
+			window.document.body.style.overflow = 'hidden'
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') onClose()
+			}
+			window.addEventListener('keydown', onKeyDown)
 
-		createShare({ documentId, access: 'anyone', role: 'viewer' })
-			.then((result) => {
-				setLink(`${window.location.origin}${result.url}`)
-				setDocumentTitle(result.documentTitle)
-			})
-			.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal membuat link'))
-			.finally(() => setLoading(false))
+			createShare({ documentId, access: 'anyone', role: 'viewer' })
+				.then((result) => {
+					setLink(`${window.location.origin}${result.url}`)
+					setDocumentTitle(result.documentTitle)
+				})
+				.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal membuat link'))
+				.finally(() => setLoading(false))
 
-		return () => {
-			window.document.body.style.overflow = ''
-			window.removeEventListener('keydown', onKeyDown)
-		}
-	}, [documentId])
+			return () => {
+				window.document.body.style.overflow = ''
+				window.removeEventListener('keydown', onKeyDown)
+			}
+		},
+		[documentId],
+	)
 
 	const copyLink = async () => {
 		if (!link) return

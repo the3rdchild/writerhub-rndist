@@ -68,9 +68,12 @@ export function VersionHistoryView() {
 	const detail = useVersion(versionMode, selectedId)
 	const invalidateVersions = useInvalidateVersions()
 	const [draftJson, setDraftJson] = useState<JSONContent | null>(null)
-	useEffect(() => {
-		if (activeId) setDraftJson(fragmentToJSON(doc, activeId))
-	}, [doc, activeId])
+	useEffect(
+		function readDraftFromYdoc() {
+			if (activeId) setDraftJson(fragmentToJSON(doc, activeId))
+		},
+		[doc, activeId],
+	)
 	const draftText = useMemo(() => (draftJson ? versionPlainText(draftJson) : null), [draftJson])
 
 	const selectedContent = selectedId === null ? draftJson : (detail.data?.content ?? null)
@@ -87,18 +90,24 @@ export function VersionHistoryView() {
 			},
 		},
 	})
-	useEffect(() => {
-		if (!editor || editor.isDestroyed || !selectedContent) return
-		editor.commands.setContent(selectedContent, { emitUpdate: false })
-	}, [editor, selectedContent])
-	useEffect(() => {
-		if (!editor || editor.isDestroyed || !selectedContent) return
-		const ranges =
-			showDiff && selectedId !== null && draftText !== null
-				? computeVersionDiff(versionPlainText(selectedContent), draftText)
-				: null
-		editor.view.dispatch(editor.state.tr.setMeta(versionDiffHighlightKey, ranges))
-	}, [editor, selectedContent, showDiff, selectedId, draftText])
+	useEffect(
+		function showSelectedVersion() {
+			if (!editor || editor.isDestroyed || !selectedContent) return
+			editor.commands.setContent(selectedContent, { emitUpdate: false })
+		},
+		[editor, selectedContent],
+	)
+	useEffect(
+		function paintVersionDiff() {
+			if (!editor || editor.isDestroyed || !selectedContent) return
+			const ranges =
+				showDiff && selectedId !== null && draftText !== null
+					? computeVersionDiff(versionPlainText(selectedContent), draftText)
+					: null
+			editor.view.dispatch(editor.state.tr.setMeta(versionDiffHighlightKey, ranges))
+		},
+		[editor, selectedContent, showDiff, selectedId, draftText],
+	)
 
 	const grouped = useMemo(() => {
 		const map = new Map<string, VersionSummary[]>()
@@ -300,15 +309,18 @@ function NameVersionDialog({
 }) {
 	const [label, setLabel] = useState('')
 
-	useEffect(() => {
-		if (!open) return
-		setLabel('')
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') onCancel()
-		}
-		window.addEventListener('keydown', onKeyDown)
-		return () => window.removeEventListener('keydown', onKeyDown)
-	}, [open, onCancel])
+	useEffect(
+		function resetLabelAndCloseOnEscape() {
+			if (!open) return
+			setLabel('')
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') onCancel()
+			}
+			window.addEventListener('keydown', onKeyDown)
+			return () => window.removeEventListener('keydown', onKeyDown)
+		},
+		[open, onCancel],
+	)
 
 	if (!open) return null
 

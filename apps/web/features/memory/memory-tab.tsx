@@ -20,14 +20,17 @@ export function MemoryTab() {
 	const [term, setTerm] = useState('')
 	const [notes, setNotes] = useState('')
 	const [saved, setSaved] = useState(false)
-	useEffect(() => {
-		if (!memory.data) return
-		setTone(memory.data.tone ?? '')
-		setLanguage(memory.data.language ?? '')
-		setGlossary(memory.data.glossary ?? [])
-		setNotes(memory.data.notes ?? '')
-		setSaved(false)
-	}, [memory.data])
+	useEffect(
+		function fillFormFromSavedMemory() {
+			if (!memory.data) return
+			setTone(memory.data.tone ?? '')
+			setLanguage(memory.data.language ?? '')
+			setGlossary(memory.data.glossary ?? [])
+			setNotes(memory.data.notes ?? '')
+			setSaved(false)
+		},
+		[memory.data],
+	)
 
 	const addTerm = () => {
 		const value = term.trim()

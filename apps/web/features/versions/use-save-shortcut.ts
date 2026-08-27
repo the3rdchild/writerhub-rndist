@@ -22,31 +22,34 @@ export function useSaveShortcut(): void {
 	const versionModeRef = useRef(versionMode)
 	versionModeRef.current = versionMode
 
-	useEffect(() => {
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key.toLowerCase() !== 's') return
-			if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return
-			if (versionModeRef.current) return
+	useEffect(
+		function bindSaveShortcut() {
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key.toLowerCase() !== 's') return
+				if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return
+				if (versionModeRef.current) return
 
-			const tabId = activeIdRef.current
-			if (!tabId) return
-			event.preventDefault()
+				const tabId = activeIdRef.current
+				if (!tabId) return
+				event.preventDefault()
 
-			if (linkageRef.current[tabId]) {
-				void saveToCloudRef.current(tabId)
-				return
+				if (linkageRef.current[tabId]) {
+					void saveToCloudRef.current(tabId)
+					return
+				}
+
+				void snapshotLocalVersion(doc, tabId, 'interval').then((inserted) => {
+					if (inserted) {
+						void queryClient.invalidateQueries({
+							queryKey: [...VERSIONS_QUERY_KEY, 'local', tabId],
+						})
+					}
+				})
 			}
 
-			void snapshotLocalVersion(doc, tabId, 'interval').then((inserted) => {
-				if (inserted) {
-					void queryClient.invalidateQueries({
-						queryKey: [...VERSIONS_QUERY_KEY, 'local', tabId],
-					})
-				}
-			})
-		}
-
-		window.addEventListener('keydown', onKeyDown)
-		return () => window.removeEventListener('keydown', onKeyDown)
-	}, [doc, queryClient])
+			window.addEventListener('keydown', onKeyDown)
+			return () => window.removeEventListener('keydown', onKeyDown)
+		},
+		[doc, queryClient],
+	)
 }

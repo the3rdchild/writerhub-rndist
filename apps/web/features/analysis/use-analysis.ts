@@ -118,11 +118,14 @@ export function useAnalysis<F extends AnalysisFeature>(
 	const clear = useCallback(() => {
 		clearRun(feature)
 	}, [clearRun, feature])
-	useEffect(() => {
-		if (requested === undefined) {
-			queryClient.removeQueries({ queryKey: ['analysis', feature], exact: false })
-		}
-	}, [requested, queryClient, feature])
+	useEffect(
+		function dropCachedResultWhenUnset() {
+			if (requested === undefined) {
+				queryClient.removeQueries({ queryKey: ['analysis', feature], exact: false })
+			}
+		},
+		[requested, queryClient, feature],
+	)
 
 	return {
 		result: query.data,

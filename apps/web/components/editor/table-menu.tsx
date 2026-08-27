@@ -75,12 +75,20 @@ export function TableMenu({
 
 	const items = buildItems(editor, menu, onClose)
 
-	useEffect(() => setActive(0), [menu])
-	useEffect(() => {
-		const handle = anchor.closest('.table-handle')
-		handle?.classList.add('table-handle--open')
-		return () => handle?.classList.remove('table-handle--open')
-	}, [anchor])
+	useEffect(
+		function resetActiveOnMenuChange() {
+			setActive(0)
+		},
+		[menu],
+	)
+	useEffect(
+		function markHandleWhileOpen() {
+			const handle = anchor.closest('.table-handle')
+			handle?.classList.add('table-handle--open')
+			return () => handle?.classList.remove('table-handle--open')
+		},
+		[anchor],
+	)
 
 	const place = useCallback(() => {
 		const el = ref.current
@@ -104,43 +112,49 @@ export function TableMenu({
 	}, [anchor, offset, onClose])
 
 	useLayoutEffect(place, [place, items.length])
-	useEffect(() => {
-		let frame = 0
-		const onMove = () => {
-			cancelAnimationFrame(frame)
-			frame = requestAnimationFrame(place)
-		}
-		window.addEventListener('scroll', onMove, true)
-		window.addEventListener('resize', onMove)
-		return () => {
-			cancelAnimationFrame(frame)
-			window.removeEventListener('scroll', onMove, true)
-			window.removeEventListener('resize', onMove)
-		}
-	}, [place])
+	useEffect(
+		function repositionOnScroll() {
+			let frame = 0
+			const onMove = () => {
+				cancelAnimationFrame(frame)
+				frame = requestAnimationFrame(place)
+			}
+			window.addEventListener('scroll', onMove, true)
+			window.addEventListener('resize', onMove)
+			return () => {
+				cancelAnimationFrame(frame)
+				window.removeEventListener('scroll', onMove, true)
+				window.removeEventListener('resize', onMove)
+			}
+		},
+		[place],
+	)
 
-	useEffect(() => {
-		const onKey = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') {
-				e.preventDefault()
-				onClose()
-			} else if (e.key === 'ArrowDown') {
-				e.preventDefault()
-				setActive((i) => Math.min(i + 1, items.length - 1))
-			} else if (e.key === 'ArrowUp') {
-				e.preventDefault()
-				setActive((i) => Math.max(i - 1, 0))
-			} else if (e.key === 'Enter') {
-				const item = items[active]
-				if (item && !item.disabled) {
+	useEffect(
+		function handleMenuKeyboard() {
+			const onKey = (e: KeyboardEvent) => {
+				if (e.key === 'Escape') {
 					e.preventDefault()
-					item.onClick()
+					onClose()
+				} else if (e.key === 'ArrowDown') {
+					e.preventDefault()
+					setActive((i) => Math.min(i + 1, items.length - 1))
+				} else if (e.key === 'ArrowUp') {
+					e.preventDefault()
+					setActive((i) => Math.max(i - 1, 0))
+				} else if (e.key === 'Enter') {
+					const item = items[active]
+					if (item && !item.disabled) {
+						e.preventDefault()
+						item.onClick()
+					}
 				}
 			}
-		}
-		window.addEventListener('keydown', onKey)
-		return () => window.removeEventListener('keydown', onKey)
-	}, [items, active, onClose])
+			window.addEventListener('keydown', onKey)
+			return () => window.removeEventListener('keydown', onKey)
+		},
+		[items, active, onClose],
+	)
 
 	return createPortal(
 		<div

@@ -180,24 +180,27 @@ export function outdentSelection(editor: Editor | null): void {
 export function useBlockIndent(editor: Editor | null): BlockIndent {
 	const [indent, setIndent] = useState<BlockIndent>(NO_INDENT)
 
-	useEffect(() => {
-		if (!editor) {
-			setIndent(NO_INDENT)
-			return
-		}
+	useEffect(
+		function syncIndentFromSelection() {
+			if (!editor) {
+				setIndent(NO_INDENT)
+				return
+			}
 
-		const sync = () =>
-			setIndent((current) => {
-				const next = blockIndentAt(editor)
-				return sameIndent(current, next) ? current : next
-			})
+			const sync = () =>
+				setIndent((current) => {
+					const next = blockIndentAt(editor)
+					return sameIndent(current, next) ? current : next
+				})
 
-		sync()
-		editor.on('transaction', sync)
-		return () => {
-			editor.off('transaction', sync)
-		}
-	}, [editor])
+			sync()
+			editor.on('transaction', sync)
+			return () => {
+				editor.off('transaction', sync)
+			}
+		},
+		[editor],
+	)
 
 	return indent
 }

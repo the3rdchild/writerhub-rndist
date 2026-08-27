@@ -205,10 +205,18 @@ export function SlashCommandMenu({
 			return item.label.toLowerCase().includes(q) || item.keywords.some((k) => k.toLowerCase().includes(q))
 		})
 	}, [items, state.query])
-	useEffect(() => setActive(0), [state.query])
-	useEffect(() => {
-		if (active >= filtered.length) setActive(0)
-	}, [filtered.length, active])
+	useEffect(
+		function resetActiveOnQueryChange() {
+			setActive(0)
+		},
+		[state.query],
+	)
+	useEffect(
+		function keepActiveWithinRange() {
+			if (active >= filtered.length) setActive(0)
+		},
+		[filtered.length, active],
+	)
 
 	const listRef = useRef<HTMLDivElement>(null)
 
@@ -218,26 +226,29 @@ export function SlashCommandMenu({
 		item.run(editor)
 		onClose()
 	}
-	useEffect(() => {
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (!state.open) return
-			if (event.key === 'ArrowDown') {
-				event.preventDefault()
-				setActive((i) => (i + 1) % Math.max(1, filtered.length))
-			} else if (event.key === 'ArrowUp') {
-				event.preventDefault()
-				setActive((i) => (i - 1 + Math.max(1, filtered.length)) % Math.max(1, filtered.length))
-			} else if (event.key === 'Enter') {
-				event.preventDefault()
-				apply(filtered[active])
-			} else if (event.key === 'Escape') {
-				event.preventDefault()
-				onClose()
+	useEffect(
+		function handleMenuKeyboard() {
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (!state.open) return
+				if (event.key === 'ArrowDown') {
+					event.preventDefault()
+					setActive((i) => (i + 1) % Math.max(1, filtered.length))
+				} else if (event.key === 'ArrowUp') {
+					event.preventDefault()
+					setActive((i) => (i - 1 + Math.max(1, filtered.length)) % Math.max(1, filtered.length))
+				} else if (event.key === 'Enter') {
+					event.preventDefault()
+					apply(filtered[active])
+				} else if (event.key === 'Escape') {
+					event.preventDefault()
+					onClose()
+				}
 			}
-		}
-		window.addEventListener('keydown', onKeyDown, true)
-		return () => window.removeEventListener('keydown', onKeyDown, true)
-	}, [filtered, active, state.open, state.query])
+			window.addEventListener('keydown', onKeyDown, true)
+			return () => window.removeEventListener('keydown', onKeyDown, true)
+		},
+		[filtered, active, state.open, state.query],
+	)
 
 	if (!rect) return null
 
