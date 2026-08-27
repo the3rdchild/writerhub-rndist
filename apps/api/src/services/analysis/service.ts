@@ -1,7 +1,5 @@
-import type { StyleMemory } from '@writer-hub/shared'
 import { REWRITE_TONES } from '@writer-hub/shared'
 import QueueClient from '@/lib/queue'
-import { findMemoryByOwner } from '@/repository/memory'
 import JobSubmissionService from '@/services/job-submission.service'
 import { analysisBodySchema } from './dto'
 
@@ -52,11 +50,5 @@ export default class AnalysisService extends JobSubmissionService {
 		return contentType.includes('application/json')
 			? this.context.req.json().catch(() => ({}))
 			: this.context.req.parseBody({ all: true })
-	}
-	private async styleMemory(): Promise<StyleMemory | null> {
-		const userId = this.context.get('userId')
-		if (!userId) return null
-		const row = await findMemoryByOwner(await this.identityId())
-		return row?.preferences ?? null
 	}
 }

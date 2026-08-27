@@ -2,7 +2,6 @@ import type { StyleMemory } from '@writer-hub/shared'
 import { DEFAULT_CHAT_MODEL, isKnownChatModel, toProviderTools } from '@writer-hub/shared'
 import { env } from '@/config/env'
 import type { ResolvedProvider } from '@/lib/provider-resolver'
-import { findMemoryByOwner } from '@/repository/memory'
 import JobSubmissionService from '@/services/job-submission.service'
 import { type ChatBody, chatBodySchema } from './dto'
 import { buildMessages } from './messages'
@@ -68,12 +67,6 @@ export default class ChatService extends JobSubmissionService {
 			apiKey,
 			model: pickModel(requestedModel, provider?.modelId || env.AI_MODEL, baseUrl),
 		}
-	}
-
-	private async styleMemory(): Promise<StyleMemory | null> {
-		if (!this.context.get('userId')) return null
-
-		return (await findMemoryByOwner(await this.identityId()))?.preferences ?? null
 	}
 
 	private callProvider(
