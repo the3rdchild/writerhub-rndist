@@ -279,13 +279,11 @@ describe('peringatan', () => {
 		expect(result.warnings).toEqual([])
 	})
 
-	test('penggabungan sel tabel tetap dilaporkan apa adanya', async () => {
+	test('sel gabungan tabel tidak lagi dilaporkan hilang', async () => {
 		const table = `<w:tbl><w:tr><w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr>${p(r('gabung'))}</w:tc></w:tr></w:tbl>`
 		const result = await readDocx(docx({ body: table }))
 
-		expect(result.warnings.map((warning) => warning.message)).toContain(
-			'1 sel gabungan tabel belum ikut terbawa dan akan menyusul.',
-		)
+		expect(result.warnings).toEqual([])
 	})
 
 	test('dokumen yang bersih tidak memunculkan peringatan', async () => {
@@ -346,6 +344,51 @@ describe('tabel', () => {
 		const table = `<w:tbl><w:tblPr><w:jc w:val="center"/></w:tblPr><w:tr><w:tc>${p(r('isi'))}</w:tc></w:tr></w:tbl>`
 		const block = blocks((await readDocx(docx({ body: table }))).content)[0]
 		expect(block?.attrs?.textAlign).toBe('center')
+	})
+
+	test('gridSpan menjadi colspan sel', async () => {
+		const table = `<w:tbl><w:tr>
+			<w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr>${p(r('lebar'))}</w:tc>
+			<w:tc>${p(r('biasa'))}</w:tc>
+		</w:tr></w:tbl>`
+		const row = blocks((await readDocx(docx({ body: table }))).content)[0]?.content?.[0]
+
+		expect(row?.content?.[0]?.attrs?.colspan).toBe(2)
+		expect(row?.content?.[1]?.attrs?.colspan).toBeUndefined()
+	})
+
+	test('vMerge restart dan continue menjadi rowspan, sel lanjutan lenyap', async () => {
+		const table = `<w:tbl>
+			<w:tr><w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr>${p(r('atas'))}</w:tc><w:tc>${p(r('B1'))}</w:tc></w:tr>
+			<w:tr><w:tc><w:tcPr><w:vMerge/></w:tcPr></w:tc><w:tc>${p(r('B2'))}</w:tc></w:tr>
+		</w:tbl>`
+		const tableNode = blocks((await readDocx(docx({ body: table }))).content)[0]
+		const rows = tableNode?.content ?? []
+
+		expect(rows).toHaveLength(2)
+		expect(rows[0]?.content?.[0]?.attrs?.rowspan).toBe(2)
+		// Baris kedua hanya menyisakan sel yang bukan lanjutan penggabungan.
+		expect(rows[1]?.content?.map((cell) => textOf(cell))).toEqual(['B2'])
+	})
+
+	test('baris yang seluruhnya lanjutan vMerge tidak jadi baris kosong', async () => {
+		const table = `<w:tbl>
+			<w:tr><w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr>${p(r('tinggi'))}</w:tc></w:tr>
+			<w:tr><w:tc><w:tcPr><w:vMerge/></w:tcPr></w:tc></w:tr>
+		</w:tbl>`
+		const tableNode = blocks((await readDocx(docx({ body: table }))).content)[0]
+
+		expect(tableNode?.content).toHaveLength(1)
+		expect(tableNode?.content?.[0]?.content?.[0]?.attrs?.rowspan).toBe(2)
+	})
+
+	test('vMerge continue tanpa restart tetap terbawa sebagai sel biasa', async () => {
+		const table = `<w:tbl><w:tr><w:tc><w:tcPr><w:vMerge/></w:tcPr>${p(r('yatim'))}</w:tc></w:tr></w:tbl>`
+		const row = blocks((await readDocx(docx({ body: table }))).content)[0]?.content?.[0]
+
+		expect(row?.content).toHaveLength(1)
+		expect(textOf(row?.content?.[0])).toBe('yatim')
+		expect(row?.content?.[0]?.attrs?.rowspan).toBeUndefined()
 	})
 })
 

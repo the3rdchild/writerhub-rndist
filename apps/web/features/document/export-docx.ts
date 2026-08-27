@@ -131,8 +131,11 @@ export async function exportDocx(
 		})
 		if (children.length === 0) children.push(new Paragraph({}))
 
+		const rowSpan = Math.max(1, Number(cell.attrs.rowspan) || 1)
 		return new TableCell({
 			children,
+			// rowSpan > 1 otomatis membuat sel lanjutan vMerge di baris berikutnya.
+			...(rowSpan > 1 ? { rowSpan } : {}),
 			...(width && width > 0
 				? {
 						width: { size: px(width), type: WidthType.DXA },

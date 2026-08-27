@@ -233,6 +233,47 @@ describe('lebar kolom tabel di DOCX', () => {
 	})
 })
 
+describe('penggabungan sel di DOCX', () => {
+	const cell = (text: string, attrs: object = {}): JSONContent => ({
+		type: 'tableCell',
+		attrs,
+		content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+	})
+
+	async function xmlOf(rows: JSONContent[]): Promise<string> {
+		const doc = buildSchema().nodeFromJSON({
+			type: 'doc',
+			content: [{ type: 'table', content: rows }],
+		})
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+			setup: DEFAULT_PAGE_SETUP,
+		})
+		return strFromU8(unzipSync(new Uint8Array(await blob.arrayBuffer()))['word/document.xml'])
+	}
+
+	test('colspan sel jadi gridSpan di XML', async () => {
+		const xml = await xmlOf([{ type: 'tableRow', content: [cell('gabung', { colspan: 2 })] }])
+		expect(xml).toContain('<w:gridSpan w:val="2"/>')
+	})
+
+	test('rowspan sel jadi vMerge restart beserta sel lanjutannya', async () => {
+		const xml = await xmlOf([
+			{ type: 'tableRow', content: [cell('atas', { rowspan: 2 }), cell('B1')] },
+			{ type: 'tableRow', content: [cell('B2')] },
+		])
+
+		expect(xml).toContain('<w:vMerge w:val="restart"/>')
+		expect(xml).toContain('<w:vMerge w:val="continue"/>')
+	})
+
+	test('sel tanpa rowspan tidak membawa vMerge', async () => {
+		const xml = await xmlOf([{ type: 'tableRow', content: [cell('biasa')] }])
+		expect(xml).not.toContain('vMerge')
+	})
+})
+
 describe('baris baru di dalam satu simpul teks', () => {
 	test('jadi <w:br/>, bukan spasi', async () => {
 		const doc = buildSchema().nodeFromJSON({

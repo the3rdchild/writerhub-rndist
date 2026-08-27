@@ -72,7 +72,6 @@ function partByType(
 const SKIPPED_LABELS: Record<string, string> = {
 	drawing: 'gambar',
 	pict: 'gambar',
-	'merged-cell': 'sel gabungan tabel',
 	'kolom-bagian-pertama': 'kolom di bagian pertama dokumen',
 	object: 'objek tertanam',
 }

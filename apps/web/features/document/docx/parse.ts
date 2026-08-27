@@ -30,7 +30,7 @@ import {
 	toLineHeight,
 	twipsToPx,
 } from './units'
-import { attr, child, children, descend, tagName, val } from './xml'
+import { attr, child, children, descend, intVal, tagName, val } from './xml'
 import { type DocxArchive, resolvePath } from './zip'
 
 export interface ThemeFonts {
@@ -466,39 +466,77 @@ function cellContent(tc: Element, context: ParseContext): JSONContent[] {
 	return blocks.length > 0 ? blocks : [{ type: 'paragraph' }]
 }
 
-function tableRowBlocks(row: Element, context: ParseContext): JSONContent {
+function gridSpanOf(tcPr: Element | null): number {
+	const span = intVal(child(tcPr, 'gridSpan'))
+	return span !== undefined && span > 1 ? span : 1
+}
+
+/** `restart` membuka penggabungan, `continue` (atau tanpa val) melanjutkannya. */
+function vMergeOf(tcPr: Element | null): 'restart' | 'continue' | null {
+	const vMerge = child(tcPr, 'vMerge')
+	if (!vMerge) return null
+	return val(vMerge) === 'restart' ? 'restart' : 'continue'
+}
+
+interface TableMerger {
+	/** Kolom awal sel → node sel terbit (dipakai menaikkan rowspan sel asal). */
+	origins: Map<number, JSONContent>
+}
+
+function tableRowBlocks(row: Element, context: ParseContext, merger: TableMerger): JSONContent | null {
 	const isHeader = child(row, 'trPr') ? child(child(row, 'trPr'), 'tblHeader') !== null : false
 
 	const cells: JSONContent[] = []
+	let totalCells = 0
+	let column = 0
 	for (const tc of children(row, 'tc')) {
-		const attrs = cellStyleOf(child(tc, 'tcPr'))
-		cells.push({
+		totalCells += 1
+		const tcPr = child(tc, 'tcPr')
+		const span = gridSpanOf(tcPr)
+		const vMerge = vMergeOf(tcPr)
+
+		if (vMerge === 'continue') {
+			const origin = merger.origins.get(column)
+			if (origin) {
+				// Sel lanjutan menaikkan tinggi sel asalnya, lalu lenyap dari hasil.
+				const attrs = (origin.attrs ?? {}) as Record<string, unknown>
+				attrs.rowspan = Number(attrs.rowspan ?? 1) + 1
+				origin.attrs = attrs
+				column += span
+				continue
+			}
+			// vMerge tanpa restart tidak punya sel asal: bawa isinya sebagai sel biasa.
+		}
+
+		const attrs = cellStyleOf(tcPr)
+		if (span > 1) attrs.colspan = span
+		if (vMerge === 'restart') attrs.rowspan = 1
+
+		const cell: JSONContent = {
 			type: isHeader ? 'tableHeader' : 'tableCell',
 			...(Object.keys(attrs).length > 0 ? { attrs } : {}),
 			content: cellContent(tc, context),
-		})
+		}
+		cells.push(cell)
+		for (let offset = 0; offset < span; offset += 1) merger.origins.set(column + offset, cell)
+		column += span
 	}
+
+	// Baris yang seluruhnya lanjutan penggabungan tidak punya sel sendiri —
+	// ketinggiannya sudah diwakili rowspan sel asal di baris sebelumnya.
+	if (totalCells > 0 && cells.length === 0) return null
 	if (cells.length === 0)
 		return { type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }
 	return { type: 'tableRow', content: cells }
 }
 
 function tableBlocks(tbl: Element, context: ParseContext): JSONContent[] {
-	let hasMerge = false
-	for (const tr of children(tbl, 'tr')) {
-		for (const tc of children(tr, 'tc')) {
-			const tcPr = child(tc, 'tcPr')
-			if (tcPr && (child(tcPr, 'gridSpan') || child(tcPr, 'vMerge'))) {
-				hasMerge = true
-				break
-			}
-		}
-		if (hasMerge) break
-	}
-	if (hasMerge) skip(context, 'merged-cell')
-
+	const merger: TableMerger = { origins: new Map() }
 	const rows: JSONContent[] = []
-	for (const tr of children(tbl, 'tr')) rows.push(tableRowBlocks(tr, context))
+	for (const tr of children(tbl, 'tr')) {
+		const row = tableRowBlocks(tr, context, merger)
+		if (row) rows.push(row)
+	}
 	const jc = val(child(child(tbl, 'tblPr'), 'jc'))
 	const hasHeader = rows.some((row) => row.content?.some((cell) => cell.type === 'tableHeader'))
 
