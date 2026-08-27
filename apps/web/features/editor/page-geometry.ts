@@ -30,7 +30,9 @@ export interface PageMargins {
 	bottom: number
 	left: number
 }
+
 export const DEFAULT_MARGINS: PageMargins = { top: INCH, right: INCH, bottom: INCH, left: INCH }
+
 export interface PageSetup {
 	size: PageSizeId
 	customWidth?: number
@@ -40,6 +42,7 @@ export interface PageSetup {
 	pageColor: string | null
 	pageless: boolean
 }
+
 export const DEFAULT_PAGE_SETUP: PageSetup = {
 	size: DEFAULT_PAGE_SIZE,
 	orientation: DEFAULT_PAGE_ORIENTATION,
@@ -47,6 +50,7 @@ export const DEFAULT_PAGE_SETUP: PageSetup = {
 	pageColor: null,
 	pageless: false,
 }
+
 export function sameSheetGeometry(a: PageSetup, b: PageSetup): boolean {
 	if (a.pageless !== b.pageless) return false
 	const sizeA = resolvePageSize(a)
@@ -60,12 +64,14 @@ export function sameSheetGeometry(a: PageSetup, b: PageSetup): boolean {
 		a.margins.left === b.margins.left
 	)
 }
+
 export function resolvePageSize(setup: PageSetup): { width: number; height: number } {
 	const base = PAGE_SIZES[setup.size]
-	const w = setup.size === 'custom' ? setup.customWidth ?? 0 : base.width
-	const h = setup.size === 'custom' ? setup.customHeight ?? 0 : base.height
+	const w = setup.size === 'custom' ? (setup.customWidth ?? 0) : base.width
+	const h = setup.size === 'custom' ? (setup.customHeight ?? 0) : base.height
 	return setup.orientation === 'landscape' ? { width: h, height: w } : { width: w, height: h }
 }
+
 export function validateCustomSize(width: number, height: number): string | null {
 	if (!Number.isFinite(width) || !Number.isFinite(height)) return 'Ukuran harus berupa angka.'
 	if (width < MIN_CUSTOM_SIDE || height < MIN_CUSTOM_SIDE) {
@@ -76,6 +82,7 @@ export function validateCustomSize(width: number, height: number): string | null
 	}
 	return null
 }
+
 export const MIN_CONTENT_WIDTH = 96
 export const MIN_CONTENT_HEIGHT = 96
 export const PAGE_GAP = 32
@@ -89,19 +96,18 @@ export interface PageGeometry {
 	contentHeight: number
 	pageStride: number
 }
+
 export interface SheetGeometry extends PageGeometry {
 	index: number
 	top: number
 }
+
 export function clampMargins(
 	margins: PageMargins,
 	size: PageSizeId | PageSetup = DEFAULT_PAGE_SETUP,
 	orientation: PageOrientation = DEFAULT_PAGE_ORIENTATION,
 ): PageMargins {
-	const setup: PageSetup =
-		typeof size === 'string'
-			? { ...DEFAULT_PAGE_SETUP, size, orientation }
-			: size
+	const setup: PageSetup = typeof size === 'string' ? { ...DEFAULT_PAGE_SETUP, size, orientation } : size
 	const { width, height } = resolvePageSize(setup)
 
 	const clampPair = (start: number, end: number, extent: number, minContent: number) => {

@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 export const shareAccessSchema = z.enum(['anyone', 'restricted'])
 export const shareRoleSchema = z.enum(['viewer', 'commenter', 'editor'])
+
 export const createShareBodySchema = z.object({
 	documentId: z.uuid(),
 	access: shareAccessSchema,
@@ -9,6 +10,7 @@ export const createShareBodySchema = z.object({
 })
 
 export type CreateShareBody = z.infer<typeof createShareBodySchema>
+
 export interface SharedTab {
 	id: string
 	title: string

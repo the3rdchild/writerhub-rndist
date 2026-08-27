@@ -4,11 +4,13 @@ import { cn } from '@/lib/utils'
 
 const RADIUS = 16
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
+
 export function qualityColor(value: number): string {
 	if (value >= 75) return '#22c55e'
 	if (value >= 60) return '#eab308'
 	return '#ef4444'
 }
+
 export function riskColor(value: number): string {
 	if (value < 30) return '#22c55e'
 	if (value <= 70) return '#eab308'

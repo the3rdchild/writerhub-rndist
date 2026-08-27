@@ -15,6 +15,7 @@ import {
 	useState,
 } from 'react'
 import { cn } from '@/lib/utils'
+
 interface DropdownProps {
 	trigger: (props: { open: boolean; toggle: () => void; id: string }) => ReactNode
 	children: (props: { close: () => void }) => ReactNode
@@ -39,23 +40,26 @@ export function Dropdown({
 	const close = useCallback(() => setOpen(false), [])
 	const toggle = useCallback(() => setOpen((current) => !current), [])
 
-	useEffect(() => {
-		if (!open) return
+	useEffect(
+		function closeOnOutsideClickOrEscape() {
+			if (!open) return
 
-		const onPointerDown = (event: PointerEvent) => {
-			if (!containerRef.current?.contains(event.target as Node)) close()
-		}
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') close()
-		}
+			const onPointerDown = (event: PointerEvent) => {
+				if (!containerRef.current?.contains(event.target as Node)) close()
+			}
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') close()
+			}
 
-		document.addEventListener('pointerdown', onPointerDown)
-		document.addEventListener('keydown', onKeyDown)
-		return () => {
-			document.removeEventListener('pointerdown', onPointerDown)
-			document.removeEventListener('keydown', onKeyDown)
-		}
-	}, [open, close])
+			document.addEventListener('pointerdown', onPointerDown)
+			document.addEventListener('keydown', onKeyDown)
+			return () => {
+				document.removeEventListener('pointerdown', onPointerDown)
+				document.removeEventListener('keydown', onKeyDown)
+			}
+		},
+		[open, close],
+	)
 
 	return (
 		<div ref={containerRef} className={cn('relative', className)}>
@@ -79,6 +83,7 @@ export function Dropdown({
 		</div>
 	)
 }
+
 const SubmenuGroupContext = createContext<{
 	openId: string | null
 	setOpenId: Dispatch<SetStateAction<string | null>>
@@ -120,9 +125,7 @@ export function DropdownItem({
 			onMouseEnter={() => group?.setOpenId(null)}
 			className={cn(
 				'flex w-full items-center gap-3 px-3 py-1.5 text-left text-sm transition-colors',
-				disabled
-					? 'cursor-not-allowed text-faint'
-					: 'text-foreground hover:bg-[var(--overlay-hover)]',
+				disabled ? 'cursor-not-allowed text-faint' : 'text-foreground hover:bg-[var(--overlay-hover)]',
 				active && !disabled && 'text-accent',
 			)}
 		>
@@ -145,6 +148,7 @@ export function DropdownLabel({ children }: { children: ReactNode }) {
 		</div>
 	)
 }
+
 export function Submenu({
 	label,
 	icon,
@@ -166,7 +170,9 @@ export function Submenu({
 			closeTimer.current = null
 		}
 	}
-	useEffect(() => cancelClose, [])
+	useEffect(function cancelPendingCloseOnUnmount() {
+		return cancelClose
+	}, [])
 
 	const openNow = () => {
 		cancelClose()

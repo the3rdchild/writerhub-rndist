@@ -8,6 +8,7 @@ import {
 	setSectionColumnsCommand,
 	unsetSectionColumnsCommand,
 } from './section-break'
+
 const schema = new Schema({
 	nodes: {
 		doc: { content: 'block+' },
@@ -72,7 +73,6 @@ describe('sectionSpans (§P8&P9)', () => {
 	})
 })
 
-
 describe('columnRegions (§P8)', () => {
 	test('rentang mulai sesudah pembatasnya dan berakhir di pembatas berikutnya', () => {
 		const doc = docWith({ columns: { count: 2 } }, { pageSetup: { orientation: 'landscape' } })
@@ -96,6 +96,7 @@ describe('columnRegions (§P8)', () => {
 		expect(regions[0].to).toBe(doc.content.size)
 	})
 })
+
 describe('pembatas penutup mengembalikan setelan sebelumnya (§P8&P9)', () => {
 	test('section sesudah rentang kembali persis ke setelan dasar', () => {
 		const doc = docWith(
@@ -122,10 +123,7 @@ describe('pembatas penutup mengembalikan setelan sebelumnya (§P8&P9)', () => {
 
 	test('margin ikut dipulihkan, bukan bergabung separuh', () => {
 		const narrow = { ...DEFAULT_PAGE_SETUP.margins, left: INCH / 2 }
-		const doc = docWith(
-			{ pageSetup: { margins: narrow } },
-			{ pageSetup: { ...DEFAULT_PAGE_SETUP } },
-		)
+		const doc = docWith({ pageSetup: { margins: narrow } }, { pageSetup: { ...DEFAULT_PAGE_SETUP } })
 		const spans = sectionSpans(doc, DEFAULT_PAGE_SETUP)
 
 		expect(spans[1].setup.margins.left).toBe(INCH / 2)

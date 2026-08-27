@@ -1,3 +1,4 @@
+import type { Project } from '@/db/schemas'
 import { AppError } from '@/lib/error'
 import {
 	deleteProject,
@@ -7,9 +8,9 @@ import {
 	updateProject,
 } from '@/repository/project'
 import BaseService from '@/services/base.service'
-import type { Project } from '@/db/schemas'
-import { createProjectBodySchema, updateProjectBodySchema } from './dto'
 import type { ProjectSummary } from './dto'
+import { createProjectBodySchema, updateProjectBodySchema } from './dto'
+
 export default class ProjectsService extends BaseService {
 	async list(): Promise<Response> {
 		try {

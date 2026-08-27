@@ -4,11 +4,8 @@ export interface TitleSide {
 }
 
 export type TitleResolution = 'adopt-server' | 'push-local' | 'none'
-export function resolveTitle(
-	local: TitleSide,
-	server: TitleSide,
-	base: string | undefined,
-): TitleResolution {
+
+export function resolveTitle(local: TitleSide, server: TitleSide, base: string | undefined): TitleResolution {
 	if (local.title === server.title) return 'none'
 
 	const localMoved = base === undefined || local.title !== base

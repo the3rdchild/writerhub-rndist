@@ -27,6 +27,7 @@ export function sanitizeFileName(name: string): string {
 		.replace(/[^a-z0-9]+/g, '-')
 		.replace(/^-+|-+$/g, '')
 }
+
 export async function uploadDocument(file: File): Promise<UploadResult> {
 	const extension = getFileExtension(file.type)
 	const stem = sanitizeFileName(file.name.replace(/\.[^.]+$/, ''))

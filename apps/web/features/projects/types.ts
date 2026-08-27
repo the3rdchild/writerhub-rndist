@@ -11,6 +11,7 @@ export interface CreateProjectInput {
 	name: string
 	color?: string | null
 }
+
 export interface UpdateProjectInput {
 	name?: string
 	color?: string | null

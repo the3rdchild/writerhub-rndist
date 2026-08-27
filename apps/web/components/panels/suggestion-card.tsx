@@ -32,9 +32,7 @@ export function SuggestionCard({
 			{...(range ? rangeProps(range) : {})}
 			className="flex cursor-pointer flex-col gap-2 rounded-xl border border-line bg-[var(--overlay-hover)] p-3 transition-colors hover:border-line-strong"
 		>
-			<p className={`text-xs font-semibold ${CATEGORY_TEXT_COLOR[suggestion.category]}`}>
-				{suggestion.type}
-			</p>
+			<p className={`text-xs font-semibold ${CATEGORY_TEXT_COLOR[suggestion.category]}`}>{suggestion.type}</p>
 
 			<div className="flex items-center justify-between gap-2">
 				<div className="flex min-w-0 items-center gap-2 text-sm">

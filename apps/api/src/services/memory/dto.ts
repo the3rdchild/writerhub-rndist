@@ -1,4 +1,5 @@
 import { z } from 'zod'
+
 export const memoryPreferencesSchema = z.object({
 	tone: z.string().max(255).optional(),
 	language: z.string().max(100).optional(),

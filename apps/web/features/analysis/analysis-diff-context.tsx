@@ -3,6 +3,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from 'react'
 import type { VersionDiffRange } from '@/features/versions/diff'
 import type { AnalysisDiffFeature } from './analysis-diff'
+
 export interface ActiveAnalysisDiff {
 	feature: AnalysisDiffFeature
 	ranges: VersionDiffRange[]
@@ -21,19 +22,12 @@ const AnalysisDiffContext = createContext<AnalysisDiffContextValue | null>(null)
 export function AnalysisDiffProvider({ children }: { children: ReactNode }) {
 	const [activeDiff, setActiveDiff] = useState<ActiveAnalysisDiff | null>(null)
 
-	const publish = useCallback(
-		(feature: AnalysisDiffFeature, ranges: VersionDiffRange[]) => {
-			setActiveDiff((current) =>
-				current && current.feature !== feature ? current : { feature, ranges },
-			)
-		},
-		[],
-	)
+	const publish = useCallback((feature: AnalysisDiffFeature, ranges: VersionDiffRange[]) => {
+		setActiveDiff((current) => (current && current.feature !== feature ? current : { feature, ranges }))
+	}, [])
 
 	const enable = useCallback((feature: AnalysisDiffFeature) => {
-		setActiveDiff((current) =>
-			current?.feature === feature ? current : { feature, ranges: [] },
-		)
+		setActiveDiff((current) => (current?.feature === feature ? current : { feature, ranges: [] }))
 	}, [])
 
 	const disable = useCallback((feature: AnalysisDiffFeature) => {

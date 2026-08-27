@@ -18,11 +18,13 @@ import {
 	tabsRoot,
 	updateTab,
 } from './ydoc'
+
 function writeParagraph(doc: Y.Doc, id: string, text: string): void {
 	const paragraph = new Y.XmlElement('paragraph')
 	paragraph.insert(0, [new Y.XmlText(text)])
 	tabFragment(doc, id).insert(0, [paragraph])
 }
+
 function docWithTabs(doc: Y.Doc, titles: string[]): { docId: string; tabIds: string[] } {
 	const docId = createDocument(doc)
 	const first = readTabs(doc, docId)[0].id

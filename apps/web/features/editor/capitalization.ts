@@ -2,6 +2,7 @@
 
 import type { Editor } from '@tiptap/react'
 export type CapitalizationMode = 'lower' | 'upper' | 'title'
+
 function toTitleCase(text: string): string {
 	return text.replace(
 		/\p{L}[\p{L}\p{M}\p{N}'’-]*/gu,
@@ -14,6 +15,7 @@ const TRANSFORMS: Record<CapitalizationMode, (text: string) => string> = {
 	upper: (text) => text.toUpperCase(),
 	title: toTitleCase,
 }
+
 export function applyCapitalization(editor: Editor | null, mode: CapitalizationMode): boolean {
 	if (!editor) return false
 

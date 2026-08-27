@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { looksLikeMarkdown, markdownToHtml, toEditorContent } from './markdown'
+
 describe('tabel', () => {
 	const TABLE = `| No | Nama | Jabatan |
 |----|------|---------|
@@ -121,6 +122,7 @@ describe('rumus LaTeX', () => {
 		expect(looksLikeMarkdown('Biaya $5 per bulan.')).toBe(false)
 	})
 })
+
 describe('pembatas LaTeX', () => {
 	test('\\(…\\) jadi rumus inline', () => {
 		const html = markdownToHtml('Misalkan \\(x^2\\) berlaku.')
@@ -129,16 +131,12 @@ describe('pembatas LaTeX', () => {
 	})
 
 	test('\\[…\\] sebaris penuh jadi blok', () => {
-		expect(markdownToHtml('\\[\\int_0^1 f(x)dx\\]')).toBe(
-			'<div data-latex="\\int_0^1 f(x)dx"></div>',
-		)
+		expect(markdownToHtml('\\[\\int_0^1 f(x)dx\\]')).toBe('<div data-latex="\\int_0^1 f(x)dx"></div>')
 	})
 
 	test('\\[…\\] beberapa baris tetap dikenali', () => {
 		const html = markdownToHtml('\\[\n\\int_{-\\infty}^{\\infty} e^{-x^2}\\,dx = \\sqrt{\\pi}\n\\]')
-		expect(html).toContain(
-			'data-latex="\\int_{-\\infty}^{\\infty} e^{-x^2}\\,dx = \\sqrt{\\pi}"',
-		)
+		expect(html).toContain('data-latex="\\int_{-\\infty}^{\\infty} e^{-x^2}\\,dx = \\sqrt{\\pi}"')
 	})
 
 	test('lingkungan equation jadi blok', () => {

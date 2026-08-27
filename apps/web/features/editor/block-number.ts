@@ -1,6 +1,7 @@
 'use client'
 
 import { Extension } from '@tiptap/core'
+
 const NUMBERED = ['paragraph', 'heading']
 
 export const BlockNumber = Extension.create({
@@ -14,8 +15,7 @@ export const BlockNumber = Extension.create({
 					suppressNumber: {
 						default: null,
 						parseHTML: (element) => element.hasAttribute('data-no-number'),
-						renderHTML: (attributes) =>
-							attributes.suppressNumber ? { 'data-no-number': '' } : {},
+						renderHTML: (attributes) => (attributes.suppressNumber ? { 'data-no-number': '' } : {}),
 					},
 					numberStyle: {
 						default: null,

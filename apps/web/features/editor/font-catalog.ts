@@ -12,7 +12,9 @@ export const FONT_CATEGORY_LABELS: Record<FontCategory, string> = {
 	mono: 'Monospace',
 	display: 'Dekoratif',
 }
+
 export const DEFAULT_FONT_FAMILY = 'var(--font-document), serif'
+
 export const FONT_FAMILIES: readonly FontFamilyOption[] = [
 	{ label: 'Arial', value: 'Arial, Helvetica, sans-serif', category: 'sans' },
 	{ label: 'Inter', value: 'var(--font-ui), sans-serif', category: 'sans' },
@@ -46,15 +48,18 @@ export const FONT_FAMILIES: readonly FontFamilyOption[] = [
 	{ label: 'Lobster', value: 'var(--font-lobster), cursive', category: 'display' },
 	{ label: 'Pacifico', value: 'var(--font-pacifico), cursive', category: 'display' },
 ]
+
 const WEBFONT_BY_NAME = new Map(
 	FONT_FAMILIES.filter((font) => font.value.startsWith('var(')).map((font) => [
 		font.label.toLowerCase(),
 		font.value,
 	]),
 )
+
 export function webfontFamily(name: string): string | undefined {
 	return WEBFONT_BY_NAME.get(name.trim().toLowerCase())
 }
+
 export function fontFamilyLabel(value: string): string {
 	const known = FONT_FAMILIES.find((font) => font.value === value)
 	if (known) return known.label

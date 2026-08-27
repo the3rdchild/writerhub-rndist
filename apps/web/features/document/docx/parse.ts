@@ -1,4 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
+import { MATH_BLOCK, MATH_INLINE } from '@/features/editor/math'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import {
 	DEFAULT_PAGE_SETUP,
@@ -9,16 +10,16 @@ import {
 	sameSheetGeometry,
 } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
+import { ommlToLatex } from './math'
 import type { Numberer } from './numbering'
-import { type DocxArchive, resolvePath } from './zip'
 import {
 	type DocxStyles,
 	merge,
 	type ParagraphProps,
+	type RunProps,
 	readParagraphProps,
 	readRunProps,
 	resolveStyle,
-	type RunProps,
 } from './properties'
 import {
 	emuToPx,
@@ -30,10 +31,13 @@ import {
 	twipsToPx,
 } from './units'
 import { attr, child, children, descend, tagName, val } from './xml'
+import { type DocxArchive, resolvePath } from './zip'
+
 export interface ThemeFonts {
 	major?: string
 	minor?: string
 }
+
 export interface Relationship {
 	type: string
 	target: string
@@ -51,6 +55,7 @@ export interface ParseContext {
 	archive: DocxArchive
 	mainPart: string
 }
+
 function skip(context: ParseContext, name: string): void {
 	context.skipped.set(name, (context.skipped.get(name) ?? 0) + 1)
 }
@@ -71,6 +76,7 @@ export function readRelationships(root: Element | null): Relationships {
 	}
 	return result
 }
+
 function headingLevel(props: ParagraphProps, styleName: string | undefined): number | undefined {
 	if (props.outlineLevel !== undefined) return Math.min(6, props.outlineLevel + 1)
 
@@ -82,6 +88,7 @@ function headingLevel(props: ParagraphProps, styleName: string | undefined): num
 
 	return undefined
 }
+
 export function readTheme(root: Element | null): ThemeFonts {
 	const scheme = descend(root, 'themeElements', 'fontScheme')
 	if (!scheme) return {}
@@ -89,16 +96,14 @@ export function readTheme(root: Element | null): ThemeFonts {
 	const typefaceOf = (name: string) => attr(descend(scheme, name, 'latin'), 'typeface') || undefined
 	return { major: typefaceOf('majorFont'), minor: typefaceOf('minorFont') }
 }
+
 function fontOf(props: RunProps, theme: ThemeFonts): string | undefined {
 	if (props.font) return props.font
 	if (!props.fontTheme) return undefined
 	return /^major/i.test(props.fontTheme) ? theme.major : theme.minor
 }
-function marksOf(
-	props: RunProps,
-	link: string | undefined,
-	theme: ThemeFonts,
-): JSONContent['marks'] {
+
+function marksOf(props: RunProps, link: string | undefined, theme: ThemeFonts): JSONContent['marks'] {
 	const marks: NonNullable<JSONContent['marks']> = []
 
 	if (props.bold) marks.push({ type: 'bold' })
@@ -122,6 +127,7 @@ function marksOf(
 
 	return marks.length > 0 ? marks : undefined
 }
+
 function paragraphAttrs(props: ParagraphProps): Record<string, unknown> {
 	const attrs: Record<string, unknown> = {}
 
@@ -135,6 +141,7 @@ function paragraphAttrs(props: ParagraphProps): Record<string, unknown> {
 
 	return attrs
 }
+
 function runText(run: Element, context: ParseContext): { text: string; pageBreak: boolean } {
 	let text = ''
 	let pageBreak = false
@@ -180,6 +187,7 @@ function runText(run: Element, context: ParseContext): { text: string; pageBreak
 
 	return { text, pageBreak }
 }
+
 function linkTarget(hyperlink: Element, context: ParseContext): string | undefined {
 	const id = attr(hyperlink, 'id')
 	if (!id) return undefined
@@ -188,6 +196,7 @@ function linkTarget(hyperlink: Element, context: ParseContext): string | undefin
 	if (!relationship) return undefined
 	return relationship.external ? relationship.target : undefined
 }
+
 function mediaType(path: string): string {
 	const ext = path.includes('.') ? path.slice(path.lastIndexOf('.') + 1).toLowerCase() : ''
 	switch (ext) {
@@ -211,15 +220,14 @@ function mediaType(path: string): string {
 			return 'application/octet-stream'
 	}
 }
+
 function toDataUrl(mediaPath: string, bytes: Uint8Array): string {
 	let binary = ''
 	for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i])
 	return `data:${mediaType(mediaPath)};base64,${btoa(binary)}`
 }
-function readInlineImage(
-	drawing: Element,
-	context: ParseContext,
-): JSONContent | null {
+
+function readInlineImage(drawing: Element, context: ParseContext): JSONContent | null {
 	const extent = descend(drawing, 'inline', 'extent')
 	const cx = extent ? Number.parseInt(attr(extent, 'cx') ?? '', 10) : NaN
 	const cy = extent ? Number.parseInt(attr(extent, 'cy') ?? '', 10) : NaN
@@ -235,7 +243,7 @@ function readInlineImage(
 	if (!bytes) return null
 
 	const docPr = descend(drawing, 'inline', 'docPr')
-	const alt = docPr ? (attr(docPr, 'descr') ?? attr(docPr, 'name')) ?? undefined : undefined
+	const alt = docPr ? (attr(docPr, 'descr') ?? attr(docPr, 'name') ?? undefined) : undefined
 
 	const attrs: Record<string, unknown> = { src: toDataUrl(mediaPath, bytes) }
 	if (alt) attrs.alt = alt
@@ -244,6 +252,7 @@ function readInlineImage(
 
 	return { type: 'image', attrs }
 }
+
 function findImage(element: Element, context: ParseContext): JSONContent | null {
 	for (const candidate of children(element)) {
 		const name = tagName(candidate)
@@ -263,7 +272,12 @@ interface ParagraphBuilder {
 	inline: JSONContent[]
 	images: JSONContent[]
 	attrs: Record<string, unknown>
+	/** Level heading paragraf ini (dipakai saat flush paragraf oleh math blok). */
+	level?: number
+	/** True bila paragraf sudah terdorong karena bertemu oMathPara di tengahnya. */
+	flushed?: boolean
 }
+
 function walkInline(
 	parent: Element,
 	context: ParseContext,
@@ -301,15 +315,26 @@ function walkInline(
 			}
 
 			case 'hyperlink':
-				walkInline(
-					node,
-					context,
-					inherited,
-					linkTarget(node, context) ?? link,
-					builder,
-					fields,
-				)
+				walkInline(node, context, inherited, linkTarget(node, context) ?? link, builder, fields)
 				break
+
+			case 'oMath': {
+				const latex = ommlToLatex(node)
+				if (latex) builder.inline.push({ type: MATH_INLINE, attrs: { latex } })
+				break
+			}
+
+			case 'oMathPara': {
+				// Persamaan tampil sendiri sebagai blok: tutup paragraf berjalan,
+				// lalu terbitkan node math blok.
+				if (builder.inline.length > 0) flushParagraph(builder)
+				const latex = ommlToLatex(node)
+				if (latex) {
+					builder.blocks.push({ type: MATH_BLOCK, attrs: { latex } })
+					builder.flushed = true
+				}
+				break
+			}
 			case 'ins':
 			case 'smartTag':
 			case 'sdtContent':
@@ -334,6 +359,7 @@ function walkInline(
 		}
 	}
 }
+
 function splitAtPageBreak(builder: ParagraphBuilder): void {
 	builder.blocks.push({
 		type: 'paragraph',
@@ -343,6 +369,19 @@ function splitAtPageBreak(builder: ParagraphBuilder): void {
 	builder.blocks.push({ type: PAGE_BREAK_NODE })
 	builder.inline = []
 }
+
+/** Dorong isi inline yang sedang berjalan sebagai paragraf (dipakai math blok). */
+function flushParagraph(builder: ParagraphBuilder): void {
+	const blockAttrs = builder.level ? { ...builder.attrs, level: builder.level } : builder.attrs
+	builder.blocks.push({
+		type: builder.level ? 'heading' : 'paragraph',
+		...(Object.keys(blockAttrs).length > 0 ? { attrs: blockAttrs } : {}),
+		...(builder.inline.length > 0 ? { content: builder.inline } : {}),
+	})
+	builder.inline = []
+	builder.flushed = true
+}
+
 export function paragraphBlocks(paragraph: Element, context: ParseContext): JSONContent[] {
 	const pPr = child(paragraph, 'pPr')
 	const styleId = val(child(pPr, 'pStyle'))
@@ -355,7 +394,7 @@ export function paragraphBlocks(paragraph: Element, context: ParseContext): JSON
 	const attrs = paragraphAttrs(paragraphProps)
 
 	const level = headingLevel(paragraphProps, style.name)
-	const builder: ParagraphBuilder = { blocks: [], inline: [], images: [], attrs }
+	const builder: ParagraphBuilder = { blocks: [], inline: [], images: [], attrs, level }
 	walkInline(paragraph, context, runProps, undefined, builder, [])
 
 	if (paragraphProps.numId) {
@@ -369,7 +408,9 @@ export function paragraphBlocks(paragraph: Element, context: ParseContext): JSON
 		}
 	}
 	const imageOnly = builder.images.length > 0 && builder.inline.length === 0
-	if (!imageOnly || level !== undefined) {
+	// Paragraf yang isinya sudah terdorong oleh math blok tidak perlu paragraf kosong tambahan.
+	const trailingEmpty = builder.flushed === true && builder.inline.length === 0 && builder.blocks.length > 0
+	if ((!imageOnly || level !== undefined) && !trailingEmpty) {
 		const blockAttrs = level ? { ...attrs, level } : attrs
 
 		builder.blocks.push({
@@ -383,11 +424,13 @@ export function paragraphBlocks(paragraph: Element, context: ParseContext): JSON
 
 	return builder.blocks
 }
+
 const VERTICAL_ALIGN: Record<string, string> = {
 	top: 'top',
 	center: 'middle',
 	bottom: 'bottom',
 }
+
 function cellStyleOf(tcPr: Element | null): Record<string, unknown> {
 	if (!tcPr) return {}
 
@@ -414,6 +457,7 @@ function cellStyleOf(tcPr: Element | null): Record<string, unknown> {
 	if (declarations.length > 0) attrs.style = declarations.join('; ')
 	return attrs
 }
+
 function cellContent(tc: Element, context: ParseContext): JSONContent[] {
 	const blocks: JSONContent[] = []
 	for (const node of children(tc)) {
@@ -421,6 +465,7 @@ function cellContent(tc: Element, context: ParseContext): JSONContent[] {
 	}
 	return blocks.length > 0 ? blocks : [{ type: 'paragraph' }]
 }
+
 function tableRowBlocks(row: Element, context: ParseContext): JSONContent {
 	const isHeader = child(row, 'trPr') ? child(child(row, 'trPr'), 'tblHeader') !== null : false
 
@@ -433,9 +478,11 @@ function tableRowBlocks(row: Element, context: ParseContext): JSONContent {
 			content: cellContent(tc, context),
 		})
 	}
-	if (cells.length === 0) return { type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }
+	if (cells.length === 0)
+		return { type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }
 	return { type: 'tableRow', content: cells }
 }
+
 function tableBlocks(tbl: Element, context: ParseContext): JSONContent[] {
 	let hasMerge = false
 	for (const tr of children(tbl, 'tr')) {
@@ -470,12 +517,15 @@ function tableBlocks(tbl: Element, context: ParseContext): JSONContent[] {
 
 	return [{ type: 'table', ...(Object.keys(attrs).length > 0 ? { attrs } : {}), content: rows }]
 }
+
 export type PageSetupPatch = Partial<Omit<PageSetup, 'margins'>> & { margins?: Partial<PageMargins> }
+
 interface SectionProps {
 	pageSetup: PageSetupPatch
 	columns: { count: number; gap?: number } | null
 	continuous?: boolean
 }
+
 function matchPageSize(width: number, height: number): PageSizeId | null {
 	for (const [id, size] of Object.entries(PAGE_SIZES)) {
 		if (id === 'custom') continue
@@ -485,6 +535,7 @@ function matchPageSize(width: number, height: number): PageSizeId | null {
 	}
 	return null
 }
+
 function readSectPr(sectPr: Element): SectionProps {
 	const pageSetup: PageSetupPatch = {}
 
@@ -526,6 +577,7 @@ function readSectPr(sectPr: Element): SectionProps {
 
 	return { pageSetup, columns, ...(val(child(sectPr, 'type')) === 'continuous' ? { continuous: true } : {}) }
 }
+
 export function bodyBlocks(
 	body: Element,
 	context: ParseContext,
@@ -567,9 +619,11 @@ export function bodyBlocks(
 
 	return blocks
 }
+
 function mergeSetup(base: PageSetup, patch: PageSetupPatch): PageSetup {
 	return { ...base, ...patch, margins: { ...base.margins, ...patch.margins } }
 }
+
 export function readBody(
 	body: Element,
 	context: ParseContext,
@@ -607,6 +661,7 @@ export function readBody(
 
 	return { blocks, pageSetup: endings[0]?.props.pageSetup }
 }
+
 export function bodyOf(documentRoot: Element): Element | null {
 	return descend(documentRoot, 'body')
 }

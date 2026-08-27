@@ -12,6 +12,7 @@ export interface SelectOption<T> {
 	icon?: ReactNode
 	group?: string
 }
+
 function centerActiveOption(node: HTMLDivElement | null): void {
 	const list = node?.parentElement
 	if (!node || !list) return
@@ -80,7 +81,7 @@ export function ToolbarSelect<T extends string | number>({
 								<div ref={selected ? centerActiveOption : undefined}>
 									<DropdownItem
 										active={selected}
-									icon={selected ? <Check className="h-3.5 w-3.5" /> : option.icon ?? null}
+										icon={selected ? <Check className="h-3.5 w-3.5" /> : (option.icon ?? null)}
 										onSelect={() => {
 											onChange(option.value)
 											close()

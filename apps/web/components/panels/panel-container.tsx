@@ -6,8 +6,8 @@ import { type PanelId, usePanels } from '@/features/analysis/panel-context'
 import { useDocument } from '@/features/document/document-context'
 import { AiChatPanel } from './ai-chat-panel'
 import { AiDetectorPanel } from './ai-detector-panel'
-import { CommentsPanel } from './comments-panel'
 import { AiRewriterPanel } from './ai-rewriter-panel'
+import { CommentsPanel } from './comments-panel'
 import { GlossaryPanel } from './glossary-panel'
 import { HumanizerPanel } from './humanizer-panel'
 import { PlagiarismPanel } from './plagiarism-panel'
@@ -52,10 +52,13 @@ function PanelBody({ panel }: { panel: PanelId }) {
 export function PanelContainer({ panel }: { panel: PanelId }) {
 	const { setActivePanel } = usePanels()
 	const { dispatch } = useDocument()
-	useEffect(() => {
-		dispatch({ type: 'setHoveredRange', range: null })
-		dispatch({ type: 'setFocusedRange', range: null })
-	}, [panel, dispatch])
+	useEffect(
+		function clearRangeHighlightsOnPanelChange() {
+			dispatch({ type: 'setHoveredRange', range: null })
+			dispatch({ type: 'setFocusedRange', range: null })
+		},
+		[panel, dispatch],
+	)
 
 	return (
 		<div className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-2xl bg-surface">

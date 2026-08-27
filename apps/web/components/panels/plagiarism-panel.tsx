@@ -17,6 +17,7 @@ import {
 	StaleNotice,
 } from './panel-parts'
 import { RunScopeBar } from './run-scope-bar'
+
 function uniquenessColor(score: number): string {
 	if (score > 85) return 'text-green-400'
 	if (score > 70) return 'text-yellow-400'
@@ -71,9 +72,7 @@ export function PlagiarismPanel() {
 								))}
 							</div>
 						) : (
-							<p className="py-2 text-center text-xs text-subtle">
-								No common phrasing detected ✓
-							</p>
+							<p className="py-2 text-center text-xs text-subtle">No common phrasing detected ✓</p>
 						)}
 
 						<p className="flex items-start gap-1.5 rounded-xl bg-[var(--overlay-hover)] px-3 py-2 text-[10px] text-subtle">

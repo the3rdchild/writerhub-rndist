@@ -3,8 +3,8 @@ import type { Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { buildTextIndex, textPosToPM, textRangeToPM } from '@/features/document/tiptap-offsets'
-import { countWords } from '@/lib/utils'
 import type { VersionDiffRange } from '@/features/versions/diff'
+import { countWords } from '@/lib/utils'
 
 export const analysisDiffHighlightKey = new PluginKey<AnalysisDiffHighlightState>('analysisDiffHighlight')
 
@@ -12,6 +12,7 @@ interface AnalysisDiffHighlightState {
 	ranges: VersionDiffRange[]
 	decorations: DecorationSet
 }
+
 function buildDecorations(doc: PMNode, ranges: readonly VersionDiffRange[]): DecorationSet {
 	if (ranges.length === 0) return DecorationSet.empty
 
@@ -36,7 +37,10 @@ function buildDecorations(doc: PMNode, ranges: readonly VersionDiffRange[]): Dec
 					const marker = document.createElement('span')
 					marker.className = 'version-diff-added'
 					marker.title = `${addedWords} word${addedWords === 1 ? '' : 's'} added by this run`
-					marker.setAttribute('aria-label', `${addedWords} word${addedWords === 1 ? '' : 's'} added by this run`)
+					marker.setAttribute(
+						'aria-label',
+						`${addedWords} word${addedWords === 1 ? '' : 's'} added by this run`,
+					)
 					return marker
 				},
 				{ key: `analysis-diff-added-${range.offset}` },
@@ -46,6 +50,7 @@ function buildDecorations(doc: PMNode, ranges: readonly VersionDiffRange[]): Dec
 
 	return DecorationSet.create(doc, decorations)
 }
+
 export const AnalysisDiffHighlight = Extension.create({
 	name: 'analysisDiffHighlight',
 

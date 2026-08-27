@@ -1,8 +1,10 @@
 import { and, count, desc, eq } from 'drizzle-orm'
+import { isPgError, PG_ERROR } from '@/constants/postgres-error'
 import db from '@/db'
-import { documents, projects } from '@/db/schemas'
 import type { NewProject } from '@/db/schemas'
+import { documents, projects } from '@/db/schemas'
 import { AppError } from '@/lib/error'
+
 export async function findProjectsByOwner(ownerId: string) {
 	return db
 		.select({
@@ -35,7 +37,8 @@ export async function insertProject(values: NewProject) {
 	return row ?? null
 }
 
-const DEFAULT_PROJECT_NAME = 'Dokumen Saya'
+export const DEFAULT_PROJECT_NAME = 'Dokumen Saya'
+
 export async function findOrCreateDefaultProject(ownerId: string) {
 	const [existing] = await db
 		.select()
@@ -51,6 +54,7 @@ export async function findOrCreateDefaultProject(ownerId: string) {
 	if (!created) throw new Error('Gagal membuat proyek default')
 	return created
 }
+
 export async function updateProject(id: string, ownerId: string, values: Partial<NewProject>) {
 	const [row] = await db
 		.update(projects)
@@ -59,6 +63,7 @@ export async function updateProject(id: string, ownerId: string, values: Partial
 		.returning()
 	return row ?? null
 }
+
 export async function deleteProject(id: string, ownerId: string) {
 	try {
 		const [row] = await db
@@ -67,7 +72,7 @@ export async function deleteProject(id: string, ownerId: string) {
 			.returning({ id: projects.id })
 		return row ?? null
 	} catch (error) {
-		if (error && typeof error === 'object' && 'code' in error && error.code === '23503') {
+		if (isPgError(error, PG_ERROR.FOREIGN_KEY_VIOLATION)) {
 			throw AppError.conflict('Proyek masih berisi dokumen - pindahkan atau hapus dokumennya dulu')
 		}
 		throw error

@@ -4,6 +4,7 @@ export interface CommentReply {
 	text: string
 	at: number
 }
+
 export interface CommentSuggestion {
 	text: string
 	author: string
@@ -13,6 +14,7 @@ export interface CommentSuggestion {
 	decidedAt?: number
 	replaced?: string
 }
+
 export interface CommentThread {
 	id: string
 	quote: string

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -21,22 +22,23 @@ export function usePersistentState<T>(
 	const initialRef = useRef(initialValue)
 	initialRef.current = initialValue
 
-	useEffect(() => {
-		try {
-			const raw = window.localStorage.getItem(key)
-			if (raw !== null) setValue(withDefaults(JSON.parse(raw), initialRef.current))
-		} catch {
-		}
-		setHydrated(true)
-	}, [key])
+	useEffect(
+		function hydrateFromLocalStorage() {
+			try {
+				const raw = window.localStorage.getItem(key)
+				if (raw !== null) setValue(withDefaults(JSON.parse(raw), initialRef.current))
+			} catch {}
+			setHydrated(true)
+		},
+		[key],
+	)
 
 	const update = useCallback((next: T | ((current: T) => T)) => {
 		setValue((current) => {
 			const resolved = typeof next === 'function' ? (next as (c: T) => T)(current) : next
 			try {
 				window.localStorage.setItem(keyRef.current, JSON.stringify(resolved))
-			} catch {
-			}
+			} catch {}
 			return resolved
 		})
 	}, [])

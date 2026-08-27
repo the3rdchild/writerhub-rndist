@@ -15,6 +15,7 @@ const s3Client = new S3Client({
 const bucket = env.CDN_BUCKET_NAME
 
 export const DEFAULT_PRESIGNED_TTL_SECONDS = 3600
+
 export async function uploadFile(
 	key: string,
 	body: Buffer | ArrayBuffer | Uint8Array | string,
@@ -32,7 +33,11 @@ export async function uploadFile(
 	)
 	return key
 }
-export async function getPresignedUrl(key: string, expiresIn = DEFAULT_PRESIGNED_TTL_SECONDS): Promise<string> {
+
+export async function getPresignedUrl(
+	key: string,
+	expiresIn = DEFAULT_PRESIGNED_TTL_SECONDS,
+): Promise<string> {
 	return getSignedUrl(s3Client, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn })
 }
 

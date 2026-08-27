@@ -5,6 +5,7 @@ export type SuggestionCategory = (typeof SUGGESTION_CATEGORIES)[number]
 
 export const GRAMMAR_MODELS = ['standard', 'advanced', 'ai'] as const
 export type GrammarModel = (typeof GRAMMAR_MODELS)[number]
+
 export interface GrammarSuggestion {
 	id: string
 	type: string
@@ -21,6 +22,7 @@ export interface GrammarScores {
 	clarity: number
 	engagement: number
 }
+
 export interface GrammarResultPayload {
 	original_text: string
 	corrected_text: string | null
@@ -29,12 +31,14 @@ export interface GrammarResultPayload {
 	writing_quality: number | null
 	quality_label: string | null
 }
+
 export interface GrammarJobStatus extends Partial<GrammarResultPayload> {
 	jobId: string
 	status: JobStatus
 	title: string | null
 	error?: string
 }
+
 export type GrammarStreamEvent =
 	| { type: 'checkpoint'; suggestions: GrammarSuggestion[] }
 	| ({ type: 'done' } & GrammarResultPayload)

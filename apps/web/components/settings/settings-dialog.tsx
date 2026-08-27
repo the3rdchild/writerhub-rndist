@@ -22,25 +22,29 @@ const THEMES: Array<{ value: Theme; label: string; icon: typeof Moon }> = [
 ]
 
 const FONT_SIZES: FontSize[] = ['small', 'medium', 'large']
+
 export function SettingsDialog() {
 	const { settings, update, updateProfile, settingsOpen, setSettingsOpen } = useSettings()
 	const [tab, setTab] = useState<TabKey>('profile')
 	const overlayRef = useRef<HTMLDivElement>(null)
 
-	useEffect(() => {
-		if (!settingsOpen) return
+	useEffect(
+		function lockScrollAndCloseOnEscape() {
+			if (!settingsOpen) return
 
-		document.body.style.overflow = 'hidden'
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') setSettingsOpen(false)
-		}
-		window.addEventListener('keydown', onKeyDown)
+			document.body.style.overflow = 'hidden'
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') setSettingsOpen(false)
+			}
+			window.addEventListener('keydown', onKeyDown)
 
-		return () => {
-			document.body.style.overflow = ''
-			window.removeEventListener('keydown', onKeyDown)
-		}
-	}, [settingsOpen, setSettingsOpen])
+			return () => {
+				document.body.style.overflow = ''
+				window.removeEventListener('keydown', onKeyDown)
+			}
+		},
+		[settingsOpen, setSettingsOpen],
+	)
 
 	if (!settingsOpen) return null
 
@@ -129,9 +133,7 @@ export function SettingsDialog() {
 							<Field label="Langganan">
 								<div className="flex items-center gap-2 rounded-lg border border-orange-400/20 bg-orange-400/10 px-3 py-2">
 									<Crown className="h-4 w-4 text-orange-400" />
-									<span className="text-sm font-medium text-orange-400">
-										Paket {settings.profile.role}
-									</span>
+									<span className="text-sm font-medium text-orange-400">Paket {settings.profile.role}</span>
 								</div>
 							</Field>
 						</div>

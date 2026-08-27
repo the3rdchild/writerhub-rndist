@@ -14,7 +14,10 @@
     "build": "bun run --filter '*' build",
     "test": "bun run --filter '*' test",
     "typecheck": "bun run --filter '*' typecheck",
-    "lint": "bun run --filter '*' lint",
+    "lint": "biome lint apps packages",
+    "format": "biome format --write apps packages",
+    "check": "biome check apps packages",
+    "check:fix": "biome check --write apps packages",
     "db:generate": "bun run --filter @writer-hub/api db:generate",
     "db:migrate": "bun run --filter @writer-hub/api db:migrate",
     "db:push": "bun run --filter @writer-hub/api db:push",
@@ -24,6 +27,7 @@
     "docker:reset": "docker compose down -v && docker compose up --build"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.10",
     "typescript": "^5.9.3"
   },
   "engines": {

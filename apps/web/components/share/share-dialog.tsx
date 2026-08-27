@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 
 const ACCESS_OPTIONS: ShareAccess[] = ['restricted', 'anyone']
 const ROLE_OPTIONS: ShareRole[] = ['viewer', 'commenter', 'editor']
+
 export function ShareDialog() {
 	const { shareOpen, setShareOpen } = useShare()
 	const { activeId } = useSessions()
@@ -33,44 +34,47 @@ export function ShareDialog() {
 	const [error, setError] = useState<string | null>(null)
 	const [notSynced, setNotSynced] = useState(false)
 
-	useEffect(() => {
-		if (!shareOpen) {
-			setLink('')
-			setError(null)
-			setLoading(false)
-			setCopied(false)
-			setNotSynced(false)
-			setDocumentTitle('')
-			return
-		}
+	useEffect(
+		function resetStateWhenClosed() {
+			if (!shareOpen) {
+				setLink('')
+				setError(null)
+				setLoading(false)
+				setCopied(false)
+				setNotSynced(false)
+				setDocumentTitle('')
+				return
+			}
 
-		document.body.style.overflow = 'hidden'
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') setShareOpen(false)
-		}
-		window.addEventListener('keydown', onKeyDown)
-		const serverId = activeId ? linkage[activeId]?.serverId : undefined
-		if (!serverId) {
-			setNotSynced(true)
-		} else {
-			setLoading(true)
-			setError(null)
-			setNotSynced(false)
-			getTab(serverId)
-				.then((tab) => createShare({ documentId: tab.documentId, access, role }))
-				.then((result) => {
-					setLink(`${window.location.origin}${result.url}`)
-					setDocumentTitle(result.documentTitle)
-				})
-				.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal membuat link'))
-				.finally(() => setLoading(false))
-		}
+			document.body.style.overflow = 'hidden'
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') setShareOpen(false)
+			}
+			window.addEventListener('keydown', onKeyDown)
+			const serverId = activeId ? linkage[activeId]?.serverId : undefined
+			if (!serverId) {
+				setNotSynced(true)
+			} else {
+				setLoading(true)
+				setError(null)
+				setNotSynced(false)
+				getTab(serverId)
+					.then((tab) => createShare({ documentId: tab.documentId, access, role }))
+					.then((result) => {
+						setLink(`${window.location.origin}${result.url}`)
+						setDocumentTitle(result.documentTitle)
+					})
+					.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal membuat link'))
+					.finally(() => setLoading(false))
+			}
 
-		return () => {
-			document.body.style.overflow = ''
-			window.removeEventListener('keydown', onKeyDown)
-		}
-	}, [shareOpen, activeId, linkage, access, role])
+			return () => {
+				document.body.style.overflow = ''
+				window.removeEventListener('keydown', onKeyDown)
+			}
+		},
+		[shareOpen, activeId, linkage, access, role],
+	)
 
 	if (!shareOpen) return null
 
@@ -80,8 +84,7 @@ export function ShareDialog() {
 			await navigator.clipboard.writeText(link)
 			setCopied(true)
 			setTimeout(() => setCopied(false), 2000)
-		} catch {
-		}
+		} catch {}
 	}
 
 	const disabled = notSynced || loading || Boolean(error)
@@ -170,9 +173,7 @@ export function ShareDialog() {
 							disabled={!link || disabled}
 							className={cn(
 								'flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-								copied
-									? 'bg-green-500/15 text-green-600'
-									: 'text-accent hover:bg-accent/10',
+								copied ? 'bg-green-500/15 text-green-600' : 'text-accent hover:bg-accent/10',
 								(!link || disabled) && 'cursor-not-allowed opacity-50',
 							)}
 						>
@@ -182,15 +183,14 @@ export function ShareDialog() {
 					</div>
 					{notSynced ? (
 						<p className="text-xs text-red-500">
-							Simpan dokumen ini ke cloud dulu (tombol Simpan di kartu Library) untuk
-							membagikannya.
+							Simpan dokumen ini ke cloud dulu (tombol Simpan di kartu Library) untuk membagikannya.
 						</p>
 					) : error ? (
 						<p className="text-xs text-red-500">{error}</p>
 					) : (
 						<p className="text-xs text-subtle">
-							Link menampilkan isi dokumen ini secara langsung (live) - perubahan terbaru
-							langsung terlihat. Siapa pun yang memiliki link dapat membuka.
+							Link menampilkan isi dokumen ini secara langsung (live) - perubahan terbaru langsung terlihat.
+							Siapa pun yang memiliki link dapat membuka.
 						</p>
 					)}
 				</div>
@@ -222,9 +222,7 @@ export function ShareDialog() {
 									<p className="text-sm font-medium">{SHARE_ACCESS_LABELS[value].label}</p>
 									<p className="text-xs text-subtle">{SHARE_ACCESS_LABELS[value].description}</p>
 								</div>
-								{access === value && (
-									<Check className="h-4 w-4 shrink-0 text-accent" />
-								)}
+								{access === value && <Check className="h-4 w-4 shrink-0 text-accent" />}
 							</button>
 						))}
 					</div>

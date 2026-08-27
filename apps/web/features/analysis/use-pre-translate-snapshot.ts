@@ -4,6 +4,7 @@ import { useCallback, useRef } from 'react'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSync } from '@/features/sync/sync-context'
 import { createVersion } from '@/features/versions/api'
+
 export function usePreTranslateSnapshot() {
 	const { activeId } = useSessions()
 	const { linkage } = useSync()

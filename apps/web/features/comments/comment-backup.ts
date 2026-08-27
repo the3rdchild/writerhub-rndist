@@ -1,6 +1,7 @@
 'use client'
 
 import type { CommentThread } from '@/features/sessions/types'
+
 const STORAGE_KEY = 'writer-hub-comment-backup'
 const MAX_ENTRIES = 60
 
@@ -27,9 +28,9 @@ function write(store: BackupStore): void {
 	if (typeof window === 'undefined') return
 	try {
 		window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
-	} catch {
-	}
+	} catch {}
 }
+
 export function backupComments(serverTabId: string, threads: CommentThread[]): void {
 	const store = read()
 
@@ -51,6 +52,7 @@ export function backupComments(serverTabId: string, threads: CommentThread[]): v
 
 	write(store)
 }
+
 export function restoreComments(serverTabId: string): CommentThread[] {
 	const entry = read()[serverTabId]
 	return Array.isArray(entry?.threads) ? entry.threads : []

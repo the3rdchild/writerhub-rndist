@@ -4,6 +4,7 @@ import { twMerge } from 'tailwind-merge'
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs))
 }
+
 export function fingerprint(text: string): string {
 	let hash = 5381
 	for (let i = 0; i < text.length; i += 1) {

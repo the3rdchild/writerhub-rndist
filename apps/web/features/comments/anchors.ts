@@ -3,10 +3,12 @@
 import type { Editor } from '@tiptap/core'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { COMMENT_MARK } from './comment-mark'
+
 export interface CommentRange {
 	from: number
 	to: number
 }
+
 export function commentRangesInDoc(doc: ProseMirrorNode): Map<string, CommentRange> {
 	const ranges = new Map<string, CommentRange>()
 
@@ -27,13 +29,16 @@ export function commentRangesInDoc(doc: ProseMirrorNode): Map<string, CommentRan
 
 	return ranges
 }
+
 export function commentRanges(editor: Editor): Map<string, CommentRange> {
 	if (editor.isDestroyed) return new Map()
 	return commentRangesInDoc(editor.state.doc)
 }
+
 export function commentRange(editor: Editor, id: string): CommentRange | null {
 	return commentRanges(editor).get(id) ?? null
 }
+
 export function scrollToComment(editor: Editor, id: string): boolean {
 	const range = commentRange(editor, id)
 	if (!range) return false

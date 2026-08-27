@@ -2,6 +2,7 @@
 
 import { Image as ImageIcon, Link as LinkIcon, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+
 export function InsertImageDialog({
 	open,
 	onInsert,
@@ -18,28 +19,34 @@ export function InsertImageDialog({
 	const [error, setError] = useState<string | null>(null)
 	const overlayRef = useRef<HTMLDivElement>(null)
 	const urlInputRef = useRef<HTMLInputElement>(null)
-	useEffect(() => {
-		if (!open) return
-		setSrc('')
-		setAlt('')
-		setTitle('')
-		setMode('url')
-		setError(null)
-		const timer = setTimeout(() => urlInputRef.current?.focus(), 50)
-		return () => clearTimeout(timer)
-	}, [open])
-	useEffect(() => {
-		if (!open) return
-		document.body.style.overflow = 'hidden'
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') onCancel()
-		}
-		window.addEventListener('keydown', onKeyDown)
-		return () => {
-			document.body.style.overflow = ''
-			window.removeEventListener('keydown', onKeyDown)
-		}
-	}, [open, onCancel])
+	useEffect(
+		function resetFormOnOpen() {
+			if (!open) return
+			setSrc('')
+			setAlt('')
+			setTitle('')
+			setMode('url')
+			setError(null)
+			const timer = setTimeout(() => urlInputRef.current?.focus(), 50)
+			return () => clearTimeout(timer)
+		},
+		[open],
+	)
+	useEffect(
+		function lockScrollAndCloseOnEscape() {
+			if (!open) return
+			document.body.style.overflow = 'hidden'
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') onCancel()
+			}
+			window.addEventListener('keydown', onKeyDown)
+			return () => {
+				document.body.style.overflow = ''
+				window.removeEventListener('keydown', onKeyDown)
+			}
+		},
+		[open, onCancel],
+	)
 
 	if (!open) return null
 
@@ -146,7 +153,11 @@ export function InsertImageDialog({
 							className="text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-accent/10 file:px-3 file:py-1.5 file:text-accent hover:file:bg-accent/20"
 						/>
 						{src && (
-							<img src={src} alt={alt} className="mt-1 max-h-32 rounded-lg border border-line object-contain" />
+							<img
+								src={src}
+								alt={alt}
+								className="mt-1 max-h-32 rounded-lg border border-line object-contain"
+							/>
 						)}
 					</label>
 				)}

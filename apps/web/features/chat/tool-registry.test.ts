@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { ALL_TOOLS, EDITOR_TOOLS, RESEARCH_TOOLS, isReadTool, toProviderTools } from '@writer-hub/shared'
+import { ALL_TOOLS, EDITOR_TOOLS, isReadTool, RESEARCH_TOOLS, toProviderTools } from '@writer-hub/shared'
+
 describe('registri alat editor', () => {
 	test('nama alat unik', () => {
 		const names = EDITOR_TOOLS.map((tool) => tool.name)
@@ -85,9 +86,11 @@ describe('registri alat editor', () => {
 
 describe('alat section (§P8&P9)', () => {
 	const enumOf = (tool: string, param: string): string[] =>
-		((EDITOR_TOOLS.find((item) => item.name === tool)?.parameters.properties[param] as
-			| { enum?: string[] }
-			| undefined)?.enum ?? [])
+		(
+			EDITOR_TOOLS.find((item) => item.name === tool)?.parameters.properties[param] as
+				| { enum?: string[] }
+				| undefined
+		)?.enum ?? []
 
 	test('insert_section_break adalah alat tulis tanpa argumen wajib', () => {
 		const tool = EDITOR_TOOLS.find((item) => item.name === 'insert_section_break')

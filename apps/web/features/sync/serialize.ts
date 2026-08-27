@@ -3,9 +3,11 @@ import { prosemirrorToYXmlFragment, yXmlFragmentToProseMirrorRootNode } from 'y-
 import type * as Y from 'yjs'
 import { buildEditorExtensions } from '@/features/editor/extensions'
 import { LOCAL_ORIGIN, tabFragment } from '@/features/sessions/ydoc'
+
 export function buildSchema() {
 	return getSchema(buildEditorExtensions())
 }
+
 export function fragmentToJSON(doc: Y.Doc, tabId: string): JSONContent {
 	const json = yXmlFragmentToProseMirrorRootNode(tabFragment(doc, tabId), buildSchema()).toJSON()
 	if (!Array.isArray(json.content) || json.content.length === 0) {
@@ -13,6 +15,7 @@ export function fragmentToJSON(doc: Y.Doc, tabId: string): JSONContent {
 	}
 	return json
 }
+
 export function jsonToFragment(doc: Y.Doc, tabId: string, json: JSONContent): void {
 	const schema = buildSchema()
 	const node = schema.nodeFromJSON(json)

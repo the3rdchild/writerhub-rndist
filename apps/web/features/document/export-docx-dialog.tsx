@@ -10,6 +10,7 @@ import { sessionLabel, useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { buildSchema, fragmentToJSON } from '@/features/sync/serialize'
 import { cn } from '@/lib/utils'
+
 export function ExportDocxDialog() {
 	const { docxExportOpen, setDocxExportOpen } = useSettings()
 	const { setup } = usePageSetup()
@@ -19,26 +20,32 @@ export function ExportDocxDialog() {
 	const [mode, setMode] = useState<'all' | 'pick'>('all')
 	const [picked, setPicked] = useState<Set<string>>(new Set())
 	const [exporting, setExporting] = useState(false)
-	useEffect(() => {
-		if (!docxExportOpen) return
-		setMode('all')
-		setPicked(new Set(activeId ? [activeId] : []))
-	}, [docxExportOpen, activeId])
+	useEffect(
+		function resetSelectionOnOpen() {
+			if (!docxExportOpen) return
+			setMode('all')
+			setPicked(new Set(activeId ? [activeId] : []))
+		},
+		[docxExportOpen, activeId],
+	)
 
-	useEffect(() => {
-		if (!docxExportOpen) return
+	useEffect(
+		function lockScrollAndCloseOnEscape() {
+			if (!docxExportOpen) return
 
-		document.body.style.overflow = 'hidden'
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') setDocxExportOpen(false)
-		}
-		window.addEventListener('keydown', onKeyDown)
+			document.body.style.overflow = 'hidden'
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') setDocxExportOpen(false)
+			}
+			window.addEventListener('keydown', onKeyDown)
 
-		return () => {
-			document.body.style.overflow = ''
-			window.removeEventListener('keydown', onKeyDown)
-		}
-	}, [docxExportOpen, setDocxExportOpen])
+			return () => {
+				document.body.style.overflow = ''
+				window.removeEventListener('keydown', onKeyDown)
+			}
+		},
+		[docxExportOpen, setDocxExportOpen],
+	)
 
 	if (!docxExportOpen) return null
 

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+
 export function PanelScroll({ children, className }: { children: ReactNode; className?: string }) {
 	return (
 		<div className={cn('flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-surface-inset p-4', className)}>
@@ -25,9 +26,7 @@ export function PanelScroll({ children, className }: { children: ReactNode; clas
 }
 
 export function PanelFooter({ children }: { children: ReactNode }) {
-	return (
-		<div className="flex shrink-0 flex-col gap-2 border-t border-line px-4 py-3">{children}</div>
-	)
+	return <div className="flex shrink-0 flex-col gap-2 border-t border-line px-4 py-3">{children}</div>
 }
 
 export function StaleNotice() {
@@ -38,6 +37,7 @@ export function StaleNotice() {
 		</div>
 	)
 }
+
 export function ScopeIndicator({ wordCount }: { wordCount: number | null }) {
 	if (wordCount === null) {
 		return (
@@ -149,6 +149,7 @@ export function AcceptAllButton({ onClick, disabled }: { onClick: () => void; di
 		</button>
 	)
 }
+
 export function ClearResultsButton({ onClick }: { onClick: () => void }) {
 	return (
 		<button
@@ -161,6 +162,7 @@ export function ClearResultsButton({ onClick }: { onClick: () => void }) {
 		</button>
 	)
 }
+
 export function CompareButton({
 	active,
 	onToggle,
@@ -233,6 +235,7 @@ export function AcceptDismissRow({
 		</div>
 	)
 }
+
 export function ChangeCard({
 	original,
 	replacement,
@@ -261,6 +264,7 @@ export function ChangeCard({
 		</div>
 	)
 }
+
 export function CandidateCard({
 	original,
 	candidates,
@@ -284,9 +288,7 @@ export function CandidateCard({
 			{...rangeProps}
 			className="flex flex-col gap-2 rounded-xl border border-line bg-surface-raised p-3 transition-colors hover:border-line-strong"
 		>
-			<p className="text-xs leading-relaxed text-red-300/70 line-through decoration-red-400/40">
-				{original}
-			</p>
+			<p className="text-xs leading-relaxed text-red-300/70 line-through decoration-red-400/40">{original}</p>
 
 			<div className="flex flex-col gap-1.5">
 				{candidates.map((candidate, index) => (
@@ -336,6 +338,7 @@ export function CandidateCard({
 		</div>
 	)
 }
+
 export function AppliedCard({
 	original,
 	applied,
@@ -351,7 +354,7 @@ export function AppliedCard({
 		<div className="flex flex-col gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/5 p-3">
 			<div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-400">
 				<CheckCircle2 className="h-3.5 w-3.5" />
-			Applied
+				Applied
 			</div>
 			<p className="text-xs leading-relaxed text-emerald-300">{applied}</p>
 			<p className="text-[11px] leading-relaxed text-subtle line-through">{original}</p>

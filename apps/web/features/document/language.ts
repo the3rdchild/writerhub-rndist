@@ -3,6 +3,7 @@ export interface DetectedLanguage {
 	label: string
 	confident: boolean
 }
+
 export const LANGUAGE_OPTIONS: ReadonlyArray<{ code: string; label: string; flag: string }> = [
 	{ code: 'en', label: 'English', flag: 'us' },
 	{ code: 'id', label: 'Bahasa Indonesia', flag: 'id' },
@@ -27,6 +28,7 @@ const LABELS = new Map(LANGUAGE_OPTIONS.map((option) => [option.code, option.lab
 export function languageLabel(code: string): string {
 	return LABELS.get(code) ?? code.toUpperCase()
 }
+
 const SCRIPTS: ReadonlyArray<{ code: string; pattern: RegExp }> = [
 	{ code: 'ko', pattern: /[가-힯]/ },
 	{ code: 'ja', pattern: /[぀-ヿ]/ },
@@ -35,10 +37,39 @@ const SCRIPTS: ReadonlyArray<{ code: string; pattern: RegExp }> = [
 	{ code: 'ru', pattern: /[Ѐ-ӿ]/ },
 	{ code: 'th', pattern: /[฀-๿]/ },
 ]
+
 const STOPWORDS: Readonly<Record<string, readonly string[]>> = {
 	en: ['the', 'and', 'of', 'to', 'is', 'in', 'that', 'for', 'with', 'this', 'are', 'was', 'be', 'it'],
-	id: ['yang', 'dan', 'untuk', 'dengan', 'pada', 'tidak', 'ini', 'dari', 'akan', 'adalah', 'dalam', 'atau', 'juga', 'bisa'],
-	ms: ['yang', 'dan', 'untuk', 'dengan', 'tidak', 'ini', 'dari', 'akan', 'adalah', 'dalam', 'boleh', 'kerana'],
+	id: [
+		'yang',
+		'dan',
+		'untuk',
+		'dengan',
+		'pada',
+		'tidak',
+		'ini',
+		'dari',
+		'akan',
+		'adalah',
+		'dalam',
+		'atau',
+		'juga',
+		'bisa',
+	],
+	ms: [
+		'yang',
+		'dan',
+		'untuk',
+		'dengan',
+		'tidak',
+		'ini',
+		'dari',
+		'akan',
+		'adalah',
+		'dalam',
+		'boleh',
+		'kerana',
+	],
 	es: ['que', 'de', 'la', 'el', 'en', 'los', 'para', 'con', 'una', 'por', 'como', 'las'],
 	pt: ['que', 'de', 'para', 'com', 'uma', 'por', 'como', 'mais', 'dos', 'nao', 'ser'],
 	fr: ['que', 'de', 'le', 'la', 'les', 'des', 'pour', 'avec', 'une', 'dans', 'est', 'sur'],
@@ -48,9 +79,8 @@ const STOPWORDS: Readonly<Record<string, readonly string[]>> = {
 	tr: ['bir', 'için', 'bu', 'daha', 'olarak', 'ile', 'çok', 'ancak'],
 	vi: ['của', 'và', 'là', 'không', 'được', 'trong', 'người', 'những'],
 }
-const STOPWORD_SETS = Object.entries(STOPWORDS).map(
-	([code, words]) => [code, new Set(words)] as const,
-)
+
+const STOPWORD_SETS = Object.entries(STOPWORDS).map(([code, words]) => [code, new Set(words)] as const)
 const MIN_WORDS = 12
 const MIN_LEAD = 2
 
@@ -85,6 +115,7 @@ export function detectLanguage(text: string): DetectedLanguage {
 		confident: best[1] - (runnerUp?.[1] ?? 0) >= MIN_LEAD,
 	}
 }
+
 export function requiresAiTier(code: string): boolean {
 	return code !== 'en'
 }

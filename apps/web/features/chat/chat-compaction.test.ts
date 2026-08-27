@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { ChatTurn } from './chat-context'
 import { actionsSettled, buildOutboundMessages } from './chat-context'
+
 const TASK_A = 'task-a'
 const TASK_B = 'task-b'
 
@@ -89,9 +90,7 @@ describe('buildOutboundMessages - pemadatan batas tugas', () => {
 			user('ringkas bab 1', TASK_A),
 			{
 				...assistant('Ini ringkasannya.', TASK_A),
-				steps: [
-					{ id: 's1', label: 'Berpikir…', status: 'done', startedAt: 1, endedAt: 2 },
-				],
+				steps: [{ id: 's1', label: 'Berpikir…', status: 'done', startedAt: 1, endedAt: 2 }],
 				usage: { promptTokens: 100, completionTokens: 50 },
 			},
 		]
@@ -123,6 +122,7 @@ describe('buildOutboundMessages - pemadatan batas tugas', () => {
 		expect(outbound.some((m) => m.content === 'pertanyaan 29')).toBe(true)
 	})
 })
+
 describe('actionsSettled - syarat melanjutkan giliran', () => {
 	const write = (id: string, name: string) => ({ id, name, arguments: '{}' })
 

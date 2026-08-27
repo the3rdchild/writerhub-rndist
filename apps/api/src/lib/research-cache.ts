@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto'
 import type { ResearchTopic } from '@writer-hub/shared'
-import redis from '@/config/redis'
 import { env } from '@/config/env'
+import redis from '@/config/redis'
+import LoggerClient from '@/lib/logger'
 import type { TavilyExtractResult, TavilySearchInput, TavilySearchResult } from '@/lib/tavily-client'
-import LoggerClient from '@/utils/logger'
 
 const log = LoggerClient.getInstance()
 
@@ -18,7 +18,9 @@ function ttlFor(topic: ResearchTopic): number {
 }
 
 function fingerprint(parts: (string | number | undefined)[]): string {
-	return createHash('sha1').update(parts.map((part) => part ?? '').join('|')).digest('hex')
+	return createHash('sha1')
+		.update(parts.map((part) => part ?? '').join('|'))
+		.digest('hex')
 }
 
 export function searchKey(input: TavilySearchInput): string {

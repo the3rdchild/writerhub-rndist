@@ -1,6 +1,7 @@
 import { index, pgTable, uuid, varchar } from 'drizzle-orm/pg-core'
 import { timestamps } from '@/db/utils/common-table'
 import { identity } from './identity'
+
 export const projects = pgTable(
 	'projects',
 	{

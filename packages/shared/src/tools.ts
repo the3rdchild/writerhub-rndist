@@ -224,7 +224,19 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 			properties: {
 				size: {
 					type: 'string',
-					enum: ['letter', 'tabloid', 'legal', 'statement', 'executive', 'folio', 'a3', 'a4', 'a5', 'b4', 'b5'],
+					enum: [
+						'letter',
+						'tabloid',
+						'legal',
+						'statement',
+						'executive',
+						'folio',
+						'a3',
+						'a4',
+						'a5',
+						'b4',
+						'b5',
+					],
 				},
 				orientation: { type: 'string', enum: ['portrait', 'landscape'] },
 				margins_cm: {
@@ -456,7 +468,19 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 			properties: {
 				size: {
 					type: 'string',
-					enum: ['letter', 'tabloid', 'legal', 'statement', 'executive', 'folio', 'a3', 'a4', 'a5', 'b4', 'b5'],
+					enum: [
+						'letter',
+						'tabloid',
+						'legal',
+						'statement',
+						'executive',
+						'folio',
+						'a3',
+						'a4',
+						'a5',
+						'b4',
+						'b5',
+					],
 				},
 				orientation: { type: 'string', enum: ['portrait', 'landscape'] },
 				margins_cm: {
@@ -543,16 +567,19 @@ export function findTool(name: string): ToolDefinition | undefined {
 export function isReadTool(name: string): boolean {
 	return BY_NAME.get(name)?.kind === 'read'
 }
+
 export interface ToolCall {
 	id: string
 	name: string
 	arguments: Record<string, unknown>
 }
+
 export interface ToolResult {
 	id: string
 	name: string
 	content: string
 }
+
 export interface ToolScope {
 	/** Alat riset web hanya dikirim ke model saat mode riset menyala. */
 	research?: boolean
@@ -572,11 +599,14 @@ export function toProviderTools(scope?: ToolScope): unknown[] {
 		},
 	}))
 }
+
 export function fallbackToolPrompt(scope?: ToolScope): string {
-	const list = toolsInScope(scope).map((tool) => {
-		const params = Object.keys(tool.parameters.properties).join(', ') || '(none)'
-		return `- ${tool.name}(${params}) - ${tool.description}`
-	}).join('\n')
+	const list = toolsInScope(scope)
+		.map((tool) => {
+			const params = Object.keys(tool.parameters.properties).join(', ') || '(none)'
+			return `- ${tool.name}(${params}) - ${tool.description}`
+		})
+		.join('\n')
 
 	return [
 		'You can operate the editor by emitting tool calls. To call a tool, write a',
@@ -590,4 +620,5 @@ export function fallbackToolPrompt(scope?: ToolScope): string {
 		list,
 	].join('\n')
 }
+
 export const FALLBACK_TOOL_FENCE = /```writerhub\s*\n([\s\S]*?)```/g

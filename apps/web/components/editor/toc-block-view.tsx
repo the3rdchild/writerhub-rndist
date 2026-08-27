@@ -3,23 +3,25 @@
 import { type NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { Copy, MoreVertical, RefreshCw, Settings2, Trash2, Type } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { OutlineItem } from '@/features/editor/use-outline-plain'
-import { readOutlineItems } from '@/features/editor/use-outline-plain'
+import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown'
 import { pageGeometry } from '@/features/editor/page-geometry'
 import { paginationKey, SELF_PAGINATE_ATTRIBUTE, SPACER_ATTRIBUTE } from '@/features/editor/pagination'
-import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown'
-import { cn } from '@/lib/utils'
 import {
 	DEFAULT_TOC_ATTRS,
+	TOC_BLOCK,
 	type TocBlockAttrs,
 	type TocListKind,
 	type TocTabLeader,
-	TOC_BLOCK,
 } from '@/features/editor/toc-block'
+import type { OutlineItem } from '@/features/editor/use-outline-plain'
+import { readOutlineItems } from '@/features/editor/use-outline-plain'
+import { cn } from '@/lib/utils'
+
 interface TocEntry {
 	item: OutlineItem
 	page?: number
 }
+
 interface TocGap {
 	before: number
 	height: number
@@ -42,6 +44,7 @@ const EMPTY_HINT: Record<TocListKind, string> = {
 	gambar: 'Belum ada caption gambar (heading tingkat 7-9).',
 	tabel: 'Belum ada caption tabel (heading tingkat 7-9).',
 }
+
 function leaderChar(tabLeader: TocTabLeader): string {
 	switch (tabLeader) {
 		case 'dots':
@@ -54,11 +57,19 @@ function leaderChar(tabLeader: TocTabLeader): string {
 			return ' '
 	}
 }
+
 function tocAnchorId(pos: number): string {
 	return `toc-h-${pos}`
 }
 
-export function TocBlockView({ node, editor, getPos, selected, updateAttributes, deleteNode }: NodeViewProps) {
+export function TocBlockView({
+	node,
+	editor,
+	getPos,
+	selected,
+	updateAttributes,
+	deleteNode,
+}: NodeViewProps) {
 	const attrs: TocBlockAttrs = {
 		...DEFAULT_TOC_ATTRS,
 		...(node.attrs as Partial<TocBlockAttrs>),
@@ -69,54 +80,62 @@ export function TocBlockView({ node, editor, getPos, selected, updateAttributes,
 	const updateAttributesRef = useRef(updateAttributes)
 	updateAttributesRef.current = updateAttributes
 
-	const refresh = useCallback((writeSnapshot: boolean) => {
-		const attrs = attrsRef.current
-		const lo = Math.min(attrs.minLevel, attrs.maxLevel)
-		const hi = Math.max(attrs.minLevel, attrs.maxLevel)
-		const wantKind = KIND_FILTER[attrs.listKind]
-		const items = readOutlineItems(editor.state.doc).filter(
-			(item) => item.kind === wantKind && item.level >= lo && item.level <= hi,
-		)
-		const state = paginationKey.getState(editor.state)
-		const stride = state?.geometry?.pageStride ?? pageGeometry().pageStride
-		const next: TocEntry[] = items.map((item) => {
-			let page: number | undefined
-			if (item.pos + 1 <= editor.state.doc.content.size) {
-				try {
-					const el = editor.view.nodeDOM(item.pos)
-					if (el instanceof HTMLElement) {
-						if (attrs.showPageNumbers) page = Math.floor(el.offsetTop / stride) + 1
-						if (attrs.style === 'link') el.id = tocAnchorId(item.pos)
-					}
-				} catch {
+	const refresh = useCallback(
+		(writeSnapshot: boolean) => {
+			const attrs = attrsRef.current
+			const lo = Math.min(attrs.minLevel, attrs.maxLevel)
+			const hi = Math.max(attrs.minLevel, attrs.maxLevel)
+			const wantKind = KIND_FILTER[attrs.listKind]
+			const items = readOutlineItems(editor.state.doc).filter(
+				(item) => item.kind === wantKind && item.level >= lo && item.level <= hi,
+			)
+			const state = paginationKey.getState(editor.state)
+			const stride = state?.geometry?.pageStride ?? pageGeometry().pageStride
+			const next: TocEntry[] = items.map((item) => {
+				let page: number | undefined
+				if (item.pos + 1 <= editor.state.doc.content.size) {
+					try {
+						const el = editor.view.nodeDOM(item.pos)
+						if (el instanceof HTMLElement) {
+							if (attrs.showPageNumbers) page = Math.floor(el.offsetTop / stride) + 1
+							if (attrs.style === 'link') el.id = tocAnchorId(item.pos)
+						}
+					} catch {}
 				}
+				return { item, page }
+			})
+			setEntries(next)
+			if (writeSnapshot) {
+				const snapshot = snapshotText(next, attrs)
+				if (snapshot !== attrs.snapshot) updateAttributesRef.current({ snapshot })
 			}
-			return { item, page }
-		})
-		setEntries(next)
-		if (writeSnapshot) {
-			const snapshot = snapshotText(next, attrs)
-			if (snapshot !== attrs.snapshot) updateAttributesRef.current({ snapshot })
-		}
-	}, [editor])
+		},
+		[editor],
+	)
 	const minLevel = attrs.minLevel
 	const maxLevel = attrs.maxLevel
 	const listKind = attrs.listKind
 	const showPageNumbers = attrs.showPageNumbers
 	const style = attrs.style
-	useEffect(() => {
-		refresh(false)
-	}, [refresh, minLevel, maxLevel, listKind, showPageNumbers, style])
-	useEffect(() => {
-		const dom = editor.view.dom
-		const onRefreshRequest = () => refresh(true)
-		window.addEventListener('beforeprint', onRefreshRequest)
-		dom.addEventListener(TOC_REFRESH_EVENT, onRefreshRequest)
-		return () => {
-			window.removeEventListener('beforeprint', onRefreshRequest)
-			dom.removeEventListener(TOC_REFRESH_EVENT, onRefreshRequest)
-		}
-	}, [editor, refresh])
+	useEffect(
+		function refreshOnOptionChange() {
+			refresh(false)
+		},
+		[refresh, minLevel, maxLevel, listKind, showPageNumbers, style],
+	)
+	useEffect(
+		function refreshOnPrintOrRequest() {
+			const dom = editor.view.dom
+			const onRefreshRequest = () => refresh(true)
+			window.addEventListener('beforeprint', onRefreshRequest)
+			dom.addEventListener(TOC_REFRESH_EVENT, onRefreshRequest)
+			return () => {
+				window.removeEventListener('beforeprint', onRefreshRequest)
+				dom.removeEventListener(TOC_REFRESH_EVENT, onRefreshRequest)
+			}
+		},
+		[editor, refresh],
+	)
 	const convertToText = () => {
 		const pos = getPos()
 		if (pos === undefined) return
@@ -127,36 +146,47 @@ export function TocBlockView({ node, editor, getPos, selected, updateAttributes,
 		editor
 			.chain()
 			.focus()
-			.insertContentAt({ from: pos, to: pos + node.nodeSize }, paragraphs.length ? paragraphs : [{ type: 'paragraph' }])
+			.insertContentAt(
+				{ from: pos, to: pos + node.nodeSize },
+				paragraphs.length ? paragraphs : [{ type: 'paragraph' }],
+			)
 			.run()
 	}
 	const jumpTo = (pos: number) => {
-		editor.chain().focus().setTextSelection(Math.min(pos + 1, editor.state.doc.content.size)).scrollIntoView().run()
+		editor
+			.chain()
+			.focus()
+			.setTextSelection(Math.min(pos + 1, editor.state.doc.content.size))
+			.scrollIntoView()
+			.run()
 	}
 	const [gaps, setGaps] = useState<TocGap[]>([])
 	const [pageTick, setPageTick] = useState(0)
-	useEffect(() => {
-		let last = paginationKey.getState(editor.state)
-		const onTransaction = () => {
-			const current = paginationKey.getState(editor.state)
-			if (!current || !last) {
-				last = current
-				return
+	useEffect(
+		function refreshOnPaginationChange() {
+			let last = paginationKey.getState(editor.state)
+			const onTransaction = () => {
+				const current = paginationKey.getState(editor.state)
+				if (!current || !last) {
+					last = current
+					return
+				}
+				if (
+					current.spacers !== last.spacers ||
+					current.geometry !== last.geometry ||
+					current.pageless !== last.pageless
+				) {
+					last = current
+					setPageTick((t) => t + 1)
+				}
 			}
-			if (
-				current.spacers !== last.spacers ||
-				current.geometry !== last.geometry ||
-				current.pageless !== last.pageless
-			) {
-				last = current
-				setPageTick((t) => t + 1)
+			editor.on('transaction', onTransaction)
+			return () => {
+				editor.off('transaction', onTransaction)
 			}
-		}
-		editor.on('transaction', onTransaction)
-		return () => {
-			editor.off('transaction', onTransaction)
-		}
-	}, [editor])
+		},
+		[editor],
+	)
 	useLayoutEffect(() => {
 		const pos = getPos()
 		const wrapper = pos === undefined ? null : editor.view.nodeDOM(pos)
@@ -183,7 +213,8 @@ export function TocBlockView({ node, editor, getPos, selected, updateAttributes,
 		for (const gap of gaps) {
 			const i = gap.before
 			if (i <= 0 || i >= lis.length) continue
-			chrome = lis[i].offsetTop - (lis[i - 1].offsetTop + lis[i - 1].offsetHeight) - normalSpacing - gap.height
+			chrome =
+				lis[i].offsetTop - (lis[i - 1].offsetTop + lis[i - 1].offsetHeight) - normalSpacing - gap.height
 			break
 		}
 		const next: TocGap[] = []
@@ -273,6 +304,7 @@ export function TocBlockView({ node, editor, getPos, selected, updateAttributes,
 		</NodeViewWrapper>
 	)
 }
+
 function TocControls({
 	attrs,
 	selected,
@@ -331,17 +363,41 @@ function TocControls({
 					<>
 						{/*
 						 */}
-						<DropdownItem icon={<Settings2 className="h-3.5 w-3.5" />} onSelect={() => { close(); onSettings() }}>
+						<DropdownItem
+							icon={<Settings2 className="h-3.5 w-3.5" />}
+							onSelect={() => {
+								close()
+								onSettings()
+							}}
+						>
 							Setelan daftar isi…
 						</DropdownItem>
-						<DropdownItem icon={<Copy className="h-3.5 w-3.5" />} onSelect={() => { close(); onCopy() }}>
+						<DropdownItem
+							icon={<Copy className="h-3.5 w-3.5" />}
+							onSelect={() => {
+								close()
+								onCopy()
+							}}
+						>
 							Salin sebagai teks
 						</DropdownItem>
-						<DropdownItem icon={<Type className="h-3.5 w-3.5" />} onSelect={() => { close(); onConvert() }}>
+						<DropdownItem
+							icon={<Type className="h-3.5 w-3.5" />}
+							onSelect={() => {
+								close()
+								onConvert()
+							}}
+						>
 							Ubah jadi teks biasa
 						</DropdownItem>
 						<DropdownSeparator />
-						<DropdownItem icon={<Trash2 className="h-3.5 w-3.5" />} onSelect={() => { close(); onDelete() }}>
+						<DropdownItem
+							icon={<Trash2 className="h-3.5 w-3.5" />}
+							onSelect={() => {
+								close()
+								onDelete()
+							}}
+						>
 							Hapus
 						</DropdownItem>
 					</>
@@ -407,7 +463,9 @@ function TocEntries({
 							</span>
 						)}
 						{showPage && (
-							<span className={cn('shrink-0 tabular-nums text-subtle', attrs.tabLeader === 'none' && 'ml-auto')}>
+							<span
+								className={cn('shrink-0 tabular-nums text-subtle', attrs.tabLeader === 'none' && 'ml-auto')}
+							>
 								{page}
 							</span>
 						)}
@@ -417,6 +475,7 @@ function TocEntries({
 		</ul>
 	)
 }
+
 function snapshotText(entries: TocEntry[], attrs: TocBlockAttrs): string {
 	return entries
 		.map(({ item, page }) =>
@@ -428,12 +487,14 @@ function snapshotText(entries: TocEntry[], attrs: TocBlockAttrs): string {
 function copyAsText(entries: TocEntry[], attrs: TocBlockAttrs): void {
 	void navigator.clipboard?.writeText(snapshotText(entries, attrs))
 }
+
 export interface TocSettingsRequest {
 	attrs: TocBlockAttrs
 	apply: (patch: Partial<TocBlockAttrs>) => void
 }
 
 export const TOC_SETTINGS_EVENT = 'writerhub:toc-settings'
+
 export function openTocSettings(
 	dom: HTMLElement,
 	attrs: TocBlockAttrs,
@@ -442,7 +503,9 @@ export function openTocSettings(
 	const detail: TocSettingsRequest = { attrs, apply }
 	dom.dispatchEvent(new CustomEvent<TocSettingsRequest>(TOC_SETTINGS_EVENT, { bubbles: true, detail }))
 }
+
 export const TOC_REFRESH_EVENT = 'writerhub:toc-refresh'
+
 export function refreshTocBlocks(dom: HTMLElement): void {
 	dom.dispatchEvent(new CustomEvent(TOC_REFRESH_EVENT, { bubbles: true }))
 }

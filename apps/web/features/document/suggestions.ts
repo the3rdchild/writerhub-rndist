@@ -1,7 +1,9 @@
 import type { GrammarSuggestion, TextRange } from '@writer-hub/shared'
+
 export interface EditorSuggestion extends GrammarSuggestion {
 	dismissed: boolean
 }
+
 export function resolveSpan(text: string, original: string, hint?: number): TextRange | null {
 	if (!original) return null
 
@@ -26,6 +28,7 @@ export function resolveSpan(text: string, original: string, hint?: number): Text
 
 	return best === -1 ? null : { offset: best, length }
 }
+
 export function reconcileSuggestions(
 	text: string,
 	suggestions: readonly GrammarSuggestion[],
@@ -40,6 +43,7 @@ export function reconcileSuggestions(
 		}
 	})
 }
+
 export function applySuggestion(text: string, suggestion: EditorSuggestion): string {
 	if (suggestion.offset !== undefined && suggestion.length !== undefined) {
 		return (
@@ -53,10 +57,12 @@ export function applySuggestion(text: string, suggestion: EditorSuggestion): str
 	if (index === -1) return text
 	return text.slice(0, index) + suggestion.replacement + text.slice(index + suggestion.original.length)
 }
+
 export function applySuggestions(text: string, suggestions: readonly EditorSuggestion[]): string {
 	const ordered = [...suggestions].sort((a, b) => (b.offset ?? 0) - (a.offset ?? 0))
 	return ordered.reduce(applySuggestion, text)
 }
+
 export function shiftAfter(
 	suggestions: readonly EditorSuggestion[],
 	appliedOffset: number,
@@ -68,6 +74,7 @@ export function shiftAfter(
 			: suggestion,
 	)
 }
+
 export function replaceRange(text: string, range: TextRange, replacement: string): string {
 	return text.slice(0, range.offset) + replacement + text.slice(range.offset + range.length)
 }

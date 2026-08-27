@@ -1,32 +1,36 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
 import { Ban } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ColorPicker } from '@/components/editor/color-picker'
+import { useEditorInstance } from '@/features/editor/editor-context'
 import {
 	INCH,
-	MIN_CUSTOM_SIDE,
 	MAX_CUSTOM_SIDE,
+	MIN_CUSTOM_SIDE,
+	PAGE_SIZES,
 	type PageMargins,
 	type PageOrientation,
-	type PageSizeId,
 	type PageSetup,
-	PAGE_SIZES,
+	type PageSizeId,
 	validateCustomSize,
 } from '@/features/editor/page-geometry'
-import { useEditorInstance } from '@/features/editor/editor-context'
 import { isSectionScope, sectionRange } from '@/features/editor/section-scope'
 import { usePageSetup } from '@/features/editor/use-page-setup'
-import { useSettings } from '@/features/settings/settings-context'
 import { useSessions } from '@/features/sessions/session-context'
+import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
+
 type Scope = 'document' | 'tab' | 'from_here' | 'this_page'
+
 function fromPx(px: number, unit: 'cm' | 'in'): number {
 	return unit === 'cm' ? (px / INCH) * 2.54 : px / INCH
 }
+
 function toPx(value: number, unit: 'cm' | 'in'): number {
 	return unit === 'cm' ? (value / 2.54) * INCH : value * INCH
 }
+
 function roundUnit(value: number): number {
 	return Math.round(value * 100) / 100
 }
@@ -40,26 +44,32 @@ export function PageSetupDialog() {
 	const [draft, setDraft] = useState<PageSetup>(setup)
 	const [scope, setScope] = useState<Scope>('document')
 	const [customError, setCustomError] = useState<string | null>(null)
-	useEffect(() => {
-		if (pageSetupOpen) {
-			setDraft(setup)
-			setScope('document')
-			setCustomError(null)
-		}
-	}, [pageSetupOpen, setup])
+	useEffect(
+		function resetDraftOnOpen() {
+			if (pageSetupOpen) {
+				setDraft(setup)
+				setScope('document')
+				setCustomError(null)
+			}
+		},
+		[pageSetupOpen, setup],
+	)
 
-	useEffect(() => {
-		if (!pageSetupOpen) return
-		document.body.style.overflow = 'hidden'
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') setPageSetupOpen(false)
-		}
-		window.addEventListener('keydown', onKeyDown)
-		return () => {
-			document.body.style.overflow = ''
-			window.removeEventListener('keydown', onKeyDown)
-		}
-	}, [pageSetupOpen, setPageSetupOpen])
+	useEffect(
+		function lockScrollAndCloseOnEscape() {
+			if (!pageSetupOpen) return
+			document.body.style.overflow = 'hidden'
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') setPageSetupOpen(false)
+			}
+			window.addEventListener('keydown', onKeyDown)
+			return () => {
+				document.body.style.overflow = ''
+				window.removeEventListener('keydown', onKeyDown)
+			}
+		},
+		[pageSetupOpen, setPageSetupOpen],
+	)
 
 	const activeTab = sessions.find((s) => s.id === activeId)
 	const unit = settings.measurementUnit
@@ -207,9 +217,7 @@ export function PageSetupDialog() {
 									max={roundUnit(fromPx(MAX_CUSTOM_SIDE, unit))}
 									step={0.1}
 									value={draft.customWidth ? roundUnit(fromPx(draft.customWidth, unit)) : ''}
-									onChange={(e) =>
-										setCustomSide('customWidth', toPx(Number(e.target.value) || 0, unit))
-									}
+									onChange={(e) => setCustomSide('customWidth', toPx(Number(e.target.value) || 0, unit))}
 									className="w-24 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
 								/>
 								<span className="text-xs text-subtle">×</span>
@@ -219,9 +227,7 @@ export function PageSetupDialog() {
 									max={roundUnit(fromPx(MAX_CUSTOM_SIDE, unit))}
 									step={0.1}
 									value={draft.customHeight ? roundUnit(fromPx(draft.customHeight, unit)) : ''}
-									onChange={(e) =>
-										setCustomSide('customHeight', toPx(Number(e.target.value) || 0, unit))
-									}
+									onChange={(e) => setCustomSide('customHeight', toPx(Number(e.target.value) || 0, unit))}
 									className="w-24 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
 								/>
 								<span className="text-xs text-subtle">{unitLabel} (width × height)</span>
@@ -242,9 +248,7 @@ export function PageSetupDialog() {
 								onClear={() => setDraft((c) => ({ ...c, pageColor: null }))}
 								clearLabel="Match theme"
 							/>
-							<span className="text-xs text-subtle">
-								{draft.pageColor ? draft.pageColor : 'Match theme'}
-							</span>
+							<span className="text-xs text-subtle">{draft.pageColor ? draft.pageColor : 'Match theme'}</span>
 						</div>
 					</div>
 				</div>
@@ -255,9 +259,7 @@ export function PageSetupDialog() {
 					<div className="grid grid-cols-4 gap-2">
 						{(['top', 'bottom', 'left', 'right'] as const).map((field) => (
 							<label key={field} className="flex flex-col gap-1">
-								<span className="text-[11px] capitalize text-subtle">
-									{field}
-								</span>
+								<span className="text-[11px] capitalize text-subtle">{field}</span>
 								<input
 									type="number"
 									min={0}

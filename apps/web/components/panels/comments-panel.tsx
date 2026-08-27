@@ -9,6 +9,7 @@ import { useEditorInstance } from '@/features/editor/editor-context'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { PanelEmptyState } from './panel-parts'
+
 export function CommentsPanel() {
 	const { comments, setCommentResolved, removeComment } = useSessions()
 	const { editor } = useEditorInstance()

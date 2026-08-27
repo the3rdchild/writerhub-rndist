@@ -10,6 +10,7 @@ import { createProject, deleteProject, updateProject } from '@/features/projects
 import type { ProjectSummary } from '@/features/projects/types'
 import { useInvalidateProjects, useProjects } from '@/features/projects/use-projects'
 import { cn } from '@/lib/utils'
+
 export function ProjectSidebar({ active }: { active: string }) {
 	const router = useRouter()
 	const { data: projects } = useProjects()
@@ -168,10 +169,9 @@ export function ProjectSidebar({ active }: { active: string }) {
 				title="Hapus proyek ini?"
 				description={
 					<>
-						Proyek <strong className="text-foreground">{pendingDelete?.name}</strong> dihapus.
-						Proyek yang masih berisi dokumen{' '}
-						<strong className="text-foreground">tidak bisa dihapus</strong> - pindahkan atau
-						hapus dokumennya dulu.
+						Proyek <strong className="text-foreground">{pendingDelete?.name}</strong> dihapus. Proyek yang
+						masih berisi dokumen <strong className="text-foreground">tidak bisa dihapus</strong> - pindahkan
+						atau hapus dokumennya dulu.
 						{actionError && <span className="mt-2 block text-red-500">{actionError}</span>}
 					</>
 				}
@@ -213,6 +213,7 @@ function SidebarItem({
 		</button>
 	)
 }
+
 function ProjectNameInput({
 	initialValue,
 	placeholder,
@@ -229,9 +230,12 @@ function ProjectNameInput({
 	const [value, setValue] = useState(initialValue)
 	const inputRef = useRef<HTMLInputElement>(null)
 
-	useEffect(() => {
-		if (autoFocus) inputRef.current?.select()
-	}, [autoFocus])
+	useEffect(
+		function selectNameWhenAutoFocused() {
+			if (autoFocus) inputRef.current?.select()
+		},
+		[autoFocus],
+	)
 
 	const commit = () => {
 		const trimmed = value.trim()

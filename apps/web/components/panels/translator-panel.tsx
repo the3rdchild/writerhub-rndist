@@ -3,6 +3,7 @@
 import type { TranslatorResult } from '@writer-hub/shared'
 import { Languages } from 'lucide-react'
 import { ChangeListPanel } from './change-list-panel'
+
 export function TranslatorPanel() {
 	return (
 		<ChangeListPanel

@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
-import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
-import { buildSchema } from '@/features/sync/serialize'
 import { strFromU8, unzipSync } from 'fflate'
+import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import { DEFAULT_PAGE_SETUP, type PageSetup, pageGeometry } from '@/features/editor/page-geometry'
+import { buildSchema } from '@/features/sync/serialize'
 import { exportDocx, mergeTabContents } from './export-docx'
+
 function tab(text: string): JSONContent {
 	return {
 		type: 'doc',
@@ -159,11 +160,7 @@ describe('section DOCX (§P8&P9)', () => {
 
 	test('kolom section jadi w:cols, dengan jaraknya', async () => {
 		const xml = await documentXml(
-			[
-				paragraph('satu kolom'),
-				sectionBreak({ columns: { count: 2, gap: 24 } }),
-				paragraph('dua kolom'),
-			],
+			[paragraph('satu kolom'), sectionBreak({ columns: { count: 2, gap: 24 } }), paragraph('dua kolom')],
 			DEFAULT_PAGE_SETUP,
 		)
 

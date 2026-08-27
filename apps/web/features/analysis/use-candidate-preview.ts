@@ -4,10 +4,12 @@ import type { TextChange } from '@writer-hub/shared'
 import { useCallback, useEffect, useState } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { type CandidatePreview, candidatePreviewKey } from './candidate-preview'
+
 interface PreviewSelection {
 	index: number
 	candidate: number
 }
+
 export function useCandidatePreview() {
 	const { editor } = useEditorInstance()
 	const [preview, setPreview] = useState<PreviewSelection | null>(null)
@@ -39,15 +41,23 @@ export function useCandidatePreview() {
 		},
 		[send],
 	)
-	useEffect(() => {
-		if (!preview) return
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') clearPreview()
-		}
-		window.addEventListener('keydown', onKeyDown)
-		return () => window.removeEventListener('keydown', onKeyDown)
-	}, [preview, clearPreview])
-	useEffect(() => clearPreview, [clearPreview])
+	useEffect(
+		function closePreviewOnEscape() {
+			if (!preview) return
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') clearPreview()
+			}
+			window.addEventListener('keydown', onKeyDown)
+			return () => window.removeEventListener('keydown', onKeyDown)
+		},
+		[preview, clearPreview],
+	)
+	useEffect(
+		function clearPreviewOnUnmount() {
+			return clearPreview
+		},
+		[clearPreview],
+	)
 
 	return { preview, showPreview, clearPreview }
 }

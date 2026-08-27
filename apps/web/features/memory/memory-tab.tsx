@@ -9,6 +9,7 @@ import type { MemoryPreferences } from './types'
 import { useMemory, useSaveMemory } from './use-memory'
 
 const NOTES_MAX = 500
+
 export function MemoryTab() {
 	const memory = useMemory()
 	const save = useSaveMemory()
@@ -19,14 +20,17 @@ export function MemoryTab() {
 	const [term, setTerm] = useState('')
 	const [notes, setNotes] = useState('')
 	const [saved, setSaved] = useState(false)
-	useEffect(() => {
-		if (!memory.data) return
-		setTone(memory.data.tone ?? '')
-		setLanguage(memory.data.language ?? '')
-		setGlossary(memory.data.glossary ?? [])
-		setNotes(memory.data.notes ?? '')
-		setSaved(false)
-	}, [memory.data])
+	useEffect(
+		function fillFormFromSavedMemory() {
+			if (!memory.data) return
+			setTone(memory.data.tone ?? '')
+			setLanguage(memory.data.language ?? '')
+			setGlossary(memory.data.glossary ?? [])
+			setNotes(memory.data.notes ?? '')
+			setSaved(false)
+		},
+		[memory.data],
+	)
 
 	const addTerm = () => {
 		const value = term.trim()
@@ -54,9 +58,7 @@ export function MemoryTab() {
 	if (memory.isError) {
 		return (
 			<div className="flex flex-col gap-3">
-				<p className="text-sm text-red-400">
-					Failed to load AI Memory: {memory.error.message}
-				</p>
+				<p className="text-sm text-red-400">Failed to load AI Memory: {memory.error.message}</p>
 				<button
 					type="button"
 					onClick={() => memory.refetch()}
@@ -71,8 +73,8 @@ export function MemoryTab() {
 	return (
 		<div className="flex flex-col gap-5">
 			<p className="text-xs leading-relaxed text-subtle">
-These preferences are used by AI Chat, AI Rewriter, and Humanizer when writing or
-			rewriting text for you.
+				These preferences are used by AI Chat, AI Rewriter, and Humanizer when writing or rewriting text for
+				you.
 			</p>
 
 			<Field label="Tone">
@@ -210,8 +212,7 @@ These preferences are used by AI Chat, AI Rewriter, and Humanizer when writing o
 
 			{save.isError && (
 				<p className="text-sm text-red-400">
-					Failed to save AI Memory: {save.error.message}. Your changes were not saved -
-					try again.
+					Failed to save AI Memory: {save.error.message}. Your changes were not saved - try again.
 				</p>
 			)}
 		</div>

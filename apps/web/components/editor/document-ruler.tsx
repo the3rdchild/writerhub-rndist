@@ -3,16 +3,21 @@
 import type { Editor } from '@tiptap/react'
 import { useCallback, useRef, useState } from 'react'
 import { type BlockIndent, clampBlockIndent, useBlockIndent } from '@/features/editor/indent'
-import {
-	INCH,
-	MIN_CONTENT_WIDTH,
-	type PageGeometry,
-	type PageMargins,
-} from '@/features/editor/page-geometry'
+import { INCH, MIN_CONTENT_WIDTH, type PageGeometry, type PageMargins } from '@/features/editor/page-geometry'
 import { clamp, rulerNudge, useRulerDrag } from '@/features/editor/ruler-drag'
-import { type ColumnsRulerTarget, type TableRulerTarget, useRulerTarget } from '@/features/editor/ruler-targets'
-import { MIN_COLUMN_WIDTH, scaleColumnWidths, setColumnWidths, setTableIndent } from '@/features/editor/table-ops'
+import {
+	type ColumnsRulerTarget,
+	type TableRulerTarget,
+	useRulerTarget,
+} from '@/features/editor/ruler-targets'
+import {
+	MIN_COLUMN_WIDTH,
+	scaleColumnWidths,
+	setColumnWidths,
+	setTableIndent,
+} from '@/features/editor/table-ops'
 import { cn } from '@/lib/utils'
+
 type Handle =
 	| { kind: 'marginLeft' }
 	| { kind: 'marginRight' }
@@ -25,6 +30,7 @@ type Handle =
 	| { kind: 'imageX' }
 	| { kind: 'columnsGap'; index: number; side: 'left' | 'right' }
 	| { kind: 'columnsGapBand'; index: number }
+
 const DEFERRED: ReadonlySet<Handle['kind']> = new Set([
 	'tableLeft',
 	'tableRight',
@@ -33,6 +39,7 @@ const DEFERRED: ReadonlySet<Handle['kind']> = new Set([
 	'columnsGap',
 	'columnsGapBand',
 ])
+
 const MIN_COLUMN_GAP = 8
 
 const RULER_HEIGHT = 24
@@ -112,7 +119,19 @@ export function DocumentRuler({
 				}
 			}
 		},
-		[width, margins.left, margins.right, indent.left, indentBase, indentWidth, contentWidth, editor, target, onMarginsChange, setIndent],
+		[
+			width,
+			margins.left,
+			margins.right,
+			indent.left,
+			indentBase,
+			indentWidth,
+			contentWidth,
+			editor,
+			target,
+			onMarginsChange,
+			setIndent,
+		],
 	)
 	const { dragging, startDrag } = useRulerDrag<Handle>({
 		axis: 'x',
@@ -272,7 +291,9 @@ export function DocumentRuler({
 							<GapMarker
 								key={`gap-${gap.index}-${columns.gaps.length}`}
 								label={`Celah antara kolom ${gap.index + 1} dan ${gap.index + 2}`}
-								left={toScreen(live(gap.left, (handle) => handle.kind === 'columnsGapBand' && handle.index === gap.index))}
+								left={toScreen(
+									live(gap.left, (handle) => handle.kind === 'columnsGapBand' && handle.index === gap.index),
+								)}
 								width={toScreen(gap.right - gap.left)}
 								onPointerDown={startDrag({ kind: 'columnsGapBand', index: gap.index })}
 								onKeyDown={nudge({ kind: 'columnsGapBand', index: gap.index }, gap.left)}
@@ -356,6 +377,7 @@ const ALIGNMENTS = [
 	{ value: 'center' as const, label: 'Gambar rata tengah' },
 	{ value: 'right' as const, label: 'Gambar rata kanan' },
 ]
+
 function applyTableHandle(
 	editor: Editor,
 	handle: Extract<Handle, { kind: 'tableLeft' | 'tableRight' | 'tableCol' }>,
@@ -391,6 +413,7 @@ function applyTableHandle(
 	next[index + 1] = pair - next[index]
 	setColumnWidths(editor, tablePos, next)
 }
+
 function applyColumnsHandle(
 	editor: Editor,
 	handle: Extract<Handle, { kind: 'columnsGap' | 'columnsGapBand' }>,
@@ -434,6 +457,7 @@ function applyColumnsHandle(
 	next[index + 1] = Math.round(last)
 	editor.commands.setColumnsLayout(pos, { widths: next, gap: Math.round(widths[index + 1] + gap - last) })
 }
+
 function Ticks({ width, zoom }: { width: number; zoom: number }) {
 	const step = zoom < 0.75 ? INCH / 4 : INCH / 8
 	const count = Math.floor(width / step)
@@ -489,6 +513,7 @@ function MarginHandle({
 		/>
 	)
 }
+
 function ObjectHandle({
 	variant,
 	label,
@@ -514,6 +539,7 @@ function ObjectHandle({
 		/>
 	)
 }
+
 function GapMarker({
 	label,
 	left,
@@ -542,6 +568,7 @@ function GapMarker({
 		/>
 	)
 }
+
 function AlignPip({
 	label,
 	x,

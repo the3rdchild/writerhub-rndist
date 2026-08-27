@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, type ReactNode, useContext, useMemo, useState } from 'react'
+
 interface ShareContextValue {
 	shareOpen: boolean
 	setShareOpen: (open: boolean) => void

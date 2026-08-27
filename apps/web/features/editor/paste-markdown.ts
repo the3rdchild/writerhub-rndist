@@ -2,6 +2,7 @@ import { Extension } from '@tiptap/core'
 import { DOMParser as ProseMirrorDOMParser } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { looksLikeMarkdown, markdownToHtml } from './markdown'
+
 export const PasteMarkdown = Extension.create({
 	name: 'pasteMarkdown',
 

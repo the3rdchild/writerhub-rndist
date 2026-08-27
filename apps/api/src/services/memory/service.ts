@@ -2,6 +2,7 @@ import { AppError } from '@/lib/error'
 import { findMemoryByOwner, upsertMemory } from '@/repository/memory'
 import BaseService from '@/services/base.service'
 import { memoryPreferencesSchema } from './dto'
+
 export default class MemoryService extends BaseService {
 	async get(): Promise<Response> {
 		try {
@@ -13,9 +14,7 @@ export default class MemoryService extends BaseService {
 	}
 	async put(): Promise<Response> {
 		try {
-			const body = memoryPreferencesSchema.safeParse(
-				await this.context.req.json().catch(() => ({})),
-			)
+			const body = memoryPreferencesSchema.safeParse(await this.context.req.json().catch(() => ({})))
 			if (!body.success) {
 				return this.error({ errors: body.error.issues.map((issue) => issue.message) })
 			}

@@ -11,10 +11,12 @@ import {
 	sameSheetGeometry,
 } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE, type SectionSpan, sectionSpans } from '@/features/editor/section-break'
+
 const TWIPS_PER_PX = 15
 
 const px = (value: number) => Math.round(value * TWIPS_PER_PX)
 const DEFAULT_COLUMN_GAP_PX = 24
+
 function tableColumnWidths(table: PMNode, contentWidth: number): number[] {
 	const header = table.firstChild
 	const columns: number[] = []
@@ -56,6 +58,7 @@ const ALIGNMENT: Record<string, 'left' | 'center' | 'right' | 'both'> = {
 	right: 'right',
 	justify: 'both',
 }
+
 export function mergeTabContents(tabs: JSONContent[]): JSONContent {
 	const content: JSONContent[] = []
 	for (const [index, tab] of tabs.entries()) {
@@ -65,6 +68,7 @@ export function mergeTabContents(tabs: JSONContent[]): JSONContent {
 	if (content.length === 0) content.push({ type: 'paragraph' })
 	return { type: 'doc', content }
 }
+
 export async function exportDocx(
 	root: PMNode,
 	{
@@ -78,8 +82,7 @@ export async function exportDocx(
 	},
 ): Promise<Blob> {
 	const docx = await import('docx')
-	const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType } =
-		docx
+	const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType } = docx
 
 	const HEADINGS = [
 		HeadingLevel.HEADING_1,
@@ -105,10 +108,7 @@ export async function exportDocx(
 		return runs
 	}
 
-	const paragraphOf = (
-		node: PMNode,
-		extra: Record<string, unknown> = {},
-	): InstanceType<typeof Paragraph> => {
+	const paragraphOf = (node: PMNode, extra: Record<string, unknown> = {}): InstanceType<typeof Paragraph> => {
 		const alignment = ALIGNMENT[node.attrs.textAlign as string]
 
 		return new Paragraph({
@@ -193,7 +193,10 @@ export async function exportDocx(
 					item.forEach((block) => {
 						if (!block.isTextblock) return
 						items.push(
-							paragraphOf(block, ordered ? { numbering: { reference: 'ol', level: 0 } } : { bullet: { level: 0 } }),
+							paragraphOf(
+								block,
+								ordered ? { numbering: { reference: 'ol', level: 0 } } : { bullet: { level: 0 } },
+							),
 						)
 					})
 				})
@@ -207,7 +210,9 @@ export async function exportDocx(
 				return [new Paragraph({ children: [new TextRun({ break: 1 })], pageBreakBefore: true })]
 
 			case 'horizontalRule':
-				return [new Paragraph({ text: '', border: { bottom: { style: 'single', size: 6, color: 'CCCCCC' } } })]
+				return [
+					new Paragraph({ text: '', border: { bottom: { style: 'single', size: 6, color: 'CCCCCC' } } }),
+				]
 			case 'columns':
 			case 'column': {
 				const inner: unknown[] = []

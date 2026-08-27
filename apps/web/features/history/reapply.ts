@@ -14,27 +14,33 @@ import { resolveSpan } from '@/features/document/suggestions'
 import { fragmentToJSON } from '@/features/sync/serialize'
 import { versionPlainText } from '@/features/versions/diff'
 import type { HistoryFeature } from './types'
+
 export function tabPlainText(doc: Doc, tabId: string): string {
 	return versionPlainText(fragmentToJSON(doc, tabId))
 }
+
 /** Riset web hanya catatan sumber - tidak punya panel dan tidak bisa diterapkan. */
 export type ApplicableFeature = Exclude<HistoryFeature, 'research'>
 
 export function canOpenInPanel(feature: HistoryFeature | null): feature is ApplicableFeature {
 	return feature !== null && feature !== 'research'
 }
+
 export function panelForFeature(feature: ApplicableFeature): PanelId {
 	return feature === 'grammar' ? 'proofreader' : feature
 }
+
 export function canReapply(feature: HistoryFeature | null): boolean {
 	return feature === 'grammar' || feature === 'ai_rewriter' || feature === 'humanizer'
 }
+
 function remapChanges(text: string, changes: readonly TextChange[]): TextChange[] {
 	return changes.map((change) => {
 		const span = resolveSpan(text, change.original, change.offset)
 		return span ? { ...change, offset: span.offset, length: span.length } : change
 	})
 }
+
 export function remapResult(
 	feature: ApplicableFeature,
 	result: GrammarResultPayload | AnalysisResultData,

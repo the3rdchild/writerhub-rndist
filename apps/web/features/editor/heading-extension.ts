@@ -1,7 +1,8 @@
-import Heading from '@tiptap/extension-heading'
 import { mergeAttributes } from '@tiptap/core'
+import Heading from '@tiptap/extension-heading'
 export const HEADING_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
 export const VISIBLE_HEADING_LEVELS = [1, 2, 3, 4, 5] as const
+
 function isNativeLevel(level: number): boolean {
 	return level >= 1 && level <= 6
 }

@@ -12,8 +12,9 @@ import {
 	findHistoryEntry,
 } from '@/repository/history'
 import BaseService from '@/services/base.service'
-import { HISTORY_FEATURES, historyListQuerySchema } from './dto'
 import type { HistoryDetail, HistoryFeature, HistoryListResponse, HistorySummary } from './dto'
+import { HISTORY_FEATURES, historyListQuerySchema } from './dto'
+
 interface SummarySource {
 	status: JobStatus
 	feature: string | null
@@ -24,6 +25,7 @@ interface SummarySource {
 	analysisScore: string | null
 	researchSourceCount: number | null
 }
+
 function summarize(source: SummarySource): string | null {
 	if (source.status !== 'completed') return null
 
@@ -87,6 +89,7 @@ function scoreOf(result: AnalysisResultShape): string | null {
 }
 
 type ResultRow = DetailRow['result']
+
 function researchSourceCountOf(result: ResultRow): number | null {
 	if (!result || result.feature !== 'research') return null
 	const sources = (result.result as Record<string, unknown>).sources
@@ -109,6 +112,7 @@ function grammarSuggestionCountOf(result: ResultRow): number | null {
 	const suggestions = (result.result as Record<string, unknown>).suggestions
 	return Array.isArray(suggestions) ? suggestions.length : null
 }
+
 function resultOf(row: DetailRow): HistoryDetail['result'] {
 	if (!row.result) return null
 	if (row.result.feature === 'grammar') {
@@ -119,6 +123,7 @@ function resultOf(row: DetailRow): HistoryDetail['result'] {
 	}
 	return row.result.result as unknown as AnalysisResultData
 }
+
 export default class HistoryService extends BaseService {
 	async list(): Promise<Response> {
 		try {

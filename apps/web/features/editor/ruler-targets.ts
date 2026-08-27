@@ -1,11 +1,12 @@
 'use client'
 
-import type { Editor } from '@tiptap/react'
-import { NodeSelection } from '@tiptap/pm/state'
 import type { Node as PMNode } from '@tiptap/pm/model'
+import { NodeSelection } from '@tiptap/pm/state'
+import type { Editor } from '@tiptap/react'
 import { useEffect, useState } from 'react'
-import { columnGapOf, columnLayoutKey, COLUMNS_NODE, resolveColumnSlots } from './columns'
+import { COLUMNS_NODE, columnGapOf, columnLayoutKey, resolveColumnSlots } from './columns'
 import { columnWidths, locateTable } from './table-ops'
+
 export interface TableRulerTarget {
 	kind: 'table'
 	tablePos: number
@@ -20,6 +21,7 @@ export interface ImageRulerTarget {
 	offsetX: number | null
 	width: number
 }
+
 export interface ColumnsRulerTarget {
 	kind: 'columns'
 	pos: number
@@ -30,6 +32,7 @@ export interface ColumnsRulerTarget {
 }
 
 export type RulerTarget = TableRulerTarget | ImageRulerTarget | ColumnsRulerTarget | null
+
 function locateColumns(editor: Editor): { pos: number; node: PMNode } | null {
 	const { $from } = editor.state.selection
 	for (let depth = $from.depth; depth > 0; depth--) {
@@ -80,7 +83,9 @@ function readTarget(editor: Editor): RulerTarget {
 	const slots = resolveColumnSlots(dom.clientWidth, count, gap, columns.node.attrs.widths ?? null)
 	if (slots.length === 0) return null
 	const plan = columnLayoutKey.getState(editor.state)?.plans.find((entry) => entry.pos === columns.pos)
-	const item = plan?.items.find((entry) => selection.from >= entry.pos && selection.from < entry.pos + entry.nodeSize)
+	const item = plan?.items.find(
+		(entry) => selection.from >= entry.pos && selection.from < entry.pos + entry.nodeSize,
+	)
 	const active = item ? slots.find((slot) => Math.abs(slot.left - item.left) < 1) : undefined
 
 	return {
@@ -120,24 +125,28 @@ function same(a: RulerTarget, b: RulerTarget): boolean {
 	}
 	return false
 }
+
 export function useRulerTarget(editor: Editor | null): RulerTarget {
 	const [target, setTarget] = useState<RulerTarget>(null)
 
-	useEffect(() => {
-		if (!editor) {
-			setTarget(null)
-			return
-		}
-		const sync = () => {
-			const next = readTarget(editor)
-			setTarget((current) => (same(current, next) ? current : next))
-		}
-		sync()
-		editor.on('transaction', sync)
-		return () => {
-			editor.off('transaction', sync)
-		}
-	}, [editor])
+	useEffect(
+		function syncRulerTarget() {
+			if (!editor) {
+				setTarget(null)
+				return
+			}
+			const sync = () => {
+				const next = readTarget(editor)
+				setTarget((current) => (same(current, next) ? current : next))
+			}
+			sync()
+			editor.on('transaction', sync)
+			return () => {
+				editor.off('transaction', sync)
+			}
+		},
+		[editor],
+	)
 
 	return target
 }

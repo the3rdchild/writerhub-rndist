@@ -16,6 +16,7 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	hour: '2-digit',
 	minute: '2-digit',
 })
+
 export function LocalDocumentCard({
 	document,
 	onDelete,
@@ -141,11 +142,7 @@ export function LocalDocumentCard({
 					title="Simpan dokumen ini beserta seluruh tabnya ke cloud"
 					className="flex items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-60"
 				>
-					{saving ? (
-						<Loader2 className="h-4 w-4 animate-spin" />
-					) : (
-						<CloudUpload className="h-4 w-4" />
-					)}
+					{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
 					Simpan
 				</button>
 			</div>

@@ -32,6 +32,7 @@ import { useSync } from '@/features/sync/sync-context'
 import { cn } from '@/lib/utils'
 
 const RECENT_DOCUMENT_LIMIT = 10
+
 export function NavMenu() {
 	const { activeDocId, hydrated, newDocument } = useSessions()
 	const { setSettingsOpen } = useSettings()
@@ -121,10 +122,7 @@ export function NavMenu() {
 						onSelect={() => setProjectsOpen((open) => !open)}
 						trailing={
 							<ChevronRight
-								className={cn(
-									'h-3.5 w-3.5 text-subtle transition-transform',
-									projectsOpen && 'rotate-90',
-								)}
+								className={cn('h-3.5 w-3.5 text-subtle transition-transform', projectsOpen && 'rotate-90')}
 							/>
 						}
 					>
@@ -230,6 +228,7 @@ export function NavMenu() {
 		</Dropdown>
 	)
 }
+
 function ProjectsSection({
 	activeDocId,
 	onNavigate,
@@ -246,8 +245,7 @@ function ProjectsSection({
 	const [moveError, setMoveError] = useState<string | null>(null)
 
 	const docServerId = activeDocId ? serverDocId(activeDocId) : null
-	const currentProjectId =
-		serverDocuments.data?.find((dok) => dok.id === docServerId)?.projectId ?? null
+	const currentProjectId = serverDocuments.data?.find((dok) => dok.id === docServerId)?.projectId ?? null
 
 	const move = (projectId: string) => {
 		if (!docServerId || moving) return
@@ -258,30 +256,22 @@ function ProjectsSection({
 				void invalidateDocuments()
 				void invalidateProjects()
 			})
-			.catch((cause) =>
-				setMoveError(cause instanceof Error ? cause.message : 'Gagal memindahkan dokumen'),
-			)
+			.catch((cause) => setMoveError(cause instanceof Error ? cause.message : 'Gagal memindahkan dokumen'))
 			.finally(() => setMoving(false))
 	}
 
 	return (
 		<div className="border-l-2 border-line pl-1">
 			{projects.isPending && <p className="px-3 py-1.5 text-xs text-faint">Memuat proyek…</p>}
-			{projects.isError && (
-				<p className="px-3 py-1.5 text-xs text-red-400">Gagal memuat proyek.</p>
-			)}
-			{projects.data?.length === 0 && (
-				<p className="px-3 py-1.5 text-xs text-faint">Belum ada proyek.</p>
-			)}
+			{projects.isError && <p className="px-3 py-1.5 text-xs text-red-400">Gagal memuat proyek.</p>}
+			{projects.data?.length === 0 && <p className="px-3 py-1.5 text-xs text-faint">Belum ada proyek.</p>}
 
 			{projects.data?.map((project) => (
 				<DropdownItem
 					key={project.id}
 					icon={<Folder className="h-4 w-4" />}
 					onSelect={() => onNavigate(`/library?project=${project.id}`)}
-					trailing={
-						<span className="text-xs text-faint">{project.documentCount}</span>
-					}
+					trailing={<span className="text-xs text-faint">{project.documentCount}</span>}
 				>
 					{project.name}
 				</DropdownItem>

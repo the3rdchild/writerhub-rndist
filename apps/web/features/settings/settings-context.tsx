@@ -9,8 +9,8 @@ import {
 	DEFAULT_PAGE_SIZE,
 	type PageMargins,
 	type PageOrientation,
-	type PageSizeId,
 	type PageSetup,
+	type PageSizeId,
 } from '@/features/editor/page-geometry'
 import { usePersistentState } from '@/lib/use-persistent-state'
 
@@ -67,6 +67,7 @@ function resolveTheme(theme: Theme): 'dark' | 'light' {
 	if (typeof window === 'undefined') return 'light'
 	return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
+
 export function applyTheme(theme: Theme): void {
 	const resolved = resolveTheme(theme)
 	const root = document.documentElement
@@ -103,17 +104,23 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 	const [exportOpen, setExportOpen] = useState(false)
 	const [docxExportOpen, setDocxExportOpen] = useState(false)
 	const [pageSetupOpen, setPageSetupOpen] = useState(false)
-	useEffect(() => {
-		applyTheme(settings.theme)
-	}, [settings.theme])
+	useEffect(
+		function applyThemeOnChange() {
+			applyTheme(settings.theme)
+		},
+		[settings.theme],
+	)
 
-	useEffect(() => {
-		if (settings.theme !== 'system') return
-		const media = window.matchMedia('(prefers-color-scheme: dark)')
-		const onChange = () => applyTheme('system')
-		media.addEventListener('change', onChange)
-		return () => media.removeEventListener('change', onChange)
-	}, [settings.theme])
+	useEffect(
+		function followSystemThemeChanges() {
+			if (settings.theme !== 'system') return
+			const media = window.matchMedia('(prefers-color-scheme: dark)')
+			const onChange = () => applyTheme('system')
+			media.addEventListener('change', onChange)
+			return () => media.removeEventListener('change', onChange)
+		},
+		[settings.theme],
+	)
 
 	const value = useMemo<SettingsContextValue>(
 		() => ({
@@ -126,10 +133,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 			setPageMargins: (patch) =>
 				setSettings((current) => ({
 					...current,
-					pageMargins: clampMargins({ ...current.pageMargins, ...patch }, current.pageSize, current.pageOrientation),
+					pageMargins: clampMargins(
+						{ ...current.pageMargins, ...patch },
+						current.pageSize,
+						current.pageOrientation,
+					),
 				})),
-			setDefaultPageSetup: (setup) =>
-				setSettings((current) => ({ ...current, defaultPageSetup: setup })),
+			setDefaultPageSetup: (setup) => setSettings((current) => ({ ...current, defaultPageSetup: setup })),
 			updateProfile: (patch) =>
 				setSettings((current) => ({ ...current, profile: { ...current.profile, ...patch } })),
 			toggleFocusMode: () => setSettings((current) => ({ ...current, focusMode: !current.focusMode })),

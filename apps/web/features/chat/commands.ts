@@ -51,8 +51,7 @@ const INTENTS: ChatCommand[] = [
 		label: 'Rapikan format',
 		hint: 'Seragamkan gaya paragraf, heading, dan spasi',
 		tier: 'intent',
-		instruction:
-			'Rapikan format dokumen ini agar seragam: gaya paragraf, heading, penomoran, dan spasi.',
+		instruction: 'Rapikan format dokumen ini agar seragam: gaya paragraf, heading, penomoran, dan spasi.',
 	},
 	{
 		id: 'tabel',
@@ -85,16 +84,14 @@ const INTENTS: ChatCommand[] = [
  * disaring habis: model memanggilnya sendiri untuk mengorientasi diri, dan
  * mengetiknya sebagai perintah tidak menghasilkan apa pun yang terlihat.
  */
-const TOOL_COMMANDS: ChatCommand[] = ALL_TOOLS.filter((tool) => tool.kind === 'write').map(
-	(tool) => ({
-		id: tool.name,
-		trigger: tool.name.replace(/_/g, '-'),
-		label: tool.name,
-		hint: tool.description,
-		tier: 'tool' as const,
-		instruction: `Gunakan alat ${tool.name}: `,
-	}),
-)
+const TOOL_COMMANDS: ChatCommand[] = ALL_TOOLS.filter((tool) => tool.kind === 'write').map((tool) => ({
+	id: tool.name,
+	trigger: tool.name.replace(/_/g, '-'),
+	label: tool.name,
+	hint: tool.description,
+	tier: 'tool' as const,
+	instruction: `Gunakan alat ${tool.name}: `,
+}))
 
 /** Alat mentah baru muncul setelah tiga huruf - daftar 24 baris menutupi intent. */
 const TOOL_TIER_MIN_CHARS = 3

@@ -1,22 +1,26 @@
 import type { AnalysisFeature, TextChange } from '@writer-hub/shared'
-import type { VersionDiffRange } from '@/features/versions/diff'
-import { computeVersionDiff } from '@/features/versions/diff'
 import type { EditorSuggestion } from '@/features/document/suggestions'
 import { replaceRange } from '@/features/document/suggestions'
+import type { VersionDiffRange } from '@/features/versions/diff'
+import { computeVersionDiff } from '@/features/versions/diff'
 export type AnalysisDiffFeature = AnalysisFeature | 'proofreader'
+
 interface AppliedChangeLike {
 	offset: number
 	original: string
 }
+
 export interface PendingEdit {
 	offset: number
 	length: number
 	replacement: string
 }
+
 export function synthesizeResultText(baseText: string, edits: readonly PendingEdit[]): string {
 	const ordered = [...edits].sort((a, b) => b.offset - a.offset)
 	return ordered.reduce((text, edit) => replaceRange(text, edit, edit.replacement), baseText)
 }
+
 export function editsFromChanges(
 	pending: readonly TextChange[],
 	applied: readonly AppliedChangeLike[],
@@ -30,6 +34,7 @@ export function editsFromChanges(
 			replacement: change.replacement,
 		}))
 }
+
 export function editsFromSuggestions(suggestions: readonly EditorSuggestion[]): PendingEdit[] {
 	return suggestions
 		.filter((suggestion) => !suggestion.dismissed)
@@ -39,6 +44,7 @@ export function editsFromSuggestions(suggestions: readonly EditorSuggestion[]): 
 			replacement: suggestion.replacement,
 		}))
 }
+
 export interface AiDetectorSentence {
 	offset: number
 	length: number
@@ -57,6 +63,7 @@ export function editsFromSentences(sentences: readonly AiDetectorSentence[]): Pe
 			replacement: sentence.suggestion as string,
 		}))
 }
+
 export function computeAnalysisDiff(baseText: string, resultText: string): VersionDiffRange[] {
 	if (baseText === resultText) return []
 	return computeVersionDiff(baseText, resultText)

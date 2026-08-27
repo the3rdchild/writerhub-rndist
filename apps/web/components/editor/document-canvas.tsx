@@ -3,27 +3,30 @@
 import type { Editor } from '@tiptap/react'
 import { useMemo, useState } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
-import { useSessions } from '@/features/sessions/session-context'
 import {
-	pageGeometry,
 	type PageMargins,
 	type PageSetup,
+	pageGeometry,
 	type SheetGeometry,
 } from '@/features/editor/page-geometry'
 import { usePageSetup } from '@/features/editor/use-page-setup'
+import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
-import { DocumentRuler } from './document-ruler'
 import { DocumentLeftRuler, LEFT_RULER_GAP, LEFT_RULER_WIDTH } from './document-left-ruler'
+import { DocumentRuler } from './document-ruler'
 import { TiptapEditor } from './tiptap-editor'
+
 const CODE_BLOCK_HEIGHT_RATIO = 0.6
 const CODE_BLOCK_CHROME = 48
 const CODE_BLOCK_MIN_HEIGHT = 120
 const mm = (px: number) => Math.round((px / 96) * 25.4 * 100) / 100
+
 function pageRuleBody(setup: PageSetup): string {
 	const { width, height, margins } = pageGeometry(setup)
 	return `size: ${mm(width)}mm ${mm(height)}mm; margin: ${mm(margins.top)}mm ${mm(margins.right)}mm ${mm(margins.bottom)}mm ${mm(margins.left)}mm;`
 }
+
 function printPageRules(base: PageSetup, sections: readonly PageSetup[]): string {
 	const rules = [`@page { ${pageRuleBody(base)} }`]
 
@@ -35,6 +38,7 @@ function printPageRules(base: PageSetup, sections: readonly PageSetup[]): string
 
 	return rules.join('\n')
 }
+
 export function DocumentCanvas({
 	containerRef,
 	onReady,
@@ -66,16 +70,10 @@ export function DocumentCanvas({
 			? sheets[sheets.length - 1].top + sheets[sheets.length - 1].height
 			: pageCount * height + (pageCount - 1) * gap
 	const zoom = settings.zoom
-	const leftRulerRoom =
-		settings.showRuler && !setup.pageless ? LEFT_RULER_WIDTH + LEFT_RULER_GAP : 0
+	const leftRulerRoom = settings.showRuler && !setup.pageless ? LEFT_RULER_WIDTH + LEFT_RULER_GAP : 0
 
 	return (
-		<div
-			className={cn(
-				'document-canvas flex-1 overflow-auto px-6 pb-8',
-				!settings.showRuler && 'pt-8',
-			)}
-		>
+		<div className={cn('document-canvas flex-1 overflow-auto px-6 pb-8', !settings.showRuler && 'pt-8')}>
 			{/*
 			 */}
 			{!setup.pageless && <style media="print">{printPageRules(setup, sectionSetups)}</style>}

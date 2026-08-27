@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import { getSchema } from '@tiptap/core'
+import type { Node as PMNode, Schema } from '@tiptap/pm/model'
 import { EditorState } from '@tiptap/pm/state'
 import { TableMap } from '@tiptap/pm/tables'
-import type { Node as PMNode, Schema } from '@tiptap/pm/model'
 import { buildEditorExtensions } from './extensions'
 import { dropIndex, locateTableAt } from './table-ops'
+
 const schema: Schema = getSchema(buildEditorExtensions({}))
+
 function tableDoc(rows: number, cols: number): PMNode {
 	const content = Array.from({ length: rows }, (_, r) => ({
 		type: 'tableRow',
@@ -19,6 +21,7 @@ function tableDoc(rows: number, cols: number): PMNode {
 		content: [{ type: 'paragraph' }, { type: 'table', content }],
 	})
 }
+
 function tableInfo(doc: PMNode) {
 	let tablePos = -1
 	doc.descendants((node, pos) => {

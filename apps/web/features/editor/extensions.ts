@@ -14,31 +14,35 @@ import Typography from '@tiptap/extension-typography'
 import type { Extensions } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import type * as Y from 'yjs'
-import { CommentMark } from '@/features/comments/comment-mark'
-import { AnalysisHighlight } from '@/features/analysis/analysis-highlight'
+import { TocBlockNodeView } from '@/components/editor/toc-block-view'
 import { AnalysisDiffHighlight } from '@/features/analysis/analysis-diff-highlight'
+import { AnalysisHighlight } from '@/features/analysis/analysis-highlight'
 import { CandidatePreviewHighlight } from '@/features/analysis/candidate-preview'
+import { CommentMark } from '@/features/comments/comment-mark'
 import { SuggestionHighlight } from '@/features/document/suggestion-highlight'
+import { BlockKeep } from '@/features/editor/block-keep'
 import { BlockSpacing } from '@/features/editor/block-spacing'
 import { Callout } from '@/features/editor/callout'
 import { CodeBlock } from '@/features/editor/code-block'
 import { ColumnExtension } from '@/features/editor/columns'
 import { CustomTableCell, CustomTableHeader } from '@/features/editor/custom-table'
-import { TrailingParagraph } from '@/features/editor/trailing-paragraph'
 import { Footnote, FootnoteRef } from '@/features/editor/footnote'
 import { HeadingLevels } from '@/features/editor/heading-extension'
 import { BlockIndentExtension } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
 import { MathBlock, MathInline } from '@/features/editor/math'
 import { PageBreak } from '@/features/editor/page-break'
-import { SectionBreak } from '@/features/editor/section-break'
-import { type PageGeometry, pageGeometry, type PageSetup, type SheetGeometry } from '@/features/editor/page-geometry'
+import {
+	type PageGeometry,
+	type PageSetup,
+	pageGeometry,
+	type SheetGeometry,
+} from '@/features/editor/page-geometry'
 import { Pagination } from '@/features/editor/pagination'
-import { TocBlock } from '@/features/editor/toc-block'
-import { TocBlockNodeView } from '@/components/editor/toc-block-view'
 import { PasteMarkdown } from '@/features/editor/paste-markdown'
-import { type ResizableImageOptions, ResizableImage } from '@/features/editor/resizable-image'
+import { ResizableImage, type ResizableImageOptions } from '@/features/editor/resizable-image'
 import { SearchAndReplace } from '@/features/editor/search-replace'
+import { SectionBreak } from '@/features/editor/section-break'
 import { SelectionHighlight } from '@/features/editor/selection-highlight'
 import type { SlashCommandOptions, SlashCommandState } from '@/features/editor/slash-command'
 import { SlashCommand } from '@/features/editor/slash-command'
@@ -46,7 +50,10 @@ import { TableHeaderRepeat } from '@/features/editor/table-header-repeat'
 import { TableIndent } from '@/features/editor/table-indent'
 import { TableOfContentsConfigured } from '@/features/editor/table-of-contents'
 import { TextWeight } from '@/features/editor/text-weight'
+import { TocBlock } from '@/features/editor/toc-block'
+import { TrailingParagraph } from '@/features/editor/trailing-paragraph'
 import { shortcutKeys } from '@/features/shortcuts/registry'
+
 export function buildEditorExtensions({
 	geometry = pageGeometry(),
 	setup,
@@ -109,6 +116,7 @@ export function buildEditorExtensions({
 		SelectionHighlight,
 		BlockIndentExtension,
 		BlockSpacing,
+		BlockKeep,
 		TextWeight,
 		PageBreak,
 		SectionBreak,
@@ -122,7 +130,13 @@ export function buildEditorExtensions({
 		TocBlock.extend({ addNodeView: () => TocBlockNodeView }),
 		Pagination.configure({ geometry, setup, onPageCountChange, onSheetsChange, onSectionsChange }),
 		...(slashCommand
-			? [SlashCommand.configure({ onOpen: slashCommand.onOpen, onUpdate: slashCommand.onUpdate, onClose: slashCommand.onClose })]
+			? [
+					SlashCommand.configure({
+						onOpen: slashCommand.onOpen,
+						onUpdate: slashCommand.onUpdate,
+						onClose: slashCommand.onClose,
+					}),
+				]
 			: []),
 		...(collaboration
 			? [Collaboration.configure({ document: collaboration.document, field: collaboration.field })]

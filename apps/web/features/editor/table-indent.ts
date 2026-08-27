@@ -2,15 +2,14 @@ import { Extension } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+
 function build(doc: PMNode): DecorationSet {
 	const decorations: Decoration[] = []
 	doc.descendants((node, pos) => {
 		if (node.type.name !== 'table') return true
 		const left = Number(node.attrs.indentLeft) || 0
 		if (left > 0) {
-			decorations.push(
-				Decoration.node(pos, pos + node.nodeSize, { style: `margin-left: ${left}px` }),
-			)
+			decorations.push(Decoration.node(pos, pos + node.nodeSize, { style: `margin-left: ${left}px` }))
 		}
 		return false
 	})

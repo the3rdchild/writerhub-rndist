@@ -5,28 +5,28 @@ import { usePanels } from '@/features/analysis/panel-context'
 import { ZOOM_LEVELS } from '@/features/editor/page-geometry'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
-import {
-	formatKeys,
-	isMacPlatform,
-	matchAppShortcut,
-	shortcut,
-	type ShortcutId,
-} from './registry'
+import { formatKeys, isMacPlatform, matchAppShortcut, type ShortcutId, shortcut } from './registry'
+
 export function useIsMac(): boolean {
 	const [mac, setMac] = useState(false)
-	useEffect(() => setMac(isMacPlatform()), [])
+	useEffect(function detectMacPlatform() {
+		setMac(isMacPlatform())
+	}, [])
 	return mac
 }
+
 export function useShortcutLabel(): (id: ShortcutId) => string {
 	const mac = useIsMac()
 	return useCallback((id: ShortcutId) => formatKeys(shortcut(id).keys, mac), [mac])
 }
+
 function stepZoom(current: number, direction: 1 | -1): number {
 	const index = ZOOM_LEVELS.indexOf(current as (typeof ZOOM_LEVELS)[number])
 	const from = index === -1 ? ZOOM_LEVELS.indexOf(1) : index
 	const next = Math.min(ZOOM_LEVELS.length - 1, Math.max(0, from + direction))
 	return ZOOM_LEVELS[next]
 }
+
 export function useAppShortcuts(): void {
 	const mac = useIsMac()
 	const { togglePanel } = usePanels()
@@ -79,19 +79,22 @@ export function useAppShortcuts(): void {
 		deleteSession,
 	])
 
-	useEffect(() => {
-		const onKeyDown = (event: KeyboardEvent) => {
-			const matched = matchAppShortcut(event, mac)
-			if (!matched) return
+	useEffect(
+		function bindGlobalShortcuts() {
+			const onKeyDown = (event: KeyboardEvent) => {
+				const matched = matchAppShortcut(event, mac)
+				if (!matched) return
 
-			const handler = handlers[matched.id]
-			if (!handler) return
+				const handler = handlers[matched.id]
+				if (!handler) return
 
-			event.preventDefault()
-			handler()
-		}
+				event.preventDefault()
+				handler()
+			}
 
-		window.addEventListener('keydown', onKeyDown)
-		return () => window.removeEventListener('keydown', onKeyDown)
-	}, [mac, handlers])
+			window.addEventListener('keydown', onKeyDown)
+			return () => window.removeEventListener('keydown', onKeyDown)
+		},
+		[mac, handlers],
+	)
 }

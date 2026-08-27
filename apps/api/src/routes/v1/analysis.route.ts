@@ -1,6 +1,6 @@
 import { createRouter } from '@/lib/create-app'
-import AnalysisService from '@/services/analysis/service'
 import { authMiddleware } from '@/middlewares/auth'
+import AnalysisService from '@/services/analysis/service'
 
 const analysis = createRouter().basePath('/analyze')
 

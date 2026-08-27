@@ -6,89 +6,91 @@ import { Eraser, PaintRoller, PencilLine } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { PALETTE } from '@/components/editor/color-picker'
-import {
-	type CellTarget,
-	clearCellStyling,
-	locateTable,
-	withCellTarget,
-} from '@/features/editor/table-ops'
+import { type CellTarget, clearCellStyling, locateTable, withCellTarget } from '@/features/editor/table-ops'
 import { cn } from '@/lib/utils'
+
 export function TableColorToolbar({ editor }: { editor: Editor | null }) {
 	const inTable = useEditorState({
 		editor,
-		selector: ({ editor: instance }) =>
-			!!instance && !instance.isDestroyed && instance.isActive('table'),
+		selector: ({ editor: instance }) => !!instance && !instance.isDestroyed && instance.isActive('table'),
 	})
 	const [palette, setPalette] = useState<'background' | 'border' | null>(null)
 	const [place, setPlace] = useState<{ top: number; left: number; centered: boolean } | null>(null)
-	useEffect(() => {
-		if (!editor || !inTable) {
-			setPalette(null)
-			setPlace(null)
-			return
-		}
-		let frame = 0
-		const measure = () => {
-			const table = editor.view.dom.querySelector('.ProseMirror-selectednode table, table')
-			const { $from } = editor.state.selection
-			let node: HTMLElement | null = null
-			try {
-				node = editor.view.nodeDOM($from.before($from.depth)) as HTMLElement | null
-			} catch {
-				node = null
-			}
-			const tableEl =
-				(node && (node.closest('table') as HTMLElement | null)) ||
-				(table as HTMLElement | null) ||
-				null
-			if (!tableEl) {
+	useEffect(
+		function trackToolbarPosition() {
+			if (!editor || !inTable) {
+				setPalette(null)
 				setPlace(null)
 				return
 			}
-			const rect = tableEl.getBoundingClientRect()
-			const selectionMenu = document.querySelector('.selection-menu')
-			if (selectionMenu) {
-				const menu = selectionMenu.getBoundingClientRect()
-				setPlace({ top: menu.top, left: menu.right + 8, centered: false })
-				return
-			}
+			let frame = 0
+			const measure = () => {
+				const table = editor.view.dom.querySelector('.ProseMirror-selectednode table, table')
+				const { $from } = editor.state.selection
+				let node: HTMLElement | null = null
+				try {
+					node = editor.view.nodeDOM($from.before($from.depth)) as HTMLElement | null
+				} catch {
+					node = null
+				}
+				const tableEl =
+					(node && (node.closest('table') as HTMLElement | null)) || (table as HTMLElement | null) || null
+				if (!tableEl) {
+					setPlace(null)
+					return
+				}
+				const rect = tableEl.getBoundingClientRect()
+				const selectionMenu = document.querySelector('.selection-menu')
+				if (selectionMenu) {
+					const menu = selectionMenu.getBoundingClientRect()
+					setPlace({ top: menu.top, left: menu.right + 8, centered: false })
+					return
+				}
 
-			const above = rect.top - 44
-			setPlace({
-				top: above < 8 ? rect.bottom + 6 : above,
-				left: rect.left + rect.width / 2,
-				centered: true,
-			})
-		}
-		const update = () => {
-			cancelAnimationFrame(frame)
-			frame = requestAnimationFrame(measure)
-		}
-		update()
-		editor.on('transaction', update)
-		window.addEventListener('scroll', update, true)
-		window.addEventListener('resize', update)
-		return () => {
-			cancelAnimationFrame(frame)
-			editor.off('transaction', update)
-			window.removeEventListener('scroll', update, true)
-			window.removeEventListener('resize', update)
-		}
-	}, [editor, inTable])
-	useEffect(() => {
-		if (!inTable) setPalette(null)
-	}, [inTable])
-	useEffect(() => {
-		if (!palette) return
-		const onPointer = (e: PointerEvent) => {
-			const target = e.target as HTMLElement | null
-			if (!target?.closest('.table-color-toolbar') && !target?.closest('.table-color-palette')) {
-				setPalette(null)
+				const above = rect.top - 44
+				setPlace({
+					top: above < 8 ? rect.bottom + 6 : above,
+					left: rect.left + rect.width / 2,
+					centered: true,
+				})
 			}
-		}
-		document.addEventListener('pointerdown', onPointer)
-		return () => document.removeEventListener('pointerdown', onPointer)
-	}, [palette])
+			const update = () => {
+				cancelAnimationFrame(frame)
+				frame = requestAnimationFrame(measure)
+			}
+			update()
+			editor.on('transaction', update)
+			window.addEventListener('scroll', update, true)
+			window.addEventListener('resize', update)
+			return () => {
+				cancelAnimationFrame(frame)
+				editor.off('transaction', update)
+				window.removeEventListener('scroll', update, true)
+				window.removeEventListener('resize', update)
+			}
+		},
+		[editor, inTable],
+	)
+	useEffect(
+		function closePaletteOnLeavingTable() {
+			if (!inTable) setPalette(null)
+		},
+		[inTable],
+	)
+	useEffect(
+		function closePaletteOnOutsideClick() {
+			if (!palette) return
+			const onPointer = (e: PointerEvent) => {
+				const target = e.target as HTMLElement | null
+				if (!target?.closest('.table-color-toolbar') && !target?.closest('.table-color-palette')) {
+					setPalette(null)
+				}
+			}
+			document.addEventListener('pointerdown', onPointer)
+			return () => document.removeEventListener('pointerdown', onPointer)
+		},
+		[palette],
+	)
 
 	if (!editor || !inTable || !place) return null
 	const loc = locateTable(editor)
@@ -167,13 +169,16 @@ function ToolbarBtn({
 			onMouseDown={(e) => e.preventDefault()}
 			className={cn(
 				'flex h-7 w-7 items-center justify-center rounded-full transition-colors',
-				active ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-[var(--overlay-hover)] hover:text-foreground',
+				active
+					? 'bg-accent/15 text-accent'
+					: 'text-muted hover:bg-[var(--overlay-hover)] hover:text-foreground',
 			)}
 		>
 			{children}
 		</button>
 	)
 }
+
 function Palette({
 	mode,
 	onPick,

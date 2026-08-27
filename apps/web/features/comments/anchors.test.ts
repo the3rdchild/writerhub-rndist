@@ -44,9 +44,7 @@ describe('rentang komentar', () => {
 	})
 
 	test('naskah tanpa mark komentar tidak menghasilkan rentang', () => {
-		const doc = schema.node('doc', null, [
-			schema.node('paragraph', null, [schema.text('tanpa komentar')]),
-		])
+		const doc = schema.node('doc', null, [schema.node('paragraph', null, [schema.text('tanpa komentar')])])
 
 		expect(commentRangesInDoc(doc).size).toBe(0)
 	})

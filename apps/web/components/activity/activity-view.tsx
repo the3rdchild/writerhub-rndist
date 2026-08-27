@@ -4,8 +4,8 @@ import { Activity, ArrowLeft, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { useClearHistory, useHistory } from '@/features/history/use-history'
 import type { HistoryEntry, HistoryFeature } from '@/features/history/types'
+import { useClearHistory, useHistory } from '@/features/history/use-history'
 import { GROUP_ORDER, groupOf } from '@/lib/day-groups'
 import { cn } from '@/lib/utils'
 import { ActivityDetail } from './activity-detail'
@@ -22,6 +22,7 @@ const FILTERS: Array<{ key: HistoryFeature | 'all'; label: string }> = [
 	{ key: 'humanizer', label: 'Humanizer' },
 	{ key: 'plagiarism', label: 'Plagiarism' },
 ]
+
 function EntryRow({
 	entry,
 	selected,
@@ -57,6 +58,7 @@ function EntryRow({
 		</button>
 	)
 }
+
 export function ActivityView() {
 	const [filter, setFilter] = useState<HistoryFeature | 'all'>('all')
 	const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
@@ -66,10 +68,7 @@ export function ActivityView() {
 	const history = useHistory(filter === 'all' ? undefined : filter)
 	const clearHistory = useClearHistory()
 
-	const entries = useMemo(
-		() => history.data?.pages.flatMap((page) => page.entries) ?? [],
-		[history.data],
-	)
+	const entries = useMemo(() => history.data?.pages.flatMap((page) => page.entries) ?? [], [history.data])
 
 	const grouped = useMemo(() => {
 		const map = new Map<string, HistoryEntry[]>()
@@ -151,9 +150,7 @@ export function ActivityView() {
 							<p className="px-3 py-10 text-center text-sm text-muted">Memuat aktivitas…</p>
 						)}
 						{history.isError && (
-							<p className="px-3 py-10 text-center text-sm text-red-400">
-								Gagal memuat aktivitas AI.
-							</p>
+							<p className="px-3 py-10 text-center text-sm text-red-400">Gagal memuat aktivitas AI.</p>
 						)}
 						{clearError && <p className="px-3 pt-2 text-xs text-red-400">{clearError}</p>}
 
@@ -162,8 +159,8 @@ export function ActivityView() {
 								<Activity className="h-8 w-8 text-faint" />
 								<p className="mt-3 text-sm font-medium text-foreground">Belum ada aktivitas</p>
 								<p className="mt-1 max-w-sm text-xs text-subtle">
-									Jalankan Proofreader, AI Detector, AI Rewriter, Humanizer, atau Plagiarism -
-									catatannya akan muncul di sini.
+									Jalankan Proofreader, AI Detector, AI Rewriter, Humanizer, atau Plagiarism - catatannya akan
+									muncul di sini.
 								</p>
 							</div>
 						)}
@@ -199,9 +196,7 @@ export function ActivityView() {
 					</div>
 				</main>
 
-				{selectedJobId && (
-					<ActivityDetail jobId={selectedJobId} onClose={() => setSelectedJobId(null)} />
-				)}
+				{selectedJobId && <ActivityDetail jobId={selectedJobId} onClose={() => setSelectedJobId(null)} />}
 			</div>
 
 			<ConfirmDialog

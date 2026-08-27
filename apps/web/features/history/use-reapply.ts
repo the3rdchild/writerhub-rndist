@@ -1,12 +1,12 @@
 'use client'
 
-import type { AnalysisFeature, AnalysisResultData, GrammarResultPayload } from '@writer-hub/shared'
 import { useQueryClient } from '@tanstack/react-query'
+import type { AnalysisFeature, AnalysisResultData, GrammarResultPayload } from '@writer-hub/shared'
 import { useRouter } from 'next/navigation'
 import { useCallback, useState } from 'react'
 import { usePanels } from '@/features/analysis/panel-context'
-import { useDocumentLanguage } from '@/features/document/use-language'
 import { reconcileSuggestions } from '@/features/document/suggestions'
+import { useDocumentLanguage } from '@/features/document/use-language'
 import { getDocument, getTab } from '@/features/documents/api'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSync } from '@/features/sync/sync-context'
@@ -21,6 +21,7 @@ export interface ReapplyController {
 	openTargetDocument: () => Promise<void>
 	reapply: () => void
 }
+
 export function useReapply(detail: HistoryDetail | null): ReapplyController {
 	const router = useRouter()
 	const queryClient = useQueryClient()
@@ -72,15 +73,23 @@ export function useReapply(detail: HistoryDetail | null): ReapplyController {
 				language: language.code,
 				tabId: detail.tabId ?? undefined,
 			})
-			queryClient.setQueryData(
-				['analysis', feature, fingerprint(text), 0, language.code],
-				remapped,
-			)
+			queryClient.setQueryData(['analysis', feature, fingerprint(text), 0, language.code], remapped)
 		}
 
 		setActivePanel(panelForFeature(detail.feature))
 		router.push('/')
-	}, [detail, activeId, documentReady, doc, language.code, markRun, queryClient, router, setActivePanel, setTabResults])
+	}, [
+		detail,
+		activeId,
+		documentReady,
+		doc,
+		language.code,
+		markRun,
+		queryClient,
+		router,
+		setActivePanel,
+		setTabResults,
+	])
 
 	return { documentReady, opening, openError, openTargetDocument, reapply }
 }

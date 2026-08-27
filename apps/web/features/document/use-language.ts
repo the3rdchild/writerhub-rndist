@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { useSessions } from '@/features/sessions/session-context'
 import { useDocument } from './document-context'
 import { detectLanguage, languageLabel, requiresAiTier } from './language'
+
 const SAMPLE_LENGTH = 2_000
 
 export interface DocumentLanguage {
@@ -14,6 +15,7 @@ export interface DocumentLanguage {
 	needsAiTier: boolean
 	setLanguage: (code: string | null) => void
 }
+
 export function useDocumentLanguage(): DocumentLanguage {
 	const { state } = useDocument()
 	const { languageOverride, setLanguageOverride } = useSessions()

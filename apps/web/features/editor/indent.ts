@@ -4,6 +4,7 @@ import { Extension } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { useEffect, useState } from 'react'
 import { shortcutKeys } from '@/features/shortcuts/registry'
+
 export interface BlockIndent {
 	left: number
 	right: number
@@ -29,6 +30,7 @@ function readPx(value: string | undefined): number {
 	const parsed = Number.parseFloat(value)
 	return Number.isFinite(parsed) ? Math.round(parsed) : 0
 }
+
 export function clampBlockIndent(indent: BlockIndent, contentWidth: number): BlockIndent {
 	const room = Math.max(0, contentWidth - MIN_INDENTED_WIDTH)
 
@@ -63,9 +65,7 @@ export const BlockIndentExtension = Extension.create({
 						default: 0,
 						parseHTML: (element) => readPx(element.style.textIndent),
 						renderHTML: (attributes) =>
-							attributes.indentFirstLine
-								? { style: `text-indent: ${attributes.indentFirstLine}px` }
-								: {},
+							attributes.indentFirstLine ? { style: `text-indent: ${attributes.indentFirstLine}px` } : {},
 					},
 				},
 			},
@@ -122,6 +122,7 @@ export const BlockIndentExtension = Extension.create({
 		}
 	},
 })
+
 const TAB_OWNERS = ['listItem', 'taskItem', 'tableCell', 'tableHeader']
 
 function isInsideAny(editor: Editor, types: readonly string[]): boolean {
@@ -131,6 +132,7 @@ function isInsideAny(editor: Editor, types: readonly string[]): boolean {
 	}
 	return false
 }
+
 export function blockIndentAt(editor: Editor): BlockIndent {
 	const { $from } = editor.state.selection
 
@@ -150,7 +152,9 @@ export function blockIndentAt(editor: Editor): BlockIndent {
 function sameIndent(a: BlockIndent, b: BlockIndent): boolean {
 	return a.left === b.left && a.right === b.right && a.firstLine === b.firstLine
 }
+
 const LIST_ITEMS = ['listItem', 'taskItem'] as const
+
 export function indentSelection(editor: Editor | null): void {
 	if (!editor) return
 	for (const item of LIST_ITEMS) {
@@ -161,6 +165,7 @@ export function indentSelection(editor: Editor | null): void {
 	}
 	editor.chain().focus().shiftBlockIndent(INDENT_STEP).run()
 }
+
 export function outdentSelection(editor: Editor | null): void {
 	if (!editor) return
 	for (const item of LIST_ITEMS) {
@@ -171,26 +176,31 @@ export function outdentSelection(editor: Editor | null): void {
 	}
 	editor.chain().focus().shiftBlockIndent(-INDENT_STEP).run()
 }
+
 export function useBlockIndent(editor: Editor | null): BlockIndent {
 	const [indent, setIndent] = useState<BlockIndent>(NO_INDENT)
 
-	useEffect(() => {
-		if (!editor) {
-			setIndent(NO_INDENT)
-			return
-		}
+	useEffect(
+		function syncIndentFromSelection() {
+			if (!editor) {
+				setIndent(NO_INDENT)
+				return
+			}
 
-		const sync = () => setIndent((current) => {
-			const next = blockIndentAt(editor)
-			return sameIndent(current, next) ? current : next
-		})
+			const sync = () =>
+				setIndent((current) => {
+					const next = blockIndentAt(editor)
+					return sameIndent(current, next) ? current : next
+				})
 
-		sync()
-		editor.on('transaction', sync)
-		return () => {
-			editor.off('transaction', sync)
-		}
-	}, [editor])
+			sync()
+			editor.on('transaction', sync)
+			return () => {
+				editor.off('transaction', sync)
+			}
+		},
+		[editor],
+	)
 
 	return indent
 }

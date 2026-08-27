@@ -1,9 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import {
-	documentReducer,
-	initialDocumentState,
-	type DocumentState,
-} from './document-reducer'
+import { type DocumentState, documentReducer, initialDocumentState } from './document-reducer'
 import type { EditorSuggestion } from './suggestions'
 
 function suggestion(partial: Partial<EditorSuggestion> & { id: string }): EditorSuggestion {
@@ -75,10 +71,11 @@ describe('documentReducer: checkedText / isStale (§P12 butir 4, B-11)', () => {
 	})
 
 	test('naskah yang berubah sejak pemeriksaan membuat isStale (checkedText !== text)', () => {
-		const checked = documentReducer(
-			stateWith({ text: 'naskah asli', checkedText: null }),
-			{ type: 'applyCheckResult', suggestions: [], scores: null },
-		)
+		const checked = documentReducer(stateWith({ text: 'naskah asli', checkedText: null }), {
+			type: 'applyCheckResult',
+			suggestions: [],
+			scores: null,
+		})
 		expect(checked.checkedText).toBe('naskah asli')
 		const edited = documentReducer(checked, { type: 'editText', text: 'naskah aslix' })
 		expect(edited.checkedText).toBe('naskah asli')
@@ -87,10 +84,11 @@ describe('documentReducer: checkedText / isStale (§P12 butir 4, B-11)', () => {
 	})
 
 	test('clearResults membuang baseline sehingga tidak lagi dianggap basi', () => {
-		const checked = documentReducer(
-			stateWith({ text: 'naskah', checkedText: null }),
-			{ type: 'applyCheckResult', suggestions: [], scores: null },
-		)
+		const checked = documentReducer(stateWith({ text: 'naskah', checkedText: null }), {
+			type: 'applyCheckResult',
+			suggestions: [],
+			scores: null,
+		})
 		const cleared = documentReducer(checked, { type: 'clearResults' })
 		expect(cleared.checkedText).toBeNull()
 	})

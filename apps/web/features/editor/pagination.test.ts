@@ -1,12 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { DEFAULT_PAGE_SETUP, pageGeometry, sameSheetGeometry } from './page-geometry'
-import {
-	blockSections,
-	computeSpacers,
-	pageBlockRange,
-	pageOfPos,
-	type Measurement,
-} from './pagination'
+import { blockSections, computeSpacers, type Measurement, pageBlockRange, pageOfPos } from './pagination'
+
 const geometry = pageGeometry() // A4, margin 1 inci
 const { contentHeight, pageStride } = geometry
 
@@ -16,9 +11,9 @@ describe('sameSheetGeometry - syarat pembatas menerus (E5)', () => {
 	})
 
 	test('orientasi, ukuran, atau margin yang berubah menggagalkan kemenerusan', () => {
-		expect(
-			sameSheetGeometry(DEFAULT_PAGE_SETUP, { ...DEFAULT_PAGE_SETUP, orientation: 'landscape' }),
-		).toBe(false)
+		expect(sameSheetGeometry(DEFAULT_PAGE_SETUP, { ...DEFAULT_PAGE_SETUP, orientation: 'landscape' })).toBe(
+			false,
+		)
 		expect(sameSheetGeometry(DEFAULT_PAGE_SETUP, { ...DEFAULT_PAGE_SETUP, size: 'letter' })).toBe(false)
 		expect(
 			sameSheetGeometry(DEFAULT_PAGE_SETUP, {
@@ -33,6 +28,7 @@ describe('sameSheetGeometry - syarat pembatas menerus (E5)', () => {
 		expect(sameSheetGeometry(DEFAULT_PAGE_SETUP, { ...DEFAULT_PAGE_SETUP, pageColor: '#fef3c7' })).toBe(true)
 	})
 })
+
 function layout(heights: Array<number | 'break'>): Measurement[] {
 	let top = 0
 	return heights.map((item, index) => {
@@ -48,6 +44,7 @@ function layout(heights: Array<number | 'break'>): Measurement[] {
 		return block
 	})
 }
+
 function table(rowHeights: number[], options: { headerHeight?: number; startTop?: number } = {}) {
 	const { headerHeight = 0, startTop = 0 } = options
 	let top = startTop
@@ -66,6 +63,7 @@ function table(rowHeights: number[], options: { headerHeight?: number; startTop?
 		return row
 	})
 }
+
 function renderedTops(blocks: Measurement[]): number[] {
 	const { spacers } = computeSpacers(blocks, geometry)
 	const spacerAt = new Map(spacers.map((spacer) => [spacer.pos, spacer]))
@@ -80,6 +78,7 @@ function renderedTops(blocks: Measurement[]): number[] {
 		return block.top + cumulative
 	})
 }
+
 function expectStartsPage(renderedTop: number, page: number) {
 	expect(renderedTop).toBe((page - 1) * pageStride)
 }
@@ -129,6 +128,12 @@ describe('blok lebih tinggi dari satu halaman', () => {
 		expectStartsPage(tops[2], 4)
 	})
 
+	test('blok yang meluber berlembar-lembar tidak melahirkan lembar kosong beruntun', () => {
+		// Penjagaan isFirstOnPage milik jalur luapan - ia tidak boleh ikut lepas
+		// saat jalur pemenggalan paksa dilepaskan.
+		expect(computeSpacers(layout([contentHeight * 3]), geometry).pageCount).toBe(3)
+	})
+
 	test('blok raksasa berturut-turut tidak membuat kesalahan menumpuk', () => {
 		const many = layout([contentHeight * 2, 100, contentHeight * 2, 100])
 		const tops = renderedTops(many)
@@ -137,6 +142,48 @@ describe('blok lebih tinggi dari satu halaman', () => {
 			const top = tops[index]
 			expect(top % pageStride).toBe(0)
 		}
+	})
+})
+
+describe('keepWithNext - judul tidak yatim di dasar halaman', () => {
+	const withKeep = (blocks: Measurement[], ...indexes: number[]) => {
+		for (const index of indexes) blocks[index].keepWithNext = true
+		return blocks
+	}
+
+	test('judul turun bersama blok sesudahnya yang tidak muat', () => {
+		// Sisa ruang sesudah blok pertama cuma muat judulnya; paragrafnya tidak.
+		const blocks = withKeep(layout([contentHeight - 140, 40, 300]), 1)
+		const tops = renderedTops(blocks)
+
+		expectStartsPage(tops[1], 2)
+		expect(tops[2]).toBe(pageStride + 40)
+		expect(computeSpacers(blocks, geometry).pageCount).toBe(2)
+	})
+
+	test('judul yang muat bersama bloknya tidak digeser', () => {
+		const blocks = withKeep(layout([100, 40, 300]), 1)
+		expect(computeSpacers(blocks, geometry).spacers).toEqual([])
+		expect(computeSpacers(blocks, geometry).pageCount).toBe(1)
+	})
+
+	test('rantai judul bertingkat turun sebagai satu rangkaian', () => {
+		const blocks = withKeep(layout([contentHeight - 120, 40, 40, 300]), 1, 2)
+		const tops = renderedTops(blocks)
+
+		expectStartsPage(tops[1], 2)
+		expect(tops[2]).toBe(pageStride + 40)
+		expect(tops[3]).toBe(pageStride + 80)
+	})
+
+	test('rangkaian yang lebih tinggi dari satu halaman tidak dipaksa turun', () => {
+		// Judul + raksasa: mendorong judul cuma mengosongkan halaman yang sudah
+		// dimulai. Judul dibiarkan; raksasanya berpindah lewat jalur luapan biasa.
+		const blocks = withKeep(layout([contentHeight - 100, 40, contentHeight]), 1)
+		const tops = renderedTops(blocks)
+
+		expect(tops[1]).toBe(contentHeight - 100)
+		expectStartsPage(tops[2], 2)
 	})
 })
 
@@ -157,6 +204,39 @@ describe('page break manual', () => {
 	test('blok raksasa di ujung dokumen tidak menambah lembar kosong', () => {
 		const blocks = layout([100, contentHeight + 200])
 		expect(computeSpacers(blocks, geometry).pageCount).toBe(2)
+	})
+
+	/*
+	 * Node pemenggal bertinggi nol, jadi blok sesudahnya berbagi `top` dengan
+	 * pemenggalnya. Selama pemenggal itu jatuh di awal halaman, blok sesudahnya
+	 * ikut terbaca "sudah di awal halaman" - dan permintaan penulis hilang tanpa
+	 * jejak. Empat uji berikut menjaga setiap bentuk kehilangan itu.
+	 */
+	test('pemenggal di awal dokumen membuka lembar kosong pertama', () => {
+		const blocks = layout(['break', 100])
+
+		expect(computeSpacers(blocks, geometry).pageCount).toBe(2)
+		expectStartsPage(renderedTops(blocks)[1], 2)
+	})
+
+	test('dua pemenggal berurutan menyisakan satu lembar kosong di antaranya', () => {
+		const blocks = layout([100, 'break', 'break', 100])
+
+		expect(computeSpacers(blocks, geometry).pageCount).toBe(3)
+		expectStartsPage(renderedTops(blocks)[3], 3)
+	})
+
+	test('pemenggal ketiga menambah lembar kosong lagi, bukan berhenti di dua', () => {
+		expect(computeSpacers(layout([100, 'break', 'break', 'break', 100]), geometry).pageCount).toBe(4)
+	})
+
+	test('pemenggal sesudah blok yang baru saja terdorong tetap dihitung', () => {
+		// 900 tidak muat di lembar pertama dan turun ke lembar kedua; pemenggal
+		// ganda sesudahnya tetap harus menyisakan lembar ketiga kosong.
+		const blocks = layout([100, 900, 'break', 'break', 100])
+
+		expect(computeSpacers(blocks, geometry).pageCount).toBe(4)
+		expectStartsPage(renderedTops(blocks)[4], 4)
 	})
 })
 
@@ -191,7 +271,10 @@ describe('tabel dipenggal per baris', () => {
 
 	test('halaman lanjutan menyisakan ruang tulis lebih sedikit sebanyak headernya', () => {
 		const headerHeight = 100
-		const rows = table(Array.from({ length: 14 }, () => 200), { headerHeight })
+		const rows = table(
+			Array.from({ length: 14 }, () => 200),
+			{ headerHeight },
+		)
 		const tops = renderedTops(rows)
 		expectStartsPage(tops[4] - headerHeight, 2)
 		expectStartsPage(tops[8] - headerHeight, 3)
@@ -266,6 +349,18 @@ describe('blok self-paginate (blok TOC)', () => {
 		expectStartsPage(1379 + internal + spacers[0].height, 3)
 	})
 
+	test('pemenggal di awal dokumen tetap mendorongnya ke lembar kedua', () => {
+		const blocks: Measurement[] = [
+			{ pos: 0, top: 0, bottom: 0, isBreak: true, kind: 'block' },
+			selfPaginate(1, 0, 400),
+		]
+		const { spacers, pageCount } = computeSpacers(blocks, geometry)
+
+		expect(spacers).toHaveLength(1)
+		expectStartsPage(spacers[0].height, 2)
+		expect(pageCount).toBe(2)
+	})
+
 	test('page break manual tetap mendorongnya ke lembar baru', () => {
 		const blocks: Measurement[] = [
 			{ pos: 0, top: 0, bottom: 100, isBreak: false, kind: 'block' },
@@ -280,7 +375,6 @@ describe('blok self-paginate (blok TOC)', () => {
 		expect(pageCount).toBe(2)
 	})
 })
-
 
 describe('paginasi tak seragam (§P8&P9)', () => {
 	const landscape = pageGeometry({ ...DEFAULT_PAGE_SETUP, orientation: 'landscape' })
@@ -303,13 +397,16 @@ describe('paginasi tak seragam (§P8&P9)', () => {
 
 	test('lembar sesudah pembatas section memakai geometrinya sendiri', () => {
 		const blocks = sectioned([600, 'section', 400])
-		const { spacers, pageCount, sheets } = computeSpacers(blocks, geometry, [
-			{ pos: 1, geometry: landscape },
-		])
+		const { spacers, pageCount, sheets } = computeSpacers(blocks, geometry, [{ pos: 1, geometry: landscape }])
 
 		expect(pageCount).toBe(2)
 		expect(sheets[0]).toMatchObject({ index: 0, top: 0, width: geometry.width })
-		expect(sheets[1]).toMatchObject({ index: 1, top: pageStride, width: landscape.width, height: landscape.height })
+		expect(sheets[1]).toMatchObject({
+			index: 1,
+			top: pageStride,
+			width: landscape.width,
+			height: landscape.height,
+		})
 		expect(spacers).toHaveLength(1)
 		expect(spacers[0].pos).toBe(2)
 		expect(spacers[0].height).toBe(pageStride - 600)
@@ -368,7 +465,11 @@ describe('paginasi tak seragam (§P8&P9)', () => {
 		])
 
 		expect(sheets).toHaveLength(3)
-		expect(sheets[2]).toMatchObject({ index: 2, width: geometry.width, top: pageStride + landscape.height + 32 })
+		expect(sheets[2]).toMatchObject({
+			index: 2,
+			width: geometry.width,
+			top: pageStride + landscape.height + 32,
+		})
 	})
 
 	test('blok raksasa di section sempit memanjangkan daftar lembar dengan geometrinya', () => {
@@ -378,9 +479,13 @@ describe('paginasi tak seragam (§P8&P9)', () => {
 		expect(sheets).toHaveLength(4)
 		expect(sheets[1]).toMatchObject({ height: landscape.height, top: pageStride })
 		expect(sheets[2]).toMatchObject({ height: landscape.height, top: pageStride + landscape.height + 32 })
-		expect(sheets[3]).toMatchObject({ height: landscape.height, top: pageStride + 2 * (landscape.height + 32) })
+		expect(sheets[3]).toMatchObject({
+			height: landscape.height,
+			top: pageStride + 2 * (landscape.height + 32),
+		})
 	})
 })
+
 describe('peta blok→halaman (§P8&P9, cakupan "halaman ini")', () => {
 	test('tiap blok dicatat pada lembar tempat ia mulai', () => {
 		const { blockPages } = computeSpacers(layout([400, 400, 400]), geometry)
@@ -427,10 +532,13 @@ describe('peta blok→halaman (§P8&P9, cakupan "halaman ini")', () => {
 describe('peta blok→section (§P8&P9, cetak per-section)', () => {
 	test('blok sebelum pembatas pertama milik section 0', () => {
 		expect(
-			blockSections([0, 5, 12], [
-				{ pos: 0, name: 0 },
-				{ pos: 8, name: 1 },
-			]),
+			blockSections(
+				[0, 5, 12],
+				[
+					{ pos: 0, name: 0 },
+					{ pos: 8, name: 1 },
+				],
+			),
 		).toEqual([
 			{ pos: 0, section: 0 },
 			{ pos: 5, section: 0 },
@@ -446,10 +554,13 @@ describe('peta blok→section (§P8&P9, cetak per-section)', () => {
 
 	test('pembatas itu sendiri sudah masuk section barunya', () => {
 		expect(
-			blockSections([8], [
-				{ pos: 0, name: 0 },
-				{ pos: 8, name: 1 },
-			]),
+			blockSections(
+				[8],
+				[
+					{ pos: 0, name: 0 },
+					{ pos: 8, name: 1 },
+				],
+			),
 		).toEqual([{ pos: 8, section: 1 }])
 	})
 

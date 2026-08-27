@@ -10,6 +10,7 @@ import {
 	synthesizeResultText,
 } from './analysis-diff'
 import { useAnalysisDiffContext } from './analysis-diff-context'
+
 export {
 	computeAnalysisDiff,
 	editsFromChanges,
@@ -17,7 +18,9 @@ export {
 	editsFromSuggestions,
 	synthesizeResultText,
 } from './analysis-diff'
+
 export type { AnalysisDiffFeature, PendingEdit }
+
 export function useAnalysisDiff(
 	feature: AnalysisDiffFeature,
 	edits: readonly PendingEdit[],
@@ -38,12 +41,17 @@ export function useAnalysisDiff(
 	}, [baseText, edits])
 
 	const enabled = isEnabled(feature)
-	useEffect(() => {
-		if (enabled) publish(feature, ranges)
-	}, [enabled, feature, ranges, publish])
 	useEffect(
-		() => () => {
-			disableCtx(feature)
+		function publishDiffWhenEnabled() {
+			if (enabled) publish(feature, ranges)
+		},
+		[enabled, feature, ranges, publish],
+	)
+	useEffect(
+		function disableDiffOnUnmount() {
+			return () => {
+				disableCtx(feature)
+			}
 		},
 		[disableCtx, feature],
 	)

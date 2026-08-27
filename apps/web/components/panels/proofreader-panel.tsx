@@ -3,16 +3,23 @@
 import { Check, Copy, Eraser } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { ScoreRing } from '@/components/ui/score-ring'
+import { editsFromSuggestions, useAnalysisDiff } from '@/features/analysis/use-analysis-diff'
+import { useDocument } from '@/features/document/document-context'
+import type { SuggestionFilter } from '@/features/document/document-reducer'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { useSelectionScope } from '@/features/editor/selection'
-import { useDocument } from '@/features/document/document-context'
-import type { SuggestionFilter } from '@/features/document/document-reducer'
 import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
-import { editsFromSuggestions, useAnalysisDiff } from '@/features/analysis/use-analysis-diff'
 import { cn } from '@/lib/utils'
 import { ModelSelector } from './model-selector'
-import { AcceptAllButton, CompareButton, PanelError, PanelFooter, RunButton, StaleNotice } from './panel-parts'
+import {
+	AcceptAllButton,
+	CompareButton,
+	PanelError,
+	PanelFooter,
+	RunButton,
+	StaleNotice,
+} from './panel-parts'
 import { RunScopeBar } from './run-scope-bar'
 import { SuggestionCard } from './suggestion-card'
 
@@ -44,7 +51,11 @@ export function ProofreaderPanel() {
 		if (target && editor) {
 			replaceTextRange(
 				editor,
-				{ offset: target.offset ?? 0, length: target.length ?? target.original.length, expected: target.original },
+				{
+					offset: target.offset ?? 0,
+					length: target.length ?? target.original.length,
+					expected: target.original,
+				},
 				target.replacement,
 			)
 		}
@@ -59,7 +70,11 @@ export function ProofreaderPanel() {
 			for (const suggestion of pending) {
 				replaceTextRange(
 					editor,
-					{ offset: suggestion.offset ?? 0, length: suggestion.length ?? suggestion.original.length, expected: suggestion.original },
+					{
+						offset: suggestion.offset ?? 0,
+						length: suggestion.length ?? suggestion.original.length,
+						expected: suggestion.original,
+					},
 					suggestion.replacement,
 				)
 			}
@@ -68,14 +83,10 @@ export function ProofreaderPanel() {
 	}
 
 	const visible = state.suggestions.filter(
-		(suggestion) =>
-			!suggestion.dismissed && (state.filter === 'all' || suggestion.category === state.filter),
+		(suggestion) => !suggestion.dismissed && (state.filter === 'all' || suggestion.category === state.filter),
 	)
 	const hasResults = state.suggestions.length > 0 || state.scores !== null
-	const diffEdits = useMemo(
-		() => editsFromSuggestions(state.suggestions),
-		[state.suggestions],
-	)
+	const diffEdits = useMemo(() => editsFromSuggestions(state.suggestions), [state.suggestions])
 	const compare = useAnalysisDiff('proofreader', diffEdits)
 	const isStale = state.checkedText !== null && state.checkedText !== state.text
 
@@ -91,8 +102,7 @@ export function ProofreaderPanel() {
 			await navigator.clipboard.writeText(correctedText)
 			setCopied(true)
 			setTimeout(() => setCopied(false), 2000)
-		} catch {
-		}
+		} catch {}
 	}
 
 	return (
@@ -142,7 +152,7 @@ export function ProofreaderPanel() {
 							>
 								<SuggestionCard
 									suggestion={suggestion}
-								onAccept={() => acceptSuggestion(suggestion.id)}
+									onAccept={() => acceptSuggestion(suggestion.id)}
 									onDismiss={() => dispatch({ type: 'dismissSuggestion', id: suggestion.id })}
 								/>
 							</div>
@@ -158,28 +168,26 @@ export function ProofreaderPanel() {
 			<PanelFooter>
 				{error && <PanelError message={error.message} />}
 
-				{visible.length > 0 && (
-					<AcceptAllButton onClick={acceptAll} disabled={isStale} />
-				)}
+				{visible.length > 0 && <AcceptAllButton onClick={acceptAll} disabled={isStale} />}
 
-			{isStale && hasResults && <StaleNotice />}
+				{isStale && hasResults && <StaleNotice />}
 
-			{/* Pratinjau diff "accept-all virtual" di editor utama (§diff hasil
+				{/* Pratinjau diff "accept-all virtual" di editor utama (§diff hasil
 			    dengan dokumen). Dimatikan saat basi: offset saran sudah tidak
 			    menempel pada teks yang berubah, jadi diff-nya menyesatkan. */}
-			{compare.hasEdits && (
-				<CompareButton
-					active={compare.isEnabled}
-					disabled={isStale}
-					onToggle={() => (compare.isEnabled ? compare.disable() : compare.enable())}
-				/>
-			)}
+				{compare.hasEdits && (
+					<CompareButton
+						active={compare.isEnabled}
+						disabled={isStale}
+						onToggle={() => (compare.isEnabled ? compare.disable() : compare.enable())}
+					/>
+				)}
 
-			{hasResults && (
-				<div className="flex gap-2">
-					<button
-						type="button"
-						onClick={copyOutput}
+				{hasResults && (
+					<div className="flex gap-2">
+						<button
+							type="button"
+							onClick={copyOutput}
 							className={cn(
 								'flex flex-1 items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition-colors',
 								copied
@@ -204,9 +212,7 @@ export function ProofreaderPanel() {
 							Clear results
 						</button>
 					</div>
-				)
-
-				}
+				)}
 				{state.scores && (
 					<>
 						<div className="flex items-center justify-around pt-1">
@@ -217,9 +223,7 @@ export function ProofreaderPanel() {
 
 						<div className="flex items-center justify-between">
 							<span className="text-[13px] text-muted">Writing quality</span>
-							<span
-								className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', quality.className)}
-							>
+							<span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', quality.className)}>
 								{quality.text}
 							</span>
 						</div>
@@ -238,8 +242,7 @@ export function ProofreaderPanel() {
 
 				{forcedAiTier && (
 					<p className="rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-[11px] leading-relaxed text-yellow-400">
-						Standard and Advanced only understand English, so this check runs on the AI tier
-						instead.
+						Standard and Advanced only understand English, so this check runs on the AI tier instead.
 					</p>
 				)}
 
@@ -251,7 +254,9 @@ export function ProofreaderPanel() {
 					/>
 					<div className="shrink-0">
 						<RunButton
-							onClick={() => runCheck(scope ?? undefined)}						onCancel={cancel}							disabled={!canRun}
+							onClick={() => runCheck(scope ?? undefined)}
+							onCancel={cancel}
+							disabled={!canRun}
 							isRunning={isRunning}
 							runningLabel="Checking..."
 							label={scope ? 'Check Selection' : hasResults ? 'Check Again' : 'Check Grammar'}

@@ -1,9 +1,9 @@
-
 import type { Dispatch, Range } from '@tiptap/core'
 import { Extension } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { type EditorState, Plugin, PluginKey, type Transaction } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+
 export interface SearchAndReplaceOptions {
 	searchResultClass: string
 	disableRegex: boolean
@@ -97,7 +97,8 @@ function processSearches(
 
 	for (let i = 0; i < results.length; i += 1) {
 		const r = results[i]
-		const className = i === resultIndex ? `${searchResultClass} ${searchResultClass}-current` : searchResultClass
+		const className =
+			i === resultIndex ? `${searchResultClass} ${searchResultClass}-current` : searchResultClass
 		decorations.push(Decoration.inline(r.from, r.to, { class: className }))
 	}
 

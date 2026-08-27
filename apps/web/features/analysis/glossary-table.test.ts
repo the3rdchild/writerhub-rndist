@@ -14,6 +14,7 @@ const entries = [
 	{ term: 'AKD', definition: 'Analisis Komponen Data', occurrences: 3 },
 	{ term: 'latensi', definition: 'Jeda antara permintaan dan respons', occurrences: 2 },
 ]
+
 const docOf = (content: unknown[]) => schema.nodeFromJSON({ type: 'doc', content })
 
 const paragraph = (text: string) => ({
@@ -38,12 +39,8 @@ describe('label kolom Istilah', () => {
 	})
 
 	test('kepanjangan kosong atau berisi spasi diperlakukan sebagai tidak ada', () => {
-		expect(glossaryTermLabel({ term: 'AKD', expansion: '', definition: '…', occurrences: 1 })).toBe(
-			'AKD',
-		)
-		expect(
-			glossaryTermLabel({ term: 'AKD', expansion: '   ', definition: '…', occurrences: 1 }),
-		).toBe('AKD')
+		expect(glossaryTermLabel({ term: 'AKD', expansion: '', definition: '…', occurrences: 1 })).toBe('AKD')
+		expect(glossaryTermLabel({ term: 'AKD', expansion: '   ', definition: '…', occurrences: 1 })).toBe('AKD')
 	})
 })
 

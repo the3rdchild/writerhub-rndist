@@ -31,6 +31,7 @@ export interface RunProps {
 	vertAlign?: 'superscript' | 'subscript'
 	noProof?: boolean
 }
+
 export function merge<T extends object>(base: T, over: T): T {
 	const result = { ...base }
 	for (const key of Object.keys(over) as (keyof T)[]) {
@@ -62,6 +63,7 @@ function twips(element: Element | null, name: string): number | undefined {
 	const parsed = Number.parseInt(raw, 10)
 	return Number.isFinite(parsed) ? parsed : undefined
 }
+
 export function readParagraphProps(pPr: Element | null): ParagraphProps {
 	if (!pPr) return {}
 
@@ -107,6 +109,7 @@ export function readParagraphProps(pPr: Element | null): ParagraphProps {
 
 	return props
 }
+
 export function readRunProps(rPr: Element | null): RunProps {
 	if (!rPr) return {}
 
@@ -144,6 +147,7 @@ export function readRunProps(rPr: Element | null): RunProps {
 
 	return props
 }
+
 export interface StyleDefinition {
 	id: string
 	name: string
@@ -194,6 +198,7 @@ export function readStyles(root: Element | null): DocxStyles {
 
 	return styles
 }
+
 export function resolveStyle(
 	styles: DocxStyles,
 	styleId: string | undefined,

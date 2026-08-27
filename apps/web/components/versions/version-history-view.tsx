@@ -11,20 +11,18 @@ import { pageGeometry } from '@/features/editor/page-geometry'
 import type { HistoryFeature } from '@/features/history/types'
 import { useSessions } from '@/features/sessions/session-context'
 import { fragmentToJSON } from '@/features/sync/serialize'
-import { GROUP_ORDER, groupOf } from '@/lib/day-groups'
-import { cn } from '@/lib/utils'
 import { createVersion } from '@/features/versions/api'
 import { computeVersionDiff, versionPlainText } from '@/features/versions/diff'
 import { snapshotLocalVersion } from '@/features/versions/local-snapshot'
 import type { VersionSummary } from '@/features/versions/types'
-import { useVersion, useVersions, useInvalidateVersions } from '@/features/versions/use-versions'
+import { useInvalidateVersions, useVersion, useVersions } from '@/features/versions/use-versions'
 import { useVersionMode } from '@/features/versions/version-context'
-import {
-	VersionDiffHighlight,
-	versionDiffHighlightKey,
-} from '@/features/versions/version-diff-highlight'
+import { VersionDiffHighlight, versionDiffHighlightKey } from '@/features/versions/version-diff-highlight'
+import { GROUP_ORDER, groupOf } from '@/lib/day-groups'
+import { cn } from '@/lib/utils'
 
 const timeFormat = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' })
+
 const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	day: 'numeric',
 	month: 'long',
@@ -32,10 +30,12 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	hour: '2-digit',
 	minute: '2-digit',
 })
+
 function featureLabel(feature: string | null): string | null {
 	if (!feature || !(feature in FEATURE_META)) return null
 	return FEATURE_META[feature as HistoryFeature].label
 }
+
 function entryLabel(version: VersionSummary): string {
 	switch (version.trigger) {
 		case 'manual':
@@ -52,6 +52,7 @@ function entryLabel(version: VersionSummary): string {
 		}
 	}
 }
+
 export function VersionHistoryView() {
 	const { versionMode, closeVersionMode, restoreToVersion } = useVersionMode()
 	const { doc, activeId } = useSessions()
@@ -67,9 +68,12 @@ export function VersionHistoryView() {
 	const detail = useVersion(versionMode, selectedId)
 	const invalidateVersions = useInvalidateVersions()
 	const [draftJson, setDraftJson] = useState<JSONContent | null>(null)
-	useEffect(() => {
-		if (activeId) setDraftJson(fragmentToJSON(doc, activeId))
-	}, [doc, activeId])
+	useEffect(
+		function readDraftFromYdoc() {
+			if (activeId) setDraftJson(fragmentToJSON(doc, activeId))
+		},
+		[doc, activeId],
+	)
 	const draftText = useMemo(() => (draftJson ? versionPlainText(draftJson) : null), [draftJson])
 
 	const selectedContent = selectedId === null ? draftJson : (detail.data?.content ?? null)
@@ -86,18 +90,24 @@ export function VersionHistoryView() {
 			},
 		},
 	})
-	useEffect(() => {
-		if (!editor || editor.isDestroyed || !selectedContent) return
-		editor.commands.setContent(selectedContent, { emitUpdate: false })
-	}, [editor, selectedContent])
-	useEffect(() => {
-		if (!editor || editor.isDestroyed || !selectedContent) return
-		const ranges =
-			showDiff && selectedId !== null && draftText !== null
-				? computeVersionDiff(versionPlainText(selectedContent), draftText)
-				: null
-		editor.view.dispatch(editor.state.tr.setMeta(versionDiffHighlightKey, ranges))
-	}, [editor, selectedContent, showDiff, selectedId, draftText])
+	useEffect(
+		function showSelectedVersion() {
+			if (!editor || editor.isDestroyed || !selectedContent) return
+			editor.commands.setContent(selectedContent, { emitUpdate: false })
+		},
+		[editor, selectedContent],
+	)
+	useEffect(
+		function paintVersionDiff() {
+			if (!editor || editor.isDestroyed || !selectedContent) return
+			const ranges =
+				showDiff && selectedId !== null && draftText !== null
+					? computeVersionDiff(versionPlainText(selectedContent), draftText)
+					: null
+			editor.view.dispatch(editor.state.tr.setMeta(versionDiffHighlightKey, ranges))
+		},
+		[editor, selectedContent, showDiff, selectedId, draftText],
+	)
 
 	const grouped = useMemo(() => {
 		const map = new Map<string, VersionSummary[]>()
@@ -159,9 +169,7 @@ export function VersionHistoryView() {
 				<div className="min-w-0">
 					<h1 className="truncate text-base font-medium text-foreground">{versionMode.title}</h1>
 					<p className="text-xs text-muted">
-						{selectedVersion
-							? dateFormat.format(new Date(selectedVersion.createdAt))
-							: 'Versi saat ini'}
+						{selectedVersion ? dateFormat.format(new Date(selectedVersion.createdAt)) : 'Versi saat ini'}
 					</p>
 				</div>
 			</header>
@@ -200,18 +208,14 @@ export function VersionHistoryView() {
 							onClick={() => setSelectedId(null)}
 							className={cn(
 								'w-full rounded-lg px-3 py-2 text-left transition-colors',
-								selectedId === null
-									? 'bg-accent/15 text-foreground'
-									: 'hover:bg-[var(--overlay-hover)]',
+								selectedId === null ? 'bg-accent/15 text-foreground' : 'hover:bg-[var(--overlay-hover)]',
 							)}
 						>
 							<div className="text-sm font-medium text-foreground">Versi saat ini</div>
 							<div className="text-xs text-muted">Draf yang sedang dikerjakan</div>
 						</button>
 
-						{versions.isPending && (
-							<p className="px-3 py-4 text-xs text-muted">Memuat riwayat…</p>
-						)}
+						{versions.isPending && <p className="px-3 py-4 text-xs text-muted">Memuat riwayat…</p>}
 						{versions.isError && (
 							<p className="px-3 py-4 text-xs text-red-400">Gagal memuat riwayat versi.</p>
 						)}
@@ -238,9 +242,7 @@ export function VersionHistoryView() {
 											{version.trigger === 'manual' && <Pin className="h-3 w-3 shrink-0" />}
 											<span className="truncate">{entryLabel(version)}</span>
 											<span aria-hidden>•</span>
-											<span className="shrink-0">
-												{version.wordCount.toLocaleString('id-ID')} kata
-											</span>
+											<span className="shrink-0">{version.wordCount.toLocaleString('id-ID')} kata</span>
 										</div>
 									</button>
 								))}
@@ -295,6 +297,7 @@ export function VersionHistoryView() {
 		</div>
 	)
 }
+
 function NameVersionDialog({
 	open,
 	onSubmit,
@@ -306,15 +309,18 @@ function NameVersionDialog({
 }) {
 	const [label, setLabel] = useState('')
 
-	useEffect(() => {
-		if (!open) return
-		setLabel('')
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') onCancel()
-		}
-		window.addEventListener('keydown', onKeyDown)
-		return () => window.removeEventListener('keydown', onKeyDown)
-	}, [open, onCancel])
+	useEffect(
+		function resetLabelAndCloseOnEscape() {
+			if (!open) return
+			setLabel('')
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') onCancel()
+			}
+			window.addEventListener('keydown', onKeyDown)
+			return () => window.removeEventListener('keydown', onKeyDown)
+		},
+		[open, onCancel],
+	)
 
 	if (!open) return null
 

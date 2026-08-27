@@ -1,14 +1,15 @@
 'use client'
 
 import { CheckCircle2, X } from 'lucide-react'
-import type { EditorSuggestion } from '@/features/document/suggestions'
 import { CATEGORY_TEXT_COLOR } from '@/components/panels/suggestion-card'
+import type { EditorSuggestion } from '@/features/document/suggestions'
 
 export interface PopoverPosition {
 	id: string
 	top: number
 	left: number
 }
+
 export function SuggestionPopover({
 	suggestion,
 	position,
@@ -32,9 +33,7 @@ export function SuggestionPopover({
 			onMouseEnter={onMouseEnter}
 			onMouseLeave={onMouseLeave}
 		>
-			<p className={`text-xs font-semibold ${CATEGORY_TEXT_COLOR[suggestion.category]}`}>
-				{suggestion.type}
-			</p>
+			<p className={`text-xs font-semibold ${CATEGORY_TEXT_COLOR[suggestion.category]}`}>{suggestion.type}</p>
 
 			<div className="flex items-center gap-1.5 text-xs">
 				<span className="truncate text-subtle line-through">{suggestion.original}</span>

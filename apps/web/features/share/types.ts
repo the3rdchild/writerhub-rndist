@@ -1,6 +1,7 @@
 import type { JSONContent } from '@tiptap/core'
 export type ShareAccess = 'anyone' | 'restricted'
 export type ShareRole = 'viewer' | 'commenter' | 'editor'
+
 export interface SharedTab {
 	id: string
 	title: string
@@ -16,6 +17,7 @@ export interface SharePayload {
 	role: ShareRole
 	createdAt: number
 }
+
 export interface CreateShareInput {
 	documentId: string
 	access: ShareAccess
@@ -33,7 +35,10 @@ export interface CreateShareResult {
 }
 
 export const SHARE_ACCESS_LABELS: Record<ShareAccess, { label: string; description: string }> = {
-	anyone: { label: 'Siapa saja dengan link', description: 'Siapa pun di internet yang memiliki link dapat melihat' },
+	anyone: {
+		label: 'Siapa saja dengan link',
+		description: 'Siapa pun di internet yang memiliki link dapat melihat',
+	},
 	restricted: { label: 'Dibatasi', description: 'Hanya orang yang diundang yang dapat mengakses' },
 }
 

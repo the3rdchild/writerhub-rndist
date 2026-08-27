@@ -1,6 +1,6 @@
 import { env } from '@/config/env'
 import { AppError } from '@/lib/error'
-import LoggerClient from '@/utils/logger'
+import LoggerClient from '@/lib/logger'
 
 interface AuthCheckResponse {
 	data: {

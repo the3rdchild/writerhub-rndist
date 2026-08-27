@@ -1,9 +1,10 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
 import { resolveSpan } from '@/features/document/suggestions'
+import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
 import { toEditorContent } from './markdown'
+
 export function replaceTextRange(
 	editor: Editor,
 	{ offset, expected }: { offset: number; length: number; expected: string },

@@ -1,9 +1,8 @@
 import { REWRITE_TONES } from '@writer-hub/shared'
-import type { StyleMemory } from '@writer-hub/shared'
 import QueueClient from '@/lib/queue'
-import { findMemoryByOwner } from '@/repository/memory'
 import JobSubmissionService from '@/services/job-submission.service'
 import { analysisBodySchema } from './dto'
+
 export default class AnalysisService extends JobSubmissionService {
 	async create(): Promise<Response> {
 		try {
@@ -18,9 +17,7 @@ export default class AnalysisService extends JobSubmissionService {
 			const styleMemory = await this.styleMemory()
 			const tone = body.tone ? REWRITE_TONES.find((item) => item.id === body.tone) : undefined
 			const effectiveMemory =
-				tone && body.feature === 'ai_rewriter'
-					? { ...styleMemory, tone: tone.instruction }
-					: styleMemory
+				tone && body.feature === 'ai_rewriter' ? { ...styleMemory, tone: tone.instruction } : styleMemory
 
 			const requestId = await this.createPoolRequest(
 				jobId,
@@ -53,11 +50,5 @@ export default class AnalysisService extends JobSubmissionService {
 		return contentType.includes('application/json')
 			? this.context.req.json().catch(() => ({}))
 			: this.context.req.parseBody({ all: true })
-	}
-	private async styleMemory(): Promise<StyleMemory | null> {
-		const userId = this.context.get('userId')
-		if (!userId) return null
-		const row = await findMemoryByOwner(await this.identityId())
-		return row?.preferences ?? null
 	}
 }

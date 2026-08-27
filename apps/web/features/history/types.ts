@@ -5,6 +5,7 @@ import type {
 	JobStatus,
 	ResearchResultPayload,
 } from '@writer-hub/shared'
+
 export type HistoryFeature = 'grammar' | 'research' | AnalysisFeature
 
 export interface HistoryEntry {

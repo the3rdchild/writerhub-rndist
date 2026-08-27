@@ -7,6 +7,7 @@ import { streamChat } from '@/features/chat/api'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { type EditorSelection, selectionTextRange } from '@/features/editor/selection'
 import { cn } from '@/lib/utils'
+
 const PRESETS = ['Make it shorter', 'Make it clearer', 'More formal', 'Fix grammar only']
 
 export function AiEditPopover({

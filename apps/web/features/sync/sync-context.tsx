@@ -1,7 +1,6 @@
 'use client'
 
 import { useQueryClient } from '@tanstack/react-query'
-import { IndexeddbPersistence } from 'y-indexeddb'
 import {
 	createContext,
 	type ReactNode,
@@ -12,6 +11,8 @@ import {
 	useRef,
 	useState,
 } from 'react'
+import { IndexeddbPersistence } from 'y-indexeddb'
+import { backupComments, restoreComments } from '@/features/comments/comment-backup'
 import {
 	createDocument,
 	createTabApi,
@@ -19,7 +20,6 @@ import {
 	updateDocument,
 	updateTab as updateTabApi,
 } from '@/features/documents/api'
-import { backupComments, restoreComments } from '@/features/comments/comment-backup'
 import type { DocumentDetail } from '@/features/documents/types'
 import { DOCUMENTS_QUERY_KEY, useDocuments } from '@/features/documents/use-documents'
 import { useEditorInstance } from '@/features/editor/editor-context'
@@ -36,6 +36,7 @@ import { deleteLocalVersionsExcept } from '@/features/versions/local-store'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import { fragmentToJSON, jsonToFragment } from './serialize'
 import { resolveTitle } from './title-sync'
+
 const SYNC_STORAGE_KEY = 'writer-hub-sync'
 const IDLE_SAVE_MS = 3_000
 const MAX_SAVE_MS = 30_000
@@ -78,9 +79,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	const [store, setStore, storeHydrated] = usePersistentState<{
 		linkage: Record<string, SyncLinkage>
 	}>(SYNC_STORAGE_KEY, { linkage: {} })
-	const [transient, setTransient] = useState<
-		Record<string, 'dirty' | 'saving' | 'error'>
-	>({})
+	const [transient, setTransient] = useState<Record<string, 'dirty' | 'saving' | 'error'>>({})
 
 	const timers = useRef(new Map<string, SaveTimers>())
 	const titleTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
@@ -125,31 +124,32 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 		},
 		[doc],
 	)
-	useEffect(() => {
-		if (!storeHydrated) return
-		setStore((current) => {
-			let changed = false
-			const migrated: Record<string, SyncLinkage> = {}
-			for (const [id, linkage] of Object.entries(current.linkage)) {
-				if (linkage.documentId) {
-					migrated[id] = linkage
-				} else {
-					migrated[id] = { ...linkage, documentId: linkage.serverId }
-					changed = true
+	useEffect(
+		function migrateStoredLinkage() {
+			if (!storeHydrated) return
+			setStore((current) => {
+				let changed = false
+				const migrated: Record<string, SyncLinkage> = {}
+				for (const [id, linkage] of Object.entries(current.linkage)) {
+					if (linkage.documentId) {
+						migrated[id] = linkage
+					} else {
+						migrated[id] = { ...linkage, documentId: linkage.serverId }
+						changed = true
+					}
 				}
-			}
-			return changed ? { ...current, linkage: migrated } : current
-		})
-	}, [storeHydrated, setStore])
+				return changed ? { ...current, linkage: migrated } : current
+			})
+		},
+		[storeHydrated, setStore],
+	)
 	const pushToServer = useCallback(
 		async (tabId: string, linkage: SyncLinkage): Promise<boolean> => {
 			const meta = readTabs(doc).find((tab) => tab.id === tabId)
 			if (!meta) return false
 
 			const parentId = findTabDoc(doc, tabId)
-			const docTitle = parentId
-				? readDocs(doc).find((dok) => dok.id === parentId)?.title
-				: undefined
+			const docTitle = parentId ? readDocs(doc).find((dok) => dok.id === parentId)?.title : undefined
 
 			const sentAtRevision = revisions.current.get(tabId) ?? 0
 			setStatus(tabId, 'saving')
@@ -215,125 +215,136 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 		},
 		[clearTimers],
 	)
-	useEffect(() => {
-		const onUpdate = (_update: Uint8Array, origin: unknown) => {
-			if (origin === SYNC_ORIGIN || origin instanceof IndexeddbPersistence) return
-			const tabId = activeIdRef.current
-			if (!tabId || !linkageRef.current[tabId]) return
-			revisions.current.set(tabId, (revisions.current.get(tabId) ?? 0) + 1)
-			setStatus(tabId, 'dirty')
-			scheduleSave(tabId)
-		}
-
-		doc.on('update', onUpdate)
-		return () => {
-			doc.off('update', onUpdate)
-		}
-	}, [doc, setStatus, scheduleSave])
-	useEffect(() => {
-		if (!storeHydrated || documents.length === 0) return
-
-		for (const dok of documents) {
-			const entry = Object.entries(store.linkage).find(
-				([tabId, linkage]) => dok.tabOrder.includes(tabId) && linkage.documentId,
-			)
-			if (!entry) continue
-			const [linkedTabId, linkage] = entry
-
-			if (linkage.lastDocTitle === undefined) {
-				setStore((current) => {
-					const found = current.linkage[linkedTabId]
-					if (!found || found.lastDocTitle !== undefined) return current
-					return {
-						...current,
-						linkage: {
-							...current.linkage,
-							[linkedTabId]: { ...found, lastDocTitle: dok.title },
-						},
-					}
-				})
-				continue
+	useEffect(
+		function scheduleSaveOnEdit() {
+			const onUpdate = (_update: Uint8Array, origin: unknown) => {
+				if (origin === SYNC_ORIGIN || origin instanceof IndexeddbPersistence) return
+				const tabId = activeIdRef.current
+				if (!tabId || !linkageRef.current[tabId]) return
+				revisions.current.set(tabId, (revisions.current.get(tabId) ?? 0) + 1)
+				setStatus(tabId, 'dirty')
+				scheduleSave(tabId)
 			}
 
-			if (linkage.lastDocTitle === dok.title) continue
+			doc.on('update', onUpdate)
+			return () => {
+				doc.off('update', onUpdate)
+			}
+		},
+		[doc, setStatus, scheduleSave],
+	)
+	useEffect(
+		function adoptLinkageForNewDocuments() {
+			if (!storeHydrated || documents.length === 0) return
 
-			const serverDocId = linkage.documentId
-			const pending = titleTimers.current.get(serverDocId)
-			if (pending) clearTimeout(pending)
-			const title = dok.title
-			titleTimers.current.set(
-				serverDocId,
-				setTimeout(() => {
-					titleTimers.current.delete(serverDocId)
-					updateDocument(serverDocId, { title })
-						.then(() => {
-							setStore((current) => {
-								const next = { ...current.linkage }
-								for (const [tabId, linked] of Object.entries(next)) {
-									if (linked.documentId === serverDocId) {
-										next[tabId] = { ...linked, lastDocTitle: title }
-									}
-								}
-								return { ...current, linkage: next }
-							})
-							void invalidateDocuments()
-						})
-						.catch(() => {
-						})
-				}, TITLE_SYNC_MS),
-			)
-		}
-	}, [storeHydrated, documents, store.linkage, setStore, invalidateDocuments])
-	useEffect(() => {
-		if (!storeHydrated || !serverDocuments.data) return
+			for (const dok of documents) {
+				const entry = Object.entries(store.linkage).find(
+					([tabId, linkage]) => dok.tabOrder.includes(tabId) && linkage.documentId,
+				)
+				if (!entry) continue
+				const [linkedTabId, linkage] = entry
 
-		const byServerId = new Map(serverDocuments.data.map((entry) => [entry.id, entry]))
-
-		for (const dok of documents) {
-			const linked = Object.entries(store.linkage).find(
-				([tabId, linkage]) => dok.tabOrder.includes(tabId) && linkage.documentId,
-			)
-			if (!linked) continue
-
-			const serverId = linked[1].documentId
-			if (!serverId) continue
-			const server = byServerId.get(serverId)
-			if (!server) continue
-
-			const verdict = resolveTitle(
-				{ title: dok.title, titleUpdatedAt: dok.titleUpdatedAt },
-				{ title: server.title, titleUpdatedAt: server.updatedAt },
-				linked[1].lastDocTitle,
-			)
-			if (verdict !== 'adopt-server') continue
-			renameDocument(dok.id, server.title, SYNC_ORIGIN)
-			setStore((current) => {
-				const next = { ...current.linkage }
-				for (const [tabId, entry] of Object.entries(next)) {
-					if (entry.documentId === serverId) {
-						next[tabId] = { ...entry, lastDocTitle: server.title }
-					}
+				if (linkage.lastDocTitle === undefined) {
+					setStore((current) => {
+						const found = current.linkage[linkedTabId]
+						if (!found || found.lastDocTitle !== undefined) return current
+						return {
+							...current,
+							linkage: {
+								...current.linkage,
+								[linkedTabId]: { ...found, lastDocTitle: dok.title },
+							},
+						}
+					})
+					continue
 				}
-				return { ...current, linkage: next }
-			})
-		}
-	}, [storeHydrated, serverDocuments.data, documents, store.linkage, renameDocument, setStore])
-	useEffect(() => {
-		const all = readTabs(doc)
-		if (!storeHydrated || all.length === 0) return
-		const keep = new Set(all.map((tab) => tab.id))
-		void deleteLocalVersionsExcept(keep).catch(() => {})
-		setStore((current) => {
-			const pruned: Record<string, SyncLinkage> = {}
-			for (const [id, linkage] of Object.entries(current.linkage)) {
-				if (keep.has(id)) pruned[id] = linkage
+
+				if (linkage.lastDocTitle === dok.title) continue
+
+				const serverDocId = linkage.documentId
+				const pending = titleTimers.current.get(serverDocId)
+				if (pending) clearTimeout(pending)
+				const title = dok.title
+				titleTimers.current.set(
+					serverDocId,
+					setTimeout(() => {
+						titleTimers.current.delete(serverDocId)
+						updateDocument(serverDocId, { title })
+							.then(() => {
+								setStore((current) => {
+									const next = { ...current.linkage }
+									for (const [tabId, linked] of Object.entries(next)) {
+										if (linked.documentId === serverDocId) {
+											next[tabId] = { ...linked, lastDocTitle: title }
+										}
+									}
+									return { ...current, linkage: next }
+								})
+								void invalidateDocuments()
+							})
+							.catch(() => {})
+					}, TITLE_SYNC_MS),
+				)
 			}
-			return Object.keys(pruned).length === Object.keys(current.linkage).length
-				? current
-				: { ...current, linkage: pruned }
-		})
-	}, [storeHydrated, documents, doc, setStore])
-	useEffect(() => {
+		},
+		[storeHydrated, documents, store.linkage, setStore, invalidateDocuments],
+	)
+	useEffect(
+		function syncTitlesFromServer() {
+			if (!storeHydrated || !serverDocuments.data) return
+
+			const byServerId = new Map(serverDocuments.data.map((entry) => [entry.id, entry]))
+
+			for (const dok of documents) {
+				const linked = Object.entries(store.linkage).find(
+					([tabId, linkage]) => dok.tabOrder.includes(tabId) && linkage.documentId,
+				)
+				if (!linked) continue
+
+				const serverId = linked[1].documentId
+				if (!serverId) continue
+				const server = byServerId.get(serverId)
+				if (!server) continue
+
+				const verdict = resolveTitle(
+					{ title: dok.title, titleUpdatedAt: dok.titleUpdatedAt },
+					{ title: server.title, titleUpdatedAt: server.updatedAt },
+					linked[1].lastDocTitle,
+				)
+				if (verdict !== 'adopt-server') continue
+				renameDocument(dok.id, server.title, SYNC_ORIGIN)
+				setStore((current) => {
+					const next = { ...current.linkage }
+					for (const [tabId, entry] of Object.entries(next)) {
+						if (entry.documentId === serverId) {
+							next[tabId] = { ...entry, lastDocTitle: server.title }
+						}
+					}
+					return { ...current, linkage: next }
+				})
+			}
+		},
+		[storeHydrated, serverDocuments.data, documents, store.linkage, renameDocument, setStore],
+	)
+	useEffect(
+		function pruneLinkageForRemovedTabs() {
+			const all = readTabs(doc)
+			if (!storeHydrated || all.length === 0) return
+			const keep = new Set(all.map((tab) => tab.id))
+			void deleteLocalVersionsExcept(keep).catch(() => {})
+			setStore((current) => {
+				const pruned: Record<string, SyncLinkage> = {}
+				for (const [id, linkage] of Object.entries(current.linkage)) {
+					if (keep.has(id)) pruned[id] = linkage
+				}
+				return Object.keys(pruned).length === Object.keys(current.linkage).length
+					? current
+					: { ...current, linkage: pruned }
+			})
+		},
+		[storeHydrated, documents, doc, setStore],
+	)
+	useEffect(function clearTimersOnUnmount() {
 		const map = timers.current
 		const titles = titleTimers.current
 		return () => {
@@ -553,8 +564,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	)
 
 	const syncStatus = useCallback(
-		(tabId: string): SyncStatus =>
-			transient[tabId] ?? (store.linkage[tabId] ? 'synced' : 'local'),
+		(tabId: string): SyncStatus => transient[tabId] ?? (store.linkage[tabId] ? 'synced' : 'local'),
 		[transient, store.linkage],
 	)
 

@@ -1,5 +1,6 @@
 import { TableCell, TableHeader } from '@tiptap/extension-table'
 export const NO_COLOR = 'transparent'
+
 const colorAttributes = {
 	backgroundColor: {
 		default: null,
@@ -26,6 +27,7 @@ const colorAttributes = {
 		},
 	},
 }
+
 export const CustomTableCell = TableCell.extend({
 	addAttributes() {
 		return {
@@ -34,6 +36,7 @@ export const CustomTableCell = TableCell.extend({
 		}
 	},
 })
+
 export const CustomTableHeader = TableHeader.extend({
 	addAttributes() {
 		return {

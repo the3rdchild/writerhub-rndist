@@ -1,34 +1,27 @@
 'use client'
 
-import type { Editor } from '@tiptap/react'
 import { generateJSON } from '@tiptap/core'
+import type { Editor } from '@tiptap/react'
 import {
 	CHAT_CONTEXT_LIMITS,
 	type ChatMessage,
 	type ChatStreamPhase,
 	type ChatUsage,
+	DEFAULT_CHAT_MODEL,
+	isReadTool,
 	type ResearchSource,
 	type ToolCall,
 } from '@writer-hub/shared'
-import { DEFAULT_CHAT_MODEL, isReadTool } from '@writer-hub/shared'
-import {
-	createContext,
-	type ReactNode,
-	useCallback,
-	useContext,
-	useMemo,
-	useRef,
-	useState,
-} from 'react'
+import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import { usePanels } from '@/features/analysis/panel-context'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { buildEditorExtensions } from '@/features/editor/extensions'
-import { paginationKey } from '@/features/editor/pagination'
 import { toEditorContent } from '@/features/editor/markdown'
-import { usePageSetup } from '@/features/editor/use-page-setup'
+import { paginationKey } from '@/features/editor/pagination'
 import { editorPlainText } from '@/features/editor/text-content'
+import { usePageSetup } from '@/features/editor/use-page-setup'
 import { sessionLabel, useSessions } from '@/features/sessions/session-context'
 import { createTab as createTabInDoc } from '@/features/sessions/ydoc'
 import { buildSchema, fragmentToJSON, jsonToFragment } from '@/features/sync/serialize'
@@ -44,12 +37,14 @@ import {
 	summarizeToolResult,
 	type ToolOutcome,
 } from './tools'
+
 export interface ChatAttachment {
 	text: string
 	surrounding: string
 	offset: number
 	length: number
 }
+
 export interface ChatStep {
 	id: string
 	label: string
@@ -61,6 +56,7 @@ export interface ChatStep {
 	/** Hanya untuk langkah riset web - dipakai kartu verifikasi. */
 	sources?: ResearchSource[]
 }
+
 export interface ChatTurn extends ChatMessage {
 	actions?: ToolCall[]
 	taskId?: string
@@ -68,13 +64,18 @@ export interface ChatTurn extends ChatMessage {
 	usage?: ChatUsage
 	intermediate?: boolean
 }
+
 const MAX_TOOL_ROUNDS = 12
 const MAX_READ_CALLS = 48
+
 const BUDGET_NOTICE =
 	'\n\n[System] Read budget for this turn is exhausted. Answer now with what you already have, or propose write tools. Further read tools will not be executed.'
+
 const MAX_WRITE_WAVES = 8
+
 const WRITE_WAVE_NOTICE =
 	'\n\n[System] This is the last batch of edits that will be carried out automatically for this request. Wrap up: summarize what changed and what is left for the writer to decide.'
+
 const PHASE_LABEL: Record<ChatStreamPhase, string> = {
 	connecting: 'Menghubungi provider…',
 	thinking: 'Berpikir…',
@@ -82,9 +83,13 @@ const PHASE_LABEL: Record<ChatStreamPhase, string> = {
 	writing: 'Menyusun jawaban…',
 	retrying: 'Mencoba ulang tanpa tool calling…',
 }
+
 function newTaskId(): string {
-	return globalThis.crypto?.randomUUID?.() ?? `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`
+	return (
+		globalThis.crypto?.randomUUID?.() ?? `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`
+	)
 }
+
 export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string | undefined): ChatMessage[] {
 	const outbound: ChatMessage[] = []
 	for (const turn of history) {
@@ -114,13 +119,14 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 	}
 	return outbound
 }
+
 export function actionsSettled(history: ChatTurn[], owner: ChatTurn): boolean {
-	const decided = new Set(
-		history.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId),
-	)
+	const decided = new Set(history.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId))
 	return (owner.actions ?? []).every((action) => decided.has(action.id))
 }
+
 const OUTLINE_SNIPPET_CHARS = 600
+
 function editorOutlineSummary(editor: Editor): string | undefined {
 	const doc = editor.state.doc
 	const lines: string[] = []
@@ -291,7 +297,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		setStepsBoth(
 			stepsRef.current.map((step) =>
 				step.id === stepId
-					? { ...step, status: 'done', endedAt: Date.now(), checklist: items.map((text) => ({ text, done: false })) }
+					? {
+							...step,
+							status: 'done',
+							endedAt: Date.now(),
+							checklist: items.map((text) => ({ text, done: false })),
+						}
 					: step,
 			),
 		)
@@ -457,12 +468,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						? call.arguments.steps.map(String).filter(Boolean)
 						: []
 					if (items.length > 0) recordPlan(items)
-					results.push({ role: 'tool', content: 'Plan recorded and shown to the user.', toolCallId: call.id, taskId })
+					results.push({
+						role: 'tool',
+						content: 'Plan recorded and shown to the user.',
+						toolCallId: call.id,
+						taskId,
+					})
 					continue
 				}
 				if (call.name === 'think') {
 					pushStep('Berpikir sejenak')
-					patchRunningStep({ status: 'done', endedAt: Date.now(), detail: String(call.arguments.thought ?? '') })
+					patchRunningStep({
+						status: 'done',
+						endedAt: Date.now(),
+						detail: String(call.arguments.thought ?? ''),
+					})
 					results.push({ role: 'tool', content: 'OK.', toolCallId: call.id, taskId })
 					continue
 				}
@@ -593,14 +613,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const settleActions = useCallback(
 		(entries: { call: ToolCall; content: string }[]) => {
 			const current = messagesRef.current
-			const settled = new Set(
-				current.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId),
-			)
+			const settled = new Set(current.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId))
 			const fresh = entries.filter((entry) => !settled.has(entry.call.id))
 			if (fresh.length === 0) return
 			const owner = current.find(
-				(turn) =>
-					turn.role === 'assistant' && turn.actions?.some((action) => action.id === fresh[0].call.id),
+				(turn) => turn.role === 'assistant' && turn.actions?.some((action) => action.id === fresh[0].call.id),
 			)
 			const taskId = owner?.taskId
 
@@ -611,13 +628,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				taskId,
 			}))
 			const complete =
-				owner !== undefined &&
-				taskId !== undefined &&
-				actionsSettled([...current, ...results], owner)
+				owner !== undefined && taskId !== undefined && actionsSettled([...current, ...results], owner)
 			const waves = writeWavesRef.current
 			const count = waves.taskId === taskId ? waves.count + 1 : 1
-			const resumable =
-				complete && taskId === currentTaskId && !abortRef.current && count <= MAX_WRITE_WAVES
+			const resumable = complete && taskId === currentTaskId && !abortRef.current && count <= MAX_WRITE_WAVES
 			if (resumable && count === MAX_WRITE_WAVES) {
 				const last = results[results.length - 1]
 				results[results.length - 1] = { ...last, content: last.content + WRITE_WAVE_NOTICE }
@@ -748,6 +762,7 @@ export function useChat(): ChatContextValue {
 	if (!context) throw new Error('useChat harus dipakai di dalam <ChatProvider>')
 	return context
 }
+
 export function extractProposals(content: string): string[] {
 	const proposals: string[] = []
 	const fence = /```[\w-]*\n([\s\S]*?)```/g
@@ -773,11 +788,10 @@ function stripFences(content: string): string {
 function extractTables(content: string): string[] {
 	return (content.match(TABLE_PATTERN) ?? []).map((table) => table.trim()).filter(Boolean)
 }
+
 export function stripProposals(content: string): string {
-	return (
-		stripFences(content)
-			.replace(TABLE_PATTERN, '')
-			.replace(/\n{3,}/g, '\n\n')
-			.trim()
-	)
+	return stripFences(content)
+		.replace(TABLE_PATTERN, '')
+		.replace(/\n{3,}/g, '\n\n')
+		.trim()
 }

@@ -1,7 +1,7 @@
 import { mergeAttributes, Node } from '@tiptap/core'
 import { Fragment, type Node as ProseMirrorNode, Slice } from '@tiptap/pm/model'
-import { EditorView } from '@tiptap/pm/view'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { EditorView } from '@tiptap/pm/view'
 export type CalloutType = 'info' | 'note' | 'tip' | 'warning' | 'success' | 'error'
 
 export const CALLOUT_TYPES: Array<{ id: CalloutType; label: string; emoji: string }> = [

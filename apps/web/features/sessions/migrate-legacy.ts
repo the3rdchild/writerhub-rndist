@@ -47,9 +47,9 @@ export function hasMigrated(): boolean {
 function markMigrated(): void {
 	try {
 		window.localStorage.setItem(MIGRATED_KEY, '1')
-	} catch {
-	}
+	} catch {}
 }
+
 function fillFragment(doc: Y.Doc, tabId: string, html: string): void {
 	const editor = new Editor({ extensions: buildEditorExtensions(), content: html })
 	try {
@@ -60,6 +60,7 @@ function fillFragment(doc: Y.Doc, tabId: string, html: string): void {
 		editor.destroy()
 	}
 }
+
 export function migrateLegacySessions(doc: Y.Doc): { activeId: string | null } | null {
 	if (hasMigrated()) return null
 

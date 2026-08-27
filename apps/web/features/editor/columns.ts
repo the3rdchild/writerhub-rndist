@@ -5,6 +5,7 @@ import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import { PAGE_BREAK_NODE } from './page-break'
 import { type PageGeometry, pageGeometry } from './page-geometry'
 import {
+	KEEP_WITH_NEXT,
 	paginationKey,
 	REGION_SHEET_GAP_ATTRIBUTE,
 	REGION_SPACE_ATTRIBUTE,
@@ -13,9 +14,11 @@ import {
 	SELF_PAGINATE_ATTRIBUTE,
 	SPACER_ATTRIBUTE,
 	type Spacer,
+	tableColumnCount,
 } from './pagination'
 import { columnRegions, SECTION_BREAK_NODE, type SectionBreakAttrs, sectionSpans } from './section-break'
 import { clampColumnWidths, explicitColumnWidths, writeColumnWidths } from './table-ops'
+
 const MIN_COLUMNS = 2
 
 export const COLUMNS_NODE = 'columns'
@@ -29,10 +32,12 @@ declare module '@tiptap/core' {
 		}
 	}
 }
+
 function parseGapAttribute(element: HTMLElement): number | null {
 	const parsed = Number(element.getAttribute('data-gap'))
 	return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
 }
+
 function parseWidthsAttribute(element: HTMLElement): number[] | null {
 	const raw = element.getAttribute('data-widths')
 	if (!raw) return null
@@ -124,6 +129,7 @@ export const Columns = Node.create({
 		}
 	},
 })
+
 const LegacyColumn = Node.create({
 	name: 'column',
 
@@ -139,6 +145,7 @@ const LegacyColumn = Node.create({
 		return [{ tag: 'div[data-type="col"]' }]
 	},
 })
+
 export function migrateLegacyColumns(state: EditorState): Transaction | null {
 	const breakType = state.schema.nodes[SECTION_BREAK_NODE]
 	if (!breakType) return null
@@ -172,6 +179,7 @@ export function migrateLegacyColumns(state: EditorState): Transaction | null {
 	tr.setMeta('addToHistory', false)
 	return tr
 }
+
 export interface ColumnItem {
 	pos: number
 	height: number
@@ -182,11 +190,13 @@ export interface ColumnItem {
 	table?: ColumnTable
 	isBreak?: boolean
 }
+
 export interface ColumnTable {
 	rows: readonly { pos: number; top: number; height: number }[]
 	columns: number
 	header?: { pos: number; height: number }
 }
+
 export interface TableCut {
 	pos: number
 	spacerHeight: number
@@ -194,6 +204,7 @@ export interface TableCut {
 	headerPos?: number
 	columns: number
 }
+
 export interface ColumnFrame {
 	top: number
 	count: number
@@ -202,6 +213,7 @@ export interface ColumnFrame {
 	columns?: readonly { left: number; width: number }[]
 	sheetOrigin?: number
 }
+
 export function resolveColumnSlots(
 	width: number,
 	count: number,
@@ -243,6 +255,7 @@ export interface ColumnFlow {
 	height: number
 	sheetGap: number
 }
+
 export function flowColumns(
 	items: readonly ColumnItem[],
 	{ top, count, columnWidth, columnGap, columns, sheetOrigin = 0 }: ColumnFrame,
@@ -392,6 +405,7 @@ export function flowColumns(
 		sheetGap: firstTop - top + sheets * (pageStride - contentHeight),
 	}
 }
+
 export function cutTableRows(
 	table: ColumnTable,
 	base: number,
@@ -431,6 +445,7 @@ export function cutTableRows(
 	const bottom = lastRow ? base + shift + lastRow.top + lastRow.height : base
 	return { cuts, bottom }
 }
+
 function packColumn(items: readonly ColumnItem[], from: number, limit: number): number[] {
 	const tops: number[] = []
 	let y = 0
@@ -456,6 +471,7 @@ function packColumn(items: readonly ColumnItem[], from: number, limit: number): 
 
 	return tops
 }
+
 function balanceColumns(
 	items: readonly ColumnItem[],
 	limit: number,
@@ -479,6 +495,7 @@ function balanceColumns(
 
 	return best
 }
+
 function fillColumns(
 	items: readonly ColumnItem[],
 	limit: number,
@@ -496,10 +513,11 @@ function fillColumns(
 
 	return index === items.length ? placements : null
 }
-const KEEP_WITH_NEXT = new Set(['heading'])
+
 const FALLBACK_COLUMN_GAP = 24
 
 export const columnLayoutKey = new PluginKey<ColumnLayoutState>('columnLayout')
+
 export interface ColumnsPlan {
 	pos: number
 	nodeSize: number
@@ -526,10 +544,12 @@ function px(value: string): number {
 	const parsed = Number.parseFloat(value)
 	return Number.isFinite(parsed) ? parsed : 0
 }
+
 export function collapsedMargin(own: number, padding: number, border: number, child: number): number {
 	if (own !== 0 || padding !== 0 || border !== 0) return own
 	return child
 }
+
 function blockMargins(element: HTMLElement): { marginTop: number; marginBottom: number } {
 	const style = getComputedStyle(element)
 	const childMargin = (side: 'Top' | 'Bottom'): number => {
@@ -537,7 +557,12 @@ function blockMargins(element: HTMLElement): { marginTop: number; marginBottom: 
 		return child instanceof HTMLElement ? px(getComputedStyle(child)[`margin${side}`]) : 0
 	}
 	return {
-		marginTop: collapsedMargin(px(style.marginTop), px(style.paddingTop), px(style.borderTopWidth), childMargin('Top')),
+		marginTop: collapsedMargin(
+			px(style.marginTop),
+			px(style.paddingTop),
+			px(style.borderTopWidth),
+			childMargin('Top'),
+		),
 		marginBottom: collapsedMargin(
 			px(style.marginBottom),
 			px(style.paddingBottom),
@@ -551,6 +576,7 @@ export function columnGapOf(dom: HTMLElement): number {
 	const parsed = Number.parseFloat(getComputedStyle(dom).columnGap)
 	return Number.isFinite(parsed) ? parsed : FALLBACK_COLUMN_GAP
 }
+
 function measureTableItem(view: EditorView, table: PMNode, tablePos: number, dom: HTMLElement): ColumnItem {
 	const inserted = new Map<number, number>()
 	let insertedTotal = 0
@@ -582,9 +608,10 @@ function measureTableItem(view: EditorView, table: PMNode, tablePos: number, dom
 		height: dom.offsetHeight - insertedTotal,
 		...blockMargins(dom),
 		keepWithNext: false,
-		table: { rows, columns: headerRow?.childCount ?? 1, header },
+		table: { rows, columns: tableColumnCount(table), header },
 	}
 }
+
 interface TableWidthCorrection {
 	pos: number
 	available: number
@@ -643,7 +670,8 @@ function measureColumns(
 
 		const count = Math.max(MIN_COLUMNS, Number(node.attrs.count) || MIN_COLUMNS)
 		const width = dom.clientWidth
-		const columnGap = typeof node.attrs.gap === 'number' && node.attrs.gap >= 0 ? node.attrs.gap : columnGapOf(dom)
+		const columnGap =
+			typeof node.attrs.gap === 'number' && node.attrs.gap >= 0 ? node.attrs.gap : columnGapOf(dom)
 		const slots = resolveColumnSlots(width, count, columnGap, node.attrs.widths ?? null)
 		if (slots.length === 0) return
 
@@ -770,7 +798,11 @@ function samePlans(a: readonly ColumnsPlan[], b: readonly ColumnsPlan[]): boolea
 		(one?.length ?? 0) === (other?.length ?? 0) &&
 		(one ?? []).every((cut, index) => {
 			const twin = (other ?? [])[index]
-			return cut.pos === twin.pos && near(cut.spacerHeight, twin.spacerHeight) && near(cut.headerHeight, twin.headerHeight)
+			return (
+				cut.pos === twin.pos &&
+				near(cut.spacerHeight, twin.spacerHeight) &&
+				near(cut.headerHeight, twin.headerHeight)
+			)
 		})
 
 	return (
@@ -797,6 +829,7 @@ function samePlans(a: readonly ColumnsPlan[], b: readonly ColumnsPlan[]): boolea
 		})
 	)
 }
+
 function sheetGapElement(plan: ColumnsPlan): HTMLElement {
 	const element = document.createElement('div')
 	element.className = 'columns-sheet-gap'
@@ -806,6 +839,7 @@ function sheetGapElement(plan: ColumnsPlan): HTMLElement {
 	element.contentEditable = 'false'
 	return element
 }
+
 function regionSpaceElement(plan: ColumnsPlan): HTMLElement {
 	const element = document.createElement('div')
 	element.className = 'columns-region-space'
@@ -880,6 +914,7 @@ function buildDecorations(doc: PMNode, plans: readonly ColumnsPlan[]): Decoratio
 
 	return DecorationSet.create(doc, decorations)
 }
+
 function columnLayoutPlugin(): Plugin<ColumnLayoutState> {
 	return new Plugin<ColumnLayoutState>({
 		key: columnLayoutKey,
@@ -916,8 +951,7 @@ function columnLayoutPlugin(): Plugin<ColumnLayoutState> {
 
 			const watch = (elements: HTMLElement[]) => {
 				const same =
-					elements.length === watched.length &&
-					elements.every((element, index) => element === watched[index])
+					elements.length === watched.length && elements.every((element, index) => element === watched[index])
 				if (same) return
 
 				observer.disconnect()
@@ -971,6 +1005,7 @@ function columnLayoutPlugin(): Plugin<ColumnLayoutState> {
 		},
 	})
 }
+
 export const ColumnExtension = Extension.create({
 	name: 'columnExtension',
 

@@ -4,18 +4,22 @@ export const TWIPS_PER_PX = 15
 export function twipsToPx(twips: number): number {
 	return Math.round(twips / TWIPS_PER_PX)
 }
+
 const EMU_PER_PX = 9525
 
 export function emuToPx(emu: number): number {
 	return Math.round(emu / EMU_PER_PX)
 }
+
 export function halfPointsToPt(halfPoints: number): number {
 	return Math.round((halfPoints / 2) * 10) / 10
 }
+
 export function toCssColor(value: string | undefined): string | undefined {
 	if (!value || value.toLowerCase() === 'auto') return undefined
 	return /^[0-9a-f]{6}$/i.test(value) ? `#${value.toLowerCase()}` : value
 }
+
 const HIGHLIGHTS: Record<string, string> = {
 	yellow: '#ffff00',
 	green: '#00ff00',
@@ -39,7 +43,9 @@ export function highlightColor(value: string | undefined): string | undefined {
 	if (!value) return undefined
 	return HIGHLIGHTS[value] ?? undefined
 }
+
 const WORD_LINE_TO_CSS = 1.15
+
 export function toLineHeight(line: number | undefined, rule: string | undefined): string {
 	if (line === undefined || line <= 0) return 'normal'
 
@@ -49,6 +55,7 @@ export function toLineHeight(line: number | undefined, rule: string | undefined)
 	if (multiple === 1) return 'normal'
 	return String(Math.round(multiple * WORD_LINE_TO_CSS * 100) / 100)
 }
+
 export function toFontStack(font: string | undefined): string | undefined {
 	if (!font) return undefined
 	const loaded = webfontFamily(font)

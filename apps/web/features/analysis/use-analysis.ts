@@ -1,13 +1,13 @@
 'use client'
 
-import type { AnalysisFeature, AnalysisResultFor, RewriterTone } from '@writer-hub/shared'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { AnalysisFeature, AnalysisResultFor, RewriterTone } from '@writer-hub/shared'
 import { useCallback, useEffect, useRef } from 'react'
-import { cancelJob } from '@/lib/api-client'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSync } from '@/features/sync/sync-context'
+import { cancelJob } from '@/lib/api-client'
 import { fingerprint } from '@/lib/utils'
 import { runAnalysis } from './api'
 import { type AnalysisRun, usePanels } from './panel-context'
@@ -30,6 +30,7 @@ export interface AnalysisController<F extends AnalysisFeature> {
 	cancel: () => void
 	clear: () => void
 }
+
 export function useAnalysis<F extends AnalysisFeature>(
 	feature: F,
 	scope?: { text: string } | null,
@@ -80,10 +81,7 @@ export function useAnalysis<F extends AnalysisFeature>(
 	})
 
 	const run = useCallback(
-		(
-			scope?: { text: string; offset: number },
-			options?: { tone?: RewriterTone; targetLang?: string },
-		) => {
+		(scope?: { text: string; offset: number }, options?: { tone?: RewriterTone; targetLang?: string }) => {
 			const tabId = activeId ? linkage[activeId]?.serverId : undefined
 			const common = {
 				language: language.code,
@@ -120,21 +118,21 @@ export function useAnalysis<F extends AnalysisFeature>(
 	const clear = useCallback(() => {
 		clearRun(feature)
 	}, [clearRun, feature])
-	useEffect(() => {
-		if (requested === undefined) {
-			queryClient.removeQueries({ queryKey: ['analysis', feature], exact: false })
-		}
-	}, [requested, queryClient, feature])
+	useEffect(
+		function dropCachedResultWhenUnset() {
+			if (requested === undefined) {
+				queryClient.removeQueries({ queryKey: ['analysis', feature], exact: false })
+			}
+		},
+		[requested, queryClient, feature],
+	)
 
 	return {
 		result: query.data,
 		isRunning: query.isFetching,
 		error: query.error,
-		isStale:
-			query.data !== undefined && !requested?.scoped && requested?.text !== currentText,
-		canRun:
-			!query.isFetching &&
-			(scope ? scope.text : currentText).trim().length >= MIN_TEXT_LENGTH,
+		isStale: query.data !== undefined && !requested?.scoped && requested?.text !== currentText,
+		canRun: !query.isFetching && (scope ? scope.text : currentText).trim().length >= MIN_TEXT_LENGTH,
 		isScoped: requested?.scoped ?? false,
 		run,
 		cancel,

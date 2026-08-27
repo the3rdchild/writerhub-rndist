@@ -8,7 +8,9 @@ function escapeHtml(value: string): string {
 function escapeAttribute(value: string): string {
 	return escapeHtml(value).replace(/"/g, '&quot;')
 }
+
 const MATH_PLACEHOLDER = '\u0000math'
+
 function inline(text: string): string {
 	const formulas: string[] = []
 
@@ -43,6 +45,7 @@ function inline(text: string): string {
 		(_whole, index: string) => formulas[Number(index)] ?? '',
 	)
 }
+
 function tableCells(line: string): string[] {
 	return line
 		.replace(/^\s*\|/, '')
@@ -56,6 +59,7 @@ const TABLE_DIVIDER = /^\s*\|?[\s:-]*-[\s|:-]*\|?\s*$/
 function isTableRow(line: string): boolean {
 	return line.trim().startsWith('|') && line.includes('|', 1)
 }
+
 export function looksLikeMarkdown(text: string): boolean {
 	return (
 		/^\s*(#{1,6}\s|[-*]\s|\d+\.\s|>\s|\|.*\|)/m.test(text) ||
@@ -177,6 +181,7 @@ export function markdownToHtml(markdown: string): string {
 
 	return out.join('')
 }
+
 export function toEditorContent(text: string): string {
 	const source = looksLikeLatexDocument(text) ? latexToMarkdown(text) : text
 	return looksLikeMarkdown(source) ? markdownToHtml(source) : source

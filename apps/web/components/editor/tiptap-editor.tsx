@@ -1,26 +1,31 @@
 'use client'
 
-import { EditorContent, useEditor, type Editor } from '@tiptap/react'
+import { type Editor, EditorContent, useEditor } from '@tiptap/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useAnalysisDiffHost } from '@/features/analysis/use-analysis-diff-host'
 import { useDocument } from '@/features/document/document-context'
 import { suggestionHighlightKey } from '@/features/document/suggestion-highlight'
-import { useAnalysisDiffHost } from '@/features/analysis/use-analysis-diff-host'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
 import { replaceTextRange } from '@/features/editor/apply-text'
-import { buildEditorExtensions } from '@/features/editor/extensions'
 import { migrateLegacyColumns } from '@/features/editor/columns'
-import { type PageGeometry, pageGeometry, type PageSetup, type SheetGeometry } from '@/features/editor/page-geometry'
+import { buildEditorExtensions } from '@/features/editor/extensions'
+import {
+	type PageGeometry,
+	type PageSetup,
+	pageGeometry,
+	type SheetGeometry,
+} from '@/features/editor/page-geometry'
 import { paginationKey } from '@/features/editor/pagination'
 import { type SlashCommandState } from '@/features/editor/slash-command'
 import { editorPlainText, textToParagraphs } from '@/features/editor/text-content'
 import { useSessions } from '@/features/sessions/session-context'
-import { useSettings, type FontSize } from '@/features/settings/settings-context'
+import { type FontSize, useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
+import { ImageToolbar } from './image-toolbar'
 import { MathPopover } from './math-popover'
 import { SelectionMenu } from './selection-menu'
 import { SlashCommandMenu } from './slash-command-menu'
 import { type PopoverPosition, SuggestionPopover } from './suggestion-popover'
-import { ImageToolbar } from './image-toolbar'
 import { TableColorToolbar } from './table-color-toolbar'
 
 const FONT_SIZE_CLASS: Record<FontSize, string> = {
@@ -72,7 +77,7 @@ export function TiptapEditor({
 				setup,
 				onPageCountChange: (pageCount) => pageCountRef.current?.(pageCount),
 				onSheetsChange: (sheets) => sheetsRef.current?.(sheets),
-					onSectionsChange: (setups) => sectionsRef.current?.(setups),
+				onSectionsChange: (setups) => sectionsRef.current?.(setups),
 				collaboration: activeId ? { document: doc, field: activeId } : null,
 				slashCommand: {
 					onOpen: (s) => slashStateRef.current(s),
@@ -93,47 +98,62 @@ export function TiptapEditor({
 		},
 		[activeId],
 	)
-	useEffect(() => {
-		onReady?.(editor)
-		return () => onReady?.(null)
-	}, [editor, onReady])
-	useEffect(() => {
-		if (!editor) return
-		const migrate = () => {
-			const tr = migrateLegacyColumns(editor.state)
-			if (tr) editor.view.dispatch(tr)
-		}
-		migrate()
-		editor.on('update', migrate)
-		return () => {
-			editor.off('update', migrate)
-		}
-	}, [editor])
-	useEffect(() => {
-		if (!editor) return
-		const transaction = editor.state.tr.setMeta(paginationKey, { geometry, setup, pageless })
-		transaction.setMeta('addToHistory', false)
-		editor.view.dispatch(transaction)
-	}, [editor, geometry, setup, pageless])
+	useEffect(
+		function reportEditorToParent() {
+			onReady?.(editor)
+			return () => onReady?.(null)
+		},
+		[editor, onReady],
+	)
+	useEffect(
+		function migrateLegacyColumnNodes() {
+			if (!editor) return
+			const migrate = () => {
+				const tr = migrateLegacyColumns(editor.state)
+				if (tr) editor.view.dispatch(tr)
+			}
+			migrate()
+			editor.on('update', migrate)
+			return () => {
+				editor.off('update', migrate)
+			}
+		},
+		[editor],
+	)
+	useEffect(
+		function pushPageGeometry() {
+			if (!editor) return
+			const transaction = editor.state.tr.setMeta(paginationKey, { geometry, setup, pageless })
+			transaction.setMeta('addToHistory', false)
+			editor.view.dispatch(transaction)
+		},
+		[editor, geometry, setup, pageless],
+	)
 	const syncedEditorRef = useRef<Editor | null>(null)
-	useEffect(() => {
-		if (!editor) return
-		if (syncedEditorRef.current !== editor) {
-			syncedEditorRef.current = editor
-			return
-		}
-		if (selfEditRef.current) {
-			selfEditRef.current = false
-			return
-		}
-		if (editorPlainText(editor) === state.text) return
+	useEffect(
+		function syncTextFromDocumentState() {
+			if (!editor) return
+			if (syncedEditorRef.current !== editor) {
+				syncedEditorRef.current = editor
+				return
+			}
+			if (selfEditRef.current) {
+				selfEditRef.current = false
+				return
+			}
+			if (editorPlainText(editor) === state.text) return
 
-		editor.commands.setContent(textToParagraphs(state.text), { emitUpdate: false })
-	}, [editor, state.text])
-	useEffect(() => {
-		if (!editor) return
-		editor.view.dispatch(editor.state.tr.setMeta(suggestionHighlightKey, state.suggestions))
-	}, [editor, state.suggestions])
+			editor.commands.setContent(textToParagraphs(state.text), { emitUpdate: false })
+		},
+		[editor, state.text],
+	)
+	useEffect(
+		function pushSuggestionHighlights() {
+			if (!editor) return
+			editor.view.dispatch(editor.state.tr.setMeta(suggestionHighlightKey, state.suggestions))
+		},
+		[editor, state.suggestions],
+	)
 	useAnalysisDiffHost()
 
 	const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -150,78 +170,96 @@ export function TiptapEditor({
 		hideTimer.current = setTimeout(() => setPopover(null), POPOVER_HIDE_DELAY_MS)
 	}, [cancelHide])
 
-	useEffect(() => () => cancelHide(), [cancelHide])
-	useEffect(() => {
-		const root = editor?.view.dom
-		const container = containerRef.current
-		if (!root || !container) return
+	useEffect(
+		function cancelPendingHideOnUnmount() {
+			return () => cancelHide()
+		},
+		[cancelHide],
+	)
+	useEffect(
+		function showSuggestionPopoverOnHover() {
+			const root = editor?.view.dom
+			const container = containerRef.current
+			if (!root || !container) return
 
-		const onOver = (event: Event) => {
-			const mark = (event.target as HTMLElement).closest<HTMLElement>('[data-suggestion-id]')
-			if (!mark) return
+			const onOver = (event: Event) => {
+				const mark = (event.target as HTMLElement).closest<HTMLElement>('[data-suggestion-id]')
+				if (!mark) return
 
-			cancelHide()
-			const markRect = mark.getBoundingClientRect()
-			const containerRect = container.getBoundingClientRect()
-			setPopover({
-				id: mark.dataset.suggestionId as string,
-				top: markRect.bottom - containerRect.top + 6,
-				left: Math.min(markRect.left - containerRect.left, containerRect.width - 240),
-			})
-		}
+				cancelHide()
+				const markRect = mark.getBoundingClientRect()
+				const containerRect = container.getBoundingClientRect()
+				setPopover({
+					id: mark.dataset.suggestionId as string,
+					top: markRect.bottom - containerRect.top + 6,
+					left: Math.min(markRect.left - containerRect.left, containerRect.width - 240),
+				})
+			}
 
-		const onOut = (event: Event) => {
-			if ((event.target as HTMLElement).closest('[data-suggestion-id]')) scheduleHide()
-		}
+			const onOut = (event: Event) => {
+				if ((event.target as HTMLElement).closest('[data-suggestion-id]')) scheduleHide()
+			}
 
-		root.addEventListener('mouseover', onOver)
-		root.addEventListener('mouseout', onOut)
-		return () => {
-			root.removeEventListener('mouseover', onOver)
-			root.removeEventListener('mouseout', onOut)
-		}
-	}, [editor, containerRef, cancelHide, scheduleHide])
+			root.addEventListener('mouseover', onOver)
+			root.addEventListener('mouseout', onOut)
+			return () => {
+				root.removeEventListener('mouseover', onOver)
+				root.removeEventListener('mouseout', onOut)
+			}
+		},
+		[editor, containerRef, cancelHide, scheduleHide],
+	)
 
-	useEffect(() => {
-		if (!editor || !state.focusedRange) return
+	useEffect(
+		function scrollToFocusedRange() {
+			if (!editor || !state.focusedRange) return
 
-		const index = buildTextIndex(editor.state.doc)
-		const range = textRangeToPM(index, state.focusedRange.offset, state.focusedRange.length)
-		dispatch({ type: 'setFocusedRange', range: null })
-		if (!range) return
+			const index = buildTextIndex(editor.state.doc)
+			const range = textRangeToPM(index, state.focusedRange.offset, state.focusedRange.length)
+			dispatch({ type: 'setFocusedRange', range: null })
+			if (!range) return
 
-		const node = editor.view.domAtPos(range.from).node
-		const element = node instanceof HTMLElement ? node : node.parentElement
-		element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-	}, [editor, state.focusedRange, dispatch])
-	useEffect(() => {
-		if (!editor) return
-		const root = editor.view.dom
+			const node = editor.view.domAtPos(range.from).node
+			const element = node instanceof HTMLElement ? node : node.parentElement
+			element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+		},
+		[editor, state.focusedRange, dispatch],
+	)
+	useEffect(
+		function paintHoveredRange() {
+			if (!editor) return
+			const root = editor.view.dom
 
-		const previous = root.querySelectorAll('.range-preview')
-		for (const element of previous) element.classList.remove('range-preview')
+			const previous = root.querySelectorAll('.range-preview')
+			for (const element of previous) element.classList.remove('range-preview')
 
-		if (!state.hoveredRange) return
+			if (!state.hoveredRange) return
 
-		const index = buildTextIndex(editor.state.doc)
-		const range = textRangeToPM(index, state.hoveredRange.offset, state.hoveredRange.length)
-		if (!range) return
+			const index = buildTextIndex(editor.state.doc)
+			const range = textRangeToPM(index, state.hoveredRange.offset, state.hoveredRange.length)
+			if (!range) return
 
-		const node = editor.view.domAtPos(range.from).node
-		const element = node instanceof HTMLElement ? node : node.parentElement
-		element?.classList.add('range-preview')
-	}, [editor, state.hoveredRange])
+			const node = editor.view.domAtPos(range.from).node
+			const element = node instanceof HTMLElement ? node : node.parentElement
+			element?.classList.add('range-preview')
+		},
+		[editor, state.hoveredRange],
+	)
 
 	const popoverSuggestion = popover
 		? state.suggestions.find((suggestion) => suggestion.id === popover.id)
 		: undefined
 
-	const  applySuggestion = (id: string) => {
+	const applySuggestion = (id: string) => {
 		const suggestion = state.suggestions.find((item) => item.id === id)
 		if (!editor || !suggestion) return
 		replaceTextRange(
 			editor,
-			{ offset: suggestion.offset ?? 0, length: suggestion.length ?? suggestion.original.length, expected: suggestion.original },
+			{
+				offset: suggestion.offset ?? 0,
+				length: suggestion.length ?? suggestion.original.length,
+				expected: suggestion.original,
+			},
 			suggestion.replacement,
 		)
 		dispatch({ type: 'dismissSuggestion', id })
@@ -251,11 +289,7 @@ export function TiptapEditor({
 			<SelectionMenu editor={editor} containerRef={containerRef} />
 			<MathPopover editor={editor} containerRef={containerRef} />
 			{editor && slashState?.open && (
-				<SlashCommandMenu
-					editor={editor}
-					state={slashState}
-					onClose={() => setSlashState(null)}
-				/>
+				<SlashCommandMenu editor={editor} state={slashState} onClose={() => setSlashState(null)} />
 			)}
 			<ImageToolbar editor={editor} />
 			<TableColorToolbar editor={editor} />

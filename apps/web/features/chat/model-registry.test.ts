@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { CHAT_MODELS, DEFAULT_CHAT_MODEL, findChatModel, isKnownChatModel } from '@writer-hub/shared'
+
 describe('registri model chat', () => {
 	test('id unik', () => {
 		const ids = CHAT_MODELS.map((model) => model.id)

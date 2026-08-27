@@ -1,9 +1,9 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { SettingsDialog } from '@/components/settings/settings-dialog'
 import { ExportPdfDialog } from '@/components/settings/export-pdf-dialog'
 import { PageSetupDialog } from '@/components/settings/page-setup-dialog'
+import { SettingsDialog } from '@/components/settings/settings-dialog'
 import { ShortcutsDialog } from '@/components/settings/shortcuts-dialog'
 import { ShareDialog } from '@/components/share/share-dialog'
 import { ExportDocxDialog } from '@/features/document/export-docx-dialog'

@@ -11,6 +11,7 @@ import { useMergedDocuments } from '@/features/documents/use-merged-documents'
 import { useSessions } from '@/features/sessions/session-context'
 import { DocumentCard } from './document-card'
 import { LocalDocumentCard } from './local-document-card'
+
 export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 	const { documents, isPending, isError, error } = useMergedDocuments()
 	const invalidate = useInvalidateDocuments()
@@ -48,8 +49,7 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 					<FileText className="h-12 w-12 text-faint" />
 					<h2 className="mt-4 text-lg font-medium text-foreground">Tidak ada dokumen di sini</h2>
 					<p className="mt-1 max-w-md text-sm text-muted">
-						Pindahkan dokumen ke proyek ini lewat menu &ldquo;Pindahkan ke proyek&rdquo; di kartu
-						dokumen.
+						Pindahkan dokumen ke proyek ini lewat menu &ldquo;Pindahkan ke proyek&rdquo; di kartu dokumen.
 					</p>
 				</div>
 			)
@@ -59,8 +59,8 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 				<FileText className="h-12 w-12 text-faint" />
 				<h2 className="mt-4 text-lg font-medium text-foreground">Belum ada dokumen</h2>
 				<p className="mt-1 max-w-md text-sm text-muted">
-					Buat dokumen di editor - ia langsung muncul di sini, dan bisa disimpan ke cloud kapan
-					saja lewat tombol di kartunya.
+					Buat dokumen di editor - ia langsung muncul di sini, dan bisa disimpan ke cloud kapan saja lewat
+					tombol di kartunya.
 				</p>
 				<Link
 					href="/"
@@ -84,9 +84,7 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 				setPendingDelete(null)
 				void invalidate()
 			})
-			.catch((cause) =>
-				setDeleteError(cause instanceof Error ? cause.message : 'Gagal menghapus dokumen'),
-			)
+			.catch((cause) => setDeleteError(cause instanceof Error ? cause.message : 'Gagal menghapus dokumen'))
 			.finally(() => setDeleting(false))
 	}
 
@@ -125,16 +123,16 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 					<>
 						{pendingDelete?.serverId ? (
 							<>
-								Dokumen <strong className="text-foreground">{pendingDelete.title}</strong> beserta
-								seluruh {pendingDelete.tabCount} tab-nya (termasuk riwayat versi dan link
-								berbagi di dalamnya) dihapus dari cloud. Tidak ada jalan kembali.
+								Dokumen <strong className="text-foreground">{pendingDelete.title}</strong> beserta seluruh{' '}
+								{pendingDelete.tabCount} tab-nya (termasuk riwayat versi dan link berbagi di dalamnya) dihapus
+								dari cloud. Tidak ada jalan kembali.
 							</>
 						) : (
 							<>
-								Dokumen <strong className="text-foreground">{pendingDelete?.title}</strong> beserta
-								seluruh {pendingDelete?.tabCount} tab-nya dihapus dari perangkat ini. Dokumen ini{' '}
-								<strong className="text-foreground">belum pernah tersimpan di cloud</strong>, jadi
-								tidak ada salinan yang bisa dipulihkan.
+								Dokumen <strong className="text-foreground">{pendingDelete?.title}</strong> beserta seluruh{' '}
+								{pendingDelete?.tabCount} tab-nya dihapus dari perangkat ini. Dokumen ini{' '}
+								<strong className="text-foreground">belum pernah tersimpan di cloud</strong>, jadi tidak ada
+								salinan yang bisa dipulihkan.
 							</>
 						)}
 						{deleteError && <span className="mt-2 block text-red-500">{deleteError}</span>}

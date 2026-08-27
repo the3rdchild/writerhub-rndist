@@ -1,6 +1,6 @@
 import { env } from '@/config/env'
+import LoggerClient from '@/lib/logger'
 import { signPpHmacRequest } from '@/lib/pp-signature'
-import LoggerClient from '@/utils/logger'
 
 const log = LoggerClient.getInstance()
 
@@ -55,6 +55,7 @@ export interface ServiceInfo {
 	limits: ServiceLimit[]
 	tools: ServiceTool[]
 }
+
 async function postSigned(
 	path: string,
 	payload: Record<string, unknown>,
@@ -88,6 +89,7 @@ export interface ServiceInfoParams {
 	categoryId: string
 	serviceSlug: string
 }
+
 export async function getServiceInfo(params: ServiceInfoParams): Promise<ServiceInfo | null> {
 	if (!env.PP_EXTENDED_ADMIN_URL) {
 		log.warn('[pp-usage-client] PP_EXTENDED_ADMIN_URL belum dikonfigurasi, lewati getServiceInfo')
@@ -122,6 +124,7 @@ export type ToolUsageResult =
 	| { ok: true }
 	| { ok: false; reason: 'limit_exceeded'; message: string }
 	| { ok: false; reason: 'error' }
+
 export async function recordToolUsage(params: RecordToolUsageParams): Promise<ToolUsageResult> {
 	if (!env.PP_EXTENDED_ADMIN_URL) {
 		log.warn('[pp-usage-client] PP_EXTENDED_ADMIN_URL belum dikonfigurasi, lewati recordToolUsage')
@@ -147,8 +150,7 @@ export async function recordToolUsage(params: RecordToolUsageParams): Promise<To
 		try {
 			const parsed = JSON.parse(result.body) as { message?: string; errors?: string[] }
 			message = parsed.errors?.[0] ?? parsed.message ?? message
-		} catch {
-		}
+		} catch {}
 		return { ok: false, reason: 'limit_exceeded', message }
 	}
 
@@ -161,6 +163,7 @@ export interface RecordTokenUsageParams {
 	modelRecordId: number
 	token: number
 }
+
 export async function recordTokenUsage(params: RecordTokenUsageParams): Promise<boolean> {
 	if (!env.PP_EXTENDED_ADMIN_URL) {
 		log.warn('[pp-usage-client] PP_EXTENDED_ADMIN_URL belum dikonfigurasi, lewati recordTokenUsage')

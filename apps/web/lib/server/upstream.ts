@@ -1,8 +1,9 @@
 import 'server-only'
 
 import { createHmac } from 'node:crypto'
+import { type ApiClient, AUTH_HEADERS } from '@writer-hub/shared'
 import { cookies, headers } from 'next/headers'
-import { AUTH_HEADERS, type ApiClient } from '@writer-hub/shared'
+
 const API_URL = process.env.API_URL ?? 'http://localhost:8080'
 const API_CLIENT = (process.env.API_CLIENT ?? 'pp-extended') as ApiClient
 const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME ?? 'pp_token'
@@ -15,6 +16,7 @@ function requireEnv(name: string): string {
 	if (!value) throw new UpstreamConfigError(`${name} belum dikonfigurasi di apps/web`)
 	return value
 }
+
 async function resolveBearerToken(): Promise<string | null> {
 	const incoming = (await headers()).get('authorization')
 	if (incoming?.startsWith('Bearer ')) return incoming.slice(7).trim()
@@ -53,6 +55,7 @@ export interface UpstreamRequest {
 	stream?: boolean
 	signal?: AbortSignal
 }
+
 export async function callUpstream({
 	path,
 	method = 'GET',
@@ -74,8 +77,8 @@ export async function callUpstream({
 		duplex: body ? 'half' : undefined,
 	})
 }
+
 export function configErrorResponse(error: unknown): Response {
-	const message =
-		error instanceof UpstreamConfigError ? error.message : 'Gagal menghubungi layanan API'
+	const message = error instanceof UpstreamConfigError ? error.message : 'Gagal menghubungi layanan API'
 	return Response.json({ message: 'Konfigurasi server tidak lengkap', errors: [message] }, { status: 500 })
 }

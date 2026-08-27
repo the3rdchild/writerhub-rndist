@@ -38,11 +38,7 @@ describe('penggabungan dokumen lokal dan server', () => {
 	})
 
 	test('judul sisi lokal yang dipakai untuk dokumen tertaut', () => {
-		const merged = mergeDocuments(
-			[local('L1', 'dokumen 5', 10)],
-			[server('S1', 'oke1', 5)],
-			() => 'S1',
-		)
+		const merged = mergeDocuments([local('L1', 'dokumen 5', 10)], [server('S1', 'oke1', 5)], () => 'S1')
 		expect(merged[0].title).toBe('dokumen 5')
 	})
 
@@ -52,11 +48,7 @@ describe('penggabungan dokumen lokal dan server', () => {
 	})
 
 	test('jumlah tab dibaca dari lokal supaya tab yang belum tersimpan ikut terhitung', () => {
-		const merged = mergeDocuments(
-			[local('L1', 'X', 10, 3)],
-			[server('S1', 'X', 5, null, 1)],
-			() => 'S1',
-		)
+		const merged = mergeDocuments([local('L1', 'X', 10, 3)], [server('S1', 'X', 5, null, 1)], () => 'S1')
 		expect(merged[0].tabCount).toBe(3)
 	})
 
@@ -82,10 +74,11 @@ describe('penyaringan proyek', () => {
 	})
 
 	test('"tanpa proyek" memuat dokumen lokal-saja juga', () => {
-		expect(filterByProject(docs, 'none').map((d) => d.title).sort()).toEqual([
-			'Lokal saja',
-			'Tanpa proyek',
-		])
+		expect(
+			filterByProject(docs, 'none')
+				.map((d) => d.title)
+				.sort(),
+		).toEqual(['Lokal saja', 'Tanpa proyek'])
 	})
 
 	test('proyek tertentu tidak pernah memuat dokumen lokal-saja', () => {

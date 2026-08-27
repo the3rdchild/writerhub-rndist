@@ -15,6 +15,7 @@ export interface TocBlockAttrs {
 	listKind: TocListKind
 	snapshot: string
 }
+
 export const DEFAULT_TOC_ATTRS: TocBlockAttrs = {
 	style: 'dotted',
 	showPageNumbers: true,
@@ -83,6 +84,7 @@ declare module '@tiptap/core' {
 		}
 	}
 }
+
 export const TOC_KIND_LABEL: Record<TocListKind, string> = {
 	isi: 'Daftar isi',
 	gambar: 'Daftar gambar',

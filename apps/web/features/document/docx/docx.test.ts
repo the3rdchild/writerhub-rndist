@@ -2,8 +2,10 @@ import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
 import { strToU8, zipSync } from 'fflate'
 import { readDocx } from './index'
+
 const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
 const R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+const M = 'xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"'
 const REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 
 function docx({
@@ -21,24 +23,26 @@ function docx({
 	numbering?: string
 	media?: Record<string, Uint8Array>
 }): Uint8Array {
-	const mediaPart = media ? Object.fromEntries(
-		Object.entries(media).map(([path, bytes]) => [
-			path.startsWith('word/') ? path : `word/${path}`,
-			bytes,
-		]),
-	) : {}
+	const mediaPart = media
+		? Object.fromEntries(
+				Object.entries(media).map(([path, bytes]) => [
+					path.startsWith('word/') ? path : `word/${path}`,
+					bytes,
+				]),
+			)
+		: {}
 	const numberingRel = numbering
 		? `<Relationship Id="rIdNum" Type="${REL_NS}/numbering" Target="numbering.xml"/>`
 		: ''
 	const numberingPart = numbering
 		? {
-				'word/numbering.xml': strToU8(
-					`<?xml version="1.0"?><w:numbering ${W}>${numbering}</w:numbering>`,
-				),
+				'word/numbering.xml': strToU8(`<?xml version="1.0"?><w:numbering ${W}>${numbering}</w:numbering>`),
 			}
 		: {}
 
-	const themeRel = theme ? `<Relationship Id="rIdTheme" Type="${REL_NS}/theme" Target="theme/theme1.xml"/>` : ''
+	const themeRel = theme
+		? `<Relationship Id="rIdTheme" Type="${REL_NS}/theme" Target="theme/theme1.xml"/>`
+		: ''
 	const themePart = theme
 		? {
 				'word/theme/theme1.xml': strToU8(
@@ -69,10 +73,11 @@ function docx({
 		),
 		'word/styles.xml': strToU8(`<?xml version="1.0"?><w:styles ${W}>${styles}</w:styles>`),
 		'word/document.xml': strToU8(
-			`<?xml version="1.0"?><w:document ${W} ${R}><w:body>${body}</w:body></w:document>`,
+			`<?xml version="1.0"?><w:document ${W} ${R} ${M}><w:body>${body}</w:body></w:document>`,
 		),
 	})
 }
+
 function p(content: string, pPr = ''): string {
 	return `<w:p>${pPr ? `<w:pPr>${pPr}</w:pPr>` : ''}${content}</w:p>`
 }
@@ -90,6 +95,7 @@ function textOf(node: JSONContent | undefined): string {
 	if (node.type === 'text') return node.text ?? ''
 	return (node.content ?? []).map(textOf).join('')
 }
+
 function marksOf(block: JSONContent | undefined, index = 0): string[] {
 	const run = block?.content?.[index]
 	return (run?.marks ?? []).map((mark) => mark.type).filter((type) => type !== 'textStyle')
@@ -345,13 +351,73 @@ describe('tabel', () => {
 
 describe('gambar', () => {
 	const PNG_1x1 = Uint8Array.from([
-		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // tanda tangan
-		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, // IHDR
-		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // lebar=1, tinggi=1
-		0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89,
-		0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01,
-		0x00, 0x00, 0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4,
-		0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+		0x89,
+		0x50,
+		0x4e,
+		0x47,
+		0x0d,
+		0x0a,
+		0x1a,
+		0x0a, // tanda tangan
+		0x00,
+		0x00,
+		0x00,
+		0x0d,
+		0x49,
+		0x48,
+		0x44,
+		0x52, // IHDR
+		0x00,
+		0x00,
+		0x00,
+		0x01,
+		0x00,
+		0x00,
+		0x00,
+		0x01, // lebar=1, tinggi=1
+		0x08,
+		0x06,
+		0x00,
+		0x00,
+		0x00,
+		0x1f,
+		0x15,
+		0xc4,
+		0x89,
+		0x00,
+		0x00,
+		0x00,
+		0x0d,
+		0x49,
+		0x44,
+		0x41,
+		0x54,
+		0x78,
+		0x9c,
+		0x63,
+		0x00,
+		0x01,
+		0x00,
+		0x00,
+		0x05,
+		0x00,
+		0x01,
+		0x0d,
+		0x0a,
+		0x2d,
+		0xb4,
+		0x00,
+		0x00,
+		0x00,
+		0x00,
+		0x49,
+		0x45,
+		0x4e,
+		0x44,
+		0xae,
+		0x42,
+		0x60,
+		0x82,
 	])
 	function drawing(embedId: string, name = 'gambar', cx = 9525, cy = 9525): string {
 		return `<w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
@@ -430,23 +496,17 @@ describe('perataan dan indentasi', () => {
 
 describe('spasi', () => {
 	test('spasi 1,5 Word lebih longgar dari 1,5 CSS', async () => {
-		const result = await readDocx(
-			docx({ body: p(r('isi'), '<w:spacing w:line="360" w:lineRule="auto"/>') }),
-		)
+		const result = await readDocx(docx({ body: p(r('isi'), '<w:spacing w:line="360" w:lineRule="auto"/>') }))
 		expect(blocks(result.content)[0]?.attrs?.lineHeight).toBe('1.73')
 	})
 
 	test('spasi tunggal jadi normal, bukan angka', async () => {
-		const result = await readDocx(
-			docx({ body: p(r('isi'), '<w:spacing w:line="240" w:lineRule="auto"/>') }),
-		)
+		const result = await readDocx(docx({ body: p(r('isi'), '<w:spacing w:line="240" w:lineRule="auto"/>') }))
 		expect(blocks(result.content)[0]?.attrs?.lineHeight).toBe('normal')
 	})
 
 	test('spasi pasti dinyatakan dalam piksel', async () => {
-		const result = await readDocx(
-			docx({ body: p(r('isi'), '<w:spacing w:line="360" w:lineRule="exact"/>') }),
-		)
+		const result = await readDocx(docx({ body: p(r('isi'), '<w:spacing w:line="360" w:lineRule="exact"/>') }))
 		expect(blocks(result.content)[0]?.attrs?.lineHeight).toBe('24px')
 	})
 	test('paragraf tanpa keterangan spasi tetap dinyatakan rapat', async () => {
@@ -475,9 +535,7 @@ describe('rupa huruf', () => {
 	})
 
 	test('nama font dibawa beserta cadangan generiknya', async () => {
-		const result = await readDocx(
-			docx({ body: p(r('isi', '<w:rFonts w:ascii="Times New Roman"/>')) }),
-		)
+		const result = await readDocx(docx({ body: p(r('isi', '<w:rFonts w:ascii="Times New Roman"/>')) }))
 		expect(textStyle(blocks(result.content)[0])?.fontFamily).toBe('"Times New Roman", serif')
 	})
 	test('font yang kita muat sendiri dipetakan ke variabelnya', async () => {
@@ -576,10 +634,7 @@ describe('penomoran otomatis', () => {
 			p(r('Daftar Pustaka'), '<w:pStyle w:val="BabTanpaNomor"/>')
 		const result = await readDocx(docx({ numbering: BERTINGKAT, styles, body }))
 
-		expect(blocks(result.content).map((block) => textOf(block))).toEqual([
-			'BAB I Bernomor',
-			'Daftar Pustaka',
-		])
+		expect(blocks(result.content).map((block) => textOf(block))).toEqual(['BAB I Bernomor', 'Daftar Pustaka'])
 	})
 	test('nomor tebal dibakar sebagai run bertanda tebal', async () => {
 		const body = p(r('isi'), `${numbered(0)}<w:rPr><w:b/></w:rPr><w:outlineLvl w:val="0"/>`)
@@ -648,9 +703,7 @@ describe('impor section (E4)', () => {
 
 	test('dua section: pembatas dibawa sectPr KEDUA, yang pertama milik naskah', async () => {
 		const body =
-			p(r('satu'), sectPr(pgSz(12240, 15840) + pgMar())) +
-			p(r('dua')) +
-			sectPr(pgSz(11906, 16838) + pgMar())
+			p(r('satu'), sectPr(pgSz(12240, 15840) + pgMar())) + p(r('dua')) + sectPr(pgSz(11906, 16838) + pgMar())
 		const result = await readDocx(docx({ body }))
 
 		expect(result.pageSetup?.size).toBe('letter')
@@ -679,9 +732,7 @@ describe('impor section (E4)', () => {
 		const result = await readDocx(
 			docx({ body: p(r('isi')) + sectPr(pgSz(11906, 16838) + '<w:cols w:num="2"/>') }),
 		)
-		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain(
-			'kolom di bagian pertama',
-		)
+		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain('kolom di bagian pertama')
 	})
 
 	test('pembatas tetap dibuat walau kedua section ber setelan sama', async () => {
@@ -724,7 +775,8 @@ describe('impor section (E4)', () => {
 		expect(pembatas[0]?.attrs?.columns.count).toBe(2)
 	})
 
-	test('sectPr continuous dengan geometri sama terbaca sebagai pembatas menerus (E5)', async () => {		const body =
+	test('sectPr continuous dengan geometri sama terbaca sebagai pembatas menerus (E5)', async () => {
+		const body =
 			p(r('satu'), sectPr(pgSz(11906, 16838))) +
 			p(r('dua')) +
 			sectPr(pgSz(11906, 16838) + '<w:type w:val="continuous"/>')
@@ -772,5 +824,110 @@ describe('impor section (E4)', () => {
 		expect(pembatas[0]?.attrs).toMatchObject({ continuous: true })
 		expect(pembatas[0]?.attrs?.columns).toMatchObject({ count: 2 })
 		expect(pembatas[1]?.attrs).toMatchObject({ continuous: true, columns: null })
+	})
+})
+describe('rumus matematika (OMML)', () => {
+	const mr = (text: string) => `<m:r><m:t>${text}</m:t></m:r>`
+	const sub = (base: string, subText: string) =>
+		`<m:sSub><m:e>${base}</m:e><m:sub>${subText}</m:sub></m:sSub>`
+	const frac = (num: string, den: string) => `<m:f><m:num>${num}</m:num><m:den>${den}</m:den></m:f>`
+
+	function latexOf(node: JSONContent | undefined): string {
+		return String(node?.attrs?.latex ?? '')
+	}
+
+	test('oMath inline menjadi node mathInline di tengah paragraf', async () => {
+		const result = await readDocx(
+			docx({ body: p(`${r('nilai ')}<m:oMath>${frac(mr('a'), mr('b'))}</m:oMath>`) }),
+		)
+		const paragraf = blocks(result.content)[0]
+		const isi = paragraf?.content ?? []
+
+		expect(isi.map((node) => node.type)).toEqual(['text', 'mathInline'])
+		expect(latexOf(isi[1])).toBe('\\frac{a}{b}')
+	})
+
+	test('oMathPara menjadi mathBlock tanpa paragraf kosong tambahan', async () => {
+		const result = await readDocx(
+			docx({ body: p(`<m:oMathPara><m:oMath>${mr('W=')}${frac(mr('x'), mr('y'))}</m:oMath></m:oMathPara>`) }),
+		)
+
+		expect(blocks(result.content)).toHaveLength(1)
+		expect(blocks(result.content)[0]?.type).toBe('mathBlock')
+		expect(latexOf(blocks(result.content)[0])).toBe('W=\\frac{x}{y}')
+	})
+
+	test('teks sebelum oMathPara tetap terbawa sebagai paragraf tersendiri', async () => {
+		const result = await readDocx(
+			docx({
+				body: p(`${r('karena ')}<m:oMathPara><m:oMath>${mr('E')}</m:oMath></m:oMathPara>`),
+			}),
+		)
+
+		expect(blocks(result.content).map((node) => node.type)).toEqual(['paragraph', 'mathBlock'])
+		expect(textOf(blocks(result.content)[0])).toBe('karena ')
+	})
+
+	test('penjumlahan nary dengan batas atas bawah', async () => {
+		const nary = `<m:nary><m:naryPr><m:chr m:val="∑"/></m:naryPr>
+			<m:sub>${mr('i=1')}</m:sub><m:sup>${mr('n')}</m:sup>
+			<m:e>${sub(mr('a'), mr('ij'))}</m:e></m:nary>`
+		const result = await readDocx(docx({ body: p(`<m:oMathPara><m:oMath>${nary}</m:oMath></m:oMathPara>`) }))
+
+		expect(latexOf(blocks(result.content)[0])).toBe('\\sum_{i=1}^{n}{{a}_{ij}}')
+	})
+
+	test('delimeter dengan begChr/endChr kurung siku', async () => {
+		const d = `<m:d><m:dPr><m:begChr m:val="["/><m:endChr m:val="]"/></m:dPr><m:e>${mr('x')}</m:e></m:d>`
+		const result = await readDocx(docx({ body: p(`<m:oMath>${d}</m:oMath>`) }))
+
+		expect(latexOf(blocks(result.content)[0]?.content?.[0])).toBe('\\left[x\\right]')
+	})
+
+	test('akar tanpa derajat menjadi sqrt', async () => {
+		const rad = `<m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:deg/>
+			<m:e><m:sSup><m:e>${mr('x')}</m:e><m:sup>${mr('2')}</m:sup></m:sSup></m:e></m:rad>`
+		const result = await readDocx(docx({ body: p(`<m:oMath>${rad}</m:oMath>`) }))
+
+		expect(latexOf(blocks(result.content)[0]?.content?.[0])).toBe('\\sqrt{{x}^{2}}')
+	})
+
+	test('matriks memakai environment matrix dengan & dan \\\\', async () => {
+		const matrix = `<m:m><m:mr><m:e>${mr('1')}</m:e><m:e>${mr('2')}</m:e></m:mr>
+			<m:mr><m:e>${mr('3')}</m:e><m:e>${mr('4')}</m:e></m:mr></m:m>`
+		const result = await readDocx(docx({ body: p(`<m:oMath>${matrix}</m:oMath>`) }))
+
+		expect(latexOf(blocks(result.content)[0]?.content?.[0])).toBe(
+			'\\begin{matrix}1 & 2 \\\\ 3 & 4\\end{matrix}',
+		)
+	})
+
+	test('baris persamaan (eqArr) memakai environment gathered', async () => {
+		const eqArr = `<m:eqArr><m:e>${mr('a')}</m:e><m:e>${mr('b')}</m:e></m:eqArr>`
+		const result = await readDocx(docx({ body: p(`<m:oMathPara><m:oMath>${eqArr}</m:oMath></m:oMathPara>`) }))
+
+		expect(latexOf(blocks(result.content)[0])).toBe('\\begin{gathered}a \\\\ b\\end{gathered}')
+	})
+
+	test('frasa multi-kata dibungkus text agar spasinya terjaga', async () => {
+		const result = await readDocx(docx({ body: p(`<m:oMath>${mr('Consistency Index ')}</m:oMath>`) }))
+		expect(latexOf(blocks(result.content)[0]?.content?.[0])).toBe('\\text{Consistency Index}')
+	})
+
+	test('nama fungsi max dan min jadi operator LaTeX', async () => {
+		const lambdaMax = sub(mr('λ'), mr('max'))
+		const result = await readDocx(docx({ body: p(`<m:oMath>${lambdaMax}</m:oMath>`) }))
+
+		expect(latexOf(blocks(result.content)[0]?.content?.[0])).toBe('{λ}_{\\max }')
+	})
+
+	test('nomor persamaan satu paragraf dengan rumus inline', async () => {
+		const body = p(`<m:oMath>${frac(mr('a'), mr('b'))}</m:oMath><w:r><w:tab/></w:r>${r('(1)')}`)
+		const result = await readDocx(docx({ body }))
+		const paragraf = blocks(result.content)[0]
+
+		expect(blocks(result.content)).toHaveLength(1)
+		expect(paragraf?.content?.map((node) => node.type)).toEqual(['mathInline', 'text', 'text'])
+		expect(textOf(paragraf)).toBe('\t(1)')
 	})
 })

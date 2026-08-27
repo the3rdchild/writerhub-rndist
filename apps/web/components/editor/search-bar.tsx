@@ -5,34 +5,47 @@ import { ChevronDown, ChevronUp, Regex, Replace, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { searchAndReplacePluginKey } from '@/features/editor/search-replace'
 import { cn } from '@/lib/utils'
+
 export function SearchBar({ editor, onClose }: { editor: Editor; onClose: () => void }) {
 	const [search, setSearch] = useState('')
 	const [replace, setReplace] = useState('')
 	const [caseSensitive, setCaseSensitive] = useState(false)
 	const [count, setCount] = useState({ index: 0, total: 0 })
-	useEffect(() => {
-		editor.commands.setSearchTerm(search)
-	}, [editor, search])
-	useEffect(() => {
-		editor.commands.setReplaceTerm(replace)
-	}, [editor, replace])
-	useEffect(() => {
-		editor.commands.setCaseSensitive(caseSensitive)
-	}, [editor, caseSensitive])
-	useEffect(() => {
-		const readResults = () => {
-			const storage = (editor.storage as { searchAndReplace?: { results: unknown[]; resultIndex: number } })
-				.searchAndReplace
-			if (storage) {
-				setCount({ index: storage.resultIndex + 1, total: storage.results.length })
+	useEffect(
+		function pushSearchTerm() {
+			editor.commands.setSearchTerm(search)
+		},
+		[editor, search],
+	)
+	useEffect(
+		function pushReplaceTerm() {
+			editor.commands.setReplaceTerm(replace)
+		},
+		[editor, replace],
+	)
+	useEffect(
+		function pushCaseSensitivity() {
+			editor.commands.setCaseSensitive(caseSensitive)
+		},
+		[editor, caseSensitive],
+	)
+	useEffect(
+		function readMatchCount() {
+			const readResults = () => {
+				const storage = (editor.storage as { searchAndReplace?: { results: unknown[]; resultIndex: number } })
+					.searchAndReplace
+				if (storage) {
+					setCount({ index: storage.resultIndex + 1, total: storage.results.length })
+				}
 			}
-		}
-		readResults()
-		editor.on('transaction', readResults)
-		return () => {
-			editor.off('transaction', readResults)
-		}
-	}, [editor])
+			readResults()
+			editor.on('transaction', readResults)
+			return () => {
+				editor.off('transaction', readResults)
+			}
+		},
+		[editor],
+	)
 	const close = () => {
 		editor.commands.setSearchTerm('')
 		onClose()
@@ -122,4 +135,5 @@ export function SearchBar({ editor, onClose }: { editor: Editor; onClose: () => 
 		</div>
 	)
 }
+
 export { searchAndReplacePluginKey }

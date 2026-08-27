@@ -5,6 +5,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
 
 export const candidatePreviewKey = new PluginKey<CandidatePreviewState>('candidatePreview')
+
 export interface CandidatePreview {
 	offset: number
 	length: number
@@ -16,6 +17,7 @@ interface CandidatePreviewState {
 	preview: CandidatePreview | null
 	decorations: DecorationSet
 }
+
 function buildDecorations(doc: PMNode, preview: CandidatePreview | null): DecorationSet {
 	if (!preview) return DecorationSet.empty
 
@@ -43,6 +45,7 @@ function buildDecorations(doc: PMNode, preview: CandidatePreview | null): Decora
 		),
 	])
 }
+
 export const CandidatePreviewHighlight = Extension.create({
 	name: 'candidatePreview',
 
@@ -55,10 +58,7 @@ export const CandidatePreviewHighlight = Extension.create({
 					init: () => ({ preview: null, decorations: DecorationSet.empty }),
 
 					apply(tr, current, _oldState, newState) {
-						const incoming = tr.getMeta(candidatePreviewKey) as
-							| CandidatePreview
-							| null
-							| undefined
+						const incoming = tr.getMeta(candidatePreviewKey) as CandidatePreview | null | undefined
 						if (incoming !== undefined) {
 							return { preview: incoming, decorations: buildDecorations(newState.doc, incoming) }
 						}

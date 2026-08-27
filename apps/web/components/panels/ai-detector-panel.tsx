@@ -4,15 +4,15 @@ import type { AiDetectorResult } from '@writer-hub/shared'
 import { Bot, CheckCircle2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { riskColor, ScoreRing } from '@/components/ui/score-ring'
-import { useAnalysis } from '@/features/analysis/use-analysis'
 import { aiScoreLevel } from '@/features/analysis/analysis-highlight'
+import { useAnalysis } from '@/features/analysis/use-analysis'
+import { editsFromSentences, useAnalysisDiff } from '@/features/analysis/use-analysis-diff'
 import { useAnalysisHighlight } from '@/features/analysis/use-analysis-highlight'
+import { useDocument } from '@/features/document/document-context'
+import { useRangeHighlight } from '@/features/document/use-range-highlight'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { useSelectionScope } from '@/features/editor/selection'
-import { useDocument } from '@/features/document/document-context'
-import { useRangeHighlight } from '@/features/document/use-range-highlight'
-import { editsFromSentences, useAnalysisDiff } from '@/features/analysis/use-analysis-diff'
 import {
 	AcceptAllButton,
 	AcceptDismissRow,
@@ -34,6 +34,7 @@ interface SentenceState extends Sentence {
 	applied?: boolean
 	dismissed?: boolean
 }
+
 const acceptedScore = (score: number) => Math.max(5, Math.round(score * 0.25))
 
 export function AiDetectorPanel() {
@@ -45,9 +46,12 @@ export function AiDetectorPanel() {
 
 	const [sentences, setSentences] = useState<SentenceState[]>([])
 
-	useEffect(() => {
-		setSentences(result ? [...result.sentences] : [])
-	}, [result])
+	useEffect(
+		function resetSentencesOnResult() {
+			setSentences(result ? [...result.sentences] : [])
+		},
+		[result],
+	)
 	const highlightRanges = useMemo(
 		() =>
 			sentences.map(({ offset, length, score }) => ({
@@ -124,9 +128,7 @@ export function AiDetectorPanel() {
 	}
 
 	const dismiss = (index: number) => {
-		setSentences((current) =>
-			current.map((item, i) => (i === index ? { ...item, dismissed: true } : item)),
-		)
+		setSentences((current) => current.map((item, i) => (i === index ? { ...item, dismissed: true } : item)))
 	}
 	const overallScore =
 		sentences.length > 0

@@ -1,4 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
+
 export interface DocumentSummary {
 	id: string
 	title: string
@@ -11,6 +12,7 @@ export interface DocumentSummary {
 export interface DocumentDetail extends DocumentSummary {
 	tabs: TabSummary[]
 }
+
 export interface TabSummary {
 	id: string
 	documentId: string
@@ -21,9 +23,11 @@ export interface TabSummary {
 	updatedAt: number
 	createdAt: number
 }
+
 export interface TabDetail extends TabSummary {
 	content: JSONContent
 }
+
 export interface CreateDocumentInput {
 	title: string
 	content?: JSONContent
@@ -31,6 +35,7 @@ export interface CreateDocumentInput {
 	language?: string | null
 	projectId?: string
 }
+
 export interface UpdateDocumentInput {
 	title?: string
 	projectId?: string
@@ -42,6 +47,7 @@ export interface CreateTabInput {
 	emoji?: string | null
 	language?: string | null
 }
+
 export interface UpdateTabInput {
 	title?: string
 	content?: JSONContent

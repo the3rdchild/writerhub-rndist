@@ -1,6 +1,7 @@
 'use client'
 
 import { Extension } from '@tiptap/core'
+
 export const TextWeight = Extension.create({
 	name: 'textWeight',
 

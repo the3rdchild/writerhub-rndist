@@ -1,20 +1,18 @@
-import type { GlossaryEntry } from '@writer-hub/shared'
 import type { JSONContent } from '@tiptap/core'
+import type { GlossaryEntry } from '@writer-hub/shared'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 export const GLOSSARY_HEADING = 'Glossary'
 
 const cell = (text: string, header = false): JSONContent => ({
 	type: header ? 'tableHeader' : 'tableCell',
-	content: [
-		text
-			? { type: 'paragraph', content: [{ type: 'text', text }] }
-			: { type: 'paragraph' },
-	],
+	content: [text ? { type: 'paragraph', content: [{ type: 'text', text }] } : { type: 'paragraph' }],
 })
+
 export function glossaryTermLabel(entry: GlossaryEntry): string {
 	const expansion = entry.expansion?.trim()
 	return expansion ? `${entry.term} (${expansion})` : entry.term
 }
+
 export function buildGlossarySection(entries: readonly GlossaryEntry[]): JSONContent[] {
 	return [
 		{ type: PAGE_BREAK_NODE },
@@ -31,6 +29,7 @@ export function buildGlossarySection(entries: readonly GlossaryEntry[]): JSONCon
 		},
 	]
 }
+
 export function findGlossarySection(doc: {
 	childCount: number
 	child: (index: number) => { type: { name: string }; textContent: string; nodeSize: number }
@@ -47,8 +46,7 @@ export function findGlossarySection(doc: {
 			const next = doc.child(i + 1)
 			if (next.type.name === 'table') {
 				const previous = i > 0 ? doc.child(i - 1) : null
-				const from =
-					previous?.type.name === PAGE_BREAK_NODE ? pos - previous.nodeSize : pos
+				const from = previous?.type.name === PAGE_BREAK_NODE ? pos - previous.nodeSize : pos
 				return { from, to: pos + node.nodeSize + next.nodeSize }
 			}
 		}

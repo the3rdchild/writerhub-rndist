@@ -1,9 +1,6 @@
 import type { DocMeta } from '@/features/sessions/ydoc'
 import type { DocumentSummary } from './types'
-export type DocumentOrigin =
-	| 'local-only'
-	| 'synced'
-	| 'server-only'
+export type DocumentOrigin = 'local-only' | 'synced' | 'server-only'
 
 export interface MergedDocument {
 	key: string
@@ -15,6 +12,7 @@ export interface MergedDocument {
 	projectId: string | null
 	origin: DocumentOrigin
 }
+
 export function mergeDocuments(
 	local: readonly DocMeta[],
 	server: readonly DocumentSummary[],
@@ -58,10 +56,8 @@ export function mergeDocuments(
 
 	return merged.sort((a, b) => b.updatedAt - a.updatedAt)
 }
-export function filterByProject(
-	documents: readonly MergedDocument[],
-	filter: string,
-): MergedDocument[] {
+
+export function filterByProject(documents: readonly MergedDocument[], filter: string): MergedDocument[] {
 	if (filter === 'all') return [...documents]
 	if (filter === 'none') return documents.filter((dok) => dok.projectId === null)
 	return documents.filter((dok) => dok.projectId === filter)

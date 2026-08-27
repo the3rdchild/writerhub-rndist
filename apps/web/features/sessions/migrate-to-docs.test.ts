@@ -11,6 +11,7 @@ import {
 	tabPreview,
 	tabsRoot,
 } from './ydoc'
+
 function legacyTab(doc: Y.Doc, id: string, title: string, text?: string): void {
 	const root = doc.getMap<unknown>('tabs')
 	let order = root.get('order') as Y.Array<string> | undefined
@@ -80,9 +81,7 @@ describe('migrasi struktur tab lama ke dokumen', () => {
 		const sesudah = readDocs(doc).map((dok) => ({ title: dok.title, tabOrder: dok.tabOrder }))
 
 		expect(migrateTabsToDocs(doc)).toBe(false)
-		expect(readDocs(doc).map((dok) => ({ title: dok.title, tabOrder: dok.tabOrder }))).toEqual(
-			sesudah,
-		)
+		expect(readDocs(doc).map((dok) => ({ title: dok.title, tabOrder: dok.tabOrder }))).toEqual(sesudah)
 		expect(readTabs(doc)).toHaveLength(2)
 	})
 

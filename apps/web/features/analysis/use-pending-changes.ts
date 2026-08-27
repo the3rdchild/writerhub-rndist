@@ -6,22 +6,27 @@ import { resolveSpan } from '@/features/document/suggestions'
 import { buildTextIndex } from '@/features/document/tiptap-offsets'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { useEditorInstance } from '@/features/editor/editor-context'
+
 export interface AppliedChange {
 	id: number
 	original: string
 	applied: string
 	offset: number
 }
+
 export function usePendingChanges(changes: readonly TextChange[] | undefined) {
 	const { editor } = useEditorInstance()
 	const [pending, setPending] = useState<TextChange[]>([])
 	const [applied, setApplied] = useState<AppliedChange[]>([])
 	const [nextId, setNextId] = useState(0)
 
-	useEffect(() => {
-		setPending(changes ? [...changes] : [])
-		setApplied([])
-	}, [changes])
+	useEffect(
+		function resetPendingOnChanges() {
+			setPending(changes ? [...changes] : [])
+			setApplied([])
+		},
+		[changes],
+	)
 	const accept = useCallback(
 		(index: number, candidate?: string) => {
 			const change = pending[index]

@@ -1,7 +1,7 @@
 'use client'
 
-import type { AnalysisFeature } from '@writer-hub/shared'
 import type { Editor } from '@tiptap/react'
+import type { AnalysisFeature } from '@writer-hub/shared'
 import {
 	Bot,
 	ChevronRight,
@@ -18,9 +18,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { type PanelId, usePanels } from '@/features/analysis/panel-context'
 import { useChat } from '@/features/chat/chat-context'
-import { useDocumentLanguage } from '@/features/document/use-language'
 import { COMMENT_MARK } from '@/features/comments/comment-mark'
 import { useComments } from '@/features/comments/comments-context'
+import { useDocumentLanguage } from '@/features/document/use-language'
 import {
 	type EditorSelection,
 	selectionTextRange,
@@ -30,6 +30,7 @@ import {
 import { cn } from '@/lib/utils'
 import { AiEditPopover } from './ai-edit-popover'
 import { CitationPopover } from './citation-popover'
+
 const REVIEW_MODULES: Array<{ id: 'proofreader' | AnalysisFeature; label: string; icon: typeof Bot }> = [
 	{ id: 'proofreader', label: 'Proofreader', icon: SpellCheck },
 	{ id: 'ai_detector', label: 'AI Detector', icon: Bot },
@@ -50,9 +51,12 @@ export function SelectionMenu({
 	const selection = useEditorSelection(editor)
 	const [section, setSection] = useState<OpenSection>(null)
 	const menuRef = useRef<HTMLDivElement>(null)
-	useEffect(() => {
-		setSection(null)
-	}, [selection?.from, selection?.to])
+	useEffect(
+		function clearSectionOnSelectionChange() {
+			setSection(null)
+		},
+		[selection?.from, selection?.to],
+	)
 
 	const anchor = useSelectionAnchor(editor, selection, containerRef)
 	const top = useFlippedTop(anchor, menuRef, containerRef, section)
@@ -70,12 +74,7 @@ export function SelectionMenu({
 			) : section === 'citations' ? (
 				<CitationPopover editor={editor} selection={selection} onClose={() => setSection(null)} />
 			) : (
-				<MenuBody
-					editor={editor}
-					selection={selection}
-					section={section}
-					onSection={setSection}
-				/>
+				<MenuBody editor={editor} selection={selection} section={section} onSection={setSection} />
 			)}
 		</div>,
 		containerRef.current,
@@ -179,15 +178,7 @@ function MenuBody({
 	)
 }
 
-function MenuItem({
-	icon: Icon,
-	label,
-	onClick,
-}: {
-	icon: typeof Bot
-	label: string
-	onClick: () => void
-}) {
+function MenuItem({ icon: Icon, label, onClick }: { icon: typeof Bot; label: string; onClick: () => void }) {
 	return (
 		<button
 			type="button"
@@ -199,6 +190,7 @@ function MenuItem({
 		</button>
 	)
 }
+
 const MENU_GAP = 8
 const MENU_MAX_WIDTH = 340
 
@@ -207,6 +199,7 @@ interface Anchor {
 	bottom: number
 	left: number
 }
+
 function useSelectionAnchor(
 	editor: Editor | null,
 	selection: EditorSelection | null,
@@ -214,36 +207,40 @@ function useSelectionAnchor(
 ): Anchor | null {
 	const [anchor, setAnchor] = useState<Anchor | null>(null)
 
-	useEffect(() => {
-		const container = containerRef.current
-		if (!editor || !selection || !container) {
-			setAnchor(null)
-			return
-		}
+	useEffect(
+		function anchorMenuToSelection() {
+			const container = containerRef.current
+			if (!editor || !selection || !container) {
+				setAnchor(null)
+				return
+			}
 
-		const update = () => {
-			const from = editor.view.coordsAtPos(selection.from)
-			const to = editor.view.coordsAtPos(selection.to)
-			const rect = container.getBoundingClientRect()
-			setAnchor({
-				top: Math.min(from.top, to.top) - rect.top,
-				bottom: Math.max(from.bottom, to.bottom) - rect.top,
-				left: Math.max(8, Math.min(from.left - rect.left, rect.width - MENU_MAX_WIDTH - 8)),
-			})
-		}
+			const update = () => {
+				const from = editor.view.coordsAtPos(selection.from)
+				const to = editor.view.coordsAtPos(selection.to)
+				const rect = container.getBoundingClientRect()
+				setAnchor({
+					top: Math.min(from.top, to.top) - rect.top,
+					bottom: Math.max(from.bottom, to.bottom) - rect.top,
+					left: Math.max(8, Math.min(from.left - rect.left, rect.width - MENU_MAX_WIDTH - 8)),
+				})
+			}
 
-		update()
-		const canvas = container.querySelector('.document-canvas')
-		canvas?.addEventListener('scroll', update, { passive: true })
-		window.addEventListener('resize', update)
-		return () => {
-			canvas?.removeEventListener('scroll', update)
-			window.removeEventListener('resize', update)
-		}
-	}, [editor, selection, containerRef])
+			update()
+			const canvas = container.querySelector('.document-canvas')
+			canvas?.addEventListener('scroll', update, { passive: true })
+			window.addEventListener('resize', update)
+			return () => {
+				canvas?.removeEventListener('scroll', update)
+				window.removeEventListener('resize', update)
+			}
+		},
+		[editor, selection, containerRef],
+	)
 
 	return anchor
 }
+
 function useFlippedTop(
 	anchor: Anchor | null,
 	menuRef: React.RefObject<HTMLDivElement | null>,

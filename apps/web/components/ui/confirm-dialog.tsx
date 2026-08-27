@@ -3,6 +3,7 @@
 import { TriangleAlert } from 'lucide-react'
 import { type ReactNode, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
+
 export function ConfirmDialog({
 	open,
 	title,
@@ -25,21 +26,24 @@ export function ConfirmDialog({
 	const overlayRef = useRef<HTMLDivElement>(null)
 	const cancelRef = useRef<HTMLButtonElement>(null)
 
-	useEffect(() => {
-		if (!open) return
+	useEffect(
+		function focusCancelAndCloseOnEscape() {
+			if (!open) return
 
-		cancelRef.current?.focus()
-		document.body.style.overflow = 'hidden'
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') onCancel()
-		}
-		window.addEventListener('keydown', onKeyDown)
+			cancelRef.current?.focus()
+			document.body.style.overflow = 'hidden'
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') onCancel()
+			}
+			window.addEventListener('keydown', onKeyDown)
 
-		return () => {
-			document.body.style.overflow = ''
-			window.removeEventListener('keydown', onKeyDown)
-		}
-	}, [open, onCancel])
+			return () => {
+				document.body.style.overflow = ''
+				window.removeEventListener('keydown', onKeyDown)
+			}
+		},
+		[open, onCancel],
+	)
 
 	if (!open) return null
 

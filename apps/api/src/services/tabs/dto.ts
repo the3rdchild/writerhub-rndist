@@ -1,4 +1,5 @@
 import { z } from 'zod'
+
 export const createTabBodySchema = z.object({
 	title: z.string().min(1).max(500).optional(),
 	content: z.record(z.string(), z.unknown()).optional(),
@@ -7,6 +8,7 @@ export const createTabBodySchema = z.object({
 })
 
 export type CreateTabBody = z.infer<typeof createTabBodySchema>
+
 export const updateTabBodySchema = z.object({
 	title: z.string().min(1).max(500).optional(),
 	content: z.record(z.string(), z.unknown()).optional(),
@@ -15,11 +17,13 @@ export const updateTabBodySchema = z.object({
 })
 
 export type UpdateTabBody = z.infer<typeof updateTabBodySchema>
+
 export const reorderTabsBodySchema = z.object({
 	tabIds: z.array(z.uuid()).min(1),
 })
 
 export type ReorderTabsBody = z.infer<typeof reorderTabsBodySchema>
+
 export interface TabSummary {
 	id: string
 	documentId: string
@@ -30,6 +34,7 @@ export interface TabSummary {
 	updatedAt: number
 	createdAt: number
 }
+
 export interface TabDetail extends TabSummary {
 	content: Record<string, unknown>
 }

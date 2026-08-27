@@ -1,5 +1,6 @@
-import { AppError } from '@/lib/error'
 import type { NewDocumentTab } from '@/db/schemas'
+import { AppError } from '@/lib/error'
+import LoggerClient from '@/lib/logger'
 import { deleteDocument, findDocumentById, touchDocument } from '@/repository/document'
 import {
 	countTabs,
@@ -19,13 +20,13 @@ import {
 } from '@/repository/document-version'
 import BaseService from '@/services/base.service'
 import { countWords } from '@/services/versions/service'
-import LoggerClient from '@/utils/logger'
-import { createTabBodySchema, reorderTabsBodySchema, updateTabBodySchema } from './dto'
 import type { TabDetail, TabSummary } from './dto'
+import { createTabBodySchema, reorderTabsBodySchema, updateTabBodySchema } from './dto'
 
 const log = LoggerClient.getInstance()
 const INTERVAL_SNAPSHOT_MS = 10 * 60_000
 const EMPTY_CONTENT: Record<string, unknown> = { type: 'doc', content: [] }
+
 export async function snapshotIntervalTab(
 	tabId: string,
 	content: Record<string, unknown>,
@@ -48,6 +49,7 @@ export async function snapshotIntervalTab(
 		log.error({ err: error, tabId }, 'Gagal membuat snapshot interval tab')
 	}
 }
+
 export default class TabsService extends BaseService {
 	async list(): Promise<Response> {
 		try {

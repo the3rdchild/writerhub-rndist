@@ -1,25 +1,20 @@
 'use client'
 
-import type { AnalysisFeature, ToolCall } from '@writer-hub/shared'
 import type { Editor } from '@tiptap/react'
+import type { AnalysisFeature, ToolCall } from '@writer-hub/shared'
 import type { PanelId } from '@/features/analysis/panel-context'
 import { COMMENT_MARK } from '@/features/comments/comment-mark'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { toEditorContent } from '@/features/editor/markdown'
 import { MATH_BLOCK, MATH_INLINE, stripDelimiters } from '@/features/editor/math'
-import {
-	INCH,
-	PAGE_SIZES,
-	type PageSetup,
-	clampMargins,
-} from '@/features/editor/page-geometry'
+import { clampMargins, INCH, PAGE_SIZES, type PageSetup } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
 import { isSectionScope, sectionRange } from '@/features/editor/section-scope'
+import { editorPlainText } from '@/features/editor/text-content'
 import { TOC_BLOCK, type TocBlockAttrs, type TocListKind } from '@/features/editor/toc-block'
 import type { CommentThread } from '@/features/sessions/types'
 import { countWords } from '@/lib/utils'
-import { editorPlainText } from '@/features/editor/text-content'
 
 interface Heading {
 	index: number
@@ -45,6 +40,7 @@ function headings(editor: Editor): Heading[] {
 
 	return found
 }
+
 function sectionEnd(editor: Editor, list: Heading[], at: number): number {
 	const current = list[at]
 	for (let index = at + 1; index < list.length; index += 1) {
@@ -57,6 +53,7 @@ const SNIPPET_RADIUS = 80
 const MAX_HITS = 8
 const MAX_SECTION_CHARS = 6_000
 const MAX_TAB_CHARS = 20_000
+
 export interface ReadToolContext {
 	editor: Editor
 	pageCount: number
@@ -85,9 +82,7 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 			}
 
 			const text = editor.state.doc.textBetween(list[at].pos, sectionEnd(editor, list, at), '\n', ' ')
-			return text.length > MAX_SECTION_CHARS
-				? `${text.slice(0, MAX_SECTION_CHARS)}\n…(truncated)`
-				: text
+			return text.length > MAX_SECTION_CHARS ? `${text.slice(0, MAX_SECTION_CHARS)}\n…(truncated)` : text
 		}
 
 		case 'find_text': {
@@ -166,9 +161,7 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 
 		case 'list_tabs': {
 			if (context.tabs.length === 0) return 'The document has no tabs.'
-			return context.tabs
-				.map((tab) => `${tab.id} - ${tab.label}${tab.active ? ' (active)' : ''}`)
-				.join('\n')
+			return context.tabs.map((tab) => `${tab.id} - ${tab.label}${tab.active ? ' (active)' : ''}`).join('\n')
 		}
 
 		case 'read_tab': {
@@ -197,6 +190,7 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 			return `Unknown read tool: ${call.name}`
 	}
 }
+
 export function readToolLabel(editor: Editor, call: ToolCall): string {
 	switch (call.name) {
 		case 'get_outline':
@@ -226,6 +220,7 @@ export function readToolLabel(editor: Editor, call: ToolCall): string {
 			return `Menjalankan ${call.name}`
 	}
 }
+
 export function summarizeToolResult(result: string): string {
 	const lines = result.split('\n')
 	const first = lines[0].slice(0, 100)
@@ -246,6 +241,7 @@ export interface ToolOutcome {
 	ok: boolean
 	message: string
 }
+
 export function describeToolCall(call: ToolCall): string {
 	switch (call.name) {
 		case 'insert_content': {
@@ -288,7 +284,11 @@ export function describeToolCall(call: ToolCall): string {
 		}
 		case 'insert_toc': {
 			const kind = call.arguments.list_kind
-			return kind === 'gambar' ? 'Insert list of figures' : kind === 'tabel' ? 'Insert list of tables' : 'Insert table of contents'
+			return kind === 'gambar'
+				? 'Insert list of figures'
+				: kind === 'tabel'
+					? 'Insert list of tables'
+					: 'Insert table of contents'
 		}
 		case 'set_toc_options':
 			return 'Update table-of-contents settings'
@@ -312,9 +312,7 @@ export function describeToolCall(call: ToolCall): string {
 			const parts = [
 				call.arguments.left_cm !== undefined ? `left ${call.arguments.left_cm}cm` : null,
 				call.arguments.right_cm !== undefined ? `right ${call.arguments.right_cm}cm` : null,
-				call.arguments.first_line_cm !== undefined
-					? `first line ${call.arguments.first_line_cm}cm`
-					: null,
+				call.arguments.first_line_cm !== undefined ? `first line ${call.arguments.first_line_cm}cm` : null,
 			].filter(Boolean)
 			return `Indent ${scopeLabel(call)} (${parts.join(', ') || 'no change'})`
 		}
@@ -353,21 +351,27 @@ export function describeToolCall(call: ToolCall): string {
 			return call.name
 	}
 }
+
 function scopeLabel(call: ToolCall): string {
 	const find = String(call.arguments.find ?? '')
 	return find ? `“${find.slice(0, 32)}…”` : 'the whole document'
 }
+
 /* Satuan panduan penulisan → piksel 96 dpi, satuan yang dipakai atribut node. */
 const PX_PER_CM = 96 / 2.54
+
 const PX_PER_PT = 96 / 72
+
 function layoutRange(editor: Editor, call: ToolCall): { from: number; to: number } | null {
 	const find = typeof call.arguments.find === 'string' ? call.arguments.find : ''
 	if (!find.trim()) return { from: 0, to: editor.state.doc.content.size }
 	return findExactRange(editor, find)
 }
+
 function cmToPx(cm: number): number {
 	return Math.round((cm / 2.54) * INCH)
 }
+
 function pageSetupFromArgs(args: Record<string, unknown>, base: PageSetup): PageSetup {
 	const next: PageSetup = { ...base, margins: { ...base.margins } }
 
@@ -389,10 +393,8 @@ function pageSetupFromArgs(args: Record<string, unknown>, base: PageSetup): Page
 	next.margins = clampMargins(next.margins, next)
 	return next
 }
-function pageSetupPatch(
-	args: Record<string, unknown>,
-	base: PageSetup,
-): Partial<PageSetup> | null {
+
+function pageSetupPatch(args: Record<string, unknown>, base: PageSetup): Partial<PageSetup> | null {
 	const merged = pageSetupFromArgs(args, base)
 	const patch: Partial<PageSetup> = {}
 
@@ -404,6 +406,7 @@ function pageSetupPatch(
 
 	return Object.keys(patch).length > 0 ? patch : null
 }
+
 function columnsFromArgs(count: number, gapCm: unknown): { count: number; gap?: number } | null {
 	if (count < 2) return null
 	const gap = Number(gapCm)
@@ -411,6 +414,7 @@ function columnsFromArgs(count: number, gapCm: unknown): { count: number; gap?: 
 }
 
 const ANALYSIS_MODULES: readonly string[] = ['ai_detector', 'ai_rewriter', 'humanizer', 'plagiarism']
+
 const SELECTION_NEUTRAL_TOOLS: readonly string[] = [
 	'set_alignment',
 	'set_indent',
@@ -464,7 +468,11 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 		case 'insert_math': {
 			const latex = stripDelimiters(String(call.arguments.latex ?? ''))
 			if (!latex) return { ok: false, message: 'Nothing to insert.' }
-			editor.chain().focus().setMath(latex, call.arguments.display === true).run()
+			editor
+				.chain()
+				.focus()
+				.setMath(latex, call.arguments.display === true)
+				.run()
 			return { ok: true, message: 'Formula inserted.' }
 		}
 
@@ -485,12 +493,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			if (!range) return { ok: false, message: 'Could not anchor the comment.' }
 
 			const id = `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
-			editor
-				.chain()
-				.focus()
-				.setTextSelection(range)
-				.setMark(COMMENT_MARK, { commentId: id })
-				.run()
+			editor.chain().focus().setTextSelection(range).setMark(COMMENT_MARK, { commentId: id }).run()
 			const at_ = Date.now()
 			context.addComment({
 				id,
@@ -749,7 +752,9 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			}
 
 			const ok = chain.run()
-			return ok ? { ok: true, message: 'Font applied.' } : { ok: false, message: 'Font could not be applied.' }
+			return ok
+				? { ok: true, message: 'Font applied.' }
+				: { ok: false, message: 'Font could not be applied.' }
 		}
 
 		case 'toggle_list': {
@@ -793,7 +798,13 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 					.applySectionColumns(columnsFromArgs(count, call.arguments.gap_cm), scoped, context.setup)
 					.run()
 				return ok
-					? { ok: true, message: count === 1 ? 'Columns removed for that section.' : `${count} columns applied to that section.` }
+					? {
+							ok: true,
+							message:
+								count === 1
+									? 'Columns removed for that section.'
+									: `${count} columns applied to that section.`,
+						}
 					: { ok: false, message: 'The column layout could not be changed.' }
 			}
 
@@ -824,7 +835,8 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 				.setTextSelection(range.to)
 				.insertFootnote(`fn-${Date.now()}`)
 				.command(({ tr, dispatch }) => {
-					if (dispatch) tr.insert(tr.doc.content.size, footnoteType.create(null, editor.state.schema.text(body)))
+					if (dispatch)
+						tr.insert(tr.doc.content.size, footnoteType.create(null, editor.state.schema.text(body)))
 					return true
 				})
 				.run()
@@ -850,9 +862,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 				if (!node) return { ok: false, message: 'Section not found.' }
 				const level = (node.attrs.level as number) ?? 1
 				const next = action === 'promote' ? Math.max(1, level - 1) : Math.min(9, level + 1)
-				editor.view.dispatch(
-					editor.state.tr.setNodeMarkup(from, undefined, { ...node.attrs, level: next }),
-				)
+				editor.view.dispatch(editor.state.tr.setNodeMarkup(from, undefined, { ...node.attrs, level: next }))
 				return { ok: true, message: `Heading is now level ${next}.` }
 			}
 
@@ -888,7 +898,11 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const verdict = publicImageUrl(src)
 			if (verdict) return { ok: false, message: verdict }
 
-			editor.chain().focus().setImage({ src, alt: String(call.arguments.alt ?? '') || null }).run()
+			editor
+				.chain()
+				.focus()
+				.setImage({ src, alt: String(call.arguments.alt ?? '') || null })
+				.run()
 			return { ok: true, message: 'Image inserted.' }
 		}
 
@@ -903,6 +917,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			return { ok: false, message: `Unknown tool: ${call.name}` }
 	}
 }
+
 function tocAttrsFromArgs(args: Record<string, unknown>): Partial<TocBlockAttrs> {
 	const attrs: Partial<TocBlockAttrs> = {}
 	const listKind = args.list_kind ?? args.listKind
@@ -911,7 +926,12 @@ function tocAttrsFromArgs(args: Record<string, unknown>): Partial<TocBlockAttrs>
 	}
 	if (args.style === 'plain' || args.style === 'dotted' || args.style === 'link') attrs.style = args.style
 	if (typeof args.show_page_numbers === 'boolean') attrs.showPageNumbers = args.show_page_numbers
-	if (args.tab_leader === 'none' || args.tab_leader === 'dots' || args.tab_leader === 'dashes' || args.tab_leader === 'line') {
+	if (
+		args.tab_leader === 'none' ||
+		args.tab_leader === 'dots' ||
+		args.tab_leader === 'dashes' ||
+		args.tab_leader === 'line'
+	) {
 		attrs.tabLeader = args.tab_leader
 	}
 	if (Number.isFinite(Number(args.min_level))) attrs.minLevel = Number(args.min_level)
@@ -921,12 +941,14 @@ function tocAttrsFromArgs(args: Record<string, unknown>): Partial<TocBlockAttrs>
 	}
 	return attrs
 }
+
 function findExactRange(editor: Editor, find: string): { from: number; to: number } | null {
 	const index = buildTextIndex(editor.state.doc)
 	const at = index.text.indexOf(find)
 	if (at === -1) return null
 	return textRangeToPM(index, at, find.length)
 }
+
 function publicImageUrl(src: string): string | null {
 	let url: URL
 	try {
@@ -944,7 +966,12 @@ function publicImageUrl(src: string): string | null {
 	if (ipv4) {
 		const [a, b] = [Number(ipv4[1]), Number(ipv4[2])]
 		const privateRange =
-			a === 10 || a === 127 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)
+			a === 10 ||
+			a === 127 ||
+			a === 0 ||
+			(a === 172 && b >= 16 && b <= 31) ||
+			(a === 192 && b === 168) ||
+			(a === 169 && b === 254)
 		if (privateRange) return 'Private or link-local addresses are not allowed.'
 	}
 	return null

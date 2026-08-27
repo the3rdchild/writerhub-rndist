@@ -5,6 +5,7 @@ import { ExternalLink, Loader2, Plus, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { Citation } from '@/app/api/citations/route'
 import type { EditorSelection } from '@/features/editor/selection'
+
 export function CitationPopover({
 	editor,
 	selection,
@@ -17,24 +18,27 @@ export function CitationPopover({
 	const [results, setResults] = useState<Citation[] | null>(null)
 	const [error, setError] = useState<string | null>(null)
 
-	useEffect(() => {
-		const controller = new AbortController()
+	useEffect(
+		function fetchCitationSuggestions() {
+			const controller = new AbortController()
 
-		fetch(`/api/citations?q=${encodeURIComponent(selection.text.slice(0, 400))}`, {
-			signal: controller.signal,
-		})
-			.then(async (response) => {
-				const body = await response.json().catch(() => null)
-				if (!response.ok) throw new Error(body?.errors?.join(', ') || 'Pencarian gagal')
-				setResults(body.data as Citation[])
+			fetch(`/api/citations?q=${encodeURIComponent(selection.text.slice(0, 400))}`, {
+				signal: controller.signal,
 			})
-			.catch((cause: unknown) => {
-				if (controller.signal.aborted) return
-				setError(cause instanceof Error ? cause.message : 'Pencarian gagal')
-			})
+				.then(async (response) => {
+					const body = await response.json().catch(() => null)
+					if (!response.ok) throw new Error(body?.errors?.join(', ') || 'Pencarian gagal')
+					setResults(body.data as Citation[])
+				})
+				.catch((cause: unknown) => {
+					if (controller.signal.aborted) return
+					setError(cause instanceof Error ? cause.message : 'Pencarian gagal')
+				})
 
-		return () => controller.abort()
-	}, [selection.text])
+			return () => controller.abort()
+		},
+		[selection.text],
+	)
 	const insert = (citation: Citation) => {
 		const author = citation.authors[0]?.split(' ').pop() ?? 'Anon'
 		const year = citation.year ?? 'n.d.'

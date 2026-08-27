@@ -1,6 +1,7 @@
 import { mergeAttributes, Node } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+
 export interface FootnoteOptions {
 	HTMLAttributes: Record<string, unknown>
 }
@@ -33,7 +34,11 @@ export const Footnote = Node.create<FootnoteOptions>({
 	},
 
 	renderHTML({ HTMLAttributes }) {
-		return ['section', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, { 'data-type': 'footnote' }), 0]
+		return [
+			'section',
+			mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, { 'data-type': 'footnote' }),
+			0,
+		]
 	},
 
 	addCommands() {
@@ -85,9 +90,7 @@ export const FootnoteRef = Node.create({
 						}
 						tr.doc.nodesBetween(sel.from, sel.to, (node, pos) => {
 							if (node.type.name === 'footnoteRef') {
-								decorations.push(
-									Decoration.node(pos, pos + node.nodeSize, { class: 'footnote-ref--active' }),
-								)
+								decorations.push(Decoration.node(pos, pos + node.nodeSize, { class: 'footnote-ref--active' }))
 							}
 						})
 						return DecorationSet.create(tr.doc, decorations)

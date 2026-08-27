@@ -6,6 +6,7 @@ import { AlignCenter, AlignLeft, AlignRight, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
+
 export function ImageToolbar({ editor }: { editor: Editor | null }) {
 	const state = useEditorState({
 		editor,
@@ -18,42 +19,45 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
 	})
 
 	const [rect, setRect] = useState<DOMRect | null>(null)
-	useEffect(() => {
-		if (!editor || !state) {
-			setRect(null)
-			return
-		}
-		const update = () => {
-			const view = editor.view
-			if (!view) return
-			const { from } = view.state.selection
-			const node = view.state.doc.nodeAt(from)
-			if (!node || node.type.name !== 'image') {
+	useEffect(
+		function trackToolbarPosition() {
+			if (!editor || !state) {
 				setRect(null)
 				return
 			}
-			const dom = view.nodeDOM(from) as HTMLElement | null
-			if (!dom) {
-				setRect(null)
-				return
+			const update = () => {
+				const view = editor.view
+				if (!view) return
+				const { from } = view.state.selection
+				const node = view.state.doc.nodeAt(from)
+				if (!node || node.type.name !== 'image') {
+					setRect(null)
+					return
+				}
+				const dom = view.nodeDOM(from) as HTMLElement | null
+				if (!dom) {
+					setRect(null)
+					return
+				}
+				const box = dom.getBoundingClientRect()
+				if (box.bottom < 0 || box.top > window.innerHeight) {
+					setRect(null)
+					return
+				}
+				setRect(box)
 			}
-			const box = dom.getBoundingClientRect()
-			if (box.bottom < 0 || box.top > window.innerHeight) {
-				setRect(null)
-				return
+			update()
+			editor.on('transaction', update)
+			window.addEventListener('scroll', update, true)
+			window.addEventListener('resize', update)
+			return () => {
+				editor.off('transaction', update)
+				window.removeEventListener('scroll', update, true)
+				window.removeEventListener('resize', update)
 			}
-			setRect(box)
-		}
-		update()
-		editor.on('transaction', update)
-		window.addEventListener('scroll', update, true)
-		window.addEventListener('resize', update)
-		return () => {
-			editor.off('transaction', update)
-			window.removeEventListener('scroll', update, true)
-			window.removeEventListener('resize', update)
-		}
-	}, [editor, state])
+		},
+		[editor, state],
+	)
 
 	if (!editor || !state || !rect) return null
 	const setAlign = (align: 'left' | 'center' | 'right') =>
@@ -62,7 +66,12 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
 			: editor.chain().focus().setImageAlign(align).run()
 
 	const buttons = [
-		{ icon: AlignLeft, label: 'Rata kiri', value: 'left' as const, active: state.align === 'left' || (!state.align) },
+		{
+			icon: AlignLeft,
+			label: 'Rata kiri',
+			value: 'left' as const,
+			active: state.align === 'left' || !state.align,
+		},
 		{ icon: AlignCenter, label: 'Rata tengah', value: 'center' as const, active: state.align === 'center' },
 		{ icon: AlignRight, label: 'Rata kanan', value: 'right' as const, active: state.align === 'right' },
 	]
@@ -83,7 +92,9 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
 					onClick={() => setAlign(btn.value)}
 					className={cn(
 						'flex h-7 w-7 items-center justify-center rounded-full transition-colors',
-						btn.active ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-[var(--overlay-hover)] hover:text-foreground',
+						btn.active
+							? 'bg-accent/15 text-accent'
+							: 'text-muted hover:bg-[var(--overlay-hover)] hover:text-foreground',
 					)}
 				>
 					<btn.icon className="h-4 w-4" />

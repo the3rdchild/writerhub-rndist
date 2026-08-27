@@ -1,6 +1,7 @@
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+
 const SELECTION_HIGHLIGHT_CLASS = 'selection-persist'
 
 interface FocusState {

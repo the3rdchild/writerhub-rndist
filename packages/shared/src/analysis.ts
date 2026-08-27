@@ -8,7 +8,9 @@ export const ANALYSIS_FEATURES = [
 	'translator',
 	'glossary',
 ] as const
+
 export type AnalysisFeature = (typeof ANALYSIS_FEATURES)[number]
+
 export const REWRITE_TONES = [
 	{ id: 'academic', label: 'Akademik', instruction: 'academic and scholarly' },
 	{ id: 'formal', label: 'Formal', instruction: 'formal and professional' },
@@ -19,6 +21,7 @@ export const REWRITE_TONES = [
 		instruction: 'natural and human-like, as if written by a person rather than an AI',
 	},
 ] as const
+
 export type RewriterTone = (typeof REWRITE_TONES)[number]['id']
 export const REWRITE_TONE_IDS = REWRITE_TONES.map((tone) => tone.id) as [RewriterTone, ...RewriterTone[]]
 
@@ -28,10 +31,12 @@ export interface StyleMemory {
 	glossary?: string[]
 	notes?: string
 }
+
 export interface TextRange {
 	offset: number
 	length: number
 }
+
 export interface TextChange extends TextRange {
 	original: string
 	replacement: string
@@ -56,12 +61,14 @@ export interface HumanizerResult {
 	changes: TextChange[]
 	llm_unavailable?: boolean
 }
+
 export interface TranslatorResult {
 	translated_text: string
 	changes: TextChange[]
 	detected_language?: string
 	llm_unavailable?: boolean
 }
+
 export interface GlossaryEntry {
 	term: string
 	expansion?: string
@@ -69,6 +76,7 @@ export interface GlossaryEntry {
 	occurrences: number
 	source?: 'acronym' | 'phrase'
 }
+
 export interface GlossaryResult {
 	entries: GlossaryEntry[]
 	llm_unavailable?: boolean
@@ -79,6 +87,7 @@ export interface PlagiarismResult {
 	label: 'Unique' | 'Likely Original' | 'Possible Match' | 'High Similarity'
 	flagged_phrases: Array<TextRange & { text: string; similarity: number }>
 }
+
 export interface AnalysisResultMap {
 	ai_detector: AiDetectorResult
 	ai_rewriter: AiRewriterResult
@@ -90,6 +99,7 @@ export interface AnalysisResultMap {
 
 export type AnalysisResultFor<F extends AnalysisFeature> = AnalysisResultMap[F]
 export type AnalysisResultData = AnalysisResultMap[AnalysisFeature]
+
 export interface AnalysisJobStatus<F extends AnalysisFeature = AnalysisFeature> {
 	jobId: string
 	status: JobStatus
@@ -98,6 +108,7 @@ export interface AnalysisJobStatus<F extends AnalysisFeature = AnalysisFeature> 
 	feature?: F
 	result?: AnalysisResultFor<F>
 }
+
 export type AnalysisStreamEvent<F extends AnalysisFeature = AnalysisFeature> =
 	| { type: 'done'; result: AnalysisResultFor<F> }
 	| { type: 'error'; message: string }

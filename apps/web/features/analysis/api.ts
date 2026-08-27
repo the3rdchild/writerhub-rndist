@@ -8,6 +8,7 @@ import { apiFetch } from '@/lib/api-client'
 import { streamJob } from '@/lib/sse'
 
 const ANALYSIS_TIMEOUT_MS = 120_000
+
 export async function runAnalysis<F extends AnalysisFeature>(
 	feature: F,
 	text: string,
@@ -30,7 +31,8 @@ export async function runAnalysis<F extends AnalysisFeature>(
 	const event = await streamJob<AnalysisStreamEvent<F>>(jobId, {
 		signal,
 		timeoutMs: ANALYSIS_TIMEOUT_MS,
-		isTerminal: (e) => e.type === 'done' || e.type === 'error' || e.type === 'timeout' || e.type === 'cancelled',
+		isTerminal: (e) =>
+			e.type === 'done' || e.type === 'error' || e.type === 'timeout' || e.type === 'cancelled',
 	})
 
 	if (event.type === 'error') throw new Error(event.message || 'Analisis gagal')

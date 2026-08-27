@@ -6,6 +6,7 @@ import { Flag } from '@/components/ui/flag'
 import { LANGUAGE_OPTIONS } from '@/features/document/language'
 import { useDocumentLanguage } from '@/features/document/use-language'
 import { cn } from '@/lib/utils'
+
 export function RunScopeBar({ wordCount }: { wordCount: number | null }) {
 	const language = useDocumentLanguage()
 	const flagCode = LANGUAGE_OPTIONS.find((option) => option.code === language.code)?.flag
@@ -56,7 +57,11 @@ export function RunScopeBar({ wordCount }: { wordCount: number | null }) {
 						{/* Bahasa yang sudah pasti digambar sebagai bendera; Globe dipakai saat
 						    bahasa belum pasti (uncertain) supaya tidak terlihat seperti klaim
 						    yang salah (§P1 butir 4). */}
-						{!language.uncertain && flagCode ? <Flag code={flagCode} /> : <Globe className="h-3.5 w-3.5 shrink-0" />}
+						{!language.uncertain && flagCode ? (
+							<Flag code={flagCode} />
+						) : (
+							<Globe className="h-3.5 w-3.5 shrink-0" />
+						)}
 						<span className="max-w-[92px] truncate">{language.label}</span>
 					</button>
 				)}

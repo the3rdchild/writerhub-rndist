@@ -1,16 +1,17 @@
 'use client'
 
-import type { GrammarModel, GrammarSuggestion } from '@writer-hub/shared'
 import { useIsMutating, useMutation, useMutationState } from '@tanstack/react-query'
+import type { GrammarModel, GrammarSuggestion } from '@writer-hub/shared'
 import { useCallback, useRef } from 'react'
-import { cancelJob } from '@/lib/api-client'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSync } from '@/features/sync/sync-context'
+import { cancelJob } from '@/lib/api-client'
 import { streamGrammarCheck, streamTimeoutFor, submitGrammarCheck } from './api'
 
 const GRAMMAR_CHECK_KEY = ['grammar', 'check'] as const
+
 interface GrammarCheckVars {
 	text: string
 	file: File | null
@@ -20,10 +21,12 @@ interface GrammarCheckVars {
 	language: string
 	tabId?: string
 }
+
 export interface GrammarCheckScope {
 	text: string
 	offset: number
 }
+
 export function useGrammarCheck() {
 	const { state, dispatch, hasContent } = useDocument()
 	const language = useDocumentLanguage()
@@ -105,7 +108,17 @@ export function useGrammarCheck() {
 						},
 			)
 		},
-		[mutation, state.text, state.file, state.title, state.model, language.needsAiTier, language.code, linkage, activeId],
+		[
+			mutation,
+			state.text,
+			state.file,
+			state.title,
+			state.model,
+			language.needsAiTier,
+			language.code,
+			linkage,
+			activeId,
+		],
 	)
 
 	const isRunning = useIsMutating({ mutationKey: GRAMMAR_CHECK_KEY }) > 0

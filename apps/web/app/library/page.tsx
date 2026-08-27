@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { DocumentGrid } from '@/components/library/document-grid'
 import { ProjectSidebar } from '@/components/library/project-sidebar'
+
 export default function LibraryPage() {
 	return (
 		<Suspense>

@@ -3,6 +3,7 @@ import { callUpstream, configErrorResponse } from '@/lib/server/upstream'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
+
 export async function POST(request: Request): Promise<Response> {
 	try {
 		const upstream = await callUpstream({

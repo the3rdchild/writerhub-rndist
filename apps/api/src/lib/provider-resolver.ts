@@ -12,7 +12,11 @@ export interface ResolvedProvider {
 	sdkProvider: 'openai' | 'anthropic'
 	modelRecordId: number
 }
-export async function resolveProvider(bearerToken: string, serviceSlug: string): Promise<ResolvedProvider | null> {
+
+export async function resolveProvider(
+	bearerToken: string,
+	serviceSlug: string,
+): Promise<ResolvedProvider | null> {
 	const userPackage = await getExtendedUserPackage(bearerToken)
 	if (!userPackage) return null
 
@@ -40,6 +44,7 @@ export async function resolveProvider(bearerToken: string, serviceSlug: string):
 		modelRecordId: Number(provider.modelRecordId),
 	}
 }
+
 export async function ensureToolQuota(userId: string, serviceSlug: string, toolName: string): Promise<void> {
 	const result = await recordToolUsage({ userId, serviceSlug, toolName })
 	if (result.ok) return

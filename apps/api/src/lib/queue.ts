@@ -8,20 +8,18 @@ class QueueClient {
 
 	static getInstance(): Queue {
 		if (!QueueClient.instance) {
-			QueueClient.instance = new Queue(
-				env.GRAMMAR_QUEUE_NAME ?? 'GRAMMAR_QUEUE',
-				{ connection: RedisClient.getInstance() },
-			)
+			QueueClient.instance = new Queue(env.GRAMMAR_QUEUE_NAME ?? 'GRAMMAR_QUEUE', {
+				connection: RedisClient.getInstance(),
+			})
 		}
 		return QueueClient.instance
 	}
 
 	static getAnalysisInstance(): Queue {
 		if (!QueueClient.analysisInstance) {
-			QueueClient.analysisInstance = new Queue(
-				env.ANALYSIS_QUEUE_NAME ?? 'ANALYSIS_QUEUE',
-				{ connection: RedisClient.getInstance() },
-			)
+			QueueClient.analysisInstance = new Queue(env.ANALYSIS_QUEUE_NAME ?? 'ANALYSIS_QUEUE', {
+				connection: RedisClient.getInstance(),
+			})
 		}
 		return QueueClient.analysisInstance
 	}

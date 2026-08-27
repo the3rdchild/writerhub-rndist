@@ -13,6 +13,7 @@ declare module '@tiptap/core' {
 		}
 	}
 }
+
 export function renderMath(latex: string, display: boolean): string {
 	try {
 		return katex.renderToString(latex, {
@@ -113,6 +114,7 @@ export const MathBlock = Node.create({
 		}
 	},
 })
+
 interface MathPattern {
 	pattern: RegExp
 	display: boolean
@@ -137,6 +139,7 @@ export interface FoundMath {
 	from: number
 	to: number
 }
+
 export function findMath(text: string): FoundMath[] {
 	const found: FoundMath[] = []
 
@@ -145,7 +148,9 @@ export function findMath(text: string): FoundMath[] {
 		let match = pattern.exec(text)
 		while (match !== null) {
 			const latex = (match[latexGroup] ?? '').trim()
-			const overlaps = found.some((item) => match!.index < item.to && match!.index + match![0].length > item.from)
+			const overlaps = found.some(
+				(item) => match!.index < item.to && match!.index + match![0].length > item.from,
+			)
 			if (latex && !overlaps) {
 				found.push({ latex, display, from: match.index, to: match.index + match[0].length })
 			}
@@ -155,6 +160,7 @@ export function findMath(text: string): FoundMath[] {
 
 	return found.sort((a, b) => a.from - b.from)
 }
+
 export function wholeParagraphLatex(text: string): string | null {
 	const trimmed = text.trim()
 
@@ -164,18 +170,18 @@ export function wholeParagraphLatex(text: string): string | null {
 	const bracket = trimmed.match(/^\\\[([\s\S]+?)\\\]$/)
 	if (bracket?.[1].trim()) return bracket[1].trim()
 
-	const env = trimmed.match(
-		/^\\begin\{((?:equation|align|gather|multline)\*?)\}([\s\S]*?)\\end\{\1\}$/,
-	)
+	const env = trimmed.match(/^\\begin\{((?:equation|align|gather|multline)\*?)\}([\s\S]*?)\\end\{\1\}$/)
 	if (env?.[2].trim()) return env[2].trim()
 
 	return null
 }
+
 export function looksLikeBareLatex(text: string): boolean {
 	const trimmed = text.trim()
 	if (!trimmed || trimmed.includes('$')) return false
 	return /\\[a-zA-Z]+|[\^_]\{?[^\s]/.test(trimmed)
 }
+
 export function stripDelimiters(text: string): string {
 	return text
 		.trim()
@@ -183,6 +189,7 @@ export function stripDelimiters(text: string): string {
 		.replace(/(?:\$\$?$|\\\]|\\\))$/, '')
 		.trim()
 }
+
 export function convertSelectionToMath(editor: Editor, display: boolean): boolean {
 	const { from, to, empty } = editor.state.selection
 	if (empty) return false
@@ -192,6 +199,7 @@ export function convertSelectionToMath(editor: Editor, display: boolean): boolea
 
 	return editor.chain().focus().deleteSelection().setMath(latex, display).run()
 }
+
 export function convertMathInDocument(editor: Editor): number {
 	const { state } = editor
 	const inlineType = state.schema.nodes[MATH_INLINE]
@@ -239,6 +247,7 @@ export function convertMathInDocument(editor: Editor): number {
 
 	return edits.length
 }
+
 export function mathAtSelection(editor: Editor): { latex: string; display: boolean } | null {
 	const { $from, node } = editor.state.selection as { $from: ResolvedPos; node?: PMNode }
 	const candidate = node ?? $from.nodeAfter ?? $from.nodeBefore

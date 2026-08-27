@@ -27,10 +27,8 @@ export interface JobEvent {
 export function isTerminalEvent(event: { type?: string }): boolean {
 	return event.type === 'done' || event.type === 'error' || event.type === 'cancelled'
 }
-export async function subscribeToJob(
-	jobId: string,
-	onMessage: (raw: string) => void,
-): Promise<() => void> {
+
+export async function subscribeToJob(jobId: string, onMessage: (raw: string) => void): Promise<() => void> {
 	const subscriber: Redis = RedisClient.getInstance().duplicate()
 	const channel = jobChannel(jobId)
 
@@ -40,7 +38,6 @@ export async function subscribeToJob(
 	return () => {
 		try {
 			subscriber.disconnect()
-		} catch {
-		}
+		} catch {}
 	}
 }

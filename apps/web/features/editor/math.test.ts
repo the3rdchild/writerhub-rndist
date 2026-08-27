@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { findMath, looksLikeBareLatex, stripDelimiters, wholeParagraphLatex } from './math'
+
 describe('menemukan rumus', () => {
 	test('inline sederhana', () => {
 		const found = findMath('Misalkan $x^2 + y^2 = z^2$ berlaku.')
@@ -129,6 +130,7 @@ describe('menebak LaTeX telanjang', () => {
 		expect(looksLikeBareLatex('$x^2$')).toBe(false)
 	})
 })
+
 describe('paragraf utuh rumus blok', () => {
 	test('dolar ganda', () => {
 		expect(wholeParagraphLatex('$$x^2$$')).toBe('x^2')

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { latexToMarkdown, looksLikeLatexDocument } from './latex-document'
+
 const DOCUMENT = String.raw`\documentclass{article}
 \usepackage[bahasa]{babel}
 \begin{document}

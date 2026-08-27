@@ -1,5 +1,6 @@
 import type { Editor } from '@tiptap/react'
 import { HEADING_LEVELS, VISIBLE_HEADING_LEVELS } from '@/features/editor/heading-extension'
+
 export interface ParagraphStyle {
 	id: string
 	label: string
@@ -7,6 +8,7 @@ export interface ParagraphStyle {
 	isActive: (editor: Editor) => boolean
 	previewStyle: React.CSSProperties
 }
+
 const HEADING_FONT_SIZE: Record<number, string> = {
 	1: '1.35rem',
 	2: '1.15rem',
@@ -18,6 +20,7 @@ const HEADING_FONT_SIZE: Record<number, string> = {
 	8: '0.8rem',
 	9: '0.78rem',
 }
+
 function headingStyle(level: number): ParagraphStyle {
 	const typedLevel = level as 1
 	return {
@@ -28,6 +31,7 @@ function headingStyle(level: number): ParagraphStyle {
 		previewStyle: { fontSize: HEADING_FONT_SIZE[level] ?? '0.8rem', fontWeight: 600 },
 	}
 }
+
 export const PARAGRAPH_STYLES: ParagraphStyle[] = [
 	{
 		id: 'paragraph',
@@ -38,6 +42,7 @@ export const PARAGRAPH_STYLES: ParagraphStyle[] = [
 	},
 	...VISIBLE_HEADING_LEVELS.map(headingStyle),
 ]
+
 export const ALL_PARAGRAPH_STYLES: ParagraphStyle[] = [
 	PARAGRAPH_STYLES[0],
 	...HEADING_LEVELS.map(headingStyle),

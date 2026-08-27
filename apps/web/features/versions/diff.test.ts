@@ -73,9 +73,7 @@ describe('computeVersionDiff', () => {
 	})
 
 	test('draf kosong: seluruh versi adalah rentang removed', () => {
-		expect(computeVersionDiff('halo dunia', '')).toEqual([
-			{ offset: 0, length: 10, kind: 'removed' },
-		])
+		expect(computeVersionDiff('halo dunia', '')).toEqual([{ offset: 0, length: 10, kind: 'removed' }])
 	})
 
 	test('sisipan yang hanya berisi spasi atau baris baru diabaikan', () => {
@@ -96,6 +94,8 @@ describe('diffVersionDocuments', () => {
 
 		const ranges = diffVersionDocuments(version, draft)
 		const removed = ranges.find((range) => range.kind === 'removed')
-		expect('paragraf pertama\nkata lama'.slice(removed!.offset, removed!.offset + removed!.length)).toBe('lama')
+		expect('paragraf pertama\nkata lama'.slice(removed!.offset, removed!.offset + removed!.length)).toBe(
+			'lama',
+		)
 	})
 })

@@ -1,4 +1,5 @@
 export type XmlParser = (source: string) => Element
+
 export async function createXmlParser(): Promise<XmlParser> {
 	if (typeof DOMParser !== 'undefined') {
 		const parser = new DOMParser()
@@ -17,11 +18,13 @@ function documentElementOf(document: Document): Element {
 	if (localNameOf(root) === 'parsererror') throw new Error(`XML rusak: ${root.textContent ?? ''}`)
 	return root
 }
+
 function localNameOf(node: { localName?: string | null; nodeName: string }): string {
 	return node.localName ?? node.nodeName.replace(/^.*:/, '')
 }
 
 const ELEMENT_NODE = 1
+
 export function children(parent: Element, name?: string): Element[] {
 	const result: Element[] = []
 	for (let node = parent.firstChild; node; node = node.nextSibling) {
@@ -31,6 +34,7 @@ export function children(parent: Element, name?: string): Element[] {
 	}
 	return result
 }
+
 export function child(parent: Element | null | undefined, name: string): Element | null {
 	if (!parent) return null
 	for (let node = parent.firstChild; node; node = node.nextSibling) {
@@ -40,6 +44,7 @@ export function child(parent: Element | null | undefined, name: string): Element
 	}
 	return null
 }
+
 export function descend(parent: Element | null | undefined, ...names: string[]): Element | null {
 	let current = parent ?? null
 	for (const name of names) {
@@ -52,6 +57,7 @@ export function descend(parent: Element | null | undefined, ...names: string[]):
 export function tagName(element: Element): string {
 	return localNameOf(element)
 }
+
 export function attr(element: Element | null | undefined, name: string): string | undefined {
 	if (!element) return undefined
 	const attributes = element.attributes
@@ -61,6 +67,7 @@ export function attr(element: Element | null | undefined, name: string): string 
 	}
 	return undefined
 }
+
 export function val(element: Element | null | undefined): string | undefined {
 	return attr(element, 'val')
 }
@@ -71,6 +78,7 @@ export function intVal(element: Element | null | undefined): number | undefined 
 	const parsed = Number.parseInt(raw, 10)
 	return Number.isFinite(parsed) ? parsed : undefined
 }
+
 export function onOff(element: Element | null | undefined): boolean | undefined {
 	if (!element) return undefined
 	const raw = val(element)

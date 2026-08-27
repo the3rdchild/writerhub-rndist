@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import { getSchema } from '@tiptap/core'
-import { buildEditorExtensions } from './extensions'
-import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
 import { resolveSpan } from '@/features/document/suggestions'
+import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
+import { buildEditorExtensions } from './extensions'
+
 const schema = getSchema(buildEditorExtensions({}))
 
 function docWith(paragraphs: string[]) {

@@ -2,14 +2,16 @@
 
 import type { Editor } from '@tiptap/react'
 import { useEffect, useMemo, useState } from 'react'
-import { useEditorInstance } from '@/features/editor/editor-context'
 import { buildTextIndex, pmRangeToText } from '@/features/document/tiptap-offsets'
+import { useEditorInstance } from '@/features/editor/editor-context'
+
 export interface EditorSelection {
 	from: number
 	to: number
 	text: string
 	words: number
 }
+
 const MIN_SELECTION_LENGTH = 2
 
 function countWords(text: string): number {
@@ -35,35 +37,40 @@ function same(a: EditorSelection | null, b: EditorSelection | null): boolean {
 export function useEditorSelection(editor: Editor | null): EditorSelection | null {
 	const [selection, setSelection] = useState<EditorSelection | null>(null)
 
-	useEffect(() => {
-		if (!editor) {
-			setSelection(null)
-			return
-		}
+	useEffect(
+		function syncSelectionFromEditor() {
+			if (!editor) {
+				setSelection(null)
+				return
+			}
 
-		const sync = () =>
-			setSelection((current) => {
-				const next = read(editor)
-				return same(current, next) ? current : next
-			})
+			const sync = () =>
+				setSelection((current) => {
+					const next = read(editor)
+					return same(current, next) ? current : next
+				})
 
-		sync()
-		editor.on('selectionUpdate', sync)
-		editor.on('transaction', sync)
-		return () => {
-			editor.off('selectionUpdate', sync)
-			editor.off('transaction', sync)
-		}
-	}, [editor])
+			sync()
+			editor.on('selectionUpdate', sync)
+			editor.on('transaction', sync)
+			return () => {
+				editor.off('selectionUpdate', sync)
+				editor.off('transaction', sync)
+			}
+		},
+		[editor],
+	)
 
 	return selection
 }
+
 export function selectionTextRange(
 	editor: Editor,
 	selection: EditorSelection,
 ): { offset: number; length: number } | null {
 	return pmRangeToText(buildTextIndex(editor.state.doc), selection.from, selection.to)
 }
+
 export interface SelectionScope {
 	text: string
 	offset: number
@@ -91,6 +98,7 @@ export function useSelectionScope(): SelectionScope | null {
 		}
 	}, [editor, selection])
 }
+
 export function surroundingText(editor: Editor, selection: EditorSelection, radius = 1_200): string {
 	const { doc } = editor.state
 	const from = Math.max(0, selection.from - radius)

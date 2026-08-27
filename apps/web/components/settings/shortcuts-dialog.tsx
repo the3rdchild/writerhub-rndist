@@ -1,15 +1,16 @@
 'use client'
 
 import { useEffect, useMemo, useRef } from 'react'
+import { useSettings } from '@/features/settings/settings-context'
 import {
 	CATEGORY_ORDER,
 	formatKeys,
+	SHORTCUTS,
 	type Shortcut,
 	type ShortcutCategory,
-	SHORTCUTS,
 } from '@/features/shortcuts/registry'
 import { useIsMac } from '@/features/shortcuts/use-shortcuts'
-import { useSettings } from '@/features/settings/settings-context'
+
 export function ShortcutsDialog() {
 	const { shortcutsOpen, setShortcutsOpen } = useSettings()
 	const mac = useIsMac()
@@ -28,20 +29,23 @@ export function ShortcutsDialog() {
 		})).filter((group) => group.items.length > 0)
 	}, [])
 
-	useEffect(() => {
-		if (!shortcutsOpen) return
+	useEffect(
+		function lockScrollAndCloseOnEscape() {
+			if (!shortcutsOpen) return
 
-		document.body.style.overflow = 'hidden'
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') setShortcutsOpen(false)
-		}
-		window.addEventListener('keydown', onKeyDown)
+			document.body.style.overflow = 'hidden'
+			const onKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') setShortcutsOpen(false)
+			}
+			window.addEventListener('keydown', onKeyDown)
 
-		return () => {
-			document.body.style.overflow = ''
-			window.removeEventListener('keydown', onKeyDown)
-		}
-	}, [shortcutsOpen, setShortcutsOpen])
+			return () => {
+				document.body.style.overflow = ''
+				window.removeEventListener('keydown', onKeyDown)
+			}
+		},
+		[shortcutsOpen, setShortcutsOpen],
+	)
 
 	if (!shortcutsOpen) return null
 
@@ -83,9 +87,7 @@ export function ShortcutsDialog() {
 											key={item.id}
 											className="flex items-center justify-between gap-4 border-b border-line py-1.5 last:border-b-0"
 										>
-											<span className="min-w-0 truncate text-[13px] text-foreground">
-												{item.label}
-											</span>
+											<span className="min-w-0 truncate text-[13px] text-foreground">{item.label}</span>
 											<kbd className="shrink-0 rounded-md bg-[var(--overlay-hover)] px-2 py-0.5 font-sans text-[11px] font-medium text-muted">
 												{formatKeys(item.keys, mac)}
 											</kbd>

@@ -7,9 +7,11 @@ import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offset
 
 export const analysisHighlightKey = new PluginKey<AnalysisHighlightState>('analysisHighlight')
 export type AnalysisHighlightKind = 'change' | 'ai-low' | 'ai-medium' | 'ai-high'
+
 export interface AnalysisHighlightRange extends TextRange {
 	kind: AnalysisHighlightKind
 }
+
 export interface AnalysisHighlightUpdate {
 	source: AnalysisFeature
 	ranges: AnalysisHighlightRange[]
@@ -26,6 +28,7 @@ const KIND_CLASS: Record<AnalysisHighlightKind, string> = {
 	'ai-medium': 'analysis-highlight--ai-medium',
 	'ai-high': 'analysis-highlight--ai-high',
 }
+
 export function aiScoreLevel(score: number): AnalysisHighlightKind {
 	if (score < 40) return 'ai-low'
 	if (score <= 70) return 'ai-medium'
@@ -49,6 +52,7 @@ function buildDecorations(
 
 	return decorations.length > 0 ? DecorationSet.create(doc, decorations) : DecorationSet.empty
 }
+
 export const AnalysisHighlight = Extension.create({
 	name: 'analysisHighlight',
 

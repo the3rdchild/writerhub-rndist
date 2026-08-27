@@ -4,7 +4,9 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { common, createLowlight } from 'lowlight'
 import { CodeBlockNodeView } from '@/components/editor/code-block-node-view'
+
 const lowlightInstance = createLowlight(common)
+
 export const CODE_LANGUAGES: Array<{ value: string; label: string }> = [
 	{ value: 'plaintext', label: 'Teks polos' },
 	{ value: 'mermaid', label: 'Diagram Mermaid' },
@@ -28,6 +30,7 @@ export const CODE_LANGUAGES: Array<{ value: string; label: string }> = [
 	{ value: 'php', label: 'PHP' },
 	{ value: 'swift', label: 'Swift' },
 ]
+
 export const CodeBlock = CodeBlockLowlight.extend({
 	addNodeView() {
 		return ReactNodeViewRenderer(CodeBlockNodeView)

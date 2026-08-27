@@ -45,12 +45,7 @@ export function DocumentLeftRuler({
 		onUp: () => {},
 	})
 	const nudgeTop = rulerNudge('y', { kind: 'marginTop', page: 0 }, margins.top, applyHandle)
-	const nudgeBottom = rulerNudge(
-		'y',
-		{ kind: 'marginBottom', page: 0 },
-		height - margins.bottom,
-		applyHandle,
-	)
+	const nudgeBottom = rulerNudge('y', { kind: 'marginBottom', page: 0 }, height - margins.bottom, applyHandle)
 
 	const totalHeight = pageCount * height + (pageCount - 1) * gap
 
@@ -94,6 +89,7 @@ export function DocumentLeftRuler({
 		</div>
 	)
 }
+
 function Ticks({ height, zoom, unit }: { height: number; zoom: number; unit: MeasurementUnit }) {
 	const unitPx = unit === 'cm' ? INCH / 2.54 : INCH
 	const step = zoom < 0.75 ? unitPx / 2 : unitPx / 4
@@ -126,6 +122,7 @@ function Ticks({ height, zoom, unit }: { height: number; zoom: number; unit: Mea
 		</>
 	)
 }
+
 function MarginHandle({
 	label,
 	y,

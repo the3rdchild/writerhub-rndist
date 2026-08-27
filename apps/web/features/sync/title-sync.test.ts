@@ -9,9 +9,7 @@ describe('penyelarasan judul dokumen', () => {
 	})
 
 	test('hanya server bergeser dari base: judul server diadopsi', () => {
-		expect(resolveTitle(side('Untitled document'), side('Bab 1'), 'Untitled document')).toBe(
-			'adopt-server',
-		)
+		expect(resolveTitle(side('Untitled document'), side('Bab 1'), 'Untitled document')).toBe('adopt-server')
 	})
 
 	test('server menang meski lokal baru saja disunting', () => {
@@ -25,12 +23,8 @@ describe('penyelarasan judul dokumen', () => {
 	})
 
 	test('bentrok: rename terbaru yang menang', () => {
-		expect(resolveTitle(side('Dari laptop', 100), side('Dari ponsel', 200), 'Lama')).toBe(
-			'adopt-server',
-		)
-		expect(resolveTitle(side('Dari laptop', 300), side('Dari ponsel', 200), 'Lama')).toBe(
-			'push-local',
-		)
+		expect(resolveTitle(side('Dari laptop', 100), side('Dari ponsel', 200), 'Lama')).toBe('adopt-server')
+		expect(resolveTitle(side('Dari laptop', 300), side('Dari ponsel', 200), 'Lama')).toBe('push-local')
 	})
 
 	test('bentrok dengan stempel waktu seri dimenangkan lokal', () => {

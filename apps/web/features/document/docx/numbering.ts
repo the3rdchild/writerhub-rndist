@@ -1,4 +1,5 @@
 import { attr, child, children, intVal, onOff, val } from './xml'
+
 export interface NumberingLevel {
 	start: number
 	format: string
@@ -109,6 +110,7 @@ function toRoman(value: number): string {
 	}
 	return result
 }
+
 function toLetter(value: number): string {
 	if (value <= 0) return String(value)
 
@@ -133,6 +135,7 @@ function formatCounter(value: number, format: string): string {
 			return String(value)
 	}
 }
+
 const BULLETS: Record<string, string> = {
 	'\uf0b7': '•', // Symbol, butir bulat - yang paling sering dipakai
 	'\uf0a7': '▪', // Wingdings, kotak kecil pejal
@@ -154,6 +157,7 @@ function toBullet(text: string): string {
 		})
 		.join('')
 }
+
 export type Numberer = (numId: number, ilvl: number) => string | null
 
 const MAX_LEVELS = 9
@@ -166,11 +170,7 @@ export function createNumberer(numbering: Numbering): Numberer {
 		const instance = numbering.instances.get(numId)
 		if (!instance) return null
 
-		return (
-			instance.levels.get(ilvl) ??
-			numbering.abstracts.get(instance.abstractId)?.levels.get(ilvl) ??
-			null
-		)
+		return instance.levels.get(ilvl) ?? numbering.abstracts.get(instance.abstractId)?.levels.get(ilvl) ?? null
 	}
 
 	const startOf = (numId: number, ilvl: number): number => {
@@ -188,7 +188,10 @@ export function createNumberer(numbering: Numbering): Numberer {
 				numId,
 				Array.from({ length: MAX_LEVELS }, (_, index) => startOf(numId, index)),
 			)
-			started.set(numId, Array.from({ length: MAX_LEVELS }, () => false))
+			started.set(
+				numId,
+				Array.from({ length: MAX_LEVELS }, () => false),
+			)
 		}
 		const counter = counters.get(numId) as number[]
 		const seen = started.get(numId) as boolean[]

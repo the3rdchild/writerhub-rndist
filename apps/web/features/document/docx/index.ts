@@ -1,11 +1,19 @@
 import type { JSONContent } from '@tiptap/core'
 import { createNumberer, readNumbering } from './numbering'
-import { bodyOf, type ParseContext, type PageSetupPatch, readBody, readRelationships, readTheme } from './parse'
+import {
+	bodyOf,
+	type PageSetupPatch,
+	type ParseContext,
+	readBody,
+	readRelationships,
+	readTheme,
+} from './parse'
 import { readStyles } from './properties'
-import { type DocxArchive, openDocx, resolvePath } from './zip'
 import { createXmlParser, type XmlParser } from './xml'
+import { type DocxArchive, openDocx, resolvePath } from './zip'
 
 export type { PageSetupPatch } from './parse'
+
 export interface ImportWarning {
 	message: string
 }
@@ -18,10 +26,12 @@ export interface DocxImport {
 
 const OFFICE_DOCUMENT = 'officeDocument'
 const DEFAULT_MAIN_PART = 'word/document.xml'
+
 function relsPathOf(part: string): string {
 	const slash = part.lastIndexOf('/')
 	return slash === -1 ? `_rels/${part}.rels` : `${part.slice(0, slash)}/_rels/${part.slice(slash + 1)}.rels`
 }
+
 function mainPartOf(archive: DocxArchive, parse: XmlParser): string {
 	const source = archive.text('_rels/.rels')
 	if (!source) return DEFAULT_MAIN_PART
@@ -33,10 +43,10 @@ function mainPartOf(archive: DocxArchive, parse: XmlParser): string {
 			const target = resolvePath('', relationship.target)
 			if (archive.bytes(target)) return target
 		}
-	} catch {
-	}
+	} catch {}
 	return DEFAULT_MAIN_PART
 }
+
 function partByType(
 	archive: DocxArchive,
 	parse: XmlParser,
@@ -58,14 +68,13 @@ function partByType(
 	}
 	return null
 }
+
 const SKIPPED_LABELS: Record<string, string> = {
 	drawing: 'gambar',
 	pict: 'gambar',
 	'merged-cell': 'sel gabungan tabel',
 	'kolom-bagian-pertama': 'kolom di bagian pertama dokumen',
 	object: 'objek tertanam',
-	oMath: 'rumus',
-	oMathPara: 'rumus',
 }
 
 function warningsFor(skipped: Map<string, number>, archive: DocxArchive): ImportWarning[] {
@@ -87,17 +96,17 @@ function warningsFor(skipped: Map<string, number>, archive: DocxArchive): Import
 		warnings.push({ message: `Bagian yang tidak dikenali dilewati: ${unknown.sort().join(', ')}.` })
 	}
 
-	const hasHeaderFooter = archive
-		.paths()
-		.some((path) => /^word\/(header|footer)\d*\.xml$/.test(path))
+	const hasHeaderFooter = archive.paths().some((path) => /^word\/(header|footer)\d*\.xml$/.test(path))
 	if (hasHeaderFooter) {
 		warnings.push({
-			message: 'Header, footer, dan nomor halaman tidak punya padanan di editor ini, jadi tidak ikut terbawa.',
+			message:
+				'Header, footer, dan nomor halaman tidak punya padanan di editor ini, jadi tidak ikut terbawa.',
 		})
 	}
 
 	return warnings
 }
+
 export async function readDocx(data: Uint8Array): Promise<DocxImport> {
 	const archive = openDocx(data)
 	const parse = await createXmlParser()

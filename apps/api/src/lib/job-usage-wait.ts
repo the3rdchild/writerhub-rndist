@@ -1,7 +1,7 @@
 import { isTerminalEvent, subscribeToJob } from '@/lib/job-events'
+import LoggerClient from '@/lib/logger'
 import { recordTokenUsage } from '@/lib/pp-usage-client'
 import { findPoolRequest } from '@/repository/job-result'
-import LoggerClient from '@/utils/logger'
 
 const DEFAULT_TIMEOUT_MS = 5 * 60_000
 
@@ -18,6 +18,7 @@ async function readCompletion(jobId: string): Promise<JobCompletion | null> {
 	if (row?.status !== 'completed' && row?.status !== 'failed') return null
 	return { status: row.status, totalTokens: row.total_tokens, modelRecordId: row.model_record_id }
 }
+
 async function waitForCompletion(jobId: string, timeoutMs: number): Promise<JobCompletion> {
 	const already = await readCompletion(jobId)
 	if (already) return already
@@ -59,6 +60,7 @@ export interface RecordTokenUsageAfterCompletionParams {
 	serviceSlug: string
 	timeoutMs?: number
 }
+
 export function recordTokenUsageAfterCompletion({
 	jobId,
 	userId,

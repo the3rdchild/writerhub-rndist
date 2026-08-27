@@ -3,6 +3,7 @@ import { getMemory, putMemory } from './api'
 import type { MemoryPreferences } from './types'
 
 export const MEMORY_QUERY_KEY = ['memory'] as const
+
 export function useMemory() {
 	return useQuery({
 		queryKey: MEMORY_QUERY_KEY,
@@ -10,6 +11,7 @@ export function useMemory() {
 		staleTime: 0,
 	})
 }
+
 export function useSaveMemory() {
 	const queryClient = useQueryClient()
 	return useMutation({
