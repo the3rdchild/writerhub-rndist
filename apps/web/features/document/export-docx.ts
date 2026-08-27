@@ -82,7 +82,18 @@ export async function exportDocx(
 	},
 ): Promise<Blob> {
 	const docx = await import('docx')
-	const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType } = docx
+	const {
+		Document,
+		Packer,
+		Paragraph,
+		TextRun,
+		Table,
+		TableRow,
+		TableCell,
+		HeadingLevel,
+		WidthType,
+		LevelFormat,
+	} = docx
 
 	const HEADINGS = [
 		HeadingLevel.HEADING_1,
@@ -168,6 +179,80 @@ export async function exportDocx(
 			columnWidths: widths.map(px),
 		})
 	}
+
+	// Referensi penomoran orderedList: format huruf/romawi dan nilai start non-1
+	// butuh definisi abstract terpisah, jadi referensinya dirakit per kombinasi.
+	const TYPE_FORMAT: Record<string, (typeof LevelFormat)[keyof typeof LevelFormat]> = {
+		a: LevelFormat.LOWER_LETTER,
+		A: LevelFormat.UPPER_LETTER,
+		i: LevelFormat.LOWER_ROMAN,
+		I: LevelFormat.UPPER_ROMAN,
+	}
+
+	const orderedLevels = (format: (typeof LevelFormat)[keyof typeof LevelFormat], start: number) =>
+		Array.from({ length: 9 }, (_, level) => ({
+			level,
+			format,
+			text: `%${level + 1}.`,
+			alignment: 'left' as const,
+			start: level === 0 ? start : 1,
+			// Level 0 dibiarkan tanpa indent (perilaku lama); level dalam digeser ala Word.
+			...(level > 0 ? { style: { paragraph: { indent: { left: 720 * (level + 1), hanging: 360 } } } } : {}),
+		}))
+
+	const orderedConfigs = new Map<string, ReturnType<typeof orderedLevels>>([
+		['ol', orderedLevels(LevelFormat.DECIMAL, 1)],
+	])
+	// Tiap node list mendapat instance sendiri supaya penomorannya selalu mulai ulang,
+	// bukan melanjutkan list sebelumnya yang kebetulan mereferensikan format sama.
+	let listInstance = 0
+
+	const orderedReferenceOf = (list: PMNode): string => {
+		const type = String(list.attrs.type ?? '')
+		const start = Number(list.attrs.start) || 1
+		let reference = type && TYPE_FORMAT[type] ? `ol-${type}` : 'ol'
+		if (start !== 1) reference += `-s${start}`
+
+		if (!orderedConfigs.has(reference)) {
+			orderedConfigs.set(reference, orderedLevels(TYPE_FORMAT[type] ?? LevelFormat.DECIMAL, start))
+		}
+		return reference
+	}
+
+	const listBlocksOf = (list: PMNode, level: number): unknown[] => {
+		const ordered = list.type.name === 'orderedList'
+		const numbering = ordered ? { reference: orderedReferenceOf(list), instance: listInstance++ } : undefined
+		const items: unknown[] = []
+
+		list.forEach((item) => {
+			item.forEach((block) => {
+				if (block.isTextblock) {
+					items.push(
+						paragraphOf(
+							block,
+							ordered
+								? {
+										numbering: {
+											reference: numbering?.reference as string,
+											level,
+											instance: numbering?.instance,
+										},
+									}
+								: { bullet: { level } },
+						),
+					)
+				} else if (block.type.name === 'bulletList' || block.type.name === 'orderedList') {
+					// List bersarang diekspor di level berikutnya agar menjorok di Word.
+					items.push(...listBlocksOf(block, level + 1))
+				} else {
+					// Blok lain di dalam item direkursi agar isinya tidak hilang.
+					items.push(...blockOf(block))
+				}
+			})
+		})
+		return items
+	}
+
 	const blockOf = (node: PMNode): unknown[] => {
 		switch (node.type.name) {
 			case 'heading': {
@@ -188,23 +273,8 @@ export async function exportDocx(
 			}
 
 			case 'bulletList':
-			case 'orderedList': {
-				const ordered = node.type.name === 'orderedList'
-				const items: unknown[] = []
-
-				node.forEach((item) => {
-					item.forEach((block) => {
-						if (!block.isTextblock) return
-						items.push(
-							paragraphOf(
-								block,
-								ordered ? { numbering: { reference: 'ol', level: 0 } } : { bullet: { level: 0 } },
-							),
-						)
-					})
-				})
-				return items
-			}
+			case 'orderedList':
+				return listBlocksOf(node, 0)
 
 			case 'table':
 				return [tableOf(node)]
@@ -303,12 +373,7 @@ export async function exportDocx(
 	const document = new Document({
 		title,
 		numbering: {
-			config: [
-				{
-					reference: 'ol',
-					levels: [{ level: 0, format: 'decimal', text: '%1.', alignment: 'left' }],
-				},
-			],
+			config: [...orderedConfigs].map(([reference, levels]) => ({ reference, levels })),
 		},
 		sections: sections.map((section) => ({
 			properties: section.properties,

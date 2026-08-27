@@ -570,6 +570,11 @@ a {
 }
 .document-body ul { list-style: disc; }
 .document-body ol { list-style: decimal; }
+/* Atribut type dari list hasil impor DOCX (huruf/romawi) menimpa penanda decimal. */
+.document-body ol[type='a'] { list-style-type: lower-alpha; }
+.document-body ol[type='A'] { list-style-type: upper-alpha; }
+.document-body ol[type='i'] { list-style-type: lower-roman; }
+.document-body ol[type='I'] { list-style-type: upper-roman; }
 .document-body li { margin: 0.2em 0; }
 
 .document-body blockquote {

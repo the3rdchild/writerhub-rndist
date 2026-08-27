@@ -357,6 +357,63 @@ describe('tabel', () => {
 		expect(row?.content?.[1]?.attrs?.colspan).toBeUndefined()
 	})
 
+	test('lebar tblGrid menjadi colwidth piksel pada sel', async () => {
+		const table = `<w:tbl>
+			<w:tblGrid><w:gridCol w:w="300"/><w:gridCol w:w="600"/></w:tblGrid>
+			<w:tr><w:tc>${p(r('A'))}</w:tc><w:tc>${p(r('B'))}</w:tc></w:tr>
+		</w:tbl>`
+		const row = blocks((await readDocx(docx({ body: table }))).content)[0]?.content?.[0]
+
+		expect(row?.content?.[0]?.attrs?.colwidth).toEqual([20])
+		expect(row?.content?.[1]?.attrs?.colwidth).toEqual([40])
+	})
+
+	test('sel gridSpan menerima irisan colwidth sesuai bentangannya', async () => {
+		const table = `<w:tbl>
+			<w:tblGrid><w:gridCol w:w="100"/><w:gridCol w:w="200"/><w:gridCol w:w="300"/></w:tblGrid>
+			<w:tr>
+				<w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr>${p(r('lebar'))}</w:tc>
+				<w:tc>${p(r('biasa'))}</w:tc>
+			</w:tr>
+		</w:tbl>`
+		const row = blocks((await readDocx(docx({ body: table }))).content)[0]?.content?.[0]
+
+		expect(row?.content?.[0]?.attrs?.colwidth).toEqual([7, 13])
+		expect(row?.content?.[1]?.attrs?.colwidth).toEqual([20])
+	})
+
+	test('tabel tanpa tblGrid tidak mendapat colwidth', async () => {
+		const table = `<w:tbl><w:tr><w:tc>${p(r('A'))}</w:tc><w:tc>${p(r('B'))}</w:tc></w:tr></w:tbl>`
+		const row = blocks((await readDocx(docx({ body: table }))).content)[0]?.content?.[0]
+
+		expect(row?.content?.[0]?.attrs?.colwidth).toBeUndefined()
+		expect(row?.content?.[1]?.attrs?.colwidth).toBeUndefined()
+	})
+
+	test('tblGridChange bersarang di dalam tblGrid diabaikan', async () => {
+		const table = `<w:tbl>
+			<w:tblGrid>
+				<w:gridCol w:w="150"/>
+				<w:tblGridChange w:id="1"><w:tblGrid><w:gridCol w:w="900"/></w:tblGrid></w:tblGridChange>
+			</w:tblGrid>
+			<w:tr><w:tc>${p(r('A'))}</w:tc></w:tr>
+		</w:tbl>`
+		const row = blocks((await readDocx(docx({ body: table }))).content)[0]?.content?.[0]
+
+		expect(row?.content?.[0]?.attrs?.colwidth).toEqual([10])
+	})
+
+	test('tanpa tblGrid, lebar tcW dxa menjadi cadangan colwidth', async () => {
+		const table = `<w:tbl><w:tr>
+			<w:tc><w:tcPr><w:tcW w:w="600" w:type="dxa"/><w:gridSpan w:val="2"/></w:tcPr>${p(r('lebar'))}</w:tc>
+			<w:tc><w:tcPr><w:tcW w:w="450" w:type="dxa"/></w:tcPr>${p(r('biasa'))}</w:tc>
+		</w:tr></w:tbl>`
+		const row = blocks((await readDocx(docx({ body: table }))).content)[0]?.content?.[0]
+
+		expect(row?.content?.[0]?.attrs?.colwidth).toEqual([20, 20])
+		expect(row?.content?.[1]?.attrs?.colwidth).toEqual([30])
+	})
+
 	test('vMerge restart dan continue menjadi rowspan, sel lanjutan lenyap', async () => {
 		const table = `<w:tbl>
 			<w:tr><w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr>${p(r('atas'))}</w:tc><w:tc>${p(r('B1'))}</w:tc></w:tr>
@@ -688,6 +745,154 @@ describe('penomoran otomatis', () => {
 	test('dokumen tanpa bagian penomoran tetap terbaca', async () => {
 		const result = await readDocx(docx({ body: p(r('isi'), numbered(0)) }))
 		expect(textOf(blocks(result.content)[0])).toBe('isi')
+	})
+})
+
+describe('paragraf numPr jadi list asli', () => {
+	const LIST = `
+		<w:abstractNum w:abstractNumId="0">
+			<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl>
+			<w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%2."/></w:lvl>
+		</w:abstractNum>
+		<w:abstractNum w:abstractNumId="1">
+			<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="•"/></w:lvl>
+		</w:abstractNum>
+		<w:abstractNum w:abstractNumId="2">
+			<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="lowerLetter"/><w:lvlText w:val="%1."/></w:lvl>
+		</w:abstractNum>
+		<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
+		<w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num>
+		<w:num w:numId="3"><w:abstractNumId w:val="2"/></w:num>`
+
+	const numItem = (text: string, numId: number, ilvl = 0, left?: number) =>
+		p(
+			r(text),
+			`<w:numPr><w:ilvl w:val="${ilvl}"/><w:numId w:val="${numId}"/></w:numPr>` +
+				(left !== undefined ? `<w:ind w:left="${left}"/>` : ''),
+		)
+
+	test('paragraf numPr berurutan jadi satu orderedList, nomor tidak dibakar jadi teks', async () => {
+		const body = numItem('satu', 1) + numItem('dua', 1) + numItem('tiga', 1)
+		const result = await readDocx(docx({ numbering: LIST, body }))
+		const content = blocks(result.content)
+
+		expect(content).toHaveLength(1)
+		const list = content[0]
+		expect(list?.type).toBe('orderedList')
+		expect(list?.attrs?.start).toBeUndefined()
+		expect(list?.content?.map((node) => node.type)).toEqual(['listItem', 'listItem', 'listItem'])
+		expect(textOf(list?.content?.[0])).toBe('satu')
+		expect(textOf(list)).toBe('satuduatiga')
+	})
+
+	test('format bullet jadi bulletList', async () => {
+		const result = await readDocx(docx({ numbering: LIST, body: numItem('a', 2) + numItem('b', 2) }))
+		const list = blocks(result.content)[0]
+
+		expect(list?.type).toBe('bulletList')
+		expect(list?.content).toHaveLength(2)
+	})
+
+	test('format lowerLetter jadi orderedList dengan type "a"', async () => {
+		const result = await readDocx(docx({ numbering: LIST, body: numItem('a', 3) + numItem('b', 3) }))
+		const list = blocks(result.content)[0]
+
+		expect(list?.type).toBe('orderedList')
+		expect(list?.attrs?.type).toBe('a')
+	})
+
+	test('numId sama dengan ilvl lebih dalam jadi list anak di dalam item', async () => {
+		const result = await readDocx(
+			docx({ numbering: LIST, body: numItem('induk', 1, 0) + numItem('anak', 1, 1) }),
+		)
+		const list = blocks(result.content)[0]
+
+		expect(list?.type).toBe('orderedList')
+		expect(list?.content).toHaveLength(1)
+		const item = list?.content?.[0]
+		const child = item?.content?.find((node) => node.type === 'orderedList')
+		expect(child).toBeDefined()
+		expect(child?.content).toHaveLength(1)
+		expect(textOf(child)).toBe('anak')
+	})
+
+	test('numId berbeda dengan indentasi lebih dalam jadi list anak (pola SWOT)', async () => {
+		const body =
+			numItem('Strengths', 1, 0, 360) +
+			numItem('keunggulan satu', 3, 0, 630) +
+			numItem('Weaknesses', 1, 0, 360) +
+			numItem('kekurangan satu', 3, 0, 630)
+		const result = await readDocx(docx({ numbering: LIST, body }))
+		const list = blocks(result.content)[0]
+
+		expect(list?.type).toBe('orderedList')
+		expect(list?.content).toHaveLength(2)
+		const first = list?.content?.[0]?.content?.find((node) => node.type === 'orderedList')
+		expect(first?.attrs?.type).toBe('a')
+		expect(textOf(first)).toBe('keunggulan satu')
+		const second = list?.content?.[1]?.content?.find((node) => node.type === 'orderedList')
+		expect(textOf(second)).toBe('kekurangan satu')
+	})
+
+	test('paragraf keterangan menjorok di antara item ikut item terbuka, bukan menutup list', async () => {
+		const body =
+			numItem('Strengths', 1, 0, 360) +
+			p(r('Keterangan strengths.'), '<w:ind w:left="360"/>') +
+			numItem('keunggulan satu', 3, 0, 630) +
+			numItem('Weaknesses', 1, 0, 360)
+		const result = await readDocx(docx({ numbering: LIST, body }))
+		const content = blocks(result.content)
+
+		expect(content).toHaveLength(1)
+		const list = content[0]
+		expect(list?.type).toBe('orderedList')
+		expect(list?.content).toHaveLength(2)
+		const item = list?.content?.[0]
+		expect(item?.content?.map((node) => node.type)).toEqual(['paragraph', 'paragraph', 'orderedList'])
+		expect(textOf(item?.content?.[1])).toBe('Keterangan strengths.')
+	})
+
+	test('numId dan ilvl sama tetap satu list walau indentasi berubah', async () => {
+		const result = await readDocx(
+			docx({ numbering: LIST, body: numItem('satu', 1, 0, 270) + numItem('dua', 1, 0, 360) }),
+		)
+		const content = blocks(result.content)
+
+		expect(content).toHaveLength(1)
+		expect(content[0]?.type).toBe('orderedList')
+		expect(content[0]?.content).toHaveLength(2)
+	})
+
+	test('list yang terputus paragraf lanjut dengan start meneruskan hitungan', async () => {
+		const body =
+			numItem('satu', 1) + numItem('dua', 1) + p(r('jeda')) + numItem('tiga', 1) + numItem('empat', 1)
+		const result = await readDocx(docx({ numbering: LIST, body }))
+		const content = blocks(result.content)
+
+		expect(content.map((block) => block.type)).toEqual(['orderedList', 'paragraph', 'orderedList'])
+		expect(content[0]?.content).toHaveLength(2)
+		expect(content[2]?.attrs?.start).toBe(3)
+		expect(content[2]?.content).toHaveLength(2)
+	})
+
+	test('numId nol tidak menjadi list dan tidak menyisipkan nomor', async () => {
+		const result = await readDocx(docx({ numbering: LIST, body: numItem('biasa', 0) }))
+		const block = blocks(result.content)[0]
+
+		expect(block?.type).toBe('paragraph')
+		expect(textOf(block)).toBe('biasa')
+	})
+
+	test('heading bernomor tetap membakar nomornya sebagai teks', async () => {
+		const body = p(
+			r('Pendahuluan'),
+			'<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr><w:outlineLvl w:val="0"/>',
+		)
+		const result = await readDocx(docx({ numbering: LIST, body }))
+		const block = blocks(result.content)[0]
+
+		expect(block?.type).toBe('heading')
+		expect(textOf(block)).toBe('1. Pendahuluan')
 	})
 })
 

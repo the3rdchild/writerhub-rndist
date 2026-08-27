@@ -397,14 +397,27 @@ export function paragraphBlocks(paragraph: Element, context: ParseContext): JSON
 	const builder: ParagraphBuilder = { blocks: [], inline: [], images: [], attrs, level }
 	walkInline(paragraph, context, runProps, undefined, builder, [])
 
+	let listTag: ListTag | undefined
 	if (paragraphProps.numId) {
 		const marker = context.numberer(paragraphProps.numId, paragraphProps.numLevel ?? 0)
 		if (marker) {
-			builder.inline.unshift({
-				type: 'text',
-				text: `${marker} `,
-				marks: marksOf(markProps, undefined, context.theme),
-			})
+			if (level !== undefined) {
+				// Heading bernomor tetap membakar nomornya sebagai teks — heading bukan list.
+				builder.inline.unshift({
+					type: 'text',
+					text: `${marker.text} `,
+					marks: marksOf(markProps, undefined, context.theme),
+				})
+			} else {
+				listTag = {
+					numId: paragraphProps.numId,
+					ilvl: paragraphProps.numLevel ?? 0,
+					format: marker.format,
+					value: marker.value,
+					// Satuan px agar sebanding dengan attrs.indentLeft paragraf lanjutan.
+					indent: twipsToPx(paragraphProps.indentLeft ?? 0),
+				}
+			}
 		}
 	}
 	const imageOnly = builder.images.length > 0 && builder.inline.length === 0
@@ -412,10 +425,11 @@ export function paragraphBlocks(paragraph: Element, context: ParseContext): JSON
 	const trailingEmpty = builder.flushed === true && builder.inline.length === 0 && builder.blocks.length > 0
 	if ((!imageOnly || level !== undefined) && !trailingEmpty) {
 		const blockAttrs = level ? { ...attrs, level } : attrs
+		const paragraphAttrs = listTag ? { ...withoutListIndents(blockAttrs), _list: listTag } : blockAttrs
 
 		builder.blocks.push({
 			type: level ? 'heading' : 'paragraph',
-			...(Object.keys(blockAttrs).length > 0 ? { attrs: blockAttrs } : {}),
+			...(Object.keys(paragraphAttrs).length > 0 ? { attrs: paragraphAttrs } : {}),
 			...(builder.inline.length > 0 ? { content: builder.inline } : {}),
 		})
 	}
@@ -458,12 +472,169 @@ function cellStyleOf(tcPr: Element | null): Record<string, unknown> {
 	return attrs
 }
 
+/** Info sementara pada paragraf bernomor; dipakai wrapListBlocks lalu dibuang. */
+interface ListTag {
+	numId: number
+	ilvl: number
+	format: string
+	value: number
+	indent: number
+}
+
+/** Atribut HTML `type` untuk orderedList sesuai format penomoran Word. */
+function listTypeOf(format: string): string | undefined {
+	switch (format) {
+		case 'lowerLetter':
+			return 'a'
+		case 'upperLetter':
+			return 'A'
+		case 'lowerRoman':
+			return 'i'
+		case 'upperRoman':
+			return 'I'
+		default:
+			return undefined
+	}
+}
+
+/** Indentasi paragraf tidak relevan di dalam listItem (tata letaknya milik list). */
+function withoutListIndents(attrs: Record<string, unknown>): Record<string, unknown> {
+	const { indentLeft, indentRight, indentFirstLine, ...rest } = attrs
+	return rest
+}
+
+interface ListContext {
+	numId: number
+	ilvl: number
+	indent: number
+	node: JSONContent
+	item: JSONContent | null
+}
+
+const ATOM_BLOCKS = new Set(['mathBlock', 'image'])
+
+function listOf(tag: ListTag): JSONContent {
+	if (tag.format === 'bullet') return { type: 'bulletList', content: [] }
+
+	const attrs: Record<string, unknown> = {}
+	const type = listTypeOf(tag.format)
+	if (type) attrs.type = type
+	// List yang lanjut setelah terputus memulai dari angka terakhirnya.
+	if (tag.value !== 1) attrs.start = tag.value
+	return { type: 'orderedList', ...(Object.keys(attrs).length > 0 ? { attrs } : {}), content: [] }
+}
+
+/**
+ * Gabungkan paragraf bertanda `_list` berurutan menjadi node list bertingkat.
+ * Aturan penempatan (meniru Word):
+ * - numId sama + ilvl sama → satu list; ilvl lebih dalam → list anak.
+ * - numId berbeda dengan indentasi lebih dalam → list anak pada item sebelumnya
+ *   (penulis Word kerfa memakai instance penomoran terpisah untuk sub-list).
+ * - Paragraf tak bernomor yang menjorok setidaknya sedalam item terbuka dianggap
+ *   paragraf lanjutan dan ikut item itu (pola "keterangan di bawah item" ala Word).
+ * - Blok atom (rumus, gambar) di antara item masuk ke item yang sedang terbuka;
+ *   blok lain menutup list (nomor lanjut diteruskan lewat atribut start).
+ */
+export function wrapListBlocks(blocks: JSONContent[]): JSONContent[] {
+	const out: JSONContent[] = []
+	const stack: ListContext[] = []
+
+	const openAt = (tag: ListTag, parent: ListContext | null): ListContext => {
+		const context: ListContext = { ...tag, node: listOf(tag), item: null }
+		if (parent) (parent.item?.content as JSONContent[]).push(context.node)
+		else out.push(context.node)
+		return context
+	}
+
+	const appendItem = (context: ListContext, paragraph: JSONContent): void => {
+		const item: JSONContent = { type: 'listItem', content: [paragraph] }
+		;(context.node.content as JSONContent[]).push(item)
+		context.item = item
+	}
+
+	for (const block of blocks) {
+		const tag = block.type === 'paragraph' ? ((block.attrs ?? {})._list as ListTag | undefined) : undefined
+
+		if (tag) {
+			const { _list, ...rest } = block.attrs as Record<string, unknown>
+			const paragraph: JSONContent = {
+				type: 'paragraph',
+				...(Object.keys(rest).length > 0 ? { attrs: rest } : {}),
+				...(block.content ? { content: block.content } : {}),
+			}
+
+			// Cari konteks yang bisa menampung paragraf ini.
+			for (;;) {
+				const top = stack[stack.length - 1]
+				if (!top) {
+					const context = openAt(tag, null)
+					stack.push(context)
+					appendItem(context, paragraph)
+					break
+				}
+
+				if (top.numId === tag.numId) {
+					if (top.ilvl === tag.ilvl) {
+						appendItem(top, paragraph)
+						break
+					}
+					if (top.ilvl < tag.ilvl) {
+						const context = openAt(tag, top)
+						stack.push(context)
+						appendItem(context, paragraph)
+						break
+					}
+					stack.pop()
+					continue
+				}
+
+				if (tag.indent > top.indent) {
+					const context = openAt(tag, top)
+					stack.push(context)
+					appendItem(context, paragraph)
+					break
+				}
+				stack.pop()
+			}
+			continue
+		}
+
+		// Paragraf lanjutan: tak bernomor tapi menjorok sedalam item terbuka
+		// (mis. "Indicators for … as follows." di bawah item SWOT) — ikut item itu.
+		if (block.type === 'paragraph' && stack.length > 0) {
+			const top = stack[stack.length - 1] as ListContext
+			const indent = Number(block.attrs?.indentLeft) || 0
+			if (indent > 0 && indent >= top.indent && top.item) {
+				const rest = withoutListIndents(block.attrs as Record<string, unknown>)
+				;(top.item.content as JSONContent[]).push({
+					type: 'paragraph',
+					...(Object.keys(rest).length > 0 ? { attrs: rest } : {}),
+					...(block.content ? { content: block.content } : {}),
+				})
+				continue
+			}
+		}
+
+		// Blok atom mengikuti item yang sedang terbuka (rumus/gambar milik item itu).
+		if (block.type !== undefined && ATOM_BLOCKS.has(block.type) && stack.length > 0) {
+			const top = stack[stack.length - 1] as ListContext
+			;(top.item?.content as JSONContent[]).push(block)
+			continue
+		}
+
+		stack.length = 0
+		out.push(block)
+	}
+
+	return out
+}
+
 function cellContent(tc: Element, context: ParseContext): JSONContent[] {
 	const blocks: JSONContent[] = []
 	for (const node of children(tc)) {
 		if (tagName(node) === 'p') blocks.push(...paragraphBlocks(node, context))
 	}
-	return blocks.length > 0 ? blocks : [{ type: 'paragraph' }]
+	return wrapListBlocks(blocks.length > 0 ? blocks : [{ type: 'paragraph' }])
 }
 
 function gridSpanOf(tcPr: Element | null): number {
@@ -483,7 +654,12 @@ interface TableMerger {
 	origins: Map<number, JSONContent>
 }
 
-function tableRowBlocks(row: Element, context: ParseContext, merger: TableMerger): JSONContent | null {
+function tableRowBlocks(
+	row: Element,
+	context: ParseContext,
+	merger: TableMerger,
+	gridWidths: number[],
+): JSONContent | null {
 	const isHeader = child(row, 'trPr') ? child(child(row, 'trPr'), 'tblHeader') !== null : false
 
 	const cells: JSONContent[] = []
@@ -511,6 +687,18 @@ function tableRowBlocks(row: Element, context: ParseContext, merger: TableMerger
 		const attrs = cellStyleOf(tcPr)
 		if (span > 1) attrs.colspan = span
 		if (vMerge === 'restart') attrs.rowspan = 1
+		// Lebar kolom dari tblGrid: irisan sesuai rentang kolom sel (colspan ikut menjumlah).
+		if (gridWidths.length >= column + span) {
+			attrs.colwidth = gridWidths.slice(column, column + span)
+		} else if (gridWidths.length === 0) {
+			// Cadangan tanpa tblGrid: lebar sel tcW (dxa) dibagi rata ke kolom bentangannya.
+			const tcW = child(tcPr, 'tcW')
+			const width = attr(tcW, 'w')
+			if (attr(tcW, 'type') === 'dxa' && width !== undefined) {
+				const perColumn = Math.round(twipsToPx(Number.parseInt(width, 10) || 0) / span)
+				if (perColumn > 0) attrs.colwidth = Array.from({ length: span }, () => perColumn)
+			}
+		}
 
 		const cell: JSONContent = {
 			type: isHeader ? 'tableHeader' : 'tableCell',
@@ -531,10 +719,21 @@ function tableRowBlocks(row: Element, context: ParseContext, merger: TableMerger
 }
 
 function tableBlocks(tbl: Element, context: ParseContext): JSONContent[] {
+	// Lebar kolom dari w:tblGrid. Hanya w:gridCol anak langsung yang dibaca,
+	// sehingga w:tblGridChange (perubahan terlacak) bersarang otomatis diabaikan.
+	const gridWidths: number[] = []
+	const tblGrid = child(tbl, 'tblGrid')
+	if (tblGrid) {
+		for (const gridCol of children(tblGrid, 'gridCol')) {
+			const width = Number.parseInt(attr(gridCol, 'w') ?? '', 10)
+			if (Number.isFinite(width)) gridWidths.push(twipsToPx(width))
+		}
+	}
+
 	const merger: TableMerger = { origins: new Map() }
 	const rows: JSONContent[] = []
 	for (const tr of children(tbl, 'tr')) {
-		const row = tableRowBlocks(tr, context, merger)
+		const row = tableRowBlocks(tr, context, merger, gridWidths)
 		if (row) rows.push(row)
 	}
 	const jc = val(child(child(tbl, 'tblPr'), 'jc'))
@@ -672,7 +871,7 @@ export function readBody(
 
 	const last = endings[endings.length - 1]
 	if (!last || (endings.length === 1 && last.at >= raw.length)) {
-		return { blocks: raw, pageSetup: last?.props.pageSetup }
+		return { blocks: wrapListBlocks(raw), pageSetup: last?.props.pageSetup }
 	}
 
 	const blocks: JSONContent[] = []
@@ -697,7 +896,7 @@ export function readBody(
 	})
 	blocks.push(...raw.slice(start))
 
-	return { blocks, pageSetup: endings[0]?.props.pageSetup }
+	return { blocks: wrapListBlocks(blocks), pageSetup: endings[0]?.props.pageSetup }
 }
 
 export function bodyOf(documentRoot: Element): Element | null {

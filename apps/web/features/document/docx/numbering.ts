@@ -158,7 +158,14 @@ function toBullet(text: string): string {
 		.join('')
 }
 
-export type Numberer = (numId: number, ilvl: number) => string | null
+/** Hasil penomoran satu paragraf: teks jadi, nilai penghitung, dan format aslinya. */
+export interface NumberingMarker {
+	text: string
+	value: number
+	format: string
+}
+
+export type Numberer = (numId: number, ilvl: number) => NumberingMarker | null
 
 const MAX_LEVELS = 9
 
@@ -207,13 +214,18 @@ export function createNumberer(numbering: Numbering): Numberer {
 			seen[deeper] = false
 		}
 
-		if (level.format === 'bullet') return toBullet(level.text)
-		return level.text.replace(/%(\d)/g, (_, digit: string) => {
-			const index = Number.parseInt(digit, 10) - 1
-			if (index < 0 || index >= MAX_LEVELS) return ''
+		if (level.format === 'bullet')
+			return { text: toBullet(level.text), value: counter[ilvl] as number, format: 'bullet' }
+		return {
+			text: level.text.replace(/%(\d)/g, (_, digit: string) => {
+				const index = Number.parseInt(digit, 10) - 1
+				if (index < 0 || index >= MAX_LEVELS) return ''
 
-			const format = level.isLegal ? 'decimal' : (levelOf(numId, index)?.format ?? 'decimal')
-			return formatCounter(counter[index] as number, format)
-		})
+				const format = level.isLegal ? 'decimal' : (levelOf(numId, index)?.format ?? 'decimal')
+				return formatCounter(counter[index] as number, format)
+			}),
+			value: counter[ilvl] as number,
+			format: level.format,
+		}
 	}
 }
