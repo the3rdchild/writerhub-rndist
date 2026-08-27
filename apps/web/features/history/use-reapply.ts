@@ -72,15 +72,23 @@ export function useReapply(detail: HistoryDetail | null): ReapplyController {
 				language: language.code,
 				tabId: detail.tabId ?? undefined,
 			})
-			queryClient.setQueryData(
-				['analysis', feature, fingerprint(text), 0, language.code],
-				remapped,
-			)
+			queryClient.setQueryData(['analysis', feature, fingerprint(text), 0, language.code], remapped)
 		}
 
 		setActivePanel(panelForFeature(detail.feature))
 		router.push('/')
-	}, [detail, activeId, documentReady, doc, language.code, markRun, queryClient, router, setActivePanel, setTabResults])
+	}, [
+		detail,
+		activeId,
+		documentReady,
+		doc,
+		language.code,
+		markRun,
+		queryClient,
+		router,
+		setActivePanel,
+		setTabResults,
+	])
 
 	return { documentReady, opening, openError, openTargetDocument, reapply }
 }

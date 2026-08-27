@@ -1,4 +1,11 @@
-import type { ChatContext, ChatMessage, ChatStreamEvent, ChatStreamPhase, ChatUsage, ToolCall } from '@writer-hub/shared'
+import type {
+	ChatContext,
+	ChatMessage,
+	ChatStreamEvent,
+	ChatStreamPhase,
+	ChatUsage,
+	ToolCall,
+} from '@writer-hub/shared'
 import { FALLBACK_TOOL_FENCE } from '@writer-hub/shared'
 export interface StreamChatHandlers {
 	onDelta: (text: string) => void
@@ -71,8 +78,7 @@ export async function streamChat(
 			else if (event.type === 'reasoning') on.onReasoning?.(event.text)
 			else if (event.type === 'usage') {
 				on.onUsage?.({ promptTokens: event.promptTokens, completionTokens: event.completionTokens })
-			}
-			else if (event.type === 'error') throw new Error(event.message)
+			} else if (event.type === 'error') throw new Error(event.message)
 			else if (event.type === 'done') return
 		}
 	}
@@ -83,8 +89,7 @@ function parseToolCall(event: { id: string; name: string; arguments: string }): 
 	try {
 		const value = JSON.parse(event.arguments || '{}')
 		if (value && typeof value === 'object') parsed = value as Record<string, unknown>
-	} catch {
-	}
+	} catch {}
 	return { id: event.id, name: event.name, arguments: parsed }
 }
 export function parseFallbackCalls(content: string): ToolCall[] {
@@ -99,17 +104,18 @@ export function parseFallbackCalls(content: string): ToolCall[] {
 				calls.push({
 					id: `fallback_${calls.length}_${Date.now().toString(36)}`,
 					name: String(parsed.tool),
-					arguments:
-						parsed.arguments && typeof parsed.arguments === 'object' ? parsed.arguments : {},
+					arguments: parsed.arguments && typeof parsed.arguments === 'object' ? parsed.arguments : {},
 				})
 			}
-		} catch {
-		}
+		} catch {}
 		match = FALLBACK_TOOL_FENCE.exec(content)
 	}
 
 	return calls
 }
 export function stripFallbackCalls(content: string): string {
-	return content.replace(FALLBACK_TOOL_FENCE, '').replace(/\n{3,}/g, '\n\n').trim()
+	return content
+		.replace(FALLBACK_TOOL_FENCE, '')
+		.replace(/\n{3,}/g, '\n\n')
+		.trim()
 }

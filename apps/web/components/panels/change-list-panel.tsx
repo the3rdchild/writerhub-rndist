@@ -70,15 +70,11 @@ export function ChangeListPanel({
 	const { result, isRunning, error, isStale, canRun, run, cancel, clear } = useAnalysis(feature, scope)
 	const changes = (result as { changes?: TextChange[] } | undefined)?.changes
 	const llmUnavailable = (result as { llm_unavailable?: boolean } | undefined)?.llm_unavailable
-	const { pending, applied, accept, dismiss, acceptAll, revert, canRevert } =
-		usePendingChanges(changes)
+	const { pending, applied, accept, dismiss, acceptAll, revert, canRevert } = usePendingChanges(changes)
 	const { rangeProps } = useRangeHighlight()
 	const { preview, showPreview, clearPreview } = useCandidatePreview()
 	const { ensureSnapshot, reset: resetSnapshot } = usePreTranslateSnapshot()
-	const diffEdits = useMemo(
-		() => editsFromChanges(pending, applied),
-		[pending, applied],
-	)
+	const diffEdits = useMemo(() => editsFromChanges(pending, applied), [pending, applied])
 	const compare = useAnalysisDiff(feature, diffEdits)
 	const highlightRanges = useMemo(
 		() => pending.map(({ offset, length }) => ({ offset, length, kind: 'change' as const })),
@@ -88,10 +84,7 @@ export function ChangeListPanel({
 	const applyGuard = feature === 'translator' ? ensureSnapshot : undefined
 	const [tone, setTone] = usePersistentState<ToneChoice>('writer-hub-rewriter-tone', 'default')
 	const selectedTone = tone === 'default' ? undefined : tone
-	const [targetLang, setTargetLang] = usePersistentState<string>(
-		'writer-hub-translator-target',
-		'en',
-	)
+	const [targetLang, setTargetLang] = usePersistentState<string>('writer-hub-translator-target', 'en')
 
 	const runOptions =
 		feature === 'translator' ? { targetLang } : feature === 'ai_rewriter' ? { tone: selectedTone } : {}
@@ -130,9 +123,7 @@ export function ChangeListPanel({
 											original={change.original}
 											candidates={change.candidates}
 											previewIndex={preview?.index === index ? preview.candidate : null}
-											onPreview={(candidate) =>
-												showPreview(index, candidate, change)
-											}
+											onPreview={(candidate) => showPreview(index, candidate, change)}
 											onClearPreview={clearPreview}
 											onApply={(candidate) => {
 												clearPreview()
@@ -148,10 +139,10 @@ export function ChangeListPanel({
 											replacement={change.replacement}
 											acceptDisabled={isStale}
 											onAccept={() => {
-													applyGuard?.()
-													accept(index)
-												}}
-												onDismiss={() => dismiss(index)}
+												applyGuard?.()
+												accept(index)
+											}}
+											onDismiss={() => dismiss(index)}
 											{...rangeProps({ offset: change.offset, length: change.length })}
 										/>
 									),
@@ -160,18 +151,14 @@ export function ChangeListPanel({
 						) : llmUnavailable ? (
 							<PanelError message="AI could not be reached, so no suggestions could be produced. Check the AI provider configuration, then try again." />
 						) : (changes ?? []).length === 0 ? (
-							<p className="py-4 text-center text-xs text-subtle">
-								No changes suggested for this text
-							</p>
+							<p className="py-4 text-center text-xs text-subtle">No changes suggested for this text</p>
 						) : (
 							<p className="py-4 text-center text-xs text-subtle">{noChangesLabel(result)}</p>
 						)}
 
 						{applied.length > 0 && (
 							<div className="mt-3 flex flex-col gap-2 border-t border-line pt-3">
-								<p className="text-[11px] font-medium uppercase tracking-wide text-subtle">
-									Applied
-								</p>
+								<p className="text-[11px] font-medium uppercase tracking-wide text-subtle">Applied</p>
 								{applied.map((entry) => (
 									<AppliedCard
 										key={entry.id}
@@ -193,43 +180,42 @@ export function ChangeListPanel({
 
 			<PanelFooter>
 				{pending.length > 0 && (
-						<AcceptAllButton
-							onClick={() => {
-								applyGuard?.()
-								acceptAll()
-							}}
-							disabled={isStale}
-						/>
-					)}
+					<AcceptAllButton
+						onClick={() => {
+							applyGuard?.()
+							acceptAll()
+						}}
+						disabled={isStale}
+					/>
+				)}
 
-			{/* Pratinjau diff "accept-all virtual" di editor utama (§diff hasil
+				{/* Pratinjau diff "accept-all virtual" di editor utama (§diff hasil
 			    dengan dokumen). Dimatikan saat basi: offset change sudah tidak
 			    menempel pada teks yang berubah. */}
-			{compare.hasEdits && (
-				<CompareButton
-					active={compare.isEnabled}
-					disabled={isStale}
-					onToggle={() => (compare.isEnabled ? compare.disable() : compare.enable())}
-				/>
-			)}
-
+				{compare.hasEdits && (
+					<CompareButton
+						active={compare.isEnabled}
+						disabled={isStale}
+						onToggle={() => (compare.isEnabled ? compare.disable() : compare.enable())}
+					/>
+				)}
 
 				{feature === 'ai_rewriter' && (
-				<div className="flex items-center gap-1.5 px-1">
-					<span className="text-[11px] text-subtle">Tone</span>
-					<ToolbarSelect
-						value={tone}
-						options={TONE_OPTIONS}
-						onChange={handleToneChange}
-						label="Rewrite tone"
-						width={110}
-						disabled={isRunning}
-						side="top"
-					/>
-				</div>
-			)}
+					<div className="flex items-center gap-1.5 px-1">
+						<span className="text-[11px] text-subtle">Tone</span>
+						<ToolbarSelect
+							value={tone}
+							options={TONE_OPTIONS}
+							onChange={handleToneChange}
+							label="Rewrite tone"
+							width={110}
+							disabled={isRunning}
+							side="top"
+						/>
+					</div>
+				)}
 
-			{feature === 'translator' && (
+				{feature === 'translator' && (
 					<div className="flex items-center gap-1.5 px-1">
 						<span className="text-[11px] text-subtle">To</span>
 						<ToolbarSelect

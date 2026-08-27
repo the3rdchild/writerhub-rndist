@@ -80,9 +80,7 @@ describe('migrasi struktur tab lama ke dokumen', () => {
 		const sesudah = readDocs(doc).map((dok) => ({ title: dok.title, tabOrder: dok.tabOrder }))
 
 		expect(migrateTabsToDocs(doc)).toBe(false)
-		expect(readDocs(doc).map((dok) => ({ title: dok.title, tabOrder: dok.tabOrder }))).toEqual(
-			sesudah,
-		)
+		expect(readDocs(doc).map((dok) => ({ title: dok.title, tabOrder: dok.tabOrder }))).toEqual(sesudah)
 		expect(readTabs(doc)).toHaveLength(2)
 	})
 

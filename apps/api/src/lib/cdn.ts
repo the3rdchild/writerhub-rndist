@@ -32,7 +32,10 @@ export async function uploadFile(
 	)
 	return key
 }
-export async function getPresignedUrl(key: string, expiresIn = DEFAULT_PRESIGNED_TTL_SECONDS): Promise<string> {
+export async function getPresignedUrl(
+	key: string,
+	expiresIn = DEFAULT_PRESIGNED_TTL_SECONDS,
+): Promise<string> {
 	return getSignedUrl(s3Client, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn })
 }
 

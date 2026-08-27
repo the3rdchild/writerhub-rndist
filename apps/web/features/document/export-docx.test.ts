@@ -159,11 +159,7 @@ describe('section DOCX (§P8&P9)', () => {
 
 	test('kolom section jadi w:cols, dengan jaraknya', async () => {
 		const xml = await documentXml(
-			[
-				paragraph('satu kolom'),
-				sectionBreak({ columns: { count: 2, gap: 24 } }),
-				paragraph('dua kolom'),
-			],
+			[paragraph('satu kolom'), sectionBreak({ columns: { count: 2, gap: 24 } }), paragraph('dua kolom')],
 			DEFAULT_PAGE_SETUP,
 		)
 

@@ -12,7 +12,10 @@ jobs.use('*', authMiddleware)
 
 const CANCEL_FLAG_TTL_SECONDS = 3600
 async function removeFromQueue(redis: Redis, jobId: string): Promise<boolean> {
-	for (const queueName of [env.GRAMMAR_QUEUE_NAME || 'GRAMMAR_QUEUE', env.ANALYSIS_QUEUE_NAME || 'ANALYSIS_QUEUE']) {
+	for (const queueName of [
+		env.GRAMMAR_QUEUE_NAME || 'GRAMMAR_QUEUE',
+		env.ANALYSIS_QUEUE_NAME || 'ANALYSIS_QUEUE',
+	]) {
 		const removed = await redis.lrem(QueueClient.waitKey(queueName), 0, jobId)
 		if (removed > 0) {
 			await redis.del(QueueClient.jobHashKey(queueName, jobId))

@@ -66,10 +66,7 @@ export function ActivityView() {
 	const history = useHistory(filter === 'all' ? undefined : filter)
 	const clearHistory = useClearHistory()
 
-	const entries = useMemo(
-		() => history.data?.pages.flatMap((page) => page.entries) ?? [],
-		[history.data],
-	)
+	const entries = useMemo(() => history.data?.pages.flatMap((page) => page.entries) ?? [], [history.data])
 
 	const grouped = useMemo(() => {
 		const map = new Map<string, HistoryEntry[]>()
@@ -151,9 +148,7 @@ export function ActivityView() {
 							<p className="px-3 py-10 text-center text-sm text-muted">Memuat aktivitas…</p>
 						)}
 						{history.isError && (
-							<p className="px-3 py-10 text-center text-sm text-red-400">
-								Gagal memuat aktivitas AI.
-							</p>
+							<p className="px-3 py-10 text-center text-sm text-red-400">Gagal memuat aktivitas AI.</p>
 						)}
 						{clearError && <p className="px-3 pt-2 text-xs text-red-400">{clearError}</p>}
 
@@ -162,8 +157,8 @@ export function ActivityView() {
 								<Activity className="h-8 w-8 text-faint" />
 								<p className="mt-3 text-sm font-medium text-foreground">Belum ada aktivitas</p>
 								<p className="mt-1 max-w-sm text-xs text-subtle">
-									Jalankan Proofreader, AI Detector, AI Rewriter, Humanizer, atau Plagiarism -
-									catatannya akan muncul di sini.
+									Jalankan Proofreader, AI Detector, AI Rewriter, Humanizer, atau Plagiarism - catatannya akan
+									muncul di sini.
 								</p>
 							</div>
 						)}
@@ -199,9 +194,7 @@ export function ActivityView() {
 					</div>
 				</main>
 
-				{selectedJobId && (
-					<ActivityDetail jobId={selectedJobId} onClose={() => setSelectedJobId(null)} />
-				)}
+				{selectedJobId && <ActivityDetail jobId={selectedJobId} onClose={() => setSelectedJobId(null)} />}
 			</div>
 
 			<ConfirmDialog

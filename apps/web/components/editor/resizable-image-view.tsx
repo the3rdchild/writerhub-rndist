@@ -9,12 +9,7 @@ const EDGES: HandleId[] = ['n', 'e', 's', 'w']
 
 const MIN_PX = 24
 
-export function ResizableImageView({
-	node,
-	updateAttributes,
-	selected,
-	deleteNode,
-}: NodeViewProps) {
+export function ResizableImageView({ node, updateAttributes, selected, deleteNode }: NodeViewProps) {
 	const { src, alt, title, width, height, align, offsetX } = node.attrs as {
 		src: string
 		alt: string | null
@@ -28,7 +23,13 @@ export function ResizableImageView({
 
 	const imgRef = useRef<HTMLImageElement>(null)
 	const [naturalRatio, setNaturalRatio] = useState(0)
-	const [drag, setDrag] = useState<{ handle: HandleId; startX: number; startY: number; startW: number; startH: number } | null>(null)
+	const [drag, setDrag] = useState<{
+		handle: HandleId
+		startX: number
+		startY: number
+		startW: number
+		startH: number
+	} | null>(null)
 	const previewRef = useRef<{ w: number; h: number } | null>(null)
 	const [preview, setPreview] = useState<{ w: number; h: number } | null>(null)
 
@@ -120,7 +121,10 @@ export function ResizableImageView({
 				paddingLeft: offsetX === null ? undefined : Math.max(0, offsetX),
 			}}
 		>
-			<figure className="resizable-image-figure relative inline-block max-w-full" style={{ width: figureWidth }}>
+			<figure
+				className="resizable-image-figure relative inline-block max-w-full"
+				style={{ width: figureWidth }}
+			>
 				<img
 					ref={imgRef}
 					src={src}

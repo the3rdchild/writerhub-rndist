@@ -38,9 +38,7 @@ export const PageBreak = Node.create({
 				() =>
 				({ chain, state }) => {
 					const atEnd = state.selection.to >= state.doc.content.size - 1
-					const content = atEnd
-						? [{ type: this.name }, { type: 'paragraph' }]
-						: [{ type: this.name }]
+					const content = atEnd ? [{ type: this.name }, { type: 'paragraph' }] : [{ type: this.name }]
 
 					return chain().insertContent(content).run()
 				},

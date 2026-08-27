@@ -47,18 +47,18 @@ export function Providers({ children }: { children: ReactNode }) {
 								    saveToCloud untuk flush sebelum restore. */}
 								<VersionProvider>
 									<PanelProvider>
-									{/* Mode "Compare" panel analisis: diff accept-all virtual di
+										{/* Mode "Compare" panel analisis: diff accept-all virtual di
 									    editor utama. Hidup di dalam PanelProvider karena ia cuma
 									    jembatan antar-panel, bukan penyedia data. */}
-									<AnalysisDiffProvider>
-										<CommentsProvider>
-											<ChatProvider>
-												<DocumentImportProvider>
-													<ShareProvider>{children}</ShareProvider>
-												</DocumentImportProvider>
-											</ChatProvider>
-										</CommentsProvider>
-									</AnalysisDiffProvider>
+										<AnalysisDiffProvider>
+											<CommentsProvider>
+												<ChatProvider>
+													<DocumentImportProvider>
+														<ShareProvider>{children}</ShareProvider>
+													</DocumentImportProvider>
+												</ChatProvider>
+											</CommentsProvider>
+										</AnalysisDiffProvider>
 									</PanelProvider>
 								</VersionProvider>
 							</SyncProvider>

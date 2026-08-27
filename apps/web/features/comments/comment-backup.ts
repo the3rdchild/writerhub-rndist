@@ -27,8 +27,7 @@ function write(store: BackupStore): void {
 	if (typeof window === 'undefined') return
 	try {
 		window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
-	} catch {
-	}
+	} catch {}
 }
 export function backupComments(serverTabId: string, threads: CommentThread[]): void {
 	const store = read()

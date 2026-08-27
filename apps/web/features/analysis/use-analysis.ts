@@ -80,10 +80,7 @@ export function useAnalysis<F extends AnalysisFeature>(
 	})
 
 	const run = useCallback(
-		(
-			scope?: { text: string; offset: number },
-			options?: { tone?: RewriterTone; targetLang?: string },
-		) => {
+		(scope?: { text: string; offset: number }, options?: { tone?: RewriterTone; targetLang?: string }) => {
 			const tabId = activeId ? linkage[activeId]?.serverId : undefined
 			const common = {
 				language: language.code,
@@ -130,11 +127,8 @@ export function useAnalysis<F extends AnalysisFeature>(
 		result: query.data,
 		isRunning: query.isFetching,
 		error: query.error,
-		isStale:
-			query.data !== undefined && !requested?.scoped && requested?.text !== currentText,
-		canRun:
-			!query.isFetching &&
-			(scope ? scope.text : currentText).trim().length >= MIN_TEXT_LENGTH,
+		isStale: query.data !== undefined && !requested?.scoped && requested?.text !== currentText,
+		canRun: !query.isFetching && (scope ? scope.text : currentText).trim().length >= MIN_TEXT_LENGTH,
 		isScoped: requested?.scoped ?? false,
 		run,
 		cancel,

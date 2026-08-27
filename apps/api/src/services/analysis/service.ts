@@ -18,9 +18,7 @@ export default class AnalysisService extends JobSubmissionService {
 			const styleMemory = await this.styleMemory()
 			const tone = body.tone ? REWRITE_TONES.find((item) => item.id === body.tone) : undefined
 			const effectiveMemory =
-				tone && body.feature === 'ai_rewriter'
-					? { ...styleMemory, tone: tone.instruction }
-					: styleMemory
+				tone && body.feature === 'ai_rewriter' ? { ...styleMemory, tone: tone.instruction } : styleMemory
 
 			const requestId = await this.createPoolRequest(
 				jobId,

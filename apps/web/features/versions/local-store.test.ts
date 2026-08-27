@@ -1,17 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
-import {
-	LOCAL_INTERVAL_SNAPSHOT_MS,
-	shouldSnapshotInterval,
-} from './local-snapshot'
+import { LOCAL_INTERVAL_SNAPSHOT_MS, shouldSnapshotInterval } from './local-snapshot'
 import { countWords, selectIntervalIdsToPrune } from './local-store'
 describe('countWords', () => {
 	test('teks sederhana dihitung per kata', () => {
 		const json: JSONContent = {
 			type: 'doc',
-			content: [
-				{ type: 'paragraph', content: [{ type: 'text', text: 'Halo dunia yang indah' }] },
-			],
+			content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Halo dunia yang indah' }] }],
 		}
 		expect(countWords(json)).toBe(4)
 	})
@@ -22,9 +17,7 @@ describe('countWords', () => {
 			content: [
 				{
 					type: 'blockquote',
-					content: [
-						{ type: 'paragraph', content: [{ type: 'text', text: 'satu dua' }] },
-					],
+					content: [{ type: 'paragraph', content: [{ type: 'text', text: 'satu dua' }] }],
 				},
 				{
 					type: 'table',
@@ -86,11 +79,7 @@ describe('selectIntervalIdsToPrune', () => {
 	})
 
 	test('versi manual dan pre_restore tidak pernah ikut terpangkas', () => {
-		const versions = [
-			entry('m1', 'manual', 1),
-			entry('p1', 'pre_restore', 2),
-			entry('i1', 'interval', 3),
-		]
+		const versions = [entry('m1', 'manual', 1), entry('p1', 'pre_restore', 2), entry('i1', 'interval', 3)]
 		expect(selectIntervalIdsToPrune(versions, 1)).toEqual([])
 	})
 
@@ -118,14 +107,10 @@ describe('shouldSnapshotInterval', () => {
 	})
 
 	test('di luar jendela tapi konten sama tidak memotret', () => {
-		expect(
-			shouldSnapshotInterval(now - LOCAL_INTERVAL_SNAPSHOT_MS - 1, 'sama', 'sama', now),
-		).toBe(false)
+		expect(shouldSnapshotInterval(now - LOCAL_INTERVAL_SNAPSHOT_MS - 1, 'sama', 'sama', now)).toBe(false)
 	})
 
 	test('di luar jendela dan konten berubah memotret', () => {
-		expect(
-			shouldSnapshotInterval(now - LOCAL_INTERVAL_SNAPSHOT_MS - 1, 'lama', 'baru', now),
-		).toBe(true)
+		expect(shouldSnapshotInterval(now - LOCAL_INTERVAL_SNAPSHOT_MS - 1, 'lama', 'baru', now)).toBe(true)
 	})
 })

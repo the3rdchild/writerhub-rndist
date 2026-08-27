@@ -75,7 +75,6 @@ export async function callUpstream({
 	})
 }
 export function configErrorResponse(error: unknown): Response {
-	const message =
-		error instanceof UpstreamConfigError ? error.message : 'Gagal menghubungi layanan API'
+	const message = error instanceof UpstreamConfigError ? error.message : 'Gagal menghubungi layanan API'
 	return Response.json({ message: 'Konfigurasi server tidak lengkap', errors: [message] }, { status: 500 })
 }

@@ -11,15 +11,7 @@ import {
 	type ToolCall,
 } from '@writer-hub/shared'
 import { DEFAULT_CHAT_MODEL, isReadTool } from '@writer-hub/shared'
-import {
-	createContext,
-	type ReactNode,
-	useCallback,
-	useContext,
-	useMemo,
-	useRef,
-	useState,
-} from 'react'
+import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import { usePanels } from '@/features/analysis/panel-context'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
@@ -83,7 +75,9 @@ const PHASE_LABEL: Record<ChatStreamPhase, string> = {
 	retrying: 'Mencoba ulang tanpa tool calling…',
 }
 function newTaskId(): string {
-	return globalThis.crypto?.randomUUID?.() ?? `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`
+	return (
+		globalThis.crypto?.randomUUID?.() ?? `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`
+	)
 }
 export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string | undefined): ChatMessage[] {
 	const outbound: ChatMessage[] = []
@@ -115,9 +109,7 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 	return outbound
 }
 export function actionsSettled(history: ChatTurn[], owner: ChatTurn): boolean {
-	const decided = new Set(
-		history.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId),
-	)
+	const decided = new Set(history.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId))
 	return (owner.actions ?? []).every((action) => decided.has(action.id))
 }
 const OUTLINE_SNIPPET_CHARS = 600
@@ -291,7 +283,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		setStepsBoth(
 			stepsRef.current.map((step) =>
 				step.id === stepId
-					? { ...step, status: 'done', endedAt: Date.now(), checklist: items.map((text) => ({ text, done: false })) }
+					? {
+							...step,
+							status: 'done',
+							endedAt: Date.now(),
+							checklist: items.map((text) => ({ text, done: false })),
+						}
 					: step,
 			),
 		)
@@ -457,12 +454,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						? call.arguments.steps.map(String).filter(Boolean)
 						: []
 					if (items.length > 0) recordPlan(items)
-					results.push({ role: 'tool', content: 'Plan recorded and shown to the user.', toolCallId: call.id, taskId })
+					results.push({
+						role: 'tool',
+						content: 'Plan recorded and shown to the user.',
+						toolCallId: call.id,
+						taskId,
+					})
 					continue
 				}
 				if (call.name === 'think') {
 					pushStep('Berpikir sejenak')
-					patchRunningStep({ status: 'done', endedAt: Date.now(), detail: String(call.arguments.thought ?? '') })
+					patchRunningStep({
+						status: 'done',
+						endedAt: Date.now(),
+						detail: String(call.arguments.thought ?? ''),
+					})
 					results.push({ role: 'tool', content: 'OK.', toolCallId: call.id, taskId })
 					continue
 				}
@@ -593,14 +599,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const settleActions = useCallback(
 		(entries: { call: ToolCall; content: string }[]) => {
 			const current = messagesRef.current
-			const settled = new Set(
-				current.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId),
-			)
+			const settled = new Set(current.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId))
 			const fresh = entries.filter((entry) => !settled.has(entry.call.id))
 			if (fresh.length === 0) return
 			const owner = current.find(
-				(turn) =>
-					turn.role === 'assistant' && turn.actions?.some((action) => action.id === fresh[0].call.id),
+				(turn) => turn.role === 'assistant' && turn.actions?.some((action) => action.id === fresh[0].call.id),
 			)
 			const taskId = owner?.taskId
 
@@ -611,13 +614,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				taskId,
 			}))
 			const complete =
-				owner !== undefined &&
-				taskId !== undefined &&
-				actionsSettled([...current, ...results], owner)
+				owner !== undefined && taskId !== undefined && actionsSettled([...current, ...results], owner)
 			const waves = writeWavesRef.current
 			const count = waves.taskId === taskId ? waves.count + 1 : 1
-			const resumable =
-				complete && taskId === currentTaskId && !abortRef.current && count <= MAX_WRITE_WAVES
+			const resumable = complete && taskId === currentTaskId && !abortRef.current && count <= MAX_WRITE_WAVES
 			if (resumable && count === MAX_WRITE_WAVES) {
 				const last = results[results.length - 1]
 				results[results.length - 1] = { ...last, content: last.content + WRITE_WAVE_NOTICE }
@@ -774,10 +774,8 @@ function extractTables(content: string): string[] {
 	return (content.match(TABLE_PATTERN) ?? []).map((table) => table.trim()).filter(Boolean)
 }
 export function stripProposals(content: string): string {
-	return (
-		stripFences(content)
-			.replace(TABLE_PATTERN, '')
-			.replace(/\n{3,}/g, '\n\n')
-			.trim()
-	)
+	return stripFences(content)
+		.replace(TABLE_PATTERN, '')
+		.replace(/\n{3,}/g, '\n\n')
+		.trim()
 }

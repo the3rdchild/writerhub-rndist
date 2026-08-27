@@ -88,8 +88,7 @@ function contextMessage(context: ChatContext | undefined): ChatMessage | null {
 	if (context.title) parts.push(`Document title: ${context.title}`)
 	if (context.document) {
 		parts.push(`Document content (outline + opening, or full text if requested):\n${context.document}`)
-	}
-	else if (context.surrounding) parts.push(`Surrounding text:\n${context.surrounding}`)
+	} else if (context.surrounding) parts.push(`Surrounding text:\n${context.surrounding}`)
 	if (context.selection) parts.push(`Selected text the user is asking about:\n${context.selection}`)
 
 	if (parts.length === 0) return null
@@ -335,8 +334,7 @@ async function pumpUpstream(body: ByteSource, send: (event: ChatStreamEvent) => 
 							completionTokens: usage.completion_tokens,
 						})
 					}
-				} catch {
-				}
+				} catch {}
 			}
 		}
 

@@ -37,17 +37,10 @@ function ChangeRow({
 	stale: boolean
 }) {
 	return (
-		<div
-			className={cn(
-				'rounded-xl border border-line bg-surface-raised p-3',
-				stale && 'opacity-60',
-			)}
-		>
+		<div className={cn('rounded-xl border border-line bg-surface-raised p-3', stale && 'opacity-60')}>
 			<p className="text-xs leading-relaxed text-muted line-through">{original}</p>
 			<p className="mt-1 text-xs leading-relaxed text-foreground">{replacement}</p>
-			{stale && (
-				<p className="mt-2 text-[11px] font-medium text-yellow-400">teks sudah berubah</p>
-			)}
+			{stale && <p className="mt-2 text-[11px] font-medium text-yellow-400">teks sudah berubah</p>}
 		</div>
 	)
 }
@@ -68,11 +61,7 @@ function SourceRow({ source }: { source: ResearchResultPayload['sources'][number
 		>
 			<p className="text-xs font-medium leading-relaxed text-foreground">{source.title}</p>
 			<p className="mt-1 text-[11px] text-subtle">
-				{[
-					hostOf(source.url),
-					source.publishedAt,
-					source.extracted ? 'dibaca penuh' : null,
-				]
+				{[hostOf(source.url), source.publishedAt, source.extracted ? 'dibaca penuh' : null]
 					.filter(Boolean)
 					.join(' · ')}
 			</p>
@@ -162,9 +151,7 @@ function ResultBody({ detail, text }: { detail: HistoryDetail; text: string }) {
 						className="rounded-xl border border-line bg-surface-raised p-3"
 					>
 						<p className="text-xs leading-relaxed text-foreground">{phrase.text}</p>
-						<p className="mt-1 text-[11px] text-subtle">
-							{Math.round(phrase.similarity * 100)}% kemiripan
-						</p>
+						<p className="mt-1 text-[11px] text-subtle">{Math.round(phrase.similarity * 100)}% kemiripan</p>
 					</div>
 				))}
 			</div>
@@ -173,13 +160,7 @@ function ResultBody({ detail, text }: { detail: HistoryDetail; text: string }) {
 
 	return null
 }
-export function ActivityDetail({
-	jobId,
-	onClose,
-}: {
-	jobId: string
-	onClose: () => void
-}) {
+export function ActivityDetail({ jobId, onClose }: { jobId: string; onClose: () => void }) {
 	const { doc, activeId } = useSessions()
 	const detailQuery = useHistoryEntry(jobId)
 	const detail = detailQuery.data ?? null
@@ -195,16 +176,14 @@ export function ActivityDetail({
 	const meta = detail?.feature ? FEATURE_META[detail.feature] : null
 	// Riset web cuma catatan sumber - tidak ada yang bisa diterapkan ke naskah.
 	const actionable = canOpenInPanel(detail?.feature ?? null)
-	const canAct =
-		actionable && detail !== null && detail.status === 'completed' && detail.result !== null
+	const canAct = actionable && detail !== null && detail.status === 'completed' && detail.result !== null
 
 	async function handleDelete() {
 		setConfirmOpen(false)
 		try {
 			await deleteEntry.mutateAsync(jobId)
 			onClose()
-		} catch {
-		}
+		} catch {}
 	}
 
 	return (
@@ -212,9 +191,7 @@ export function ActivityDetail({
 			<div className="flex shrink-0 items-center justify-between gap-2 px-4 pb-2 pt-4">
 				<div className="flex min-w-0 items-center gap-2">
 					{meta && <meta.icon className="h-4 w-4 shrink-0 text-muted" />}
-					<h2 className="truncate text-sm font-medium text-foreground">
-						{meta?.label ?? 'Aktivitas'}
-					</h2>
+					<h2 className="truncate text-sm font-medium text-foreground">{meta?.label ?? 'Aktivitas'}</h2>
 				</div>
 				<button
 					type="button"
@@ -251,9 +228,7 @@ export function ActivityDetail({
 							</span>
 						</div>
 
-						<p className="truncate text-xs text-muted">
-							{detail.documentTitle ?? 'Tanpa tautan dokumen'}
-						</p>
+						<p className="truncate text-xs text-muted">{detail.documentTitle ?? 'Tanpa tautan dokumen'}</p>
 
 						{detail.summary && <p className="text-sm text-foreground">{detail.summary}</p>}
 

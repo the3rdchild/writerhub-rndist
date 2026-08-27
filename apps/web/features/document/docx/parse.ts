@@ -94,11 +94,7 @@ function fontOf(props: RunProps, theme: ThemeFonts): string | undefined {
 	if (!props.fontTheme) return undefined
 	return /^major/i.test(props.fontTheme) ? theme.major : theme.minor
 }
-function marksOf(
-	props: RunProps,
-	link: string | undefined,
-	theme: ThemeFonts,
-): JSONContent['marks'] {
+function marksOf(props: RunProps, link: string | undefined, theme: ThemeFonts): JSONContent['marks'] {
 	const marks: NonNullable<JSONContent['marks']> = []
 
 	if (props.bold) marks.push({ type: 'bold' })
@@ -216,10 +212,7 @@ function toDataUrl(mediaPath: string, bytes: Uint8Array): string {
 	for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i])
 	return `data:${mediaType(mediaPath)};base64,${btoa(binary)}`
 }
-function readInlineImage(
-	drawing: Element,
-	context: ParseContext,
-): JSONContent | null {
+function readInlineImage(drawing: Element, context: ParseContext): JSONContent | null {
 	const extent = descend(drawing, 'inline', 'extent')
 	const cx = extent ? Number.parseInt(attr(extent, 'cx') ?? '', 10) : NaN
 	const cy = extent ? Number.parseInt(attr(extent, 'cy') ?? '', 10) : NaN
@@ -235,7 +228,7 @@ function readInlineImage(
 	if (!bytes) return null
 
 	const docPr = descend(drawing, 'inline', 'docPr')
-	const alt = docPr ? (attr(docPr, 'descr') ?? attr(docPr, 'name')) ?? undefined : undefined
+	const alt = docPr ? (attr(docPr, 'descr') ?? attr(docPr, 'name') ?? undefined) : undefined
 
 	const attrs: Record<string, unknown> = { src: toDataUrl(mediaPath, bytes) }
 	if (alt) attrs.alt = alt
@@ -301,14 +294,7 @@ function walkInline(
 			}
 
 			case 'hyperlink':
-				walkInline(
-					node,
-					context,
-					inherited,
-					linkTarget(node, context) ?? link,
-					builder,
-					fields,
-				)
+				walkInline(node, context, inherited, linkTarget(node, context) ?? link, builder, fields)
 				break
 			case 'ins':
 			case 'smartTag':
@@ -433,7 +419,8 @@ function tableRowBlocks(row: Element, context: ParseContext): JSONContent {
 			content: cellContent(tc, context),
 		})
 	}
-	if (cells.length === 0) return { type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }
+	if (cells.length === 0)
+		return { type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }
 	return { type: 'tableRow', content: cells }
 }
 function tableBlocks(tbl: Element, context: ParseContext): JSONContent[] {

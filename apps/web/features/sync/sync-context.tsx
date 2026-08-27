@@ -78,9 +78,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	const [store, setStore, storeHydrated] = usePersistentState<{
 		linkage: Record<string, SyncLinkage>
 	}>(SYNC_STORAGE_KEY, { linkage: {} })
-	const [transient, setTransient] = useState<
-		Record<string, 'dirty' | 'saving' | 'error'>
-	>({})
+	const [transient, setTransient] = useState<Record<string, 'dirty' | 'saving' | 'error'>>({})
 
 	const timers = useRef(new Map<string, SaveTimers>())
 	const titleTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
@@ -147,9 +145,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 			if (!meta) return false
 
 			const parentId = findTabDoc(doc, tabId)
-			const docTitle = parentId
-				? readDocs(doc).find((dok) => dok.id === parentId)?.title
-				: undefined
+			const docTitle = parentId ? readDocs(doc).find((dok) => dok.id === parentId)?.title : undefined
 
 			const sentAtRevision = revisions.current.get(tabId) ?? 0
 			setStatus(tabId, 'saving')
@@ -278,8 +274,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 							})
 							void invalidateDocuments()
 						})
-						.catch(() => {
-						})
+						.catch(() => {})
 				}, TITLE_SYNC_MS),
 			)
 		}
@@ -553,8 +548,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	)
 
 	const syncStatus = useCallback(
-		(tabId: string): SyncStatus =>
-			transient[tabId] ?? (store.linkage[tabId] ? 'synced' : 'local'),
+		(tabId: string): SyncStatus => transient[tabId] ?? (store.linkage[tabId] ? 'synced' : 'local'),
 		[transient, store.linkage],
 	)
 

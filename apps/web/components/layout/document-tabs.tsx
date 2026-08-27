@@ -21,12 +21,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import {
-	Dropdown,
-	DropdownItem,
-	DropdownLabel,
-	DropdownSeparator,
-} from '@/components/ui/dropdown'
+import { Dropdown, DropdownItem, DropdownLabel, DropdownSeparator } from '@/components/ui/dropdown'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { type OutlineItem, scrollToOutlineItem, useOutline } from '@/features/editor/use-outline'
 import { type Session, sessionLabel, useSessions } from '@/features/sessions/session-context'
@@ -150,9 +145,7 @@ export function DocumentTabsSidebar() {
 							onDuplicate={() => duplicateSession(tab.id)}
 							onRemove={() => setPendingDelete(tab)}
 							onSetIcon={(icon) => setSessionEmoji(tab.id, icon)}
-							onToggleOutline={() =>
-								setSessionOutlineExpanded(tab.id, !tab.outlineExpanded)
-							}
+							onToggleOutline={() => setSessionOutlineExpanded(tab.id, !tab.outlineExpanded)}
 						/>
 
 						{tab.id === activeId && tab.outlineExpanded && (
@@ -183,7 +176,6 @@ export function DocumentTabsSidebar() {
 				}}
 				onCancel={() => setPendingDelete(null)}
 			/>
-
 		</aside>
 	)
 }

@@ -36,7 +36,10 @@ function buildDecorations(doc: PMNode, ranges: readonly VersionDiffRange[]): Dec
 					const marker = document.createElement('span')
 					marker.className = 'version-diff-added'
 					marker.title = `${addedWords} word${addedWords === 1 ? '' : 's'} added by this run`
-					marker.setAttribute('aria-label', `${addedWords} word${addedWords === 1 ? '' : 's'} added by this run`)
+					marker.setAttribute(
+						'aria-label',
+						`${addedWords} word${addedWords === 1 ? '' : 's'} added by this run`,
+					)
 					return marker
 				},
 				{ key: `analysis-diff-added-${range.offset}` },

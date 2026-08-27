@@ -224,7 +224,19 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 			properties: {
 				size: {
 					type: 'string',
-					enum: ['letter', 'tabloid', 'legal', 'statement', 'executive', 'folio', 'a3', 'a4', 'a5', 'b4', 'b5'],
+					enum: [
+						'letter',
+						'tabloid',
+						'legal',
+						'statement',
+						'executive',
+						'folio',
+						'a3',
+						'a4',
+						'a5',
+						'b4',
+						'b5',
+					],
 				},
 				orientation: { type: 'string', enum: ['portrait', 'landscape'] },
 				margins_cm: {
@@ -456,7 +468,19 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 			properties: {
 				size: {
 					type: 'string',
-					enum: ['letter', 'tabloid', 'legal', 'statement', 'executive', 'folio', 'a3', 'a4', 'a5', 'b4', 'b5'],
+					enum: [
+						'letter',
+						'tabloid',
+						'legal',
+						'statement',
+						'executive',
+						'folio',
+						'a3',
+						'a4',
+						'a5',
+						'b4',
+						'b5',
+					],
 				},
 				orientation: { type: 'string', enum: ['portrait', 'landscape'] },
 				margins_cm: {
@@ -573,10 +597,12 @@ export function toProviderTools(scope?: ToolScope): unknown[] {
 	}))
 }
 export function fallbackToolPrompt(scope?: ToolScope): string {
-	const list = toolsInScope(scope).map((tool) => {
-		const params = Object.keys(tool.parameters.properties).join(', ') || '(none)'
-		return `- ${tool.name}(${params}) - ${tool.description}`
-	}).join('\n')
+	const list = toolsInScope(scope)
+		.map((tool) => {
+			const params = Object.keys(tool.parameters.properties).join(', ') || '(none)'
+			return `- ${tool.name}(${params}) - ${tool.description}`
+		})
+		.join('\n')
 
 	return [
 		'You can operate the editor by emitting tool calls. To call a tool, write a',

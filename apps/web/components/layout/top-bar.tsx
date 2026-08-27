@@ -29,8 +29,7 @@ export function TopBar() {
 	const [searchOpen, setSearchOpen] = useState(false)
 	const [tocOpen, setTocOpen] = useState(false)
 	const serverId = activeId ? linkage[activeId]?.serverId : undefined
-	const activeTabTitle =
-		sessions.find((tab) => tab.id === activeId)?.title ?? state.title
+	const activeTabTitle = sessions.find((tab) => tab.id === activeId)?.title ?? state.title
 	const inVersionMode = versionMode !== null
 
 	return (
@@ -41,10 +40,7 @@ export function TopBar() {
 			)}
 		>
 			<div
-				className={cn(
-					'transition-opacity',
-					settings.focusMode && 'opacity-0 group-hover/topbar:opacity-100',
-				)}
+				className={cn('transition-opacity', settings.focusMode && 'opacity-0 group-hover/topbar:opacity-100')}
 			>
 				<div className="flex items-start gap-2 px-3 pt-2">
 					<NavMenu />
@@ -58,18 +54,14 @@ export function TopBar() {
 							readOnly={inVersionMode}
 							className={cn(
 								'w-full max-w-[520px] truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-lg font-medium text-foreground outline-none transition-colors placeholder:text-faint',
-								inVersionMode
-									? 'cursor-default'
-									: 'hover:border-line-strong focus:border-accent',
+								inVersionMode ? 'cursor-default' : 'hover:border-line-strong focus:border-accent',
 							)}
 						/>
 						<MenuBar />
 					</div>
 
 					<div className="flex shrink-0 items-center gap-1 pt-1">
-						{isRunning && (
-							<span className="mr-1 hidden text-xs text-subtle sm:inline">Memeriksa…</span>
-						)}
+						{isRunning && <span className="mr-1 hidden text-xs text-subtle sm:inline">Memeriksa…</span>}
 						<HeaderButton
 							icon={PanelLeft}
 							label="Tab dokumen"
@@ -82,11 +74,7 @@ export function TopBar() {
 							active={settings.focusMode}
 							onClick={toggleFocusMode}
 						/>
-						<HeaderButton
-							icon={SettingsIcon}
-							label="Pengaturan"
-							onClick={() => setSettingsOpen(true)}
-						/>
+						<HeaderButton icon={SettingsIcon} label="Pengaturan" onClick={() => setSettingsOpen(true)} />
 						<HeaderButton
 							icon={History}
 							label={inVersionMode ? 'Riwayat versi sedang terbuka' : 'Riwayat versi'}
@@ -121,29 +109,29 @@ export function TopBar() {
 				{/* Tidak ada yang bisa disunting di mode riwayat - toolbar tanpa editor
 				    hanya deretan tombol yang tidak melakukan apa pun. */}
 				{!inVersionMode && (
-				<div className="flex flex-col items-center gap-1.5 px-3 pb-2 pt-1.5">
-					<EditorToolbar
-						editor={editor}
-						disabled={state.file !== null}
-						onOpenSearch={() => setSearchOpen(true)}
-						onOpenToc={() => setTocOpen((v) => !v)}
-					/>
-					{searchOpen && editor && (
-						<div className="w-full max-w-2xl">
-							<SearchBar editor={editor} onClose={() => setSearchOpen(false)} />
-						</div>
-					)}
-				</div>
-			)}
+					<div className="flex flex-col items-center gap-1.5 px-3 pb-2 pt-1.5">
+						<EditorToolbar
+							editor={editor}
+							disabled={state.file !== null}
+							onOpenSearch={() => setSearchOpen(true)}
+							onOpenToc={() => setTocOpen((v) => !v)}
+						/>
+						{searchOpen && editor && (
+							<div className="w-full max-w-2xl">
+								<SearchBar editor={editor} onClose={() => setSearchOpen(false)} />
+							</div>
+						)}
+					</div>
+				)}
 
-			{/* Panel daftar isi melayang di kanan, di bawah toolbar. */}
-			{tocOpen && editor && !inVersionMode && (
-				<div className="absolute right-3 top-32 z-30 h-80 w-64 overflow-hidden rounded-xl border border-line-strong bg-surface-raised shadow-[var(--menu-shadow)]">
-					<TocPanel editor={editor} onClose={() => setTocOpen(false)} />
-				</div>
-			)}
-		</div>
-	</header>
+				{/* Panel daftar isi melayang di kanan, di bawah toolbar. */}
+				{tocOpen && editor && !inVersionMode && (
+					<div className="absolute right-3 top-32 z-30 h-80 w-64 overflow-hidden rounded-xl border border-line-strong bg-surface-raised shadow-[var(--menu-shadow)]">
+						<TocPanel editor={editor} onClose={() => setTocOpen(false)} />
+					</div>
+				)}
+			</div>
+		</header>
 	)
 }
 

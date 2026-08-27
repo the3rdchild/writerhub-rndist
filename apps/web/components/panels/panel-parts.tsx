@@ -25,9 +25,7 @@ export function PanelScroll({ children, className }: { children: ReactNode; clas
 }
 
 export function PanelFooter({ children }: { children: ReactNode }) {
-	return (
-		<div className="flex shrink-0 flex-col gap-2 border-t border-line px-4 py-3">{children}</div>
-	)
+	return <div className="flex shrink-0 flex-col gap-2 border-t border-line px-4 py-3">{children}</div>
 }
 
 export function StaleNotice() {
@@ -284,9 +282,7 @@ export function CandidateCard({
 			{...rangeProps}
 			className="flex flex-col gap-2 rounded-xl border border-line bg-surface-raised p-3 transition-colors hover:border-line-strong"
 		>
-			<p className="text-xs leading-relaxed text-red-300/70 line-through decoration-red-400/40">
-				{original}
-			</p>
+			<p className="text-xs leading-relaxed text-red-300/70 line-through decoration-red-400/40">{original}</p>
 
 			<div className="flex flex-col gap-1.5">
 				{candidates.map((candidate, index) => (
@@ -351,7 +347,7 @@ export function AppliedCard({
 		<div className="flex flex-col gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/5 p-3">
 			<div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-400">
 				<CheckCircle2 className="h-3.5 w-3.5" />
-			Applied
+				Applied
 			</div>
 			<p className="text-xs leading-relaxed text-emerald-300">{applied}</p>
 			<p className="text-[11px] leading-relaxed text-subtle line-through">{original}</p>

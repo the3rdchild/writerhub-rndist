@@ -414,7 +414,9 @@ function sameBlockSections(
 	)
 }
 function sameSetups(a: readonly PageSetup[], b: readonly PageSetup[]): boolean {
-	return a.length === b.length && a.every((setup, index) => JSON.stringify(setup) === JSON.stringify(b[index]))
+	return (
+		a.length === b.length && a.every((setup, index) => JSON.stringify(setup) === JSON.stringify(b[index]))
+	)
 }
 
 function sameAdjustments(a: readonly MarginAdjustment[], b: readonly MarginAdjustment[]): boolean {
@@ -422,7 +424,9 @@ function sameAdjustments(a: readonly MarginAdjustment[], b: readonly MarginAdjus
 		a.length === b.length &&
 		a.every((adjustment, index) => {
 			const other = b[index]
-			return adjustment.pos === other.pos && adjustment.left === other.left && adjustment.right === other.right
+			return (
+				adjustment.pos === other.pos && adjustment.left === other.left && adjustment.right === other.right
+			)
 		})
 	)
 }
@@ -630,23 +634,18 @@ export const Pagination = Extension.create<PaginationOptions>({
 						const continuous = spans.map((span, index) => {
 							if (index === 0) return false
 							const node = view.state.doc.nodeAt(span.pos)
-							return (
-								node?.attrs.continuous === true &&
-								sameSheetGeometry(span.setup, spans[index - 1].setup)
-							)
+							return node?.attrs.continuous === true && sameSheetGeometry(span.setup, spans[index - 1].setup)
 						})
-						const sections = spans
-							.slice(1)
-							.map((span, index) => ({
-								pos: span.pos,
-								geometry: pageGeometry(span.setup),
-								continuous: continuous[index + 1],
-							}))
+						const sections = spans.slice(1).map((span, index) => ({
+							pos: span.pos,
+							geometry: pageGeometry(span.setup),
+							continuous: continuous[index + 1],
+						}))
 						const { spacers, pageCount, sheets, blockPages } = computeSpacers(
-						blocks,
-						state.geometry,
-						sections,
-					)
+							blocks,
+							state.geometry,
+							sections,
+						)
 						const adjustments = state.setup
 							? marginAdjustments(
 									blocks.filter((block) => block.kind === 'block').map((block) => block.pos),

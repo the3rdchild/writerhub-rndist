@@ -105,7 +105,17 @@ export function useGrammarCheck() {
 						},
 			)
 		},
-		[mutation, state.text, state.file, state.title, state.model, language.needsAiTier, language.code, linkage, activeId],
+		[
+			mutation,
+			state.text,
+			state.file,
+			state.title,
+			state.model,
+			language.needsAiTier,
+			language.code,
+			linkage,
+			activeId,
+		],
 	)
 
 	const isRunning = useIsMutating({ mutationKey: GRAMMAR_CHECK_KEY }) > 0

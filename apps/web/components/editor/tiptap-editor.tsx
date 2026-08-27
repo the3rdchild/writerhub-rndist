@@ -9,7 +9,12 @@ import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offset
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { buildEditorExtensions } from '@/features/editor/extensions'
 import { migrateLegacyColumns } from '@/features/editor/columns'
-import { type PageGeometry, pageGeometry, type PageSetup, type SheetGeometry } from '@/features/editor/page-geometry'
+import {
+	type PageGeometry,
+	pageGeometry,
+	type PageSetup,
+	type SheetGeometry,
+} from '@/features/editor/page-geometry'
 import { paginationKey } from '@/features/editor/pagination'
 import { type SlashCommandState } from '@/features/editor/slash-command'
 import { editorPlainText, textToParagraphs } from '@/features/editor/text-content'
@@ -72,7 +77,7 @@ export function TiptapEditor({
 				setup,
 				onPageCountChange: (pageCount) => pageCountRef.current?.(pageCount),
 				onSheetsChange: (sheets) => sheetsRef.current?.(sheets),
-					onSectionsChange: (setups) => sectionsRef.current?.(setups),
+				onSectionsChange: (setups) => sectionsRef.current?.(setups),
 				collaboration: activeId ? { document: doc, field: activeId } : null,
 				slashCommand: {
 					onOpen: (s) => slashStateRef.current(s),
@@ -216,12 +221,16 @@ export function TiptapEditor({
 		? state.suggestions.find((suggestion) => suggestion.id === popover.id)
 		: undefined
 
-	const  applySuggestion = (id: string) => {
+	const applySuggestion = (id: string) => {
 		const suggestion = state.suggestions.find((item) => item.id === id)
 		if (!editor || !suggestion) return
 		replaceTextRange(
 			editor,
-			{ offset: suggestion.offset ?? 0, length: suggestion.length ?? suggestion.original.length, expected: suggestion.original },
+			{
+				offset: suggestion.offset ?? 0,
+				length: suggestion.length ?? suggestion.original.length,
+				expected: suggestion.original,
+			},
 			suggestion.replacement,
 		)
 		dispatch({ type: 'dismissSuggestion', id })
@@ -251,11 +260,7 @@ export function TiptapEditor({
 			<SelectionMenu editor={editor} containerRef={containerRef} />
 			<MathPopover editor={editor} containerRef={containerRef} />
 			{editor && slashState?.open && (
-				<SlashCommandMenu
-					editor={editor}
-					state={slashState}
-					onClose={() => setSlashState(null)}
-				/>
+				<SlashCommandMenu editor={editor} state={slashState} onClose={() => setSlashState(null)} />
 			)}
 			<ImageToolbar editor={editor} />
 			<TableColorToolbar editor={editor} />

@@ -32,7 +32,12 @@ import { promptForLink } from '@/features/editor/link'
 import { MathBlock, MathInline } from '@/features/editor/math'
 import { PageBreak } from '@/features/editor/page-break'
 import { SectionBreak } from '@/features/editor/section-break'
-import { type PageGeometry, pageGeometry, type PageSetup, type SheetGeometry } from '@/features/editor/page-geometry'
+import {
+	type PageGeometry,
+	pageGeometry,
+	type PageSetup,
+	type SheetGeometry,
+} from '@/features/editor/page-geometry'
 import { Pagination } from '@/features/editor/pagination'
 import { TocBlock } from '@/features/editor/toc-block'
 import { TocBlockNodeView } from '@/components/editor/toc-block-view'
@@ -122,7 +127,13 @@ export function buildEditorExtensions({
 		TocBlock.extend({ addNodeView: () => TocBlockNodeView }),
 		Pagination.configure({ geometry, setup, onPageCountChange, onSheetsChange, onSectionsChange }),
 		...(slashCommand
-			? [SlashCommand.configure({ onOpen: slashCommand.onOpen, onUpdate: slashCommand.onUpdate, onClose: slashCommand.onClose })]
+			? [
+					SlashCommand.configure({
+						onOpen: slashCommand.onOpen,
+						onUpdate: slashCommand.onUpdate,
+						onClose: slashCommand.onClose,
+					}),
+				]
 			: []),
 		...(collaboration
 			? [Collaboration.configure({ document: collaboration.document, field: collaboration.field })]

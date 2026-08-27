@@ -138,13 +138,14 @@ export function AiChatPanel() {
 
 	return (
 		<>
-			<div ref={scrollRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-surface-inset p-4">
+			<div
+				ref={scrollRef}
+				className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-surface-inset p-4"
+			>
 				{isEmpty && (
 					<div className="flex flex-1 flex-col items-center justify-center gap-1 px-4 text-center">
 						<p className="text-sm font-medium text-foreground">Ask about your draft</p>
-						<p className="text-xs text-subtle">
-							Select a passage and send it here, or just ask a question
-						</p>
+						<p className="text-xs text-subtle">Select a passage and send it here, or just ask a question</p>
 					</div>
 				)}
 
@@ -347,8 +348,7 @@ function Bubble({
 			</div>
 		)
 	}
-	const emptyMarker =
-		!pending && !prose && proposals.length === 0 && !(actions && actions.length > 0)
+	const emptyMarker = !pending && !prose && proposals.length === 0 && !(actions && actions.length > 0)
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -374,16 +374,10 @@ function Bubble({
 			    baru muncul setelah gilirannya selesai. */}
 			{!pending &&
 				proposals.map((proposal, index) => (
-					<ProposalCard
-						key={`${index}-${proposal.slice(0, 24)}`}
-						text={proposal}
-						expired={expired}
-					/>
+					<ProposalCard key={`${index}-${proposal.slice(0, 24)}`} text={proposal} expired={expired} />
 				))}
 
-			{actions && actions.length > 0 && (
-				<ActionGroup actions={actions} expired={expired} />
-			)}
+			{actions && actions.length > 0 && <ActionGroup actions={actions} expired={expired} />}
 		</div>
 	)
 }
@@ -590,14 +584,10 @@ function ActionCard({ call, expired }: { call: ToolCall; expired?: boolean }) {
 		<div className="flex flex-col gap-2 rounded-xl border border-accent/20 bg-accent/5 p-3">
 			<div className="flex items-start gap-2">
 				<Wand2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
-				<p className="min-w-0 flex-1 text-xs leading-relaxed text-foreground">
-					{describeToolCall(call)}
-				</p>
+				<p className="min-w-0 flex-1 text-xs leading-relaxed text-foreground">{describeToolCall(call)}</p>
 			</div>
 
-			{expired && !settled && (
-				<p className="text-[11px] italic text-subtle">From a previous request</p>
-			)}
+			{expired && !settled && <p className="text-[11px] italic text-subtle">From a previous request</p>}
 
 			{applied ? (
 				<p className="text-[11px] text-green-400/70">Applied</p>
@@ -689,17 +679,16 @@ function StepTimeline({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
 						>
 							{step.label}
 						</span>
-						<span className="shrink-0 text-[10px] tabular-nums text-faint">
-							{formatDuration(step, now)}
-						</span>
+						<span className="shrink-0 text-[10px] tabular-nums text-faint">{formatDuration(step, now)}</span>
 					</button>
-					{step.sources && step.sources.length > 0 && (
-						<ResearchSourcesCard sources={step.sources} />
-					)}
+					{step.sources && step.sources.length > 0 && <ResearchSourcesCard sources={step.sources} />}
 					{open === step.id && step.checklist && (
 						<div className="mx-1.5 mb-1 flex flex-col gap-0.5 rounded-md bg-surface-inset px-2 py-1.5">
 							{step.checklist.map((item, index) => (
-								<span key={index} className="flex items-center gap-1.5 text-[11px] leading-relaxed text-subtle">
+								<span
+									key={index}
+									className="flex items-center gap-1.5 text-[11px] leading-relaxed text-subtle"
+								>
 									{item.done ? (
 										<Check className="h-3 w-3 shrink-0 text-green-400" />
 									) : (

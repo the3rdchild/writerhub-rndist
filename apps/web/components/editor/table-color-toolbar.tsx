@@ -6,18 +6,12 @@ import { Eraser, PaintRoller, PencilLine } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { PALETTE } from '@/components/editor/color-picker'
-import {
-	type CellTarget,
-	clearCellStyling,
-	locateTable,
-	withCellTarget,
-} from '@/features/editor/table-ops'
+import { type CellTarget, clearCellStyling, locateTable, withCellTarget } from '@/features/editor/table-ops'
 import { cn } from '@/lib/utils'
 export function TableColorToolbar({ editor }: { editor: Editor | null }) {
 	const inTable = useEditorState({
 		editor,
-		selector: ({ editor: instance }) =>
-			!!instance && !instance.isDestroyed && instance.isActive('table'),
+		selector: ({ editor: instance }) => !!instance && !instance.isDestroyed && instance.isActive('table'),
 	})
 	const [palette, setPalette] = useState<'background' | 'border' | null>(null)
 	const [place, setPlace] = useState<{ top: number; left: number; centered: boolean } | null>(null)
@@ -38,9 +32,7 @@ export function TableColorToolbar({ editor }: { editor: Editor | null }) {
 				node = null
 			}
 			const tableEl =
-				(node && (node.closest('table') as HTMLElement | null)) ||
-				(table as HTMLElement | null) ||
-				null
+				(node && (node.closest('table') as HTMLElement | null)) || (table as HTMLElement | null) || null
 			if (!tableEl) {
 				setPlace(null)
 				return
@@ -167,7 +159,9 @@ function ToolbarBtn({
 			onMouseDown={(e) => e.preventDefault()}
 			className={cn(
 				'flex h-7 w-7 items-center justify-center rounded-full transition-colors',
-				active ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-[var(--overlay-hover)] hover:text-foreground',
+				active
+					? 'bg-accent/15 text-accent'
+					: 'text-muted hover:bg-[var(--overlay-hover)] hover:text-foreground',
 			)}
 		>
 			{children}

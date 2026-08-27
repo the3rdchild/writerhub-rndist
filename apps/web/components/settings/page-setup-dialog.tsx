@@ -207,9 +207,7 @@ export function PageSetupDialog() {
 									max={roundUnit(fromPx(MAX_CUSTOM_SIDE, unit))}
 									step={0.1}
 									value={draft.customWidth ? roundUnit(fromPx(draft.customWidth, unit)) : ''}
-									onChange={(e) =>
-										setCustomSide('customWidth', toPx(Number(e.target.value) || 0, unit))
-									}
+									onChange={(e) => setCustomSide('customWidth', toPx(Number(e.target.value) || 0, unit))}
 									className="w-24 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
 								/>
 								<span className="text-xs text-subtle">×</span>
@@ -219,9 +217,7 @@ export function PageSetupDialog() {
 									max={roundUnit(fromPx(MAX_CUSTOM_SIDE, unit))}
 									step={0.1}
 									value={draft.customHeight ? roundUnit(fromPx(draft.customHeight, unit)) : ''}
-									onChange={(e) =>
-										setCustomSide('customHeight', toPx(Number(e.target.value) || 0, unit))
-									}
+									onChange={(e) => setCustomSide('customHeight', toPx(Number(e.target.value) || 0, unit))}
 									className="w-24 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
 								/>
 								<span className="text-xs text-subtle">{unitLabel} (width × height)</span>
@@ -242,9 +238,7 @@ export function PageSetupDialog() {
 								onClear={() => setDraft((c) => ({ ...c, pageColor: null }))}
 								clearLabel="Match theme"
 							/>
-							<span className="text-xs text-subtle">
-								{draft.pageColor ? draft.pageColor : 'Match theme'}
-							</span>
+							<span className="text-xs text-subtle">{draft.pageColor ? draft.pageColor : 'Match theme'}</span>
 						</div>
 					</div>
 				</div>
@@ -255,9 +249,7 @@ export function PageSetupDialog() {
 					<div className="grid grid-cols-4 gap-2">
 						{(['top', 'bottom', 'left', 'right'] as const).map((field) => (
 							<label key={field} className="flex flex-col gap-1">
-								<span className="text-[11px] capitalize text-subtle">
-									{field}
-								</span>
+								<span className="text-[11px] capitalize text-subtle">{field}</span>
 								<input
 									type="number"
 									min={0}

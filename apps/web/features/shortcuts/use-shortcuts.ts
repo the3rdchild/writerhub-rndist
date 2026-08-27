@@ -5,13 +5,7 @@ import { usePanels } from '@/features/analysis/panel-context'
 import { ZOOM_LEVELS } from '@/features/editor/page-geometry'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
-import {
-	formatKeys,
-	isMacPlatform,
-	matchAppShortcut,
-	shortcut,
-	type ShortcutId,
-} from './registry'
+import { formatKeys, isMacPlatform, matchAppShortcut, shortcut, type ShortcutId } from './registry'
 export function useIsMac(): boolean {
 	const [mac, setMac] = useState(false)
 	useEffect(() => setMac(isMacPlatform()), [])

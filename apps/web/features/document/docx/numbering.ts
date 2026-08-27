@@ -166,11 +166,7 @@ export function createNumberer(numbering: Numbering): Numberer {
 		const instance = numbering.instances.get(numId)
 		if (!instance) return null
 
-		return (
-			instance.levels.get(ilvl) ??
-			numbering.abstracts.get(instance.abstractId)?.levels.get(ilvl) ??
-			null
-		)
+		return instance.levels.get(ilvl) ?? numbering.abstracts.get(instance.abstractId)?.levels.get(ilvl) ?? null
 	}
 
 	const startOf = (numId: number, ilvl: number): number => {
@@ -188,7 +184,10 @@ export function createNumberer(numbering: Numbering): Numberer {
 				numId,
 				Array.from({ length: MAX_LEVELS }, (_, index) => startOf(numId, index)),
 			)
-			started.set(numId, Array.from({ length: MAX_LEVELS }, () => false))
+			started.set(
+				numId,
+				Array.from({ length: MAX_LEVELS }, () => false),
+			)
 		}
 		const counter = counters.get(numId) as number[]
 		const seen = started.get(numId) as boolean[]

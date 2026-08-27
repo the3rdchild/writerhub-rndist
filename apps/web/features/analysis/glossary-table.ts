@@ -5,11 +5,7 @@ export const GLOSSARY_HEADING = 'Glossary'
 
 const cell = (text: string, header = false): JSONContent => ({
 	type: header ? 'tableHeader' : 'tableCell',
-	content: [
-		text
-			? { type: 'paragraph', content: [{ type: 'text', text }] }
-			: { type: 'paragraph' },
-	],
+	content: [text ? { type: 'paragraph', content: [{ type: 'text', text }] } : { type: 'paragraph' }],
 })
 export function glossaryTermLabel(entry: GlossaryEntry): string {
 	const expansion = entry.expansion?.trim()
@@ -47,8 +43,7 @@ export function findGlossarySection(doc: {
 			const next = doc.child(i + 1)
 			if (next.type.name === 'table') {
 				const previous = i > 0 ? doc.child(i - 1) : null
-				const from =
-					previous?.type.name === PAGE_BREAK_NODE ? pos - previous.nodeSize : pos
+				const from = previous?.type.name === PAGE_BREAK_NODE ? pos - previous.nodeSize : pos
 				return { from, to: pos + node.nodeSize + next.nodeSize }
 			}
 		}

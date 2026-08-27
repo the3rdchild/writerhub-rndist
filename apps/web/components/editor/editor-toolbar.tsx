@@ -46,7 +46,12 @@ import {
 	FONT_FAMILIES,
 	fontFamilyLabel,
 } from '@/features/editor/font-catalog'
-import { FONT_SIZES, LINE_HEIGHTS, ALL_PARAGRAPH_STYLES, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
+import {
+	FONT_SIZES,
+	LINE_HEIGHTS,
+	ALL_PARAGRAPH_STYLES,
+	PARAGRAPH_STYLES,
+} from '@/features/editor/text-styles'
 import { indentSelection, outdentSelection } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
 import { ZOOM_LEVELS } from '@/features/editor/page-geometry'
@@ -141,8 +146,18 @@ export function EditorToolbar({
 
 	return (
 		<div className="flex flex-wrap items-center gap-0.5 rounded-full border border-line bg-surface px-3 py-1.5">
-			<IconButton icon={Undo2} label="Urungkan" disabled={isOff || !active?.canUndo} onClick={() => editor?.chain().focus().undo().run()} />
-			<IconButton icon={Redo2} label="Ulangi" disabled={isOff || !active?.canRedo} onClick={() => editor?.chain().focus().redo().run()} />
+			<IconButton
+				icon={Undo2}
+				label="Urungkan"
+				disabled={isOff || !active?.canUndo}
+				onClick={() => editor?.chain().focus().undo().run()}
+			/>
+			<IconButton
+				icon={Redo2}
+				label="Ulangi"
+				disabled={isOff || !active?.canRedo}
+				onClick={() => editor?.chain().focus().redo().run()}
+			/>
 
 			<Divider />
 
@@ -217,10 +232,34 @@ export function EditorToolbar({
 
 			<Divider />
 
-			<IconButton icon={Bold} label="Tebal" active={active?.bold} disabled={isOff} onClick={() => editor?.chain().focus().toggleBold().run()} />
-			<IconButton icon={Italic} label="Miring" active={active?.italic} disabled={isOff} onClick={() => editor?.chain().focus().toggleItalic().run()} />
-			<IconButton icon={UnderlineIcon} label="Garis bawah" active={active?.underline} disabled={isOff} onClick={() => editor?.chain().focus().toggleUnderline().run()} />
-			<IconButton icon={Strikethrough} label="Coret" active={active?.strike} disabled={isOff} onClick={() => editor?.chain().focus().toggleStrike().run()} />
+			<IconButton
+				icon={Bold}
+				label="Tebal"
+				active={active?.bold}
+				disabled={isOff}
+				onClick={() => editor?.chain().focus().toggleBold().run()}
+			/>
+			<IconButton
+				icon={Italic}
+				label="Miring"
+				active={active?.italic}
+				disabled={isOff}
+				onClick={() => editor?.chain().focus().toggleItalic().run()}
+			/>
+			<IconButton
+				icon={UnderlineIcon}
+				label="Garis bawah"
+				active={active?.underline}
+				disabled={isOff}
+				onClick={() => editor?.chain().focus().toggleUnderline().run()}
+			/>
+			<IconButton
+				icon={Strikethrough}
+				label="Coret"
+				active={active?.strike}
+				disabled={isOff}
+				onClick={() => editor?.chain().focus().toggleStrike().run()}
+			/>
 
 			{/* Dimatikan tanpa seleksi: kapitalisasi bekerja pada teks yang disorot,
 			    dan `hasSelection` di sini ikut `useEditorState` jadi selalu terkini. */}
@@ -230,8 +269,19 @@ export function EditorToolbar({
 
 			<Divider />
 
-			<IconButton icon={LinkIcon} label="Tautan" active={active?.link} disabled={isOff} onClick={() => editor && promptForLink(editor)} />
-			<IconButton icon={ImageIcon} label="Gambar" disabled={isOff} onClick={() => editor && insertImage(editor)} />
+			<IconButton
+				icon={LinkIcon}
+				label="Tautan"
+				active={active?.link}
+				disabled={isOff}
+				onClick={() => editor && promptForLink(editor)}
+			/>
+			<IconButton
+				icon={ImageIcon}
+				label="Gambar"
+				disabled={isOff}
+				onClick={() => editor && insertImage(editor)}
+			/>
 			<IconButton
 				icon={TableIcon}
 				label="Tabel"
@@ -284,17 +334,51 @@ export function EditorToolbar({
 
 			<Divider />
 
-			<IconButton icon={CheckSquare} label="Daftar centang" active={active?.taskList} disabled={isOff} onClick={() => editor?.chain().focus().toggleTaskList().run()} />
-			<IconButton icon={List} label="Daftar butir" active={active?.bulletList} disabled={isOff} onClick={() => editor?.chain().focus().toggleBulletList().run()} />
-			<IconButton icon={ListOrdered} label="Daftar nomor" active={active?.orderedList} disabled={isOff} onClick={() => editor?.chain().focus().toggleOrderedList().run()} />
-			<IconButton icon={Quote} label="Kutipan" active={active?.blockquote} disabled={isOff} onClick={() => editor?.chain().focus().toggleBlockquote().run()} />
+			<IconButton
+				icon={CheckSquare}
+				label="Daftar centang"
+				active={active?.taskList}
+				disabled={isOff}
+				onClick={() => editor?.chain().focus().toggleTaskList().run()}
+			/>
+			<IconButton
+				icon={List}
+				label="Daftar butir"
+				active={active?.bulletList}
+				disabled={isOff}
+				onClick={() => editor?.chain().focus().toggleBulletList().run()}
+			/>
+			<IconButton
+				icon={ListOrdered}
+				label="Daftar nomor"
+				active={active?.orderedList}
+				disabled={isOff}
+				onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+			/>
+			<IconButton
+				icon={Quote}
+				label="Kutipan"
+				active={active?.blockquote}
+				disabled={isOff}
+				onClick={() => editor?.chain().focus().toggleBlockquote().run()}
+			/>
 
 			<Divider />
 
 			{/* Di dalam daftar, indentasi berarti berpindah tingkat; di luar daftar ia
 			    menggeser blok - hasil keduanya terlihat di penggaris. */}
-			<IconButton icon={Outdent} label="Kurangi indentasi" disabled={isOff} onClick={() => outdentSelection(editor)} />
-			<IconButton icon={Indent} label="Tambah indentasi" disabled={isOff} onClick={() => indentSelection(editor)} />
+			<IconButton
+				icon={Outdent}
+				label="Kurangi indentasi"
+				disabled={isOff}
+				onClick={() => outdentSelection(editor)}
+			/>
+			<IconButton
+				icon={Indent}
+				label="Tambah indentasi"
+				disabled={isOff}
+				onClick={() => indentSelection(editor)}
+			/>
 			<IconButton
 				icon={RemoveFormatting}
 				label="Hapus format"
@@ -367,13 +451,7 @@ function AlignControls({
 		</>
 	)
 }
-function CapitalizationControl({
-	editor,
-	disabled,
-}: {
-	editor: Editor | null
-	disabled?: boolean
-}) {
+function CapitalizationControl({ editor, disabled }: { editor: Editor | null; disabled?: boolean }) {
 	const options = [
 		{ mode: 'lower' as const, label: 'huruf kecil' },
 		{ mode: 'upper' as const, label: 'HURUF BESAR' },

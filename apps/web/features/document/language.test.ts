@@ -61,18 +61,18 @@ describe('tier non-AI', () => {
 	})
 })
 describe('bendera bahasa (§P1, B-5)', () => {
-        test('setiap pilihan punya kode bendera dua huruf', () => {
-                for (const option of LANGUAGE_OPTIONS) {
-                        expect(option.flag).toMatch(/^[a-z]{2}$/)
-                }
-        })
+	test('setiap pilihan punya kode bendera dua huruf', () => {
+		for (const option of LANGUAGE_OPTIONS) {
+			expect(option.flag).toMatch(/^[a-z]{2}$/)
+		}
+	})
 
-        test('pemetaan bahasa→bendera sesuai keputusan §15.2', () => {
-                const byCode = new Map(LANGUAGE_OPTIONS.map((o) => [o.code, o.flag]))
-                expect(byCode.get('en')).toBe('us')
-                expect(byCode.get('id')).toBe('id')
-                expect(byCode.get('pt')).toBe('br')
-                expect(byCode.get('ar')).toBe('sa')
-                expect(byCode.get('ja')).toBe('jp')
-        })
+	test('pemetaan bahasa→bendera sesuai keputusan §15.2', () => {
+		const byCode = new Map(LANGUAGE_OPTIONS.map((o) => [o.code, o.flag]))
+		expect(byCode.get('en')).toBe('us')
+		expect(byCode.get('id')).toBe('id')
+		expect(byCode.get('pt')).toBe('br')
+		expect(byCode.get('ar')).toBe('sa')
+		expect(byCode.get('ja')).toBe('jp')
+	})
 })

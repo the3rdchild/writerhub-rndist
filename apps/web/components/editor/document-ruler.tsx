@@ -3,15 +3,19 @@
 import type { Editor } from '@tiptap/react'
 import { useCallback, useRef, useState } from 'react'
 import { type BlockIndent, clampBlockIndent, useBlockIndent } from '@/features/editor/indent'
-import {
-	INCH,
-	MIN_CONTENT_WIDTH,
-	type PageGeometry,
-	type PageMargins,
-} from '@/features/editor/page-geometry'
+import { INCH, MIN_CONTENT_WIDTH, type PageGeometry, type PageMargins } from '@/features/editor/page-geometry'
 import { clamp, rulerNudge, useRulerDrag } from '@/features/editor/ruler-drag'
-import { type ColumnsRulerTarget, type TableRulerTarget, useRulerTarget } from '@/features/editor/ruler-targets'
-import { MIN_COLUMN_WIDTH, scaleColumnWidths, setColumnWidths, setTableIndent } from '@/features/editor/table-ops'
+import {
+	type ColumnsRulerTarget,
+	type TableRulerTarget,
+	useRulerTarget,
+} from '@/features/editor/ruler-targets'
+import {
+	MIN_COLUMN_WIDTH,
+	scaleColumnWidths,
+	setColumnWidths,
+	setTableIndent,
+} from '@/features/editor/table-ops'
 import { cn } from '@/lib/utils'
 type Handle =
 	| { kind: 'marginLeft' }
@@ -112,7 +116,19 @@ export function DocumentRuler({
 				}
 			}
 		},
-		[width, margins.left, margins.right, indent.left, indentBase, indentWidth, contentWidth, editor, target, onMarginsChange, setIndent],
+		[
+			width,
+			margins.left,
+			margins.right,
+			indent.left,
+			indentBase,
+			indentWidth,
+			contentWidth,
+			editor,
+			target,
+			onMarginsChange,
+			setIndent,
+		],
 	)
 	const { dragging, startDrag } = useRulerDrag<Handle>({
 		axis: 'x',
@@ -272,7 +288,9 @@ export function DocumentRuler({
 							<GapMarker
 								key={`gap-${gap.index}-${columns.gaps.length}`}
 								label={`Celah antara kolom ${gap.index + 1} dan ${gap.index + 2}`}
-								left={toScreen(live(gap.left, (handle) => handle.kind === 'columnsGapBand' && handle.index === gap.index))}
+								left={toScreen(
+									live(gap.left, (handle) => handle.kind === 'columnsGapBand' && handle.index === gap.index),
+								)}
 								width={toScreen(gap.right - gap.left)}
 								onPointerDown={startDrag({ kind: 'columnsGapBand', index: gap.index })}
 								onKeyDown={nudge({ kind: 'columnsGapBand', index: gap.index }, gap.left)}

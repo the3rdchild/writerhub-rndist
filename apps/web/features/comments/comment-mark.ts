@@ -20,8 +20,7 @@ export const CommentMark = Mark.create({
 			commentId: {
 				default: null,
 				parseHTML: (element) => element.getAttribute('data-comment-id'),
-				renderHTML: (attributes) =>
-					attributes.commentId ? { 'data-comment-id': attributes.commentId } : {},
+				renderHTML: (attributes) => (attributes.commentId ? { 'data-comment-id': attributes.commentId } : {}),
 			},
 		}
 	},

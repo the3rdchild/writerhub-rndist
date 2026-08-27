@@ -89,9 +89,7 @@ describe('buildOutboundMessages - pemadatan batas tugas', () => {
 			user('ringkas bab 1', TASK_A),
 			{
 				...assistant('Ini ringkasannya.', TASK_A),
-				steps: [
-					{ id: 's1', label: 'Berpikir…', status: 'done', startedAt: 1, endedAt: 2 },
-				],
+				steps: [{ id: 's1', label: 'Berpikir…', status: 'done', startedAt: 1, endedAt: 2 }],
 				usage: { promptTokens: 100, completionTokens: 50 },
 			},
 		]

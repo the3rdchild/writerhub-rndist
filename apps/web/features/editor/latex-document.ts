@@ -1,7 +1,8 @@
 export function looksLikeLatexDocument(text: string): boolean {
 	return /\\documentclass|\\begin\{document\}|\\begin\{tabular\}|\\section\{/.test(text)
 }
-const NOISE = /\\(?:hline|centering|maketitle|newpage|clearpage|noindent|small|large|bigskip|medskip|smallskip)\b/g
+const NOISE =
+	/\\(?:hline|centering|maketitle|newpage|clearpage|noindent|small|large|bigskip|medskip|smallskip)\b/g
 function unwrap(text: string): string {
 	return text
 		.replace(/\\textbf\{([^{}]*)\}/g, '**$1**')
@@ -63,7 +64,10 @@ export function latexToMarkdown(source: string): string {
 		/\\begin\{enumerate\}([\s\S]*?)\\end\{enumerate\}/g,
 		(_whole, body: string) => `\n\n${listToMarkdown(body, true)}\n\n`,
 	)
-	text = text.replace(/\\begin\{(?:equation\*?|align\*?)\}([\s\S]*?)\\end\{(?:equation\*?|align\*?)\}/g, '\n\n$$$1$$\n\n')
+	text = text.replace(
+		/\\begin\{(?:equation\*?|align\*?)\}([\s\S]*?)\\end\{(?:equation\*?|align\*?)\}/g,
+		'\n\n$$$1$$\n\n',
+	)
 	text = text.replace(/\\\[([\s\S]*?)\\\]/g, '\n\n$$$1$$\n\n')
 	text = text.replace(/\\\((.*?)\\\)/g, '$$$1$$')
 	text = text.replace(/\\title\{([^{}]*)\}/g, '\n\n# $1\n\n')

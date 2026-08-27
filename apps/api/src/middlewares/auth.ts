@@ -55,7 +55,9 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 		if (!verifyPpApiKeySignature(ppApiKey.toLowerCase(), ppTimestamp)) {
 			return fail(
 				'Authentication failed',
-				['The API key you provided is invalid or expired. Please double-check your credentials and try again.'],
+				[
+					'The API key you provided is invalid or expired. Please double-check your credentials and try again.',
+				],
 				401,
 			)
 		}

@@ -1,7 +1,14 @@
 import { type Editor } from '@tiptap/core'
 import { type Node as PMNode } from '@tiptap/pm/model'
 import { type EditorState, type Transaction } from '@tiptap/pm/state'
-import { cellAround, CellSelection, findTable, moveTableColumn, moveTableRow, TableMap } from '@tiptap/pm/tables'
+import {
+	cellAround,
+	CellSelection,
+	findTable,
+	moveTableColumn,
+	moveTableRow,
+	TableMap,
+} from '@tiptap/pm/tables'
 import { NO_COLOR } from '@/features/editor/custom-table'
 export interface CellTarget {
 	tablePos: number
@@ -35,8 +42,7 @@ export function locateTableAt(state: EditorState, pos: number): TableLocation | 
 			const rect = map.findCell($cell.pos - found.start)
 			rowIndex = rect.top
 			colIndex = rect.left
-		} catch {
-		}
+		} catch {}
 	}
 
 	return {
@@ -173,8 +179,7 @@ export function columnWidths(editor: Editor, tablePos: number): number[] | null 
 	if (explicit) return explicit
 
 	const dom = editor.view.nodeDOM(tablePos) as HTMLElement | null
-	const tableEl =
-		dom instanceof HTMLElement ? (dom.closest('table') ?? dom.querySelector('table')) : null
+	const tableEl = dom instanceof HTMLElement ? (dom.closest('table') ?? dom.querySelector('table')) : null
 	const row = tableEl?.querySelector('tr')
 	if (!row) return null
 	const measured = Array.from(row.children, (cell) => (cell as HTMLElement).offsetWidth)
@@ -215,7 +220,11 @@ export function writeColumnWidths(tr: Transaction, doc: PMNode, tablePos: number
 			const span = (cell.attrs.colspan as number) || 1
 			const colwidth = Array.from({ length: span }, (_, i) => Math.round(widths[start + i] ?? 0))
 			const current = cell.attrs.colwidth as number[] | null | undefined
-			if (current && current.length === colwidth.length && current.every((value, i) => value === colwidth[i])) {
+			if (
+				current &&
+				current.length === colwidth.length &&
+				current.every((value, i) => value === colwidth[i])
+			) {
 				continue
 			}
 			tr.setNodeMarkup(tablePos + 1 + cellPos, undefined, { ...cell.attrs, colwidth })

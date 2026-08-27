@@ -125,7 +125,10 @@ export async function deleteHistoryEntry(userId: string, jobId: string): Promise
 	return true
 }
 export async function deleteAllHistoryForUser(userId: string): Promise<number> {
-	const rows = await db.select({ id: poolRequest.id }).from(poolRequest).where(eq(poolRequest.user_id, userId))
+	const rows = await db
+		.select({ id: poolRequest.id })
+		.from(poolRequest)
+		.where(eq(poolRequest.user_id, userId))
 	return deletePoolRequests(rows.map((row) => row.id))
 }
 export async function pruneOldHistory(userId: string, retentionDays = HISTORY_RETENTION_DAYS): Promise<void> {

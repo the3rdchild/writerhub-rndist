@@ -43,10 +43,7 @@ export function ColorPicker({
 					)}
 				>
 					<span className="text-muted">{icon}</span>
-					<span
-						className="h-[3px] w-4 rounded-full"
-						style={{ backgroundColor: value ?? 'transparent' }}
-					/>
+					<span className="h-[3px] w-4 rounded-full" style={{ backgroundColor: value ?? 'transparent' }} />
 				</button>
 			)}
 		>

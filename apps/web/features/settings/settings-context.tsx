@@ -126,10 +126,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 			setPageMargins: (patch) =>
 				setSettings((current) => ({
 					...current,
-					pageMargins: clampMargins({ ...current.pageMargins, ...patch }, current.pageSize, current.pageOrientation),
+					pageMargins: clampMargins(
+						{ ...current.pageMargins, ...patch },
+						current.pageSize,
+						current.pageOrientation,
+					),
 				})),
-			setDefaultPageSetup: (setup) =>
-				setSettings((current) => ({ ...current, defaultPageSetup: setup })),
+			setDefaultPageSetup: (setup) => setSettings((current) => ({ ...current, defaultPageSetup: setup })),
 			updateProfile: (patch) =>
 				setSettings((current) => ({ ...current, profile: { ...current.profile, ...patch } })),
 			toggleFocusMode: () => setSettings((current) => ({ ...current, focusMode: !current.focusMode })),

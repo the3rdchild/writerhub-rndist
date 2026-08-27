@@ -47,8 +47,8 @@ export function ExportPdfDialog() {
 				</div>
 
 				<p className="text-sm leading-relaxed text-muted">
-					PDF dibuat lewat dialog cetak browser - tata letak berhalaman yang Anda lihat di layar
-					dipakai apa adanya, termasuk page break dan margin.
+					PDF dibuat lewat dialog cetak browser - tata letak berhalaman yang Anda lihat di layar dipakai apa
+					adanya, termasuk page break dan margin.
 				</p>
 
 				<ol className="flex flex-col gap-2 rounded-xl bg-[var(--overlay-hover)] p-3 text-[13px] text-muted">
@@ -62,15 +62,15 @@ export function ExportPdfDialog() {
 						<span className="shrink-0 font-semibold text-accent">2.</span>
 						<span>
 							Buka <strong className="text-foreground">More settings</strong> lalu matikan{' '}
-							<strong className="text-foreground">Headers and footers</strong> - tanpa itu, URL dan
-							tanggal ikut tercetak di tiap halaman
+							<strong className="text-foreground">Headers and footers</strong> - tanpa itu, URL dan tanggal
+							ikut tercetak di tiap halaman
 						</span>
 					</li>
 					<li className="flex gap-2">
 						<span className="shrink-0 font-semibold text-accent">3.</span>
 						<span>
-							Biarkan <strong className="text-foreground">Margins</strong> pada Default; margin
-							dokumen sudah diatur dari penggaris
+							Biarkan <strong className="text-foreground">Margins</strong> pada Default; margin dokumen sudah
+							diatur dari penggaris
 						</span>
 					</li>
 				</ol>
@@ -83,9 +83,9 @@ export function ExportPdfDialog() {
 						Jangan lewati langkah 2: matikan Headers and footers.
 					</p>
 					<p className="mt-1 text-xs leading-relaxed text-yellow-400/85">
-						Chrome/Edge: <em>More settings</em> → hapus centang <em>Headers and footers</em>.
-						Firefox: <em>More settings</em> → matikan <em>Print headers and footers</em>. Tanpa
-						itu, URL dan tanggal ikut tercetak di sudut tiap halaman.
+						Chrome/Edge: <em>More settings</em> → hapus centang <em>Headers and footers</em>. Firefox:{' '}
+						<em>More settings</em> → matikan <em>Print headers and footers</em>. Tanpa itu, URL dan tanggal
+						ikut tercetak di sudut tiap halaman.
 					</p>
 				</div>
 

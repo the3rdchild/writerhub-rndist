@@ -78,8 +78,7 @@ export async function exportDocx(
 	},
 ): Promise<Blob> {
 	const docx = await import('docx')
-	const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType } =
-		docx
+	const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType } = docx
 
 	const HEADINGS = [
 		HeadingLevel.HEADING_1,
@@ -105,10 +104,7 @@ export async function exportDocx(
 		return runs
 	}
 
-	const paragraphOf = (
-		node: PMNode,
-		extra: Record<string, unknown> = {},
-	): InstanceType<typeof Paragraph> => {
+	const paragraphOf = (node: PMNode, extra: Record<string, unknown> = {}): InstanceType<typeof Paragraph> => {
 		const alignment = ALIGNMENT[node.attrs.textAlign as string]
 
 		return new Paragraph({
@@ -193,7 +189,10 @@ export async function exportDocx(
 					item.forEach((block) => {
 						if (!block.isTextblock) return
 						items.push(
-							paragraphOf(block, ordered ? { numbering: { reference: 'ol', level: 0 } } : { bullet: { level: 0 } }),
+							paragraphOf(
+								block,
+								ordered ? { numbering: { reference: 'ol', level: 0 } } : { bullet: { level: 0 } },
+							),
 						)
 					})
 				})
@@ -207,7 +206,9 @@ export async function exportDocx(
 				return [new Paragraph({ children: [new TextRun({ break: 1 })], pageBreakBefore: true })]
 
 			case 'horizontalRule':
-				return [new Paragraph({ text: '', border: { bottom: { style: 'single', size: 6, color: 'CCCCCC' } } })]
+				return [
+					new Paragraph({ text: '', border: { bottom: { style: 'single', size: 6, color: 'CCCCCC' } } }),
+				]
 			case 'columns':
 			case 'column': {
 				const inner: unknown[] = []

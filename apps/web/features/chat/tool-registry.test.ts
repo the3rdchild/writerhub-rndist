@@ -85,9 +85,11 @@ describe('registri alat editor', () => {
 
 describe('alat section (§P8&P9)', () => {
 	const enumOf = (tool: string, param: string): string[] =>
-		((EDITOR_TOOLS.find((item) => item.name === tool)?.parameters.properties[param] as
-			| { enum?: string[] }
-			| undefined)?.enum ?? [])
+		(
+			EDITOR_TOOLS.find((item) => item.name === tool)?.parameters.properties[param] as
+				| { enum?: string[] }
+				| undefined
+		)?.enum ?? []
 
 	test('insert_section_break adalah alat tulis tanpa argumen wajib', () => {
 		const tool = EDITOR_TOOLS.find((item) => item.name === 'insert_section_break')

@@ -14,4 +14,20 @@ import status from './status.route'
 import stream from './stream.route'
 import tabs from './tabs.route'
 
-export const v1Routes = [health, grammar, analysis, chat, status, stream, jobs, files, share, documents, tabs, projects, memory, history, research]
+export const v1Routes = [
+	health,
+	grammar,
+	analysis,
+	chat,
+	status,
+	stream,
+	jobs,
+	files,
+	share,
+	documents,
+	tabs,
+	projects,
+	memory,
+	history,
+	research,
+]

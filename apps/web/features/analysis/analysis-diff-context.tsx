@@ -21,19 +21,12 @@ const AnalysisDiffContext = createContext<AnalysisDiffContextValue | null>(null)
 export function AnalysisDiffProvider({ children }: { children: ReactNode }) {
 	const [activeDiff, setActiveDiff] = useState<ActiveAnalysisDiff | null>(null)
 
-	const publish = useCallback(
-		(feature: AnalysisDiffFeature, ranges: VersionDiffRange[]) => {
-			setActiveDiff((current) =>
-				current && current.feature !== feature ? current : { feature, ranges },
-			)
-		},
-		[],
-	)
+	const publish = useCallback((feature: AnalysisDiffFeature, ranges: VersionDiffRange[]) => {
+		setActiveDiff((current) => (current && current.feature !== feature ? current : { feature, ranges }))
+	}, [])
 
 	const enable = useCallback((feature: AnalysisDiffFeature) => {
-		setActiveDiff((current) =>
-			current?.feature === feature ? current : { feature, ranges: [] },
-		)
+		setActiveDiff((current) => (current?.feature === feature ? current : { feature, ranges: [] }))
 	}, [])
 
 	const disable = useCallback((feature: AnalysisDiffFeature) => {

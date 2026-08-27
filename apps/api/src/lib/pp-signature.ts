@@ -23,8 +23,6 @@ export function signPpHmacRequest(
 
 	const timestamp = Date.now().toString()
 	const stringToSign = `${method}\n${path}\n${body}\n${timestamp}`
-	const signature = createHmac('sha256', env.PP_EXTENDED_ADMIN_HMAC_SECRET)
-		.update(stringToSign)
-		.digest('hex')
+	const signature = createHmac('sha256', env.PP_EXTENDED_ADMIN_HMAC_SECRET).update(stringToSign).digest('hex')
 	return { signature, timestamp }
 }

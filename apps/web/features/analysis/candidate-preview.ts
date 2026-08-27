@@ -55,10 +55,7 @@ export const CandidatePreviewHighlight = Extension.create({
 					init: () => ({ preview: null, decorations: DecorationSet.empty }),
 
 					apply(tr, current, _oldState, newState) {
-						const incoming = tr.getMeta(candidatePreviewKey) as
-							| CandidatePreview
-							| null
-							| undefined
+						const incoming = tr.getMeta(candidatePreviewKey) as CandidatePreview | null | undefined
 						if (incoming !== undefined) {
 							return { preview: incoming, decorations: buildDecorations(newState.doc, incoming) }
 						}

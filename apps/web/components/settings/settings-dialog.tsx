@@ -129,9 +129,7 @@ export function SettingsDialog() {
 							<Field label="Langganan">
 								<div className="flex items-center gap-2 rounded-lg border border-orange-400/20 bg-orange-400/10 px-3 py-2">
 									<Crown className="h-4 w-4 text-orange-400" />
-									<span className="text-sm font-medium text-orange-400">
-										Paket {settings.profile.role}
-									</span>
+									<span className="text-sm font-medium text-orange-400">Paket {settings.profile.role}</span>
 								</div>
 							</Field>
 						</div>

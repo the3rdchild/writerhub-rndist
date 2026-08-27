@@ -10,8 +10,6 @@ tabs.delete('/:tabId', authMiddleware, (c) => new TabsService(c).remove())
 tabs.get('/:tabId/versions', authMiddleware, (c) => new VersionsService(c).list())
 tabs.get('/:tabId/versions/:versionId', authMiddleware, (c) => new VersionsService(c).getById())
 tabs.post('/:tabId/versions', authMiddleware, (c) => new VersionsService(c).create())
-tabs.post('/:tabId/versions/:versionId/restore', authMiddleware, (c) =>
-	new VersionsService(c).restore(),
-)
+tabs.post('/:tabId/versions/:versionId/restore', authMiddleware, (c) => new VersionsService(c).restore())
 
 export default tabs

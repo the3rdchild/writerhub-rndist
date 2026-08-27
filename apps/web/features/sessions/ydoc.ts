@@ -127,9 +127,7 @@ function readPageSetup(entry: Y.Map<unknown> | undefined): PageSetup | null {
 		margins: value.margins ?? DEFAULT_PAGE_SETUP.margins,
 		pageColor: value.pageColor ?? null,
 		pageless: value.pageless ?? false,
-		...(value.size === 'custom'
-			? { customWidth: value.customWidth, customHeight: value.customHeight }
-			: {}),
+		...(value.size === 'custom' ? { customWidth: value.customWidth, customHeight: value.customHeight } : {}),
 	}
 }
 export function resolvePageSetup(
@@ -220,9 +218,7 @@ export function readTabs(doc: Y.Doc, docId?: string): TabMeta[] {
 	const ordered = readDocs(doc).flatMap((dok) => dok.tabOrder)
 	const listed = new Set(ordered)
 	const orphans = [...meta.keys()].filter((id) => !listed.has(id))
-	return [...ordered, ...orphans]
-		.filter((id) => meta.has(id))
-		.map((id) => readMeta(meta, id))
+	return [...ordered, ...orphans].filter((id) => meta.has(id)).map((id) => readMeta(meta, id))
 }
 export function readDocs(doc: Y.Doc): DocMeta[] {
 	const { order, meta } = docsRoot(doc)
@@ -358,11 +354,7 @@ export function deleteTab(doc: Y.Doc, id: string): void {
 	}, LOCAL_ORIGIN)
 }
 
-export function updateTab(
-	doc: Y.Doc,
-	id: string,
-	patch: Partial<Omit<TabMeta, 'id'>>,
-): void {
+export function updateTab(doc: Y.Doc, id: string, patch: Partial<Omit<TabMeta, 'id'>>): void {
 	const { meta } = tabsRoot(doc)
 
 	doc.transact(() => {
@@ -377,9 +369,7 @@ export function moveTab(doc: Y.Doc, movedId: string, destId: string): void {
 	if (!parentId || findTabDoc(doc, movedId) !== parentId) return
 
 	doc.transact(() => {
-		const tabOrder = docsRoot(doc).meta.get(parentId)?.get(TAB_ORDER) as
-			| Y.Array<string>
-			| undefined
+		const tabOrder = docsRoot(doc).meta.get(parentId)?.get(TAB_ORDER) as Y.Array<string> | undefined
 		if (!tabOrder) return
 		const ids = tabOrder.toArray()
 		const from = ids.indexOf(movedId)
@@ -393,9 +383,7 @@ export function moveTab(doc: Y.Doc, movedId: string, destId: string): void {
 function cloneFragment(source: Y.XmlFragment, target: Y.XmlFragment): void {
 	const copies = source
 		.toArray()
-		.map((node) =>
-			node instanceof Y.XmlElement || node instanceof Y.XmlText ? node.clone() : null,
-		)
+		.map((node) => (node instanceof Y.XmlElement || node instanceof Y.XmlText ? node.clone() : null))
 		.filter((node): node is Y.XmlElement | Y.XmlText => node !== null)
 
 	target.insert(target.length, copies)
@@ -418,9 +406,7 @@ export function duplicateTab(doc: Y.Doc, id: string): string | null {
 		meta.set(copyId, entry)
 
 		if (parentId) {
-			const tabOrder = docsRoot(doc).meta.get(parentId)?.get(TAB_ORDER) as
-				| Y.Array<string>
-				| undefined
+			const tabOrder = docsRoot(doc).meta.get(parentId)?.get(TAB_ORDER) as Y.Array<string> | undefined
 			if (tabOrder) {
 				const at = tabOrder.toArray().indexOf(id)
 				tabOrder.insert(at === -1 ? tabOrder.length : at + 1, [copyId])

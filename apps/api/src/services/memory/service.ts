@@ -13,9 +13,7 @@ export default class MemoryService extends BaseService {
 	}
 	async put(): Promise<Response> {
 		try {
-			const body = memoryPreferencesSchema.safeParse(
-				await this.context.req.json().catch(() => ({})),
-			)
+			const body = memoryPreferencesSchema.safeParse(await this.context.req.json().catch(() => ({})))
 			if (!body.success) {
 				return this.error({ errors: body.error.issues.map((issue) => issue.message) })
 			}

@@ -38,12 +38,8 @@ describe('label kolom Istilah', () => {
 	})
 
 	test('kepanjangan kosong atau berisi spasi diperlakukan sebagai tidak ada', () => {
-		expect(glossaryTermLabel({ term: 'AKD', expansion: '', definition: '…', occurrences: 1 })).toBe(
-			'AKD',
-		)
-		expect(
-			glossaryTermLabel({ term: 'AKD', expansion: '   ', definition: '…', occurrences: 1 }),
-		).toBe('AKD')
+		expect(glossaryTermLabel({ term: 'AKD', expansion: '', definition: '…', occurrences: 1 })).toBe('AKD')
+		expect(glossaryTermLabel({ term: 'AKD', expansion: '   ', definition: '…', occurrences: 1 })).toBe('AKD')
 	})
 })
 

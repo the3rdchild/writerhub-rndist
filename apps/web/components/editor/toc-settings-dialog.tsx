@@ -2,11 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { INCH } from '@/features/editor/page-geometry'
-import {
-	DEFAULT_TOC_ATTRS,
-	type TocBlockAttrs,
-	type TocTabLeader,
-} from '@/features/editor/toc-block'
+import { DEFAULT_TOC_ATTRS, type TocBlockAttrs, type TocTabLeader } from '@/features/editor/toc-block'
 import { TOC_SETTINGS_EVENT, type TocSettingsRequest } from '@/components/editor/toc-block-view'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { usePageSetup } from '@/features/editor/use-page-setup'
@@ -33,15 +29,7 @@ const TAB_LEADERS: ReadonlyArray<{ value: TocTabLeader; label: string; char: str
 
 const FIELD_CLASS =
 	'w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm text-foreground outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-50'
-function Row({
-	label,
-	hint,
-	children,
-}: {
-	label: string
-	hint?: string
-	children: React.ReactNode
-}) {
+function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
 	return (
 		<div className="grid grid-cols-[9.5rem_1fr] items-start gap-x-4 gap-y-1">
 			<span className="pt-1.5 text-xs font-medium text-muted">{label}</span>
@@ -248,9 +236,7 @@ export function TocSettingsDialog() {
 				{/* Pratinjau: satu baris contoh dengan lekukan, pengisi, dan nomor yang
 				    sedang dipilih - lebih cepat dipahami daripada nama setelannya. */}
 				<div className="rounded-xl border border-line bg-surface-inset px-3 py-2.5">
-					<p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-subtle">
-						Pratinjau
-					</p>
+					<p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-subtle">Pratinjau</p>
 					<div className="flex flex-col gap-0.5 overflow-hidden text-sm">
 						{[
 							{ text: 'Pendahuluan', level: 0, page: 1 },

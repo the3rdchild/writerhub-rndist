@@ -537,7 +537,12 @@ function blockMargins(element: HTMLElement): { marginTop: number; marginBottom: 
 		return child instanceof HTMLElement ? px(getComputedStyle(child)[`margin${side}`]) : 0
 	}
 	return {
-		marginTop: collapsedMargin(px(style.marginTop), px(style.paddingTop), px(style.borderTopWidth), childMargin('Top')),
+		marginTop: collapsedMargin(
+			px(style.marginTop),
+			px(style.paddingTop),
+			px(style.borderTopWidth),
+			childMargin('Top'),
+		),
 		marginBottom: collapsedMargin(
 			px(style.marginBottom),
 			px(style.paddingBottom),
@@ -643,7 +648,8 @@ function measureColumns(
 
 		const count = Math.max(MIN_COLUMNS, Number(node.attrs.count) || MIN_COLUMNS)
 		const width = dom.clientWidth
-		const columnGap = typeof node.attrs.gap === 'number' && node.attrs.gap >= 0 ? node.attrs.gap : columnGapOf(dom)
+		const columnGap =
+			typeof node.attrs.gap === 'number' && node.attrs.gap >= 0 ? node.attrs.gap : columnGapOf(dom)
 		const slots = resolveColumnSlots(width, count, columnGap, node.attrs.widths ?? null)
 		if (slots.length === 0) return
 
@@ -770,7 +776,11 @@ function samePlans(a: readonly ColumnsPlan[], b: readonly ColumnsPlan[]): boolea
 		(one?.length ?? 0) === (other?.length ?? 0) &&
 		(one ?? []).every((cut, index) => {
 			const twin = (other ?? [])[index]
-			return cut.pos === twin.pos && near(cut.spacerHeight, twin.spacerHeight) && near(cut.headerHeight, twin.headerHeight)
+			return (
+				cut.pos === twin.pos &&
+				near(cut.spacerHeight, twin.spacerHeight) &&
+				near(cut.headerHeight, twin.headerHeight)
+			)
 		})
 
 	return (
@@ -916,8 +926,7 @@ function columnLayoutPlugin(): Plugin<ColumnLayoutState> {
 
 			const watch = (elements: HTMLElement[]) => {
 				const same =
-					elements.length === watched.length &&
-					elements.every((element, index) => element === watched[index])
+					elements.length === watched.length && elements.every((element, index) => element === watched[index])
 				if (same) return
 
 				observer.disconnect()

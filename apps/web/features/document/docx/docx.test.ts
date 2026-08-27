@@ -21,24 +21,26 @@ function docx({
 	numbering?: string
 	media?: Record<string, Uint8Array>
 }): Uint8Array {
-	const mediaPart = media ? Object.fromEntries(
-		Object.entries(media).map(([path, bytes]) => [
-			path.startsWith('word/') ? path : `word/${path}`,
-			bytes,
-		]),
-	) : {}
+	const mediaPart = media
+		? Object.fromEntries(
+				Object.entries(media).map(([path, bytes]) => [
+					path.startsWith('word/') ? path : `word/${path}`,
+					bytes,
+				]),
+			)
+		: {}
 	const numberingRel = numbering
 		? `<Relationship Id="rIdNum" Type="${REL_NS}/numbering" Target="numbering.xml"/>`
 		: ''
 	const numberingPart = numbering
 		? {
-				'word/numbering.xml': strToU8(
-					`<?xml version="1.0"?><w:numbering ${W}>${numbering}</w:numbering>`,
-				),
+				'word/numbering.xml': strToU8(`<?xml version="1.0"?><w:numbering ${W}>${numbering}</w:numbering>`),
 			}
 		: {}
 
-	const themeRel = theme ? `<Relationship Id="rIdTheme" Type="${REL_NS}/theme" Target="theme/theme1.xml"/>` : ''
+	const themeRel = theme
+		? `<Relationship Id="rIdTheme" Type="${REL_NS}/theme" Target="theme/theme1.xml"/>`
+		: ''
 	const themePart = theme
 		? {
 				'word/theme/theme1.xml': strToU8(
@@ -345,13 +347,73 @@ describe('tabel', () => {
 
 describe('gambar', () => {
 	const PNG_1x1 = Uint8Array.from([
-		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // tanda tangan
-		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, // IHDR
-		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // lebar=1, tinggi=1
-		0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89,
-		0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01,
-		0x00, 0x00, 0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4,
-		0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+		0x89,
+		0x50,
+		0x4e,
+		0x47,
+		0x0d,
+		0x0a,
+		0x1a,
+		0x0a, // tanda tangan
+		0x00,
+		0x00,
+		0x00,
+		0x0d,
+		0x49,
+		0x48,
+		0x44,
+		0x52, // IHDR
+		0x00,
+		0x00,
+		0x00,
+		0x01,
+		0x00,
+		0x00,
+		0x00,
+		0x01, // lebar=1, tinggi=1
+		0x08,
+		0x06,
+		0x00,
+		0x00,
+		0x00,
+		0x1f,
+		0x15,
+		0xc4,
+		0x89,
+		0x00,
+		0x00,
+		0x00,
+		0x0d,
+		0x49,
+		0x44,
+		0x41,
+		0x54,
+		0x78,
+		0x9c,
+		0x63,
+		0x00,
+		0x01,
+		0x00,
+		0x00,
+		0x05,
+		0x00,
+		0x01,
+		0x0d,
+		0x0a,
+		0x2d,
+		0xb4,
+		0x00,
+		0x00,
+		0x00,
+		0x00,
+		0x49,
+		0x45,
+		0x4e,
+		0x44,
+		0xae,
+		0x42,
+		0x60,
+		0x82,
 	])
 	function drawing(embedId: string, name = 'gambar', cx = 9525, cy = 9525): string {
 		return `<w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
@@ -430,23 +492,17 @@ describe('perataan dan indentasi', () => {
 
 describe('spasi', () => {
 	test('spasi 1,5 Word lebih longgar dari 1,5 CSS', async () => {
-		const result = await readDocx(
-			docx({ body: p(r('isi'), '<w:spacing w:line="360" w:lineRule="auto"/>') }),
-		)
+		const result = await readDocx(docx({ body: p(r('isi'), '<w:spacing w:line="360" w:lineRule="auto"/>') }))
 		expect(blocks(result.content)[0]?.attrs?.lineHeight).toBe('1.73')
 	})
 
 	test('spasi tunggal jadi normal, bukan angka', async () => {
-		const result = await readDocx(
-			docx({ body: p(r('isi'), '<w:spacing w:line="240" w:lineRule="auto"/>') }),
-		)
+		const result = await readDocx(docx({ body: p(r('isi'), '<w:spacing w:line="240" w:lineRule="auto"/>') }))
 		expect(blocks(result.content)[0]?.attrs?.lineHeight).toBe('normal')
 	})
 
 	test('spasi pasti dinyatakan dalam piksel', async () => {
-		const result = await readDocx(
-			docx({ body: p(r('isi'), '<w:spacing w:line="360" w:lineRule="exact"/>') }),
-		)
+		const result = await readDocx(docx({ body: p(r('isi'), '<w:spacing w:line="360" w:lineRule="exact"/>') }))
 		expect(blocks(result.content)[0]?.attrs?.lineHeight).toBe('24px')
 	})
 	test('paragraf tanpa keterangan spasi tetap dinyatakan rapat', async () => {
@@ -475,9 +531,7 @@ describe('rupa huruf', () => {
 	})
 
 	test('nama font dibawa beserta cadangan generiknya', async () => {
-		const result = await readDocx(
-			docx({ body: p(r('isi', '<w:rFonts w:ascii="Times New Roman"/>')) }),
-		)
+		const result = await readDocx(docx({ body: p(r('isi', '<w:rFonts w:ascii="Times New Roman"/>')) }))
 		expect(textStyle(blocks(result.content)[0])?.fontFamily).toBe('"Times New Roman", serif')
 	})
 	test('font yang kita muat sendiri dipetakan ke variabelnya', async () => {
@@ -576,10 +630,7 @@ describe('penomoran otomatis', () => {
 			p(r('Daftar Pustaka'), '<w:pStyle w:val="BabTanpaNomor"/>')
 		const result = await readDocx(docx({ numbering: BERTINGKAT, styles, body }))
 
-		expect(blocks(result.content).map((block) => textOf(block))).toEqual([
-			'BAB I Bernomor',
-			'Daftar Pustaka',
-		])
+		expect(blocks(result.content).map((block) => textOf(block))).toEqual(['BAB I Bernomor', 'Daftar Pustaka'])
 	})
 	test('nomor tebal dibakar sebagai run bertanda tebal', async () => {
 		const body = p(r('isi'), `${numbered(0)}<w:rPr><w:b/></w:rPr><w:outlineLvl w:val="0"/>`)
@@ -648,9 +699,7 @@ describe('impor section (E4)', () => {
 
 	test('dua section: pembatas dibawa sectPr KEDUA, yang pertama milik naskah', async () => {
 		const body =
-			p(r('satu'), sectPr(pgSz(12240, 15840) + pgMar())) +
-			p(r('dua')) +
-			sectPr(pgSz(11906, 16838) + pgMar())
+			p(r('satu'), sectPr(pgSz(12240, 15840) + pgMar())) + p(r('dua')) + sectPr(pgSz(11906, 16838) + pgMar())
 		const result = await readDocx(docx({ body }))
 
 		expect(result.pageSetup?.size).toBe('letter')
@@ -679,9 +728,7 @@ describe('impor section (E4)', () => {
 		const result = await readDocx(
 			docx({ body: p(r('isi')) + sectPr(pgSz(11906, 16838) + '<w:cols w:num="2"/>') }),
 		)
-		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain(
-			'kolom di bagian pertama',
-		)
+		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain('kolom di bagian pertama')
 	})
 
 	test('pembatas tetap dibuat walau kedua section ber setelan sama', async () => {
@@ -724,7 +771,8 @@ describe('impor section (E4)', () => {
 		expect(pembatas[0]?.attrs?.columns.count).toBe(2)
 	})
 
-	test('sectPr continuous dengan geometri sama terbaca sebagai pembatas menerus (E5)', async () => {		const body =
+	test('sectPr continuous dengan geometri sama terbaca sebagai pembatas menerus (E5)', async () => {
+		const body =
 			p(r('satu'), sectPr(pgSz(11906, 16838))) +
 			p(r('dua')) +
 			sectPr(pgSz(11906, 16838) + '<w:type w:val="continuous"/>')

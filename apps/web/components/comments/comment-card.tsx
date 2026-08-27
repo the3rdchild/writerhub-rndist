@@ -6,15 +6,7 @@ import { authorColor, authorInitials } from '@/features/comments/author'
 import { useComments } from '@/features/comments/comments-context'
 import type { CommentThread } from '@/features/sessions/session-context'
 import { cn } from '@/lib/utils'
-export function CommentAvatar({
-	name,
-	id,
-	size = 20,
-}: {
-	name: string
-	id?: string
-	size?: number
-}) {
+export function CommentAvatar({ name, id, size = 20 }: { name: string; id?: string; size?: number }) {
 	return (
 		<span
 			aria-hidden="true"
@@ -122,10 +114,7 @@ export function PendingCommentCard({
 
 	return (
 		<div
-			className={cn(
-				'flex flex-col gap-2 rounded-xl bg-surface-raised p-3 ring-1 ring-accent/40',
-				className,
-			)}
+			className={cn('flex flex-col gap-2 rounded-xl bg-surface-raised p-3 ring-1 ring-accent/40', className)}
 		>
 			<div className="flex items-center gap-2">
 				<CommentAvatar name={author} />
@@ -165,12 +154,7 @@ function SuggestionSection({ thread }: { thread: CommentThread }) {
 		const accepted = proposal.status === 'accepted'
 		return (
 			<div className="flex flex-col gap-1 rounded-lg bg-[var(--overlay-hover)] p-2">
-				<span
-					className={cn(
-						'text-[10px] font-medium',
-						accepted ? 'text-green-400' : 'text-subtle',
-					)}
-				>
+				<span className={cn('text-[10px] font-medium', accepted ? 'text-green-400' : 'text-subtle')}>
 					Usulan {proposal.author} {accepted ? 'diterapkan' : 'ditolak'}
 				</span>
 				{accepted && proposal.replaced && (
@@ -193,9 +177,7 @@ function SuggestionSection({ thread }: { thread: CommentThread }) {
 	if (proposal) {
 		return (
 			<div className="flex flex-col gap-1.5 rounded-lg bg-[var(--overlay-hover)] p-2">
-				<span className="text-[10px] font-medium text-accent">
-					{proposal.author} mengusulkan perubahan
-				</span>
+				<span className="text-[10px] font-medium text-accent">{proposal.author} mengusulkan perubahan</span>
 				<p className="break-words text-[11px] leading-relaxed text-faint line-through">
 					{markedText(thread.id) ?? thread.quote}
 				</p>
@@ -287,9 +269,7 @@ export function CommentThreadCard({
 		>
 			<div className="flex items-center gap-2">
 				<CommentAvatar name={opener} id={openerId} />
-				<span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">
-					{opener}
-				</span>
+				<span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">{opener}</span>
 				<button
 					type="button"
 					onClick={resolve}

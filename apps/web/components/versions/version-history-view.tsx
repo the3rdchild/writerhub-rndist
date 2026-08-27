@@ -19,10 +19,7 @@ import { snapshotLocalVersion } from '@/features/versions/local-snapshot'
 import type { VersionSummary } from '@/features/versions/types'
 import { useVersion, useVersions, useInvalidateVersions } from '@/features/versions/use-versions'
 import { useVersionMode } from '@/features/versions/version-context'
-import {
-	VersionDiffHighlight,
-	versionDiffHighlightKey,
-} from '@/features/versions/version-diff-highlight'
+import { VersionDiffHighlight, versionDiffHighlightKey } from '@/features/versions/version-diff-highlight'
 
 const timeFormat = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' })
 const dateFormat = new Intl.DateTimeFormat('id-ID', {
@@ -159,9 +156,7 @@ export function VersionHistoryView() {
 				<div className="min-w-0">
 					<h1 className="truncate text-base font-medium text-foreground">{versionMode.title}</h1>
 					<p className="text-xs text-muted">
-						{selectedVersion
-							? dateFormat.format(new Date(selectedVersion.createdAt))
-							: 'Versi saat ini'}
+						{selectedVersion ? dateFormat.format(new Date(selectedVersion.createdAt)) : 'Versi saat ini'}
 					</p>
 				</div>
 			</header>
@@ -200,18 +195,14 @@ export function VersionHistoryView() {
 							onClick={() => setSelectedId(null)}
 							className={cn(
 								'w-full rounded-lg px-3 py-2 text-left transition-colors',
-								selectedId === null
-									? 'bg-accent/15 text-foreground'
-									: 'hover:bg-[var(--overlay-hover)]',
+								selectedId === null ? 'bg-accent/15 text-foreground' : 'hover:bg-[var(--overlay-hover)]',
 							)}
 						>
 							<div className="text-sm font-medium text-foreground">Versi saat ini</div>
 							<div className="text-xs text-muted">Draf yang sedang dikerjakan</div>
 						</button>
 
-						{versions.isPending && (
-							<p className="px-3 py-4 text-xs text-muted">Memuat riwayat…</p>
-						)}
+						{versions.isPending && <p className="px-3 py-4 text-xs text-muted">Memuat riwayat…</p>}
 						{versions.isError && (
 							<p className="px-3 py-4 text-xs text-red-400">Gagal memuat riwayat versi.</p>
 						)}
@@ -238,9 +229,7 @@ export function VersionHistoryView() {
 											{version.trigger === 'manual' && <Pin className="h-3 w-3 shrink-0" />}
 											<span className="truncate">{entryLabel(version)}</span>
 											<span aria-hidden>•</span>
-											<span className="shrink-0">
-												{version.wordCount.toLocaleString('id-ID')} kata
-											</span>
+											<span className="shrink-0">{version.wordCount.toLocaleString('id-ID')} kata</span>
 										</div>
 									</button>
 								))}

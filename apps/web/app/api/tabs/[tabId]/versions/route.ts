@@ -2,7 +2,10 @@ import { callUpstream, configErrorResponse } from '@/lib/server/upstream'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export async function GET(_request: Request, { params }: { params: Promise<{ tabId: string }> }): Promise<Response> {
+export async function GET(
+	_request: Request,
+	{ params }: { params: Promise<{ tabId: string }> },
+): Promise<Response> {
 	try {
 		const { tabId } = await params
 		return await callUpstream({
@@ -13,7 +16,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tab
 		return configErrorResponse(error)
 	}
 }
-export async function POST(request: Request, { params }: { params: Promise<{ tabId: string }> }): Promise<Response> {
+export async function POST(
+	request: Request,
+	{ params }: { params: Promise<{ tabId: string }> },
+): Promise<Response> {
 	try {
 		const { tabId } = await params
 		return await callUpstream({

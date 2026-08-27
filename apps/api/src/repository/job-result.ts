@@ -20,10 +20,6 @@ export async function markPoolRequestCancelled(jobId: string): Promise<'pending'
 	return previous
 }
 export async function findMetadataVersion(jobId: string) {
-	const [row] = await db
-		.select()
-		.from(metadataVersion)
-		.where(eq(metadataVersion.job_id, jobId))
-		.limit(1)
+	const [row] = await db.select().from(metadataVersion).where(eq(metadataVersion.job_id, jobId)).limit(1)
 	return row ?? null
 }

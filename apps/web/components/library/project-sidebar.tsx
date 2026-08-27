@@ -168,10 +168,9 @@ export function ProjectSidebar({ active }: { active: string }) {
 				title="Hapus proyek ini?"
 				description={
 					<>
-						Proyek <strong className="text-foreground">{pendingDelete?.name}</strong> dihapus.
-						Proyek yang masih berisi dokumen{' '}
-						<strong className="text-foreground">tidak bisa dihapus</strong> - pindahkan atau
-						hapus dokumennya dulu.
+						Proyek <strong className="text-foreground">{pendingDelete?.name}</strong> dihapus. Proyek yang
+						masih berisi dokumen <strong className="text-foreground">tidak bisa dihapus</strong> - pindahkan
+						atau hapus dokumennya dulu.
 						{actionError && <span className="mt-2 block text-red-500">{actionError}</span>}
 					</>
 				}

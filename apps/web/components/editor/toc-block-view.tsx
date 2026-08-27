@@ -58,7 +58,14 @@ function tocAnchorId(pos: number): string {
 	return `toc-h-${pos}`
 }
 
-export function TocBlockView({ node, editor, getPos, selected, updateAttributes, deleteNode }: NodeViewProps) {
+export function TocBlockView({
+	node,
+	editor,
+	getPos,
+	selected,
+	updateAttributes,
+	deleteNode,
+}: NodeViewProps) {
 	const attrs: TocBlockAttrs = {
 		...DEFAULT_TOC_ATTRS,
 		...(node.attrs as Partial<TocBlockAttrs>),
@@ -69,36 +76,38 @@ export function TocBlockView({ node, editor, getPos, selected, updateAttributes,
 	const updateAttributesRef = useRef(updateAttributes)
 	updateAttributesRef.current = updateAttributes
 
-	const refresh = useCallback((writeSnapshot: boolean) => {
-		const attrs = attrsRef.current
-		const lo = Math.min(attrs.minLevel, attrs.maxLevel)
-		const hi = Math.max(attrs.minLevel, attrs.maxLevel)
-		const wantKind = KIND_FILTER[attrs.listKind]
-		const items = readOutlineItems(editor.state.doc).filter(
-			(item) => item.kind === wantKind && item.level >= lo && item.level <= hi,
-		)
-		const state = paginationKey.getState(editor.state)
-		const stride = state?.geometry?.pageStride ?? pageGeometry().pageStride
-		const next: TocEntry[] = items.map((item) => {
-			let page: number | undefined
-			if (item.pos + 1 <= editor.state.doc.content.size) {
-				try {
-					const el = editor.view.nodeDOM(item.pos)
-					if (el instanceof HTMLElement) {
-						if (attrs.showPageNumbers) page = Math.floor(el.offsetTop / stride) + 1
-						if (attrs.style === 'link') el.id = tocAnchorId(item.pos)
-					}
-				} catch {
+	const refresh = useCallback(
+		(writeSnapshot: boolean) => {
+			const attrs = attrsRef.current
+			const lo = Math.min(attrs.minLevel, attrs.maxLevel)
+			const hi = Math.max(attrs.minLevel, attrs.maxLevel)
+			const wantKind = KIND_FILTER[attrs.listKind]
+			const items = readOutlineItems(editor.state.doc).filter(
+				(item) => item.kind === wantKind && item.level >= lo && item.level <= hi,
+			)
+			const state = paginationKey.getState(editor.state)
+			const stride = state?.geometry?.pageStride ?? pageGeometry().pageStride
+			const next: TocEntry[] = items.map((item) => {
+				let page: number | undefined
+				if (item.pos + 1 <= editor.state.doc.content.size) {
+					try {
+						const el = editor.view.nodeDOM(item.pos)
+						if (el instanceof HTMLElement) {
+							if (attrs.showPageNumbers) page = Math.floor(el.offsetTop / stride) + 1
+							if (attrs.style === 'link') el.id = tocAnchorId(item.pos)
+						}
+					} catch {}
 				}
+				return { item, page }
+			})
+			setEntries(next)
+			if (writeSnapshot) {
+				const snapshot = snapshotText(next, attrs)
+				if (snapshot !== attrs.snapshot) updateAttributesRef.current({ snapshot })
 			}
-			return { item, page }
-		})
-		setEntries(next)
-		if (writeSnapshot) {
-			const snapshot = snapshotText(next, attrs)
-			if (snapshot !== attrs.snapshot) updateAttributesRef.current({ snapshot })
-		}
-	}, [editor])
+		},
+		[editor],
+	)
 	const minLevel = attrs.minLevel
 	const maxLevel = attrs.maxLevel
 	const listKind = attrs.listKind
@@ -127,11 +136,19 @@ export function TocBlockView({ node, editor, getPos, selected, updateAttributes,
 		editor
 			.chain()
 			.focus()
-			.insertContentAt({ from: pos, to: pos + node.nodeSize }, paragraphs.length ? paragraphs : [{ type: 'paragraph' }])
+			.insertContentAt(
+				{ from: pos, to: pos + node.nodeSize },
+				paragraphs.length ? paragraphs : [{ type: 'paragraph' }],
+			)
 			.run()
 	}
 	const jumpTo = (pos: number) => {
-		editor.chain().focus().setTextSelection(Math.min(pos + 1, editor.state.doc.content.size)).scrollIntoView().run()
+		editor
+			.chain()
+			.focus()
+			.setTextSelection(Math.min(pos + 1, editor.state.doc.content.size))
+			.scrollIntoView()
+			.run()
 	}
 	const [gaps, setGaps] = useState<TocGap[]>([])
 	const [pageTick, setPageTick] = useState(0)
@@ -183,7 +200,8 @@ export function TocBlockView({ node, editor, getPos, selected, updateAttributes,
 		for (const gap of gaps) {
 			const i = gap.before
 			if (i <= 0 || i >= lis.length) continue
-			chrome = lis[i].offsetTop - (lis[i - 1].offsetTop + lis[i - 1].offsetHeight) - normalSpacing - gap.height
+			chrome =
+				lis[i].offsetTop - (lis[i - 1].offsetTop + lis[i - 1].offsetHeight) - normalSpacing - gap.height
 			break
 		}
 		const next: TocGap[] = []
@@ -331,17 +349,41 @@ function TocControls({
 					<>
 						{/*
 						 */}
-						<DropdownItem icon={<Settings2 className="h-3.5 w-3.5" />} onSelect={() => { close(); onSettings() }}>
+						<DropdownItem
+							icon={<Settings2 className="h-3.5 w-3.5" />}
+							onSelect={() => {
+								close()
+								onSettings()
+							}}
+						>
 							Setelan daftar isi…
 						</DropdownItem>
-						<DropdownItem icon={<Copy className="h-3.5 w-3.5" />} onSelect={() => { close(); onCopy() }}>
+						<DropdownItem
+							icon={<Copy className="h-3.5 w-3.5" />}
+							onSelect={() => {
+								close()
+								onCopy()
+							}}
+						>
 							Salin sebagai teks
 						</DropdownItem>
-						<DropdownItem icon={<Type className="h-3.5 w-3.5" />} onSelect={() => { close(); onConvert() }}>
+						<DropdownItem
+							icon={<Type className="h-3.5 w-3.5" />}
+							onSelect={() => {
+								close()
+								onConvert()
+							}}
+						>
 							Ubah jadi teks biasa
 						</DropdownItem>
 						<DropdownSeparator />
-						<DropdownItem icon={<Trash2 className="h-3.5 w-3.5" />} onSelect={() => { close(); onDelete() }}>
+						<DropdownItem
+							icon={<Trash2 className="h-3.5 w-3.5" />}
+							onSelect={() => {
+								close()
+								onDelete()
+							}}
+						>
 							Hapus
 						</DropdownItem>
 					</>
@@ -407,7 +449,9 @@ function TocEntries({
 							</span>
 						)}
 						{showPage && (
-							<span className={cn('shrink-0 tabular-nums text-subtle', attrs.tabLeader === 'none' && 'ml-auto')}>
+							<span
+								className={cn('shrink-0 tabular-nums text-subtle', attrs.tabLeader === 'none' && 'ml-auto')}
+							>
 								{page}
 							</span>
 						)}

@@ -120,9 +120,7 @@ export function DropdownItem({
 			onMouseEnter={() => group?.setOpenId(null)}
 			className={cn(
 				'flex w-full items-center gap-3 px-3 py-1.5 text-left text-sm transition-colors',
-				disabled
-					? 'cursor-not-allowed text-faint'
-					: 'text-foreground hover:bg-[var(--overlay-hover)]',
+				disabled ? 'cursor-not-allowed text-faint' : 'text-foreground hover:bg-[var(--overlay-hover)]',
 				active && !disabled && 'text-accent',
 			)}
 		>

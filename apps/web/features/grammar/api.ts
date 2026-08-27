@@ -47,7 +47,8 @@ export async function streamGrammarCheck(
 	const event = await streamJob<GrammarStreamEvent>(jobId, {
 		timeoutMs,
 		signal,
-		isTerminal: (e) => e.type === 'done' || e.type === 'error' || e.type === 'timeout' || e.type === 'cancelled',
+		isTerminal: (e) =>
+			e.type === 'done' || e.type === 'error' || e.type === 'timeout' || e.type === 'cancelled',
 		onEvent: (e) => {
 			if (e.type === 'checkpoint') onCheckpoint?.(e)
 		},

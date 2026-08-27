@@ -8,12 +8,7 @@ import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offset
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { toEditorContent } from '@/features/editor/markdown'
 import { MATH_BLOCK, MATH_INLINE, stripDelimiters } from '@/features/editor/math'
-import {
-	INCH,
-	PAGE_SIZES,
-	type PageSetup,
-	clampMargins,
-} from '@/features/editor/page-geometry'
+import { INCH, PAGE_SIZES, type PageSetup, clampMargins } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
 import { isSectionScope, sectionRange } from '@/features/editor/section-scope'
 import { TOC_BLOCK, type TocBlockAttrs, type TocListKind } from '@/features/editor/toc-block'
@@ -85,9 +80,7 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 			}
 
 			const text = editor.state.doc.textBetween(list[at].pos, sectionEnd(editor, list, at), '\n', ' ')
-			return text.length > MAX_SECTION_CHARS
-				? `${text.slice(0, MAX_SECTION_CHARS)}\n…(truncated)`
-				: text
+			return text.length > MAX_SECTION_CHARS ? `${text.slice(0, MAX_SECTION_CHARS)}\n…(truncated)` : text
 		}
 
 		case 'find_text': {
@@ -166,9 +159,7 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 
 		case 'list_tabs': {
 			if (context.tabs.length === 0) return 'The document has no tabs.'
-			return context.tabs
-				.map((tab) => `${tab.id} - ${tab.label}${tab.active ? ' (active)' : ''}`)
-				.join('\n')
+			return context.tabs.map((tab) => `${tab.id} - ${tab.label}${tab.active ? ' (active)' : ''}`).join('\n')
 		}
 
 		case 'read_tab': {
@@ -288,7 +279,11 @@ export function describeToolCall(call: ToolCall): string {
 		}
 		case 'insert_toc': {
 			const kind = call.arguments.list_kind
-			return kind === 'gambar' ? 'Insert list of figures' : kind === 'tabel' ? 'Insert list of tables' : 'Insert table of contents'
+			return kind === 'gambar'
+				? 'Insert list of figures'
+				: kind === 'tabel'
+					? 'Insert list of tables'
+					: 'Insert table of contents'
 		}
 		case 'set_toc_options':
 			return 'Update table-of-contents settings'
@@ -312,9 +307,7 @@ export function describeToolCall(call: ToolCall): string {
 			const parts = [
 				call.arguments.left_cm !== undefined ? `left ${call.arguments.left_cm}cm` : null,
 				call.arguments.right_cm !== undefined ? `right ${call.arguments.right_cm}cm` : null,
-				call.arguments.first_line_cm !== undefined
-					? `first line ${call.arguments.first_line_cm}cm`
-					: null,
+				call.arguments.first_line_cm !== undefined ? `first line ${call.arguments.first_line_cm}cm` : null,
 			].filter(Boolean)
 			return `Indent ${scopeLabel(call)} (${parts.join(', ') || 'no change'})`
 		}
@@ -389,10 +382,7 @@ function pageSetupFromArgs(args: Record<string, unknown>, base: PageSetup): Page
 	next.margins = clampMargins(next.margins, next)
 	return next
 }
-function pageSetupPatch(
-	args: Record<string, unknown>,
-	base: PageSetup,
-): Partial<PageSetup> | null {
+function pageSetupPatch(args: Record<string, unknown>, base: PageSetup): Partial<PageSetup> | null {
 	const merged = pageSetupFromArgs(args, base)
 	const patch: Partial<PageSetup> = {}
 
@@ -464,7 +454,11 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 		case 'insert_math': {
 			const latex = stripDelimiters(String(call.arguments.latex ?? ''))
 			if (!latex) return { ok: false, message: 'Nothing to insert.' }
-			editor.chain().focus().setMath(latex, call.arguments.display === true).run()
+			editor
+				.chain()
+				.focus()
+				.setMath(latex, call.arguments.display === true)
+				.run()
 			return { ok: true, message: 'Formula inserted.' }
 		}
 
@@ -485,12 +479,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			if (!range) return { ok: false, message: 'Could not anchor the comment.' }
 
 			const id = `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
-			editor
-				.chain()
-				.focus()
-				.setTextSelection(range)
-				.setMark(COMMENT_MARK, { commentId: id })
-				.run()
+			editor.chain().focus().setTextSelection(range).setMark(COMMENT_MARK, { commentId: id }).run()
 			const at_ = Date.now()
 			context.addComment({
 				id,
@@ -749,7 +738,9 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			}
 
 			const ok = chain.run()
-			return ok ? { ok: true, message: 'Font applied.' } : { ok: false, message: 'Font could not be applied.' }
+			return ok
+				? { ok: true, message: 'Font applied.' }
+				: { ok: false, message: 'Font could not be applied.' }
 		}
 
 		case 'toggle_list': {
@@ -793,7 +784,13 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 					.applySectionColumns(columnsFromArgs(count, call.arguments.gap_cm), scoped, context.setup)
 					.run()
 				return ok
-					? { ok: true, message: count === 1 ? 'Columns removed for that section.' : `${count} columns applied to that section.` }
+					? {
+							ok: true,
+							message:
+								count === 1
+									? 'Columns removed for that section.'
+									: `${count} columns applied to that section.`,
+						}
 					: { ok: false, message: 'The column layout could not be changed.' }
 			}
 
@@ -824,7 +821,8 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 				.setTextSelection(range.to)
 				.insertFootnote(`fn-${Date.now()}`)
 				.command(({ tr, dispatch }) => {
-					if (dispatch) tr.insert(tr.doc.content.size, footnoteType.create(null, editor.state.schema.text(body)))
+					if (dispatch)
+						tr.insert(tr.doc.content.size, footnoteType.create(null, editor.state.schema.text(body)))
 					return true
 				})
 				.run()
@@ -850,9 +848,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 				if (!node) return { ok: false, message: 'Section not found.' }
 				const level = (node.attrs.level as number) ?? 1
 				const next = action === 'promote' ? Math.max(1, level - 1) : Math.min(9, level + 1)
-				editor.view.dispatch(
-					editor.state.tr.setNodeMarkup(from, undefined, { ...node.attrs, level: next }),
-				)
+				editor.view.dispatch(editor.state.tr.setNodeMarkup(from, undefined, { ...node.attrs, level: next }))
 				return { ok: true, message: `Heading is now level ${next}.` }
 			}
 
@@ -888,7 +884,11 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const verdict = publicImageUrl(src)
 			if (verdict) return { ok: false, message: verdict }
 
-			editor.chain().focus().setImage({ src, alt: String(call.arguments.alt ?? '') || null }).run()
+			editor
+				.chain()
+				.focus()
+				.setImage({ src, alt: String(call.arguments.alt ?? '') || null })
+				.run()
 			return { ok: true, message: 'Image inserted.' }
 		}
 
@@ -911,7 +911,12 @@ function tocAttrsFromArgs(args: Record<string, unknown>): Partial<TocBlockAttrs>
 	}
 	if (args.style === 'plain' || args.style === 'dotted' || args.style === 'link') attrs.style = args.style
 	if (typeof args.show_page_numbers === 'boolean') attrs.showPageNumbers = args.show_page_numbers
-	if (args.tab_leader === 'none' || args.tab_leader === 'dots' || args.tab_leader === 'dashes' || args.tab_leader === 'line') {
+	if (
+		args.tab_leader === 'none' ||
+		args.tab_leader === 'dots' ||
+		args.tab_leader === 'dashes' ||
+		args.tab_leader === 'line'
+	) {
 		attrs.tabLeader = args.tab_leader
 	}
 	if (Number.isFinite(Number(args.min_level))) attrs.minLevel = Number(args.min_level)
@@ -944,7 +949,12 @@ function publicImageUrl(src: string): string | null {
 	if (ipv4) {
 		const [a, b] = [Number(ipv4[1]), Number(ipv4[2])]
 		const privateRange =
-			a === 10 || a === 127 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)
+			a === 10 ||
+			a === 127 ||
+			a === 0 ||
+			(a === 172 && b >= 16 && b <= 31) ||
+			(a === 192 && b === 168) ||
+			(a === 169 && b === 254)
 		if (privateRange) return 'Private or link-local addresses are not allowed.'
 	}
 	return null

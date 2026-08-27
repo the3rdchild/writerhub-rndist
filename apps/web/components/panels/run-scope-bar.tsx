@@ -56,7 +56,11 @@ export function RunScopeBar({ wordCount }: { wordCount: number | null }) {
 						{/* Bahasa yang sudah pasti digambar sebagai bendera; Globe dipakai saat
 						    bahasa belum pasti (uncertain) supaya tidak terlihat seperti klaim
 						    yang salah (§P1 butir 4). */}
-						{!language.uncertain && flagCode ? <Flag code={flagCode} /> : <Globe className="h-3.5 w-3.5 shrink-0" />}
+						{!language.uncertain && flagCode ? (
+							<Flag code={flagCode} />
+						) : (
+							<Globe className="h-3.5 w-3.5 shrink-0" />
+						)}
 						<span className="max-w-[92px] truncate">{language.label}</span>
 					</button>
 				)}

@@ -50,8 +50,7 @@ function openDb(): Promise<IDBDatabase> {
 			}
 		}
 		request.onsuccess = () => resolve(request.result)
-		request.onerror = () =>
-			reject(request.error ?? new Error('Gagal membuka penyimpanan versi lokal'))
+		request.onerror = () => reject(request.error ?? new Error('Gagal membuka penyimpanan versi lokal'))
 	})
 	return dbPromise
 }
@@ -63,8 +62,7 @@ async function run<T>(
 	return new Promise<T>((resolve, reject) => {
 		const request = action(db.transaction(STORE_NAME, mode).objectStore(STORE_NAME))
 		request.onsuccess = () => resolve(request.result)
-		request.onerror = () =>
-			reject(request.error ?? new Error('Operasi penyimpanan versi lokal gagal'))
+		request.onerror = () => reject(request.error ?? new Error('Operasi penyimpanan versi lokal gagal'))
 	})
 }
 function readEntries(tabId: string): Promise<LocalVersionEntry[]> {
@@ -85,10 +83,7 @@ export async function listLocalVersions(tabId: string): Promise<VersionSummary[]
 	const entries = await readEntries(tabId)
 	return entries.sort((a, b) => b.createdAt - a.createdAt).map(toSummary)
 }
-export async function getLocalVersion(
-	tabId: string,
-	id: string,
-): Promise<VersionDetail | null> {
+export async function getLocalVersion(tabId: string, id: string): Promise<VersionDetail | null> {
 	const entry = await run('readonly', (store) => store.get(id) as IDBRequest<LocalVersionEntry | undefined>)
 	if (!entry || entry.tabId !== tabId) return null
 	return { ...toSummary(entry), content: entry.content }

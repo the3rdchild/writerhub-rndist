@@ -8,9 +8,7 @@ export const chatBodySchema = z.object({
 			z.object({
 				role: z.enum(['user', 'assistant', 'tool']),
 				content: z.string().max(CHAT_CONTEXT_LIMITS.message),
-				toolCalls: z
-					.array(z.object({ id: z.string(), name: z.string(), arguments: z.string() }))
-					.optional(),
+				toolCalls: z.array(z.object({ id: z.string(), name: z.string(), arguments: z.string() })).optional(),
 				toolCallId: z.string().optional(),
 			}),
 		)

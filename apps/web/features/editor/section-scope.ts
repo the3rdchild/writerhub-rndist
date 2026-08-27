@@ -9,10 +9,7 @@ export const SECTION_SCOPES: readonly SectionScope[] = ['from_here', 'this_page'
 export function isSectionScope(value: unknown): value is SectionScope {
 	return value === 'from_here' || value === 'this_page'
 }
-export function sectionRange(
-	editor: Editor,
-	scope: SectionScope,
-): { from: number; to?: number } | null {
+export function sectionRange(editor: Editor, scope: SectionScope): { from: number; to?: number } | null {
 	if (editor.isDestroyed) return null
 	const { doc, selection } = editor.state
 

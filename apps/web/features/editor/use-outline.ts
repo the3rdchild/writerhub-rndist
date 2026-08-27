@@ -75,7 +75,11 @@ export function useOutline(editor: Editor | null): Outline {
 	return outline
 }
 export function scrollToOutlineItem(editor: Editor, pos: number): void {
-	editor.chain().focus().setTextSelection(pos + 1).run()
+	editor
+		.chain()
+		.focus()
+		.setTextSelection(pos + 1)
+		.run()
 
 	const dom = editor.view.nodeDOM(pos)
 	const element = dom instanceof HTMLElement ? dom : editor.view.domAtPos(pos + 1).node

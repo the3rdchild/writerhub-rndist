@@ -145,7 +145,9 @@ export function findMath(text: string): FoundMath[] {
 		let match = pattern.exec(text)
 		while (match !== null) {
 			const latex = (match[latexGroup] ?? '').trim()
-			const overlaps = found.some((item) => match!.index < item.to && match!.index + match![0].length > item.from)
+			const overlaps = found.some(
+				(item) => match!.index < item.to && match!.index + match![0].length > item.from,
+			)
 			if (latex && !overlaps) {
 				found.push({ latex, display, from: match.index, to: match.index + match[0].length })
 			}
@@ -164,9 +166,7 @@ export function wholeParagraphLatex(text: string): string | null {
 	const bracket = trimmed.match(/^\\\[([\s\S]+?)\\\]$/)
 	if (bracket?.[1].trim()) return bracket[1].trim()
 
-	const env = trimmed.match(
-		/^\\begin\{((?:equation|align|gather|multline)\*?)\}([\s\S]*?)\\end\{\1\}$/,
-	)
+	const env = trimmed.match(/^\\begin\{((?:equation|align|gather|multline)\*?)\}([\s\S]*?)\\end\{\1\}$/)
 	if (env?.[2].trim()) return env[2].trim()
 
 	return null

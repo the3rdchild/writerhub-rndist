@@ -124,9 +124,7 @@ export function AiDetectorPanel() {
 	}
 
 	const dismiss = (index: number) => {
-		setSentences((current) =>
-			current.map((item, i) => (i === index ? { ...item, dismissed: true } : item)),
-		)
+		setSentences((current) => current.map((item, i) => (i === index ? { ...item, dismissed: true } : item)))
 	}
 	const overallScore =
 		sentences.length > 0

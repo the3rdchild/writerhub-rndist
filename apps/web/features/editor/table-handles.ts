@@ -239,11 +239,7 @@ class HandleLayer {
 		)
 
 		this.cellButton.hidden = false
-		place(
-			this.cellButton,
-			cellRect.right - INSET - this.cellButton.offsetWidth,
-			cellRect.top + INSET,
-		)
+		place(this.cellButton, cellRect.right - INSET - this.cellButton.offsetWidth, cellRect.top + INSET)
 	}
 	private clipRect(): { top: number; bottom: number } | null {
 		const canvas = this.view.dom.closest('.document-canvas')
@@ -344,9 +340,7 @@ class HandleLayer {
 			if (!(dom instanceof HTMLElement)) return null
 			const rect = dom.getBoundingClientRect()
 			const span =
-				axis === 'row'
-					? { start: rect.top, size: rect.height }
-					: { start: rect.left, size: rect.width }
+				axis === 'row' ? { start: rect.top, size: rect.height } : { start: rect.left, size: rect.width }
 			spans.push(span)
 			edges.push(span.start)
 		}

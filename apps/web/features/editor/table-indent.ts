@@ -8,9 +8,7 @@ function build(doc: PMNode): DecorationSet {
 		if (node.type.name !== 'table') return true
 		const left = Number(node.attrs.indentLeft) || 0
 		if (left > 0) {
-			decorations.push(
-				Decoration.node(pos, pos + node.nodeSize, { style: `margin-left: ${left}px` }),
-			)
+			decorations.push(Decoration.node(pos, pos + node.nodeSize, { style: `margin-left: ${left}px` }))
 		}
 		return false
 	})

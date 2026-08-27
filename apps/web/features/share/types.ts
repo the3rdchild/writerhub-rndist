@@ -33,7 +33,10 @@ export interface CreateShareResult {
 }
 
 export const SHARE_ACCESS_LABELS: Record<ShareAccess, { label: string; description: string }> = {
-	anyone: { label: 'Siapa saja dengan link', description: 'Siapa pun di internet yang memiliki link dapat melihat' },
+	anyone: {
+		label: 'Siapa saja dengan link',
+		description: 'Siapa pun di internet yang memiliki link dapat melihat',
+	},
 	restricted: { label: 'Dibatasi', description: 'Hanya orang yang diundang yang dapat mengakses' },
 }
 

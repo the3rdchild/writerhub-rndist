@@ -80,7 +80,9 @@ function readTarget(editor: Editor): RulerTarget {
 	const slots = resolveColumnSlots(dom.clientWidth, count, gap, columns.node.attrs.widths ?? null)
 	if (slots.length === 0) return null
 	const plan = columnLayoutKey.getState(editor.state)?.plans.find((entry) => entry.pos === columns.pos)
-	const item = plan?.items.find((entry) => selection.from >= entry.pos && selection.from < entry.pos + entry.nodeSize)
+	const item = plan?.items.find(
+		(entry) => selection.from >= entry.pos && selection.from < entry.pos + entry.nodeSize,
+	)
 	const active = item ? slots.find((slot) => Math.abs(slot.left - item.left) < 1) : undefined
 
 	return {

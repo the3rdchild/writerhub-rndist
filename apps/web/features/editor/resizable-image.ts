@@ -77,8 +77,7 @@ export const ResizableImage = Node.create<ResizableImageOptions>({
 					const dom = element as HTMLElement
 					return dom.getAttribute('data-align') ?? dom.style?.textAlign ?? null
 				},
-				renderHTML: (attributes) =>
-					attributes.align ? { 'data-align': attributes.align } : {},
+				renderHTML: (attributes) => (attributes.align ? { 'data-align': attributes.align } : {}),
 			},
 		}
 	},
@@ -89,7 +88,11 @@ export const ResizableImage = Node.create<ResizableImageOptions>({
 				tag: this.options.allowBase64 ? 'img[src]' : 'img[src]:not([src^="data:"])',
 				getAttrs: (element) => {
 					const dom = element as HTMLElement
-					return { src: dom.getAttribute('src'), alt: dom.getAttribute('alt'), title: dom.getAttribute('title') }
+					return {
+						src: dom.getAttribute('src'),
+						alt: dom.getAttribute('alt'),
+						title: dom.getAttribute('title'),
+					}
 				},
 			},
 		]

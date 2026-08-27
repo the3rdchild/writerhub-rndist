@@ -32,9 +32,7 @@ export function SuggestionPopover({
 			onMouseEnter={onMouseEnter}
 			onMouseLeave={onMouseLeave}
 		>
-			<p className={`text-xs font-semibold ${CATEGORY_TEXT_COLOR[suggestion.category]}`}>
-				{suggestion.type}
-			</p>
+			<p className={`text-xs font-semibold ${CATEGORY_TEXT_COLOR[suggestion.category]}`}>{suggestion.type}</p>
 
 			<div className="flex items-center gap-1.5 text-xs">
 				<span className="truncate text-subtle line-through">{suggestion.original}</span>

@@ -37,8 +37,36 @@ const SCRIPTS: ReadonlyArray<{ code: string; pattern: RegExp }> = [
 ]
 const STOPWORDS: Readonly<Record<string, readonly string[]>> = {
 	en: ['the', 'and', 'of', 'to', 'is', 'in', 'that', 'for', 'with', 'this', 'are', 'was', 'be', 'it'],
-	id: ['yang', 'dan', 'untuk', 'dengan', 'pada', 'tidak', 'ini', 'dari', 'akan', 'adalah', 'dalam', 'atau', 'juga', 'bisa'],
-	ms: ['yang', 'dan', 'untuk', 'dengan', 'tidak', 'ini', 'dari', 'akan', 'adalah', 'dalam', 'boleh', 'kerana'],
+	id: [
+		'yang',
+		'dan',
+		'untuk',
+		'dengan',
+		'pada',
+		'tidak',
+		'ini',
+		'dari',
+		'akan',
+		'adalah',
+		'dalam',
+		'atau',
+		'juga',
+		'bisa',
+	],
+	ms: [
+		'yang',
+		'dan',
+		'untuk',
+		'dengan',
+		'tidak',
+		'ini',
+		'dari',
+		'akan',
+		'adalah',
+		'dalam',
+		'boleh',
+		'kerana',
+	],
 	es: ['que', 'de', 'la', 'el', 'en', 'los', 'para', 'con', 'una', 'por', 'como', 'las'],
 	pt: ['que', 'de', 'para', 'com', 'uma', 'por', 'como', 'mais', 'dos', 'nao', 'ser'],
 	fr: ['que', 'de', 'le', 'la', 'les', 'des', 'pour', 'avec', 'une', 'dans', 'est', 'sur'],
@@ -48,9 +76,7 @@ const STOPWORDS: Readonly<Record<string, readonly string[]>> = {
 	tr: ['bir', 'için', 'bu', 'daha', 'olarak', 'ile', 'çok', 'ancak'],
 	vi: ['của', 'và', 'là', 'không', 'được', 'trong', 'người', 'những'],
 }
-const STOPWORD_SETS = Object.entries(STOPWORDS).map(
-	([code, words]) => [code, new Set(words)] as const,
-)
+const STOPWORD_SETS = Object.entries(STOPWORDS).map(([code, words]) => [code, new Set(words)] as const)
 const MIN_WORDS = 12
 const MIN_LEAD = 2
 

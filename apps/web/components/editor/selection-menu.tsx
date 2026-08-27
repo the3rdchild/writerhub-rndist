@@ -70,12 +70,7 @@ export function SelectionMenu({
 			) : section === 'citations' ? (
 				<CitationPopover editor={editor} selection={selection} onClose={() => setSection(null)} />
 			) : (
-				<MenuBody
-					editor={editor}
-					selection={selection}
-					section={section}
-					onSection={setSection}
-				/>
+				<MenuBody editor={editor} selection={selection} section={section} onSection={setSection} />
 			)}
 		</div>,
 		containerRef.current,
@@ -179,15 +174,7 @@ function MenuBody({
 	)
 }
 
-function MenuItem({
-	icon: Icon,
-	label,
-	onClick,
-}: {
-	icon: typeof Bot
-	label: string
-	onClick: () => void
-}) {
+function MenuItem({ icon: Icon, label, onClick }: { icon: typeof Bot; label: string; onClick: () => void }) {
 	return (
 		<button
 			type="button"

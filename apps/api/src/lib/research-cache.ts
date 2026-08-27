@@ -18,7 +18,9 @@ function ttlFor(topic: ResearchTopic): number {
 }
 
 function fingerprint(parts: (string | number | undefined)[]): string {
-	return createHash('sha1').update(parts.map((part) => part ?? '').join('|')).digest('hex')
+	return createHash('sha1')
+		.update(parts.map((part) => part ?? '').join('|'))
+		.digest('hex')
 }
 
 export function searchKey(input: TavilySearchInput): string {

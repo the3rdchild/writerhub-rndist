@@ -32,13 +32,7 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	hour: '2-digit',
 	minute: '2-digit',
 })
-export function DocumentCard({
-	document,
-	onDelete,
-}: {
-	document: DocumentSummary
-	onDelete: () => void
-}) {
+export function DocumentCard({ document, onDelete }: { document: DocumentSummary; onDelete: () => void }) {
 	const router = useRouter()
 	const { openFromLibrary } = useSync()
 	const invalidate = useInvalidateDocuments()
@@ -59,14 +53,10 @@ export function DocumentCard({
 				if (tabId) {
 					router.push('/')
 				} else {
-					setActionError(
-						'Jumlah dokumen atau tab sudah mencapai batas. Tutup salah satu dulu.',
-					)
+					setActionError('Jumlah dokumen atau tab sudah mencapai batas. Tutup salah satu dulu.')
 				}
 			})
-			.catch((cause) =>
-				setActionError(cause instanceof Error ? cause.message : 'Gagal membuka dokumen'),
-			)
+			.catch((cause) => setActionError(cause instanceof Error ? cause.message : 'Gagal membuka dokumen'))
 			.finally(() => setOpening(false))
 	}
 
@@ -75,17 +65,13 @@ export function DocumentCard({
 		setActionError(null)
 		updateDocument(document.id, { title })
 			.then(() => void invalidate())
-			.catch((cause) =>
-				setActionError(cause instanceof Error ? cause.message : 'Gagal mengganti nama'),
-			)
+			.catch((cause) => setActionError(cause instanceof Error ? cause.message : 'Gagal mengganti nama'))
 	}
 	const moveToProject = (projectId: string) => {
 		setActionError(null)
 		updateDocument(document.id, { projectId })
 			.then(() => void invalidate())
-			.catch((cause) =>
-				setActionError(cause instanceof Error ? cause.message : 'Gagal memindahkan dokumen'),
-			)
+			.catch((cause) => setActionError(cause instanceof Error ? cause.message : 'Gagal memindahkan dokumen'))
 	}
 
 	return (
@@ -229,9 +215,7 @@ export function DocumentCard({
 				Buka di editor
 			</button>
 
-			{sharing && (
-				<CardShareDialog documentId={document.id} onClose={() => setSharing(false)} />
-			)}
+			{sharing && <CardShareDialog documentId={document.id} onClose={() => setSharing(false)} />}
 		</div>
 	)
 }
@@ -274,13 +258,7 @@ export function CardNameInput({
 		/>
 	)
 }
-function CardShareDialog({
-	documentId,
-	onClose,
-}: {
-	documentId: string
-	onClose: () => void
-}) {
+function CardShareDialog({ documentId, onClose }: { documentId: string; onClose: () => void }) {
 	const overlayRef = useRef<HTMLDivElement>(null)
 	const [link, setLink] = useState('')
 	const [documentTitle, setDocumentTitle] = useState('')
@@ -315,8 +293,7 @@ function CardShareDialog({
 			await navigator.clipboard.writeText(link)
 			setCopied(true)
 			setTimeout(() => setCopied(false), 2000)
-		} catch {
-		}
+		} catch {}
 	}
 
 	return (
@@ -372,8 +349,8 @@ function CardShareDialog({
 					<p className="text-xs text-red-500">{error}</p>
 				) : (
 					<p className="text-xs text-subtle">
-						Link menampilkan isi dokumen ini secara langsung (live) - perubahan terbaru
-						langsung terlihat. Siapa pun yang memiliki link dapat membuka.
+						Link menampilkan isi dokumen ini secara langsung (live) - perubahan terbaru langsung terlihat.
+						Siapa pun yang memiliki link dapat membuka.
 					</p>
 				)}
 			</div>

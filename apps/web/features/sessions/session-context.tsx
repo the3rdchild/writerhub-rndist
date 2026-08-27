@@ -90,7 +90,10 @@ interface SessionContextValue {
 	setSessionOutlineExpanded: (id: string, expanded: boolean) => void
 	languageOverride: string | null
 	setLanguageOverride: (language: string | null) => void
-	setTabResults: (id: string, results: { suggestions: EditorSuggestion[]; scores: GrammarScores | null }) => void
+	setTabResults: (
+		id: string,
+		results: { suggestions: EditorSuggestion[]; scores: GrammarScores | null },
+	) => void
 	comments: CommentThread[]
 	addComment: (thread: CommentThread) => void
 	replyToComment: (id: string, reply: CommentReply) => void
@@ -173,9 +176,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	const activeId = useMemo(() => {
 		const owner = documents.find((dok) => dok.id === activeDocId)
 		if (!owner || owner.tabOrder.length === 0) return null
-		return storedTabId && owner.tabOrder.includes(storedTabId)
-			? storedTabId
-			: owner.tabOrder[0]
+		return storedTabId && owner.tabOrder.includes(storedTabId) ? storedTabId : owner.tabOrder[0]
 	}, [documents, activeDocId, storedTabId])
 
 	const sessions = useMemo<Session[]>(() => {
@@ -192,8 +193,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	useEffect(() => {
 		if (!loaded || !editor || editor.isDestroyed || !activeId) return
 		const text = editorPlainText(editor)
-		const title =
-			readDocs(doc).find((dok) => dok.id === activeDocId)?.title ?? 'Untitled document'
+		const title = readDocs(doc).find((dok) => dok.id === activeDocId)?.title ?? 'Untitled document'
 		const local = tabView(view, activeId)
 
 		pendingLoad.current = { id: activeId, text }
@@ -280,9 +280,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 				if (!target) return current
 				const currentTab = storedActiveTabId(current)
 				const tabId =
-					currentTab && target.tabOrder.includes(currentTab)
-						? currentTab
-						: (target.tabOrder[0] ?? null)
+					currentTab && target.tabOrder.includes(currentTab) ? currentTab : (target.tabOrder[0] ?? null)
 				const next = { ...current, activeDocId: id, activeTabId: tabId }
 				return tabId ? patchTabView(next, tabId, { outlineExpanded: false }) : next
 			})
@@ -333,15 +331,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			ydocDeleteDocument(doc, id)
 			const docsLeft = readDocs(doc)
 			const fallbackDoc =
-				docsLeft.length > 0
-					? (docsLeft[at] ?? docsLeft[docsLeft.length - 1]).id
-					: createDocument(doc)
+				docsLeft.length > 0 ? (docsLeft[at] ?? docsLeft[docsLeft.length - 1]).id : createDocument(doc)
 			const fallbackTab = readTabs(doc, fallbackDoc)[0]?.id ?? null
 
 			setView((view) =>
-				view.activeDocId === id
-					? { ...view, activeDocId: fallbackDoc, activeTabId: fallbackTab }
-					: view,
+				view.activeDocId === id ? { ...view, activeDocId: fallbackDoc, activeTabId: fallbackTab } : view,
 			)
 		},
 		[doc, setView],
@@ -369,10 +363,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		[doc],
 	)
 
-	const moveSession = useCallback(
-		(movedId: string, destId: string) => moveTab(doc, movedId, destId),
-		[doc],
-	)
+	const moveSession = useCallback((movedId: string, destId: string) => moveTab(doc, movedId, destId), [doc])
 
 	const moveDocumentAction = useCallback(
 		(movedId: string, destId: string) => ydocMoveDocument(doc, movedId, destId),

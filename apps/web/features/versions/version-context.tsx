@@ -19,11 +19,7 @@ import { jsonToFragment } from '@/features/sync/serialize'
 import { SYNC_ORIGIN, useSync } from '@/features/sync/sync-context'
 import { restoreVersion } from './api'
 import { getLocalVersion } from './local-store'
-import {
-	maybeSnapshotLocalInterval,
-	rememberLocalSnapshot,
-	snapshotLocalVersion,
-} from './local-snapshot'
+import { maybeSnapshotLocalInterval, rememberLocalSnapshot, snapshotLocalVersion } from './local-snapshot'
 import { VERSIONS_QUERY_KEY } from './use-versions'
 export interface VersionMode {
 	tabId: string

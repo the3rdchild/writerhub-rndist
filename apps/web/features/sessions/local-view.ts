@@ -32,11 +32,7 @@ export function tabView(view: LocalView, id: string | null): TabViewState {
 	return view.tabs[id] ?? EMPTY_TAB_VIEW
 }
 
-export function patchTabView(
-	view: LocalView,
-	id: string,
-	patch: Partial<TabViewState>,
-): LocalView {
+export function patchTabView(view: LocalView, id: string, patch: Partial<TabViewState>): LocalView {
 	return {
 		...view,
 		tabs: { ...view.tabs, [id]: { ...tabView(view, id), ...patch } },

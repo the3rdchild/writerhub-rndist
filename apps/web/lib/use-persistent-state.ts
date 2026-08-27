@@ -25,8 +25,7 @@ export function usePersistentState<T>(
 		try {
 			const raw = window.localStorage.getItem(key)
 			if (raw !== null) setValue(withDefaults(JSON.parse(raw), initialRef.current))
-		} catch {
-		}
+		} catch {}
 		setHydrated(true)
 	}, [key])
 
@@ -35,8 +34,7 @@ export function usePersistentState<T>(
 			const resolved = typeof next === 'function' ? (next as (c: T) => T)(current) : next
 			try {
 				window.localStorage.setItem(keyRef.current, JSON.stringify(resolved))
-			} catch {
-			}
+			} catch {}
 			return resolved
 		})
 	}, [])

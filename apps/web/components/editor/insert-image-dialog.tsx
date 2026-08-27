@@ -146,7 +146,11 @@ export function InsertImageDialog({
 							className="text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-accent/10 file:px-3 file:py-1.5 file:text-accent hover:file:bg-accent/20"
 						/>
 						{src && (
-							<img src={src} alt={alt} className="mt-1 max-h-32 rounded-lg border border-line object-contain" />
+							<img
+								src={src}
+								alt={alt}
+								className="mt-1 max-h-32 rounded-lg border border-line object-contain"
+							/>
 						)}
 					</label>
 				)}

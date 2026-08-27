@@ -25,10 +25,8 @@ export function DocumentEditor() {
 		try {
 			const text = await navigator.clipboard.readText()
 			if (text) dispatch({ type: 'setText', text })
-		} catch {
-		}
+		} catch {}
 	}
-
 
 	return (
 		<div
@@ -83,9 +81,7 @@ export function DocumentEditor() {
 						<FileText className="h-6 w-6 shrink-0 text-accent" />
 						<div className="min-w-0">
 							<p className="truncate text-sm text-foreground">{state.file.name}</p>
-							<p className="text-xs text-subtle">
-								{(state.file.size / 1024).toFixed(0)} KB · siap dicek
-							</p>
+							<p className="text-xs text-subtle">{(state.file.size / 1024).toFixed(0)} KB · siap dicek</p>
 						</div>
 						<button
 							type="button"
@@ -116,7 +112,6 @@ export function DocumentEditor() {
 					<StatusButton icon={Clipboard} label="Tempel teks" onClick={pasteFromClipboard} />
 				</div>
 			</div>
-
 		</div>
 	)
 }

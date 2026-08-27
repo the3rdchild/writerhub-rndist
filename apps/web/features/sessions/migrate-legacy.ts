@@ -47,8 +47,7 @@ export function hasMigrated(): boolean {
 function markMigrated(): void {
 	try {
 		window.localStorage.setItem(MIGRATED_KEY, '1')
-	} catch {
-	}
+	} catch {}
 }
 function fillFragment(doc: Y.Doc, tabId: string, html: string): void {
 	const editor = new Editor({ extensions: buildEditorExtensions(), content: html })

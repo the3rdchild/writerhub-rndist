@@ -63,9 +63,7 @@ export const BlockIndentExtension = Extension.create({
 						default: 0,
 						parseHTML: (element) => readPx(element.style.textIndent),
 						renderHTML: (attributes) =>
-							attributes.indentFirstLine
-								? { style: `text-indent: ${attributes.indentFirstLine}px` }
-								: {},
+							attributes.indentFirstLine ? { style: `text-indent: ${attributes.indentFirstLine}px` } : {},
 					},
 				},
 			},
@@ -180,10 +178,11 @@ export function useBlockIndent(editor: Editor | null): BlockIndent {
 			return
 		}
 
-		const sync = () => setIndent((current) => {
-			const next = blockIndentAt(editor)
-			return sameIndent(current, next) ? current : next
-		})
+		const sync = () =>
+			setIndent((current) => {
+				const next = blockIndentAt(editor)
+				return sameIndent(current, next) ? current : next
+			})
 
 		sync()
 		editor.on('transaction', sync)

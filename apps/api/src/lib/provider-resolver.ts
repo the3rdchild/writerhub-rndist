@@ -12,7 +12,10 @@ export interface ResolvedProvider {
 	sdkProvider: 'openai' | 'anthropic'
 	modelRecordId: number
 }
-export async function resolveProvider(bearerToken: string, serviceSlug: string): Promise<ResolvedProvider | null> {
+export async function resolveProvider(
+	bearerToken: string,
+	serviceSlug: string,
+): Promise<ResolvedProvider | null> {
 	const userPackage = await getExtendedUserPackage(bearerToken)
 	if (!userPackage) return null
 

@@ -1,6 +1,13 @@
 import type { JSONContent } from '@tiptap/core'
 import { createNumberer, readNumbering } from './numbering'
-import { bodyOf, type ParseContext, type PageSetupPatch, readBody, readRelationships, readTheme } from './parse'
+import {
+	bodyOf,
+	type ParseContext,
+	type PageSetupPatch,
+	readBody,
+	readRelationships,
+	readTheme,
+} from './parse'
 import { readStyles } from './properties'
 import { type DocxArchive, openDocx, resolvePath } from './zip'
 import { createXmlParser, type XmlParser } from './xml'
@@ -33,8 +40,7 @@ function mainPartOf(archive: DocxArchive, parse: XmlParser): string {
 			const target = resolvePath('', relationship.target)
 			if (archive.bytes(target)) return target
 		}
-	} catch {
-	}
+	} catch {}
 	return DEFAULT_MAIN_PART
 }
 function partByType(
@@ -87,12 +93,11 @@ function warningsFor(skipped: Map<string, number>, archive: DocxArchive): Import
 		warnings.push({ message: `Bagian yang tidak dikenali dilewati: ${unknown.sort().join(', ')}.` })
 	}
 
-	const hasHeaderFooter = archive
-		.paths()
-		.some((path) => /^word\/(header|footer)\d*\.xml$/.test(path))
+	const hasHeaderFooter = archive.paths().some((path) => /^word\/(header|footer)\d*\.xml$/.test(path))
 	if (hasHeaderFooter) {
 		warnings.push({
-			message: 'Header, footer, dan nomor halaman tidak punya padanan di editor ini, jadi tidak ikut terbawa.',
+			message:
+				'Header, footer, dan nomor halaman tidak punya padanan di editor ini, jadi tidak ikut terbawa.',
 		})
 	}
 

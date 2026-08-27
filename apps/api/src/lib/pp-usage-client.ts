@@ -147,8 +147,7 @@ export async function recordToolUsage(params: RecordToolUsageParams): Promise<To
 		try {
 			const parsed = JSON.parse(result.body) as { message?: string; errors?: string[] }
 			message = parsed.errors?.[0] ?? parsed.message ?? message
-		} catch {
-		}
+		} catch {}
 		return { ok: false, reason: 'limit_exceeded', message }
 	}
 

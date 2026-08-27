@@ -45,12 +45,7 @@ export function DocumentLeftRuler({
 		onUp: () => {},
 	})
 	const nudgeTop = rulerNudge('y', { kind: 'marginTop', page: 0 }, margins.top, applyHandle)
-	const nudgeBottom = rulerNudge(
-		'y',
-		{ kind: 'marginBottom', page: 0 },
-		height - margins.bottom,
-		applyHandle,
-	)
+	const nudgeBottom = rulerNudge('y', { kind: 'marginBottom', page: 0 }, height - margins.bottom, applyHandle)
 
 	const totalHeight = pageCount * height + (pageCount - 1) * gap
 

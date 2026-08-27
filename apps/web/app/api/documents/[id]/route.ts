@@ -2,7 +2,10 @@ import { callUpstream, configErrorResponse } from '@/lib/server/upstream'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
+export async function GET(
+	_request: Request,
+	{ params }: { params: Promise<{ id: string }> },
+): Promise<Response> {
 	try {
 		const { id } = await params
 		return await callUpstream({
@@ -13,7 +16,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 		return configErrorResponse(error)
 	}
 }
-export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
+export async function PUT(
+	request: Request,
+	{ params }: { params: Promise<{ id: string }> },
+): Promise<Response> {
 	try {
 		const { id } = await params
 		return await callUpstream({
@@ -26,7 +32,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 		return configErrorResponse(error)
 	}
 }
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
+export async function DELETE(
+	_request: Request,
+	{ params }: { params: Promise<{ id: string }> },
+): Promise<Response> {
 	try {
 		const { id } = await params
 		return await callUpstream({

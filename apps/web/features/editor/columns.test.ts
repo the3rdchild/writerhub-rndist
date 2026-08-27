@@ -2,7 +2,14 @@ import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
 import { EditorState } from '@tiptap/pm/state'
 import { buildSchema } from '@/features/sync/serialize'
-import { collapsedMargin, cutTableRows, flowColumns, migrateLegacyColumns, resolveColumnSlots, type ColumnItem } from './columns'
+import {
+	collapsedMargin,
+	cutTableRows,
+	flowColumns,
+	migrateLegacyColumns,
+	resolveColumnSlots,
+	type ColumnItem,
+} from './columns'
 import { pageGeometry } from './page-geometry'
 const geometry = pageGeometry() // A4, margin 1 inci
 const { contentHeight, pageStride } = geometry
@@ -261,7 +268,6 @@ describe('penggabungan margin (§P4 catatan pengukuran, A-2)', () => {
 	})
 })
 
-
 describe('tabel dipenggal antar baris (§P4 lapis 2)', () => {
 	describe('cutTableRows', () => {
 		const geo = { contentHeight, pageStride }
@@ -357,7 +363,10 @@ describe('tabel dipenggal antar baris (§P4 lapis 2)', () => {
 			for (const count of [1, 2, 3]) {
 				const items = [
 					...blocks(Array.from({ length: 4 }, () => 120)),
-					tableItem(Array.from({ length: 20 }, () => 100), { pos: 1 }),
+					tableItem(
+						Array.from({ length: 20 }, () => 100),
+						{ pos: 1 },
+					),
 					...blocks(Array.from({ length: 12 }, () => 120)),
 				]
 				const { placements } = flow(items, 0, count)
@@ -365,7 +374,10 @@ describe('tabel dipenggal antar baris (§P4 lapis 2)', () => {
 				placements.forEach((placement, index) => {
 					const top = placement.top
 					const bottom = placement.cuts?.length
-						? cutTableRows(items[index].table!, top, Math.floor(top / pageStride), { contentHeight, pageStride }).bottom
+						? cutTableRows(items[index].table!, top, Math.floor(top / pageStride), {
+								contentHeight,
+								pageStride,
+							}).bottom
 						: top + items[index].height
 					const list = byColumn.get(columnOf(placement.left)) ?? []
 					list.push({ top, bottom })
@@ -374,7 +386,8 @@ describe('tabel dipenggal antar baris (§P4 lapis 2)', () => {
 				for (const boxes of byColumn.values()) {
 					for (let i = 0; i < boxes.length; i++) {
 						for (let j = i + 1; j < boxes.length; j++) {
-							const overlap = Math.min(boxes[i].bottom, boxes[j].bottom) - Math.max(boxes[i].top, boxes[j].top)
+							const overlap =
+								Math.min(boxes[i].bottom, boxes[j].bottom) - Math.max(boxes[i].top, boxes[j].top)
 							expect(overlap).toBeLessThanOrEqual(0.5)
 						}
 					}
@@ -509,26 +522,34 @@ describe('batas lembar berlabuh di sheetOrigin (§P8)', () => {
 	})
 
 	test('celah antar lembar section terhitung dari origin yang sama', () => {
-		const { sheetGap } = flowColumns(blocks([500, 500, 500]), {
-			top: 3500,
-			count: 2,
-			columnWidth: 300,
-			columnGap: 24,
-			sheetOrigin: 3500,
-		}, geo)
+		const { sheetGap } = flowColumns(
+			blocks([500, 500, 500]),
+			{
+				top: 3500,
+				count: 2,
+				columnWidth: 300,
+				columnGap: 24,
+				sheetOrigin: 3500,
+			},
+			geo,
+		)
 
 		expect(sheetGap).toBe(826 - 602)
 	})
 
 	test('tabel terpenggal di batas lembar section', () => {
 		const items = [tableItem(Array.from({ length: 12 }, () => 100))]
-		const { placements } = flowColumns(items, {
-			top: 3500,
-			count: 2,
-			columnWidth: 300,
-			columnGap: 24,
-			sheetOrigin: 3500,
-		}, geo)
+		const { placements } = flowColumns(
+			items,
+			{
+				top: 3500,
+				count: 2,
+				columnWidth: 300,
+				columnGap: 24,
+				sheetOrigin: 3500,
+			},
+			geo,
+		)
 		expect(placements[0].cuts).toHaveLength(1)
 		expect(placements[0].cuts?.[0].pos).toBe(items[0].table?.rows[6].pos)
 		expect(placements[0].cuts?.[0].spacerHeight).toBeCloseTo(826 - 600)
@@ -645,9 +666,7 @@ describe('migrasi blok kolom lama saat dibuka (E5 langkah 4)', () => {
 	})
 
 	test('celah kolom ikut ke pembatas pembukanya', () => {
-		const state = stateOf([
-			{ type: 'columns', attrs: { count: 2, gap: 40 }, content: [para('a')] },
-		])
+		const state = stateOf([{ type: 'columns', attrs: { count: 2, gap: 40 }, content: [para('a')] }])
 		const next = state.apply(migrateLegacyColumns(state)!).doc
 		expect(next.child(0).attrs.columns).toEqual({ count: 2, gap: 40 })
 	})

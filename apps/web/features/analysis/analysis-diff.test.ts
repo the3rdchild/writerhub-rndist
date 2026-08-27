@@ -33,7 +33,15 @@ describe('editsFromSuggestions', () => {
 	it('membuang saran yang sudah di-dismiss', () => {
 		const suggestions: EditorSuggestion[] = [
 			{ id: 'a', original: 'salah', replacement: 'benar', offset: 0, length: 5, category: 'grammar' },
-			{ id: 'b', original: 'lagi', replacement: 'ok', offset: 10, length: 4, category: 'grammar', dismissed: true },
+			{
+				id: 'b',
+				original: 'lagi',
+				replacement: 'ok',
+				offset: 10,
+				length: 4,
+				category: 'grammar',
+				dismissed: true,
+			},
 		] as unknown as EditorSuggestion[]
 
 		const edits = editsFromSuggestions(suggestions)
@@ -44,9 +52,7 @@ describe('editsFromSuggestions', () => {
 		const suggestions = [
 			{ id: 'a', original: 'salah', replacement: 'benar', offset: 0, category: 'grammar' },
 		] as unknown as EditorSuggestion[]
-		expect(editsFromSuggestions(suggestions)).toEqual([
-			{ offset: 0, length: 5, replacement: 'benar' },
-		])
+		expect(editsFromSuggestions(suggestions)).toEqual([{ offset: 0, length: 5, replacement: 'benar' }])
 	})
 })
 
@@ -58,9 +64,7 @@ describe('editsFromChanges', () => {
 		]
 		const applied = [{ offset: 0, original: 'abc', applied: 'ABC' }]
 
-		expect(editsFromChanges(pending, applied)).toEqual([
-			{ offset: 5, length: 3, replacement: 'DEF' },
-		])
+		expect(editsFromChanges(pending, applied)).toEqual([{ offset: 5, length: 3, replacement: 'DEF' }])
 	})
 })
 
@@ -73,9 +77,7 @@ describe('editsFromSentences', () => {
 			{ offset: 18, length: 5, text: 'fffff', score: 90, suggestion: 'ggggg', dismissed: true },
 		]
 
-		expect(editsFromSentences(sentences)).toEqual([
-			{ offset: 0, length: 5, replacement: 'bbbbb' },
-		])
+		expect(editsFromSentences(sentences)).toEqual([{ offset: 0, length: 5, replacement: 'bbbbb' }])
 	})
 })
 

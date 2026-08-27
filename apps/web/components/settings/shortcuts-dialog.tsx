@@ -83,9 +83,7 @@ export function ShortcutsDialog() {
 											key={item.id}
 											className="flex items-center justify-between gap-4 border-b border-line py-1.5 last:border-b-0"
 										>
-											<span className="min-w-0 truncate text-[13px] text-foreground">
-												{item.label}
-											</span>
+											<span className="min-w-0 truncate text-[13px] text-foreground">{item.label}</span>
 											<kbd className="shrink-0 rounded-md bg-[var(--overlay-hover)] px-2 py-0.5 font-sans text-[11px] font-medium text-muted">
 												{formatKeys(item.keys, mac)}
 											</kbd>

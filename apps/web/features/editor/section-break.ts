@@ -57,14 +57,11 @@ export const SectionBreak = Node.create({
 				default: null,
 				parseHTML: (element) => parseJsonAttribute<Partial<PageSetup>>(element, 'data-page-setup'),
 				renderHTML: (attributes) =>
-					attributes.pageSetup === null
-						? {}
-						: { 'data-page-setup': JSON.stringify(attributes.pageSetup) },
+					attributes.pageSetup === null ? {} : { 'data-page-setup': JSON.stringify(attributes.pageSetup) },
 			},
 			columns: {
 				default: null,
-				parseHTML: (element) =>
-					parseJsonAttribute<SectionBreakAttrs['columns']>(element, 'data-columns'),
+				parseHTML: (element) => parseJsonAttribute<SectionBreakAttrs['columns']>(element, 'data-columns'),
 				renderHTML: (attributes) =>
 					attributes.columns === null ? {} : { 'data-columns': JSON.stringify(attributes.columns) },
 			},
@@ -111,15 +108,10 @@ export const SectionBreak = Node.create({
 			applySectionSetup:
 				(patch, range, baseSetup = DEFAULT_PAGE_SETUP) =>
 				({ tr, dispatch, state }) =>
-					encloseSection(
-						{ tr, dispatch, state },
-						range,
-						baseSetup,
-						(before) => ({
-							open: { pageSetup: patch, columns: before.columns ?? null },
-							close: { pageSetup: before.setup, columns: before.columns ?? null },
-						}),
-					),
+					encloseSection({ tr, dispatch, state }, range, baseSetup, (before) => ({
+						open: { pageSetup: patch, columns: before.columns ?? null },
+						close: { pageSetup: before.setup, columns: before.columns ?? null },
+					})),
 			applySectionColumns:
 				(columns, range, baseSetup = DEFAULT_PAGE_SETUP) =>
 				({ tr, dispatch, state }) =>
@@ -161,7 +153,11 @@ function encloseSection(
 
 	return true
 }
-function enclosingColumnSpan(spans: readonly SectionSpan[], from: number, docSize: number): SectionSpan | null {
+function enclosingColumnSpan(
+	spans: readonly SectionSpan[],
+	from: number,
+	docSize: number,
+): SectionSpan | null {
 	const columned = spans.slice(1).filter((span) => (span.columns?.count ?? 0) >= 2)
 	const candidate = columned.filter((span) => span.pos <= from).pop()
 	if (!candidate) return null

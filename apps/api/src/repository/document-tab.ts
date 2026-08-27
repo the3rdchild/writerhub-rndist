@@ -25,11 +25,7 @@ export async function insertTab(values: NewDocumentTab) {
 	return row ?? null
 }
 export async function updateTab(tabId: string, values: Partial<NewDocumentTab>) {
-	const [row] = await db
-		.update(documentTabs)
-		.set(values)
-		.where(eq(documentTabs.id, tabId))
-		.returning()
+	const [row] = await db.update(documentTabs).set(values).where(eq(documentTabs.id, tabId)).returning()
 	return row ?? null
 }
 

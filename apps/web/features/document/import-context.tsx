@@ -2,13 +2,16 @@
 
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
-import {
-	DEFAULT_MARGINS,
-	DEFAULT_PAGE_SETUP,
-	type PageSetup,
-} from '@/features/editor/page-geometry'
+import { DEFAULT_MARGINS, DEFAULT_PAGE_SETUP, type PageSetup } from '@/features/editor/page-geometry'
 import { MAX_DOCUMENTS, MAX_SESSIONS, useSessions } from '@/features/sessions/session-context'
-import { createDocument, createTab, LOCAL_ORIGIN, readDocs, readTabs, setPageSetupForTab } from '@/features/sessions/ydoc'
+import {
+	createDocument,
+	createTab,
+	LOCAL_ORIGIN,
+	readDocs,
+	readTabs,
+	setPageSetupForTab,
+} from '@/features/sessions/ydoc'
 import { jsonToFragment } from '@/features/sync/serialize'
 import { useDocument } from './document-context'
 import { type DocxImport, importDocx, isDocx } from './import-docx'
@@ -148,9 +151,7 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 						parsed.push({ title: baseName(file), content: textToDocContent(await file.text()) })
 					}
 				} catch (cause) {
-					warn.push(
-						`${file.name}: ${cause instanceof Error ? cause.message : 'gagal membaca berkas'}`,
-					)
+					warn.push(`${file.name}: ${cause instanceof Error ? cause.message : 'gagal membaca berkas'}`)
 				}
 			}
 
@@ -165,7 +166,8 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 				firstTabId = readTabs(doc, docId)[0]?.id ?? ''
 				if (!firstTabId) return
 				jsonToFragment(doc, firstTabId, parsed[0].content)
-				if (parsed[0].pageSetup) setPageSetupForTab(doc, firstTabId, resolveImportedSetup(parsed[0].pageSetup))
+				if (parsed[0].pageSetup)
+					setPageSetupForTab(doc, firstTabId, resolveImportedSetup(parsed[0].pageSetup))
 				for (const item of parsed.slice(1)) {
 					const tabId = createTab(doc, docId, item.title)
 					jsonToFragment(doc, tabId, item.content)

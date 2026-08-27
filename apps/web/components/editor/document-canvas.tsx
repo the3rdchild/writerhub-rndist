@@ -66,16 +66,10 @@ export function DocumentCanvas({
 			? sheets[sheets.length - 1].top + sheets[sheets.length - 1].height
 			: pageCount * height + (pageCount - 1) * gap
 	const zoom = settings.zoom
-	const leftRulerRoom =
-		settings.showRuler && !setup.pageless ? LEFT_RULER_WIDTH + LEFT_RULER_GAP : 0
+	const leftRulerRoom = settings.showRuler && !setup.pageless ? LEFT_RULER_WIDTH + LEFT_RULER_GAP : 0
 
 	return (
-		<div
-			className={cn(
-				'document-canvas flex-1 overflow-auto px-6 pb-8',
-				!settings.showRuler && 'pt-8',
-			)}
-		>
+		<div className={cn('document-canvas flex-1 overflow-auto px-6 pb-8', !settings.showRuler && 'pt-8')}>
 			{/*
 			 */}
 			{!setup.pageless && <style media="print">{printPageRules(setup, sectionSetups)}</style>}

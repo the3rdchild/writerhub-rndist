@@ -178,11 +178,7 @@ export function TableMenu({
 
 const ICON = 'h-4 w-4'
 
-function buildItems(
-	editor: Editor,
-	menu: TableMenuState,
-	onClose: () => void,
-): MenuRow[] {
+function buildItems(editor: Editor, menu: TableMenuState, onClose: () => void): MenuRow[] {
 	const { rowIndex, colIndex, rowCount, colCount } = menu
 	const target: CellTarget = { tablePos: menu.tablePos, rowIndex, colIndex }
 

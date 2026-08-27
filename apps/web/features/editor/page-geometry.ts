@@ -62,8 +62,8 @@ export function sameSheetGeometry(a: PageSetup, b: PageSetup): boolean {
 }
 export function resolvePageSize(setup: PageSetup): { width: number; height: number } {
 	const base = PAGE_SIZES[setup.size]
-	const w = setup.size === 'custom' ? setup.customWidth ?? 0 : base.width
-	const h = setup.size === 'custom' ? setup.customHeight ?? 0 : base.height
+	const w = setup.size === 'custom' ? (setup.customWidth ?? 0) : base.width
+	const h = setup.size === 'custom' ? (setup.customHeight ?? 0) : base.height
 	return setup.orientation === 'landscape' ? { width: h, height: w } : { width: w, height: h }
 }
 export function validateCustomSize(width: number, height: number): string | null {
@@ -98,10 +98,7 @@ export function clampMargins(
 	size: PageSizeId | PageSetup = DEFAULT_PAGE_SETUP,
 	orientation: PageOrientation = DEFAULT_PAGE_ORIENTATION,
 ): PageMargins {
-	const setup: PageSetup =
-		typeof size === 'string'
-			? { ...DEFAULT_PAGE_SETUP, size, orientation }
-			: size
+	const setup: PageSetup = typeof size === 'string' ? { ...DEFAULT_PAGE_SETUP, size, orientation } : size
 	const { width, height } = resolvePageSize(setup)
 
 	const clampPair = (start: number, end: number, extent: number, minContent: number) => {

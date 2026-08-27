@@ -1,9 +1,5 @@
 import type { GrammarModel, GrammarScores, GrammarSuggestion, TextRange } from '@writer-hub/shared'
-import {
-	type EditorSuggestion,
-	reconcileSuggestions,
-	shiftAfter,
-} from './suggestions'
+import { type EditorSuggestion, reconcileSuggestions, shiftAfter } from './suggestions'
 
 export type SuggestionFilter = 'all' | 'grammar' | 'style' | 'spelling'
 
@@ -105,23 +101,18 @@ export function documentReducer(state: DocumentState, action: DocumentAction): D
 			if (!target || target.dismissed) return state
 			const appliedLength = target.length ?? target.original.length
 			const delta = target.replacement.length - appliedLength
-			const marked = state.suggestions.map((s) =>
-				s.id === action.id ? { ...s, dismissed: true } : s,
-			)
+			const marked = state.suggestions.map((s) => (s.id === action.id ? { ...s, dismissed: true } : s))
 
 			return {
 				...state,
-				suggestions:
-					target.offset !== undefined ? shiftAfter(marked, target.offset, delta) : marked,
+				suggestions: target.offset !== undefined ? shiftAfter(marked, target.offset, delta) : marked,
 				hoveredRange: null,
 			}
 		}
 		case 'dismissSuggestion':
 			return {
 				...state,
-				suggestions: state.suggestions.map((s) =>
-					s.id === action.id ? { ...s, dismissed: true } : s,
-				),
+				suggestions: state.suggestions.map((s) => (s.id === action.id ? { ...s, dismissed: true } : s)),
 				hoveredRange: null,
 			}
 

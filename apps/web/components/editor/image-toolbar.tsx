@@ -62,7 +62,12 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
 			: editor.chain().focus().setImageAlign(align).run()
 
 	const buttons = [
-		{ icon: AlignLeft, label: 'Rata kiri', value: 'left' as const, active: state.align === 'left' || (!state.align) },
+		{
+			icon: AlignLeft,
+			label: 'Rata kiri',
+			value: 'left' as const,
+			active: state.align === 'left' || !state.align,
+		},
 		{ icon: AlignCenter, label: 'Rata tengah', value: 'center' as const, active: state.align === 'center' },
 		{ icon: AlignRight, label: 'Rata kanan', value: 'right' as const, active: state.align === 'right' },
 	]
@@ -83,7 +88,9 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
 					onClick={() => setAlign(btn.value)}
 					className={cn(
 						'flex h-7 w-7 items-center justify-center rounded-full transition-colors',
-						btn.active ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-[var(--overlay-hover)] hover:text-foreground',
+						btn.active
+							? 'bg-accent/15 text-accent'
+							: 'text-muted hover:bg-[var(--overlay-hover)] hover:text-foreground',
 					)}
 				>
 					<btn.icon className="h-4 w-4" />

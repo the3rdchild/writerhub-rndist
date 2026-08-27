@@ -54,9 +54,7 @@ export function MemoryTab() {
 	if (memory.isError) {
 		return (
 			<div className="flex flex-col gap-3">
-				<p className="text-sm text-red-400">
-					Failed to load AI Memory: {memory.error.message}
-				</p>
+				<p className="text-sm text-red-400">Failed to load AI Memory: {memory.error.message}</p>
 				<button
 					type="button"
 					onClick={() => memory.refetch()}
@@ -71,8 +69,8 @@ export function MemoryTab() {
 	return (
 		<div className="flex flex-col gap-5">
 			<p className="text-xs leading-relaxed text-subtle">
-These preferences are used by AI Chat, AI Rewriter, and Humanizer when writing or
-			rewriting text for you.
+				These preferences are used by AI Chat, AI Rewriter, and Humanizer when writing or rewriting text for
+				you.
 			</p>
 
 			<Field label="Tone">
@@ -210,8 +208,7 @@ These preferences are used by AI Chat, AI Rewriter, and Humanizer when writing o
 
 			{save.isError && (
 				<p className="text-sm text-red-400">
-					Failed to save AI Memory: {save.error.message}. Your changes were not saved -
-					try again.
+					Failed to save AI Memory: {save.error.message}. Your changes were not saved - try again.
 				</p>
 			)}
 		</div>

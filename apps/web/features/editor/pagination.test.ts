@@ -1,12 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { DEFAULT_PAGE_SETUP, pageGeometry, sameSheetGeometry } from './page-geometry'
-import {
-	blockSections,
-	computeSpacers,
-	pageBlockRange,
-	pageOfPos,
-	type Measurement,
-} from './pagination'
+import { blockSections, computeSpacers, pageBlockRange, pageOfPos, type Measurement } from './pagination'
 const geometry = pageGeometry() // A4, margin 1 inci
 const { contentHeight, pageStride } = geometry
 
@@ -16,9 +10,9 @@ describe('sameSheetGeometry - syarat pembatas menerus (E5)', () => {
 	})
 
 	test('orientasi, ukuran, atau margin yang berubah menggagalkan kemenerusan', () => {
-		expect(
-			sameSheetGeometry(DEFAULT_PAGE_SETUP, { ...DEFAULT_PAGE_SETUP, orientation: 'landscape' }),
-		).toBe(false)
+		expect(sameSheetGeometry(DEFAULT_PAGE_SETUP, { ...DEFAULT_PAGE_SETUP, orientation: 'landscape' })).toBe(
+			false,
+		)
 		expect(sameSheetGeometry(DEFAULT_PAGE_SETUP, { ...DEFAULT_PAGE_SETUP, size: 'letter' })).toBe(false)
 		expect(
 			sameSheetGeometry(DEFAULT_PAGE_SETUP, {
@@ -191,7 +185,10 @@ describe('tabel dipenggal per baris', () => {
 
 	test('halaman lanjutan menyisakan ruang tulis lebih sedikit sebanyak headernya', () => {
 		const headerHeight = 100
-		const rows = table(Array.from({ length: 14 }, () => 200), { headerHeight })
+		const rows = table(
+			Array.from({ length: 14 }, () => 200),
+			{ headerHeight },
+		)
 		const tops = renderedTops(rows)
 		expectStartsPage(tops[4] - headerHeight, 2)
 		expectStartsPage(tops[8] - headerHeight, 3)
@@ -281,7 +278,6 @@ describe('blok self-paginate (blok TOC)', () => {
 	})
 })
 
-
 describe('paginasi tak seragam (§P8&P9)', () => {
 	const landscape = pageGeometry({ ...DEFAULT_PAGE_SETUP, orientation: 'landscape' })
 	function sectioned(items: Array<number | 'section'>): Measurement[] {
@@ -303,13 +299,16 @@ describe('paginasi tak seragam (§P8&P9)', () => {
 
 	test('lembar sesudah pembatas section memakai geometrinya sendiri', () => {
 		const blocks = sectioned([600, 'section', 400])
-		const { spacers, pageCount, sheets } = computeSpacers(blocks, geometry, [
-			{ pos: 1, geometry: landscape },
-		])
+		const { spacers, pageCount, sheets } = computeSpacers(blocks, geometry, [{ pos: 1, geometry: landscape }])
 
 		expect(pageCount).toBe(2)
 		expect(sheets[0]).toMatchObject({ index: 0, top: 0, width: geometry.width })
-		expect(sheets[1]).toMatchObject({ index: 1, top: pageStride, width: landscape.width, height: landscape.height })
+		expect(sheets[1]).toMatchObject({
+			index: 1,
+			top: pageStride,
+			width: landscape.width,
+			height: landscape.height,
+		})
 		expect(spacers).toHaveLength(1)
 		expect(spacers[0].pos).toBe(2)
 		expect(spacers[0].height).toBe(pageStride - 600)
@@ -368,7 +367,11 @@ describe('paginasi tak seragam (§P8&P9)', () => {
 		])
 
 		expect(sheets).toHaveLength(3)
-		expect(sheets[2]).toMatchObject({ index: 2, width: geometry.width, top: pageStride + landscape.height + 32 })
+		expect(sheets[2]).toMatchObject({
+			index: 2,
+			width: geometry.width,
+			top: pageStride + landscape.height + 32,
+		})
 	})
 
 	test('blok raksasa di section sempit memanjangkan daftar lembar dengan geometrinya', () => {
@@ -378,7 +381,10 @@ describe('paginasi tak seragam (§P8&P9)', () => {
 		expect(sheets).toHaveLength(4)
 		expect(sheets[1]).toMatchObject({ height: landscape.height, top: pageStride })
 		expect(sheets[2]).toMatchObject({ height: landscape.height, top: pageStride + landscape.height + 32 })
-		expect(sheets[3]).toMatchObject({ height: landscape.height, top: pageStride + 2 * (landscape.height + 32) })
+		expect(sheets[3]).toMatchObject({
+			height: landscape.height,
+			top: pageStride + 2 * (landscape.height + 32),
+		})
 	})
 })
 describe('peta blok→halaman (§P8&P9, cakupan "halaman ini")', () => {
@@ -427,10 +433,13 @@ describe('peta blok→halaman (§P8&P9, cakupan "halaman ini")', () => {
 describe('peta blok→section (§P8&P9, cetak per-section)', () => {
 	test('blok sebelum pembatas pertama milik section 0', () => {
 		expect(
-			blockSections([0, 5, 12], [
-				{ pos: 0, name: 0 },
-				{ pos: 8, name: 1 },
-			]),
+			blockSections(
+				[0, 5, 12],
+				[
+					{ pos: 0, name: 0 },
+					{ pos: 8, name: 1 },
+				],
+			),
 		).toEqual([
 			{ pos: 0, section: 0 },
 			{ pos: 5, section: 0 },
@@ -446,10 +455,13 @@ describe('peta blok→section (§P8&P9, cetak per-section)', () => {
 
 	test('pembatas itu sendiri sudah masuk section barunya', () => {
 		expect(
-			blockSections([8], [
-				{ pos: 0, name: 0 },
-				{ pos: 8, name: 1 },
-			]),
+			blockSections(
+				[8],
+				[
+					{ pos: 0, name: 0 },
+					{ pos: 8, name: 1 },
+				],
+			),
 		).toEqual([{ pos: 8, section: 1 }])
 	})
 
