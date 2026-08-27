@@ -2,6 +2,7 @@
 
 import type { Editor } from '@tiptap/react'
 import { createContext, type ReactNode, useContext, useMemo, useState } from 'react'
+
 interface EditorInstanceContextValue {
 	editor: Editor | null
 	setEditor: (editor: Editor | null) => void

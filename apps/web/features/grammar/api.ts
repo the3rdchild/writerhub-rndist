@@ -16,6 +16,7 @@ export interface GrammarCheckInput {
 	language: string
 	tabId?: string
 }
+
 export async function submitGrammarCheck(input: GrammarCheckInput): Promise<JobSubmission> {
 	const form = new FormData()
 	if (input.file) form.append('file', input.file)
@@ -31,6 +32,7 @@ export async function submitGrammarCheck(input: GrammarCheckInput): Promise<JobS
 export function fetchGrammarJobStatus(jobId: string): Promise<GrammarJobStatus> {
 	return apiFetch<GrammarJobStatus>(`/status/${encodeURIComponent(jobId)}`)
 }
+
 export function streamTimeoutFor(model: GrammarModel): number {
 	return model === 'standard' ? 60_000 : 180_000
 }
@@ -40,6 +42,7 @@ export interface StreamGrammarOptions {
 	timeoutMs?: number
 	signal?: AbortSignal
 }
+
 export async function streamGrammarCheck(
 	jobId: string,
 	{ onCheckpoint, timeoutMs, signal }: StreamGrammarOptions = {},

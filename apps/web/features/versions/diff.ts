@@ -2,15 +2,18 @@ import { diffWordsWithSpace } from 'diff'
 import type { JSONContent } from '@tiptap/core'
 import { buildTextIndex } from '@/features/document/tiptap-offsets'
 import { buildSchema } from '@/features/sync/serialize'
+
 export interface VersionDiffRange {
 	offset: number
 	length: number
 	kind: 'added' | 'removed'
 	words?: string
 }
+
 export function versionPlainText(json: JSONContent): string {
 	return buildTextIndex(buildSchema().nodeFromJSON(json)).text
 }
+
 export function computeVersionDiff(versionText: string, draftText: string): VersionDiffRange[] {
 	const ranges: VersionDiffRange[] = []
 	let offset = 0
@@ -48,6 +51,7 @@ export function computeVersionDiff(versionText: string, draftText: string): Vers
 
 	return ranges
 }
+
 export function diffVersionDocuments(version: JSONContent, draft: JSONContent): VersionDiffRange[] {
 	return computeVersionDiff(versionPlainText(version), versionPlainText(draft))
 }

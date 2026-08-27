@@ -9,6 +9,7 @@ import type { MemoryPreferences } from './types'
 import { useMemory, useSaveMemory } from './use-memory'
 
 const NOTES_MAX = 500
+
 export function MemoryTab() {
 	const memory = useMemory()
 	const save = useSaveMemory()

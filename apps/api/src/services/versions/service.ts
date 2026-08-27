@@ -4,6 +4,7 @@ import { findVersionById, findVersionsByTab, insertVersion } from '@/repository/
 import BaseService from '@/services/base.service'
 import { createVersionBodySchema } from './dto'
 import type { VersionDetail, VersionSummary } from './dto'
+
 export function countWords(content: Record<string, unknown>): number {
 	let count = 0
 	const walk = (node: Record<string, unknown>): void => {
@@ -17,6 +18,7 @@ export function countWords(content: Record<string, unknown>): number {
 	walk(content)
 	return count
 }
+
 export default class VersionsService extends BaseService {
 	async list(): Promise<Response> {
 		try {

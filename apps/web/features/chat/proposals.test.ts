@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { extractProposals, stripProposals } from './chat-context'
+
 const WITH_TABLE = `Baik, berikut contoh tabel yang bisa langsung disalin ke dokumen Anda:
 
 | No | Nama | Jabatan |

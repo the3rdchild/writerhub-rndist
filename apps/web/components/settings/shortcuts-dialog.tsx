@@ -10,6 +10,7 @@ import {
 } from '@/features/shortcuts/registry'
 import { useIsMac } from '@/features/shortcuts/use-shortcuts'
 import { useSettings } from '@/features/settings/settings-context'
+
 export function ShortcutsDialog() {
 	const { shortcutsOpen, setShortcutsOpen } = useSettings()
 	const mac = useIsMac()

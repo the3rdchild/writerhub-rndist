@@ -14,6 +14,7 @@ import { snapshotIntervalTab } from '@/services/tabs/service'
 import { createDocumentBodySchema, updateDocumentBodySchema } from './dto'
 import type { DocumentDetail, DocumentSummary, TabSummary } from './dto'
 const EMPTY_CONTENT: Record<string, unknown> = { type: 'doc', content: [] }
+
 export default class DocumentsService extends BaseService {
 	async list(): Promise<Response> {
 		try {

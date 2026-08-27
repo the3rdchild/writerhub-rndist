@@ -84,6 +84,7 @@ export const BlockSpacing = Extension.create({
 		}
 	},
 })
+
 export function lineHeightAt(editor: Editor): string | null {
 	const { $from } = editor.state.selection
 

@@ -32,6 +32,7 @@ import { useSync } from '@/features/sync/sync-context'
 import { cn } from '@/lib/utils'
 
 const RECENT_DOCUMENT_LIMIT = 10
+
 export function NavMenu() {
 	const { activeDocId, hydrated, newDocument } = useSessions()
 	const { setSettingsOpen } = useSettings()
@@ -227,6 +228,7 @@ export function NavMenu() {
 		</Dropdown>
 	)
 }
+
 function ProjectsSection({
 	activeDocId,
 	onNavigate,

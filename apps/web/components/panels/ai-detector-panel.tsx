@@ -34,6 +34,7 @@ interface SentenceState extends Sentence {
 	applied?: boolean
 	dismissed?: boolean
 }
+
 const acceptedScore = (score: number) => Math.max(5, Math.round(score * 0.25))
 
 export function AiDetectorPanel() {

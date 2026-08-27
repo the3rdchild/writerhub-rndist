@@ -52,6 +52,7 @@ export const initialDocumentState: DocumentState = {
 	hoveredRange: null,
 	checkedText: null,
 }
+
 const withClearedResults = (state: DocumentState) => ({
 	...state,
 	suggestions: [],

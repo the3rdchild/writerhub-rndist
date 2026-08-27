@@ -2,6 +2,7 @@ import { AppError } from '@/lib/error'
 import { findMemoryByOwner, upsertMemory } from '@/repository/memory'
 import BaseService from '@/services/base.service'
 import { memoryPreferencesSchema } from './dto'
+
 export default class MemoryService extends BaseService {
 	async get(): Promise<Response> {
 		try {

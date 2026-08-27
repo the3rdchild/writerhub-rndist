@@ -15,6 +15,7 @@ import {
 	useState,
 } from 'react'
 import { cn } from '@/lib/utils'
+
 interface DropdownProps {
 	trigger: (props: { open: boolean; toggle: () => void; id: string }) => ReactNode
 	children: (props: { close: () => void }) => ReactNode
@@ -79,6 +80,7 @@ export function Dropdown({
 		</div>
 	)
 }
+
 const SubmenuGroupContext = createContext<{
 	openId: string | null
 	setOpenId: Dispatch<SetStateAction<string | null>>
@@ -143,6 +145,7 @@ export function DropdownLabel({ children }: { children: ReactNode }) {
 		</div>
 	)
 }
+
 export function Submenu({
 	label,
 	icon,

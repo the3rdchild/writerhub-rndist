@@ -36,12 +36,14 @@ import {
 	summarizeToolResult,
 	type ToolOutcome,
 } from './tools'
+
 export interface ChatAttachment {
 	text: string
 	surrounding: string
 	offset: number
 	length: number
 }
+
 export interface ChatStep {
 	id: string
 	label: string
@@ -53,6 +55,7 @@ export interface ChatStep {
 	/** Hanya untuk langkah riset web - dipakai kartu verifikasi. */
 	sources?: ResearchSource[]
 }
+
 export interface ChatTurn extends ChatMessage {
 	actions?: ToolCall[]
 	taskId?: string
@@ -60,13 +63,18 @@ export interface ChatTurn extends ChatMessage {
 	usage?: ChatUsage
 	intermediate?: boolean
 }
+
 const MAX_TOOL_ROUNDS = 12
 const MAX_READ_CALLS = 48
+
 const BUDGET_NOTICE =
 	'\n\n[System] Read budget for this turn is exhausted. Answer now with what you already have, or propose write tools. Further read tools will not be executed.'
+
 const MAX_WRITE_WAVES = 8
+
 const WRITE_WAVE_NOTICE =
 	'\n\n[System] This is the last batch of edits that will be carried out automatically for this request. Wrap up: summarize what changed and what is left for the writer to decide.'
+
 const PHASE_LABEL: Record<ChatStreamPhase, string> = {
 	connecting: 'Menghubungi provider…',
 	thinking: 'Berpikir…',
@@ -74,11 +82,13 @@ const PHASE_LABEL: Record<ChatStreamPhase, string> = {
 	writing: 'Menyusun jawaban…',
 	retrying: 'Mencoba ulang tanpa tool calling…',
 }
+
 function newTaskId(): string {
 	return (
 		globalThis.crypto?.randomUUID?.() ?? `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`
 	)
 }
+
 export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string | undefined): ChatMessage[] {
 	const outbound: ChatMessage[] = []
 	for (const turn of history) {
@@ -108,11 +118,14 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 	}
 	return outbound
 }
+
 export function actionsSettled(history: ChatTurn[], owner: ChatTurn): boolean {
 	const decided = new Set(history.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId))
 	return (owner.actions ?? []).every((action) => decided.has(action.id))
 }
+
 const OUTLINE_SNIPPET_CHARS = 600
+
 function editorOutlineSummary(editor: Editor): string | undefined {
 	const doc = editor.state.doc
 	const lines: string[] = []
@@ -748,6 +761,7 @@ export function useChat(): ChatContextValue {
 	if (!context) throw new Error('useChat harus dipakai di dalam <ChatProvider>')
 	return context
 }
+
 export function extractProposals(content: string): string[] {
 	const proposals: string[] = []
 	const fence = /```[\w-]*\n([\s\S]*?)```/g
@@ -773,6 +787,7 @@ function stripFences(content: string): string {
 function extractTables(content: string): string[] {
 	return (content.match(TABLE_PATTERN) ?? []).map((table) => table.trim()).filter(Boolean)
 }
+
 export function stripProposals(content: string): string {
 	return stripFences(content)
 		.replace(TABLE_PATTERN, '')

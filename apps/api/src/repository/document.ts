@@ -3,6 +3,7 @@ import db from '@/db'
 import { documents, documentTabs, projects } from '@/db/schemas'
 import type { NewDocument } from '@/db/schemas'
 const tabCountFor = () => db.$count(documentTabs, eq(documentTabs.document_id, documents.id))
+
 export async function findDocumentsByOwner(ownerId: string, projectId?: string) {
 	const conditions = [eq(projects.owner_id, ownerId)]
 	if (projectId) conditions.push(eq(documents.project_id, projectId))
@@ -36,6 +37,7 @@ export async function insertDocument(values: NewDocument) {
 	const [row] = await db.insert(documents).values(values).returning()
 	return row ?? null
 }
+
 export async function updateDocument(id: string, ownerId: string, values: Partial<NewDocument>) {
 	const owned = await findDocumentById(id, ownerId)
 	if (!owned) return null
@@ -43,9 +45,11 @@ export async function updateDocument(id: string, ownerId: string, values: Partia
 	const [row] = await db.update(documents).set(values).where(eq(documents.id, id)).returning()
 	return row ?? null
 }
+
 export async function touchDocument(id: string) {
 	await db.update(documents).set({ updated_at: new Date() }).where(eq(documents.id, id))
 }
+
 export async function deleteDocument(id: string, ownerId: string) {
 	const owned = await findDocumentById(id, ownerId)
 	if (!owned) return null

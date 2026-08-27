@@ -10,6 +10,7 @@ import {
 } from '@/features/analysis/glossary-table'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { PanelEmptyState, PanelError, PanelFooter, PanelLoading, PanelScroll, RunButton } from './panel-parts'
+
 export function GlossaryPanel() {
 	const { result, isRunning, error, canRun, run, cancel } = useAnalysis('glossary')
 	const { editor } = useEditorInstance()

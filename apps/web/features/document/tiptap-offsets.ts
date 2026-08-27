@@ -1,4 +1,5 @@
 import type { Node as PMNode } from '@tiptap/pm/model'
+
 interface Segment {
 	textStart: number
 	pmStart: number
@@ -9,6 +10,7 @@ export interface TextIndex {
 	text: string
 	segments: Segment[]
 }
+
 export function buildTextIndex(doc: PMNode): TextIndex {
 	const segments: Segment[] = []
 	let text = ''
@@ -53,6 +55,7 @@ function pmPosToText({ segments }: TextIndex, pmPos: number): number | null {
 	}
 	return null
 }
+
 export function pmRangeToText(
 	index: TextIndex,
 	from: number,
@@ -63,6 +66,7 @@ export function pmRangeToText(
 	if (start === null || end === null || end <= start) return null
 	return { offset: start, length: end - start }
 }
+
 export function textRangeToPM(
 	index: TextIndex,
 	offset: number,

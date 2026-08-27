@@ -3,6 +3,7 @@
 import { TriangleAlert } from 'lucide-react'
 import { type ReactNode, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
+
 export function ConfirmDialog({
 	open,
 	title,

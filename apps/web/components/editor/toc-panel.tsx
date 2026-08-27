@@ -5,6 +5,7 @@ import { List } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { TableOfContentDataItem } from '@tiptap/extension-table-of-contents'
 import { cn } from '@/lib/utils'
+
 export function TocPanel({ editor, onClose }: { editor: Editor; onClose?: () => void }) {
 	const [items, setItems] = useState<TableOfContentDataItem[]>([])
 

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+
 export function PanelScroll({ children, className }: { children: ReactNode; className?: string }) {
 	return (
 		<div className={cn('flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-surface-inset p-4', className)}>
@@ -36,6 +37,7 @@ export function StaleNotice() {
 		</div>
 	)
 }
+
 export function ScopeIndicator({ wordCount }: { wordCount: number | null }) {
 	if (wordCount === null) {
 		return (
@@ -147,6 +149,7 @@ export function AcceptAllButton({ onClick, disabled }: { onClick: () => void; di
 		</button>
 	)
 }
+
 export function ClearResultsButton({ onClick }: { onClick: () => void }) {
 	return (
 		<button
@@ -159,6 +162,7 @@ export function ClearResultsButton({ onClick }: { onClick: () => void }) {
 		</button>
 	)
 }
+
 export function CompareButton({
 	active,
 	onToggle,
@@ -231,6 +235,7 @@ export function AcceptDismissRow({
 		</div>
 	)
 }
+
 export function ChangeCard({
 	original,
 	replacement,
@@ -259,6 +264,7 @@ export function ChangeCard({
 		</div>
 	)
 }
+
 export function CandidateCard({
 	original,
 	candidates,
@@ -332,6 +338,7 @@ export function CandidateCard({
 		</div>
 	)
 }
+
 export function AppliedCard({
 	original,
 	applied,

@@ -18,6 +18,7 @@ const CATEGORY_CLASS: Record<string, string> = {
 	spelling: 'suggestion-mark suggestion-mark--spelling',
 	style: 'suggestion-mark suggestion-mark--style',
 }
+
 function buildDecorations(doc: PMNode, suggestions: readonly EditorSuggestion[]): DecorationSet {
 	const index = buildTextIndex(doc)
 	const decorations: Decoration[] = []
@@ -44,6 +45,7 @@ function buildDecorations(doc: PMNode, suggestions: readonly EditorSuggestion[])
 
 	return DecorationSet.create(doc, decorations)
 }
+
 export const SuggestionHighlight = Extension.create({
 	name: 'suggestionHighlight',
 

@@ -1,6 +1,7 @@
 import db from '@/db'
 import { identity } from '@/db/schemas'
 import type { IdentityOrigin } from '@/lib/create-app'
+
 export async function resolveIdentityId(userId: string, origin: IdentityOrigin): Promise<string> {
 	const [row] = await db
 		.insert(identity)

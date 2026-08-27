@@ -8,6 +8,7 @@ import {
 	initialDocumentState,
 } from './document-reducer'
 import { applySuggestions } from './suggestions'
+
 interface DocumentContextValue {
 	state: DocumentState
 	dispatch: (action: DocumentAction) => void

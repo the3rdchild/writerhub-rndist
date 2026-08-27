@@ -11,6 +11,7 @@ import { countWords } from '@/lib/utils'
 import { DocumentCanvas } from './document-canvas'
 import { TocSettingsDialog } from './toc-settings-dialog'
 import { TableControls } from './table-controls'
+
 export function DocumentEditor() {
 	const { state, dispatch } = useDocument()
 	const { settings } = useSettings()

@@ -16,6 +16,7 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	hour: '2-digit',
 	minute: '2-digit',
 })
+
 export function LocalDocumentCard({
 	document,
 	onDelete,

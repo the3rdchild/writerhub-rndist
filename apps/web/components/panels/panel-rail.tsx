@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { type PanelId, usePanels } from '@/features/analysis/panel-context'
 import { cn } from '@/lib/utils'
+
 export const PANELS: Array<{ id: PanelId; icon: LucideIcon; label: string }> = [
 	{ id: 'ai_chat', icon: MessagesSquare, label: 'AI Chat' },
 	{ id: 'proofreader', icon: SpellCheck, label: 'Proofreader' },
@@ -28,6 +29,7 @@ export const PANELS: Array<{ id: PanelId; icon: LucideIcon; label: string }> = [
 
 const COLLAPSED_WIDTH = 56
 const EXPANDED_WIDTH = 208
+
 export function PanelRail() {
 	const { activePanel, togglePanel } = usePanels()
 

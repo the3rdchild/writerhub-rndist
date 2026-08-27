@@ -7,10 +7,12 @@ const cell = (text: string, header = false): JSONContent => ({
 	type: header ? 'tableHeader' : 'tableCell',
 	content: [text ? { type: 'paragraph', content: [{ type: 'text', text }] } : { type: 'paragraph' }],
 })
+
 export function glossaryTermLabel(entry: GlossaryEntry): string {
 	const expansion = entry.expansion?.trim()
 	return expansion ? `${entry.term} (${expansion})` : entry.term
 }
+
 export function buildGlossarySection(entries: readonly GlossaryEntry[]): JSONContent[] {
 	return [
 		{ type: PAGE_BREAK_NODE },
@@ -27,6 +29,7 @@ export function buildGlossarySection(entries: readonly GlossaryEntry[]): JSONCon
 		},
 	]
 }
+
 export function findGlossarySection(doc: {
 	childCount: number
 	child: (index: number) => { type: { name: string }; textContent: string; nodeSize: number }

@@ -22,6 +22,7 @@ const FILTERS: Array<{ key: HistoryFeature | 'all'; label: string }> = [
 	{ key: 'humanizer', label: 'Humanizer' },
 	{ key: 'plagiarism', label: 'Plagiarism' },
 ]
+
 function EntryRow({
 	entry,
 	selected,
@@ -57,6 +58,7 @@ function EntryRow({
 		</button>
 	)
 }
+
 export function ActivityView() {
 	const [filter, setFilter] = useState<HistoryFeature | 'all'>('all')
 	const [selectedJobId, setSelectedJobId] = useState<string | null>(null)

@@ -89,6 +89,7 @@ export function DocumentLeftRuler({
 		</div>
 	)
 }
+
 function Ticks({ height, zoom, unit }: { height: number; zoom: number; unit: MeasurementUnit }) {
 	const unitPx = unit === 'cm' ? INCH / 2.54 : INCH
 	const step = zoom < 0.75 ? unitPx / 2 : unitPx / 4
@@ -121,6 +122,7 @@ function Ticks({ height, zoom, unit }: { height: number; zoom: number; unit: Mea
 		</>
 	)
 }
+
 function MarginHandle({
 	label,
 	y,

@@ -6,6 +6,7 @@ export interface StreamOptions<TEvent> {
 }
 
 export class StreamError extends Error {}
+
 export class StreamTimeoutError extends StreamError {
 	constructor() {
 		super('Timeout menunggu hasil, coba lagi')

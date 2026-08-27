@@ -3,6 +3,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from 'react'
 import type { VersionDiffRange } from '@/features/versions/diff'
 import type { AnalysisDiffFeature } from './analysis-diff'
+
 export interface ActiveAnalysisDiff {
 	feature: AnalysisDiffFeature
 	ranges: VersionDiffRange[]

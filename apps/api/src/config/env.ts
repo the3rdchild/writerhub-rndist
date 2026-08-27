@@ -4,6 +4,7 @@ const str = (key: string, fallback = ''): string => process.env[key] ?? fallback
 const num = (key: string, fallback: number): number => Number(process.env[key]) || fallback
 export type AuthMode = 'pp' | 'none'
 export type StorageDriver = 's3' | 'local'
+
 export const env = {
 	NODE_ENV: str('NODE_ENV', 'development'),
 	PORT: num('PORT', 8080),
@@ -59,12 +60,14 @@ export const isProduction = env.NODE_ENV === 'production'
 export const isLocalAuth = env.AUTH_MODE === 'none'
 
 const BASE_REQUIRED = ['DATABASE_URL'] as const satisfies readonly (keyof typeof env)[]
+
 const S3_REQUIRED = [
 	'CDN_BUCKET_NAME',
 	'CDN_ENDPOINT',
 	'CDN_ACCESS_KEY_ID',
 	'CDN_SECRET_ACCESS_KEY',
 ] as const satisfies readonly (keyof typeof env)[]
+
 const RESEARCH_REQUIRED = ['TAVILY_API_KEY'] as const satisfies readonly (keyof typeof env)[]
 
 export function validateEnv(): void {

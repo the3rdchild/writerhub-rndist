@@ -59,6 +59,7 @@ export interface PaginationOptions {
 	onSectionsChange?: (setups: PageSetup[]) => void
 	pageless?: boolean
 }
+
 export interface PaginationMeta {
 	spacers?: Spacer[]
 	pageCount?: number
@@ -70,6 +71,7 @@ export interface PaginationMeta {
 	setup?: PageSetup
 	pageless?: boolean
 }
+
 function measureBlocks(view: EditorView): Measurement[] {
 	const inserted = insertedHeights(view)
 	const measurements: Measurement[] = []
@@ -141,6 +143,7 @@ function measureBlocks(view: EditorView): Measurement[] {
 
 	return measurements
 }
+
 function measureTable(
 	view: EditorView,
 	table: PMNode,
@@ -192,10 +195,12 @@ function measureTable(
 
 	return cumulative
 }
+
 export const SPACER_ATTRIBUTE = 'data-spacer-for'
 export const REGION_SPACE_ATTRIBUTE = 'data-columns-region'
 export const REGION_SHEET_GAP_ATTRIBUTE = 'data-sheet-gap'
 export const SELF_PAGINATE_ATTRIBUTE = 'data-self-paginate'
+
 function insertedHeights(view: EditorView): Map<number, number> {
 	const heights = new Map<number, number>()
 
@@ -208,15 +213,18 @@ function insertedHeights(view: EditorView): Map<number, number> {
 
 	return heights
 }
+
 export interface SectionGeometry {
 	pos: number
 	geometry: PageGeometry
 	continuous?: boolean
 }
+
 export interface BlockPage {
 	pos: number
 	page: number
 }
+
 export function pageOfPos(blockPages: readonly BlockPage[], pos: number): number | null {
 	let page: number | null = null
 	for (const block of blockPages) {
@@ -225,6 +233,7 @@ export function pageOfPos(blockPages: readonly BlockPage[], pos: number): number
 	}
 	return page
 }
+
 export function pageBlockRange(
 	blockPages: readonly BlockPage[],
 	page: number,
@@ -235,6 +244,7 @@ export function pageBlockRange(
 	const next = blockPages.find((block) => block.page > page)
 	return { from: first.pos, to: next?.pos ?? docSize }
 }
+
 export function computeSpacers(
 	blocks: readonly Measurement[],
 	geometry: PageGeometry,
@@ -351,6 +361,7 @@ function sameSpacers(a: readonly Spacer[], b: readonly Spacer[]): boolean {
 		})
 	)
 }
+
 function sameSheets(a: readonly SheetGeometry[], b: readonly SheetGeometry[]): boolean {
 	return (
 		a.length === b.length &&
@@ -360,11 +371,13 @@ function sameSheets(a: readonly SheetGeometry[], b: readonly SheetGeometry[]): b
 		})
 	)
 }
+
 export interface MarginAdjustment {
 	pos: number
 	left: number
 	right: number
 }
+
 export function marginAdjustments(
 	blockPositions: readonly number[],
 	spans: readonly { pos: number; width: number; margins: PageSetup['margins'] }[],
@@ -390,6 +403,7 @@ export function marginAdjustments(
 
 	return adjustments
 }
+
 export function blockSections(
 	blockPositions: readonly number[],
 	sections: readonly { pos: number; name: number }[],
@@ -413,6 +427,7 @@ function sameBlockSections(
 		a.every((entry, index) => entry.pos === b[index].pos && entry.section === b[index].section)
 	)
 }
+
 function sameSetups(a: readonly PageSetup[], b: readonly PageSetup[]): boolean {
 	return (
 		a.length === b.length && a.every((setup, index) => JSON.stringify(setup) === JSON.stringify(b[index]))
@@ -505,6 +520,7 @@ function blockSpacer(spacer: Spacer): HTMLElement {
 	element.style.height = `${spacer.height}px`
 	return markSpacer(element, spacer)
 }
+
 export function rowSpacer(spacer: Spacer): HTMLElement {
 	const row = document.createElement('tr')
 	row.className = 'page-break-row'
@@ -516,6 +532,7 @@ export function rowSpacer(spacer: Spacer): HTMLElement {
 
 	return markSpacer(row, spacer)
 }
+
 export function repeatedHeader(header: PMNode, spacer: Spacer): HTMLElement {
 	const row = document.createElement('tr')
 	row.className = 'table-header-repeat'
@@ -528,6 +545,7 @@ export function repeatedHeader(header: PMNode, spacer: Spacer): HTMLElement {
 
 	return markSpacer(row, spacer)
 }
+
 export const Pagination = Extension.create<PaginationOptions>({
 	name: 'pagination',
 

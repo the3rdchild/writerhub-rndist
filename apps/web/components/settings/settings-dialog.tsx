@@ -22,6 +22,7 @@ const THEMES: Array<{ value: Theme; label: string; icon: typeof Moon }> = [
 ]
 
 const FONT_SIZES: FontSize[] = ['small', 'medium', 'large']
+
 export function SettingsDialog() {
 	const { settings, update, updateProfile, settingsOpen, setSettingsOpen } = useSettings()
 	const [tab, setTab] = useState<TabKey>('profile')

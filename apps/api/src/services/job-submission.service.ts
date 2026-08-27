@@ -12,6 +12,7 @@ import LoggerClient from '@/utils/logger'
 const log = LoggerClient.getInstance()
 export const USAGE_SERVICE_SLUG = 'grammar'
 export const USAGE_TOOL_NAME = 'grammar-check'
+
 export default abstract class JobSubmissionService extends BaseService {
 	protected async authorizeAndResolveProvider(): Promise<ResolvedProvider | null> {
 		if (isLocalAuth) return null

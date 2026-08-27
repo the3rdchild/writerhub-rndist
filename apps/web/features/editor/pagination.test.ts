@@ -27,6 +27,7 @@ describe('sameSheetGeometry - syarat pembatas menerus (E5)', () => {
 		expect(sameSheetGeometry(DEFAULT_PAGE_SETUP, { ...DEFAULT_PAGE_SETUP, pageColor: '#fef3c7' })).toBe(true)
 	})
 })
+
 function layout(heights: Array<number | 'break'>): Measurement[] {
 	let top = 0
 	return heights.map((item, index) => {
@@ -42,6 +43,7 @@ function layout(heights: Array<number | 'break'>): Measurement[] {
 		return block
 	})
 }
+
 function table(rowHeights: number[], options: { headerHeight?: number; startTop?: number } = {}) {
 	const { headerHeight = 0, startTop = 0 } = options
 	let top = startTop
@@ -60,6 +62,7 @@ function table(rowHeights: number[], options: { headerHeight?: number; startTop?
 		return row
 	})
 }
+
 function renderedTops(blocks: Measurement[]): number[] {
 	const { spacers } = computeSpacers(blocks, geometry)
 	const spacerAt = new Map(spacers.map((spacer) => [spacer.pos, spacer]))
@@ -74,6 +77,7 @@ function renderedTops(blocks: Measurement[]): number[] {
 		return block.top + cumulative
 	})
 }
+
 function expectStartsPage(renderedTop: number, page: number) {
 	expect(renderedTop).toBe((page - 1) * pageStride)
 }
@@ -387,6 +391,7 @@ describe('paginasi tak seragam (§P8&P9)', () => {
 		})
 	})
 })
+
 describe('peta blok→halaman (§P8&P9, cakupan "halaman ini")', () => {
 	test('tiap blok dicatat pada lembar tempat ia mulai', () => {
 		const { blockPages } = computeSpacers(layout([400, 400, 400]), geometry)

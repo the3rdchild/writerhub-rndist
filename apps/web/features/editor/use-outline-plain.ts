@@ -1,10 +1,12 @@
 import type { Node as PMNode } from '@tiptap/pm/model'
+
 export interface OutlineItem {
 	pos: number
 	level: number
 	text: string
 	kind: 'heading' | 'caption'
 }
+
 export function readOutlineItems(doc: PMNode): OutlineItem[] {
 	const items: OutlineItem[] = []
 

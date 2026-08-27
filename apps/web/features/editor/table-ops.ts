@@ -10,23 +10,28 @@ import {
 	TableMap,
 } from '@tiptap/pm/tables'
 import { NO_COLOR } from '@/features/editor/custom-table'
+
 export interface CellTarget {
 	tablePos: number
 	rowIndex: number
 	colIndex: number
 }
+
 export interface TableLocation extends CellTarget {
 	rowCount: number
 	colCount: number
 }
+
 function tableNodeAt(editor: Editor, tablePos: number): PMNode | null {
 	const node = editor.state.doc.nodeAt(tablePos)
 	if (!node || node.type.spec.tableRole !== 'table') return null
 	return node
 }
+
 export function locateTable(editor: Editor, pos?: number): TableLocation | null {
 	return locateTableAt(editor.state, pos ?? editor.state.selection.from)
 }
+
 export function locateTableAt(state: EditorState, pos: number): TableLocation | null {
 	if (pos < 0 || pos > state.doc.content.size) return null
 	const $pos = state.doc.resolve(pos)
@@ -53,12 +58,14 @@ export function locateTableAt(state: EditorState, pos: number): TableLocation | 
 		colCount: map.width,
 	}
 }
+
 export function tableSize(editor: Editor, tablePos: number): { rowCount: number; colCount: number } | null {
 	const node = tableNodeAt(editor, tablePos)
 	if (!node) return null
 	const map = TableMap.get(node)
 	return { rowCount: map.height, colCount: map.width }
 }
+
 function cellPosAt(editor: Editor, tablePos: number, rowIndex: number, colIndex: number): number | null {
 	const node = tableNodeAt(editor, tablePos)
 	if (!node) return null
@@ -66,6 +73,7 @@ function cellPosAt(editor: Editor, tablePos: number, rowIndex: number, colIndex:
 	if (rowIndex < 0 || rowIndex >= map.height || colIndex < 0 || colIndex >= map.width) return null
 	return tablePos + 1 + map.map[rowIndex * map.width + colIndex]
 }
+
 export function focusCell(editor: Editor, target: CellTarget, at?: number): boolean {
 	const cellStart = cellPosAt(editor, target.tablePos, target.rowIndex, target.colIndex)
 	if (cellStart === null) return false
@@ -74,6 +82,7 @@ export function focusCell(editor: Editor, target: CellTarget, at?: number): bool
 	const inside = at !== undefined && at > cellStart && at < cellStart + cell.nodeSize ? at : cellStart + 1
 	return editor.chain().focus().setTextSelection(inside).run()
 }
+
 export function selectRow(editor: Editor, tablePos: number, rowIndex: number): boolean {
 	const size = tableSize(editor, tablePos)
 	if (!size) return false
@@ -82,6 +91,7 @@ export function selectRow(editor: Editor, tablePos: number, rowIndex: number): b
 	if (anchorCell === null || headCell === null) return false
 	return editor.chain().focus().setCellSelection({ anchorCell, headCell }).run()
 }
+
 export function selectColumn(editor: Editor, tablePos: number, colIndex: number): boolean {
 	const size = tableSize(editor, tablePos)
 	if (!size) return false
@@ -90,6 +100,7 @@ export function selectColumn(editor: Editor, tablePos: number, colIndex: number)
 	if (anchorCell === null || headCell === null) return false
 	return editor.chain().focus().setCellSelection({ anchorCell, headCell }).run()
 }
+
 function selectionCoversCell(editor: Editor, target: CellTarget): boolean {
 	const { selection } = editor.state
 	if (!(selection instanceof CellSelection)) return false
@@ -104,10 +115,12 @@ function selectionCoversCell(editor: Editor, target: CellTarget): boolean {
 		target.colIndex < rect.right
 	)
 }
+
 export function targetCell(editor: Editor, target: CellTarget, at?: number): void {
 	if (selectionCoversCell(editor, target)) return
 	focusCell(editor, target, at)
 }
+
 export function withCellTarget(editor: Editor, target: CellTarget, run: (editor: Editor) => void): void {
 	targetCell(editor, target)
 	run(editor)
@@ -127,9 +140,11 @@ export function deleteRowAt(editor: Editor, target: CellTarget): void {
 	if (!focusCell(editor, target)) return
 	editor.chain().focus().deleteRow().run()
 }
+
 export function dropIndex(fromIndex: number, boundary: number): number {
 	return boundary > fromIndex ? boundary - 1 : boundary
 }
+
 export function moveRow(editor: Editor, target: CellTarget, to: number): void {
 	const size = tableSize(editor, target.tablePos)
 	if (!size || to < 0 || to >= size.rowCount || to === target.rowIndex) return
@@ -151,12 +166,14 @@ export function deleteColAt(editor: Editor, target: CellTarget): void {
 	if (!focusCell(editor, target)) return
 	editor.chain().focus().deleteColumn().run()
 }
+
 export function moveColumn(editor: Editor, target: CellTarget, to: number): void {
 	const size = tableSize(editor, target.tablePos)
 	if (!size || to < 0 || to >= size.colCount || to === target.colIndex) return
 	if (!focusCell(editor, target)) return
 	moveTableColumn({ from: target.colIndex, to })(editor.state, (tr) => editor.view.dispatch(tr))
 }
+
 export function explicitColumnWidths(table: PMNode): number[] | null {
 	const map = TableMap.get(table)
 	const widths: number[] = new Array(map.width).fill(0)
@@ -186,13 +203,16 @@ export function columnWidths(editor: Editor, tablePos: number): number[] | null 
 	const map = TableMap.get(table)
 	return measured.length === map.width ? measured : null
 }
+
 export const MIN_COLUMN_WIDTH = 24
+
 export function scaleColumnWidths(widths: readonly number[], total: number): number[] {
 	const current = widths.reduce((sum, value) => sum + value, 0)
 	if (current <= 0) return [...widths]
 	const factor = Math.max(total, MIN_COLUMN_WIDTH * widths.length) / current
 	return widths.map((value) => Math.max(MIN_COLUMN_WIDTH, Math.round(value * factor)))
 }
+
 export function clampColumnWidths(widths: readonly number[] | null, available: number): number[] | null {
 	if (!widths || widths.length === 0) return null
 	const sum = widths.reduce((total, value) => total + value, 0)
@@ -201,6 +221,7 @@ export function clampColumnWidths(widths: readonly number[] | null, available: n
 	const nextSum = next.reduce((total, value) => total + value, 0)
 	return Math.abs(nextSum - sum) < 0.5 ? null : next
 }
+
 export function writeColumnWidths(tr: Transaction, doc: PMNode, tablePos: number, widths: number[]): boolean {
 	const table = doc.nodeAt(tablePos)
 	if (!table || table.type.spec.tableRole !== 'table') return false
@@ -233,12 +254,14 @@ export function writeColumnWidths(tr: Transaction, doc: PMNode, tablePos: number
 	}
 	return changed
 }
+
 export function setColumnWidths(editor: Editor, tablePos: number, widths: number[]): boolean {
 	const tr = editor.state.tr
 	if (!writeColumnWidths(tr, tr.doc, tablePos, widths)) return false
 	editor.view.dispatch(tr)
 	return true
 }
+
 export function setTableIndent(editor: Editor, tablePos: number, left: number): boolean {
 	const table = tableNodeAt(editor, tablePos)
 	if (!table) return false
@@ -247,6 +270,7 @@ export function setTableIndent(editor: Editor, tablePos: number, left: number): 
 	editor.view.dispatch(editor.state.tr.setNodeAttribute(tablePos, 'indentLeft', next))
 	return true
 }
+
 export function clearCellStyling(editor: Editor): boolean {
 	const { state } = editor
 	const cellType = state.schema.nodes.tableCell

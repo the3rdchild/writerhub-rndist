@@ -7,7 +7,9 @@ import {
 	listLocalVersions,
 	pruneLocalIntervalVersions,
 } from './local-store'
+
 export const LOCAL_INTERVAL_SNAPSHOT_MS = 10 * 60_000
+
 export function shouldSnapshotInterval(
 	lastAt: number,
 	lastJson: string,
@@ -20,9 +22,11 @@ export function shouldSnapshotInterval(
 
 const lastByTab = new Map<string, { at: number; json: string }>()
 const loadingTabs = new Set<string>()
+
 export function rememberLocalSnapshot(tabId: string, at: number, json: string): void {
 	lastByTab.set(tabId, { at, json })
 }
+
 export async function snapshotLocalVersion(
 	doc: Y.Doc,
 	tabId: string,
@@ -39,6 +43,7 @@ export async function snapshotLocalVersion(
 		return false
 	}
 }
+
 export async function maybeSnapshotLocalInterval(doc: Y.Doc, tabId: string): Promise<boolean> {
 	const cached = lastByTab.get(tabId)
 	if (cached) {

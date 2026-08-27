@@ -6,6 +6,7 @@ import { Flag } from '@/components/ui/flag'
 import { LANGUAGE_OPTIONS } from '@/features/document/language'
 import { useDocumentLanguage } from '@/features/document/use-language'
 import { cn } from '@/lib/utils'
+
 export function RunScopeBar({ wordCount }: { wordCount: number | null }) {
 	const language = useDocumentLanguage()
 	const flagCode = LANGUAGE_OPTIONS.find((option) => option.code === language.code)?.flag

@@ -4,6 +4,7 @@ import { documents } from './document'
 
 export const shareAccessEnum = pgEnum('share_access', ['anyone', 'restricted'])
 export const shareRoleEnum = pgEnum('share_role', ['viewer', 'commenter', 'editor'])
+
 export const shares = pgTable('shares', {
 	id: uuid('id').primaryKey().defaultRandom(),
 	document_id: uuid('document_id').references(() => documents.id, { onDelete: 'set null' }),

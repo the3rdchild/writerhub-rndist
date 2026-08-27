@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { MATH_BLOCK, MATH_INLINE, renderMath } from '@/features/editor/math'
 import { cn } from '@/lib/utils'
+
 export function MathPopover({
 	editor,
 	containerRef,

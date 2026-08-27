@@ -8,6 +8,7 @@ export const RULER_NUDGE = RULER_SNAP
 export function clamp(value: number, min: number, max: number): number {
 	return Math.max(min, Math.min(value, max))
 }
+
 export function snapRulerPosition(raw: number, fine: boolean): number {
 	return fine ? Math.round(raw) : Math.round(raw / RULER_SNAP) * RULER_SNAP
 }
@@ -19,6 +20,7 @@ export interface RulerDragOptions<H> {
 	onMove: (handle: H, pos: number) => void
 	onUp: (handle: H, pos: number | null) => void
 }
+
 export function useRulerDrag<H>({ axis, zoom, trackRef, onMove, onUp }: RulerDragOptions<H>) {
 	const [dragging, setDragging] = useState<H | null>(null)
 	const lastRef = useRef<number | null>(null)
@@ -67,6 +69,7 @@ export function useRulerDrag<H>({ axis, zoom, trackRef, onMove, onUp }: RulerDra
 
 	return { dragging, startDrag }
 }
+
 export function rulerNudge<H>(
 	axis: 'x' | 'y',
 	handle: H,

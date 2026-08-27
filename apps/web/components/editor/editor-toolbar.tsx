@@ -451,6 +451,7 @@ function AlignControls({
 		</>
 	)
 }
+
 function CapitalizationControl({ editor, disabled }: { editor: Editor | null; disabled?: boolean }) {
 	const options = [
 		{ mode: 'lower' as const, label: 'huruf kecil' },

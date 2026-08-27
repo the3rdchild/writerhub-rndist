@@ -6,6 +6,7 @@ import { findMetadataVersion, findPoolRequest } from '@/repository/job-result'
 const HEARTBEAT_INTERVAL_MS = 8_000
 const STREAM_TIMEOUT_MS = 180_000
 const stream = createRouter().basePath('/stream')
+
 async function buildSettledEvent(jobId: string): Promise<string | null> {
 	const request = await findPoolRequest(jobId).catch(() => null)
 	if (!request) return null

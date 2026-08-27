@@ -5,6 +5,7 @@ import { ExternalLink, Loader2, Plus, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { Citation } from '@/app/api/citations/route'
 import type { EditorSelection } from '@/features/editor/selection'
+
 export function CitationPopover({
 	editor,
 	selection,

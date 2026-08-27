@@ -18,6 +18,7 @@ interface ExtendedUserPackageResponse {
 	data: ExtendedUserPackage
 	message: string
 }
+
 export async function getExtendedUserPackage(token: string): Promise<ExtendedUserPackage | null> {
 	if (!env.PP_BACKEND_URL) {
 		log.warn('[pp-backend] PP_BACKEND_URL belum dikonfigurasi, lewati getExtendedUserPackage')

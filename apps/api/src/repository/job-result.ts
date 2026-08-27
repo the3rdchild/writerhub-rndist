@@ -7,6 +7,7 @@ export async function findPoolRequest(jobId: string) {
 	const [row] = await db.select().from(poolRequest).where(eq(poolRequest.job_id, jobId)).limit(1)
 	return row ?? null
 }
+
 export async function markPoolRequestCancelled(jobId: string): Promise<'pending' | 'processing' | null> {
 	const current = await findPoolRequest(jobId)
 	if (!current || (TERMINAL_STATUSES as readonly string[]).includes(current.status)) return null
@@ -19,6 +20,7 @@ export async function markPoolRequestCancelled(jobId: string): Promise<'pending'
 
 	return previous
 }
+
 export async function findMetadataVersion(jobId: string) {
 	const [row] = await db.select().from(metadataVersion).where(eq(metadataVersion.job_id, jobId)).limit(1)
 	return row ?? null

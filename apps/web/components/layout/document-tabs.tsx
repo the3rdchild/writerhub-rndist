@@ -29,6 +29,7 @@ import { useSettings } from '@/features/settings/settings-context'
 import { type SyncStatus, useSync } from '@/features/sync/sync-context'
 import { cn } from '@/lib/utils'
 const TAB_ICONS = ['📄', '📝', '📌', '⭐', '📊', '🔬', '💡', '🗂️'] as const
+
 export function DocumentTabsSidebar() {
 	const {
 		documents,
@@ -471,6 +472,7 @@ function TabNameInput({
 		/>
 	)
 }
+
 function SyncBadge({ status }: { status: SyncStatus }) {
 	if (status === 'saving') {
 		return (
@@ -513,6 +515,7 @@ function SyncBadge({ status }: { status: SyncStatus }) {
 		</span>
 	)
 }
+
 function OutlineTree({
 	items,
 	activePos,

@@ -8,6 +8,7 @@ import {
 	setSectionColumnsCommand,
 	unsetSectionColumnsCommand,
 } from './section-break'
+
 const schema = new Schema({
 	nodes: {
 		doc: { content: 'block+' },
@@ -95,6 +96,7 @@ describe('columnRegions (§P8)', () => {
 		expect(regions[0].to).toBe(doc.content.size)
 	})
 })
+
 describe('pembatas penutup mengembalikan setelan sebelumnya (§P8&P9)', () => {
 	test('section sesudah rentang kembali persis ke setelan dasar', () => {
 		const doc = docWith(

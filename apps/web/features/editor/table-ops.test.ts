@@ -9,6 +9,7 @@ import {
 	scaleColumnWidths,
 	writeColumnWidths,
 } from './table-ops'
+
 function cell(widths: number[] | null, text = 'sel'): JSONContent {
 	return {
 		type: 'tableCell',

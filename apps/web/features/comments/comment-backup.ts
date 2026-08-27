@@ -29,6 +29,7 @@ function write(store: BackupStore): void {
 		window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
 	} catch {}
 }
+
 export function backupComments(serverTabId: string, threads: CommentThread[]): void {
 	const store = read()
 
@@ -50,6 +51,7 @@ export function backupComments(serverTabId: string, threads: CommentThread[]): v
 
 	write(store)
 }
+
 export function restoreComments(serverTabId: string): CommentThread[] {
 	const entry = read()[serverTabId]
 	return Array.isArray(entry?.threads) ? entry.threads : []

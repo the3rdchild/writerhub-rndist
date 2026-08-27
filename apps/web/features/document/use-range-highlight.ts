@@ -3,6 +3,7 @@
 import type { TextRange } from '@writer-hub/shared'
 import { useMemo } from 'react'
 import { useDocument } from './document-context'
+
 export function useRangeHighlight() {
 	const { dispatch } = useDocument()
 

@@ -6,6 +6,7 @@ import { AlignCenter, AlignLeft, AlignRight, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
+
 export function ImageToolbar({ editor }: { editor: Editor | null }) {
 	const state = useEditorState({
 		editor,

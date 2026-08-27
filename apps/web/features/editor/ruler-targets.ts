@@ -6,6 +6,7 @@ import type { Node as PMNode } from '@tiptap/pm/model'
 import { useEffect, useState } from 'react'
 import { columnGapOf, columnLayoutKey, COLUMNS_NODE, resolveColumnSlots } from './columns'
 import { columnWidths, locateTable } from './table-ops'
+
 export interface TableRulerTarget {
 	kind: 'table'
 	tablePos: number
@@ -20,6 +21,7 @@ export interface ImageRulerTarget {
 	offsetX: number | null
 	width: number
 }
+
 export interface ColumnsRulerTarget {
 	kind: 'columns'
 	pos: number
@@ -30,6 +32,7 @@ export interface ColumnsRulerTarget {
 }
 
 export type RulerTarget = TableRulerTarget | ImageRulerTarget | ColumnsRulerTarget | null
+
 function locateColumns(editor: Editor): { pos: number; node: PMNode } | null {
 	const { $from } = editor.state.selection
 	for (let depth = $from.depth; depth > 0; depth--) {
@@ -122,6 +125,7 @@ function same(a: RulerTarget, b: RulerTarget): boolean {
 	}
 	return false
 }
+
 export function useRulerTarget(editor: Editor | null): RulerTarget {
 	const [target, setTarget] = useState<RulerTarget>(null)
 

@@ -4,12 +4,14 @@ import type { Editor } from '@tiptap/react'
 import { useEffect, useMemo, useState } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { buildTextIndex, pmRangeToText } from '@/features/document/tiptap-offsets'
+
 export interface EditorSelection {
 	from: number
 	to: number
 	text: string
 	words: number
 }
+
 const MIN_SELECTION_LENGTH = 2
 
 function countWords(text: string): number {
@@ -58,12 +60,14 @@ export function useEditorSelection(editor: Editor | null): EditorSelection | nul
 
 	return selection
 }
+
 export function selectionTextRange(
 	editor: Editor,
 	selection: EditorSelection,
 ): { offset: number; length: number } | null {
 	return pmRangeToText(buildTextIndex(editor.state.doc), selection.from, selection.to)
 }
+
 export interface SelectionScope {
 	text: string
 	offset: number
@@ -91,6 +95,7 @@ export function useSelectionScope(): SelectionScope | null {
 		}
 	}, [editor, selection])
 }
+
 export function surroundingText(editor: Editor, selection: EditorSelection, radius = 1_200): string {
 	const { doc } = editor.state
 	const from = Math.max(0, selection.from - radius)

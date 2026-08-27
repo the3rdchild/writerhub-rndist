@@ -2,6 +2,7 @@ import { callUpstream, configErrorResponse } from '@/lib/server/upstream'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request): Promise<Response> {
 	try {
 		const { search } = new URL(request.url)
@@ -13,6 +14,7 @@ export async function GET(request: Request): Promise<Response> {
 		return configErrorResponse(error)
 	}
 }
+
 export async function DELETE(): Promise<Response> {
 	try {
 		return await callUpstream({

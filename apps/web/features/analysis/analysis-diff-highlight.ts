@@ -12,6 +12,7 @@ interface AnalysisDiffHighlightState {
 	ranges: VersionDiffRange[]
 	decorations: DecorationSet
 }
+
 function buildDecorations(doc: PMNode, ranges: readonly VersionDiffRange[]): DecorationSet {
 	if (ranges.length === 0) return DecorationSet.empty
 
@@ -49,6 +50,7 @@ function buildDecorations(doc: PMNode, ranges: readonly VersionDiffRange[]): Dec
 
 	return DecorationSet.create(doc, decorations)
 }
+
 export const AnalysisDiffHighlight = Extension.create({
 	name: 'analysisDiffHighlight',
 

@@ -31,12 +31,15 @@ interface ImportContextValue {
 }
 
 const ImportContext = createContext<ImportContextValue | null>(null)
+
 function isPlainTextFile(file: File): boolean {
 	return file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt')
 }
+
 function baseName(file: File): string {
 	return file.name.replace(/\.[^.]+$/, '')
 }
+
 function textToDocContent(text: string): JSONContent {
 	const paragraphs: JSONContent[] = text
 		.split('\n')
@@ -50,6 +53,7 @@ function textToDocContent(text: string): JSONContent {
 		content: paragraphs.length > 0 ? paragraphs : [{ type: 'paragraph' }],
 	}
 }
+
 function resolveImportedSetup(patch: NonNullable<DocxImport['pageSetup']>): PageSetup {
 	return {
 		...DEFAULT_PAGE_SETUP,

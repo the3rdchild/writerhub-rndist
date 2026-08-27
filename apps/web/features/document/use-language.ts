@@ -14,6 +14,7 @@ export interface DocumentLanguage {
 	needsAiTier: boolean
 	setLanguage: (code: string | null) => void
 }
+
 export function useDocumentLanguage(): DocumentLanguage {
 	const { state } = useDocument()
 	const { languageOverride, setLanguageOverride } = useSessions()

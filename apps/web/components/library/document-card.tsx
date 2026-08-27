@@ -25,6 +25,7 @@ import { useProjects } from '@/features/projects/use-projects'
 import { createShare } from '@/features/share/api'
 import { useSync } from '@/features/sync/sync-context'
 import { cn } from '@/lib/utils'
+
 const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	day: 'numeric',
 	month: 'short',
@@ -32,6 +33,7 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	hour: '2-digit',
 	minute: '2-digit',
 })
+
 export function DocumentCard({ document, onDelete }: { document: DocumentSummary; onDelete: () => void }) {
 	const router = useRouter()
 	const { openFromLibrary } = useSync()
@@ -258,6 +260,7 @@ export function CardNameInput({
 		/>
 	)
 }
+
 function CardShareDialog({ documentId, onClose }: { documentId: string; onClose: () => void }) {
 	const overlayRef = useRef<HTMLDivElement>(null)
 	const [link, setLink] = useState('')

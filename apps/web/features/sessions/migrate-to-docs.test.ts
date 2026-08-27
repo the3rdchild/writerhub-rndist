@@ -11,6 +11,7 @@ import {
 	tabPreview,
 	tabsRoot,
 } from './ydoc'
+
 function legacyTab(doc: Y.Doc, id: string, title: string, text?: string): void {
 	const root = doc.getMap<unknown>('tabs')
 	let order = root.get('order') as Y.Array<string> | undefined

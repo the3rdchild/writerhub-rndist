@@ -3,6 +3,7 @@ import { jsonb, pgTable, uuid } from 'drizzle-orm/pg-core'
 import type { StyleMemory } from '@writer-hub/shared'
 import { timestamps } from '@/db/utils/common-table'
 import { identity } from './identity'
+
 export const userMemories = pgTable('user_memories', {
 	owner_id: uuid('owner_id')
 		.primaryKey()

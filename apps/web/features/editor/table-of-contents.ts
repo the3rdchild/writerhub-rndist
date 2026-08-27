@@ -1,4 +1,5 @@
 import { TableOfContents } from '@tiptap/extension-table-of-contents'
+
 export const TableOfContentsConfigured = TableOfContents.configure({
 	getId: (textContent) => {
 		return textContent

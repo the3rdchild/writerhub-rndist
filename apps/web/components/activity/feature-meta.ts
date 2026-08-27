@@ -10,6 +10,7 @@ import {
 	UserCheck,
 } from 'lucide-react'
 import type { HistoryFeature } from '@/features/history/types'
+
 export const FEATURE_META: Record<HistoryFeature, { label: string; icon: LucideIcon }> = {
 	grammar: { label: 'Proofreader', icon: SpellCheck },
 	research: { label: 'Riset Web', icon: Globe },
@@ -20,6 +21,7 @@ export const FEATURE_META: Record<HistoryFeature, { label: string; icon: LucideI
 	glossary: { label: 'Glosarium', icon: BookMarked },
 	plagiarism: { label: 'Plagiarism', icon: Search },
 }
+
 export const STATUS_LABELS: Record<string, string> = {
 	pending: 'Menunggu',
 	processing: 'Diproses',

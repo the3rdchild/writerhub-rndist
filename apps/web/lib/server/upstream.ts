@@ -15,6 +15,7 @@ function requireEnv(name: string): string {
 	if (!value) throw new UpstreamConfigError(`${name} belum dikonfigurasi di apps/web`)
 	return value
 }
+
 async function resolveBearerToken(): Promise<string | null> {
 	const incoming = (await headers()).get('authorization')
 	if (incoming?.startsWith('Bearer ')) return incoming.slice(7).trim()
@@ -53,6 +54,7 @@ export interface UpstreamRequest {
 	stream?: boolean
 	signal?: AbortSignal
 }
+
 export async function callUpstream({
 	path,
 	method = 'GET',
@@ -74,6 +76,7 @@ export async function callUpstream({
 		duplex: body ? 'half' : undefined,
 	})
 }
+
 export function configErrorResponse(error: unknown): Response {
 	const message = error instanceof UpstreamConfigError ? error.message : 'Gagal menghubungi layanan API'
 	return Response.json({ message: 'Konfigurasi server tidak lengkap', errors: [message] }, { status: 500 })

@@ -10,6 +10,7 @@ import LoggerClient from '@/utils/logger'
 
 const log = LoggerClient.getInstance()
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export default abstract class BaseService {
 	protected readonly db: typeof db
 	protected readonly redis: typeof redis

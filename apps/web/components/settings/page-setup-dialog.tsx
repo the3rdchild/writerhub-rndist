@@ -21,12 +21,15 @@ import { useSettings } from '@/features/settings/settings-context'
 import { useSessions } from '@/features/sessions/session-context'
 import { cn } from '@/lib/utils'
 type Scope = 'document' | 'tab' | 'from_here' | 'this_page'
+
 function fromPx(px: number, unit: 'cm' | 'in'): number {
 	return unit === 'cm' ? (px / INCH) * 2.54 : px / INCH
 }
+
 function toPx(value: number, unit: 'cm' | 'in'): number {
 	return unit === 'cm' ? (value / 2.54) * INCH : value * INCH
 }
+
 function roundUnit(value: number): number {
 	return Math.round(value * 100) / 100
 }

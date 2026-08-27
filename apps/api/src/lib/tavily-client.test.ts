@@ -6,6 +6,7 @@ process.env.TAVILY_API_KEY = 'tvly-test'
 const { search, extract } = await import('@/lib/tavily-client')
 
 const realFetch = globalThis.fetch
+
 afterEach(() => {
 	globalThis.fetch = realFetch
 })

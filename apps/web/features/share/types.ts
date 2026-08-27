@@ -1,6 +1,7 @@
 import type { JSONContent } from '@tiptap/core'
 export type ShareAccess = 'anyone' | 'restricted'
 export type ShareRole = 'viewer' | 'commenter' | 'editor'
+
 export interface SharedTab {
 	id: string
 	title: string
@@ -16,6 +17,7 @@ export interface SharePayload {
 	role: ShareRole
 	createdAt: number
 }
+
 export interface CreateShareInput {
 	documentId: string
 	access: ShareAccess

@@ -3,11 +3,13 @@ import type { Node as PMNode } from '@tiptap/pm/model'
 import type { EditorState, Transaction } from '@tiptap/pm/state'
 import { DEFAULT_PAGE_SETUP, type PageSetup } from './page-geometry'
 export const SECTION_BREAK_NODE = 'sectionBreak'
+
 export interface SectionBreakAttrs {
 	pageSetup: Partial<PageSetup> | null
 	columns: { count: number; gap?: number } | null
 	continuous?: boolean
 }
+
 export interface SectionSpan {
 	pos: number
 	setup: PageSetup
@@ -132,6 +134,7 @@ export const SectionBreak = Node.create({
 		}
 	},
 })
+
 function encloseSection(
 	{ tr, dispatch, state }: Pick<CommandProps, 'tr' | 'dispatch' | 'state'>,
 	range: { from: number; to?: number },
@@ -153,6 +156,7 @@ function encloseSection(
 
 	return true
 }
+
 function enclosingColumnSpan(
 	spans: readonly SectionSpan[],
 	from: number,
@@ -164,6 +168,7 @@ function enclosingColumnSpan(
 	const next = spans[spans.indexOf(candidate) + 1]
 	return from < (next?.pos ?? docSize) ? candidate : null
 }
+
 export function setSectionColumnsCommand(
 	state: EditorState,
 	tr: Transaction,
@@ -191,6 +196,7 @@ export function setSectionColumnsCommand(
 		close: { pageSetup: null, columns: before.columns ?? null, continuous: true },
 	}))
 }
+
 export function unsetSectionColumnsCommand(
 	state: EditorState,
 	tr: Transaction,
@@ -210,6 +216,7 @@ export function unsetSectionColumnsCommand(
 	if (open) tr.delete(enclosing.pos, enclosing.pos + open.nodeSize)
 	return true
 }
+
 export function sectionSpans(doc: PMNode, baseSetup: PageSetup = DEFAULT_PAGE_SETUP): SectionSpan[] {
 	const spans: SectionSpan[] = [{ pos: 0, setup: baseSetup, columns: null }]
 
@@ -226,11 +233,13 @@ export function sectionSpans(doc: PMNode, baseSetup: PageSetup = DEFAULT_PAGE_SE
 
 	return spans
 }
+
 export interface ColumnRegion {
 	from: number
 	to: number
 	span: SectionSpan
 }
+
 export function columnRegions(doc: PMNode, baseSetup: PageSetup = DEFAULT_PAGE_SETUP): ColumnRegion[] {
 	const spans = sectionSpans(doc, baseSetup)
 	const regions: ColumnRegion[] = []

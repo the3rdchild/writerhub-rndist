@@ -6,6 +6,7 @@ export const createProjectBodySchema = z.object({
 })
 
 export type CreateProjectBody = z.infer<typeof createProjectBodySchema>
+
 export const updateProjectBodySchema = z.object({
 	name: z.string().min(1).max(255).optional(),
 	color: z.string().max(32).nullish(),

@@ -2,6 +2,7 @@ import { jsonb, pgTable, uuid, varchar } from 'drizzle-orm/pg-core'
 import { timestamps } from '@/db/utils/common-table'
 import { documentVersions } from './document-version'
 import { poolRequest } from './pool-request'
+
 export const metadataVersion = pgTable('metadata_version', {
 	id: uuid('id').primaryKey().defaultRandom(),
 	job_id: varchar('job_id', { length: 255 }).notNull().unique(),

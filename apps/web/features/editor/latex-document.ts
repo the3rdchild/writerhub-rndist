@@ -1,8 +1,10 @@
 export function looksLikeLatexDocument(text: string): boolean {
 	return /\\documentclass|\\begin\{document\}|\\begin\{tabular\}|\\section\{/.test(text)
 }
+
 const NOISE =
 	/\\(?:hline|centering|maketitle|newpage|clearpage|noindent|small|large|bigskip|medskip|smallskip)\b/g
+
 function unwrap(text: string): string {
 	return text
 		.replace(/\\textbf\{([^{}]*)\}/g, '**$1**')
@@ -15,6 +17,7 @@ function unwrap(text: string): string {
 		.replace(NOISE, '')
 		.trim()
 }
+
 function tabularToMarkdown(body: string): string {
 	const rows = body
 		.split('\\\\')
@@ -36,6 +39,7 @@ function tabularToMarkdown(body: string): string {
 
 	return lines.join('\n')
 }
+
 function listToMarkdown(body: string, ordered: boolean): string {
 	const items = body
 		.split('\\item')

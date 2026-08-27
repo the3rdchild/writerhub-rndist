@@ -11,6 +11,7 @@ import { useMergedDocuments } from '@/features/documents/use-merged-documents'
 import { useSessions } from '@/features/sessions/session-context'
 import { DocumentCard } from './document-card'
 import { LocalDocumentCard } from './local-document-card'
+
 export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 	const { documents, isPending, isError, error } = useMergedDocuments()
 	const invalidate = useInvalidateDocuments()

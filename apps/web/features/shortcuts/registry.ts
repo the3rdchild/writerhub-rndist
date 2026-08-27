@@ -189,6 +189,7 @@ export function shortcut(id: ShortcutId): Shortcut {
 	if (!found) throw new Error(`Pintasan tidak terdaftar: ${id}`)
 	return found
 }
+
 export function shortcutKeys(id: ShortcutId): string {
 	return shortcut(id).keys
 }
@@ -199,6 +200,7 @@ interface KeyCombo {
 	alt: boolean
 	code: string
 }
+
 function toCode(key: string): string {
 	if (/^[0-9]$/.test(key)) return `Digit${key}`
 	if (/^[a-z]$/i.test(key)) return `Key${key.toUpperCase()}`
@@ -250,6 +252,7 @@ const APP_COMBOS = SHORTCUTS.filter((item) => item.owner === 'app').map((item) =
 	shortcut: item,
 	combo: parseCombo(item.keys),
 }))
+
 export function matchAppShortcut(event: KeyboardEvent, mac: boolean): Shortcut | null {
 	for (const entry of APP_COMBOS) {
 		if (matches(event, entry.combo, mac)) return entry.shortcut
@@ -264,6 +267,7 @@ const SYMBOLS: Record<string, string> = {
 	ArrowDown: '↓',
 	Enter: '↵',
 }
+
 export function formatKeys(keys: string, mac: boolean): string {
 	const parts = keys.split('-')
 	const key = parts[parts.length - 1]

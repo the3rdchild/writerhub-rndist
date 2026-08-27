@@ -6,6 +6,7 @@ export interface ChatMessage {
 	toolCalls?: Array<{ id: string; name: string; arguments: string }>
 	toolCallId?: string
 }
+
 export interface ChatContext {
 	selection?: string
 	surrounding?: string
@@ -18,11 +19,14 @@ export interface ChatRequest {
 	context?: ChatContext
 	tools?: boolean
 }
+
 export type ChatStreamPhase = 'connecting' | 'thinking' | 'reading' | 'writing' | 'retrying'
+
 export interface ChatUsage {
 	promptTokens?: number
 	completionTokens?: number
 }
+
 export type ChatStreamEvent =
 	| { type: 'delta'; text: string }
 	| { type: 'tool_call'; id: string; name: string; arguments: string }
@@ -35,6 +39,7 @@ export type ChatStreamEvent =
 	| { type: 'ping' }
 	| { type: 'done' }
 	| { type: 'error'; message: string }
+
 export const CHAT_CONTEXT_LIMITS = {
 	selection: 8_000,
 	surrounding: 4_000,

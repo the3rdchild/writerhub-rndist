@@ -2,6 +2,7 @@ import { callUpstream, configErrorResponse } from '@/lib/server/upstream'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
 export async function PUT(
 	request: Request,
 	{ params }: { params: Promise<{ id: string }> },
@@ -18,6 +19,7 @@ export async function PUT(
 		return configErrorResponse(error)
 	}
 }
+
 export async function DELETE(
 	_request: Request,
 	{ params }: { params: Promise<{ id: string }> },

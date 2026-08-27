@@ -35,6 +35,7 @@ import { cn } from '@/lib/utils'
 import { ChatCommandMenu } from './chat-command-menu'
 import { PanelError } from './panel-parts'
 import { ResearchSourcesCard } from './research-sources-card'
+
 export function AiChatPanel() {
 	const {
 		messages,
@@ -451,6 +452,7 @@ function ProposalCard({ text, expired }: { text: string; expired?: boolean }) {
 		</div>
 	)
 }
+
 function ToggleIcon({
 	icon: Icon,
 	label,
@@ -482,6 +484,7 @@ function ToggleIcon({
 		</button>
 	)
 }
+
 function ModelPicker() {
 	const { model, setModel } = useChat()
 	const active = findChatModel(model) ?? CHAT_MODELS[0]
@@ -543,6 +546,7 @@ function ModelPicker() {
 		</Dropdown>
 	)
 }
+
 function ActionGroup({ actions, expired }: { actions: ToolCall[]; expired?: boolean }) {
 	const { applyActions, isActionSettled } = useChat()
 	const pending = actions.filter((call) => !isActionSettled(call.id))
@@ -565,6 +569,7 @@ function ActionGroup({ actions, expired }: { actions: ToolCall[]; expired?: bool
 		</div>
 	)
 }
+
 function ActionCard({ call, expired }: { call: ToolCall; expired?: boolean }) {
 	const { applyAction, skipAction, isActionApplied, isActionSettled } = useChat()
 	const applied = isActionApplied(call.id)
@@ -626,6 +631,7 @@ function ActionCard({ call, expired }: { call: ToolCall; expired?: boolean }) {
 		</div>
 	)
 }
+
 function TaskSeparator() {
 	return (
 		<div className="flex items-center gap-2 py-1" role="separator" aria-label="New topic">
@@ -635,6 +641,7 @@ function TaskSeparator() {
 		</div>
 	)
 }
+
 function formatDuration(step: ChatStep, now: number): string {
 	const ms = (step.endedAt ?? now) - step.startedAt
 	return `${(Math.max(0, ms) / 1000).toFixed(1).replace('.', ',')} dtk`
@@ -652,6 +659,7 @@ function StepIcon({ status }: { status: ChatStep['status'] }) {
 			return <Ban className="h-3 w-3 shrink-0 text-subtle" />
 	}
 }
+
 function StepTimeline({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
 	const [open, setOpen] = useState<string | null>(null)
 	const [now, setNow] = useState(() => Date.now())
@@ -709,6 +717,7 @@ function StepTimeline({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
 		</div>
 	)
 }
+
 function StepSummary({ steps, usage }: { steps: ChatStep[]; usage?: ChatUsage }) {
 	const [open, setOpen] = useState(false)
 	const first = steps[0]

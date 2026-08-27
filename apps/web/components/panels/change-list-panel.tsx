@@ -38,6 +38,7 @@ const TONE_OPTIONS: ReadonlyArray<{ value: ToneChoice; label: string }> = [
 	{ value: 'default', label: 'Default' },
 	...REWRITE_TONES.map((tone) => ({ value: tone.id as ToneChoice, label: tone.label })),
 ]
+
 const LANGUAGE_CHOICES = LANGUAGE_OPTIONS.map((entry) => ({
 	value: entry.code,
 	label: entry.label,
@@ -55,6 +56,7 @@ export interface ChangeListPanelProps {
 	runningLabel: string
 	noChangesLabel: (result: unknown) => string
 }
+
 export function ChangeListPanel({
 	feature,
 	icon,

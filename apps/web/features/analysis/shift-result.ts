@@ -1,4 +1,5 @@
 import type { AnalysisFeature, AnalysisResultFor } from '@writer-hub/shared'
+
 const RANGE_FIELDS = {
 	ai_detector: 'sentences',
 	ai_rewriter: 'changes',

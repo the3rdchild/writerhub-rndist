@@ -16,6 +16,7 @@ const { contentHeight, pageStride } = geometry
 
 const COLUMN_WIDTH = 300
 const COLUMN_GAP = 24
+
 function columnOf(left: number): number {
 	return Math.round(left / (COLUMN_WIDTH + COLUMN_GAP))
 }
@@ -29,6 +30,7 @@ function blocks(heights: number[], keepWithNext: number[] = []): ColumnItem[] {
 		keepWithNext: keepWithNext.includes(index),
 	}))
 }
+
 function tableItem(heights: number[], opts: { header?: boolean; pos?: number } = {}): ColumnItem {
 	let top = 0
 	const rows = heights.map((height, index) => {
@@ -53,6 +55,7 @@ function tableItem(heights: number[], opts: { header?: boolean; pos?: number } =
 function flow(items: ColumnItem[], top = 0, count = 2) {
 	return flowColumns(items, { top, count, columnWidth: COLUMN_WIDTH, columnGap: COLUMN_GAP }, geometry)
 }
+
 function rendered(items: ColumnItem[], top = 0, count = 2) {
 	const { placements } = flow(items, top, count)
 	return placements.map((placement, index) => ({
@@ -62,6 +65,7 @@ function rendered(items: ColumnItem[], top = 0, count = 2) {
 		span: placement.span ?? false,
 	}))
 }
+
 function expectNoEmptySheet(boxes: ReturnType<typeof rendered>) {
 	const occupied = new Set<number>()
 	for (const box of boxes) {
@@ -555,6 +559,7 @@ describe('batas lembar berlabuh di sheetOrigin (§P8)', () => {
 		expect(placements[0].cuts?.[0].spacerHeight).toBeCloseTo(826 - 600)
 	})
 })
+
 describe('page break di dalam blok kolom (§P4)', () => {
 	test('isi sesudahnya mulai di kolom pertama lembar berikutnya', () => {
 		const items = blocks([100, 0, 100])

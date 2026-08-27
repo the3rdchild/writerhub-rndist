@@ -22,6 +22,7 @@ export interface TableHandlesOptions {
 
 const SVG =
 	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+
 const ICON_PLUS = `${SVG}<path d="M5 12h14"/><path d="M12 5v14"/></svg>`
 const ICON_GRIP = `${SVG}<circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>`
 const ICON_DOTS = `${SVG}<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>`
@@ -43,6 +44,7 @@ interface DragSession {
 	boundary: number
 	moved: boolean
 }
+
 function isPaginationRow(cell: Element): boolean {
 	const row = cell.closest('tr')
 	return !!row && (row.hasAttribute('data-spacer-for') || row.classList.contains('table-header-repeat'))
@@ -388,6 +390,7 @@ function locationOf(hover: HoverState): TableLocation {
 	const { tablePos, rowIndex, colIndex, rowCount, colCount } = hover
 	return { tablePos, rowIndex, colIndex, rowCount, colCount }
 }
+
 function startingCell(map: TableMap, axis: HandleAxis, index: number): number | null {
 	const across = axis === 'row' ? map.width : map.height
 	for (let i = 0; i < across; i++) {
@@ -397,6 +400,7 @@ function startingCell(map: TableMap, axis: HandleAxis, index: number): number | 
 	}
 	return null
 }
+
 function nearestEdge(edges: number[], at: number): number {
 	let best = 0
 	let distance = Number.POSITIVE_INFINITY
@@ -409,6 +413,7 @@ function nearestEdge(edges: number[], at: number): number {
 	})
 	return best
 }
+
 export function createTableHandlesPlugin(opts: TableHandlesOptions): Plugin {
 	return new Plugin({
 		key: tableHandlesKey,

@@ -14,6 +14,7 @@ const entries = [
 	{ term: 'AKD', definition: 'Analisis Komponen Data', occurrences: 3 },
 	{ term: 'latensi', definition: 'Jeda antara permintaan dan respons', occurrences: 2 },
 ]
+
 const docOf = (content: unknown[]) => schema.nodeFromJSON({ type: 'doc', content })
 
 const paragraph = (text: string) => ({

@@ -5,6 +5,7 @@ import { buildSchema } from '@/features/sync/serialize'
 import { strFromU8, unzipSync } from 'fflate'
 import { DEFAULT_PAGE_SETUP, type PageSetup, pageGeometry } from '@/features/editor/page-geometry'
 import { exportDocx, mergeTabContents } from './export-docx'
+
 function tab(text: string): JSONContent {
 	return {
 		type: 'doc',

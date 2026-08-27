@@ -7,6 +7,7 @@ import { poolingParamSchema } from './dto'
 const COMPLETED_CACHE_TTL_SECONDS = 60
 
 type JobStatusResponse = GrammarJobStatus | AnalysisJobStatus
+
 export default class PoolingService extends BaseService {
 	async getById(): Promise<Response> {
 		try {

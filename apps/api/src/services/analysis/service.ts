@@ -4,6 +4,7 @@ import QueueClient from '@/lib/queue'
 import { findMemoryByOwner } from '@/repository/memory'
 import JobSubmissionService from '@/services/job-submission.service'
 import { analysisBodySchema } from './dto'
+
 export default class AnalysisService extends JobSubmissionService {
 	async create(): Promise<Response> {
 		try {

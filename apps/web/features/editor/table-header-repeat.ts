@@ -1,6 +1,7 @@
 import { Extension } from '@tiptap/core'
 import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/react'
+
 declare module '@tiptap/core' {
 	interface Commands<ReturnType> {
 		tableHeaderRepeat: {
@@ -45,6 +46,7 @@ export const TableHeaderRepeat = Extension.create({
 		}
 	},
 })
+
 function tableAround($from: ResolvedPos): { node: PMNode; pos: number } | null {
 	for (let depth = $from.depth; depth > 0; depth -= 1) {
 		const node = $from.node(depth)
@@ -52,11 +54,13 @@ function tableAround($from: ResolvedPos): { node: PMNode; pos: number } | null {
 	}
 	return null
 }
+
 export function tableRepeatsHeader(editor: Editor | null): boolean {
 	if (!editor) return false
 	const found = tableAround(editor.state.selection.$from)
 	return found ? found.node.attrs.repeatHeader !== false : false
 }
+
 export function isInsideTable(editor: Editor | null): boolean {
 	if (!editor) return false
 	return tableAround(editor.state.selection.$from) !== null

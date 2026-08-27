@@ -21,6 +21,7 @@ export interface ReapplyController {
 	openTargetDocument: () => Promise<void>
 	reapply: () => void
 }
+
 export function useReapply(detail: HistoryDetail | null): ReapplyController {
 	const router = useRouter()
 	const queryClient = useQueryClient()

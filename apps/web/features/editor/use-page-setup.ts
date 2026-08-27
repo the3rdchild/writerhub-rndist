@@ -17,6 +17,7 @@ import {
 	setPageSetupForTab,
 } from '@/features/sessions/ydoc'
 import { useSessions } from '@/features/sessions/session-context'
+
 export function usePageSetup(): {
 	setup: PageSetup
 	setPageSetup: (setup: PageSetup, scope: 'document' | 'tab') => void
@@ -61,6 +62,7 @@ export function usePageSetup(): {
 
 	return { setup, setPageSetup }
 }
+
 export function pageSetupFromLegacy(
 	size: PageSizeId,
 	orientation: PageOrientation,

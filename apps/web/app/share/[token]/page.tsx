@@ -15,6 +15,7 @@ import {
 	type SharePayload,
 } from '@/features/share/types'
 import { cn } from '@/lib/utils'
+
 export default function SharePage() {
 	const params = useParams()
 	const token = typeof params.token === 'string' ? params.token : ''

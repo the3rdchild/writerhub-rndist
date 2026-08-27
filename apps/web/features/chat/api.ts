@@ -7,6 +7,7 @@ import type {
 	ToolCall,
 } from '@writer-hub/shared'
 import { FALLBACK_TOOL_FENCE } from '@writer-hub/shared'
+
 export interface StreamChatHandlers {
 	onDelta: (text: string) => void
 	onToolCall?: (call: ToolCall) => void
@@ -92,6 +93,7 @@ function parseToolCall(event: { id: string; name: string; arguments: string }): 
 	} catch {}
 	return { id: event.id, name: event.name, arguments: parsed }
 }
+
 export function parseFallbackCalls(content: string): ToolCall[] {
 	const calls: ToolCall[] = []
 	FALLBACK_TOOL_FENCE.lastIndex = 0
@@ -113,6 +115,7 @@ export function parseFallbackCalls(content: string): ToolCall[] {
 
 	return calls
 }
+
 export function stripFallbackCalls(content: string): string {
 	return content
 		.replace(FALLBACK_TOOL_FENCE, '')

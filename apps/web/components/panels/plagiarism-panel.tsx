@@ -17,6 +17,7 @@ import {
 	StaleNotice,
 } from './panel-parts'
 import { RunScopeBar } from './run-scope-bar'
+
 function uniquenessColor(score: number): string {
 	if (score > 85) return 'text-green-400'
 	if (score > 70) return 'text-yellow-400'

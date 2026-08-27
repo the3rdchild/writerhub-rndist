@@ -2,6 +2,7 @@
 
 import { Image as ImageIcon, Link as LinkIcon, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+
 export function InsertImageDialog({
 	open,
 	onInsert,

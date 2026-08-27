@@ -10,6 +10,7 @@ import BaseService from '@/services/base.service'
 import type { Project } from '@/db/schemas'
 import { createProjectBodySchema, updateProjectBodySchema } from './dto'
 import type { ProjectSummary } from './dto'
+
 export default class ProjectsService extends BaseService {
 	async list(): Promise<Response> {
 		try {

@@ -6,21 +6,25 @@ import { ZOOM_LEVELS } from '@/features/editor/page-geometry'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { formatKeys, isMacPlatform, matchAppShortcut, shortcut, type ShortcutId } from './registry'
+
 export function useIsMac(): boolean {
 	const [mac, setMac] = useState(false)
 	useEffect(() => setMac(isMacPlatform()), [])
 	return mac
 }
+
 export function useShortcutLabel(): (id: ShortcutId) => string {
 	const mac = useIsMac()
 	return useCallback((id: ShortcutId) => formatKeys(shortcut(id).keys, mac), [mac])
 }
+
 function stepZoom(current: number, direction: 1 | -1): number {
 	const index = ZOOM_LEVELS.indexOf(current as (typeof ZOOM_LEVELS)[number])
 	const from = index === -1 ? ZOOM_LEVELS.indexOf(1) : index
 	const next = Math.min(ZOOM_LEVELS.length - 1, Math.max(0, from + direction))
 	return ZOOM_LEVELS[next]
 }
+
 export function useAppShortcuts(): void {
 	const mac = useIsMac()
 	const { togglePanel } = usePanels()

@@ -5,10 +5,12 @@ import { uploadDocument } from '@/lib/file'
 import QueueClient from '@/lib/queue'
 import JobSubmissionService from '@/services/job-submission.service'
 import { grammarBodySchema } from './dto'
+
 function resolveModel(requested: GrammarModel): GrammarModel {
 	const forced = env.GRAMMAR_FORCE_MODEL
 	return GRAMMAR_MODELS.includes(forced as GrammarModel) ? (forced as GrammarModel) : requested
 }
+
 export default class GrammarService extends JobSubmissionService {
 	async create(): Promise<Response> {
 		try {

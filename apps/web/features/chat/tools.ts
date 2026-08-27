@@ -40,6 +40,7 @@ function headings(editor: Editor): Heading[] {
 
 	return found
 }
+
 function sectionEnd(editor: Editor, list: Heading[], at: number): number {
 	const current = list[at]
 	for (let index = at + 1; index < list.length; index += 1) {
@@ -52,6 +53,7 @@ const SNIPPET_RADIUS = 80
 const MAX_HITS = 8
 const MAX_SECTION_CHARS = 6_000
 const MAX_TAB_CHARS = 20_000
+
 export interface ReadToolContext {
 	editor: Editor
 	pageCount: number
@@ -188,6 +190,7 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 			return `Unknown read tool: ${call.name}`
 	}
 }
+
 export function readToolLabel(editor: Editor, call: ToolCall): string {
 	switch (call.name) {
 		case 'get_outline':
@@ -217,6 +220,7 @@ export function readToolLabel(editor: Editor, call: ToolCall): string {
 			return `Menjalankan ${call.name}`
 	}
 }
+
 export function summarizeToolResult(result: string): string {
 	const lines = result.split('\n')
 	const first = lines[0].slice(0, 100)
@@ -237,6 +241,7 @@ export interface ToolOutcome {
 	ok: boolean
 	message: string
 }
+
 export function describeToolCall(call: ToolCall): string {
 	switch (call.name) {
 		case 'insert_content': {
@@ -346,21 +351,27 @@ export function describeToolCall(call: ToolCall): string {
 			return call.name
 	}
 }
+
 function scopeLabel(call: ToolCall): string {
 	const find = String(call.arguments.find ?? '')
 	return find ? `“${find.slice(0, 32)}…”` : 'the whole document'
 }
+
 /* Satuan panduan penulisan → piksel 96 dpi, satuan yang dipakai atribut node. */
 const PX_PER_CM = 96 / 2.54
+
 const PX_PER_PT = 96 / 72
+
 function layoutRange(editor: Editor, call: ToolCall): { from: number; to: number } | null {
 	const find = typeof call.arguments.find === 'string' ? call.arguments.find : ''
 	if (!find.trim()) return { from: 0, to: editor.state.doc.content.size }
 	return findExactRange(editor, find)
 }
+
 function cmToPx(cm: number): number {
 	return Math.round((cm / 2.54) * INCH)
 }
+
 function pageSetupFromArgs(args: Record<string, unknown>, base: PageSetup): PageSetup {
 	const next: PageSetup = { ...base, margins: { ...base.margins } }
 
@@ -382,6 +393,7 @@ function pageSetupFromArgs(args: Record<string, unknown>, base: PageSetup): Page
 	next.margins = clampMargins(next.margins, next)
 	return next
 }
+
 function pageSetupPatch(args: Record<string, unknown>, base: PageSetup): Partial<PageSetup> | null {
 	const merged = pageSetupFromArgs(args, base)
 	const patch: Partial<PageSetup> = {}
@@ -394,6 +406,7 @@ function pageSetupPatch(args: Record<string, unknown>, base: PageSetup): Partial
 
 	return Object.keys(patch).length > 0 ? patch : null
 }
+
 function columnsFromArgs(count: number, gapCm: unknown): { count: number; gap?: number } | null {
 	if (count < 2) return null
 	const gap = Number(gapCm)
@@ -401,6 +414,7 @@ function columnsFromArgs(count: number, gapCm: unknown): { count: number; gap?: 
 }
 
 const ANALYSIS_MODULES: readonly string[] = ['ai_detector', 'ai_rewriter', 'humanizer', 'plagiarism']
+
 const SELECTION_NEUTRAL_TOOLS: readonly string[] = [
 	'set_alignment',
 	'set_indent',
@@ -903,6 +917,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			return { ok: false, message: `Unknown tool: ${call.name}` }
 	}
 }
+
 function tocAttrsFromArgs(args: Record<string, unknown>): Partial<TocBlockAttrs> {
 	const attrs: Partial<TocBlockAttrs> = {}
 	const listKind = args.list_kind ?? args.listKind
@@ -926,12 +941,14 @@ function tocAttrsFromArgs(args: Record<string, unknown>): Partial<TocBlockAttrs>
 	}
 	return attrs
 }
+
 function findExactRange(editor: Editor, find: string): { from: number; to: number } | null {
 	const index = buildTextIndex(editor.state.doc)
 	const at = index.text.indexOf(find)
 	if (at === -1) return null
 	return textRangeToPM(index, at, find.length)
 }
+
 function publicImageUrl(src: string): string | null {
 	let url: URL
 	try {

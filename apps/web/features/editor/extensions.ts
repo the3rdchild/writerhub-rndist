@@ -52,6 +52,7 @@ import { TableIndent } from '@/features/editor/table-indent'
 import { TableOfContentsConfigured } from '@/features/editor/table-of-contents'
 import { TextWeight } from '@/features/editor/text-weight'
 import { shortcutKeys } from '@/features/shortcuts/registry'
+
 export function buildEditorExtensions({
 	geometry = pageGeometry(),
 	setup,

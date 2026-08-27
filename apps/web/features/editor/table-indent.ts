@@ -2,6 +2,7 @@ import { Extension } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+
 function build(doc: PMNode): DecorationSet {
 	const decorations: Decoration[] = []
 	doc.descendants((node, pos) => {

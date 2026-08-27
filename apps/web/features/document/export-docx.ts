@@ -15,6 +15,7 @@ const TWIPS_PER_PX = 15
 
 const px = (value: number) => Math.round(value * TWIPS_PER_PX)
 const DEFAULT_COLUMN_GAP_PX = 24
+
 function tableColumnWidths(table: PMNode, contentWidth: number): number[] {
 	const header = table.firstChild
 	const columns: number[] = []
@@ -56,6 +57,7 @@ const ALIGNMENT: Record<string, 'left' | 'center' | 'right' | 'both'> = {
 	right: 'right',
 	justify: 'both',
 }
+
 export function mergeTabContents(tabs: JSONContent[]): JSONContent {
 	const content: JSONContent[] = []
 	for (const [index, tab] of tabs.entries()) {
@@ -65,6 +67,7 @@ export function mergeTabContents(tabs: JSONContent[]): JSONContent {
 	if (content.length === 0) content.push({ type: 'paragraph' })
 	return { type: 'doc', content }
 }
+
 export async function exportDocx(
 	root: PMNode,
 	{

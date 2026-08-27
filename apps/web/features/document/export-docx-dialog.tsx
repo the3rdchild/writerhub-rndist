@@ -10,6 +10,7 @@ import { sessionLabel, useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { buildSchema, fragmentToJSON } from '@/features/sync/serialize'
 import { cn } from '@/lib/utils'
+
 export function ExportDocxDialog() {
 	const { docxExportOpen, setDocxExportOpen } = useSettings()
 	const { setup } = usePageSetup()

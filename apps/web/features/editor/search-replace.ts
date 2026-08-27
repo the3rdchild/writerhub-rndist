@@ -3,6 +3,7 @@ import { Extension } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { type EditorState, Plugin, PluginKey, type Transaction } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+
 export interface SearchAndReplaceOptions {
 	searchResultClass: string
 	disableRegex: boolean

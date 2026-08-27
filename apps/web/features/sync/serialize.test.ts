@@ -3,15 +3,18 @@ import type { JSONContent } from '@tiptap/core'
 import * as Y from 'yjs'
 import { createDocument, createTab, tabFragment, tabPreview } from '@/features/sessions/ydoc'
 import { fragmentToJSON, jsonToFragment } from './serialize'
+
 function newTab(doc: Y.Doc): string {
 	return createTab(doc, createDocument(doc))
 }
+
 function roundTrip(json: JSONContent): JSONContent {
 	const doc = new Y.Doc()
 	const tabId = newTab(doc)
 	jsonToFragment(doc, tabId, json)
 	return fragmentToJSON(doc, tabId)
 }
+
 describe('serialisasi naskah ke JSON', () => {
 	test('teks sederhana mencapai titik-tetap', () => {
 		const json: JSONContent = {

@@ -21,6 +21,7 @@ import { restoreVersion } from './api'
 import { getLocalVersion } from './local-store'
 import { maybeSnapshotLocalInterval, rememberLocalSnapshot, snapshotLocalVersion } from './local-snapshot'
 import { VERSIONS_QUERY_KEY } from './use-versions'
+
 export interface VersionMode {
 	tabId: string
 	serverTabId: string | null

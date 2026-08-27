@@ -10,6 +10,7 @@ import { createProject, deleteProject, updateProject } from '@/features/projects
 import type { ProjectSummary } from '@/features/projects/types'
 import { useInvalidateProjects, useProjects } from '@/features/projects/use-projects'
 import { cn } from '@/lib/utils'
+
 export function ProjectSidebar({ active }: { active: string }) {
 	const router = useRouter()
 	const { data: projects } = useProjects()
@@ -212,6 +213,7 @@ function SidebarItem({
 		</button>
 	)
 }
+
 function ProjectNameInput({
 	initialValue,
 	placeholder,

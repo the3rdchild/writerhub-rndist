@@ -22,6 +22,7 @@ import { useVersionMode } from '@/features/versions/version-context'
 import { VersionDiffHighlight, versionDiffHighlightKey } from '@/features/versions/version-diff-highlight'
 
 const timeFormat = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' })
+
 const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	day: 'numeric',
 	month: 'long',
@@ -29,10 +30,12 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	hour: '2-digit',
 	minute: '2-digit',
 })
+
 function featureLabel(feature: string | null): string | null {
 	if (!feature || !(feature in FEATURE_META)) return null
 	return FEATURE_META[feature as HistoryFeature].label
 }
+
 function entryLabel(version: VersionSummary): string {
 	switch (version.trigger) {
 		case 'manual':
@@ -49,6 +52,7 @@ function entryLabel(version: VersionSummary): string {
 		}
 	}
 }
+
 export function VersionHistoryView() {
 	const { versionMode, closeVersionMode, restoreToVersion } = useVersionMode()
 	const { doc, activeId } = useSessions()
@@ -284,6 +288,7 @@ export function VersionHistoryView() {
 		</div>
 	)
 }
+
 function NameVersionDialog({
 	open,
 	onSubmit,

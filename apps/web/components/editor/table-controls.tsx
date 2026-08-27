@@ -20,6 +20,7 @@ import {
 	type TableHandlesOptions,
 } from '@/features/editor/table-handles'
 import { TableMenu, type TableMenuState } from './table-menu'
+
 export function TableControls({ editor }: { editor: Editor | null }) {
 	const [menu, setMenu] = useState<TableMenuState | null>(null)
 	const frozenRef = useRef(false)

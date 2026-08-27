@@ -11,6 +11,7 @@ import { useSync } from '@/features/sync/sync-context'
 import { streamGrammarCheck, streamTimeoutFor, submitGrammarCheck } from './api'
 
 const GRAMMAR_CHECK_KEY = ['grammar', 'check'] as const
+
 interface GrammarCheckVars {
 	text: string
 	file: File | null
@@ -20,10 +21,12 @@ interface GrammarCheckVars {
 	language: string
 	tabId?: string
 }
+
 export interface GrammarCheckScope {
 	text: string
 	offset: number
 }
+
 export function useGrammarCheck() {
 	const { state, dispatch, hasContent } = useDocument()
 	const language = useDocumentLanguage()

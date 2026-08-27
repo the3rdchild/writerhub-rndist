@@ -15,6 +15,7 @@ export const historyListQuerySchema = z.object({
 	limit: z.coerce.number().int().min(1).max(100).optional().default(50),
 	cursor: z.coerce.number().int().positive().optional(),
 })
+
 export interface HistorySummary {
 	jobId: string
 	feature: HistoryFeature | null
@@ -24,6 +25,7 @@ export interface HistorySummary {
 	createdAt: number
 	summary: string | null
 }
+
 export interface HistoryDetail extends HistorySummary {
 	error: string | null
 	result: GrammarResultPayload | AnalysisResultData | ResearchResultPayload | null

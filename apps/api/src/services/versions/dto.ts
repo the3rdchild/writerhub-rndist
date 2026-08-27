@@ -1,4 +1,5 @@
 import { z } from 'zod'
+
 export const createVersionBodySchema = z.object({
 	label: z.string().max(255).nullish(),
 	trigger: z.enum(['manual', 'pre_translate']).optional(),

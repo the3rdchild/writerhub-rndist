@@ -567,16 +567,19 @@ export function findTool(name: string): ToolDefinition | undefined {
 export function isReadTool(name: string): boolean {
 	return BY_NAME.get(name)?.kind === 'read'
 }
+
 export interface ToolCall {
 	id: string
 	name: string
 	arguments: Record<string, unknown>
 }
+
 export interface ToolResult {
 	id: string
 	name: string
 	content: string
 }
+
 export interface ToolScope {
 	/** Alat riset web hanya dikirim ke model saat mode riset menyala. */
 	research?: boolean
@@ -596,6 +599,7 @@ export function toProviderTools(scope?: ToolScope): unknown[] {
 		},
 	}))
 }
+
 export function fallbackToolPrompt(scope?: ToolScope): string {
 	const list = toolsInScope(scope)
 		.map((tool) => {
@@ -616,4 +620,5 @@ export function fallbackToolPrompt(scope?: ToolScope): string {
 		list,
 	].join('\n')
 }
+
 export const FALLBACK_TOOL_FENCE = /```writerhub\s*\n([\s\S]*?)```/g

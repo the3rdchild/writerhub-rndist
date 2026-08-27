@@ -13,6 +13,7 @@ import { type DocxArchive, openDocx, resolvePath } from './zip'
 import { createXmlParser, type XmlParser } from './xml'
 
 export type { PageSetupPatch } from './parse'
+
 export interface ImportWarning {
 	message: string
 }
@@ -25,10 +26,12 @@ export interface DocxImport {
 
 const OFFICE_DOCUMENT = 'officeDocument'
 const DEFAULT_MAIN_PART = 'word/document.xml'
+
 function relsPathOf(part: string): string {
 	const slash = part.lastIndexOf('/')
 	return slash === -1 ? `_rels/${part}.rels` : `${part.slice(0, slash)}/_rels/${part.slice(slash + 1)}.rels`
 }
+
 function mainPartOf(archive: DocxArchive, parse: XmlParser): string {
 	const source = archive.text('_rels/.rels')
 	if (!source) return DEFAULT_MAIN_PART
@@ -43,6 +46,7 @@ function mainPartOf(archive: DocxArchive, parse: XmlParser): string {
 	} catch {}
 	return DEFAULT_MAIN_PART
 }
+
 function partByType(
 	archive: DocxArchive,
 	parse: XmlParser,
@@ -64,6 +68,7 @@ function partByType(
 	}
 	return null
 }
+
 const SKIPPED_LABELS: Record<string, string> = {
 	drawing: 'gambar',
 	pict: 'gambar',
@@ -103,6 +108,7 @@ function warningsFor(skipped: Map<string, number>, archive: DocxArchive): Import
 
 	return warnings
 }
+
 export async function readDocx(data: Uint8Array): Promise<DocxImport> {
 	const archive = openDocx(data)
 	const parse = await createXmlParser()

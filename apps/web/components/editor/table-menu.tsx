@@ -36,6 +36,7 @@ import {
 } from '@/features/editor/table-ops'
 import { type MenuOrigin } from '@/features/editor/table-handles'
 import { cn } from '@/lib/utils'
+
 export interface TableMenuState {
 	origin: MenuOrigin
 	tablePos: number
@@ -54,6 +55,7 @@ interface MenuRow {
 	disabled?: boolean
 	separatorBefore?: boolean
 }
+
 const GAP = 4
 const EDGE = 8
 

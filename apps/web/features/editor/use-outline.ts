@@ -5,6 +5,7 @@ import type { Editor } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
 export { type OutlineItem } from './use-outline-plain'
 import { type OutlineItem, readOutlineItems } from './use-outline-plain'
+
 export interface Outline {
 	items: OutlineItem[]
 	activePos: number | null
@@ -74,6 +75,7 @@ export function useOutline(editor: Editor | null): Outline {
 
 	return outline
 }
+
 export function scrollToOutlineItem(editor: Editor, pos: number): void {
 	editor
 		.chain()

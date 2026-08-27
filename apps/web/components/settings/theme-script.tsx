@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY } from '@/features/settings/settings-context'
+
 export function ThemeScript() {
 	const script = `
 (function () {

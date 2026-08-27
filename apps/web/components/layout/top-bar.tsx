@@ -16,6 +16,7 @@ import { useVersionMode } from '@/features/versions/version-context'
 import { cn } from '@/lib/utils'
 import { MenuBar } from './menu-bar'
 import { NavMenu } from './nav-menu'
+
 export function TopBar() {
 	const { state, dispatch } = useDocument()
 	const { editor } = useEditorInstance()

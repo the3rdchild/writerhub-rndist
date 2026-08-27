@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
 import { LOCAL_INTERVAL_SNAPSHOT_MS, shouldSnapshotInterval } from './local-snapshot'
 import { countWords, selectIntervalIdsToPrune } from './local-store'
+
 describe('countWords', () => {
 	test('teks sederhana dihitung per kata', () => {
 		const json: JSONContent = {

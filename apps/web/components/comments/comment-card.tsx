@@ -6,6 +6,7 @@ import { authorColor, authorInitials } from '@/features/comments/author'
 import { useComments } from '@/features/comments/comments-context'
 import type { CommentThread } from '@/features/sessions/session-context'
 import { cn } from '@/lib/utils'
+
 export function CommentAvatar({ name, id, size = 20 }: { name: string; id?: string; size?: number }) {
 	return (
 		<span
@@ -22,6 +23,7 @@ export function CommentAvatar({ name, id, size = 20 }: { name: string; id?: stri
 		</span>
 	)
 }
+
 function CommentComposer({
 	value,
 	placeholder,
@@ -101,6 +103,7 @@ function CommentComposer({
 		</div>
 	)
 }
+
 export function PendingCommentCard({
 	author,
 	quote,
@@ -137,6 +140,7 @@ export function PendingCommentCard({
 		</div>
 	)
 }
+
 function SuggestionSection({ thread }: { thread: CommentThread }) {
 	const { draftFor, setDraft, markedText, proposeSuggestion, acceptSuggestion, rejectSuggestion } =
 		useComments()
@@ -234,6 +238,7 @@ function SuggestionSection({ thread }: { thread: CommentThread }) {
 		</button>
 	)
 }
+
 export function CommentThreadCard({
 	thread,
 	active,

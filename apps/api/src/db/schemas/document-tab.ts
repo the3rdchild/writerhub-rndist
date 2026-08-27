@@ -1,6 +1,7 @@
 import { index, integer, jsonb, pgTable, text, uuid, varchar } from 'drizzle-orm/pg-core'
 import { timestamps } from '@/db/utils/common-table'
 import { documents } from './document'
+
 export const documentTabs = pgTable(
 	'document_tabs',
 	{

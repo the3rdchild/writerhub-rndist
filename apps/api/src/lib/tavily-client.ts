@@ -13,6 +13,7 @@ const EXTRACT_TIMEOUT_MS = 45_000
 
 /** Batas Tavily: 20 URL per permintaan /extract. */
 const EXTRACT_URL_LIMIT = 20
+
 /** Satu kredit menanggung 5 ekstraksi yang berhasil. */
 const EXTRACT_URLS_PER_CREDIT = 5
 

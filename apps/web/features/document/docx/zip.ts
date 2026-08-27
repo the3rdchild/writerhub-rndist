@@ -25,6 +25,7 @@ export function openDocx(data: Uint8Array): DocxArchive {
 		paths: () => Object.keys(entries),
 	}
 }
+
 export function resolvePath(base: string, target: string): string {
 	if (target.startsWith('/')) return target.slice(1)
 

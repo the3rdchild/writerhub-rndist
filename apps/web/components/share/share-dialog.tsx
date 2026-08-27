@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 
 const ACCESS_OPTIONS: ShareAccess[] = ['restricted', 'anyone']
 const ROLE_OPTIONS: ShareRole[] = ['viewer', 'commenter', 'editor']
+
 export function ShareDialog() {
 	const { shareOpen, setShareOpen } = useShare()
 	const { activeId } = useSessions()

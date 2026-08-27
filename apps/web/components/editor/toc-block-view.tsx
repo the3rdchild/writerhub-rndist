@@ -16,10 +16,12 @@ import {
 	type TocTabLeader,
 	TOC_BLOCK,
 } from '@/features/editor/toc-block'
+
 interface TocEntry {
 	item: OutlineItem
 	page?: number
 }
+
 interface TocGap {
 	before: number
 	height: number
@@ -42,6 +44,7 @@ const EMPTY_HINT: Record<TocListKind, string> = {
 	gambar: 'Belum ada caption gambar (heading tingkat 7-9).',
 	tabel: 'Belum ada caption tabel (heading tingkat 7-9).',
 }
+
 function leaderChar(tabLeader: TocTabLeader): string {
 	switch (tabLeader) {
 		case 'dots':
@@ -54,6 +57,7 @@ function leaderChar(tabLeader: TocTabLeader): string {
 			return ' '
 	}
 }
+
 function tocAnchorId(pos: number): string {
 	return `toc-h-${pos}`
 }
@@ -291,6 +295,7 @@ export function TocBlockView({
 		</NodeViewWrapper>
 	)
 }
+
 function TocControls({
 	attrs,
 	selected,
@@ -461,6 +466,7 @@ function TocEntries({
 		</ul>
 	)
 }
+
 function snapshotText(entries: TocEntry[], attrs: TocBlockAttrs): string {
 	return entries
 		.map(({ item, page }) =>
@@ -472,12 +478,14 @@ function snapshotText(entries: TocEntry[], attrs: TocBlockAttrs): string {
 function copyAsText(entries: TocEntry[], attrs: TocBlockAttrs): void {
 	void navigator.clipboard?.writeText(snapshotText(entries, attrs))
 }
+
 export interface TocSettingsRequest {
 	attrs: TocBlockAttrs
 	apply: (patch: Partial<TocBlockAttrs>) => void
 }
 
 export const TOC_SETTINGS_EVENT = 'writerhub:toc-settings'
+
 export function openTocSettings(
 	dom: HTMLElement,
 	attrs: TocBlockAttrs,
@@ -486,7 +494,9 @@ export function openTocSettings(
 	const detail: TocSettingsRequest = { attrs, apply }
 	dom.dispatchEvent(new CustomEvent<TocSettingsRequest>(TOC_SETTINGS_EVENT, { bubbles: true, detail }))
 }
+
 export const TOC_REFRESH_EVENT = 'writerhub:toc-refresh'
+
 export function refreshTocBlocks(dom: HTMLElement): void {
 	dom.dispatchEvent(new CustomEvent(TOC_REFRESH_EVENT, { bubbles: true }))
 }

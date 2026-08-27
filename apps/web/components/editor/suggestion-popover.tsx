@@ -9,6 +9,7 @@ export interface PopoverPosition {
 	top: number
 	left: number
 }
+
 export function SuggestionPopover({
 	suggestion,
 	position,

@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, Regex, Replace, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { searchAndReplacePluginKey } from '@/features/editor/search-replace'
 import { cn } from '@/lib/utils'
+
 export function SearchBar({ editor, onClose }: { editor: Editor; onClose: () => void }) {
 	const [search, setSearch] = useState('')
 	const [replace, setReplace] = useState('')
@@ -122,4 +123,5 @@ export function SearchBar({ editor, onClose }: { editor: Editor; onClose: () => 
 		</div>
 	)
 }
+
 export { searchAndReplacePluginKey }

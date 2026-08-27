@@ -4,6 +4,7 @@ const DB_NAME = 'writer-hub-versions'
 const STORE_NAME = 'versions'
 const TAB_INDEX = 'tabId'
 export type LocalVersionTrigger = Extract<VersionTrigger, 'manual' | 'interval' | 'pre_restore'>
+
 export interface LocalVersionEntry {
 	id: string
 	tabId: string
@@ -13,6 +14,7 @@ export interface LocalVersionEntry {
 	wordCount: number
 	createdAt: number
 }
+
 export function countWords(content: JSONContent): number {
 	let count = 0
 	const walk = (node: JSONContent): void => {
@@ -26,6 +28,7 @@ export function countWords(content: JSONContent): number {
 	walk(content)
 	return count
 }
+
 export function selectIntervalIdsToPrune(
 	versions: Pick<LocalVersionEntry, 'id' | 'trigger' | 'createdAt'>[],
 	keep = 50,
@@ -54,6 +57,7 @@ function openDb(): Promise<IDBDatabase> {
 	})
 	return dbPromise
 }
+
 async function run<T>(
 	mode: IDBTransactionMode,
 	action: (store: IDBObjectStore) => IDBRequest<T>,
@@ -65,6 +69,7 @@ async function run<T>(
 		request.onerror = () => reject(request.error ?? new Error('Operasi penyimpanan versi lokal gagal'))
 	})
 }
+
 function readEntries(tabId: string): Promise<LocalVersionEntry[]> {
 	return run('readonly', (store) => store.index(TAB_INDEX).getAll(tabId))
 }
@@ -79,15 +84,18 @@ function toSummary(entry: LocalVersionEntry): VersionSummary {
 		feature: null,
 	}
 }
+
 export async function listLocalVersions(tabId: string): Promise<VersionSummary[]> {
 	const entries = await readEntries(tabId)
 	return entries.sort((a, b) => b.createdAt - a.createdAt).map(toSummary)
 }
+
 export async function getLocalVersion(tabId: string, id: string): Promise<VersionDetail | null> {
 	const entry = await run('readonly', (store) => store.get(id) as IDBRequest<LocalVersionEntry | undefined>)
 	if (!entry || entry.tabId !== tabId) return null
 	return { ...toSummary(entry), content: entry.content }
 }
+
 export async function insertLocalVersion(input: {
 	tabId: string
 	content: JSONContent
@@ -106,18 +114,21 @@ export async function insertLocalVersion(input: {
 	await run('readwrite', (store) => store.put(entry))
 	return entry
 }
+
 export async function pruneLocalIntervalVersions(tabId: string, keep = 50): Promise<void> {
 	const ids = selectIntervalIdsToPrune(await readEntries(tabId), keep)
 	for (const id of ids) {
 		await run('readwrite', (store) => store.delete(id))
 	}
 }
+
 export async function deleteLocalVersionsForTab(tabId: string): Promise<void> {
 	const keys = await run('readonly', (store) => store.index(TAB_INDEX).getAllKeys(tabId))
 	for (const key of keys) {
 		await run('readwrite', (store) => store.delete(key))
 	}
 }
+
 export async function deleteLocalVersionsExcept(keepTabIds: ReadonlySet<string>): Promise<void> {
 	const entries = await run('readonly', (store) => store.getAll() as IDBRequest<LocalVersionEntry[]>)
 	const orphans = new Set(entries.map((entry) => entry.tabId))

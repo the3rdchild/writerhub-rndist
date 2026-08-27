@@ -10,6 +10,7 @@ import { useSettings } from '@/features/settings/settings-context'
 import { useSaveShortcut } from '@/features/versions/use-save-shortcut'
 import { useVersionMode } from '@/features/versions/version-context'
 import { DocumentTabsSidebar } from './document-tabs'
+
 export function WorkspacePage() {
 	const { activePanel } = usePanels()
 	const { settings, update } = useSettings()

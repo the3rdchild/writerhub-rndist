@@ -30,10 +30,12 @@ import {
 	twipsToPx,
 } from './units'
 import { attr, child, children, descend, tagName, val } from './xml'
+
 export interface ThemeFonts {
 	major?: string
 	minor?: string
 }
+
 export interface Relationship {
 	type: string
 	target: string
@@ -51,6 +53,7 @@ export interface ParseContext {
 	archive: DocxArchive
 	mainPart: string
 }
+
 function skip(context: ParseContext, name: string): void {
 	context.skipped.set(name, (context.skipped.get(name) ?? 0) + 1)
 }
@@ -71,6 +74,7 @@ export function readRelationships(root: Element | null): Relationships {
 	}
 	return result
 }
+
 function headingLevel(props: ParagraphProps, styleName: string | undefined): number | undefined {
 	if (props.outlineLevel !== undefined) return Math.min(6, props.outlineLevel + 1)
 
@@ -82,6 +86,7 @@ function headingLevel(props: ParagraphProps, styleName: string | undefined): num
 
 	return undefined
 }
+
 export function readTheme(root: Element | null): ThemeFonts {
 	const scheme = descend(root, 'themeElements', 'fontScheme')
 	if (!scheme) return {}
@@ -89,11 +94,13 @@ export function readTheme(root: Element | null): ThemeFonts {
 	const typefaceOf = (name: string) => attr(descend(scheme, name, 'latin'), 'typeface') || undefined
 	return { major: typefaceOf('majorFont'), minor: typefaceOf('minorFont') }
 }
+
 function fontOf(props: RunProps, theme: ThemeFonts): string | undefined {
 	if (props.font) return props.font
 	if (!props.fontTheme) return undefined
 	return /^major/i.test(props.fontTheme) ? theme.major : theme.minor
 }
+
 function marksOf(props: RunProps, link: string | undefined, theme: ThemeFonts): JSONContent['marks'] {
 	const marks: NonNullable<JSONContent['marks']> = []
 
@@ -118,6 +125,7 @@ function marksOf(props: RunProps, link: string | undefined, theme: ThemeFonts): 
 
 	return marks.length > 0 ? marks : undefined
 }
+
 function paragraphAttrs(props: ParagraphProps): Record<string, unknown> {
 	const attrs: Record<string, unknown> = {}
 
@@ -131,6 +139,7 @@ function paragraphAttrs(props: ParagraphProps): Record<string, unknown> {
 
 	return attrs
 }
+
 function runText(run: Element, context: ParseContext): { text: string; pageBreak: boolean } {
 	let text = ''
 	let pageBreak = false
@@ -176,6 +185,7 @@ function runText(run: Element, context: ParseContext): { text: string; pageBreak
 
 	return { text, pageBreak }
 }
+
 function linkTarget(hyperlink: Element, context: ParseContext): string | undefined {
 	const id = attr(hyperlink, 'id')
 	if (!id) return undefined
@@ -184,6 +194,7 @@ function linkTarget(hyperlink: Element, context: ParseContext): string | undefin
 	if (!relationship) return undefined
 	return relationship.external ? relationship.target : undefined
 }
+
 function mediaType(path: string): string {
 	const ext = path.includes('.') ? path.slice(path.lastIndexOf('.') + 1).toLowerCase() : ''
 	switch (ext) {
@@ -207,11 +218,13 @@ function mediaType(path: string): string {
 			return 'application/octet-stream'
 	}
 }
+
 function toDataUrl(mediaPath: string, bytes: Uint8Array): string {
 	let binary = ''
 	for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i])
 	return `data:${mediaType(mediaPath)};base64,${btoa(binary)}`
 }
+
 function readInlineImage(drawing: Element, context: ParseContext): JSONContent | null {
 	const extent = descend(drawing, 'inline', 'extent')
 	const cx = extent ? Number.parseInt(attr(extent, 'cx') ?? '', 10) : NaN
@@ -237,6 +250,7 @@ function readInlineImage(drawing: Element, context: ParseContext): JSONContent |
 
 	return { type: 'image', attrs }
 }
+
 function findImage(element: Element, context: ParseContext): JSONContent | null {
 	for (const candidate of children(element)) {
 		const name = tagName(candidate)
@@ -257,6 +271,7 @@ interface ParagraphBuilder {
 	images: JSONContent[]
 	attrs: Record<string, unknown>
 }
+
 function walkInline(
 	parent: Element,
 	context: ParseContext,
@@ -320,6 +335,7 @@ function walkInline(
 		}
 	}
 }
+
 function splitAtPageBreak(builder: ParagraphBuilder): void {
 	builder.blocks.push({
 		type: 'paragraph',
@@ -329,6 +345,7 @@ function splitAtPageBreak(builder: ParagraphBuilder): void {
 	builder.blocks.push({ type: PAGE_BREAK_NODE })
 	builder.inline = []
 }
+
 export function paragraphBlocks(paragraph: Element, context: ParseContext): JSONContent[] {
 	const pPr = child(paragraph, 'pPr')
 	const styleId = val(child(pPr, 'pStyle'))
@@ -369,11 +386,13 @@ export function paragraphBlocks(paragraph: Element, context: ParseContext): JSON
 
 	return builder.blocks
 }
+
 const VERTICAL_ALIGN: Record<string, string> = {
 	top: 'top',
 	center: 'middle',
 	bottom: 'bottom',
 }
+
 function cellStyleOf(tcPr: Element | null): Record<string, unknown> {
 	if (!tcPr) return {}
 
@@ -400,6 +419,7 @@ function cellStyleOf(tcPr: Element | null): Record<string, unknown> {
 	if (declarations.length > 0) attrs.style = declarations.join('; ')
 	return attrs
 }
+
 function cellContent(tc: Element, context: ParseContext): JSONContent[] {
 	const blocks: JSONContent[] = []
 	for (const node of children(tc)) {
@@ -407,6 +427,7 @@ function cellContent(tc: Element, context: ParseContext): JSONContent[] {
 	}
 	return blocks.length > 0 ? blocks : [{ type: 'paragraph' }]
 }
+
 function tableRowBlocks(row: Element, context: ParseContext): JSONContent {
 	const isHeader = child(row, 'trPr') ? child(child(row, 'trPr'), 'tblHeader') !== null : false
 
@@ -423,6 +444,7 @@ function tableRowBlocks(row: Element, context: ParseContext): JSONContent {
 		return { type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }
 	return { type: 'tableRow', content: cells }
 }
+
 function tableBlocks(tbl: Element, context: ParseContext): JSONContent[] {
 	let hasMerge = false
 	for (const tr of children(tbl, 'tr')) {
@@ -457,12 +479,15 @@ function tableBlocks(tbl: Element, context: ParseContext): JSONContent[] {
 
 	return [{ type: 'table', ...(Object.keys(attrs).length > 0 ? { attrs } : {}), content: rows }]
 }
+
 export type PageSetupPatch = Partial<Omit<PageSetup, 'margins'>> & { margins?: Partial<PageMargins> }
+
 interface SectionProps {
 	pageSetup: PageSetupPatch
 	columns: { count: number; gap?: number } | null
 	continuous?: boolean
 }
+
 function matchPageSize(width: number, height: number): PageSizeId | null {
 	for (const [id, size] of Object.entries(PAGE_SIZES)) {
 		if (id === 'custom') continue
@@ -472,6 +497,7 @@ function matchPageSize(width: number, height: number): PageSizeId | null {
 	}
 	return null
 }
+
 function readSectPr(sectPr: Element): SectionProps {
 	const pageSetup: PageSetupPatch = {}
 
@@ -513,6 +539,7 @@ function readSectPr(sectPr: Element): SectionProps {
 
 	return { pageSetup, columns, ...(val(child(sectPr, 'type')) === 'continuous' ? { continuous: true } : {}) }
 }
+
 export function bodyBlocks(
 	body: Element,
 	context: ParseContext,
@@ -554,9 +581,11 @@ export function bodyBlocks(
 
 	return blocks
 }
+
 function mergeSetup(base: PageSetup, patch: PageSetupPatch): PageSetup {
 	return { ...base, ...patch, margins: { ...base.margins, ...patch.margins } }
 }
+
 export function readBody(
 	body: Element,
 	context: ParseContext,
@@ -594,6 +623,7 @@ export function readBody(
 
 	return { blocks, pageSetup: endings[0]?.props.pageSetup }
 }
+
 export function bodyOf(documentRoot: Element): Element | null {
 	return descend(documentRoot, 'body')
 }

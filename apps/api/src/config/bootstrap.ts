@@ -3,6 +3,7 @@ import { env } from '@/config/env'
 import { RedisClient } from '@/config/redis'
 import { checkDatabaseConnection, disconnectDatabase } from '@/db'
 import QueueClient from '@/lib/queue'
+
 const globalRuntime = globalThis as typeof globalThis & {
 	__signalHandlers?: { sigint: () => void; sigterm: () => void }
 }

@@ -30,6 +30,7 @@ import {
 import { cn } from '@/lib/utils'
 import { AiEditPopover } from './ai-edit-popover'
 import { CitationPopover } from './citation-popover'
+
 const REVIEW_MODULES: Array<{ id: 'proofreader' | AnalysisFeature; label: string; icon: typeof Bot }> = [
 	{ id: 'proofreader', label: 'Proofreader', icon: SpellCheck },
 	{ id: 'ai_detector', label: 'AI Detector', icon: Bot },
@@ -186,6 +187,7 @@ function MenuItem({ icon: Icon, label, onClick }: { icon: typeof Bot; label: str
 		</button>
 	)
 }
+
 const MENU_GAP = 8
 const MENU_MAX_WIDTH = 340
 
@@ -194,6 +196,7 @@ interface Anchor {
 	bottom: number
 	left: number
 }
+
 function useSelectionAnchor(
 	editor: Editor | null,
 	selection: EditorSelection | null,
@@ -231,6 +234,7 @@ function useSelectionAnchor(
 
 	return anchor
 }
+
 function useFlippedTop(
 	anchor: Anchor | null,
 	menuRef: React.RefObject<HTMLDivElement | null>,

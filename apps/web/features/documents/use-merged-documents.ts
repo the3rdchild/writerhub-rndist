@@ -6,6 +6,7 @@ import { useSync } from '@/features/sync/sync-context'
 import { getDocument } from './api'
 import { mergeDocuments, type MergedDocument } from './merged'
 import { useDocuments } from './use-documents'
+
 export function useMergedDocuments() {
 	const { documents, selectDocument } = useSessions()
 	const { serverDocId, openFromLibrary } = useSync()
@@ -25,6 +26,7 @@ export function useMergedDocuments() {
 		openFromLibrary,
 	}
 }
+
 export function useOpenDocument() {
 	const { selectDocument } = useSessions()
 	const { openFromLibrary } = useSync()

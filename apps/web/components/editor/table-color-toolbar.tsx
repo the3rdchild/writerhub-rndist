@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom'
 import { PALETTE } from '@/components/editor/color-picker'
 import { type CellTarget, clearCellStyling, locateTable, withCellTarget } from '@/features/editor/table-ops'
 import { cn } from '@/lib/utils'
+
 export function TableColorToolbar({ editor }: { editor: Editor | null }) {
 	const inTable = useEditorState({
 		editor,
@@ -168,6 +169,7 @@ function ToolbarBtn({
 		</button>
 	)
 }
+
 function Palette({
 	mode,
 	onPick,

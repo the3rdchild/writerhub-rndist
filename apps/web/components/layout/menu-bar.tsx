@@ -88,6 +88,7 @@ import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { useShortcutLabel } from '@/features/shortcuts/use-shortcuts'
 import { cn, countWords } from '@/lib/utils'
+
 export function MenuBar() {
 	const { editor } = useEditorInstance()
 	const { state, dispatch } = useDocument()
@@ -856,7 +857,9 @@ export function MenuBar() {
 		</>
 	)
 }
+
 const DEFAULT_FONT_SIZE = 11
+
 function stepFontSize(editor: Editor | null, delta: number): void {
 	if (!editor) return
 	const parsed = Number.parseFloat(String(editor.getAttributes('textStyle').fontSize ?? ''))
@@ -864,6 +867,7 @@ function stepFontSize(editor: Editor | null, delta: number): void {
 	const next = Math.min(96, Math.max(6, Math.round(base) + delta))
 	editor.chain().focus().setFontSize(`${next}pt`).run()
 }
+
 function run(close: () => void, action: () => void) {
 	action()
 	close()

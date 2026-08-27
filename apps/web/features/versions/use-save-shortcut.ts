@@ -7,6 +7,7 @@ import { useSync } from '@/features/sync/sync-context'
 import { snapshotLocalVersion } from './local-snapshot'
 import { VERSIONS_QUERY_KEY } from './use-versions'
 import { useVersionMode } from './version-context'
+
 export function useSaveShortcut(): void {
 	const { doc, activeId } = useSessions()
 	const { linkage, saveToCloud } = useSync()

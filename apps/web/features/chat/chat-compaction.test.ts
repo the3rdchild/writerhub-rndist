@@ -121,6 +121,7 @@ describe('buildOutboundMessages - pemadatan batas tugas', () => {
 		expect(outbound.some((m) => m.content === 'pertanyaan 29')).toBe(true)
 	})
 })
+
 describe('actionsSettled - syarat melanjutkan giliran', () => {
 	const write = (id: string, name: string) => ({ id, name, arguments: '{}' })
 

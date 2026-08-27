@@ -75,6 +75,7 @@ function docx({
 		),
 	})
 }
+
 function p(content: string, pPr = ''): string {
 	return `<w:p>${pPr ? `<w:pPr>${pPr}</w:pPr>` : ''}${content}</w:p>`
 }
@@ -92,6 +93,7 @@ function textOf(node: JSONContent | undefined): string {
 	if (node.type === 'text') return node.text ?? ''
 	return (node.content ?? []).map(textOf).join('')
 }
+
 function marksOf(block: JSONContent | undefined, index = 0): string[] {
 	const run = block?.content?.[index]
 	return (run?.marks ?? []).map((mark) => mark.type).filter((type) => type !== 'textStyle')

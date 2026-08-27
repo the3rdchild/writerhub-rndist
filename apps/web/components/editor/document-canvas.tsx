@@ -20,10 +20,12 @@ const CODE_BLOCK_HEIGHT_RATIO = 0.6
 const CODE_BLOCK_CHROME = 48
 const CODE_BLOCK_MIN_HEIGHT = 120
 const mm = (px: number) => Math.round((px / 96) * 25.4 * 100) / 100
+
 function pageRuleBody(setup: PageSetup): string {
 	const { width, height, margins } = pageGeometry(setup)
 	return `size: ${mm(width)}mm ${mm(height)}mm; margin: ${mm(margins.top)}mm ${mm(margins.right)}mm ${mm(margins.bottom)}mm ${mm(margins.left)}mm;`
 }
+
 function printPageRules(base: PageSetup, sections: readonly PageSetup[]): string {
 	const rules = [`@page { ${pageRuleBody(base)} }`]
 
@@ -35,6 +37,7 @@ function printPageRules(base: PageSetup, sections: readonly PageSetup[]): string
 
 	return rules.join('\n')
 }
+
 export function DocumentCanvas({
 	containerRef,
 	onReady,

@@ -23,6 +23,7 @@ import { CODE_LANGUAGES } from '@/features/editor/code-block'
 import { CALLOUT_TYPES } from '@/features/editor/callout'
 import type { SlashCommandState } from '@/features/editor/slash-command'
 import { cn } from '@/lib/utils'
+
 interface SlashItem {
 	id: string
 	label: string

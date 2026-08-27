@@ -5,6 +5,7 @@ export interface ChatModel {
 	tools: boolean
 	free?: boolean
 }
+
 export const DEFAULT_CHAT_MODEL = ''
 
 export const CHAT_MODELS: readonly ChatModel[] = [
@@ -74,6 +75,7 @@ export const CHAT_MODELS: readonly ChatModel[] = [
 ]
 
 const CHAT_MODEL_IDS = new Set(CHAT_MODELS.map((model) => model.id))
+
 export function isKnownChatModel(id: string): boolean {
 	return CHAT_MODEL_IDS.has(id)
 }

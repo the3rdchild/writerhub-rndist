@@ -27,6 +27,7 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	hour: '2-digit',
 	minute: '2-digit',
 })
+
 function ChangeRow({
 	original,
 	replacement,
@@ -44,6 +45,7 @@ function ChangeRow({
 		</div>
 	)
 }
+
 function hostOf(url: string): string {
 	try {
 		return new URL(url).hostname.replace(/^www\./, '')
@@ -51,6 +53,7 @@ function hostOf(url: string): string {
 		return url
 	}
 }
+
 function SourceRow({ source }: { source: ResearchResultPayload['sources'][number] }) {
 	return (
 		<a
@@ -71,6 +74,7 @@ function SourceRow({ source }: { source: ResearchResultPayload['sources'][number
 		</a>
 	)
 }
+
 function ResultBody({ detail, text }: { detail: HistoryDetail; text: string }) {
 	const result = detail.result
 	if (!result) return null
@@ -160,6 +164,7 @@ function ResultBody({ detail, text }: { detail: HistoryDetail; text: string }) {
 
 	return null
 }
+
 export function ActivityDetail({ jobId, onClose }: { jobId: string; onClose: () => void }) {
 	const { doc, activeId } = useSessions()
 	const detailQuery = useHistoryEntry(jobId)

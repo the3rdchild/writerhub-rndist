@@ -30,6 +30,7 @@ export interface AnalysisController<F extends AnalysisFeature> {
 	cancel: () => void
 	clear: () => void
 }
+
 export function useAnalysis<F extends AnalysisFeature>(
 	feature: F,
 	scope?: { text: string } | null,

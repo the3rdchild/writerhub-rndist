@@ -12,6 +12,7 @@ export interface SelectOption<T> {
 	icon?: ReactNode
 	group?: string
 }
+
 function centerActiveOption(node: HTMLDivElement | null): void {
 	const list = node?.parentElement
 	if (!node || !list) return

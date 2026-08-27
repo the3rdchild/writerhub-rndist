@@ -10,6 +10,7 @@ import {
 	readDocs,
 	tabsRoot,
 } from './ydoc'
+
 export function migrateTabsToDocs(doc: Y.Doc): boolean {
 	const legacy = legacyTabOrder(doc)
 	if (!legacy) return false

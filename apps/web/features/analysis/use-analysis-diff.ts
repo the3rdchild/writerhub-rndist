@@ -17,7 +17,9 @@ export {
 	editsFromSuggestions,
 	synthesizeResultText,
 } from './analysis-diff'
+
 export type { AnalysisDiffFeature, PendingEdit }
+
 export function useAnalysisDiff(
 	feature: AnalysisDiffFeature,
 	edits: readonly PendingEdit[],

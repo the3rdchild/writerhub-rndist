@@ -9,13 +9,16 @@ import { useSettings } from '@/features/settings/settings-context'
 import { commentRange } from './anchors'
 import { localAuthorId } from './author'
 import { usePruneOrphanComments } from './use-prune-orphans'
+
 export interface PendingComment {
 	tabId: string
 	from: number
 	to: number
 	quote: string
 }
+
 const PENDING_KEY = '__pending__'
+
 function anchorRange(editor: Editor, pending: PendingComment): { from: number; to: number } | null {
 	const size = editor.state.doc.content.size
 	const from = Math.min(pending.from, size)

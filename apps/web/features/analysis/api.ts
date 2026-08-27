@@ -8,6 +8,7 @@ import { apiFetch } from '@/lib/api-client'
 import { streamJob } from '@/lib/sse'
 
 const ANALYSIS_TIMEOUT_MS = 120_000
+
 export async function runAnalysis<F extends AnalysisFeature>(
 	feature: F,
 	text: string,

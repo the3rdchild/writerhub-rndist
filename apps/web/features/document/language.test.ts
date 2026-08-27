@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { detectLanguage, LANGUAGE_OPTIONS, requiresAiTier } from './language'
+
 const INDONESIAN = `
 Fitur ini bertujuan untuk memberikan fleksibilitas pada pengguna yang ingin
 membuat slide dari template manual atau dari hasil AI. Sistem akan menyediakan
@@ -60,6 +61,7 @@ describe('tier non-AI', () => {
 		expect(requiresAiTier('ja')).toBe(true)
 	})
 })
+
 describe('bendera bahasa (§P1, B-5)', () => {
 	test('setiap pilihan punya kode bendera dua huruf', () => {
 		for (const option of LANGUAGE_OPTIONS) {

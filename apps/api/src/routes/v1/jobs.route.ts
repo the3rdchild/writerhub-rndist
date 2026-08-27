@@ -11,6 +11,7 @@ const jobs = createRouter().basePath('/jobs')
 jobs.use('*', authMiddleware)
 
 const CANCEL_FLAG_TTL_SECONDS = 3600
+
 async function removeFromQueue(redis: Redis, jobId: string): Promise<boolean> {
 	for (const queueName of [
 		env.GRAMMAR_QUEUE_NAME || 'GRAMMAR_QUEUE',

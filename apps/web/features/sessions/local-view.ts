@@ -23,6 +23,7 @@ export const EMPTY_TAB_VIEW: TabViewState = {
 	suggestions: [],
 	scores: null,
 }
+
 export function storedActiveTabId(view: LocalView): string | null {
 	return view.activeTabId ?? (view as LocalView & { activeId?: string | null }).activeId ?? null
 }
@@ -38,6 +39,7 @@ export function patchTabView(view: LocalView, id: string, patch: Partial<TabView
 		tabs: { ...view.tabs, [id]: { ...tabView(view, id), ...patch } },
 	}
 }
+
 export function pruneTabViews(view: LocalView, existingIds: string[]): LocalView {
 	const keep = new Set(existingIds)
 	const tabs: Record<string, TabViewState> = {}

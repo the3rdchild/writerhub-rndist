@@ -2,6 +2,7 @@ import { callUpstream, configErrorResponse } from '@/lib/server/upstream'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
 export async function GET(
 	_request: Request,
 	{ params }: { params: Promise<{ jobId: string }> },
@@ -16,6 +17,7 @@ export async function GET(
 		return configErrorResponse(error)
 	}
 }
+
 export async function DELETE(
 	_request: Request,
 	{ params }: { params: Promise<{ jobId: string }> },

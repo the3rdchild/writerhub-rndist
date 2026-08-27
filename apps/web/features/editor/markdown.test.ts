@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { looksLikeMarkdown, markdownToHtml, toEditorContent } from './markdown'
+
 describe('tabel', () => {
 	const TABLE = `| No | Nama | Jabatan |
 |----|------|---------|
@@ -121,6 +122,7 @@ describe('rumus LaTeX', () => {
 		expect(looksLikeMarkdown('Biaya $5 per bulan.')).toBe(false)
 	})
 })
+
 describe('pembatas LaTeX', () => {
 	test('\\(…\\) jadi rumus inline', () => {
 		const html = markdownToHtml('Misalkan \\(x^2\\) berlaku.')

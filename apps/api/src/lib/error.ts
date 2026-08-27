@@ -1,5 +1,6 @@
 import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
+
 export class AppError extends HTTPException {
 	constructor(
 		public readonly statusCode: ContentfulStatusCode,

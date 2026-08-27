@@ -4,6 +4,7 @@ import type { AnalysisFeature } from '@writer-hub/shared'
 import { useEffect } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { analysisHighlightKey, type AnalysisHighlightRange } from './analysis-highlight'
+
 export function useAnalysisHighlight(
 	source: AnalysisFeature,
 	ranges: readonly AnalysisHighlightRange[],

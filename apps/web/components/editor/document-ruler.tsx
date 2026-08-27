@@ -17,6 +17,7 @@ import {
 	setTableIndent,
 } from '@/features/editor/table-ops'
 import { cn } from '@/lib/utils'
+
 type Handle =
 	| { kind: 'marginLeft' }
 	| { kind: 'marginRight' }
@@ -29,6 +30,7 @@ type Handle =
 	| { kind: 'imageX' }
 	| { kind: 'columnsGap'; index: number; side: 'left' | 'right' }
 	| { kind: 'columnsGapBand'; index: number }
+
 const DEFERRED: ReadonlySet<Handle['kind']> = new Set([
 	'tableLeft',
 	'tableRight',
@@ -37,6 +39,7 @@ const DEFERRED: ReadonlySet<Handle['kind']> = new Set([
 	'columnsGap',
 	'columnsGapBand',
 ])
+
 const MIN_COLUMN_GAP = 8
 
 const RULER_HEIGHT = 24
@@ -374,6 +377,7 @@ const ALIGNMENTS = [
 	{ value: 'center' as const, label: 'Gambar rata tengah' },
 	{ value: 'right' as const, label: 'Gambar rata kanan' },
 ]
+
 function applyTableHandle(
 	editor: Editor,
 	handle: Extract<Handle, { kind: 'tableLeft' | 'tableRight' | 'tableCol' }>,
@@ -409,6 +413,7 @@ function applyTableHandle(
 	next[index + 1] = pair - next[index]
 	setColumnWidths(editor, tablePos, next)
 }
+
 function applyColumnsHandle(
 	editor: Editor,
 	handle: Extract<Handle, { kind: 'columnsGap' | 'columnsGapBand' }>,
@@ -452,6 +457,7 @@ function applyColumnsHandle(
 	next[index + 1] = Math.round(last)
 	editor.commands.setColumnsLayout(pos, { widths: next, gap: Math.round(widths[index + 1] + gap - last) })
 }
+
 function Ticks({ width, zoom }: { width: number; zoom: number }) {
 	const step = zoom < 0.75 ? INCH / 4 : INCH / 8
 	const count = Math.floor(width / step)
@@ -507,6 +513,7 @@ function MarginHandle({
 		/>
 	)
 }
+
 function ObjectHandle({
 	variant,
 	label,
@@ -532,6 +539,7 @@ function ObjectHandle({
 		/>
 	)
 }
+
 function GapMarker({
 	label,
 	left,
@@ -560,6 +568,7 @@ function GapMarker({
 		/>
 	)
 }
+
 function AlignPip({
 	label,
 	x,

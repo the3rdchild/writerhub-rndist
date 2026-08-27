@@ -1,4 +1,5 @@
 'use client'
+
 export function safeFilename(title: string, extension: string): string {
 	const base =
 		title
@@ -7,6 +8,7 @@ export function safeFilename(title: string, extension: string): string {
 			.slice(0, 80) || 'dokumen'
 	return `${base}.${extension}`
 }
+
 export function download(blob: Blob, filename: string): void {
 	const url = URL.createObjectURL(blob)
 	const anchor = document.createElement('a')

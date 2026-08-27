@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { getSchema } from '@tiptap/core'
 import { buildEditorExtensions } from './extensions'
+
 describe('image schema', () => {
 	test('node image membawa atribut src, alt, title, width, dan height', () => {
 		const schema = getSchema(buildEditorExtensions({}))

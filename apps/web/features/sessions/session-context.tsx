@@ -61,6 +61,7 @@ export interface Session extends TabMeta {
 	outlineExpanded: boolean
 	preview: string
 }
+
 export function sessionLabel(session: Session): string {
 	const title = session.title?.trim()
 	if (title && title !== 'Untitled document') return title
