@@ -1,4 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
+import { MATH_BLOCK, MATH_INLINE } from '@/features/editor/math'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import {
 	DEFAULT_PAGE_SETUP,
@@ -9,6 +10,7 @@ import {
 	sameSheetGeometry,
 } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
+import { ommlToLatex } from './math'
 import type { Numberer } from './numbering'
 import {
 	type DocxStyles,
@@ -270,6 +272,10 @@ interface ParagraphBuilder {
 	inline: JSONContent[]
 	images: JSONContent[]
 	attrs: Record<string, unknown>
+	/** Level heading paragraf ini (dipakai saat flush paragraf oleh math blok). */
+	level?: number
+	/** True bila paragraf sudah terdorong karena bertemu oMathPara di tengahnya. */
+	flushed?: boolean
 }
 
 function walkInline(
@@ -311,6 +317,24 @@ function walkInline(
 			case 'hyperlink':
 				walkInline(node, context, inherited, linkTarget(node, context) ?? link, builder, fields)
 				break
+
+			case 'oMath': {
+				const latex = ommlToLatex(node)
+				if (latex) builder.inline.push({ type: MATH_INLINE, attrs: { latex } })
+				break
+			}
+
+			case 'oMathPara': {
+				// Persamaan tampil sendiri sebagai blok: tutup paragraf berjalan,
+				// lalu terbitkan node math blok.
+				if (builder.inline.length > 0) flushParagraph(builder)
+				const latex = ommlToLatex(node)
+				if (latex) {
+					builder.blocks.push({ type: MATH_BLOCK, attrs: { latex } })
+					builder.flushed = true
+				}
+				break
+			}
 			case 'ins':
 			case 'smartTag':
 			case 'sdtContent':
@@ -346,6 +370,18 @@ function splitAtPageBreak(builder: ParagraphBuilder): void {
 	builder.inline = []
 }
 
+/** Dorong isi inline yang sedang berjalan sebagai paragraf (dipakai math blok). */
+function flushParagraph(builder: ParagraphBuilder): void {
+	const blockAttrs = builder.level ? { ...builder.attrs, level: builder.level } : builder.attrs
+	builder.blocks.push({
+		type: builder.level ? 'heading' : 'paragraph',
+		...(Object.keys(blockAttrs).length > 0 ? { attrs: blockAttrs } : {}),
+		...(builder.inline.length > 0 ? { content: builder.inline } : {}),
+	})
+	builder.inline = []
+	builder.flushed = true
+}
+
 export function paragraphBlocks(paragraph: Element, context: ParseContext): JSONContent[] {
 	const pPr = child(paragraph, 'pPr')
 	const styleId = val(child(pPr, 'pStyle'))
@@ -358,7 +394,7 @@ export function paragraphBlocks(paragraph: Element, context: ParseContext): JSON
 	const attrs = paragraphAttrs(paragraphProps)
 
 	const level = headingLevel(paragraphProps, style.name)
-	const builder: ParagraphBuilder = { blocks: [], inline: [], images: [], attrs }
+	const builder: ParagraphBuilder = { blocks: [], inline: [], images: [], attrs, level }
 	walkInline(paragraph, context, runProps, undefined, builder, [])
 
 	if (paragraphProps.numId) {
@@ -372,7 +408,9 @@ export function paragraphBlocks(paragraph: Element, context: ParseContext): JSON
 		}
 	}
 	const imageOnly = builder.images.length > 0 && builder.inline.length === 0
-	if (!imageOnly || level !== undefined) {
+	// Paragraf yang isinya sudah terdorong oleh math blok tidak perlu paragraf kosong tambahan.
+	const trailingEmpty = builder.flushed === true && builder.inline.length === 0 && builder.blocks.length > 0
+	if ((!imageOnly || level !== undefined) && !trailingEmpty) {
 		const blockAttrs = level ? { ...attrs, level } : attrs
 
 		builder.blocks.push({

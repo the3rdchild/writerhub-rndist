@@ -15,13 +15,16 @@ import {
 	TextCursor,
 	Type,
 } from 'lucide-react'
+import { useState } from 'react'
+import { CustomSpacingDialog } from '@/components/editor/custom-spacing-dialog'
+import { SpacingMenuItems } from '@/components/editor/spacing-menu-items'
 import { DropdownLabel, DropdownSeparator, Submenu } from '@/components/ui/dropdown'
 import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { indentSelection, outdentSelection } from '@/features/editor/indent'
 import { convertMathInDocument, convertSelectionToMath } from '@/features/editor/math'
 import { sectionRange } from '@/features/editor/section-scope'
-import { ALL_PARAGRAPH_STYLES, LINE_HEIGHTS, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
+import { ALL_PARAGRAPH_STYLES, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { FormatTextSubmenu } from './format-text-submenu'
 import { Item, Menu, run } from './menu-shell'
@@ -31,9 +34,11 @@ export function FormatMenu() {
 	const { state } = useDocument()
 	const { setup: activeSetup } = usePageSetup()
 	const hasSelection = () => Boolean(editor && !editor.state.selection.empty)
+	const [spacingDialogOpen, setSpacingDialogOpen] = useState(false)
 
 	return (
-		<Menu label="Format" icon={<Type className="h-4 w-4" />}>
+		<>
+			<Menu label="Format" icon={<Type className="h-4 w-4" />}>
 			{({ close }) => (
 				<>
 					{/* ── Teks: gaya huruf, jenis & ukuran, kapitalisasi ──
@@ -103,21 +108,17 @@ export function FormatMenu() {
 						)}
 					</Submenu>
 
-					{/* ── Spasi baris ── */}
-					<Submenu label="Spasi baris" icon={<AlignJustify className="h-4 w-4" />}>
+					{/* ── Spasi baris & paragraf (ala Google Docs) ── */}
+					<Submenu label="Spasi baris & paragraf" icon={<AlignJustify className="h-4 w-4" />}>
 						{() => (
-							<>
-								{LINE_HEIGHTS.map((option) => (
-									<Item
-										key={option.value}
-										onSelect={() =>
-											run(close, () => editor?.chain().focus().setLineHeight(option.value).run())
-										}
-									>
-										{option.label}
-									</Item>
-								))}
-							</>
+							<SpacingMenuItems
+								editor={editor}
+								close={close}
+								onOpenCustomSpacing={() => {
+									close()
+									setSpacingDialogOpen(true)
+								}}
+							/>
 						)}
 					</Submenu>
 
@@ -247,6 +248,12 @@ export function FormatMenu() {
 					</Item>
 				</>
 			)}
-		</Menu>
+			</Menu>
+			<CustomSpacingDialog
+				editor={editor}
+				open={spacingDialogOpen}
+				onClose={() => setSpacingDialogOpen(false)}
+			/>
+		</>
 	)
 }

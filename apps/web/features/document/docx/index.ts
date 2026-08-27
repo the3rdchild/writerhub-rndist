@@ -75,8 +75,6 @@ const SKIPPED_LABELS: Record<string, string> = {
 	'merged-cell': 'sel gabungan tabel',
 	'kolom-bagian-pertama': 'kolom di bagian pertama dokumen',
 	object: 'objek tertanam',
-	oMath: 'rumus',
-	oMathPara: 'rumus',
 }
 
 function warningsFor(skipped: Map<string, number>, archive: DocxArchive): ImportWarning[] {

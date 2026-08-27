@@ -5,6 +5,7 @@ import { readDocx } from './index'
 
 const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
 const R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+const M = 'xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"'
 const REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 
 function docx({
@@ -72,7 +73,7 @@ function docx({
 		),
 		'word/styles.xml': strToU8(`<?xml version="1.0"?><w:styles ${W}>${styles}</w:styles>`),
 		'word/document.xml': strToU8(
-			`<?xml version="1.0"?><w:document ${W} ${R}><w:body>${body}</w:body></w:document>`,
+			`<?xml version="1.0"?><w:document ${W} ${R} ${M}><w:body>${body}</w:body></w:document>`,
 		),
 	})
 }
@@ -823,5 +824,110 @@ describe('impor section (E4)', () => {
 		expect(pembatas[0]?.attrs).toMatchObject({ continuous: true })
 		expect(pembatas[0]?.attrs?.columns).toMatchObject({ count: 2 })
 		expect(pembatas[1]?.attrs).toMatchObject({ continuous: true, columns: null })
+	})
+})
+describe('rumus matematika (OMML)', () => {
+	const mr = (text: string) => `<m:r><m:t>${text}</m:t></m:r>`
+	const sub = (base: string, subText: string) =>
+		`<m:sSub><m:e>${base}</m:e><m:sub>${subText}</m:sub></m:sSub>`
+	const frac = (num: string, den: string) => `<m:f><m:num>${num}</m:num><m:den>${den}</m:den></m:f>`
+
+	function latexOf(node: JSONContent | undefined): string {
+		return String(node?.attrs?.latex ?? '')
+	}
+
+	test('oMath inline menjadi node mathInline di tengah paragraf', async () => {
+		const result = await readDocx(
+			docx({ body: p(`${r('nilai ')}<m:oMath>${frac(mr('a'), mr('b'))}</m:oMath>`) }),
+		)
+		const paragraf = blocks(result.content)[0]
+		const isi = paragraf?.content ?? []
+
+		expect(isi.map((node) => node.type)).toEqual(['text', 'mathInline'])
+		expect(latexOf(isi[1])).toBe('\\frac{a}{b}')
+	})
+
+	test('oMathPara menjadi mathBlock tanpa paragraf kosong tambahan', async () => {
+		const result = await readDocx(
+			docx({ body: p(`<m:oMathPara><m:oMath>${mr('W=')}${frac(mr('x'), mr('y'))}</m:oMath></m:oMathPara>`) }),
+		)
+
+		expect(blocks(result.content)).toHaveLength(1)
+		expect(blocks(result.content)[0]?.type).toBe('mathBlock')
+		expect(latexOf(blocks(result.content)[0])).toBe('W=\\frac{x}{y}')
+	})
+
+	test('teks sebelum oMathPara tetap terbawa sebagai paragraf tersendiri', async () => {
+		const result = await readDocx(
+			docx({
+				body: p(`${r('karena ')}<m:oMathPara><m:oMath>${mr('E')}</m:oMath></m:oMathPara>`),
+			}),
+		)
+
+		expect(blocks(result.content).map((node) => node.type)).toEqual(['paragraph', 'mathBlock'])
+		expect(textOf(blocks(result.content)[0])).toBe('karena ')
+	})
+
+	test('penjumlahan nary dengan batas atas bawah', async () => {
+		const nary = `<m:nary><m:naryPr><m:chr m:val="∑"/></m:naryPr>
+			<m:sub>${mr('i=1')}</m:sub><m:sup>${mr('n')}</m:sup>
+			<m:e>${sub(mr('a'), mr('ij'))}</m:e></m:nary>`
+		const result = await readDocx(docx({ body: p(`<m:oMathPara><m:oMath>${nary}</m:oMath></m:oMathPara>`) }))
+
+		expect(latexOf(blocks(result.content)[0])).toBe('\\sum_{i=1}^{n}{{a}_{ij}}')
+	})
+
+	test('delimeter dengan begChr/endChr kurung siku', async () => {
+		const d = `<m:d><m:dPr><m:begChr m:val="["/><m:endChr m:val="]"/></m:dPr><m:e>${mr('x')}</m:e></m:d>`
+		const result = await readDocx(docx({ body: p(`<m:oMath>${d}</m:oMath>`) }))
+
+		expect(latexOf(blocks(result.content)[0]?.content?.[0])).toBe('\\left[x\\right]')
+	})
+
+	test('akar tanpa derajat menjadi sqrt', async () => {
+		const rad = `<m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:deg/>
+			<m:e><m:sSup><m:e>${mr('x')}</m:e><m:sup>${mr('2')}</m:sup></m:sSup></m:e></m:rad>`
+		const result = await readDocx(docx({ body: p(`<m:oMath>${rad}</m:oMath>`) }))
+
+		expect(latexOf(blocks(result.content)[0]?.content?.[0])).toBe('\\sqrt{{x}^{2}}')
+	})
+
+	test('matriks memakai environment matrix dengan & dan \\\\', async () => {
+		const matrix = `<m:m><m:mr><m:e>${mr('1')}</m:e><m:e>${mr('2')}</m:e></m:mr>
+			<m:mr><m:e>${mr('3')}</m:e><m:e>${mr('4')}</m:e></m:mr></m:m>`
+		const result = await readDocx(docx({ body: p(`<m:oMath>${matrix}</m:oMath>`) }))
+
+		expect(latexOf(blocks(result.content)[0]?.content?.[0])).toBe(
+			'\\begin{matrix}1 & 2 \\\\ 3 & 4\\end{matrix}',
+		)
+	})
+
+	test('baris persamaan (eqArr) memakai environment gathered', async () => {
+		const eqArr = `<m:eqArr><m:e>${mr('a')}</m:e><m:e>${mr('b')}</m:e></m:eqArr>`
+		const result = await readDocx(docx({ body: p(`<m:oMathPara><m:oMath>${eqArr}</m:oMath></m:oMathPara>`) }))
+
+		expect(latexOf(blocks(result.content)[0])).toBe('\\begin{gathered}a \\\\ b\\end{gathered}')
+	})
+
+	test('frasa multi-kata dibungkus text agar spasinya terjaga', async () => {
+		const result = await readDocx(docx({ body: p(`<m:oMath>${mr('Consistency Index ')}</m:oMath>`) }))
+		expect(latexOf(blocks(result.content)[0]?.content?.[0])).toBe('\\text{Consistency Index}')
+	})
+
+	test('nama fungsi max dan min jadi operator LaTeX', async () => {
+		const lambdaMax = sub(mr('λ'), mr('max'))
+		const result = await readDocx(docx({ body: p(`<m:oMath>${lambdaMax}</m:oMath>`) }))
+
+		expect(latexOf(blocks(result.content)[0]?.content?.[0])).toBe('{λ}_{\\max }')
+	})
+
+	test('nomor persamaan satu paragraf dengan rumus inline', async () => {
+		const body = p(`<m:oMath>${frac(mr('a'), mr('b'))}</m:oMath><w:r><w:tab/></w:r>${r('(1)')}`)
+		const result = await readDocx(docx({ body }))
+		const paragraf = blocks(result.content)[0]
+
+		expect(blocks(result.content)).toHaveLength(1)
+		expect(paragraf?.content?.map((node) => node.type)).toEqual(['mathInline', 'text', 'text'])
+		expect(textOf(paragraf)).toBe('\t(1)')
 	})
 })

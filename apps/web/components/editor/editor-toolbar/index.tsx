@@ -30,7 +30,7 @@ import { useSettings } from '@/features/settings/settings-context'
 import { AlignControls } from './align-controls'
 import { CapitalizationControl } from './capitalization-control'
 import { ColorControls } from './color-controls'
-import { LineHeightControl } from './line-height-control'
+import { LineSpacingControl } from './line-spacing-control'
 import { TextStyleControls } from './text-style-controls'
 import { Divider, IconButton } from './toolbar-parts'
 import { useToolbarState } from './toolbar-state'
@@ -171,7 +171,7 @@ export function EditorToolbar({
 			<Divider />
 
 			<AlignControls editor={editor} disabled={isOff} state={active} />
-			<LineHeightControl editor={editor} disabled={isOff} />
+			<LineSpacingControl editor={editor} disabled={isOff} />
 
 			<Divider />
 

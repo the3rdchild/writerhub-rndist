@@ -20,6 +20,7 @@ import { AnalysisHighlight } from '@/features/analysis/analysis-highlight'
 import { CandidatePreviewHighlight } from '@/features/analysis/candidate-preview'
 import { CommentMark } from '@/features/comments/comment-mark'
 import { SuggestionHighlight } from '@/features/document/suggestion-highlight'
+import { BlockKeep } from '@/features/editor/block-keep'
 import { BlockSpacing } from '@/features/editor/block-spacing'
 import { Callout } from '@/features/editor/callout'
 import { CodeBlock } from '@/features/editor/code-block'
@@ -115,6 +116,7 @@ export function buildEditorExtensions({
 		SelectionHighlight,
 		BlockIndentExtension,
 		BlockSpacing,
+		BlockKeep,
 		TextWeight,
 		PageBreak,
 		SectionBreak,
