@@ -2,6 +2,7 @@ import type { ErrorResponse, SuccessResponse } from '@writer-hub/shared'
 import type { Context } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import redis from '@/config/redis'
+import { isUuid } from '@/constants/patterns'
 import db from '@/db'
 import type { AppEnv } from '@/lib/create-app'
 import { AppError } from '@/lib/error'
@@ -9,7 +10,6 @@ import LoggerClient from '@/lib/logger'
 import { resolveIdentityId } from '@/repository/identity'
 
 const log = LoggerClient.getInstance()
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export default abstract class BaseService {
 	protected readonly db: typeof db
@@ -72,7 +72,7 @@ export default abstract class BaseService {
 	protected uuidParam(name: string, label: string): string {
 		const value = this.context.req.param(name)
 		if (!value) throw AppError.badRequest(`${label} tidak ada`)
-		if (!UUID_PATTERN.test(value)) throw AppError.badRequest(`${label} bukan UUID yang sah`)
+		if (!isUuid(value)) throw AppError.badRequest(`${label} bukan UUID yang sah`)
 		return value
 	}
 
@@ -80,7 +80,7 @@ export default abstract class BaseService {
 	protected optionalUuidQuery(name: string, label: string): string | undefined {
 		const value = this.context.req.query(name)
 		if (value === undefined || value === '') return undefined
-		if (!UUID_PATTERN.test(value)) throw AppError.badRequest(`${label} bukan UUID yang sah`)
+		if (!isUuid(value)) throw AppError.badRequest(`${label} bukan UUID yang sah`)
 		return value
 	}
 

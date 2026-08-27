@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { DocumentTab } from '@/db/schemas'
 import type { TabSummary } from '@/services/tabs/dto'
 
 export type { TabSummary }
@@ -32,3 +33,11 @@ export interface DocumentSummary {
 export interface DocumentDetail extends DocumentSummary {
 	tabs: TabSummary[]
 }
+
+/**
+ * Baris tab apa adanya dari basis data, sebagaimana dipakai saat menyusun
+ * DocumentDetail. `content` dikecualikan karena ringkasan tab tidak pernah
+ * membacanya - menyertakannya hanya membuat naskah utuh ikut terbawa untuk
+ * kemudian diabaikan.
+ */
+export type TabRow = Omit<DocumentTab, 'content'>

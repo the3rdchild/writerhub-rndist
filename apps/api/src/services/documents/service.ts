@@ -1,4 +1,4 @@
-import type { NewDocument } from '@/db/schemas'
+import type { Document, NewDocument } from '@/db/schemas'
 import { AppError } from '@/lib/error'
 import {
 	deleteDocument,
@@ -11,7 +11,7 @@ import { findTabsByDocument, insertTab } from '@/repository/document-tab'
 import { findOrCreateDefaultProject, findProjectById } from '@/repository/project'
 import BaseService from '@/services/base.service'
 import { snapshotIntervalTab } from '@/services/tabs/service'
-import type { DocumentDetail, DocumentSummary, TabSummary } from './dto'
+import type { DocumentDetail, DocumentSummary, TabRow, TabSummary } from './dto'
 import { createDocumentBodySchema, updateDocumentBodySchema } from './dto'
 
 const EMPTY_CONTENT: Record<string, unknown> = { type: 'doc', content: [] }
@@ -136,25 +136,7 @@ export default class DocumentsService extends BaseService {
 		return this.uuidParam('id', 'ID dokumen')
 	}
 
-	private toDetail(
-		document: {
-			id: string
-			title: string
-			project_id: string
-			updated_at: Date
-			created_at: Date
-		},
-		tabs: {
-			id: string
-			document_id: string
-			title: string
-			emoji: string | null
-			language: string | null
-			position: number
-			updated_at: Date
-			created_at: Date
-		}[],
-	): DocumentDetail {
+	private toDetail(document: Document, tabs: TabRow[]): DocumentDetail {
 		const tabSummaries: TabSummary[] = tabs.map((tab) => ({
 			id: tab.id,
 			documentId: tab.document_id,
