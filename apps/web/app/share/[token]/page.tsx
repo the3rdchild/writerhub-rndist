@@ -1,163 +1,56 @@
-'use client'
+import type { Metadata } from 'next'
+import { ShareNotFound } from '@/components/share/share-not-found'
+import { SharedDocumentView } from '@/components/share/shared-document-view'
+import { excerpt, jsonPlainText } from '@/features/editor/text-content'
+import { getSharedDocument } from '@/lib/server/share'
 
-import { EditorContent, useEditor } from '@tiptap/react'
-import { ArrowLeft, FileText, Lock } from 'lucide-react'
-import Link from 'next/link'
-import { useParams } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
-import { buildEditorExtensions } from '@/features/editor/extensions'
-import { pageGeometry } from '@/features/editor/page-geometry'
-import { fetchShare } from '@/features/share/api'
-import {
-	SHARE_ACCESS_LABELS,
-	SHARE_ROLE_LABELS,
-	type SharedTab,
-	type SharePayload,
-} from '@/features/share/types'
-import { cn } from '@/lib/utils'
+/** Panjang deskripsi meta yang lazim ditampilkan utuh oleh kartu pratinjau. */
+const DESCRIPTION_CHARS = 160
 
-export default function SharePage() {
-	const params = useParams()
-	const token = typeof params.token === 'string' ? params.token : ''
-	const [payload, setPayload] = useState<SharePayload | null>(null)
-	const [error, setError] = useState<string | null>(null)
-	const [loading, setLoading] = useState(true)
-	const [selectedTabId, setSelectedTabId] = useState<string | null>(null)
+/** Cukup untuk mengisi deskripsi tanpa membaca seluruh naskah. */
+const EXCERPT_SCAN_CHARS = 400
 
-	useEffect(() => {
-		if (!token) {
-			setLoading(false)
-			setError('Token share tidak valid')
-			return
-		}
+interface SharePageProps {
+	params: Promise<{ token: string }>
+}
 
-		setLoading(true)
-		setError(null)
-		fetchShare(token)
-			.then((data) => {
-				setPayload(data)
-				setSelectedTabId(data.tabs[0]?.id ?? null)
-			})
-			.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal memuat dokumen'))
-			.finally(() => setLoading(false))
-	}, [token])
+export async function generateMetadata({ params }: SharePageProps): Promise<Metadata> {
+	const { token } = await params
+	const payload = await getSharedDocument(token)
 
-	const selectedTab = useMemo<SharedTab | null>(() => {
-		if (!payload || !selectedTabId) return null
-		return payload.tabs.find((tab) => tab.id === selectedTabId) ?? null
-	}, [payload, selectedTabId])
+	// Tautan berbagi tidak boleh masuk indeks mesin pencari - siapa pun yang
+	// memegang link bisa membuka isinya. noindex tidak menghalangi kartu
+	// pratinjau di WhatsApp, Slack maupun X: keduanya membaca tag Open Graph,
+	// bukan izin perayapan.
+	const robots = { index: false, follow: false }
 
-	const editor = useEditor({
-		immediatelyRender: false,
-		extensions: buildEditorExtensions({ geometry: pageGeometry() }),
-		content: selectedTab?.content,
-		editable: false,
-		editorProps: {
-			attributes: {
-				class: 'document-body focus:outline-none text-[17px] leading-[1.8]',
-				spellcheck: 'false',
-			},
+	if (!payload) {
+		return { title: 'Dokumen tidak ditemukan', robots }
+	}
+
+	const body = jsonPlainText(payload.tabs[0]?.content, EXCERPT_SCAN_CHARS)
+	const description = excerpt(body, DESCRIPTION_CHARS) || 'Dokumen yang dibagikan lewat WritingHub.'
+	const title = payload.documentTitle
+
+	return {
+		title,
+		description,
+		robots,
+		openGraph: {
+			title,
+			description,
+			type: 'article',
+			url: `/share/${token}`,
 		},
-	})
-
-	useEffect(() => {
-		if (editor && selectedTab) {
-			editor.commands.setContent(selectedTab.content, { emitUpdate: false })
-		}
-	}, [editor, selectedTab])
-
-	if (loading) {
-		return (
-			<div className="flex min-h-screen items-center justify-center bg-background">
-				<div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-			</div>
-		)
+		twitter: { card: 'summary', title, description },
 	}
+}
 
-	if (error || !payload) {
-		return (
-			<div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 text-center">
-				<FileText className="h-12 w-12 text-faint" />
-				<h1 className="mt-4 text-lg font-medium text-foreground">Dokumen tidak ditemukan</h1>
-				<p className="mt-1 max-w-md text-sm text-muted">
-					{error || 'Link dokumen ini rusak atau sudah tidak tersedia.'}
-				</p>
-				<Link
-					href="/"
-					className="mt-6 rounded-xl bg-accent px-5 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
-				>
-					Kembali ke editor
-				</Link>
-			</div>
-		)
-	}
+export default async function SharePage({ params }: SharePageProps) {
+	const { token } = await params
+	const payload = await getSharedDocument(token)
 
-	const accessLabel = SHARE_ACCESS_LABELS[payload.access]
-	const roleLabel = SHARE_ROLE_LABELS[payload.role]
-	const hasMultipleTabs = payload.tabs.length > 1
+	if (!payload) return <ShareNotFound />
 
-	return (
-		<div className="flex min-h-screen flex-col bg-background">
-			{/* Header */}
-			<header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-line bg-surface px-4 py-3">
-				<div className="flex min-w-0 items-center gap-3">
-					<Link
-						href="/"
-						className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
-						aria-label="Kembali ke editor"
-					>
-						<ArrowLeft className="h-5 w-5" />
-					</Link>
-					<div className="min-w-0">
-						<h1 className="truncate text-base font-medium text-foreground">{payload.documentTitle}</h1>
-						<div className="flex items-center gap-1.5 text-xs text-muted">
-							<Lock className="h-3 w-3" />
-							<span>{accessLabel.label}</span>
-							<span>•</span>
-							<span>{roleLabel}</span>
-						</div>
-					</div>
-				</div>
-				<Link
-					href="/"
-					className="hidden rounded-xl bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover sm:inline-block"
-				>
-					Buka di editor
-				</Link>
-			</header>
-
-			<div className="flex flex-1 overflow-hidden">
-				{/* Sidebar tab - cuma tampil kalau dokumennya punya lebih dari satu tab */}
-				{hasMultipleTabs && (
-					<aside className="w-56 shrink-0 overflow-y-auto border-r border-line px-2 py-4">
-						{payload.tabs.map((tab) => (
-							<button
-								key={tab.id}
-								type="button"
-								onClick={() => setSelectedTabId(tab.id)}
-								className={cn(
-									'flex w-full items-center gap-2 truncate rounded-lg px-3 py-1.5 text-left text-sm transition-colors',
-									selectedTabId === tab.id
-										? 'bg-[var(--overlay-active)] font-medium text-foreground'
-										: 'text-muted hover:bg-[var(--overlay-hover)] hover:text-foreground',
-								)}
-							>
-								{tab.emoji && <span className="shrink-0">{tab.emoji}</span>}
-								<span className="truncate">{tab.title}</span>
-							</button>
-						))}
-					</aside>
-				)}
-
-				{/* Canvas */}
-				<main className="flex flex-1 justify-center overflow-y-auto px-4 py-6">
-					<div className="document-canvas w-full max-w-[816px]">
-						<div className="document-sheet min-h-[1056px] bg-surface-raised p-[96px] shadow-[var(--page-shadow)]">
-							<EditorContent editor={editor} />
-						</div>
-					</div>
-				</main>
-			</div>
-		</div>
-	)
+	return <SharedDocumentView payload={payload} />
 }
