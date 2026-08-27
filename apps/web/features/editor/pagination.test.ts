@@ -128,6 +128,12 @@ describe('blok lebih tinggi dari satu halaman', () => {
 		expectStartsPage(tops[2], 4)
 	})
 
+	test('blok yang meluber berlembar-lembar tidak melahirkan lembar kosong beruntun', () => {
+		// Penjagaan isFirstOnPage milik jalur luapan - ia tidak boleh ikut lepas
+		// saat jalur pemenggalan paksa dilepaskan.
+		expect(computeSpacers(layout([contentHeight * 3]), geometry).pageCount).toBe(3)
+	})
+
 	test('blok raksasa berturut-turut tidak membuat kesalahan menumpuk', () => {
 		const many = layout([contentHeight * 2, 100, contentHeight * 2, 100])
 		const tops = renderedTops(many)
@@ -156,6 +162,39 @@ describe('page break manual', () => {
 	test('blok raksasa di ujung dokumen tidak menambah lembar kosong', () => {
 		const blocks = layout([100, contentHeight + 200])
 		expect(computeSpacers(blocks, geometry).pageCount).toBe(2)
+	})
+
+	/*
+	 * Node pemenggal bertinggi nol, jadi blok sesudahnya berbagi `top` dengan
+	 * pemenggalnya. Selama pemenggal itu jatuh di awal halaman, blok sesudahnya
+	 * ikut terbaca "sudah di awal halaman" - dan permintaan penulis hilang tanpa
+	 * jejak. Empat uji berikut menjaga setiap bentuk kehilangan itu.
+	 */
+	test('pemenggal di awal dokumen membuka lembar kosong pertama', () => {
+		const blocks = layout(['break', 100])
+
+		expect(computeSpacers(blocks, geometry).pageCount).toBe(2)
+		expectStartsPage(renderedTops(blocks)[1], 2)
+	})
+
+	test('dua pemenggal berurutan menyisakan satu lembar kosong di antaranya', () => {
+		const blocks = layout([100, 'break', 'break', 100])
+
+		expect(computeSpacers(blocks, geometry).pageCount).toBe(3)
+		expectStartsPage(renderedTops(blocks)[3], 3)
+	})
+
+	test('pemenggal ketiga menambah lembar kosong lagi, bukan berhenti di dua', () => {
+		expect(computeSpacers(layout([100, 'break', 'break', 'break', 100]), geometry).pageCount).toBe(4)
+	})
+
+	test('pemenggal sesudah blok yang baru saja terdorong tetap dihitung', () => {
+		// 900 tidak muat di lembar pertama dan turun ke lembar kedua; pemenggal
+		// ganda sesudahnya tetap harus menyisakan lembar ketiga kosong.
+		const blocks = layout([100, 900, 'break', 'break', 100])
+
+		expect(computeSpacers(blocks, geometry).pageCount).toBe(4)
+		expectStartsPage(renderedTops(blocks)[4], 4)
 	})
 })
 
@@ -266,6 +305,18 @@ describe('blok self-paginate (blok TOC)', () => {
 
 		expect(spacers).toHaveLength(1)
 		expectStartsPage(1379 + internal + spacers[0].height, 3)
+	})
+
+	test('pemenggal di awal dokumen tetap mendorongnya ke lembar kedua', () => {
+		const blocks: Measurement[] = [
+			{ pos: 0, top: 0, bottom: 0, isBreak: true, kind: 'block' },
+			selfPaginate(1, 0, 400),
+		]
+		const { spacers, pageCount } = computeSpacers(blocks, geometry)
+
+		expect(spacers).toHaveLength(1)
+		expectStartsPage(spacers[0].height, 2)
+		expect(pageCount).toBe(2)
 	})
 
 	test('page break manual tetap mendorongnya ke lembar baru', () => {

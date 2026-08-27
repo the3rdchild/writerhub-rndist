@@ -284,11 +284,24 @@ export function computeSpacers(
 		}
 
 		const sheet = sheets[sheets.length - 1]
+		/*
+		 * `isFirstOnPage` hanya menjaga luapan: blok yang lebih tinggi dari satu
+		 * halaman memang meluber, tapi lembarnya sudah dimulai, jadi mendorongnya
+		 * lagi cuma melahirkan lembar kosong beruntun.
+		 *
+		 * Pemenggalan yang dipaksa tidak boleh ikut dijaga. Node pemenggal
+		 * bertinggi nol (lihat .page-break dan .section-break di globals.css),
+		 * jadi blok sesudahnya berbagi `top` yang sama persis dengan pemenggalnya
+		 * - begitu pemenggal itu jatuh di awal halaman, blok sesudahnya ikut
+		 * terbaca "sudah di awal halaman" dan permintaan penulis ditelan tanpa
+		 * jejak: pemenggal di awal dokumen hilang sama sekali, dan dua pemenggal
+		 * berurutan kehilangan lembar kosong di antaranya.
+		 */
 		const isFirstOnPage = block.top <= pageStart + 0.5
 		const overflows = block.bottom > pageStart + sheet.contentHeight
 
 		if (block.selfPaginate) {
-			if (forceNext && !isFirstOnPage) {
+			if (forceNext) {
 				const target = contentTop(pushSheet())
 				const spacerHeight = Math.max(0, target - (block.top + cumulative))
 				spacers.push({ pos: block.pos, height: spacerHeight, kind: block.kind })
@@ -305,7 +318,7 @@ export function computeSpacers(
 			continue
 		}
 
-		if ((overflows || forceNext) && !isFirstOnPage) {
+		if (forceNext || (overflows && !isFirstOnPage)) {
 			const target = contentTop(pushSheet())
 			const spacerHeight = Math.max(0, target - (block.top + cumulative))
 			const headerHeight = block.headerHeight ?? 0
