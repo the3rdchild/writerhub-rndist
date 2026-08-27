@@ -2,12 +2,12 @@
 
 import type { GlossaryResult } from '@writer-hub/shared'
 import { BookMarked } from 'lucide-react'
-import { useAnalysis } from '@/features/analysis/use-analysis'
 import {
 	buildGlossarySection,
 	findGlossarySection,
 	glossaryTermLabel,
 } from '@/features/analysis/glossary-table'
+import { useAnalysis } from '@/features/analysis/use-analysis'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { PanelEmptyState, PanelError, PanelFooter, PanelLoading, PanelScroll, RunButton } from './panel-parts'
 

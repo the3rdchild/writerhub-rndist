@@ -1,6 +1,6 @@
 import { createRouter } from '@/lib/create-app'
-import PoolingService from '@/services/pooling/service'
 import { authMiddleware } from '@/middlewares/auth'
+import PoolingService from '@/services/pooling/service'
 
 const status = createRouter().basePath('/status')
 

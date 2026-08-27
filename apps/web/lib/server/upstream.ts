@@ -1,8 +1,9 @@
 import 'server-only'
 
 import { createHmac } from 'node:crypto'
+import { type ApiClient, AUTH_HEADERS } from '@writer-hub/shared'
 import { cookies, headers } from 'next/headers'
-import { AUTH_HEADERS, type ApiClient } from '@writer-hub/shared'
+
 const API_URL = process.env.API_URL ?? 'http://localhost:8080'
 const API_CLIENT = (process.env.API_CLIENT ?? 'pp-extended') as ApiClient
 const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME ?? 'pp_token'

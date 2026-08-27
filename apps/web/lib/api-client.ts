@@ -1,4 +1,5 @@
 import type { ErrorResponse, SuccessResponse } from '@writer-hub/shared'
+
 const BASE_PATH = '/api'
 
 export class ApiError extends Error {

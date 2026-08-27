@@ -1,13 +1,13 @@
 'use client'
 
-import type { GrammarModel, GrammarSuggestion } from '@writer-hub/shared'
 import { useIsMutating, useMutation, useMutationState } from '@tanstack/react-query'
+import type { GrammarModel, GrammarSuggestion } from '@writer-hub/shared'
 import { useCallback, useRef } from 'react'
-import { cancelJob } from '@/lib/api-client'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSync } from '@/features/sync/sync-context'
+import { cancelJob } from '@/lib/api-client'
 import { streamGrammarCheck, streamTimeoutFor, submitGrammarCheck } from './api'
 
 const GRAMMAR_CHECK_KEY = ['grammar', 'check'] as const

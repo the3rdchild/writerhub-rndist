@@ -1,5 +1,5 @@
-import { diffWordsWithSpace } from 'diff'
 import type { JSONContent } from '@tiptap/core'
+import { diffWordsWithSpace } from 'diff'
 import { buildTextIndex } from '@/features/document/tiptap-offsets'
 import { buildSchema } from '@/features/sync/serialize'
 

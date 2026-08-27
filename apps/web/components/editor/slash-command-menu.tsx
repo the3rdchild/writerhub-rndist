@@ -17,10 +17,10 @@ import {
 	Table as TableIcon,
 	Text,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
+import { type JSX, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { CODE_LANGUAGES } from '@/features/editor/code-block'
 import { CALLOUT_TYPES } from '@/features/editor/callout'
+import { CODE_LANGUAGES } from '@/features/editor/code-block'
 import type { SlashCommandState } from '@/features/editor/slash-command'
 import { cn } from '@/lib/utils'
 

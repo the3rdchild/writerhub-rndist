@@ -1,8 +1,8 @@
 'use client'
 
 import { CheckCircle2, X } from 'lucide-react'
-import type { EditorSuggestion } from '@/features/document/suggestions'
 import { CATEGORY_TEXT_COLOR } from '@/components/panels/suggestion-card'
+import type { EditorSuggestion } from '@/features/document/suggestions'
 
 export interface PopoverPosition {
 	id: string

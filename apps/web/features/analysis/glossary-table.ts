@@ -1,5 +1,5 @@
-import type { GlossaryEntry } from '@writer-hub/shared'
 import type { JSONContent } from '@tiptap/core'
+import type { GlossaryEntry } from '@writer-hub/shared'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 export const GLOSSARY_HEADING = 'Glossary'
 

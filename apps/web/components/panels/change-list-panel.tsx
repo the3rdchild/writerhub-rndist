@@ -4,16 +4,17 @@ import type { AnalysisFeature, RewriterTone, TextChange } from '@writer-hub/shar
 import { REWRITE_TONES } from '@writer-hub/shared'
 import type { LucideIcon } from 'lucide-react'
 import { useMemo } from 'react'
+import { Flag } from '@/components/ui/flag'
+import { ToolbarSelect } from '@/components/ui/toolbar-select'
 import { useAnalysis } from '@/features/analysis/use-analysis'
+import { editsFromChanges, useAnalysisDiff } from '@/features/analysis/use-analysis-diff'
 import { useAnalysisHighlight } from '@/features/analysis/use-analysis-highlight'
 import { useCandidatePreview } from '@/features/analysis/use-candidate-preview'
 import { usePendingChanges } from '@/features/analysis/use-pending-changes'
 import { usePreTranslateSnapshot } from '@/features/analysis/use-pre-translate-snapshot'
-import { useRangeHighlight } from '@/features/document/use-range-highlight'
 import { LANGUAGE_OPTIONS } from '@/features/document/language'
+import { useRangeHighlight } from '@/features/document/use-range-highlight'
 import { useSelectionScope } from '@/features/editor/selection'
-import { Flag } from '@/components/ui/flag'
-import { ToolbarSelect } from '@/components/ui/toolbar-select'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import {
 	AcceptAllButton,
@@ -31,7 +32,7 @@ import {
 	StaleNotice,
 } from './panel-parts'
 import { RunScopeBar } from './run-scope-bar'
-import { editsFromChanges, useAnalysisDiff } from '@/features/analysis/use-analysis-diff'
+
 type ToneChoice = RewriterTone | 'default'
 
 const TONE_OPTIONS: ReadonlyArray<{ value: ToneChoice; label: string }> = [

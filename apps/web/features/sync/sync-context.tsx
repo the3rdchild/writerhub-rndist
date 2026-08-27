@@ -1,7 +1,6 @@
 'use client'
 
 import { useQueryClient } from '@tanstack/react-query'
-import { IndexeddbPersistence } from 'y-indexeddb'
 import {
 	createContext,
 	type ReactNode,
@@ -12,6 +11,8 @@ import {
 	useRef,
 	useState,
 } from 'react'
+import { IndexeddbPersistence } from 'y-indexeddb'
+import { backupComments, restoreComments } from '@/features/comments/comment-backup'
 import {
 	createDocument,
 	createTabApi,
@@ -19,7 +20,6 @@ import {
 	updateDocument,
 	updateTab as updateTabApi,
 } from '@/features/documents/api'
-import { backupComments, restoreComments } from '@/features/comments/comment-backup'
 import type { DocumentDetail } from '@/features/documents/types'
 import { DOCUMENTS_QUERY_KEY, useDocuments } from '@/features/documents/use-documents'
 import { useEditorInstance } from '@/features/editor/editor-context'
@@ -36,6 +36,7 @@ import { deleteLocalVersionsExcept } from '@/features/versions/local-store'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import { fragmentToJSON, jsonToFragment } from './serialize'
 import { resolveTitle } from './title-sync'
+
 const SYNC_STORAGE_KEY = 'writer-hub-sync'
 const IDLE_SAVE_MS = 3_000
 const MAX_SAVE_MS = 30_000

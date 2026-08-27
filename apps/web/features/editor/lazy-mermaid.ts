@@ -1,4 +1,5 @@
 import type Mermaid from 'mermaid'
+
 let mermaidPromise: Promise<typeof Mermaid> | null = null
 
 export function getMermaid(): Promise<typeof Mermaid> {

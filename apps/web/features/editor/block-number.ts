@@ -1,6 +1,7 @@
 'use client'
 
 import { Extension } from '@tiptap/core'
+
 const NUMBERED = ['paragraph', 'heading']
 
 export const BlockNumber = Extension.create({

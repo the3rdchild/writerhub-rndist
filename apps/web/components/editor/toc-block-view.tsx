@@ -3,19 +3,19 @@
 import { type NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { Copy, MoreVertical, RefreshCw, Settings2, Trash2, Type } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { OutlineItem } from '@/features/editor/use-outline-plain'
-import { readOutlineItems } from '@/features/editor/use-outline-plain'
+import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown'
 import { pageGeometry } from '@/features/editor/page-geometry'
 import { paginationKey, SELF_PAGINATE_ATTRIBUTE, SPACER_ATTRIBUTE } from '@/features/editor/pagination'
-import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown'
-import { cn } from '@/lib/utils'
 import {
 	DEFAULT_TOC_ATTRS,
+	TOC_BLOCK,
 	type TocBlockAttrs,
 	type TocListKind,
 	type TocTabLeader,
-	TOC_BLOCK,
 } from '@/features/editor/toc-block'
+import type { OutlineItem } from '@/features/editor/use-outline-plain'
+import { readOutlineItems } from '@/features/editor/use-outline-plain'
+import { cn } from '@/lib/utils'
 
 interface TocEntry {
 	item: OutlineItem

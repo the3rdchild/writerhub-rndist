@@ -3,8 +3,8 @@ import type { Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { buildTextIndex, textPosToPM, textRangeToPM } from '@/features/document/tiptap-offsets'
-import { countWords } from '@/lib/utils'
 import type { VersionDiffRange } from '@/features/versions/diff'
+import { countWords } from '@/lib/utils'
 
 export const analysisDiffHighlightKey = new PluginKey<AnalysisDiffHighlightState>('analysisDiffHighlight')
 

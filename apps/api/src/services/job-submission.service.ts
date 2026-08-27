@@ -3,11 +3,11 @@ import { env, isLocalAuth } from '@/config/env'
 import { poolRequest } from '@/db/schemas'
 import { AppError } from '@/lib/error'
 import { recordTokenUsageAfterCompletion } from '@/lib/job-usage-wait'
-import { ensureToolQuota, resolveProvider, type ResolvedProvider } from '@/lib/provider-resolver'
+import LoggerClient from '@/lib/logger'
+import { ensureToolQuota, type ResolvedProvider, resolveProvider } from '@/lib/provider-resolver'
 import { findTabById } from '@/repository/document-tab'
 import { pruneOldHistory } from '@/repository/history'
 import BaseService from '@/services/base.service'
-import LoggerClient from '@/lib/logger'
 
 const log = LoggerClient.getInstance()
 export const USAGE_SERVICE_SLUG = 'grammar'

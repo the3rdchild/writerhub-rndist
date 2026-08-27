@@ -1,6 +1,6 @@
+import type { StyleMemory } from '@writer-hub/shared'
 import { sql } from 'drizzle-orm'
 import { jsonb, pgTable, uuid } from 'drizzle-orm/pg-core'
-import type { StyleMemory } from '@writer-hub/shared'
 import { timestamps } from '@/db/utils/common-table'
 import { identity } from './identity'
 

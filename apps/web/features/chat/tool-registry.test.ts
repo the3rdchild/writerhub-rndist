@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { ALL_TOOLS, EDITOR_TOOLS, RESEARCH_TOOLS, isReadTool, toProviderTools } from '@writer-hub/shared'
+import { ALL_TOOLS, EDITOR_TOOLS, isReadTool, RESEARCH_TOOLS, toProviderTools } from '@writer-hub/shared'
 
 describe('registri alat editor', () => {
 	test('nama alat unik', () => {

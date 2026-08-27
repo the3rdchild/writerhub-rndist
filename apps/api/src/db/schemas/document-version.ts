@@ -1,6 +1,6 @@
 import { integer, jsonb, pgEnum, pgTable, uuid, varchar } from 'drizzle-orm/pg-core'
-import { documentTabs } from './document-tab'
 import { timestamps } from '@/db/utils/common-table'
+import { documentTabs } from './document-tab'
 
 export const versionTriggerEnum = pgEnum('version_trigger', [
 	'manual',

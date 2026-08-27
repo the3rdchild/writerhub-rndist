@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { useSessions } from '@/features/sessions/session-context'
 import { commentRanges } from './anchors'
+
 const SETTLE_MS = 1500
 const GRACE_MS = 4000
 

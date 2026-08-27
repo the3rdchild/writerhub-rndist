@@ -2,8 +2,8 @@ import { AppError } from '@/lib/error'
 import { findTabById, updateTab } from '@/repository/document-tab'
 import { findVersionById, findVersionsByTab, insertVersion } from '@/repository/document-version'
 import BaseService from '@/services/base.service'
-import { createVersionBodySchema } from './dto'
 import type { VersionDetail, VersionSummary } from './dto'
+import { createVersionBodySchema } from './dto'
 
 export function countWords(content: Record<string, unknown>): number {
 	let count = 0

@@ -1,7 +1,7 @@
 import { Extension } from '@tiptap/core'
+import type { Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
-import type { Node as PMNode } from '@tiptap/pm/model'
 import type { EditorSuggestion } from './suggestions'
 import { resolveSpan } from './suggestions'
 import { buildTextIndex, textRangeToPM } from './tiptap-offsets'

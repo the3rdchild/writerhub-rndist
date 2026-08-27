@@ -2,8 +2,8 @@ import { type Editor } from '@tiptap/core'
 import { type Node as PMNode } from '@tiptap/pm/model'
 import { type EditorState, type Transaction } from '@tiptap/pm/state'
 import {
-	cellAround,
 	CellSelection,
+	cellAround,
 	findTable,
 	moveTableColumn,
 	moveTableRow,

@@ -9,8 +9,8 @@ import {
 	DEFAULT_PAGE_SIZE,
 	type PageMargins,
 	type PageOrientation,
-	type PageSizeId,
 	type PageSetup,
+	type PageSizeId,
 } from '@/features/editor/page-geometry'
 import { usePersistentState } from '@/lib/use-persistent-state'
 

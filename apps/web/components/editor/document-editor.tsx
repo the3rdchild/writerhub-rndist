@@ -9,8 +9,8 @@ import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
 import { useSettings } from '@/features/settings/settings-context'
 import { countWords } from '@/lib/utils'
 import { DocumentCanvas } from './document-canvas'
-import { TocSettingsDialog } from './toc-settings-dialog'
 import { TableControls } from './table-controls'
+import { TocSettingsDialog } from './toc-settings-dialog'
 
 export function DocumentEditor() {
 	const { state, dispatch } = useDocument()

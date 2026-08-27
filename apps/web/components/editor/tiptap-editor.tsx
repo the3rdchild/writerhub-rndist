@@ -1,31 +1,31 @@
 'use client'
 
-import { EditorContent, useEditor, type Editor } from '@tiptap/react'
+import { type Editor, EditorContent, useEditor } from '@tiptap/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useAnalysisDiffHost } from '@/features/analysis/use-analysis-diff-host'
 import { useDocument } from '@/features/document/document-context'
 import { suggestionHighlightKey } from '@/features/document/suggestion-highlight'
-import { useAnalysisDiffHost } from '@/features/analysis/use-analysis-diff-host'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
 import { replaceTextRange } from '@/features/editor/apply-text'
-import { buildEditorExtensions } from '@/features/editor/extensions'
 import { migrateLegacyColumns } from '@/features/editor/columns'
+import { buildEditorExtensions } from '@/features/editor/extensions'
 import {
 	type PageGeometry,
-	pageGeometry,
 	type PageSetup,
+	pageGeometry,
 	type SheetGeometry,
 } from '@/features/editor/page-geometry'
 import { paginationKey } from '@/features/editor/pagination'
 import { type SlashCommandState } from '@/features/editor/slash-command'
 import { editorPlainText, textToParagraphs } from '@/features/editor/text-content'
 import { useSessions } from '@/features/sessions/session-context'
-import { useSettings, type FontSize } from '@/features/settings/settings-context'
+import { type FontSize, useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
+import { ImageToolbar } from './image-toolbar'
 import { MathPopover } from './math-popover'
 import { SelectionMenu } from './selection-menu'
 import { SlashCommandMenu } from './slash-command-menu'
 import { type PopoverPosition, SuggestionPopover } from './suggestion-popover'
-import { ImageToolbar } from './image-toolbar'
 import { TableColorToolbar } from './table-color-toolbar'
 
 const FONT_SIZE_CLASS: Record<FontSize, string> = {

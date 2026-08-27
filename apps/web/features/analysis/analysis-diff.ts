@@ -1,8 +1,8 @@
 import type { AnalysisFeature, TextChange } from '@writer-hub/shared'
-import type { VersionDiffRange } from '@/features/versions/diff'
-import { computeVersionDiff } from '@/features/versions/diff'
 import type { EditorSuggestion } from '@/features/document/suggestions'
 import { replaceRange } from '@/features/document/suggestions'
+import type { VersionDiffRange } from '@/features/versions/diff'
+import { computeVersionDiff } from '@/features/versions/diff'
 export type AnalysisDiffFeature = AnalysisFeature | 'proofreader'
 
 interface AppliedChangeLike {

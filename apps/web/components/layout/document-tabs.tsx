@@ -28,6 +28,7 @@ import { type Session, sessionLabel, useSessions } from '@/features/sessions/ses
 import { useSettings } from '@/features/settings/settings-context'
 import { type SyncStatus, useSync } from '@/features/sync/sync-context'
 import { cn } from '@/lib/utils'
+
 const TAB_ICONS = ['📄', '📝', '📌', '⭐', '📊', '🔬', '💡', '🗂️'] as const
 
 export function DocumentTabsSidebar() {

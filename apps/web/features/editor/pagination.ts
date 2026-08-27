@@ -6,12 +6,12 @@ import { PAGE_BREAK_NODE } from './page-break'
 import {
 	PAGE_GAP,
 	type PageGeometry,
-	pageGeometry,
 	type PageSetup,
-	sameSheetGeometry,
+	pageGeometry,
 	type SheetGeometry,
+	sameSheetGeometry,
 } from './page-geometry'
-import { SECTION_BREAK_NODE, columnRegions, sectionSpans } from './section-break'
+import { columnRegions, SECTION_BREAK_NODE, sectionSpans } from './section-break'
 
 export const paginationKey = new PluginKey<PaginationState>('pagination')
 export type SpacerKind = 'block' | 'row'

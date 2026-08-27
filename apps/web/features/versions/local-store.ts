@@ -1,5 +1,6 @@
 import type { JSONContent } from '@tiptap/core'
 import type { VersionDetail, VersionSummary, VersionTrigger } from './types'
+
 const DB_NAME = 'writer-hub-versions'
 const STORE_NAME = 'versions'
 const TAB_INDEX = 'tabId'

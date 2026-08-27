@@ -37,7 +37,6 @@ import {
 	Undo2,
 } from 'lucide-react'
 import { Dropdown, DropdownItem } from '@/components/ui/dropdown'
-import { ColorPicker } from './color-picker'
 import { ToolbarSelect } from '@/components/ui/toolbar-select'
 import { applyCapitalization } from '@/features/editor/capitalization'
 import {
@@ -46,17 +45,18 @@ import {
 	FONT_FAMILIES,
 	fontFamilyLabel,
 } from '@/features/editor/font-catalog'
-import {
-	FONT_SIZES,
-	LINE_HEIGHTS,
-	ALL_PARAGRAPH_STYLES,
-	PARAGRAPH_STYLES,
-} from '@/features/editor/text-styles'
 import { indentSelection, outdentSelection } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
 import { ZOOM_LEVELS } from '@/features/editor/page-geometry'
+import {
+	ALL_PARAGRAPH_STYLES,
+	FONT_SIZES,
+	LINE_HEIGHTS,
+	PARAGRAPH_STYLES,
+} from '@/features/editor/text-styles'
 import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
+import { ColorPicker } from './color-picker'
 
 const DEFAULT_FONT_SIZE = 11
 

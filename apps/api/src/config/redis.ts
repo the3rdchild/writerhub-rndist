@@ -38,5 +38,6 @@ class RedisClient {
 }
 
 export { RedisClient }
+
 const redis = RedisClient.getInstance()
 export default redis

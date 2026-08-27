@@ -1,5 +1,5 @@
-import type { ResearchResultPayload } from '@writer-hub/shared'
 import { randomUUID } from 'node:crypto'
+import type { ResearchResultPayload } from '@writer-hub/shared'
 import db from '@/db'
 import { metadataVersion, poolRequest } from '@/db/schemas'
 

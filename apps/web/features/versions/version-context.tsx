@@ -18,8 +18,8 @@ import { useSessions } from '@/features/sessions/session-context'
 import { jsonToFragment } from '@/features/sync/serialize'
 import { SYNC_ORIGIN, useSync } from '@/features/sync/sync-context'
 import { restoreVersion } from './api'
-import { getLocalVersion } from './local-store'
 import { maybeSnapshotLocalInterval, rememberLocalSnapshot, snapshotLocalVersion } from './local-snapshot'
+import { getLocalVersion } from './local-store'
 import { VERSIONS_QUERY_KEY } from './use-versions'
 
 export interface VersionMode {

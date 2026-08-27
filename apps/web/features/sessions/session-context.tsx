@@ -1,5 +1,6 @@
 'use client'
 
+import type { GrammarScores } from '@writer-hub/shared'
 import {
 	createContext,
 	type ReactNode,
@@ -12,7 +13,6 @@ import {
 } from 'react'
 import { IndexeddbPersistence } from 'y-indexeddb'
 import * as Y from 'yjs'
-import type { GrammarScores } from '@writer-hub/shared'
 import { useDocument } from '@/features/document/document-context'
 import type { EditorSuggestion } from '@/features/document/suggestions'
 import { useEditorInstance } from '@/features/editor/editor-context'
@@ -33,25 +33,26 @@ import type { CommentReply, CommentThread } from './types'
 import {
 	createDocument,
 	createTab,
-	deleteDocument as ydocDeleteDocument,
-	deleteTab,
 	type DocMeta,
+	deleteTab,
 	docsRoot,
 	duplicateTab,
 	findTabDoc,
-	moveDocument as ydocMoveDocument,
 	moveTab,
 	readDocs,
 	readTabs,
-	renameDocument as ydocRenameDocument,
 	type TabMeta,
 	tabPreview,
 	tabsRoot,
 	touchTab,
 	updateTab,
+	deleteDocument as ydocDeleteDocument,
+	moveDocument as ydocMoveDocument,
+	renameDocument as ydocRenameDocument,
 } from './ydoc'
 
 export type { CommentReply, CommentThread } from './types'
+
 const YDOC_NAME = 'writer-hub-doc'
 export const MAX_SESSIONS = 50
 export const MAX_DOCUMENTS = 100

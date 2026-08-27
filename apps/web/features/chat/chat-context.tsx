@@ -1,26 +1,27 @@
 'use client'
 
-import type { Editor } from '@tiptap/react'
 import { generateJSON } from '@tiptap/core'
+import type { Editor } from '@tiptap/react'
 import {
 	CHAT_CONTEXT_LIMITS,
 	type ChatMessage,
 	type ChatStreamPhase,
 	type ChatUsage,
+	DEFAULT_CHAT_MODEL,
+	isReadTool,
 	type ResearchSource,
 	type ToolCall,
 } from '@writer-hub/shared'
-import { DEFAULT_CHAT_MODEL, isReadTool } from '@writer-hub/shared'
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import { usePanels } from '@/features/analysis/panel-context'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { buildEditorExtensions } from '@/features/editor/extensions'
-import { paginationKey } from '@/features/editor/pagination'
 import { toEditorContent } from '@/features/editor/markdown'
-import { usePageSetup } from '@/features/editor/use-page-setup'
+import { paginationKey } from '@/features/editor/pagination'
 import { editorPlainText } from '@/features/editor/text-content'
+import { usePageSetup } from '@/features/editor/use-page-setup'
 import { sessionLabel, useSessions } from '@/features/sessions/session-context'
 import { createTab as createTabInDoc } from '@/features/sessions/ydoc'
 import { buildSchema, fragmentToJSON, jsonToFragment } from '@/features/sync/serialize'

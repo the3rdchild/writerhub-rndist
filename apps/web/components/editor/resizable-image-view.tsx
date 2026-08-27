@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
 import { type NodeViewProps, NodeViewWrapper } from '@tiptap/react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+
 type HandleId = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
 
 const CORNERS: HandleId[] = ['nw', 'ne', 'se', 'sw']

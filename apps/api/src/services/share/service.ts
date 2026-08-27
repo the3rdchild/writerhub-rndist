@@ -5,8 +5,8 @@ import { AppError } from '@/lib/error'
 import { findDocumentById } from '@/repository/document'
 import { findTabsByDocument } from '@/repository/document-tab'
 import BaseService from '@/services/base.service'
-import { createShareBodySchema } from './dto'
 import type { CreateShareResponse, SharedDocumentResponse } from './dto'
+import { createShareBodySchema } from './dto'
 
 export default class ShareService extends BaseService {
 	async create(): Promise<Response> {

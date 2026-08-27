@@ -3,14 +3,15 @@ import type { JSONContent } from '@tiptap/core'
 import { EditorState } from '@tiptap/pm/state'
 import { buildSchema } from '@/features/sync/serialize'
 import {
+	type ColumnItem,
 	collapsedMargin,
 	cutTableRows,
 	flowColumns,
 	migrateLegacyColumns,
 	resolveColumnSlots,
-	type ColumnItem,
 } from './columns'
 import { pageGeometry } from './page-geometry'
+
 const geometry = pageGeometry() // A4, margin 1 inci
 const { contentHeight, pageStride } = geometry
 

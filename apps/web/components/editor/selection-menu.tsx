@@ -1,7 +1,7 @@
 'use client'
 
-import type { AnalysisFeature } from '@writer-hub/shared'
 import type { Editor } from '@tiptap/react'
+import type { AnalysisFeature } from '@writer-hub/shared'
 import {
 	Bot,
 	ChevronRight,
@@ -18,9 +18,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { type PanelId, usePanels } from '@/features/analysis/panel-context'
 import { useChat } from '@/features/chat/chat-context'
-import { useDocumentLanguage } from '@/features/document/use-language'
 import { COMMENT_MARK } from '@/features/comments/comment-mark'
 import { useComments } from '@/features/comments/comments-context'
+import { useDocumentLanguage } from '@/features/document/use-language'
 import {
 	type EditorSelection,
 	selectionTextRange,

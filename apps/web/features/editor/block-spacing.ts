@@ -2,6 +2,7 @@
 
 import { type CommandProps, Extension } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
+
 const SPACED = ['paragraph', 'heading', 'blockquote']
 
 declare module '@tiptap/core' {

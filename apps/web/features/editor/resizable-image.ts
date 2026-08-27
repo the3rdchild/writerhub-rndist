@@ -1,6 +1,7 @@
-import { mergeAttributes, nodeInputRule, Node } from '@tiptap/core'
+import { mergeAttributes, Node, nodeInputRule } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { ResizableImageView } from '@/components/editor/resizable-image-view'
+
 const IMAGE_INPUT = /!\[([^\]]*)\]\((\S+?)(?:\s+["']([^"']*)["'])?\)$/
 
 export interface ResizableImageOptions {

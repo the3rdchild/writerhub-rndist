@@ -5,8 +5,8 @@ import redis from '@/config/redis'
 import db from '@/db'
 import type { AppEnv } from '@/lib/create-app'
 import { AppError } from '@/lib/error'
-import { resolveIdentityId } from '@/repository/identity'
 import LoggerClient from '@/lib/logger'
+import { resolveIdentityId } from '@/repository/identity'
 
 const log = LoggerClient.getInstance()
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

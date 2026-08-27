@@ -1,5 +1,5 @@
-import { AppError } from '@/lib/error'
 import type { NewDocument } from '@/db/schemas'
+import { AppError } from '@/lib/error'
 import {
 	deleteDocument,
 	findDocumentById,
@@ -11,8 +11,9 @@ import { findTabsByDocument, insertTab } from '@/repository/document-tab'
 import { findOrCreateDefaultProject, findProjectById } from '@/repository/project'
 import BaseService from '@/services/base.service'
 import { snapshotIntervalTab } from '@/services/tabs/service'
-import { createDocumentBodySchema, updateDocumentBodySchema } from './dto'
 import type { DocumentDetail, DocumentSummary, TabSummary } from './dto'
+import { createDocumentBodySchema, updateDocumentBodySchema } from './dto'
+
 const EMPTY_CONTENT: Record<string, unknown> = { type: 'doc', content: [] }
 
 export default class DocumentsService extends BaseService {

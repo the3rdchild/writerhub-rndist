@@ -5,8 +5,8 @@ import {
 	clearLegacyTabOrder,
 	createDocId,
 	docsRoot,
-	legacyTabOrder,
 	LOCAL_ORIGIN,
+	legacyTabOrder,
 	readDocs,
 	tabsRoot,
 } from './ydoc'

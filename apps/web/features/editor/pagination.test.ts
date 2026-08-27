@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { DEFAULT_PAGE_SETUP, pageGeometry, sameSheetGeometry } from './page-geometry'
-import { blockSections, computeSpacers, pageBlockRange, pageOfPos, type Measurement } from './pagination'
+import { blockSections, computeSpacers, type Measurement, pageBlockRange, pageOfPos } from './pagination'
+
 const geometry = pageGeometry() // A4, margin 1 inci
 const { contentHeight, pageStride } = geometry
 

@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { INCH } from '@/features/editor/page-geometry'
-import { DEFAULT_TOC_ATTRS, type TocBlockAttrs, type TocTabLeader } from '@/features/editor/toc-block'
 import { TOC_SETTINGS_EVENT, type TocSettingsRequest } from '@/components/editor/toc-block-view'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import { INCH } from '@/features/editor/page-geometry'
+import { DEFAULT_TOC_ATTRS, type TocBlockAttrs, type TocTabLeader } from '@/features/editor/toc-block'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'

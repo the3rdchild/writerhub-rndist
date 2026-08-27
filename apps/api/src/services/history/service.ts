@@ -12,8 +12,8 @@ import {
 	findHistoryEntry,
 } from '@/repository/history'
 import BaseService from '@/services/base.service'
-import { HISTORY_FEATURES, historyListQuerySchema } from './dto'
 import type { HistoryDetail, HistoryFeature, HistoryListResponse, HistorySummary } from './dto'
+import { HISTORY_FEATURES, historyListQuerySchema } from './dto'
 
 interface SummarySource {
 	status: JobStatus

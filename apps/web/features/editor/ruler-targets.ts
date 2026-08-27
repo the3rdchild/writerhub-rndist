@@ -1,10 +1,10 @@
 'use client'
 
-import type { Editor } from '@tiptap/react'
-import { NodeSelection } from '@tiptap/pm/state'
 import type { Node as PMNode } from '@tiptap/pm/model'
+import { NodeSelection } from '@tiptap/pm/state'
+import type { Editor } from '@tiptap/react'
 import { useEffect, useState } from 'react'
-import { columnGapOf, columnLayoutKey, COLUMNS_NODE, resolveColumnSlots } from './columns'
+import { COLUMNS_NODE, columnGapOf, columnLayoutKey, resolveColumnSlots } from './columns'
 import { columnWidths, locateTable } from './table-ops'
 
 export interface TableRulerTarget {

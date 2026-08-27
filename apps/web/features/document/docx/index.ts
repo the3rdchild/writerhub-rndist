@@ -2,15 +2,15 @@ import type { JSONContent } from '@tiptap/core'
 import { createNumberer, readNumbering } from './numbering'
 import {
 	bodyOf,
-	type ParseContext,
 	type PageSetupPatch,
+	type ParseContext,
 	readBody,
 	readRelationships,
 	readTheme,
 } from './parse'
 import { readStyles } from './properties'
-import { type DocxArchive, openDocx, resolvePath } from './zip'
 import { createXmlParser, type XmlParser } from './xml'
+import { type DocxArchive, openDocx, resolvePath } from './zip'
 
 export type { PageSetupPatch } from './parse'
 

@@ -1,6 +1,6 @@
 import { env } from '@/config/env'
-import { signPpApiKey } from '@/lib/pp-signature'
 import LoggerClient from '@/lib/logger'
+import { signPpApiKey } from '@/lib/pp-signature'
 
 const log = LoggerClient.getInstance()
 

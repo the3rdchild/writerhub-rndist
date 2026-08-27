@@ -1,15 +1,15 @@
 'use client'
 
 import { useEffect, useMemo, useRef } from 'react'
+import { useSettings } from '@/features/settings/settings-context'
 import {
 	CATEGORY_ORDER,
 	formatKeys,
+	SHORTCUTS,
 	type Shortcut,
 	type ShortcutCategory,
-	SHORTCUTS,
 } from '@/features/shortcuts/registry'
 import { useIsMac } from '@/features/shortcuts/use-shortcuts'
-import { useSettings } from '@/features/settings/settings-context'
 
 export function ShortcutsDialog() {
 	const { shortcutsOpen, setShortcutsOpen } = useSettings()

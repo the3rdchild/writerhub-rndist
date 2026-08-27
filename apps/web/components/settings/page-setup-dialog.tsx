@@ -1,25 +1,26 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
 import { Ban } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ColorPicker } from '@/components/editor/color-picker'
+import { useEditorInstance } from '@/features/editor/editor-context'
 import {
 	INCH,
-	MIN_CUSTOM_SIDE,
 	MAX_CUSTOM_SIDE,
+	MIN_CUSTOM_SIDE,
+	PAGE_SIZES,
 	type PageMargins,
 	type PageOrientation,
-	type PageSizeId,
 	type PageSetup,
-	PAGE_SIZES,
+	type PageSizeId,
 	validateCustomSize,
 } from '@/features/editor/page-geometry'
-import { useEditorInstance } from '@/features/editor/editor-context'
 import { isSectionScope, sectionRange } from '@/features/editor/section-scope'
 import { usePageSetup } from '@/features/editor/use-page-setup'
-import { useSettings } from '@/features/settings/settings-context'
 import { useSessions } from '@/features/sessions/session-context'
+import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
+
 type Scope = 'document' | 'tab' | 'from_here' | 'this_page'
 
 function fromPx(px: number, unit: 'cm' | 'in'): number {

@@ -1,5 +1,5 @@
-import { eq } from 'drizzle-orm'
 import type { StyleMemory } from '@writer-hub/shared'
+import { eq } from 'drizzle-orm'
 import db from '@/db'
 import { userMemories } from '@/db/schemas'
 

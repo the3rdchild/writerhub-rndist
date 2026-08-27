@@ -1,7 +1,7 @@
 'use client'
 
-import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
+import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import { DEFAULT_MARGINS, DEFAULT_PAGE_SETUP, type PageSetup } from '@/features/editor/page-geometry'
 import { MAX_DOCUMENTS, MAX_SESSIONS, useSessions } from '@/features/sessions/session-context'
 import {

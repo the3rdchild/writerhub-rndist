@@ -1,8 +1,8 @@
 'use client'
 
-import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state'
-import type { EditorView } from '@tiptap/pm/view'
+import { type EditorState, Plugin, PluginKey } from '@tiptap/pm/state'
 import { TableMap } from '@tiptap/pm/tables'
+import type { EditorView } from '@tiptap/pm/view'
 import { dropIndex, locateTableAt, type TableLocation } from './table-ops'
 export const tableHandlesKey = new PluginKey('tableHandles')
 export type HandleAxis = 'row' | 'col'

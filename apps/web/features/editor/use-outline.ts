@@ -3,7 +3,9 @@
 import type { Node as PMNode } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
+
 export { type OutlineItem } from './use-outline-plain'
+
 import { type OutlineItem, readOutlineItems } from './use-outline-plain'
 
 export interface Outline {

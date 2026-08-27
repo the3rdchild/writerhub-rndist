@@ -1,7 +1,8 @@
 import { and, desc, eq } from 'drizzle-orm'
 import db from '@/db'
-import { documents, documentTabs, projects } from '@/db/schemas'
 import type { NewDocument } from '@/db/schemas'
+import { documents, documentTabs, projects } from '@/db/schemas'
+
 const tabCountFor = () => db.$count(documentTabs, eq(documentTabs.document_id, documents.id))
 
 export async function findDocumentsByOwner(ownerId: string, projectId?: string) {

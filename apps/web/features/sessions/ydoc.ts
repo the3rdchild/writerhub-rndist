@@ -4,6 +4,7 @@ import * as Y from 'yjs'
 import type { PageSetup } from '@/features/editor/page-geometry'
 import { DEFAULT_PAGE_SETUP } from '@/features/editor/page-geometry'
 import type { CommentThread } from './types'
+
 const TABS = 'tabs'
 const DOCS = 'docs'
 const ORDER = 'order'

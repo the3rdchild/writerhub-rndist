@@ -1,5 +1,7 @@
 'use client'
 
+import type { ChatUsage, ToolCall } from '@writer-hub/shared'
+import { CHAT_MODELS, findChatModel } from '@writer-hub/shared'
 import {
 	ArrowUp,
 	Ban,
@@ -12,20 +14,18 @@ import {
 	Loader2,
 	type LucideIcon,
 	Plus,
+	SkipForward,
 	Square,
 	Trash2,
-	SkipForward,
 	TriangleAlert,
 	Wand2,
 	X,
 	Zap,
 } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
-import type { ChatUsage, ToolCall } from '@writer-hub/shared'
-import { CHAT_MODELS, findChatModel } from '@writer-hub/shared'
-import { type ChatStep, extractProposals, stripProposals, useChat } from '@/features/chat/chat-context'
 import { Dropdown, DropdownItem } from '@/components/ui/dropdown'
-import { type ChatCommand, applyCommand, matchCommands } from '@/features/chat/commands'
+import { type ChatStep, extractProposals, stripProposals, useChat } from '@/features/chat/chat-context'
+import { applyCommand, type ChatCommand, matchCommands } from '@/features/chat/commands'
 import { describeToolCall } from '@/features/chat/tools'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { useEditorInstance } from '@/features/editor/editor-context'

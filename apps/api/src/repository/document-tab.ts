@@ -1,7 +1,7 @@
 import { and, asc, count, eq, sql } from 'drizzle-orm'
 import db from '@/db'
-import { documents, documentTabs, projects } from '@/db/schemas'
 import type { NewDocumentTab } from '@/db/schemas'
+import { documents, documentTabs, projects } from '@/db/schemas'
 
 export async function findTabsByDocument(documentId: string) {
 	return db

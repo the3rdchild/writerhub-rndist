@@ -1,7 +1,7 @@
 import { and, count, desc, eq } from 'drizzle-orm'
 import db from '@/db'
-import { documents, projects } from '@/db/schemas'
 import type { NewProject } from '@/db/schemas'
+import { documents, projects } from '@/db/schemas'
 import { AppError } from '@/lib/error'
 
 export async function findProjectsByOwner(ownerId: string) {

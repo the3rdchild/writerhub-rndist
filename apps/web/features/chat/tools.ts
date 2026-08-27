@@ -1,20 +1,20 @@
 'use client'
 
-import type { AnalysisFeature, ToolCall } from '@writer-hub/shared'
 import type { Editor } from '@tiptap/react'
+import type { AnalysisFeature, ToolCall } from '@writer-hub/shared'
 import type { PanelId } from '@/features/analysis/panel-context'
 import { COMMENT_MARK } from '@/features/comments/comment-mark'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { toEditorContent } from '@/features/editor/markdown'
 import { MATH_BLOCK, MATH_INLINE, stripDelimiters } from '@/features/editor/math'
-import { INCH, PAGE_SIZES, type PageSetup, clampMargins } from '@/features/editor/page-geometry'
+import { clampMargins, INCH, PAGE_SIZES, type PageSetup } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
 import { isSectionScope, sectionRange } from '@/features/editor/section-scope'
+import { editorPlainText } from '@/features/editor/text-content'
 import { TOC_BLOCK, type TocBlockAttrs, type TocListKind } from '@/features/editor/toc-block'
 import type { CommentThread } from '@/features/sessions/types'
 import { countWords } from '@/lib/utils'
-import { editorPlainText } from '@/features/editor/text-content'
 
 interface Heading {
 	index: number

@@ -1,6 +1,6 @@
 import { createRouter } from '@/lib/create-app'
-import GrammarService from '@/services/grammar/service'
 import { authMiddleware } from '@/middlewares/auth'
+import GrammarService from '@/services/grammar/service'
 
 const grammar = createRouter().basePath('/grammar')
 

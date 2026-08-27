@@ -20,8 +20,9 @@ import {
 	TableCellsSplit,
 	Trash2,
 } from 'lucide-react'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type JSX } from 'react'
+import { type JSX, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { type MenuOrigin } from '@/features/editor/table-handles'
 import {
 	type CellTarget,
 	deleteColAt,
@@ -34,7 +35,6 @@ import {
 	moveRow,
 	withCellTarget,
 } from '@/features/editor/table-ops'
-import { type MenuOrigin } from '@/features/editor/table-handles'
 import { cn } from '@/lib/utils'
 
 export interface TableMenuState {

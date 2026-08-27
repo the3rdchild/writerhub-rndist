@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import { getSchema } from '@tiptap/core'
+import type { Node as PMNode, Schema } from '@tiptap/pm/model'
 import { EditorState } from '@tiptap/pm/state'
 import { TableMap } from '@tiptap/pm/tables'
-import type { Node as PMNode, Schema } from '@tiptap/pm/model'
 import { buildEditorExtensions } from './extensions'
 import { dropIndex, locateTableAt } from './table-ops'
+
 const schema: Schema = getSchema(buildEditorExtensions({}))
 
 function tableDoc(rows: number, cols: number): PMNode {

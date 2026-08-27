@@ -16,6 +16,7 @@ import {
 } from './pagination'
 import { columnRegions, SECTION_BREAK_NODE, type SectionBreakAttrs, sectionSpans } from './section-break'
 import { clampColumnWidths, explicitColumnWidths, writeColumnWidths } from './table-ops'
+
 const MIN_COLUMNS = 2
 
 export const COLUMNS_NODE = 'columns'

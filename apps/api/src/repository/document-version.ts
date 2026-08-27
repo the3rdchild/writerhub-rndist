@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import db from '@/db'
-import { documentVersions, metadataVersion } from '@/db/schemas'
 import type { NewDocumentVersion } from '@/db/schemas'
+import { documentVersions, metadataVersion } from '@/db/schemas'
 
 export async function findVersionsByTab(tabId: string) {
 	return db

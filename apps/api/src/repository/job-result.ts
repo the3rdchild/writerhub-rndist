@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import db from '@/db'
 import { metadataVersion, poolRequest } from '@/db/schemas'
+
 const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'] as const
 
 export async function findPoolRequest(jobId: string) {

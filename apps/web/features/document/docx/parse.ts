@@ -10,15 +10,14 @@ import {
 } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
 import type { Numberer } from './numbering'
-import { type DocxArchive, resolvePath } from './zip'
 import {
 	type DocxStyles,
 	merge,
 	type ParagraphProps,
+	type RunProps,
 	readParagraphProps,
 	readRunProps,
 	resolveStyle,
-	type RunProps,
 } from './properties'
 import {
 	emuToPx,
@@ -30,6 +29,7 @@ import {
 	twipsToPx,
 } from './units'
 import { attr, child, children, descend, tagName, val } from './xml'
+import { type DocxArchive, resolvePath } from './zip'
 
 export interface ThemeFonts {
 	major?: string

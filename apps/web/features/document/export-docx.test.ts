@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
-import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
-import { buildSchema } from '@/features/sync/serialize'
 import { strFromU8, unzipSync } from 'fflate'
+import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import { DEFAULT_PAGE_SETUP, type PageSetup, pageGeometry } from '@/features/editor/page-geometry'
+import { buildSchema } from '@/features/sync/serialize'
 import { exportDocx, mergeTabContents } from './export-docx'
 
 function tab(text: string): JSONContent {

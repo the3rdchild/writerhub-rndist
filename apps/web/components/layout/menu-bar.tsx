@@ -1,7 +1,6 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import { type ReactNode, useState } from 'react'
 import {
 	ALargeSmall,
 	AlignCenter,
@@ -19,8 +18,8 @@ import {
 	Download,
 	Eraser,
 	Eye,
-	FileText,
 	Files,
+	FileText,
 	Highlighter,
 	Image as ImageIcon,
 	Indent,
@@ -53,27 +52,18 @@ import {
 	Upload,
 	Wrench,
 } from 'lucide-react'
-import { Dropdown, DropdownItem, DropdownLabel, DropdownSeparator, Submenu } from '@/components/ui/dropdown'
+import { type ReactNode, useState } from 'react'
 import { InsertImageDialog } from '@/components/editor/insert-image-dialog'
 import { refreshTocBlocks } from '@/components/editor/toc-block-view'
 import { PANELS } from '@/components/panels/panel-rail'
+import { Dropdown, DropdownItem, DropdownLabel, DropdownSeparator, Submenu } from '@/components/ui/dropdown'
 import { usePanels } from '@/features/analysis/panel-context'
 import { useDocument } from '@/features/document/document-context'
-import { useEditorInstance } from '@/features/editor/editor-context'
 import { download, safeFilename } from '@/features/document/download'
 import { exportDocx } from '@/features/document/export-docx'
 import { useDocumentImport } from '@/features/document/import-context'
-import { promptForLink } from '@/features/editor/link'
-import { convertMathInDocument, convertSelectionToMath } from '@/features/editor/math'
-import { isInsideTable, tableRepeatsHeader } from '@/features/editor/table-header-repeat'
-import {
-	DEFAULT_MARGINS,
-	pageGeometry,
-	PAGE_SIZES,
-	type PageSizeId,
-	ZOOM_LEVELS,
-} from '@/features/editor/page-geometry'
 import { applyCapitalization } from '@/features/editor/capitalization'
+import { useEditorInstance } from '@/features/editor/editor-context'
 import {
 	FONT_CATEGORY_LABELS,
 	FONT_FAMILIES,
@@ -81,8 +71,18 @@ import {
 	fontFamilyLabel,
 } from '@/features/editor/font-catalog'
 import { indentSelection, outdentSelection } from '@/features/editor/indent'
-import { LINE_HEIGHTS, ALL_PARAGRAPH_STYLES, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
+import { promptForLink } from '@/features/editor/link'
+import { convertMathInDocument, convertSelectionToMath } from '@/features/editor/math'
+import {
+	DEFAULT_MARGINS,
+	PAGE_SIZES,
+	type PageSizeId,
+	pageGeometry,
+	ZOOM_LEVELS,
+} from '@/features/editor/page-geometry'
 import { sectionRange } from '@/features/editor/section-scope'
+import { isInsideTable, tableRepeatsHeader } from '@/features/editor/table-header-repeat'
+import { ALL_PARAGRAPH_STYLES, LINE_HEIGHTS, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'

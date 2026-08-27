@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
 import { strToU8, zipSync } from 'fflate'
 import { readDocx } from './index'
+
 const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
 const R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
 const REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'

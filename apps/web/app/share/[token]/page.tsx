@@ -1,9 +1,9 @@
 'use client'
 
+import { EditorContent, useEditor } from '@tiptap/react'
 import { ArrowLeft, FileText, Lock } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { useEditor, EditorContent } from '@tiptap/react'
 import { useEffect, useMemo, useState } from 'react'
 import { buildEditorExtensions } from '@/features/editor/extensions'
 import { pageGeometry } from '@/features/editor/page-geometry'

@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSync } from '@/features/sync/sync-context'
 import { getDocument } from './api'
-import { mergeDocuments, type MergedDocument } from './merged'
+import { type MergedDocument, mergeDocuments } from './merged'
 import { useDocuments } from './use-documents'
 
 export function useMergedDocuments() {

@@ -1,11 +1,12 @@
 'use client'
 
-import { Copy, Check, Eye, Code2 } from 'lucide-react'
+import { NodeViewContent, type NodeViewProps, NodeViewWrapper } from '@tiptap/react'
+import { Check, Code2, Copy, Eye } from 'lucide-react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { type NodeViewProps, NodeViewContent, NodeViewWrapper } from '@tiptap/react'
 import { CODE_LANGUAGES } from '@/features/editor/code-block'
 import { getMermaid } from '@/features/editor/lazy-mermaid'
 import { cn } from '@/lib/utils'
+
 type MermaidView = 'source' | 'preview'
 
 export function CodeBlockNodeView({ node, updateAttributes, selected, deleteNode }: NodeViewProps) {

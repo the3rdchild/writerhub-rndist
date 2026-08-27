@@ -2,6 +2,7 @@ import { env } from '@/config/env'
 import { createRouter } from '@/lib/create-app'
 import { AppError } from '@/lib/error'
 import { readLocalFile } from '@/lib/storage/local'
+
 const files = createRouter().basePath('/files')
 
 files.get('/*', async (c) => {

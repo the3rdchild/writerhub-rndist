@@ -6,17 +6,17 @@ import {
 	DEFAULT_PAGE_SETUP,
 	type PageMargins,
 	type PageOrientation,
-	type PageSizeId,
 	type PageSetup,
+	type PageSizeId,
 } from '@/features/editor/page-geometry'
-import { useSettings } from '@/features/settings/settings-context'
+import { useSessions } from '@/features/sessions/session-context'
 import {
 	migratePageSetup,
 	resolvePageSetup,
 	setPageSetupForDoc,
 	setPageSetupForTab,
 } from '@/features/sessions/ydoc'
-import { useSessions } from '@/features/sessions/session-context'
+import { useSettings } from '@/features/settings/settings-context'
 
 export function usePageSetup(): {
 	setup: PageSetup

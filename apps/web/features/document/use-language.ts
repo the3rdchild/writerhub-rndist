@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { useSessions } from '@/features/sessions/session-context'
 import { useDocument } from './document-context'
 import { detectLanguage, languageLabel, requiresAiTier } from './language'
+
 const SAMPLE_LENGTH = 2_000
 
 export interface DocumentLanguage {

@@ -3,6 +3,13 @@
 import type { Editor } from '@tiptap/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+	createTableHandlesPlugin,
+	type HandleAxis,
+	type HandleOpen,
+	type TableHandlesOptions,
+	tableHandlesKey,
+} from '@/features/editor/table-handles'
+import {
 	insertColAfter,
 	insertRowAfter,
 	locateTable,
@@ -12,13 +19,6 @@ import {
 	selectRow,
 	targetCell,
 } from '@/features/editor/table-ops'
-import {
-	type HandleAxis,
-	type HandleOpen,
-	createTableHandlesPlugin,
-	tableHandlesKey,
-	type TableHandlesOptions,
-} from '@/features/editor/table-handles'
 import { TableMenu, type TableMenuState } from './table-menu'
 
 export function TableControls({ editor }: { editor: Editor | null }) {

@@ -2,8 +2,8 @@
 
 import type { Editor } from '@tiptap/react'
 import { useEffect, useMemo, useState } from 'react'
-import { useEditorInstance } from '@/features/editor/editor-context'
 import { buildTextIndex, pmRangeToText } from '@/features/document/tiptap-offsets'
+import { useEditorInstance } from '@/features/editor/editor-context'
 
 export interface EditorSelection {
 	from: number

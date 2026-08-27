@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto'
 import type { ResearchTopic } from '@writer-hub/shared'
-import redis from '@/config/redis'
 import { env } from '@/config/env'
-import type { TavilyExtractResult, TavilySearchInput, TavilySearchResult } from '@/lib/tavily-client'
+import redis from '@/config/redis'
 import LoggerClient from '@/lib/logger'
+import type { TavilyExtractResult, TavilySearchInput, TavilySearchResult } from '@/lib/tavily-client'
 
 const log = LoggerClient.getInstance()
 

@@ -3,19 +3,20 @@
 import type { Editor } from '@tiptap/react'
 import { useMemo, useState } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
-import { useSessions } from '@/features/sessions/session-context'
 import {
-	pageGeometry,
 	type PageMargins,
 	type PageSetup,
+	pageGeometry,
 	type SheetGeometry,
 } from '@/features/editor/page-geometry'
 import { usePageSetup } from '@/features/editor/use-page-setup'
+import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
-import { DocumentRuler } from './document-ruler'
 import { DocumentLeftRuler, LEFT_RULER_GAP, LEFT_RULER_WIDTH } from './document-left-ruler'
+import { DocumentRuler } from './document-ruler'
 import { TiptapEditor } from './tiptap-editor'
+
 const CODE_BLOCK_HEIGHT_RATIO = 0.6
 const CODE_BLOCK_CHROME = 48
 const CODE_BLOCK_MIN_HEIGHT = 120

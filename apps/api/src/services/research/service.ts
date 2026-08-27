@@ -1,6 +1,7 @@
 import type { ResearchResultPayload, ResearchSource } from '@writer-hub/shared'
 import { env, isLocalAuth } from '@/config/env'
 import { AppError } from '@/lib/error'
+import LoggerClient from '@/lib/logger'
 import { ensureToolQuota } from '@/lib/provider-resolver'
 import { readPage, readSearch, writePage, writeSearch } from '@/lib/research-cache'
 import { extract, search, type TavilyPage } from '@/lib/tavily-client'
@@ -8,13 +9,12 @@ import { findTabById } from '@/repository/document-tab'
 import { recordResearchActivity } from '@/repository/research-activity'
 import BaseService from '@/services/base.service'
 import { USAGE_SERVICE_SLUG } from '@/services/job-submission.service'
-import LoggerClient from '@/lib/logger'
 import {
-	researchExtractSchema,
-	researchSearchSchema,
 	type ResearchExtractBody,
 	type ResearchSearchBody,
 	type ResearchToolResponse,
+	researchExtractSchema,
+	researchSearchSchema,
 } from './dto'
 import { extractToolText, failureText, searchToolText } from './tool-text'
 

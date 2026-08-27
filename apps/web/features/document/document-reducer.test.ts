@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { documentReducer, initialDocumentState, type DocumentState } from './document-reducer'
+import { type DocumentState, documentReducer, initialDocumentState } from './document-reducer'
 import type { EditorSuggestion } from './suggestions'
 
 function suggestion(partial: Partial<EditorSuggestion> & { id: string }): EditorSuggestion {
