@@ -5,6 +5,7 @@ import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import { PAGE_BREAK_NODE } from './page-break'
 import { type PageGeometry, pageGeometry } from './page-geometry'
 import {
+	KEEP_WITH_NEXT,
 	paginationKey,
 	REGION_SHEET_GAP_ATTRIBUTE,
 	REGION_SPACE_ATTRIBUTE,
@@ -13,6 +14,7 @@ import {
 	SELF_PAGINATE_ATTRIBUTE,
 	SPACER_ATTRIBUTE,
 	type Spacer,
+	tableColumnCount,
 } from './pagination'
 import { columnRegions, SECTION_BREAK_NODE, type SectionBreakAttrs, sectionSpans } from './section-break'
 import { clampColumnWidths, explicitColumnWidths, writeColumnWidths } from './table-ops'
@@ -512,7 +514,6 @@ function fillColumns(
 	return index === items.length ? placements : null
 }
 
-const KEEP_WITH_NEXT = new Set(['heading'])
 const FALLBACK_COLUMN_GAP = 24
 
 export const columnLayoutKey = new PluginKey<ColumnLayoutState>('columnLayout')
@@ -607,7 +608,7 @@ function measureTableItem(view: EditorView, table: PMNode, tablePos: number, dom
 		height: dom.offsetHeight - insertedTotal,
 		...blockMargins(dom),
 		keepWithNext: false,
-		table: { rows, columns: headerRow?.childCount ?? 1, header },
+		table: { rows, columns: tableColumnCount(table), header },
 	}
 }
 

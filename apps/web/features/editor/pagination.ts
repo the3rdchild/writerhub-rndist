@@ -1,6 +1,7 @@
 import { Extension } from '@tiptap/core'
-import type { Node as PMNode } from '@tiptap/pm/model'
+import { DOMSerializer, type Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { TableMap } from '@tiptap/pm/tables'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import { PAGE_BREAK_NODE } from './page-break'
 import {
@@ -36,7 +37,20 @@ export interface Measurement {
 	headerHeight?: number
 	selfPaginate?: boolean
 	internal?: number
+	keepWithNext?: boolean
+	/** Posisi kontainer untuk blok yang diukur di dalam kontainer (anak list,
+	 * blockquote, callout). Penyesuaian margin dan label section ditempelkan ke
+	 * kontainernya, bukan ke tiap anak. */
+	container?: number
 }
+
+/*
+ * Jenis blok yang tidak boleh ditinggal sendirian di dasar halaman: ia harus
+ * turun bersama blok sesudahnya. Dipakai dua mesin - computeSpacers di sini
+ * dan flowColumns di columns.ts - supaya naskah yang sama terpaginasi sama
+ * di satu kolom maupun dua kolom.
+ */
+export const KEEP_WITH_NEXT = new Set(['heading'])
 
 interface PaginationState {
 	spacers: Spacer[]
@@ -131,6 +145,11 @@ function measureBlocks(view: EditorView): Measurement[] {
 			return
 		}
 
+		if (SPLIT_CONTAINERS.has(node.type.name)) {
+			cumulative = measureContainerChildren(view, node, offset, top, dom, cumulative, inserted, measurements)
+			return
+		}
+
 		measurements.push({
 			pos: offset,
 			top,
@@ -138,10 +157,23 @@ function measureBlocks(view: EditorView): Measurement[] {
 			isBreak: node.type.name === PAGE_BREAK_NODE,
 			isSectionBreak: node.type.name === SECTION_BREAK_NODE || undefined,
 			kind: 'block',
+			keepWithNext: KEEP_WITH_NEXT.has(node.type.name) || undefined,
 		})
 	})
 
 	return measurements
+}
+
+/*
+ * Jumlah kolom sebuah tabel bukan jumlah sel di baris pertamanya: satu sel
+ * ber-colspan menutupi beberapa kolom sekaligus, dan sel ber-rowspan dari baris
+ * di atasnya memakan tempat tanpa muncul sebagai anak baris ini. TableMap sudah
+ * memecahkan keduanya - `childCount` tidak, dan angkanya dipakai sebagai colSpan
+ * baris pengisi di batas halaman, jadi selisihnya langsung terlihat sebagai
+ * garis tabel yang putus.
+ */
+export function tableColumnCount(table: PMNode): number {
+	return TableMap.get(table).width || 1
 }
 
 function measureTable(
@@ -159,7 +191,7 @@ function measureTable(
 	const headerRow = table.firstChild
 	const hasHeader = headerRow?.firstChild?.type.name === 'tableHeader'
 	const repeat = hasHeader && table.attrs.repeatHeader !== false
-	const columns = headerRow?.childCount ?? 1
+	const columns = tableColumnCount(table)
 	const headerPos = repeat ? tablePos + 1 : undefined
 
 	let headerHeight = 0
@@ -190,6 +222,60 @@ function measureTable(
 			columns,
 			headerPos,
 			headerHeight: repeat ? headerHeight : 0,
+		})
+	})
+
+	return cumulative
+}
+
+/*
+ * Kontainer non-tabel diukur per anak, bukan sebagai satu blok atomik. Daftar
+ * bernomor panjang, blockquote, dan callout harus punya titik penggal di batas
+ * halaman seperti paragraf biasa; tanpa ini, satu kontainer yang lebih tinggi
+ * dari satu halaman meluber menembus batas lembar karena tidak ada posisi yang
+ * bisa diberi spacer. Anak diukur pada posisinya sendiri persis seperti baris
+ * tabel - spacer-nya pun disisipkan di dalam kontainer, tepat sebelum anak yang
+ * mengawali lembar baru.
+ */
+const SPLIT_CONTAINERS = new Set(['orderedList', 'bulletList', 'taskList', 'blockquote', 'callout'])
+
+function measureContainerChildren(
+	view: EditorView,
+	container: PMNode,
+	containerPos: number,
+	containerTop: number,
+	containerDom: HTMLElement,
+	cumulativeAtContainer: number,
+	inserted: Map<number, number>,
+	out: Measurement[],
+): number {
+	let cumulative = cumulativeAtContainer
+
+	container.forEach((child, childOffset) => {
+		const childPos = containerPos + 1 + childOffset
+		cumulative += inserted.get(childPos) ?? 0
+
+		const childDom = view.nodeDOM(childPos)
+		if (!(childDom instanceof HTMLElement)) return
+		/*
+		 * offsetTop selalu relatif ke offsetParent. Anak kontainer biasanya
+		 * berbagi offsetParent dengan kontainernya, jadi offsetTop-nya sudah
+		 * sebidang dengan `containerTop`; hanya bila kontainernya sendiri yang
+		 * menjadi offsetParent (mis. ia ber-position) keduanya perlu dijumlahkan.
+		 */
+		const top =
+			childDom.offsetParent === containerDom
+				? containerTop + childDom.offsetTop - (cumulative - cumulativeAtContainer)
+				: childDom.offsetTop - cumulative
+
+		out.push({
+			pos: childPos,
+			top,
+			bottom: top + childDom.offsetHeight,
+			isBreak: false,
+			kind: 'block',
+			keepWithNext: KEEP_WITH_NEXT.has(child.type.name) || undefined,
+			container: containerPos,
 		})
 	})
 
@@ -272,7 +358,7 @@ export function computeSpacers(
 		return next
 	}
 
-	for (const block of blocks) {
+	for (const [index, block] of blocks.entries()) {
 		if (block.isSectionBreak) {
 			blockPages.push({ pos: block.pos, page: sheets.length - 1 })
 			const section = sections.find((section) => section.pos === block.pos)
@@ -300,6 +386,23 @@ export function computeSpacers(
 		const isFirstOnPage = block.top <= pageStart + 0.5
 		const overflows = block.bottom > pageStart + sheet.contentHeight
 
+		/*
+		 * keepWithNext: blok yang memintanya tidak boleh tertinggal sendirian di
+		 * dasar halaman. Yang diuji muat bukan bloknya sendiri, melainkan seluruh
+		 * rangkaiannya - dia, blok-blok ber-keepWithNext sesudahnya, dan blok
+		 * pertama yang tidak memintanya. Rangkaian yang lebih tinggi dari satu
+		 * halaman dibiarkan: mendorongnya hanya memindahkan luapan, bukan
+		 * menghilangkannya, dan halaman yang sudah dimulai tidak dikosongkan.
+		 */
+		let keepOverflows = false
+		if (block.keepWithNext && !isFirstOnPage) {
+			let last = index
+			while (last + 1 < blocks.length && blocks[last].keepWithNext) last += 1
+			const groupBottom = blocks[last].bottom
+			keepOverflows =
+				groupBottom > pageStart + sheet.contentHeight && groupBottom - block.top <= sheet.contentHeight + 0.5
+		}
+
 		if (block.selfPaginate) {
 			if (forceNext) {
 				const target = contentTop(pushSheet())
@@ -318,7 +421,7 @@ export function computeSpacers(
 			continue
 		}
 
-		if (forceNext || (overflows && !isFirstOnPage)) {
+		if (forceNext || ((overflows || keepOverflows) && !isFirstOnPage)) {
 			const target = contentTop(pushSheet())
 			const spacerHeight = Math.max(0, target - (block.top + cumulative))
 			const headerHeight = block.headerHeight ?? 0
@@ -429,6 +532,24 @@ export function blockSections(
 		}
 		return { pos, section }
 	})
+}
+
+/*
+ * Posisi blok terluar untuk dekorasi tingkat blok (margin section, label
+ * section): anak kontainer yang diukur terpisah diteruskan ke kontainernya,
+ * dan tiap kontainer hanya muncul sekali.
+ */
+function outerBlockPositions(blocks: readonly Measurement[]): number[] {
+	const seen = new Set<number>()
+	const positions: number[] = []
+	for (const block of blocks) {
+		if (block.kind !== 'block') continue
+		const pos = block.container ?? block.pos
+		if (seen.has(pos)) continue
+		seen.add(pos)
+		positions.push(pos)
+	}
+	return positions
 }
 
 function sameBlockSections(
@@ -546,15 +667,16 @@ export function rowSpacer(spacer: Spacer): HTMLElement {
 	return markSpacer(row, spacer)
 }
 
+/*
+ * Salinan header dirakit oleh serializer skema, bukan disusun tangan dari teks
+ * tiap sel. Perakitan tangan menjatuhkan colspan - sehingga kolom salinannya
+ * melenceng dari tabel aslinya - berikut rowspan, warna sel, dan seluruh format
+ * teks. Ia juga melewatkan <p> di dalam sel, jadi tingginya tidak pernah sama
+ * dengan tinggi header yang sudah dipesan `computeSpacers`.
+ */
 export function repeatedHeader(header: PMNode, spacer: Spacer): HTMLElement {
-	const row = document.createElement('tr')
-	row.className = 'table-header-repeat'
-
-	header.forEach((cell) => {
-		const th = document.createElement('th')
-		th.textContent = cell.textContent
-		row.appendChild(th)
-	})
+	const row = DOMSerializer.fromSchema(header.type.schema).serializeNode(header) as HTMLElement
+	row.classList.add('table-header-repeat')
 
 	return markSpacer(row, spacer)
 }
@@ -677,9 +799,17 @@ export const Pagination = Extension.create<PaginationOptions>({
 							state.geometry,
 							sections,
 						)
+						/*
+						 * Dekorasi lebar section dan label section ditempelkan ke blok
+						 * terluar. Anak kontainer yang diukur terpisah (SPLIT_CONTAINERS)
+						 * meneruskan ke posisi kontainernya - kalau tidak, tiap anak
+						 * list di dalam section sempit ikut digeser dan hasilnya
+						 * bertumpuk dengan geseran kontainernya sendiri.
+						 */
+						const targets = outerBlockPositions(blocks)
 						const adjustments = state.setup
 							? marginAdjustments(
-									blocks.filter((block) => block.kind === 'block').map((block) => block.pos),
+									targets,
 									spans.map((span) => ({
 										pos: span.pos,
 										width: pageGeometry(span.setup).width,
@@ -698,7 +828,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 						const sectionsOfBlocks =
 							spans.length > 1
 								? blockSections(
-										blocks.filter((block) => block.kind === 'block').map((block) => block.pos),
+										targets,
 										spans.map((span, index) => ({ pos: span.pos, name: pageNames[index] })),
 									)
 								: []

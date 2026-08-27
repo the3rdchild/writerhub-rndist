@@ -145,6 +145,48 @@ describe('blok lebih tinggi dari satu halaman', () => {
 	})
 })
 
+describe('keepWithNext - judul tidak yatim di dasar halaman', () => {
+	const withKeep = (blocks: Measurement[], ...indexes: number[]) => {
+		for (const index of indexes) blocks[index].keepWithNext = true
+		return blocks
+	}
+
+	test('judul turun bersama blok sesudahnya yang tidak muat', () => {
+		// Sisa ruang sesudah blok pertama cuma muat judulnya; paragrafnya tidak.
+		const blocks = withKeep(layout([contentHeight - 140, 40, 300]), 1)
+		const tops = renderedTops(blocks)
+
+		expectStartsPage(tops[1], 2)
+		expect(tops[2]).toBe(pageStride + 40)
+		expect(computeSpacers(blocks, geometry).pageCount).toBe(2)
+	})
+
+	test('judul yang muat bersama bloknya tidak digeser', () => {
+		const blocks = withKeep(layout([100, 40, 300]), 1)
+		expect(computeSpacers(blocks, geometry).spacers).toEqual([])
+		expect(computeSpacers(blocks, geometry).pageCount).toBe(1)
+	})
+
+	test('rantai judul bertingkat turun sebagai satu rangkaian', () => {
+		const blocks = withKeep(layout([contentHeight - 120, 40, 40, 300]), 1, 2)
+		const tops = renderedTops(blocks)
+
+		expectStartsPage(tops[1], 2)
+		expect(tops[2]).toBe(pageStride + 40)
+		expect(tops[3]).toBe(pageStride + 80)
+	})
+
+	test('rangkaian yang lebih tinggi dari satu halaman tidak dipaksa turun', () => {
+		// Judul + raksasa: mendorong judul cuma mengosongkan halaman yang sudah
+		// dimulai. Judul dibiarkan; raksasanya berpindah lewat jalur luapan biasa.
+		const blocks = withKeep(layout([contentHeight - 100, 40, contentHeight]), 1)
+		const tops = renderedTops(blocks)
+
+		expect(tops[1]).toBe(contentHeight - 100)
+		expectStartsPage(tops[2], 2)
+	})
+})
+
 describe('page break manual', () => {
 	test('mendorong blok sesudahnya ke lembar baru walau masih banyak ruang', () => {
 		const blocks = layout([100, 'break', 100])
