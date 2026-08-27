@@ -8,7 +8,7 @@ import { findTabById } from '@/repository/document-tab'
 import { recordResearchActivity } from '@/repository/research-activity'
 import BaseService from '@/services/base.service'
 import { USAGE_SERVICE_SLUG } from '@/services/job-submission.service'
-import LoggerClient from '@/utils/logger'
+import LoggerClient from '@/lib/logger'
 import {
 	researchExtractSchema,
 	researchSearchSchema,

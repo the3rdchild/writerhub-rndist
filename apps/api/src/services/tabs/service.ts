@@ -19,7 +19,7 @@ import {
 } from '@/repository/document-version'
 import BaseService from '@/services/base.service'
 import { countWords } from '@/services/versions/service'
-import LoggerClient from '@/utils/logger'
+import LoggerClient from '@/lib/logger'
 import { createTabBodySchema, reorderTabsBodySchema, updateTabBodySchema } from './dto'
 import type { TabDetail, TabSummary } from './dto'
 

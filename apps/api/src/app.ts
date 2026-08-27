@@ -5,8 +5,8 @@ import { env, isProduction, validateEnv } from '@/config/env'
 import createApp from '@/lib/create-app'
 import { AppError } from '@/lib/error'
 import { v1Routes } from '@/routes/v1'
-import { httpLogger } from '@/utils/http-logger'
-import LoggerClient from '@/utils/logger'
+import { httpLogger } from '@/lib/http-logger'
+import LoggerClient from '@/lib/logger'
 
 validateEnv()
 

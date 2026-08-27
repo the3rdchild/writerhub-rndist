@@ -1,5 +1,5 @@
 import type { Context, Next } from 'hono'
-import LoggerClient from '@/utils/logger'
+import LoggerClient from '@/lib/logger'
 
 export async function httpLogger(c: Context, next: Next) {
 	const start = Date.now()

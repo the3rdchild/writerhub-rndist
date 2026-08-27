@@ -3,7 +3,7 @@ import type { ResearchTopic } from '@writer-hub/shared'
 import redis from '@/config/redis'
 import { env } from '@/config/env'
 import type { TavilyExtractResult, TavilySearchInput, TavilySearchResult } from '@/lib/tavily-client'
-import LoggerClient from '@/utils/logger'
+import LoggerClient from '@/lib/logger'
 
 const log = LoggerClient.getInstance()
 

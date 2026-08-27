@@ -7,7 +7,7 @@ import { ensureToolQuota, resolveProvider, type ResolvedProvider } from '@/lib/p
 import { findTabById } from '@/repository/document-tab'
 import { pruneOldHistory } from '@/repository/history'
 import BaseService from '@/services/base.service'
-import LoggerClient from '@/utils/logger'
+import LoggerClient from '@/lib/logger'
 
 const log = LoggerClient.getInstance()
 export const USAGE_SERVICE_SLUG = 'grammar'

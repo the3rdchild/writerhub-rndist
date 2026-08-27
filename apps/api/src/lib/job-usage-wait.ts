@@ -1,7 +1,7 @@
 import { isTerminalEvent, subscribeToJob } from '@/lib/job-events'
 import { recordTokenUsage } from '@/lib/pp-usage-client'
 import { findPoolRequest } from '@/repository/job-result'
-import LoggerClient from '@/utils/logger'
+import LoggerClient from '@/lib/logger'
 
 const DEFAULT_TIMEOUT_MS = 5 * 60_000
 
