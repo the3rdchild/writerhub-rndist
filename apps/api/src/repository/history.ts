@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm'
+import { MS_PER_DAY } from '@/constants/time'
 import db from '@/db'
 import { documents, documentTabs, documentVersions, metadataVersion, poolRequest } from '@/db/schemas'
 export const HISTORY_RETENTION_DAYS = 90
@@ -145,7 +146,7 @@ export async function deleteAllHistoryForUser(userId: string): Promise<number> {
 }
 
 export async function pruneOldHistory(userId: string, retentionDays = HISTORY_RETENTION_DAYS): Promise<void> {
-	const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60_000)
+	const cutoff = new Date(Date.now() - retentionDays * MS_PER_DAY)
 	const rows = await db
 		.select({ id: poolRequest.id })
 		.from(poolRequest)

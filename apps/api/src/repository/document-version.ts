@@ -3,6 +3,13 @@ import db from '@/db'
 import type { NewDocumentVersion } from '@/db/schemas'
 import { documentVersions, metadataVersion } from '@/db/schemas'
 
+/**
+ * Jumlah versi otomatis per tab yang dipertahankan; selebihnya dipangkas tiap
+ * kali tab disimpan. Hanya berlaku untuk trigger 'interval' - versi manual,
+ * pra-restore dan hasil AI tidak pernah ikut dipangkas.
+ */
+export const INTERVAL_VERSIONS_KEPT = 50
+
 export async function findVersionsByTab(tabId: string) {
 	return db
 		.select({
@@ -71,7 +78,7 @@ export async function versionContentEquals(
 	return row !== undefined
 }
 
-export async function pruneIntervalVersions(tabId: string, keep = 50) {
+export async function pruneIntervalVersions(tabId: string, keep = INTERVAL_VERSIONS_KEPT) {
 	const stale = db
 		.select({ id: documentVersions.id })
 		.from(documentVersions)

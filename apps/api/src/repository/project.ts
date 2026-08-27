@@ -1,4 +1,5 @@
 import { and, count, desc, eq } from 'drizzle-orm'
+import { isPgError, PG_ERROR } from '@/constants/postgres-error'
 import db from '@/db'
 import type { NewProject } from '@/db/schemas'
 import { documents, projects } from '@/db/schemas'
@@ -36,7 +37,7 @@ export async function insertProject(values: NewProject) {
 	return row ?? null
 }
 
-const DEFAULT_PROJECT_NAME = 'Dokumen Saya'
+export const DEFAULT_PROJECT_NAME = 'Dokumen Saya'
 
 export async function findOrCreateDefaultProject(ownerId: string) {
 	const [existing] = await db
@@ -71,7 +72,7 @@ export async function deleteProject(id: string, ownerId: string) {
 			.returning({ id: projects.id })
 		return row ?? null
 	} catch (error) {
-		if (error && typeof error === 'object' && 'code' in error && error.code === '23503') {
+		if (isPgError(error, PG_ERROR.FOREIGN_KEY_VIOLATION)) {
 			throw AppError.conflict('Proyek masih berisi dokumen - pindahkan atau hapus dokumennya dulu')
 		}
 		throw error
