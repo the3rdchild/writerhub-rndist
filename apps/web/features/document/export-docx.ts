@@ -3,6 +3,7 @@
 import type { JSONContent } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
+import type { PageFurniture } from '@/features/editor/page-furniture/model'
 import {
 	type PageGeometry,
 	type PageSetup,
@@ -11,6 +12,7 @@ import {
 	sameSheetGeometry,
 } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE, type SectionSpan, sectionSpans } from '@/features/editor/section-break'
+import { docxSectionFurniture } from './export-furniture'
 
 const TWIPS_PER_PX = 15
 
@@ -163,10 +165,13 @@ export async function exportDocx(
 		title,
 		geometry,
 		setup,
+		furniture,
 	}: {
 		title: string
 		geometry: PageGeometry
 		setup?: PageSetup
+		/** Header/footer dokumen; null berarti tanpa perabot halaman. */
+		furniture?: PageFurniture | null
 	},
 ): Promise<Blob> {
 	const docx = await import('docx')
@@ -504,13 +509,23 @@ export async function exportDocx(
 	})
 	sections.push({ properties: sectionProperties(spans[spanIndex] ?? null), children: current })
 
+	// Perabot halaman dipasang di section pertama; section berikutnya mewarisi
+	// referensinya di Word, meniru perilaku dokumen asal.
+	const furnitureExtras = docxSectionFurniture(furniture, docx)
+
 	const document = new Document({
 		title,
+		...(furnitureExtras.evenAndOdd ? { evenAndOddHeaderAndFooters: true } : {}),
 		numbering: {
 			config: [...orderedConfigs].map(([reference, levels]) => ({ reference, levels })),
 		},
-		sections: sections.map((section) => ({
-			properties: section.properties,
+		sections: sections.map((section, index) => ({
+			properties:
+				index === 0 && furnitureExtras.titlePage
+					? { ...section.properties, titlePage: true }
+					: section.properties,
+			...(index === 0 && furnitureExtras.headers ? { headers: furnitureExtras.headers } : {}),
+			...(index === 0 && furnitureExtras.footers ? { footers: furnitureExtras.footers } : {}),
 			children: section.children as never,
 		})) as never,
 	})

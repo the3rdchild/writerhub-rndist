@@ -9,6 +9,7 @@ import { exportDocx } from '@/features/document/export-docx'
 import { useDocumentImport } from '@/features/document/import-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { pageGeometry } from '@/features/editor/page-geometry'
+import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
@@ -21,6 +22,7 @@ export function FileMenu() {
 	const { setExportOpen, setDocxExportOpen, setPageSetupOpen } = useSettings()
 	const { newSession, deleteSession, activeId, sessions } = useSessions()
 	const { setup: activeSetup } = usePageSetup()
+	const { furniture } = usePageFurniture()
 	const { openImport } = useDocumentImport()
 	const keys = useShortcutLabel()
 	const [exporting, setExporting] = useState(false)
@@ -40,7 +42,12 @@ export function FileMenu() {
 		try {
 			const geometry = pageGeometry(activeSetup)
 			download(
-				await exportDocx(editor.state.doc, { title: state.title, geometry, setup: activeSetup }),
+				await exportDocx(editor.state.doc, {
+					title: state.title,
+					geometry,
+					setup: activeSetup,
+					furniture,
+				}),
 				safeFilename(state.title, 'docx'),
 			)
 		} finally {

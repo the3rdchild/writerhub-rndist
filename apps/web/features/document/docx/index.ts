@@ -1,4 +1,6 @@
 import type { JSONContent } from '@tiptap/core'
+import type { PageFurniture } from '@/features/editor/page-furniture/model'
+import { readFurniture } from './header-footer'
 import { createNumberer, readNumbering } from './numbering'
 import {
 	bodyOf,
@@ -21,6 +23,7 @@ export interface ImportWarning {
 export interface DocxImport {
 	content: JSONContent
 	pageSetup?: PageSetupPatch
+	furniture?: PageFurniture
 	warnings: ImportWarning[]
 }
 
@@ -76,7 +79,11 @@ const SKIPPED_LABELS: Record<string, string> = {
 	object: 'objek tertanam',
 }
 
-function warningsFor(skipped: Map<string, number>, archive: DocxArchive): ImportWarning[] {
+function warningsFor(
+	skipped: Map<string, number>,
+	archive: DocxArchive,
+	furniture: PageFurniture | null,
+): ImportWarning[] {
 	const warnings: ImportWarning[] = []
 
 	const counted = new Map<string, number>()
@@ -96,7 +103,7 @@ function warningsFor(skipped: Map<string, number>, archive: DocxArchive): Import
 	}
 
 	const hasHeaderFooter = archive.paths().some((path) => /^word\/(header|footer)\d*\.xml$/.test(path))
-	if (hasHeaderFooter) {
+	if (hasHeaderFooter && !furniture) {
 		warnings.push({
 			message:
 				'Header, footer, dan nomor halaman tidak punya padanan di editor ini, jadi tidak ikut terbawa.',
@@ -130,10 +137,12 @@ export async function readDocx(data: Uint8Array): Promise<DocxImport> {
 	}
 
 	const { blocks, pageSetup } = readBody(body, context)
+	const furniture = readFurniture(archive, parse, mainPart)
 
 	return {
 		content: { type: 'doc', content: blocks.length > 0 ? blocks : [{ type: 'paragraph' }] },
 		pageSetup,
-		warnings: warningsFor(context.skipped, archive),
+		...(furniture ? { furniture } : {}),
+		warnings: warningsFor(context.skipped, archive, furniture),
 	}
 }

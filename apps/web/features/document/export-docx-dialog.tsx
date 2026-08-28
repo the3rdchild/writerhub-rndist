@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { download, safeFilename } from '@/features/document/download'
 import { exportDocx, mergeTabContents } from '@/features/document/export-docx'
 import { pageGeometry } from '@/features/editor/page-geometry'
+import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { sessionLabel, useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
@@ -14,6 +15,7 @@ import { cn } from '@/lib/utils'
 export function ExportDocxDialog() {
 	const { docxExportOpen, setDocxExportOpen } = useSettings()
 	const { setup } = usePageSetup()
+	const { furniture } = usePageFurniture()
 	const { doc, documents, activeDocId, activeId, sessions } = useSessions()
 	const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -70,6 +72,7 @@ export function ExportDocxDialog() {
 				title,
 				geometry: pageGeometry(setup),
 				setup,
+				furniture,
 			})
 			download(blob, safeFilename(title, 'docx'))
 			setDocxExportOpen(false)

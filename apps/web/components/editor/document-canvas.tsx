@@ -3,6 +3,8 @@
 import type { Editor } from '@tiptap/react'
 import { useMemo, useState } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import { SheetFurniture } from '@/features/editor/page-furniture/sheet-furniture'
+import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
 import {
 	type PageMargins,
 	type PageSetup,
@@ -48,6 +50,7 @@ export function DocumentCanvas({
 }) {
 	const { settings } = useSettings()
 	const { setup, setPageSetup } = usePageSetup()
+	const { furniture } = usePageFurniture()
 	const { editor } = useEditorInstance()
 	const { activeId } = useSessions()
 	const [pageCount, setPageCount] = useState(1)
@@ -147,6 +150,14 @@ export function DocumentCanvas({
 													...(setup.pageColor ? { background: setup.pageColor } : {}),
 												}}
 											>
+												{' '}
+												{!setup.pageless && (
+													<SheetFurniture
+														furniture={furniture}
+														pageIndex={sheet.index}
+														margins={sheet.margins}
+													/>
+												)}{' '}
 												{settings.showPageNumbers && !setup.pageless && (
 													<span
 														className="absolute text-[11px] text-faint"
@@ -171,6 +182,9 @@ export function DocumentCanvas({
 													...(setup.pageColor ? { background: setup.pageColor } : {}),
 												}}
 											>
+												{!setup.pageless && (
+													<SheetFurniture furniture={furniture} pageIndex={index} margins={margins} />
+												)}
 												{settings.showPageNumbers && !setup.pageless && (
 													<span
 														className="absolute text-[11px] text-faint"

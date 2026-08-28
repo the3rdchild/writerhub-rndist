@@ -2,6 +2,8 @@
 
 import type { JSONContent } from '@tiptap/core'
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
+import type { PageFurniture } from '@/features/editor/page-furniture/model'
+import { setPageFurnitureForTab } from '@/features/editor/page-furniture/page-furniture-ydoc'
 import { DEFAULT_MARGINS, DEFAULT_PAGE_SETUP, type PageSetup } from '@/features/editor/page-geometry'
 import { MAX_DOCUMENTS, MAX_SESSIONS, useSessions } from '@/features/sessions/session-context'
 import {
@@ -77,12 +79,18 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 		input.click()
 	}, [])
 	const importToNewTab = useCallback(
-		(title: string, content: JSONContent, pageSetup?: DocxImport['pageSetup']) => {
+		(
+			title: string,
+			content: JSONContent,
+			pageSetup?: DocxImport['pageSetup'],
+			furniture?: PageFurniture | null,
+		) => {
 			if (!activeDocId) return
 			const tabId = createTab(doc, activeDocId, title)
 			doc.transact(() => {
 				jsonToFragment(doc, tabId, content)
 				if (pageSetup) setPageSetupForTab(doc, tabId, resolveImportedSetup(pageSetup))
+				if (furniture) setPageFurnitureForTab(doc, tabId, furniture)
 			}, LOCAL_ORIGIN)
 			selectSession(tabId)
 		},
@@ -95,7 +103,7 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 
 			try {
 				const result = await importDocx(file)
-				importToNewTab(file.name.replace(/\.docx$/i, ''), result.content, result.pageSetup)
+				importToNewTab(file.name.replace(/\.docx$/i, ''), result.content, result.pageSetup, result.furniture)
 				setWarnings(result.warnings.map((warning) => warning.message))
 			} catch (cause) {
 				setWarnings([cause instanceof Error ? cause.message : 'Gagal membaca berkas DOCX'])
