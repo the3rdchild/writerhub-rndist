@@ -21,6 +21,7 @@ import {
 	readRunProps,
 	resolveStyle,
 } from './properties'
+import { cellPropsOf, rowPropsOf, tablePropsOf } from './table-props'
 import {
 	emuToPx,
 	halfPointsToPt,
@@ -439,39 +440,6 @@ export function paragraphBlocks(paragraph: Element, context: ParseContext): JSON
 	return builder.blocks
 }
 
-const VERTICAL_ALIGN: Record<string, string> = {
-	top: 'top',
-	center: 'middle',
-	bottom: 'bottom',
-}
-
-function cellStyleOf(tcPr: Element | null): Record<string, unknown> {
-	if (!tcPr) return {}
-
-	const declarations: string[] = []
-
-	const vAlign = val(child(tcPr, 'vAlign'))
-	if (vAlign && VERTICAL_ALIGN[vAlign]) declarations.push(`vertical-align: ${VERTICAL_ALIGN[vAlign]}`)
-	const margins: string[] = []
-	const sides: Array<[string, string]> = [
-		['top', 'top'],
-		['right', 'right'],
-		['bottom', 'bottom'],
-		['left', 'left'],
-	]
-	const tcMar = child(tcPr, 'tcMar')
-	for (const [name, css] of sides) {
-		const side = tcMar ? child(tcMar, name) : null
-		const w = side ? attr(side, 'w') : undefined
-		if (w) margins.push(`${css}: ${twipsToPx(Number.parseInt(w, 10) || 0)}px`)
-	}
-	if (margins.length > 0) declarations.push(`padding: ${margins.join(' ')}`)
-
-	const attrs: Record<string, unknown> = {}
-	if (declarations.length > 0) attrs.style = declarations.join('; ')
-	return attrs
-}
-
 /** Info sementara pada paragraf bernomor; dipakai wrapListBlocks lalu dibuang. */
 interface ListTag {
 	numId: number
@@ -660,7 +628,9 @@ function tableRowBlocks(
 	merger: TableMerger,
 	gridWidths: number[],
 ): JSONContent | null {
-	const isHeader = child(row, 'trPr') ? child(child(row, 'trPr'), 'tblHeader') !== null : false
+	const trPr = child(row, 'trPr')
+	const isHeader = trPr ? child(trPr, 'tblHeader') !== null : false
+	const rowAttrs = rowPropsOf(trPr)
 
 	const cells: JSONContent[] = []
 	let totalCells = 0
@@ -684,7 +654,7 @@ function tableRowBlocks(
 			// vMerge tanpa restart tidak punya sel asal: bawa isinya sebagai sel biasa.
 		}
 
-		const attrs = cellStyleOf(tcPr)
+		const attrs = cellPropsOf(tcPr)
 		if (span > 1) attrs.colspan = span
 		if (vMerge === 'restart') attrs.rowspan = 1
 		// Lebar kolom dari tblGrid: irisan sesuai rentang kolom sel (colspan ikut menjumlah).
@@ -714,8 +684,16 @@ function tableRowBlocks(
 	// ketinggiannya sudah diwakili rowspan sel asal di baris sebelumnya.
 	if (totalCells > 0 && cells.length === 0) return null
 	if (cells.length === 0)
-		return { type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }
-	return { type: 'tableRow', content: cells }
+		return {
+			type: 'tableRow',
+			...(Object.keys(rowAttrs).length > 0 ? { attrs: rowAttrs } : {}),
+			content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }],
+		}
+	return {
+		type: 'tableRow',
+		...(Object.keys(rowAttrs).length > 0 ? { attrs: rowAttrs } : {}),
+		content: cells,
+	}
 }
 
 function tableBlocks(tbl: Element, context: ParseContext): JSONContent[] {
@@ -736,10 +714,11 @@ function tableBlocks(tbl: Element, context: ParseContext): JSONContent[] {
 		const row = tableRowBlocks(tr, context, merger, gridWidths)
 		if (row) rows.push(row)
 	}
-	const jc = val(child(child(tbl, 'tblPr'), 'jc'))
+	const tblPr = child(tbl, 'tblPr')
+	const jc = val(child(tblPr, 'jc'))
 	const hasHeader = rows.some((row) => row.content?.some((cell) => cell.type === 'tableHeader'))
 
-	const attrs: Record<string, unknown> = {}
+	const attrs: Record<string, unknown> = tablePropsOf(tblPr)
 	if (jc === 'center' || jc === 'right') attrs.textAlign = jc
 	if (!hasHeader) attrs.repeatHeader = false
 	if (rows.length === 0) {

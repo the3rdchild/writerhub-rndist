@@ -25,7 +25,6 @@ import { BlockSpacing } from '@/features/editor/block-spacing'
 import { Callout } from '@/features/editor/callout'
 import { CodeBlock } from '@/features/editor/code-block'
 import { ColumnExtension } from '@/features/editor/columns'
-import { CustomTableCell, CustomTableHeader } from '@/features/editor/custom-table'
 import { Footnote, FootnoteRef } from '@/features/editor/footnote'
 import { HeadingLevels } from '@/features/editor/heading-extension'
 import { BlockIndentExtension } from '@/features/editor/indent'
@@ -49,6 +48,13 @@ import { SlashCommand } from '@/features/editor/slash-command'
 import { TableHeaderRepeat } from '@/features/editor/table-header-repeat'
 import { TableIndent } from '@/features/editor/table-indent'
 import { TableOfContentsConfigured } from '@/features/editor/table-of-contents'
+import {
+	TableCellProps,
+	TableHeaderProps,
+	TableNodeProps,
+	TablePropsCommands,
+	TableRowProps,
+} from '@/features/editor/table-props'
 import { TextWeight } from '@/features/editor/text-weight'
 import { TocBlock } from '@/features/editor/toc-block'
 import { TrailingParagraph } from '@/features/editor/trailing-paragraph'
@@ -95,9 +101,12 @@ export function buildEditorExtensions({
 		Subscript,
 		Superscript,
 		Typography,
-		TableKit.configure({ table: { resizable: true }, tableCell: false, tableHeader: false }),
-		CustomTableCell,
-		CustomTableHeader,
+		TableKit.configure({ table: false, tableRow: false, tableCell: false, tableHeader: false }),
+		TableNodeProps.configure({ resizable: true }),
+		TableRowProps,
+		TableCellProps,
+		TableHeaderProps,
+		TablePropsCommands,
 		TableIndent,
 		TaskList,
 		TaskItem.configure({ nested: true }),

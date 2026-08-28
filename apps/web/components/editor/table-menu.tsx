@@ -16,13 +16,15 @@ import {
 	PanelLeft,
 	PanelTop,
 	RectangleHorizontal,
+	SlidersHorizontal,
 	TableCellsMerge,
 	TableCellsSplit,
 	Trash2,
 } from 'lucide-react'
 import { type JSX, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { type MenuOrigin } from '@/features/editor/table-handles'
+import { openTableOptions } from '@/components/editor/table-options-panel'
+import type { MenuOrigin } from '@/features/editor/table-handles'
 import {
 	type CellTarget,
 	deleteColAt,
@@ -308,6 +310,13 @@ function buildItems(editor: Editor, menu: TableMenuState, onClose: () => void): 
 			label: 'Toggle header column',
 			icon: <PanelLeft className={ICON} />,
 			onClick: onCell((e) => e.chain().focus().toggleHeaderColumn().run()),
+		},
+
+		{
+			label: 'Table options…',
+			icon: <SlidersHorizontal className={ICON} />,
+			onClick: onCell((e) => openTableOptions(e)),
+			separatorBefore: true,
 		},
 
 		{

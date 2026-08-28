@@ -17,6 +17,94 @@ const TWIPS_PER_PX = 15
 const px = (value: number) => Math.round(value * TWIPS_PER_PX)
 const DEFAULT_COLUMN_GAP_PX = 24
 
+// Inverse of toLineHeight in docx/units.ts (Word line multiple × 1.15 → CSS).
+const CSS_LINE_TO_WORD = 1 / 1.15
+
+type BorderStyleValue = 'single' | 'dashed' | 'dotted' | 'double'
+
+const BORDER_STYLES: Record<string, BorderStyleValue> = {
+	solid: 'single',
+	dashed: 'dashed',
+	dotted: 'dotted',
+	double: 'double',
+}
+
+/** Border attrs (px width, CSS style, #hex color) → docx border options. */
+function borderOptionOf(
+	color: string | null | undefined,
+	width: number | null | undefined,
+	style: string | null | undefined,
+): { style: BorderStyleValue; color: string; size: number } | null {
+	if (!width || width <= 0) return null
+	// docx size is in eighths of a point: px * 0.75 pt * 8 = px * 6.
+	return {
+		style: BORDER_STYLES[style ?? 'solid'] ?? 'single',
+		color: (color ?? '#000000').replace('#', ''),
+		size: Math.max(1, Math.round(width * 6)),
+	}
+}
+
+function cellBordersOf(cell: PMNode) {
+	const border = borderOptionOf(
+		cell.attrs.borderColor as string | null,
+		cell.attrs.borderWidth as number | null,
+		cell.attrs.borderStyle as string | null,
+	)
+	if (!border) return null
+	return { top: border, bottom: border, left: border, right: border }
+}
+
+/** CSS padding shorthand (px values) → docx cell margins in twips. */
+function cellMarginsOf(cell: PMNode) {
+	const padding = cell.attrs.cellPadding as string | null | undefined
+	if (!padding) return null
+	const parts = padding
+		.split(/\s+/)
+		.filter(Boolean)
+		.map((part) => Math.round(Number.parseFloat(part) || 0))
+	if (parts.length === 0) return null
+	const [top = 0, right = top, bottom = top, left = right] = parts
+	return { top: px(top), right: px(right), bottom: px(bottom), left: px(left) }
+}
+
+const VERTICAL_ALIGN: Record<string, 'top' | 'center' | 'bottom'> = {
+	top: 'top',
+	middle: 'center',
+	bottom: 'bottom',
+}
+
+/** Paragraph spacing attrs (BlockSpacing) → docx spacing options. */
+function spacingOf(node: PMNode): Record<string, unknown> {
+	const before = Number(node.attrs.spaceBefore) || 0
+	const after = Number(node.attrs.spaceAfter) || 0
+	const lineHeight = String(node.attrs.lineHeight ?? 'normal')
+
+	let line: number | undefined
+	let lineRule: 'auto' | 'exact' | undefined
+	if (lineHeight.endsWith('px')) {
+		const value = Number.parseFloat(lineHeight)
+		if (Number.isFinite(value) && value > 0) {
+			line = px(value)
+			lineRule = 'exact'
+		}
+	} else if (lineHeight !== 'normal') {
+		const multiple = Number.parseFloat(lineHeight)
+		if (Number.isFinite(multiple) && multiple > 0) {
+			line = Math.round(multiple * CSS_LINE_TO_WORD * 240)
+			lineRule = 'auto'
+		}
+	}
+
+	if (!before && !after && line === undefined) return {}
+	return {
+		spacing: {
+			...(before ? { before: px(before) } : {}),
+			...(after ? { after: px(after) } : {}),
+			...(line !== undefined ? { line, lineRule } : {}),
+		},
+	}
+}
+
 function tableColumnWidths(table: PMNode, contentWidth: number): number[] {
 	const header = table.firstChild
 	const columns: number[] = []
@@ -125,6 +213,7 @@ export async function exportDocx(
 		return new Paragraph({
 			children: runsOf(node),
 			...(alignment ? { alignment } : {}),
+			...spacingOf(node),
 			indent: {
 				left: px(Number(node.attrs.indentLeft) || 0),
 				right: px(Number(node.attrs.indentRight) || 0),
@@ -143,6 +232,11 @@ export async function exportDocx(
 		if (children.length === 0) children.push(new Paragraph({}))
 
 		const rowSpan = Math.max(1, Number(cell.attrs.rowspan) || 1)
+		const background = cell.attrs.backgroundColor as string | null | undefined
+		const fill = background && /^#[0-9a-f]{6}$/i.test(background) ? background.replace('#', '') : null
+		const margins = cellMarginsOf(cell)
+		const borders = cellBordersOf(cell)
+		const verticalAlign = VERTICAL_ALIGN[cell.attrs.verticalAlign as string]
 		return new TableCell({
 			children,
 			// rowSpan > 1 otomatis membuat sel lanjutan vMerge di baris berikutnya.
@@ -153,6 +247,10 @@ export async function exportDocx(
 						columnSpan: Math.max(1, Number(cell.attrs.colspan) || 1),
 					}
 				: {}),
+			...(fill ? { shading: { type: docx.ShadingType.CLEAR, fill } } : {}),
+			...(margins ? { margins } : {}),
+			...(borders ? { borders } : {}),
+			...(verticalAlign ? { verticalAlign } : {}),
 		})
 	}
 	let sectionContentWidth = geometry.contentWidth
@@ -160,23 +258,59 @@ export async function exportDocx(
 	const tableOf = (node: PMNode) => {
 		const widths = tableColumnWidths(node, sectionContentWidth)
 
+		const repeatHeader = node.attrs.repeatHeader !== false
 		const rows: InstanceType<typeof TableRow>[] = []
 		node.forEach((row) => {
 			const cells: InstanceType<typeof TableCell>[] = []
 			let column = 0
+			let headerRow = false
 			row.forEach((cell) => {
+				if (cell.type.name === 'tableHeader') headerRow = true
 				const span = Math.max(1, Number(cell.attrs.colspan) || 1)
 				const width = widths.slice(column, column + span).reduce((sum, value) => sum + value, 0)
 				cells.push(cellOf(cell, width))
 				column += span
 			})
-			if (cells.length > 0) rows.push(new TableRow({ children: cells }))
+			const rowHeight = Number(row.attrs.rowHeight) || 0
+			if (cells.length > 0) {
+				rows.push(
+					new TableRow({
+						children: cells,
+						...(rowHeight > 0 ? { height: { value: px(rowHeight), rule: docx.HeightRule.ATLEAST } } : {}),
+						...(row.attrs.cantSplit === true ? { cantSplit: true } : {}),
+						...(headerRow && repeatHeader ? { tableHeader: true } : {}),
+					}),
+				)
+			}
 		})
 
+		const tableWidth = Number(node.attrs.tableWidth) || 0
+		const indentLeft = Number(node.attrs.indentLeft) || 0
+		const tableBorder = borderOptionOf(
+			node.attrs.borderColor as string | null,
+			node.attrs.borderWidth as number | null,
+			node.attrs.borderStyle as string | null,
+		)
 		return new Table({
 			rows,
-			width: { size: 100, type: WidthType.PERCENTAGE },
+			width:
+				tableWidth > 0
+					? { size: px(tableWidth), type: WidthType.DXA }
+					: { size: 100, type: WidthType.PERCENTAGE },
 			columnWidths: widths.map(px),
+			...(indentLeft > 0 ? { indent: { size: px(indentLeft), type: WidthType.DXA } } : {}),
+			...(tableBorder
+				? {
+						borders: {
+							top: tableBorder,
+							bottom: tableBorder,
+							left: tableBorder,
+							right: tableBorder,
+							insideHorizontal: tableBorder,
+							insideVertical: tableBorder,
+						},
+					}
+				: {}),
 		})
 	}
 

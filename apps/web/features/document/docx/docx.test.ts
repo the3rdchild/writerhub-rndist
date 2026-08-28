@@ -327,17 +327,84 @@ describe('tabel', () => {
 		expect(marksOf(cellParagraph)).toContain('bold')
 	})
 
-	test('perataan vertikal sel jadi gaya CSS', async () => {
+	test('perataan vertikal sel jadi atribut verticalAlign', async () => {
 		const table = `<w:tbl><w:tr><w:tc><w:tcPr><w:vAlign w:val="center"/></w:tcPr>${p(r('isi'))}</w:tc></w:tr></w:tbl>`
 		const cell = blocks((await readDocx(docx({ body: table }))).content)[0]?.content?.[0]?.content?.[0]
-		expect(String(cell?.attrs?.style)).toContain('vertical-align: middle')
+		expect(cell?.attrs?.verticalAlign).toBe('middle')
 	})
 
-	test('margin sel twip jadi padding piksel', async () => {
+	test('margin sel twip jadi cellPadding piksel', async () => {
 		const table = `<w:tbl><w:tr><w:tc><w:tcPr><w:tcMar><w:top w:w="60" w:type="dxa"/><w:left w:w="85" w:type="dxa"/></w:tcMar></w:tcPr>${p(r('isi'))}</w:tc></w:tr></w:tbl>`
 		const cell = blocks((await readDocx(docx({ body: table }))).content)[0]?.content?.[0]?.content?.[0]
-		expect(String(cell?.attrs?.style)).toContain('padding:')
-		expect(String(cell?.attrs?.style)).toContain('top: 4px')
+		expect(cell?.attrs?.cellPadding).toBe('4px 0px 0px 6px')
+	})
+
+	test('arsir sel (w:shd) jadi backgroundColor', async () => {
+		const table = `<w:tbl><w:tr><w:tc><w:tcPr><w:shd w:val="clear" w:fill="D9E2F3"/></w:tcPr>${p(r('isi'))}</w:tc></w:tr></w:tbl>`
+		const cell = blocks((await readDocx(docx({ body: table }))).content)[0]?.content?.[0]?.content?.[0]
+		expect(cell?.attrs?.backgroundColor).toBe('#d9e2f3')
+	})
+
+	test('arsir otomatis atau nil tidak jadi backgroundColor', async () => {
+		const table = (fill: string) =>
+			`<w:tbl><w:tr><w:tc><w:tcPr><w:shd w:val="clear" w:fill="${fill}"/></w:tcPr>${p(r('isi'))}</w:tc></w:tr></w:tbl>`
+		const auto = blocks((await readDocx(docx({ body: table('auto') }))).content)[0]
+		expect(auto?.content?.[0]?.content?.[0]?.attrs?.backgroundColor).toBeUndefined()
+	})
+
+	test('tcBorders jadi atribut bingkai sel', async () => {
+		const table = `<w:tbl><w:tr><w:tc><w:tcPr><w:tcBorders>
+			<w:top w:val="single" w:sz="12" w:color="FF0000"/>
+			<w:left w:val="none" w:sz="0"/>
+		</w:tcBorders></w:tcPr>${p(r('isi'))}</w:tc></w:tr></w:tbl>`
+		const cell = blocks((await readDocx(docx({ body: table }))).content)[0]?.content?.[0]?.content?.[0]
+
+		expect(cell?.attrs?.borderWidth).toBe(2)
+		expect(cell?.attrs?.borderStyle).toBe('solid')
+		expect(cell?.attrs?.borderColor).toBe('#ff0000')
+	})
+
+	test('tblBorders jadi atribut bingkai tabel, sisi none dilewati', async () => {
+		const table = `<w:tbl><w:tblPr><w:tblBorders>
+			<w:top w:val="dotted" w:sz="8" w:color="0000FF"/>
+			<w:left w:val="single" w:sz="24" w:color="00FF00"/>
+		</w:tblBorders></w:tblPr><w:tr><w:tc>${p(r('isi'))}</w:tc></w:tr></w:tbl>`
+		const block = blocks((await readDocx(docx({ body: table }))).content)[0]
+
+		expect(block?.attrs?.borderStyle).toBe('dotted')
+		expect(block?.attrs?.borderWidth).toBe(1)
+		expect(block?.attrs?.borderColor).toBe('#0000ff')
+	})
+
+	test('tblW dxa jadi tableWidth piksel, pct diabaikan', async () => {
+		const dxa = `<w:tbl><w:tblPr><w:tblW w:w="4500" w:type="dxa"/></w:tblPr><w:tr><w:tc>${p(r('a'))}</w:tc></w:tr></w:tbl>`
+		const pct = `<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/></w:tblPr><w:tr><w:tc>${p(r('b'))}</w:tc></w:tr></w:tbl>`
+
+		expect(blocks((await readDocx(docx({ body: dxa }))).content)[0]?.attrs?.tableWidth).toBe(300)
+		expect(blocks((await readDocx(docx({ body: pct }))).content)[0]?.attrs?.tableWidth).toBeUndefined()
+	})
+
+	test('tblInd dxa jadi indentLeft piksel', async () => {
+		const table = `<w:tbl><w:tblPr><w:tblInd w:w="720" w:type="dxa"/></w:tblPr><w:tr><w:tc>${p(r('isi'))}</w:tc></w:tr></w:tbl>`
+		const block = blocks((await readDocx(docx({ body: table }))).content)[0]
+		expect(block?.attrs?.indentLeft).toBe(48)
+	})
+
+	test('trHeight jadi rowHeight piksel pada baris', async () => {
+		const table = `<w:tbl><w:tr><w:trPr><w:trHeight w:val="600" w:hRule="atLeast"/></w:trPr><w:tc>${p(r('isi'))}</w:tc></w:tr></w:tbl>`
+		const row = blocks((await readDocx(docx({ body: table }))).content)[0]?.content?.[0]
+		expect(row?.attrs?.rowHeight).toBe(40)
+	})
+
+	test('cantSplit pada baris ikut terbawa', async () => {
+		const table = `<w:tbl>
+			<w:tr><w:trPr><w:cantSplit/></w:trPr><w:tc>${p(r('a'))}</w:tc></w:tr>
+			<w:tr><w:tc>${p(r('b'))}</w:tc></w:tr>
+		</w:tbl>`
+		const block = blocks((await readDocx(docx({ body: table }))).content)[0]
+
+		expect(block?.content?.[0]?.attrs?.cantSplit).toBe(true)
+		expect(block?.content?.[1]?.attrs?.cantSplit).toBeUndefined()
 	})
 
 	test('tabel rata tengah membawa perataannya', async () => {
@@ -446,6 +513,90 @@ describe('tabel', () => {
 		expect(row?.content).toHaveLength(1)
 		expect(textOf(row?.content?.[0])).toBe('yatim')
 		expect(row?.content?.[0]?.attrs?.rowspan).toBeUndefined()
+	})
+
+	test('putar-balik pemformatan tabel: ekspor → impor', async () => {
+		const { exportDocx } = await import('../export-docx')
+		const { buildSchema } = await import('@/features/sync/serialize')
+		const { DEFAULT_PAGE_SETUP, pageGeometry } = await import('@/features/editor/page-geometry')
+
+		const doc = buildSchema().nodeFromJSON({
+			type: 'doc',
+			content: [
+				{
+					type: 'table',
+					attrs: {
+						tableWidth: 300,
+						indentLeft: 48,
+						borderColor: '#ff0000',
+						borderWidth: 2,
+						borderStyle: 'dashed',
+					},
+					content: [
+						{
+							type: 'tableRow',
+							attrs: { rowHeight: 40, cantSplit: true },
+							content: [
+								{
+									type: 'tableHeader',
+									attrs: {
+										backgroundColor: '#d9e2f3',
+										verticalAlign: 'middle',
+										cellPadding: '4px 6px 4px 6px',
+										borderColor: '#00ff00',
+										borderWidth: 1,
+										borderStyle: 'solid',
+										colwidth: [150],
+									},
+									content: [
+										{
+											type: 'paragraph',
+											attrs: { lineHeight: '1.73', spaceBefore: 8, spaceAfter: 8 },
+											content: [{ type: 'text', text: 'kepala' }],
+										},
+									],
+								},
+								{
+									type: 'tableHeader',
+									attrs: { colwidth: [150] },
+									content: [{ type: 'paragraph' }],
+								},
+							],
+						},
+					],
+				},
+			],
+		})
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+			setup: DEFAULT_PAGE_SETUP,
+		})
+		const result = await readDocx(new Uint8Array(await blob.arrayBuffer()))
+		const table = blocks(result.content)[0]
+
+		expect(table?.attrs?.tableWidth).toBe(300)
+		expect(table?.attrs?.indentLeft).toBe(48)
+		expect(table?.attrs?.borderColor).toBe('#ff0000')
+		expect(table?.attrs?.borderWidth).toBe(2)
+		expect(table?.attrs?.borderStyle).toBe('dashed')
+
+		const row = table?.content?.[0]
+		expect(row?.attrs?.rowHeight).toBe(40)
+		expect(row?.attrs?.cantSplit).toBe(true)
+
+		const cell = row?.content?.[0]
+		expect(cell?.type).toBe('tableHeader')
+		expect(cell?.attrs?.backgroundColor).toBe('#d9e2f3')
+		expect(cell?.attrs?.verticalAlign).toBe('middle')
+		expect(cell?.attrs?.cellPadding).toBe('4px 6px 4px 6px')
+		expect(cell?.attrs?.borderColor).toBe('#00ff00')
+		expect(cell?.attrs?.borderWidth).toBe(1)
+
+		const paragraph = cell?.content?.[0]
+		expect(paragraph?.attrs?.spaceBefore).toBe(8)
+		expect(paragraph?.attrs?.spaceAfter).toBe(8)
+		expect(paragraph?.attrs?.lineHeight).toBe('1.73')
 	})
 })
 
