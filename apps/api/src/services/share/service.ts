@@ -4,6 +4,7 @@ import { documents, shares } from '@/db/schemas'
 import { AppError } from '@/lib/error'
 import { findDocumentById } from '@/repository/document'
 import { findTabsByDocument } from '@/repository/document-tab'
+import { insertShare } from '@/repository/share'
 import BaseService from '@/services/base.service'
 import type { CreateShareResponse, SharedDocumentResponse } from './dto'
 import { createShareBodySchema } from './dto'
@@ -21,16 +22,13 @@ export default class ShareService extends BaseService {
 			const document = await findDocumentById(documentId, identityId)
 			if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
 
-			const [share] = await this.db
-				.insert(shares)
-				.values({
-					document_id: documentId,
-					token: this.generateToken(),
-					access,
-					role,
-					created_by: this.context.get('userId') ?? null,
-				})
-				.returning()
+			const share = await insertShare({
+				document_id: documentId,
+				token: this.generateToken(),
+				access,
+				role,
+				created_by: this.context.get('userId') ?? null,
+			})
 			if (!share) throw AppError.internalServerError('Gagal membuat share link')
 
 			const result: CreateShareResponse = {
