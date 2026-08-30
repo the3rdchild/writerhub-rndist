@@ -299,6 +299,7 @@ detail teknis, mereka yang menang.**
 | `HISTORY-PROJECTS-MEMORY-PLAN.md` | History sesi (F), Projects (G), AI Memory (H) |
 | `GLOSSARY-MAKER-PLAN.md` | Glosarium Maker (fitur L) |
 | `WEB-RESEARCH-PLAN.md` | Riset web via Tavily — di luar rencana awal, ditambah 26 Agustus 2026 |
+| `CHAT-TONE-PLAN.md` | Riset & rencana tone/register di AI Chat — ditambah 30 Agustus 2026 |
 | `WORKPLAN-P1-P12-DUA-JALUR.md` | Pembagian kerja dua jalur berdasarkan kepemilikan berkas |
 | `design.md` | Arsitektur sistem & batas modul |
 | `coding_standard.md` | Standar penulisan kode + hasil audit tanggung jawab tunggal |
