@@ -97,7 +97,7 @@ export default class ChatService extends JobSubmissionService {
  * Model pilihan pengguna hanya dihormati di OpenRouter. Provider lain punya
  * daftar model sendiri, jadi meneruskan nama dari klien ke sana akan ditolak.
  */
-function pickModel(requested: string | undefined, fallback: string, baseUrl: string): string {
+export function pickModel(requested: string | undefined, fallback: string, baseUrl: string): string {
 	if (!requested || !isKnownChatModel(requested) || requested === DEFAULT_CHAT_MODEL) return fallback
 
 	return baseUrl.includes('openrouter.ai') ? requested : fallback

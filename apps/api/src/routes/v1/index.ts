@@ -1,6 +1,7 @@
 import analysis from './analysis.route'
 import chat from './chat.route'
 import documents from './documents.route'
+import external from './external.route'
 import files from './files.route'
 import grammar from './grammar.route'
 import health from './health.route'
@@ -25,6 +26,7 @@ export const v1Routes = [
 	files,
 	share,
 	documents,
+	external,
 	tabs,
 	projects,
 	memory,

@@ -38,6 +38,10 @@ export const env = {
 	PORT: num('PORT', 8080),
 	ORIGIN: str('ORIGIN', '*'),
 	SERVICE_URL: str('SERVICE_URL', 'http://localhost:8080'),
+	// Host apps/web, untuk membentuk URL absolut (mis. tautan share) bagi klien
+	// yang bukan browser - klien browser membentuknya sendiri dari
+	// window.location.origin. Bukan URL API; API tahu dirinya lewat SERVICE_URL.
+	WEB_APP_URL: str('WEB_APP_URL', 'http://localhost:3000'),
 
 	// ── Autentikasi ─────────────────────────────────────────────────────────
 	AUTH_MODE: oneOf<AuthMode>('AUTH_MODE', ['pp', 'none'], 'pp'),
