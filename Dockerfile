@@ -3,9 +3,15 @@ ARG PYTHON_VERSION=3.12
 ARG APP_UID=65534
 FROM oven/bun:${BUN_VERSION}-slim AS bun-base
 
-RUN apt-get update \
+# deb.debian.org 403s some packages over plain HTTP; switch to HTTPS and
+# bootstrap ca-certificates without peer verification (slim image has no CA
+# store yet), then run apt normally with verification enabled.
+RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update -o Acquire::https::Verify-Peer=false -o Acquire::https::Verify-Host=false \
+    && apt-get install -y --no-install-recommends -o Acquire::https::Verify-Peer=false -o Acquire::https::Verify-Host=false ca-certificates \
+    && apt-get update \
     && apt-get upgrade -y \
-    && apt-get install -y --no-install-recommends ca-certificates dumb-init wget \
+    && apt-get install -y --no-install-recommends dumb-init wget \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /app /tmp/bun-cache \
     && chown -R 65534:65534 /app /tmp/bun-cache
@@ -64,9 +70,12 @@ RUN bun run build
 
 FROM oven/bun:${BUN_VERSION}-slim AS web
 
-RUN apt-get update \
+RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update -o Acquire::https::Verify-Peer=false -o Acquire::https::Verify-Host=false \
+    && apt-get install -y --no-install-recommends -o Acquire::https::Verify-Peer=false -o Acquire::https::Verify-Host=false ca-certificates \
+    && apt-get update \
     && apt-get upgrade -y \
-    && apt-get install -y --no-install-recommends ca-certificates dumb-init wget \
+    && apt-get install -y --no-install-recommends dumb-init wget \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /app && chown -R 65534:65534 /app
 
@@ -104,9 +113,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONIOENCODING=utf-8 \
     HOME=/tmp
 
-RUN apt-get update \
+RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update -o Acquire::https::Verify-Peer=false -o Acquire::https::Verify-Host=false \
+    && apt-get install -y --no-install-recommends -o Acquire::https::Verify-Peer=false -o Acquire::https::Verify-Host=false ca-certificates \
+    && apt-get update \
     && apt-get upgrade -y \
-    && apt-get install -y --no-install-recommends ca-certificates dumb-init \
+    && apt-get install -y --no-install-recommends dumb-init \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /app && chown -R 65534:65534 /app
 
@@ -127,8 +139,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONIOENCODING=utf-8 \
     HOME=/tmp
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates dumb-init \
+RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update -o Acquire::https::Verify-Peer=false -o Acquire::https::Verify-Host=false \
+    && apt-get install -y --no-install-recommends -o Acquire::https::Verify-Peer=false -o Acquire::https::Verify-Host=false ca-certificates \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends dumb-init \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /app && chown -R 65534:65534 /app
 
