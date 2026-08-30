@@ -1,4 +1,4 @@
-import { fallbackToolPrompt, type StyleMemory } from '@writer-hub/shared'
+import { fallbackToolPrompt, REWRITE_TONES, type RewriterTone, type StyleMemory } from '@writer-hub/shared'
 
 /**
  * Seluruh teks yang dikirim sebagai peran "system" ke provider AI.
@@ -96,6 +96,24 @@ export function memoryPrompt(memory: StyleMemory | null): string {
 		'write for them:',
 		...lines,
 	].join('\n')
+}
+
+/**
+ * Register untuk satu permintaan, dipilih eksplisit oleh pemanggil (UI atau
+ * klien eksternal). Menang atas preferensi tone yang tersimpan - memori adalah
+ * bawaan, ini adalah permintaan. Lihat docs/CHAT-TONE-PLAN.md.
+ */
+export function tonePrompt(tone: RewriterTone | undefined): string {
+	if (!tone) return ''
+
+	const instruction = REWRITE_TONES.find((item) => item.id === tone)?.instruction
+	if (!instruction) return ''
+
+	return [
+		`For this request, write in a ${instruction} register. This applies to`,
+		'your chat replies and to everything you put into the document, and it',
+		'overrides any saved tone preference above.',
+	].join(' ')
 }
 
 export interface SystemPromptInput {

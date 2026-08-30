@@ -7,6 +7,7 @@ import {
 	RESEARCH_OFF_NOTICE,
 	SYSTEM_PROMPT,
 	TASK_BOUNDARY_GUIDANCE,
+	tonePrompt,
 	TOOL_GUIDANCE,
 } from './prompts'
 
@@ -64,5 +65,16 @@ describe('blok memori', () => {
 		expect(memoryPrompt(null)).toBe('')
 		expect(memoryPrompt({} as StyleMemory)).toBe('')
 		expect(memoryPrompt({ glossary: [] } as unknown as StyleMemory)).toBe('')
+	})
+})
+
+describe('blok tone per permintaan', () => {
+	test('tone valid menyisipkan instruksi registernya', () => {
+		expect(tonePrompt('academic')).toContain('academic and scholarly register')
+		expect(tonePrompt('formal')).toContain('formal and professional register')
+	})
+
+	test('tone kosong menghasilkan teks kosong', () => {
+		expect(tonePrompt(undefined)).toBe('')
 	})
 })
