@@ -38,6 +38,9 @@ export const env = {
 	PORT: num('PORT', 8080),
 	ORIGIN: str('ORIGIN', '*'),
 	SERVICE_URL: str('SERVICE_URL', 'http://localhost:8080'),
+	// Alamat apps/web sebagaimana dibuka pengguna - dipakai menyusun tautan
+	// dokumen yang dikembalikan ke klien eksternal (lihat services/drafts).
+	WEB_URL: str('WEB_URL', 'http://localhost:3000'),
 
 	// ── Autentikasi ─────────────────────────────────────────────────────────
 	AUTH_MODE: oneOf<AuthMode>('AUTH_MODE', ['pp', 'none'], 'pp'),

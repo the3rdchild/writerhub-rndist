@@ -74,3 +74,37 @@ Konsekuensinya `API_URL` adalah variabel sisi server - bukan `NEXT_PUBLIC_*`.
 
 Token user diambil dari header `Authorization` bila WritingHub disematkan di shell yang sudah
 meneruskannya, atau dari cookie `AUTH_COOKIE_NAME` bila berdiri sendiri.
+
+## Serah-terima draf dari klien eksternal
+
+Satu permintaan "buatkan …" dari luar - misalnya AI Chat PPE - ditukar dengan sebuah dokumen
+WritingHub beserta tautannya. Endpointnya memakai autentikasi yang sama dengan endpoint lain
+(`x-client` + HMAC untuk `pp-extended`, API key untuk `ransel-ai`); dokumen yang lahir dari
+sana dimiliki identitas pengguna yang dikirim di `x-pp-user-id` / `x-ransel-user-id`, jadi ia
+langsung muncul di Library pengguna itu.
+
+```
+POST /api/v1/drafts
+{ "prompt": "buatkan draf akademik tentang X", "tone": "academic", "language": "Indonesian" }
+
+202 { "documentId": "…", "tabId": "…", "title": "…", "status": "generating",
+      "url": "https://…/d/<documentId>", "statusUrl": "https://…/api/v1/drafts/<documentId>" }
+```
+
+Yang perlu diketahui pemanggil:
+
+- **Tautannya dibalas seketika**, sebelum naskahnya ada. Dokumen dibuat lebih dulu supaya
+  balasan tidak menunggu LLM; naskahnya menyusul di latar belakang
+  (`apps/api/src/services/drafts/runner.ts`).
+- **`GET /api/v1/drafts/:documentId`** memberi status yang sama sampai ia `ready` atau
+  `failed`. Halaman `/d/<documentId>` di `apps/web` menunggunya sendiri, jadi pengguna boleh
+  membuka tautannya seketika.
+- **Kirim `content` (Markdown) alih-alih `prompt`** kalau naskahnya sudah jadi di sisi
+  pemanggil. Dokumen langsung `ready` (201) dan tidak ada panggilan LLM sama sekali.
+- **`title` opsional.** Tanpa itu judul diambil dari heading pertama naskah, dengan potongan
+  prompt sebagai penambal selama draf masih ditulis.
+- `tone` memakai daftar yang sama dengan Paraphraser (`academic`, `formal`, `casual`,
+  `natural`); `projectId` opsional, bawaannya proyek default pengguna.
+
+`WEB_URL` di `apps/api` menentukan asal tautan yang dikembalikan - ia harus alamat `apps/web`
+sebagaimana dibuka pengguna, bukan alamat internal antar-container.

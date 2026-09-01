@@ -56,8 +56,8 @@ Dua titik eksplisit:
 
 1. **`tone` di body chat** (`chatBodySchema`, divalidasi `z.enum(REWRITE_TONE_IDS)`) →
    disuntik ke system prompt sebagai instruksi register per permintaan, menang atas memori
-   tersimpan. Ini jalur untuk UI picker maupun klien eksternal (lihat rencana endpoint
-   dokumen eksternal untuk PPE AI Chat, PRD terpisah).
+   tersimpan. Ini jalur untuk UI picker maupun klien eksternal - endpoint serah-terima draf
+   (`POST /api/v1/drafts`) sudah menerima `tone` dengan enum yang sama, lihat README.
 2. **Parameter `tone` opsional di tool `insert_content` / `create_tab`** — model sendiri
    yang mendeklarasikan register saat menulis konten. Berfungsi sebagai komitmen diri tepat
    di momen generasi (model menyatakan tone, lalu menulis dalam tone itu), tanpa butuh
@@ -104,4 +104,7 @@ tapi sebagai pelengkap, bukan fondasi.
   body hanya dipakai klien eksternal; di dalam aplikasi, tone mengandalkan parameter tool
   yang diisi model sendiri.
 - **Endpoint eksternal PPE AI Chat** meneruskan `tone` dari satu permintaan "buatkan draf
-  akademik" — kontraknya dirancang di PRD terpisah.
+  akademik" — **sudah ada** (`POST /api/v1/drafts`, `apps/api/src/services/drafts/`): `tone`
+  divalidasi `REWRITE_TONE_IDS` lalu disuntik ke prompt system draf lewat `tonePrompt()`.
+  Jalurnya terpisah dari AI Chat, jadi butir (1) di §2b tetap belum dikerjakan untuk
+  `/api/v1/chat`.

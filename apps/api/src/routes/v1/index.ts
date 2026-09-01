@@ -1,6 +1,7 @@
 import analysis from './analysis.route'
 import chat from './chat.route'
 import documents from './documents.route'
+import drafts from './drafts.route'
 import files from './files.route'
 import grammar from './grammar.route'
 import health from './health.route'
@@ -30,4 +31,5 @@ export const v1Routes = [
 	memory,
 	history,
 	research,
+	drafts,
 ]
