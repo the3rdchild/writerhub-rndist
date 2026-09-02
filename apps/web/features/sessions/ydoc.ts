@@ -1,8 +1,10 @@
 'use client'
 
+import type { DocumentTypography } from '@writer-hub/shared'
 import * as Y from 'yjs'
 import type { PageSetup } from '@/features/editor/page-geometry'
 import { DEFAULT_PAGE_SETUP } from '@/features/editor/page-geometry'
+import { DEFAULT_TYPOGRAPHY, normalizeTypography } from '@/features/editor/typography'
 import type { CommentThread } from './types'
 
 const TABS = 'tabs'
@@ -10,6 +12,7 @@ const DOCS = 'docs'
 const ORDER = 'order'
 const META = 'meta'
 const TAB_ORDER = 'tabOrder'
+export const TYPOGRAPHY = 'typography'
 export const LOCAL_ORIGIN = 'local'
 
 export interface TabMeta {
@@ -20,6 +23,7 @@ export interface TabMeta {
 	comments: CommentThread[]
 	updatedAt: number
 	pageSetup: PageSetup | null
+	typography: DocumentTypography | null
 }
 
 export interface DocMeta {
@@ -29,6 +33,7 @@ export interface DocMeta {
 	updatedAt: number
 	titleUpdatedAt: number
 	pageSetup: PageSetup | null
+	typography: DocumentTypography | null
 }
 
 export function createTabId(): string {
@@ -108,6 +113,7 @@ function readMeta(meta: Y.Map<Y.Map<unknown>>, id: string): TabMeta {
 		comments: (entry?.get('comments') as CommentThread[]) ?? [],
 		updatedAt: (entry?.get('updatedAt') as number) ?? 0,
 		pageSetup: readPageSetup(entry),
+		typography: normalizeTypography(entry?.get(TYPOGRAPHY)),
 	}
 }
 
@@ -121,6 +127,7 @@ function readDocMeta(meta: Y.Map<Y.Map<unknown>>, id: string): DocMeta {
 		updatedAt: (entry?.get('updatedAt') as number) ?? 0,
 		titleUpdatedAt: (entry?.get('titleUpdatedAt') as number) ?? 0,
 		pageSetup: readPageSetup(entry),
+		typography: normalizeTypography(entry?.get(TYPOGRAPHY)),
 	}
 }
 
@@ -169,6 +176,43 @@ export function setPageSetupForDoc(doc: Y.Doc, docId: string, setup: PageSetup):
 export function setPageSetupForTab(doc: Y.Doc, tabId: string, setup: PageSetup): void {
 	doc.transact(() => {
 		tabsRoot(doc).meta.get(tabId)?.set('pageSetup', setup)
+	}, LOCAL_ORIGIN)
+}
+
+/**
+ * Tipografi diselesaikan dengan tangga yang sama seperti `pageSetup`: milik tab
+ * kalau ada, kalau tidak milik dokumen, kalau tidak bawaan pengguna.
+ */
+export function resolveTypography(
+	doc: Y.Doc,
+	tabId: string,
+	fallback: DocumentTypography = DEFAULT_TYPOGRAPHY,
+): DocumentTypography {
+	const tab = readMeta(tabsRoot(doc).meta, tabId).typography
+	if (tab) return tab
+
+	const docId = findTabDoc(doc, tabId)
+	const documentTypography = docId ? readDocMeta(docsRoot(doc).meta, docId).typography : null
+	return documentTypography ?? fallback
+}
+
+export function setTypographyForDoc(doc: Y.Doc, docId: string, typography: DocumentTypography): void {
+	const { meta: docsMeta } = docsRoot(doc)
+	const { meta: tabsMeta } = tabsRoot(doc)
+	const tabIds = readDocMeta(docsMeta, docId).tabOrder
+
+	doc.transact(() => {
+		docsMeta.get(docId)?.set(TYPOGRAPHY, typography)
+		for (const tabId of tabIds) {
+			const entry = tabsMeta.get(tabId)
+			if (entry?.get(TYPOGRAPHY) !== undefined) entry.delete(TYPOGRAPHY)
+		}
+	}, LOCAL_ORIGIN)
+}
+
+export function setTypographyForTab(doc: Y.Doc, tabId: string, typography: DocumentTypography): void {
+	doc.transact(() => {
+		tabsRoot(doc).meta.get(tabId)?.set(TYPOGRAPHY, typography)
 	}, LOCAL_ORIGIN)
 }
 

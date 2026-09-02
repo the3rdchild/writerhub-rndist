@@ -1,3 +1,4 @@
+import type { DocumentTypography } from '@writer-hub/shared'
 import type { BuiltinTemplateDefinition } from './definition'
 
 /** Margin seragam 1 cm untuk flyer A5. */
@@ -13,6 +14,47 @@ const MARGIN_2 = { top: 76, right: 76, bottom: 76, left: 76 }
 const MARGIN_2_5 = { top: 94, right: 94, bottom: 94, left: 94 }
 
 const ARIAL_12 = { family: 'Arial, Helvetica, sans-serif', sizePt: 12 }
+
+/**
+ * Cetakan promosi - satu-satunya kategori yang judul besarnya memang benar.
+ * Headline harus menang dari jarak beberapa langkah, jadi tangganya lebar
+ * (28/18/14pt di atas badan 12pt).
+ */
+const MARKETING_TYPOGRAPHY: DocumentTypography = {
+	baseFont: ARIAL_12,
+	lineHeight: 1.3,
+	paragraph: { spaceBeforePt: 0, spaceAfterPt: 8 },
+	headings: {
+		1: { sizePt: 28, spaceBeforePt: 0, spaceAfterPt: 8 },
+		2: { sizePt: 18, spaceBeforePt: 14, spaceAfterPt: 5 },
+		3: { sizePt: 14, spaceBeforePt: 10, spaceAfterPt: 4 },
+	},
+}
+
+/** Poster A3 dibaca dari jauh: satu tingkat lebih besar lagi. */
+const MARKETING_TYPOGRAPHY_POSTER: DocumentTypography = {
+	...MARKETING_TYPOGRAPHY,
+	baseFont: { ...ARIAL_12, sizePt: 14 },
+	headings: {
+		1: { sizePt: 48, align: 'center', spaceBeforePt: 0, spaceAfterPt: 12 },
+		2: { sizePt: 26, align: 'center', spaceBeforePt: 18, spaceAfterPt: 6 },
+		3: { sizePt: 18, spaceBeforePt: 12, spaceAfterPt: 4 },
+	},
+}
+
+/**
+ * Siaran pers dibaca sebagai dokumen, bukan sebagai cetakan: judulnya kembali
+ * setenang dokumen kantor meski kategorinya marketing.
+ */
+const MARKETING_TYPOGRAPHY_RELEASE: DocumentTypography = {
+	baseFont: ARIAL_12,
+	lineHeight: 1.5,
+	paragraph: { spaceBeforePt: 0, spaceAfterPt: 10 },
+	headings: {
+		1: { sizePt: 16, spaceBeforePt: 12, spaceAfterPt: 6 },
+		2: { sizePt: 13, spaceBeforePt: 10, spaceAfterPt: 4 },
+	},
+}
 
 export const MARKETING_TEMPLATES: BuiltinTemplateDefinition[] = [
 	{
@@ -45,7 +87,7 @@ export const MARKETING_TEMPLATES: BuiltinTemplateDefinition[] = [
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: ARIAL_12,
+				typography: MARKETING_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -101,7 +143,7 @@ export const MARKETING_TEMPLATES: BuiltinTemplateDefinition[] = [
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: ARIAL_12,
+				typography: MARKETING_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -160,7 +202,7 @@ export const MARKETING_TEMPLATES: BuiltinTemplateDefinition[] = [
 					pageless: false,
 				},
 				columns: { count: 3, gap: 38 },
-				baseFont: ARIAL_12,
+				typography: MARKETING_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -217,7 +259,7 @@ export const MARKETING_TEMPLATES: BuiltinTemplateDefinition[] = [
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: ARIAL_12,
+				typography: MARKETING_TYPOGRAPHY_POSTER,
 			},
 			format: {
 				citationStyle: 'none',
@@ -277,7 +319,7 @@ export const MARKETING_TEMPLATES: BuiltinTemplateDefinition[] = [
 					pageless: false,
 				},
 				columns: { count: 2, gap: 19 },
-				baseFont: ARIAL_12,
+				typography: MARKETING_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -332,7 +374,7 @@ export const MARKETING_TEMPLATES: BuiltinTemplateDefinition[] = [
 					},
 				},
 				columns: { count: 2, gap: 38 },
-				baseFont: ARIAL_12,
+				typography: MARKETING_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -390,8 +432,7 @@ export const MARKETING_TEMPLATES: BuiltinTemplateDefinition[] = [
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: ARIAL_12,
-				lineHeight: 1.5,
+				typography: MARKETING_TYPOGRAPHY_RELEASE,
 			},
 			format: {
 				citationStyle: 'none',
@@ -448,7 +489,7 @@ export const MARKETING_TEMPLATES: BuiltinTemplateDefinition[] = [
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: ARIAL_12,
+				typography: MARKETING_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',

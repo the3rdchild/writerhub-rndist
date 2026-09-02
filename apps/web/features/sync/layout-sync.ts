@@ -6,16 +6,19 @@
  * `docs/TEMPLATE-GALLERY-PLAN.md` §7 P1.
  *
  * Perabot halaman hanya punya representasi per tab di Y.Doc - tidak ada
- * pembaca untuk perabot tingkat dokumen - jadi `applyDocLayout` sengaja hanya
- * menerapkan `pageSetup`. Perabot bawaan template karena itu dikirim server
- * sebagai penimpa tab (`apps/api/src/services/templates/layout.ts`), bukan
- * sebagai bagian dasar dokumen.
+ * pembaca untuk perabot tingkat dokumen - jadi `applyDocLayout` sengaja tidak
+ * menerapkannya. Perabot bawaan template karena itu dikirim server sebagai
+ * penimpa tab (`apps/api/src/services/templates/layout.ts`), bukan sebagai
+ * bagian dasar dokumen.
+ *
+ * Tipografi tidak begitu: ia punya pembaca di kedua tingkat (`resolveTypography`
+ * di `ydoc.ts`), jadi ia ikut di dasar dokumen maupun di penimpa tab.
  */
 
 import type { TabLayout, TabLayoutOverride } from '@writer-hub/shared'
 import type * as Y from 'yjs'
 import { PAGE_FURNITURE_KEY } from '@/features/editor/page-furniture/page-furniture-ydoc'
-import { docsRoot, LOCAL_ORIGIN, readDocs, readTabs, tabsRoot } from '@/features/sessions/ydoc'
+import { docsRoot, LOCAL_ORIGIN, readDocs, readTabs, TYPOGRAPHY, tabsRoot } from '@/features/sessions/ydoc'
 
 /** Penimpa yang tersimpan di meta tab: pageSetup milik tab + perabotnya. */
 export function readTabLayoutOverride(doc: Y.Doc, tabId: string): TabLayoutOverride | null {
@@ -28,13 +31,18 @@ export function readTabLayoutOverride(doc: Y.Doc, tabId: string): TabLayoutOverr
 	const layout: TabLayoutOverride = {}
 	if (meta.pageSetup) layout.pageSetup = meta.pageSetup
 	if (furniture) layout.furniture = furniture
-	return layout.pageSetup || layout.furniture ? layout : null
+	if (meta.typography) layout.typography = meta.typography
+	return layout.pageSetup || layout.furniture || layout.typography ? layout : null
 }
 
-/** Tata letak dasar dokumen: pageSetup yang tersimpan di meta dokumen. */
+/** Tata letak dasar dokumen: pageSetup dan tipografi di meta dokumen. */
 export function readDocLayout(doc: Y.Doc, docId: string): TabLayout | null {
 	const meta = readDocs(doc).find((dok) => dok.id === docId)
-	return meta?.pageSetup ? { pageSetup: meta.pageSetup } : null
+	if (!meta?.pageSetup) return null
+	return {
+		pageSetup: meta.pageSetup,
+		...(meta.typography ? { typography: meta.typography } : {}),
+	}
 }
 
 export function applyDocLayout(
@@ -48,6 +56,8 @@ export function applyDocLayout(
 		if (!entry) return
 		if (layout?.pageSetup) entry.set('pageSetup', layout.pageSetup)
 		else if (entry.get('pageSetup') !== undefined) entry.delete('pageSetup')
+		if (layout?.typography) entry.set(TYPOGRAPHY, layout.typography)
+		else if (entry.get(TYPOGRAPHY) !== undefined) entry.delete(TYPOGRAPHY)
 	}, origin)
 }
 
@@ -64,6 +74,8 @@ export function applyTabLayout(
 		else if (entry.get('pageSetup') !== undefined) entry.delete('pageSetup')
 		if (layout?.furniture) entry.set(PAGE_FURNITURE_KEY, layout.furniture)
 		else if (entry.get(PAGE_FURNITURE_KEY) !== undefined) entry.delete(PAGE_FURNITURE_KEY)
+		if (layout?.typography) entry.set(TYPOGRAPHY, layout.typography)
+		else if (entry.get(TYPOGRAPHY) !== undefined) entry.delete(TYPOGRAPHY)
 	}, origin)
 }
 

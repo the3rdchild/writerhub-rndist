@@ -320,6 +320,8 @@ export function describeToolCall(call: ToolCall): string {
 			return 'Update table-of-contents settings'
 		case 'insert_mermaid':
 			return 'Insert Mermaid diagram'
+		case 'insert_html_block':
+			return 'Insert HTML design block'
 		case 'insert_table':
 			return `Insert table ${call.arguments.rows ?? '?'}×${call.arguments.cols ?? '?'}`
 		case 'apply_paragraph_style':
@@ -608,6 +610,19 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 				editor.state.tr.setNodeMarkup(target.pos, undefined, { ...target.attrs, ...patch }),
 			)
 			return { ok: true, message: 'Table-of-contents settings updated.' }
+		}
+
+		case 'insert_html_block': {
+			const html = String(call.arguments.html ?? '').trim()
+			if (!html) return { ok: false, message: 'Nothing to insert.' }
+
+			const height = Number(call.arguments.height)
+			editor
+				.chain()
+				.focus()
+				.insertHtmlBlock({ html, ...(height ? { height } : {}) })
+				.run()
+			return { ok: true, message: 'HTML design block inserted.' }
 		}
 
 		case 'insert_mermaid': {

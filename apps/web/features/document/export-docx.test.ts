@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
+import type { DocumentTypography } from '@writer-hub/shared'
 import { strFromU8, unzipSync } from 'fflate'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import { DEFAULT_PAGE_SETUP, type PageSetup, pageGeometry } from '@/features/editor/page-geometry'
@@ -291,5 +292,111 @@ describe('baris baru di dalam satu simpul teks', () => {
 		expect(xml).toContain('PROPOSAL PROYEK')
 		expect(xml).toContain('TUGAS AKHIR')
 		expect(xml).not.toContain('PROPOSAL PROYEK\nTUGAS AKHIR')
+	})
+})
+
+describe('tipografi di berkas DOCX', () => {
+	const skripsi: DocumentTypography = {
+		baseFont: { family: '"Times New Roman", Times, serif', sizePt: 12 },
+		lineHeight: 1.5,
+		paragraph: { align: 'justify', firstLinePt: 28 },
+		headings: { 1: { sizePt: 12, align: 'center', spaceBeforePt: 12, spaceAfterPt: 6 } },
+	}
+
+	async function stylesXml(typography?: DocumentTypography): Promise<string> {
+		const doc = buildSchema().nodeFromJSON({
+			type: 'doc',
+			content: [{ type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'BAB I' }] }],
+		})
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+			typography,
+		})
+		const files = unzipSync(new Uint8Array(await blob.arrayBuffer()))
+		return strFromU8(files['word/styles.xml'])
+	}
+
+	test('badan naskah memakai huruf dan ukuran dokumen', async () => {
+		const xml = await stylesXml(skripsi)
+		expect(xml).toContain('Times New Roman')
+		// Word menyimpan ukuran dalam setengah titik: 12pt = 24.
+		expect(xml).toMatch(/<w:docDefaults>[\s\S]*?<w:sz w:val="24"/)
+	})
+
+	// Inti perbaikannya di sisi berkas: tanpa gaya judul sendiri, Word memakai
+	// Heading 1 bawaannya - biru dan membesar - jadi hasil ekspor tidak lagi
+	// serupa dengan yang tampil di kanvas.
+	test('judul BAB tetap 12pt, tebal, hitam, rata tengah', async () => {
+		const xml = await stylesXml(skripsi)
+		const heading = xml.match(/<w:style [^>]*w:styleId="Heading1"[\s\S]*?<\/w:style>/)?.[0]
+		expect(heading).toBeDefined()
+		expect(heading).toContain('<w:sz w:val="24"')
+		expect(heading).toContain('<w:b')
+		expect(heading).toContain('000000')
+		expect(heading).toContain('<w:jc w:val="center"')
+	})
+
+	test('spasi 1,5 tersimpan sebagai spasi 1,5 milik Word', async () => {
+		const xml = await stylesXml(skripsi)
+		// 1,5 x 240 = 360, angka yang sama dengan yang ditulis Google Docs.
+		expect(xml).toMatch(/<w:spacing[^>]*w:line="360"/)
+	})
+
+	test('tanpa tipografi, berkas tidak membawa gaya buatan sendiri', async () => {
+		const xml = await stylesXml()
+		expect(xml).not.toContain('Times New Roman')
+	})
+})
+
+describe('blok HTML di berkas DOCX', () => {
+	/** PNG 1x1 yang sah - cukup untuk menguji jalurnya, bukan rupanya. */
+	const PNG_1PX =
+		'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+
+	async function docxFiles(attrs: Record<string, unknown>) {
+		const doc = buildSchema().nodeFromJSON({
+			type: 'doc',
+			content: [{ type: 'htmlBlock', attrs }],
+		})
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+		})
+		return unzipSync(new Uint8Array(await blob.arrayBuffer()))
+	}
+
+	test('potretan blok ikut sebagai gambar', async () => {
+		const files = await docxFiles({
+			html: '<h1>Diskon</h1>',
+			height: 320,
+			snapshot: PNG_1PX,
+			snapshotWidth: 400,
+			snapshotHeight: 300,
+		})
+
+		expect(strFromU8(files['word/document.xml'])).toContain('<w:drawing>')
+		expect(Object.keys(files).some((name) => name.startsWith('word/media/'))).toBe(true)
+	})
+
+	// Blok yang gagal dipotret tidak boleh menggagalkan seluruh ekspor.
+	test('blok tanpa potretan dilewati, ekspornya tetap jadi', async () => {
+		const files = await docxFiles({ html: '<h1>Diskon</h1>', height: 320, snapshot: '' })
+
+		expect(strFromU8(files['word/document.xml'])).not.toContain('<w:drawing>')
+		expect(files['word/document.xml']).toBeDefined()
+	})
+
+	// HTML mentahnya tidak pernah bocor ke berkas: yang diekspor gambarnya.
+	test('sumber HTML tidak ikut ke dalam berkas', async () => {
+		const files = await docxFiles({
+			html: '<h1>RAHASIA</h1>',
+			height: 320,
+			snapshot: PNG_1PX,
+			snapshotWidth: 400,
+			snapshotHeight: 300,
+		})
+
+		expect(strFromU8(files['word/document.xml'])).not.toContain('RAHASIA')
 	})
 })

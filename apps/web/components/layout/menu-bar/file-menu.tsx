@@ -1,6 +1,7 @@
 'use client'
 import { Boxes, Download, Files, FileText, Printer, RotateCcw, Upload } from 'lucide-react'
 import { useState } from 'react'
+import { refreshHtmlBlocks } from '@/components/editor/html-block-view'
 import { refreshTocBlocks } from '@/components/editor/toc-block-view'
 import { DropdownSeparator, Submenu } from '@/components/ui/dropdown'
 import { useDocument } from '@/features/document/document-context'
@@ -8,9 +9,10 @@ import { download, safeFilename } from '@/features/document/download'
 import { exportDocx } from '@/features/document/export-docx'
 import { useDocumentImport } from '@/features/document/import-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
-import { pageGeometry } from '@/features/editor/page-geometry'
 import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
+import { pageGeometry } from '@/features/editor/page-geometry'
 import { usePageSetup } from '@/features/editor/use-page-setup'
+import { useTypography } from '@/features/editor/use-typography'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { useShortcutLabel } from '@/features/shortcuts/use-shortcuts'
@@ -23,6 +25,7 @@ export function FileMenu() {
 	const { newSession, deleteSession, activeId, sessions } = useSessions()
 	const { setup: activeSetup } = usePageSetup()
 	const { furniture } = usePageFurniture()
+	const { typography } = useTypography()
 	const { openImport } = useDocumentImport()
 	const keys = useShortcutLabel()
 	const [exporting, setExporting] = useState(false)
@@ -34,6 +37,7 @@ export function FileMenu() {
 	const downloadDocx = async () => {
 		if (!editor || exporting) return
 		refreshTocBlocks(editor.view.dom)
+		await refreshHtmlBlocks(editor.view.dom)
 		if (sessions.length > 1) {
 			setDocxExportOpen(true)
 			return
@@ -47,6 +51,7 @@ export function FileMenu() {
 					geometry,
 					setup: activeSetup,
 					furniture,
+					typography,
 				}),
 				safeFilename(state.title, 'docx'),
 			)

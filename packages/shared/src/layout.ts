@@ -8,6 +8,8 @@
  * harus ikut.
  */
 
+import type { DocumentTypography } from './typography'
+
 export type PageOrientation = 'portrait' | 'landscape'
 
 export type PageSizeId =
@@ -65,6 +67,7 @@ export interface PageFurniture {
 export interface TabLayout {
 	pageSetup: PageSetup
 	furniture?: PageFurniture
+	typography?: DocumentTypography
 }
 
 /**
@@ -75,4 +78,5 @@ export interface TabLayout {
 export interface TabLayoutOverride {
 	pageSetup?: PageSetup
 	furniture?: PageFurniture
+	typography?: DocumentTypography
 }

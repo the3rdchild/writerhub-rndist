@@ -322,6 +322,26 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		},
 	},
 	{
+		name: 'insert_html_block',
+		kind: 'write',
+		description:
+			'Insert a self-contained HTML design block - use it for flyers, pamphlets, posters, banners and other colourful print pieces whose layout cannot be expressed as paragraphs and headings (gradients, absolute positioning, overlapping elements). Do NOT use it for ordinary prose: the block is flattened to an image on DOCX export, so text inside it is not searchable or editable in Word. The HTML is rendered in a locked-down frame: no scripts run and no network requests are made, so every image and font must be embedded as a data: URI, and all CSS must be inline or in a <style> tag. Pass only the markup that belongs inside <body>.',
+		parameters: {
+			type: 'object',
+			properties: {
+				html: {
+					type: 'string',
+					description: 'HTML fragment for the body: markup plus inline <style>. No scripts, no remote URLs.',
+				},
+				height: {
+					type: 'number',
+					description: 'Block height on the page in pixels at 96 dpi. Defaults to 320.',
+				},
+			},
+			required: ['html'],
+		},
+	},
+	{
 		name: 'insert_table',
 		kind: 'write',
 		description: 'Insert a table of a given size, with or without a header row.',

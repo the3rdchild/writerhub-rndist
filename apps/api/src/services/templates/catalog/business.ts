@@ -1,3 +1,4 @@
+import type { DocumentTypography } from '@writer-hub/shared'
 import type { BuiltinTemplateDefinition } from './definition'
 
 /** Margin seragam 2,5 cm - baku dokumen bisnis. */
@@ -13,6 +14,23 @@ const MARGIN_3 = { top: 113, right: 113, bottom: 113, left: 113 }
 const MARGIN_1_5 = { top: 57, right: 57, bottom: 57, left: 57 }
 
 const ARIAL_11 = { family: 'Arial, Helvetica, sans-serif', sizePt: 11 }
+
+/**
+ * Dokumen kantor: paragraf balok tanpa indent, dipisah jarak - bukan indent
+ * baris pertama seperti karya ilmiah. Judulnya masih boleh membesar, tapi
+ * bertingkat wajar (16/13/11pt), bukan setinggi judul halaman web.
+ */
+const BUSINESS_TYPOGRAPHY: DocumentTypography = {
+	baseFont: ARIAL_11,
+	lineHeight: 1.15,
+	paragraph: { spaceBeforePt: 0, spaceAfterPt: 8 },
+	headings: {
+		1: { sizePt: 16, spaceBeforePt: 16, spaceAfterPt: 6 },
+		2: { sizePt: 13, spaceBeforePt: 12, spaceAfterPt: 4 },
+		3: { sizePt: 11, spaceBeforePt: 10, spaceAfterPt: 3 },
+		4: { sizePt: 11, italic: true, spaceBeforePt: 8, spaceAfterPt: 2 },
+	},
+}
 
 export const BUSINESS_TEMPLATES: BuiltinTemplateDefinition[] = [
 	{
@@ -64,7 +82,7 @@ Tanggal
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: ARIAL_11,
+				typography: BUSINESS_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -126,7 +144,7 @@ Penyusun: Nama
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: ARIAL_11,
+				typography: BUSINESS_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -180,7 +198,7 @@ Penyusun: Nama
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: ARIAL_11,
+				typography: BUSINESS_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -243,7 +261,7 @@ Penyusun: Nama
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: ARIAL_11,
+				typography: BUSINESS_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -292,7 +310,7 @@ Penyusun: Nama
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: ARIAL_11,
+				typography: BUSINESS_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -360,7 +378,7 @@ Jabatan
 						default: { text: 'NAMA INSTANSI | Alamat | Telepon', align: 'center' },
 					},
 				},
-				baseFont: ARIAL_11,
+				typography: BUSINESS_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -425,7 +443,7 @@ Hormat saya,
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: ARIAL_11,
+				typography: BUSINESS_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -480,7 +498,7 @@ Alamat | Telepon | Email | LinkedIn
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: ARIAL_11,
+				typography: BUSINESS_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -548,7 +566,7 @@ Alamat | Telepon | Email | LinkedIn
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: ARIAL_11,
+				typography: BUSINESS_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -608,7 +626,7 @@ Alamat | Telepon | Email | LinkedIn
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: ARIAL_11,
+				typography: BUSINESS_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',

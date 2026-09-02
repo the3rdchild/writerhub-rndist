@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { TabLayout, TabLayoutOverride } from '@writer-hub/shared'
+import type { DocumentTypography, TabLayout, TabLayoutOverride } from '@writer-hub/shared'
 import * as Y from 'yjs'
 import { setPageFurnitureForTab } from '@/features/editor/page-furniture/page-furniture-ydoc'
 import type { PageSetup } from '@/features/editor/page-geometry'
@@ -7,8 +7,11 @@ import {
 	createDocument,
 	readDocs,
 	readTabs,
+	resolveTypography,
 	setPageSetupForDoc,
 	setPageSetupForTab,
+	setTypographyForDoc,
+	setTypographyForTab,
 } from '@/features/sessions/ydoc'
 import {
 	applyDocLayout,
@@ -32,6 +35,19 @@ const LETTER_SETUP: PageSetup = {
 	margins: { top: 96, right: 96, bottom: 96, left: 96 },
 	pageColor: null,
 	pageless: false,
+}
+
+const SKRIPSI_TYPOGRAPHY: DocumentTypography = {
+	baseFont: { family: '"Times New Roman", Times, serif', sizePt: 12 },
+	lineHeight: 1.5,
+	paragraph: { align: 'justify', firstLinePt: 28 },
+	headings: { 1: { sizePt: 12, align: 'center' } },
+}
+
+const FLYER_TYPOGRAPHY: DocumentTypography = {
+	baseFont: { family: 'Arial, Helvetica, sans-serif', sizePt: 12 },
+	lineHeight: 1.3,
+	headings: { 1: { sizePt: 28 } },
 }
 
 function firstTabId(doc: Y.Doc, docId: string): string {
@@ -125,5 +141,79 @@ describe('putar-balik tata letak lokal <-> server', () => {
 		expect(layoutSyncKey(a)).toBe(layoutSyncKey(b))
 		expect(layoutSyncKey(a)).not.toBe(layoutSyncKey(c))
 		expect(layoutSyncKey(null)).toBe('')
+	})
+})
+
+describe('putar-balik tipografi', () => {
+	test('tipografi dasar dokumen ikut terbaca dan tertulis kembali', () => {
+		const doc = new Y.Doc()
+		const docId = createDocument(doc, 'Skripsi')
+		setPageSetupForDoc(doc, docId, A5_SETUP)
+		setTypographyForDoc(doc, docId, SKRIPSI_TYPOGRAPHY)
+
+		const layout = readDocLayout(doc, docId)
+		expect(layout?.typography).toEqual(SKRIPSI_TYPOGRAPHY)
+
+		// Simpan → tarik → bandingkan, ke Y.Doc yang benar-benar baru.
+		const salinan = new Y.Doc()
+		const salinanDocId = createDocument(salinan, 'Skripsi')
+		applyDocLayout(salinan, salinanDocId, layout as TabLayout)
+
+		expect(readDocLayout(salinan, salinanDocId)).toEqual(layout as TabLayout)
+	})
+
+	test('tipografi tab menimpa tipografi dokumen', () => {
+		const doc = new Y.Doc()
+		const docId = createDocument(doc, 'Dua rupa')
+		const tabId = firstTabId(doc, docId)
+
+		setTypographyForDoc(doc, docId, SKRIPSI_TYPOGRAPHY)
+		expect(resolveTypography(doc, tabId)).toEqual(SKRIPSI_TYPOGRAPHY)
+
+		setTypographyForTab(doc, tabId, FLYER_TYPOGRAPHY)
+		expect(resolveTypography(doc, tabId)).toEqual(FLYER_TYPOGRAPHY)
+	})
+
+	// Menyetel tipografi dokumen berarti "seragamkan": penimpa tab dibuang,
+	// sama seperti perilaku setPageSetupForDoc di sebelahnya.
+	test('menyetel tipografi dokumen membuang penimpa tabnya', () => {
+		const doc = new Y.Doc()
+		const docId = createDocument(doc, 'Seragam')
+		const tabId = firstTabId(doc, docId)
+
+		setTypographyForTab(doc, tabId, FLYER_TYPOGRAPHY)
+		setTypographyForDoc(doc, docId, SKRIPSI_TYPOGRAPHY)
+
+		expect(readTabLayoutOverride(doc, tabId)?.typography).toBeUndefined()
+		expect(resolveTypography(doc, tabId)).toEqual(SKRIPSI_TYPOGRAPHY)
+	})
+
+	test('penimpa tab memuat tipografi bersama pageSetup', () => {
+		const doc = new Y.Doc()
+		const docId = createDocument(doc, 'Penimpa')
+		const tabId = firstTabId(doc, docId)
+
+		setPageSetupForTab(doc, tabId, LETTER_SETUP)
+		setTypographyForTab(doc, tabId, FLYER_TYPOGRAPHY)
+
+		const override = readTabLayoutOverride(doc, tabId)
+		expect(override).toEqual({ pageSetup: LETTER_SETUP, typography: FLYER_TYPOGRAPHY })
+
+		const salinan = new Y.Doc()
+		const salinanDocId = createDocument(salinan, 'Penimpa')
+		const salinanTabId = firstTabId(salinan, salinanDocId)
+		applyTabLayout(salinan, salinanTabId, override as TabLayoutOverride)
+
+		expect(readTabLayoutOverride(salinan, salinanTabId)).toEqual(override as TabLayoutOverride)
+	})
+
+	// Tanpa tipografi tersimpan, penyelesai jatuh ke bawaan yang diberikan
+	// pemanggil - di aplikasi, bawaan milik Pengaturan pengguna.
+	test('tanpa tipografi tersimpan, bawaan pemanggil yang dipakai', () => {
+		const doc = new Y.Doc()
+		const docId = createDocument(doc, 'Polos')
+		const tabId = firstTabId(doc, docId)
+
+		expect(resolveTypography(doc, tabId, FLYER_TYPOGRAPHY)).toEqual(FLYER_TYPOGRAPHY)
 	})
 })

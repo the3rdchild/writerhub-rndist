@@ -5,6 +5,7 @@
  */
 
 import type { PageFurniture, PageSetup } from './layout'
+import type { DocumentTypography } from './typography'
 
 export type TemplateCategory = 'academic_id' | 'paper' | 'business' | 'marketing'
 
@@ -32,8 +33,13 @@ export interface TemplateSpec {
 		furniture?: PageFurniture
 		/** Kolom untuk seluruh badan naskah; diterapkan lewat section break. */
 		columns?: { count: number; gap?: number }
-		baseFont?: { family: string; sizePt: number }
-		lineHeight?: number
+		/**
+		 * Rupa huruf badan dan tiap tingkat judul. Ikut tersimpan ke
+		 * `documents.layout` lewat `templateDocumentLayout`, jadi dokumen yang
+		 * lahir dari template ini benar-benar tampil dengan format itu - bukan
+		 * sekadar mencatatnya.
+		 */
+		typography?: DocumentTypography
 	}
 	format: {
 		citationStyle: CitationStyle

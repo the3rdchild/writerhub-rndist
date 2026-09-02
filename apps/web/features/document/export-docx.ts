@@ -2,6 +2,8 @@
 
 import type { JSONContent } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
+import type { DocumentTypography } from '@writer-hub/shared'
+import { HTML_BLOCK } from '@/features/editor/html-block'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import type { PageFurniture } from '@/features/editor/page-furniture/model'
 import {
@@ -12,6 +14,7 @@ import {
 	sameSheetGeometry,
 } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE, type SectionSpan, sectionSpans } from '@/features/editor/section-break'
+import { DOCX_ALIGNMENT, docxTypographyStyles } from './docx/typography-styles'
 import { docxSectionFurniture } from './export-furniture'
 
 const TWIPS_PER_PX = 15
@@ -142,11 +145,22 @@ function marksOf(node: PMNode): Marks {
 	return result
 }
 
-const ALIGNMENT: Record<string, 'left' | 'center' | 'right' | 'both'> = {
-	left: 'left',
-	center: 'center',
-	right: 'right',
-	justify: 'both',
+/**
+ * Membaca URI `data:` PNG menjadi bita. Mengembalikan `null` untuk apa pun yang
+ * bukan PNG - potretan yang gagal disimpan sebagai string kosong.
+ */
+function pngFromDataUrl(value: string): Uint8Array | null {
+	const base64 = value.startsWith('data:image/png;base64,') ? value.slice(22) : null
+	if (!base64) return null
+
+	try {
+		const binary = atob(base64)
+		const bytes = new Uint8Array(binary.length)
+		for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+		return bytes
+	} catch {
+		return null
+	}
 }
 
 export function mergeTabContents(tabs: JSONContent[]): JSONContent {
@@ -166,12 +180,18 @@ export async function exportDocx(
 		geometry,
 		setup,
 		furniture,
+		typography,
 	}: {
 		title: string
 		geometry: PageGeometry
 		setup?: PageSetup
 		/** Header/footer dokumen; null berarti tanpa perabot halaman. */
 		furniture?: PageFurniture | null
+		/**
+		 * Rupa huruf dokumen. Tanpa ini Word memakai gaya judul bawaannya, dan
+		 * berkas hasil ekspor tidak lagi serupa dengan yang tampil di kanvas.
+		 */
+		typography?: DocumentTypography | null
 	},
 ): Promise<Blob> {
 	const docx = await import('docx')
@@ -186,6 +206,7 @@ export async function exportDocx(
 		HeadingLevel,
 		WidthType,
 		LevelFormat,
+		ImageRun,
 	} = docx
 
 	const HEADINGS = [
@@ -213,7 +234,7 @@ export async function exportDocx(
 	}
 
 	const paragraphOf = (node: PMNode, extra: Record<string, unknown> = {}): InstanceType<typeof Paragraph> => {
-		const alignment = ALIGNMENT[node.attrs.textAlign as string]
+		const alignment = DOCX_ALIGNMENT[node.attrs.textAlign as string]
 
 		return new Paragraph({
 			children: runsOf(node),
@@ -432,6 +453,35 @@ export async function exportDocx(
 				return inner
 			}
 
+			// Blok HTML masuk sebagai gambar: Word tidak mengenal HTML, jadi
+			// rancangannya diratakan menjadi potretan yang diambil
+			// `refreshHtmlBlocks` tepat sebelum ekspor. Tanpa potretan - blok
+			// yang gagal digambar - ia dilewati, bukan menggagalkan ekspor.
+			case HTML_BLOCK: {
+				const png = pngFromDataUrl(String(node.attrs.snapshot ?? ''))
+				if (!png) return []
+
+				const width = Number(node.attrs.snapshotWidth) || 0
+				const height = Number(node.attrs.snapshotHeight) || 0
+				if (width <= 0 || height <= 0) return []
+
+				const scale = Math.min(1, sectionContentWidth / width)
+				return [
+					new Paragraph({
+						children: [
+							new ImageRun({
+								data: png,
+								type: 'png',
+								transformation: {
+									width: Math.round(width * scale),
+									height: Math.round(height * scale),
+								},
+							}),
+						],
+					}),
+				]
+			}
+
 			case 'tocBlock': {
 				const snapshot = String(node.attrs.snapshot ?? '')
 				return snapshot
@@ -515,6 +565,7 @@ export async function exportDocx(
 
 	const document = new Document({
 		title,
+		...(typography ? { styles: docxTypographyStyles(typography) } : {}),
 		...(furnitureExtras.evenAndOdd ? { evenAndOddHeaderAndFooters: true } : {}),
 		numbering: {
 			config: [...orderedConfigs].map(([reference, levels]) => ({ reference, levels })),

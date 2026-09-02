@@ -2,6 +2,7 @@
 
 import { Brain, Crown, Mail, Monitor, Moon, Palette, Sun, Type, User } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { BASE_FONT_SIZE_PT } from '@/features/editor/typography'
 import { MemoryTab } from '@/features/memory/memory-tab'
 import { type FontSize, type Theme, useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
@@ -167,7 +168,7 @@ export function SettingsDialog() {
 
 					{tab === 'editor' && (
 						<div className="flex flex-col gap-5">
-							<Field label="Ukuran font">
+							<Field label="Ukuran font bawaan">
 								<div className="flex gap-2">
 									{FONT_SIZES.map((size) => (
 										<button
@@ -182,6 +183,9 @@ export function SettingsDialog() {
 											)}
 										>
 											{size}
+											<span className="ml-1.5 text-xs font-normal opacity-70">
+												{BASE_FONT_SIZE_PT[size]}pt
+											</span>
 										</button>
 									))}
 								</div>

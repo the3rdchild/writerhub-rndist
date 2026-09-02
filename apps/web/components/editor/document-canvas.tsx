@@ -11,7 +11,9 @@ import {
 	pageGeometry,
 	type SheetGeometry,
 } from '@/features/editor/page-geometry'
+import { typographyRules } from '@/features/editor/typography-css'
 import { usePageSetup } from '@/features/editor/use-page-setup'
+import { useTypography } from '@/features/editor/use-typography'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
@@ -51,6 +53,7 @@ export function DocumentCanvas({
 	const { settings } = useSettings()
 	const { setup, setPageSetup } = usePageSetup()
 	const { furniture } = usePageFurniture()
+	const { typography } = useTypography()
 	const { editor } = useEditorInstance()
 	const { activeId } = useSessions()
 	const [pageCount, setPageCount] = useState(1)
@@ -58,6 +61,7 @@ export function DocumentCanvas({
 	const [sectionSetups, setSectionSetups] = useState<PageSetup[]>([])
 
 	const geometry = useMemo(() => pageGeometry(setup), [setup])
+	const typeRules = useMemo(() => typographyRules(typography), [typography])
 	const { width, height, margins, gap, pageStride, contentHeight } = geometry
 	const codeBlockMaxHeight = setup.pageless
 		? 'none'
@@ -79,6 +83,11 @@ export function DocumentCanvas({
 		<div className={cn('document-canvas flex-1 overflow-auto px-6 pb-8', !settings.showRuler && 'pt-8')}>
 			{/*
 			 */}
+			{/* Rupa huruf dokumen: dibangkitkan dari tipografi yang berlaku, bukan
+			    ditulis tangan di `globals.css`, supaya template benar-benar
+			    menentukan ukuran judul dan badan naskahnya sendiri. Tanpa atribut
+			    `media` karena ia harus berlaku di layar maupun di hasil cetak. */}
+			<style>{typeRules}</style>
 			{!setup.pageless && <style media="print">{printPageRules(setup, sectionSetups)}</style>}
 			<div className="mx-auto" style={{ width: canvasWidth * zoom + leftRulerRoom }}>
 				{settings.showRuler && (

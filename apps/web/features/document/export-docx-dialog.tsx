@@ -2,11 +2,14 @@
 
 import { FileDown } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { refreshHtmlBlocks } from '@/components/editor/html-block-view'
 import { download, safeFilename } from '@/features/document/download'
 import { exportDocx, mergeTabContents } from '@/features/document/export-docx'
-import { pageGeometry } from '@/features/editor/page-geometry'
+import { useEditorInstance } from '@/features/editor/editor-context'
 import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
+import { pageGeometry } from '@/features/editor/page-geometry'
 import { usePageSetup } from '@/features/editor/use-page-setup'
+import { useTypography } from '@/features/editor/use-typography'
 import { sessionLabel, useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { buildSchema, fragmentToJSON } from '@/features/sync/serialize'
@@ -16,6 +19,8 @@ export function ExportDocxDialog() {
 	const { docxExportOpen, setDocxExportOpen } = useSettings()
 	const { setup } = usePageSetup()
 	const { furniture } = usePageFurniture()
+	const { typography } = useTypography()
+	const { editor } = useEditorInstance()
 	const { doc, documents, activeDocId, activeId, sessions } = useSessions()
 	const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -67,12 +72,16 @@ export function ExportDocxDialog() {
 		if (chosen.length === 0 || exporting) return
 		setExporting(true)
 		try {
+			// Hanya tab yang terbuka yang punya bingkai untuk dipotret; tab lain
+			// memakai potretan yang sudah tersimpan saat blok itu terlihat.
+			if (editor) await refreshHtmlBlocks(editor.view.dom)
 			const merged = mergeTabContents(chosen.map((tab) => fragmentToJSON(doc, tab.id)))
 			const blob = await exportDocx(buildSchema().nodeFromJSON(merged), {
 				title,
 				geometry: pageGeometry(setup),
 				setup,
 				furniture,
+				typography,
 			})
 			download(blob, safeFilename(title, 'docx'))
 			setDocxExportOpen(false)

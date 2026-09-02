@@ -523,46 +523,135 @@ a {
 
 /* ── badan dokumen (ProseMirror) ───────────────────────────────────────── */
 
+/*
+ * Warna dan kerangka saja. Rupa hurufnya - keluarga, ukuran badan, dan seluruh
+ * tangga judul 1-9 - dibangkitkan `features/editor/typography-css.ts` dari
+ * tipografi dokumen yang berlaku, lalu disuntikkan sebagai <style> oleh
+ * `document-canvas.tsx`.
+ *
+ * Angkanya dulu ditulis tangan di sini sebagai tangga `em`, dan itulah sebabnya
+ * judul BAB sebuah skripsi tampil ~24pt: tangga web dipakai untuk dokumen
+ * cetak. Sekarang template yang menentukan, dan `DEFAULT_HEADING_SCALE` di
+ * `packages/shared/src/typography.ts` memegang tangga lama sebagai bawaan.
+ */
 .document-body {
-  font-family: var(--font-document), ui-serif, Georgia, serif;
   color: var(--foreground);
   outline: none;
 }
 
+/* Jarak antar blok untuk apa pun yang tidak disebut lembar gaya tipografi. */
 .document-body > * + * {
   margin-top: 0.75em;
 }
 
 /*
- * Sembilan tingkat judul dalam satu tangga menurun (§A4).
- *
- * h4-h6 wajib ikut disebut di sini: gaya bawaan browser membuat h5 (0.83em) dan
- * h6 (0.67em) lebih KECIL dari teks biasa, jadi begitu tingkat 4 ke atas bisa
- * dipilih dari toolbar, tangganya patah - judul 7 yang bergaya di bawah ini
- * malah tampak lebih besar dari judul 5. Tingkat 7-9 dirender sebagai div
- * berperan heading karena HTML tidak punya h7+.
+ * Blok rancangan HTML. Bingkainya terkurung (`html-sandbox.ts`), jadi tidak ada
+ * satu pun gaya di berkas ini yang bocor ke dalamnya - dan sebaliknya.
  */
-.document-body h1,
-.document-body h2,
-.document-body h3,
-.document-body h4,
-.document-body h5,
-.document-body h6,
-.document-body .heading {
-  font-weight: 600;
-  line-height: 1.25;
-  margin-top: 1.4em;
-  margin-bottom: 0.4em;
+.html-block {
+  position: relative;
+  margin: 0.75em 0;
 }
-.document-body h1 { font-size: 1.9em; }
-.document-body h2 { font-size: 1.5em; }
-.document-body h3 { font-size: 1.22em; }
-.document-body h4 { font-size: 1.12em; }
-.document-body h5 { font-size: 1.05em; }
-.document-body h6 { font-size: 1em; }
-.document-body .heading[data-level='7'] { font-size: 0.95em; }
-.document-body .heading[data-level='8'] { font-size: 0.9em; }
-.document-body .heading[data-level='9'] { font-size: 0.87em; }
+
+.html-block-frame,
+.html-block-source {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.html-block-source {
+  margin: 0;
+  overflow: auto;
+  padding: 0.75em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  color: var(--foreground-muted);
+}
+
+.html-block-selected .html-block-frame,
+.html-block-selected .html-block-source {
+  border-color: var(--accent);
+}
+
+/* Bilah kendali muncul saat blok disentuh atau dipilih, bukan permanen. */
+.html-block-bar {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+
+.html-block:hover .html-block-bar,
+.html-block-selected .html-block-bar {
+  opacity: 1;
+}
+
+.html-block-bar button {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  border-radius: 5px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  padding: 2px 6px;
+  font-size: 0.7rem;
+  color: var(--foreground-muted);
+}
+
+.html-block-bar button:hover {
+  color: var(--foreground);
+}
+
+.html-block-label {
+  border-radius: 5px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  padding: 2px 6px;
+  font-size: 0.7rem;
+  color: var(--faint);
+}
+
+.html-block-resize {
+  display: block;
+  width: 100%;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+.html-block-resize::after {
+  content: '';
+  display: block;
+  width: 44px;
+  height: 3px;
+  margin: 2px auto 0;
+  border-radius: 2px;
+  background: var(--line-strong);
+  opacity: 0;
+  transition: opacity 120ms;
+}
+
+.html-block:hover .html-block-resize::after,
+.html-block-selected .html-block-resize::after {
+  opacity: 1;
+}
+
+/* Saat dicetak, kendali penyuntingnya bukan bagian dokumen. */
+@media print {
+  .html-block-bar,
+  .html-block-resize {
+    display: none;
+  }
+}
 
 .document-body ul,
 .document-body ol {

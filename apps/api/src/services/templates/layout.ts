@@ -11,10 +11,16 @@ import type { TabLayout, TabLayoutOverride, TemplateSpec } from '@writer-hub/sha
  * tidak ada satu pun kode yang membaca perabot tingkat dokumen. Perabot yang
  * cuma disimpan sebagai dasar dokumen karena itu tersimpan rapi di basis data
  * lalu tidak pernah sampai ke editor.
+ *
+ * Tipografi ikut jalur `pageSetup`, bukan jalur perabot: ia punya dasar
+ * tingkat dokumen yang diwarisi setiap tab, dan editor membacanya dari sana.
  */
 
 export function templateDocumentLayout(spec: TemplateSpec): TabLayout {
-	return { pageSetup: spec.layout.pageSetup }
+	return {
+		pageSetup: spec.layout.pageSetup,
+		...(spec.layout.typography ? { typography: spec.layout.typography } : {}),
+	}
 }
 
 export function templateTabLayout(spec: TemplateSpec): TabLayoutOverride | null {

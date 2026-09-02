@@ -37,6 +37,8 @@ Dirangkum dari pemeriksaan kode, bukan dari dokumen lain — beberapa baris di
 | Impor/ekspor DOCX termasuk header/footer & section | `features/document/docx/` |
 | 34 tool editor yang bisa dipanggil model (`set_page_setup`, `set_columns`, `insert_toc`, `apply_paragraph_style`, …) | `packages/shared/src/tools.ts` |
 | Konverter Markdown → ProseMirror **di sisi server** | `apps/api/src/services/drafts/markdown-doc.ts` |
+| Tipografi per template: huruf badan + gaya judul 1-9, berlaku di kanvas dan ikut ke DOCX | `packages/shared/src/typography.ts`, `features/editor/typography-css.ts`, `features/document/docx/typography-styles.ts` |
+| Blok rancangan HTML terkurung (flyer, poster) + tool `insert_html_block` | `features/editor/html-block.ts`, `html-sandbox.ts`, `html-raster.ts` |
 
 Yang terakhir penting: kerangka template bisa ditulis sebagai Markdown biasa lalu dikompilasi
 menjadi konten dokumen di server — tidak perlu menulis JSON ProseMirror dengan tangan, dan tidak
@@ -50,10 +52,17 @@ perlu konverter kedua.
 | Nomor halaman per section (romawi di bagian awal, arab di isi, mulai ulang) | Skripsi, tesis, disertasi | Halaman awal tidak bisa bernomor `i, ii, iii`. Token `{page}` hanya satu deret lurus. |
 | Mesin gaya sitasi (APA/IEEE/ACM) | Semua akademik & paper | `citation-popover` mencari Crossref tapi belum memformat entri. Untuk sekarang gaya sitasi hanya bisa ditegakkan lewat aturan prompt + contoh di kerangka. |
 | Custom paragraph style | Semua | Tidak bisa mendefinisikan "Caption Tabel" atau "Kutipan Blok" sebagai gaya bernama; hanya heading 1–9. |
-| Hanging indent | APA (daftar pustaka) | Indent baris pertama ada; menggantung belum. |
+| Hanging indent per blok | APA (daftar pustaka) | Tipografi template sudah bisa menggantungkan satu tingkat judul (`firstLinePt` negatif); yang belum ada adalah menggantungkan blok satuan dari toolbar. |
 | Caption otomatis & cross-reference | Akademik, paper | "Tabel 1", "Gambar 2", "lihat Bab 3" harus diketik manual. |
 | Nomor baris di margin | Manuskrip Elsevier | Tidak tersedia. |
 | TOC dengan nomor halaman otomatis | Skripsi, tesis, laporan | TOC block ada, nomor halamannya belum ikut. |
+
+Blok HTML punya batasnya sendiri, dan itu memang harganya: saat diekspor ia
+diratakan menjadi gambar, jadi teks di dalamnya tidak bisa dicari atau disunting
+di Word. Ia untuk cetakan promosi — flyer, pamflet, poster — bukan untuk badan
+naskah. Isinya dirender di `<iframe sandbox="">` tanpa satu pun kemampuan, dan
+CSP-nya menutup jaringan, jadi gambar dan font harus tertanam sebagai URI
+`data:`.
 
 Kekurangan ini **tidak menghalangi rilis** — ia menentukan cara menulis catatan di kartu
 template ("nomor halaman romawi di bagian awal belum otomatis") dan mengisi daftar pekerjaan
@@ -133,8 +142,8 @@ interface TemplateSpec {
 		furniture?: PageFurniture
 		/** Kolom untuk seluruh badan naskah; diterapkan lewat section break. */
 		columns?: { count: number; gap?: number }
-		baseFont?: { family: string; sizePt: number }
-		lineHeight?: number
+		/** Rupa huruf badan dan tiap tingkat judul; ikut ke `documents.layout`. */
+		typography?: DocumentTypography
 	}
 	format: {
 		citationStyle: 'apa7' | 'ieee' | 'acm' | 'vancouver' | 'none'
@@ -151,6 +160,27 @@ interface TemplateSpec {
 	caveats?: string[]
 }
 ```
+
+`DocumentTypography` hidup terpisah di `packages/shared/src/typography.ts`, dan
+template hanya menuliskan yang ia pedulikan — `resolveHeadingStyle` melengkapi
+sisanya. Satu penyelesai dipakai dua pembaca sekaligus: lembar gaya kanvas
+(`features/editor/typography-css.ts`) dan gaya DOCX
+(`features/document/docx/typography-styles.ts`), supaya layar dan berkas ekspor
+tidak bisa berbeda diam-diam.
+
+```ts
+interface DocumentTypography {
+	baseFont: { family: string; sizePt: number }
+	/** Spasi dokumen (1 / 1,5 / 2), bukan `line-height` CSS. */
+	lineHeight: number
+	paragraph?: BlockStyleOverride
+	headings?: Partial<Record<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, BlockStyleOverride>>
+}
+```
+
+Ukurannya dalam pt — satuan yang sama dengan kotak ukuran font di toolbar dan
+dengan `w:sz` di DOCX, jadi angka yang ditulis template adalah angka yang dibaca
+pengguna dan angka yang diekspor.
 
 `aiRules` adalah jantung tujuan (2). Contoh untuk IEEE:
 
@@ -292,6 +322,7 @@ nomor halaman romawi masih manual akan menghasilkan laporan bug, bukan kepuasan.
 | **P3** | Halaman `/new` + kartu pratinjau + panel detail | `app/new/page.tsx`, `components/templates/*`, `features/templates/*`, proxy `app/api/templates/*` | P2 |
 | **P4** | AI sadar template: `aiRules` ke system prompt, `templateSlug` di endpoint draf, tool `get_template_rules` | `services/chat/prompts.ts`, `services/drafts/*`, `packages/shared/src/tools.ts` | P2 |
 | **P5** | Pemeriksa kepatuhan format (panel) + "Simpan sebagai template" | `components/panels/format-panel.tsx`, `services/templates/check.ts` | P4 |
+| **P6** | Tipografi per template: `DocumentTypography` ikut `documents.layout`, lembar gaya kanvas dibangkitkan darinya, dan gaya DOCX ikut diekspor | `packages/shared/src/typography.ts`, `features/editor/typography-css.ts`, `features/document/docx/typography-styles.ts` | P1 |
 
 P1 adalah pekerjaan yang paling mudah diremehkan dan paling menentukan: **tanpa itu, template
 apa pun yang mengatur kertas, margin, atau header hanya hidup di satu peramban.** Kalau
@@ -301,9 +332,15 @@ dijadwalkan setelah galeri, galerinya akan terlihat jadi padahal hasilnya tidak 
 
 Bukan kegagalan rencana ini, melainkan pekerjaan editor yang berdiri sendiri dan sebaiknya
 diprioritaskan terpisah: penomoran halaman per section (romawi → arab), mesin gaya sitasi,
-custom paragraph style, hanging indent, caption otomatis & cross-reference, TOC dengan nomor
-halaman, serta nomor baris di margin. Enam dari tujuh ada di
-`docs/GOOGLE-DOCS-GAP-EDITOR-SHELL.md`; template hanya membuat kebutuhannya jadi kentara.
+gaya paragraf **bernama** buatan pengguna, hanging indent per blok dari toolbar, caption
+otomatis & cross-reference, TOC dengan nomor halaman, serta nomor baris di margin. Sebagian
+besar ada di `docs/GOOGLE-DOCS-GAP-EDITOR-SHELL.md`; template hanya membuat kebutuhannya jadi
+kentara.
+
+**Penomoran judul (`format.headingScheme`) masih ikut daftar ini.** Nilainya sudah tercatat di
+tiap template — `bab-romawi`, `decimal` — tapi belum ada yang menomori judulnya; "BAB I" masih
+bagian dari teks di kerangka Markdown, bukan nomor yang dibangkitkan. Ia bersaudara dengan
+penomoran halaman per section dan sebaiknya dikerjakan bersamanya.
 
 ## 9. Uji
 

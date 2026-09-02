@@ -1,3 +1,4 @@
+import type { DocumentTypography } from '@writer-hub/shared'
 import type { BuiltinTemplateDefinition } from './definition'
 
 /** Margin IEEE conference: atas 1,9 cm, bawah 2,54 cm, kiri-kanan 1,59 cm. */
@@ -15,6 +16,51 @@ const INCH_MARGINS = { top: 96, right: 96, bottom: 96, left: 96 }
 const TIMES_9 = { family: '"Times New Roman", Times, serif', sizePt: 9 }
 const TIMES_10 = { family: '"Times New Roman", Times, serif', sizePt: 10 }
 const TIMES_12 = { family: '"Times New Roman", Times, serif', sizePt: 12 }
+
+/**
+ * Paper dua kolom (IEEE, LNCS, abstrak diperluas): badan 10pt rata kanan-kiri
+ * dengan spasi rapat, judul bagian sebesar badan. Kolom sempit tidak memberi
+ * ruang untuk judul yang membesar.
+ */
+const PAPER_TYPOGRAPHY_COMPACT: DocumentTypography = {
+	baseFont: TIMES_10,
+	lineHeight: 1.15,
+	paragraph: { align: 'justify', firstLinePt: 14 },
+	headings: {
+		1: { sizePt: 10, align: 'center', spaceBeforePt: 10, spaceAfterPt: 4 },
+		2: { sizePt: 10, italic: true, spaceBeforePt: 8, spaceAfterPt: 2 },
+		3: { sizePt: 10, italic: true, spaceBeforePt: 6, spaceAfterPt: 2 },
+	},
+}
+
+/** ACM sigconf memakai badan 9pt; sisanya mengikuti pola dua kolom di atas. */
+const PAPER_TYPOGRAPHY_ACM: DocumentTypography = {
+	...PAPER_TYPOGRAPHY_COMPACT,
+	baseFont: TIMES_9,
+	headings: {
+		1: { sizePt: 9, align: 'center', spaceBeforePt: 9, spaceAfterPt: 4 },
+		2: { sizePt: 9, italic: true, spaceBeforePt: 7, spaceAfterPt: 2 },
+		3: { sizePt: 9, italic: true, spaceBeforePt: 6, spaceAfterPt: 2 },
+	},
+}
+
+/**
+ * APA 7 dan manuskrip Elsevier: satu kolom, spasi ganda, tanpa spasi tambahan
+ * antar paragraf. Tangga judulnya mengikuti aturan APA apa adanya - tingkat 1
+ * rata tengah tebal, 2 rata kiri tebal, 3 rata kiri tebal miring.
+ */
+const PAPER_TYPOGRAPHY_DOUBLE: DocumentTypography = {
+	baseFont: TIMES_12,
+	lineHeight: 2,
+	paragraph: { align: 'left', firstLinePt: 36, spaceBeforePt: 0 },
+	headings: {
+		1: { sizePt: 12, align: 'center', spaceBeforePt: 0, spaceAfterPt: 0 },
+		2: { sizePt: 12, spaceBeforePt: 0, spaceAfterPt: 0 },
+		3: { sizePt: 12, italic: true, spaceBeforePt: 0, spaceAfterPt: 0 },
+		4: { sizePt: 12, indentPt: 36, spaceBeforePt: 0, spaceAfterPt: 0 },
+		5: { sizePt: 12, italic: true, indentPt: 36, spaceBeforePt: 0, spaceAfterPt: 0 },
+	},
+}
 
 export const PAPER_TEMPLATES: BuiltinTemplateDefinition[] = [
 	{
@@ -59,7 +105,7 @@ email@example.com
 					pageless: false,
 				},
 				columns: { count: 2, gap: 19 },
-				baseFont: TIMES_10,
+				typography: PAPER_TYPOGRAPHY_COMPACT,
 			},
 			format: {
 				citationStyle: 'ieee',
@@ -138,7 +184,7 @@ email@example.com
 					pageless: false,
 				},
 				columns: { count: 2, gap: 19 },
-				baseFont: TIMES_10,
+				typography: PAPER_TYPOGRAPHY_COMPACT,
 			},
 			format: {
 				citationStyle: 'ieee',
@@ -207,8 +253,7 @@ Author, A. A. (2024). *Title of the work*. Publisher.
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: TIMES_12,
-				lineHeight: 2,
+				typography: PAPER_TYPOGRAPHY_DOUBLE,
 			},
 			format: {
 				citationStyle: 'apa7',
@@ -275,8 +320,7 @@ Author, A. A. (2024). *Title of the article*. *Journal Name, 12*(3), 1-20.
 						default: { text: 'SHORTENED TITLE', align: 'left' },
 					},
 				},
-				baseFont: TIMES_12,
-				lineHeight: 2,
+				typography: PAPER_TYPOGRAPHY_DOUBLE,
 			},
 			format: {
 				citationStyle: 'apa7',
@@ -348,7 +392,7 @@ email@example.com
 					pageless: false,
 				},
 				columns: { count: 2, gap: 19 },
-				baseFont: TIMES_9,
+				typography: PAPER_TYPOGRAPHY_ACM,
 			},
 			format: {
 				citationStyle: 'acm',
@@ -416,7 +460,7 @@ email@example.com
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: TIMES_10,
+				typography: PAPER_TYPOGRAPHY_COMPACT,
 			},
 			format: {
 				citationStyle: 'vancouver',
@@ -487,8 +531,7 @@ email@example.com
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: TIMES_12,
-				lineHeight: 2,
+				typography: PAPER_TYPOGRAPHY_DOUBLE,
 			},
 			format: {
 				citationStyle: 'vancouver',
@@ -552,7 +595,7 @@ email@example.com
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: TIMES_10,
+				typography: PAPER_TYPOGRAPHY_COMPACT,
 			},
 			format: {
 				citationStyle: 'ieee',

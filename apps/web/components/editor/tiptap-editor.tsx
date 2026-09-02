@@ -16,23 +16,15 @@ import {
 	type SheetGeometry,
 } from '@/features/editor/page-geometry'
 import { paginationKey } from '@/features/editor/pagination'
-import { type SlashCommandState } from '@/features/editor/slash-command'
+import type { SlashCommandState } from '@/features/editor/slash-command'
 import { editorPlainText, textToParagraphs } from '@/features/editor/text-content'
 import { useSessions } from '@/features/sessions/session-context'
-import { type FontSize, useSettings } from '@/features/settings/settings-context'
-import { cn } from '@/lib/utils'
 import { ImageToolbar } from './image-toolbar'
 import { MathPopover } from './math-popover'
 import { SelectionMenu } from './selection-menu'
 import { SlashCommandMenu } from './slash-command-menu'
 import { type PopoverPosition, SuggestionPopover } from './suggestion-popover'
 import { TableColorToolbar } from './table-color-toolbar'
-
-const FONT_SIZE_CLASS: Record<FontSize, string> = {
-	small: 'text-[15px] leading-[1.75]',
-	medium: 'text-[17px] leading-[1.8]',
-	large: 'text-[19px] leading-[1.85]',
-}
 
 const POPOVER_HIDE_DELAY_MS = 180
 
@@ -56,7 +48,6 @@ export function TiptapEditor({
 	onSectionsChange?: (setups: PageSetup[]) => void
 }) {
 	const { state, dispatch } = useDocument()
-	const { settings } = useSettings()
 	const { doc, activeId } = useSessions()
 	const [popover, setPopover] = useState<PopoverPosition | null>(null)
 	const [slashState, setSlashState] = useState<SlashCommandState | null>(null)
@@ -87,7 +78,7 @@ export function TiptapEditor({
 			}),
 			editorProps: {
 				attributes: {
-					class: cn('document-body focus:outline-none', FONT_SIZE_CLASS[settings.editorFontSize]),
+					class: 'document-body focus:outline-none',
 					spellcheck: 'false',
 				},
 			},

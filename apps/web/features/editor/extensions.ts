@@ -14,6 +14,7 @@ import Typography from '@tiptap/extension-typography'
 import type { Extensions } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import type * as Y from 'yjs'
+import { HtmlBlockNodeView } from '@/components/editor/html-block-view'
 import { TocBlockNodeView } from '@/components/editor/toc-block-view'
 import { AnalysisDiffHighlight } from '@/features/analysis/analysis-diff-highlight'
 import { AnalysisHighlight } from '@/features/analysis/analysis-highlight'
@@ -27,6 +28,7 @@ import { CodeBlock } from '@/features/editor/code-block'
 import { ColumnExtension } from '@/features/editor/columns'
 import { Footnote, FootnoteRef } from '@/features/editor/footnote'
 import { HeadingLevels } from '@/features/editor/heading-extension'
+import { HtmlBlock } from '@/features/editor/html-block'
 import { BlockIndentExtension } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
 import { MathBlock, MathInline } from '@/features/editor/math'
@@ -137,6 +139,7 @@ export function buildEditorExtensions({
 		SearchAndReplace,
 		TrailingParagraph,
 		TocBlock.extend({ addNodeView: () => TocBlockNodeView }),
+		HtmlBlock.extend({ addNodeView: () => HtmlBlockNodeView }),
 		Pagination.configure({ geometry, setup, onPageCountChange, onSheetsChange, onSectionsChange }),
 		...(slashCommand
 			? [

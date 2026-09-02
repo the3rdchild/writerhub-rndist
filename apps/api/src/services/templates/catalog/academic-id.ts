@@ -1,3 +1,4 @@
+import type { DocumentTypography } from '@writer-hub/shared'
 import type { BuiltinTemplateDefinition } from './definition'
 
 /** Margin skripsi Indonesia: kiri 4 cm untuk jilid, sisanya 3 cm. */
@@ -10,6 +11,35 @@ const MARGIN_3_3_3_3 = { top: 113, right: 113, bottom: 113, left: 113 }
 const MARGIN_2_5_2_5_2_5 = { top: 94, right: 94, bottom: 94, left: 94 }
 
 const TIMES_12 = { family: '"Times New Roman", Times, serif', sizePt: 12 }
+
+/**
+ * Tipografi karya ilmiah Indonesia. Judul BAB **tidak membesar**: ia 12pt tebal
+ * rata tengah, sama besar dengan badan naskah - persis kebalikan dari tangga
+ * judul ala web yang dipakai dokumen kosong.
+ *
+ * Angkanya diambil dari sebuah proposal TA sungguhan hasil ekspor Google Docs,
+ * bukan dikarang: badan Times New Roman 12pt (`w:sz 24` di 806 dari 1.338 run),
+ * indent baris pertama `w:firstLine="567"` twips = 1 cm, judul BAB
+ * `w:jc="center"`, dan spasi baris 1,5 (`w:line="360"`).
+ */
+const ACADEMIC_ID_TYPOGRAPHY: DocumentTypography = {
+	baseFont: TIMES_12,
+	lineHeight: 1.5,
+	paragraph: { align: 'justify', firstLinePt: 28 },
+	headings: {
+		1: { sizePt: 12, align: 'center', spaceBeforePt: 12, spaceAfterPt: 6 },
+		2: { sizePt: 12, spaceBeforePt: 12, spaceAfterPt: 0 },
+		3: { sizePt: 12, spaceBeforePt: 6, spaceAfterPt: 0 },
+		4: { sizePt: 12, spaceBeforePt: 6, spaceAfterPt: 0 },
+		5: { sizePt: 12, italic: true, spaceBeforePt: 6, spaceAfterPt: 0 },
+	},
+}
+
+/** Sama, tetapi berspasi ganda seperti tuntutan disertasi. */
+const ACADEMIC_ID_TYPOGRAPHY_DOUBLE: DocumentTypography = {
+	...ACADEMIC_ID_TYPOGRAPHY,
+	lineHeight: 2,
+}
 
 export const ACADEMIC_ID_TEMPLATES: BuiltinTemplateDefinition[] = [
 	{
@@ -86,8 +116,7 @@ Tahun
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: TIMES_12,
-				lineHeight: 1.5,
+				typography: ACADEMIC_ID_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'apa7',
@@ -201,8 +230,7 @@ Tahun
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: TIMES_12,
-				lineHeight: 1.5,
+				typography: ACADEMIC_ID_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'apa7',
@@ -323,8 +351,7 @@ Tahun
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: TIMES_12,
-				lineHeight: 2,
+				typography: ACADEMIC_ID_TYPOGRAPHY_DOUBLE,
 			},
 			format: {
 				citationStyle: 'apa7',
@@ -418,8 +445,7 @@ Tahun
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: TIMES_12,
-				lineHeight: 1.5,
+				typography: ACADEMIC_ID_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'apa7',
@@ -501,8 +527,7 @@ Tahun
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: TIMES_12,
-				lineHeight: 1.5,
+				typography: ACADEMIC_ID_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'apa7',
@@ -577,8 +602,7 @@ Tanggal Praktikum
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: TIMES_12,
-				lineHeight: 1.5,
+				typography: ACADEMIC_ID_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'vancouver',
@@ -649,8 +673,7 @@ Tahun
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: TIMES_12,
-				lineHeight: 1.5,
+				typography: ACADEMIC_ID_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'apa7',
@@ -722,8 +745,7 @@ email@example.com
 					pageColor: null,
 					pageless: false,
 				},
-				baseFont: TIMES_12,
-				lineHeight: 1.5,
+				typography: ACADEMIC_ID_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'apa7',
