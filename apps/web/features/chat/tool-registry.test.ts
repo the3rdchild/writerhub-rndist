@@ -179,3 +179,22 @@ describe('apply_template_format', () => {
 		expect(description).toContain('skripsi-s1')
 	})
 })
+
+describe('insert_toc', () => {
+	const tool = EDITOR_TOOLS.find((item) => item.name === 'insert_toc')
+
+	/*
+	 * Deskripsi inilah satu-satunya yang dibaca model. Tanpa larangan yang
+	 * tegas ia mengetik daftar isi sebagai paragraf berisi titik-titik dan
+	 * nomor halaman tebakan - dan tipografi akademik yang rata kanan-kiri
+	 * meregangkan titik itu sampai nomornya berpencar ke tengah baris.
+	 */
+	test('melarang mengetik daftar isi sebagai teks biasa', () => {
+		expect(tool?.description).toContain('NEVER')
+		expect(tool?.description.toLowerCase()).toContain('dot leaders')
+	})
+
+	test('menyebut dirinya satu-satunya cara yang benar', () => {
+		expect(tool?.description).toContain('ONLY correct way')
+	})
+})

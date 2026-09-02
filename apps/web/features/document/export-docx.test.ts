@@ -534,3 +534,42 @@ describe('hentian halaman di berkas DOCX', () => {
 		expect(document).not.toContain('<w:keepNext/>')
 	})
 })
+
+describe('daftar isi di berkas DOCX', () => {
+	async function tocXml(snapshot: string) {
+		const doc = buildSchema().nodeFromJSON({
+			type: 'doc',
+			content: [{ type: 'tocBlock', attrs: { snapshot, listKind: 'isi' } }],
+		})
+		const blob = await exportDocx(doc, { title: 'uji', geometry: pageGeometry(DEFAULT_PAGE_SETUP) })
+		const files = unzipSync(new Uint8Array(await blob.arrayBuffer()))
+		return strFromU8(files['word/document.xml'])
+	}
+
+	/*
+	 * Tanpa perhentian tab, Word merender tab pemisahnya apa adanya: nomor
+	 * halaman menggantung di tengah baris tanpa titik penuntun - persis rupa
+	 * kacau yang bikin daftar isi ini diperbaiki sejak awal.
+	 */
+	test('tiap baris punya perhentian tab rata kanan dengan titik penuntun', async () => {
+		const xml = await tocXml('BAB I PENDAHULUAN\t1\nBAB II TINJAUAN PUSTAKA\t9')
+
+		expect(xml).toContain('<w:tabs>')
+		expect(xml).toContain('w:val="right"')
+		expect(xml).toContain('w:leader="dot"')
+	})
+
+	test('satu baris satu paragraf', async () => {
+		const xml = await tocXml('BAB I\t1\nBAB II\t9')
+
+		expect(xml).toContain('BAB I')
+		expect(xml).toContain('BAB II')
+		expect(xml.match(/<w:tabs>/g) ?? []).toHaveLength(2)
+	})
+
+	test('daftar isi yang belum sempat dipotret tidak menghasilkan paragraf kosong', async () => {
+		const xml = await tocXml('')
+
+		expect(xml).not.toContain('<w:tabs>')
+	})
+})

@@ -53,11 +53,11 @@ perlu konverter kedua.
 | **Tata letak tidak tersinkron ke server** | Semua | `PageSetup` dan perabot header/footer hanya hidup di Y.Doc lokal (`features/sessions/ydoc.ts:155`, `page-furniture-ydoc.ts`). Tabel `document_tabs` cuma punya `content`. Template dua kolom yang dibuat di satu peramban akan kembali polos di peramban lain — dan endpoint draf tidak bisa membuatnya sama sekali. **Ini penghalang utama.** |
 | Nomor halaman per section (romawi di bagian awal, arab di isi, mulai ulang) | Skripsi, tesis, disertasi | Halaman awal tidak bisa bernomor `i, ii, iii`. Token `{page}` hanya satu deret lurus. |
 | Mesin gaya sitasi (APA/IEEE/ACM) | Semua akademik & paper | `citation-popover` mencari Crossref tapi belum memformat entri. Untuk sekarang gaya sitasi hanya bisa ditegakkan lewat aturan prompt + contoh di kerangka. |
-| Custom paragraph style | Semua | Tidak bisa mendefinisikan "Caption Tabel" atau "Kutipan Blok" sebagai gaya bernama; hanya heading 1–9. |
+| Custom paragraph style **bernama** | Semua | Tiap template kini menentukan rupa badan naskah dan gaya heading 1–9 sendiri lewat `TemplateSpec.layout.typography`. Yang belum ada adalah gaya **bernama** buatan pengguna — "Caption Tabel", "Kutipan Blok" — di luar paragraf dan heading. |
 | Hanging indent per blok | APA (daftar pustaka) | Tipografi template sudah bisa menggantungkan satu tingkat judul (`firstLinePt` negatif); yang belum ada adalah menggantungkan blok satuan dari toolbar. |
 | Caption otomatis & cross-reference | Akademik, paper | "Tabel 1", "Gambar 2", "lihat Bab 3" harus diketik manual. |
 | Nomor baris di margin | Manuskrip Elsevier | Tidak tersedia. |
-| TOC dengan nomor halaman otomatis | Skripsi, tesis, laporan | TOC block ada, nomor halamannya belum ikut. |
+| ~~TOC dengan nomor halaman otomatis~~ | — | **Sudah ada.** Blok `tocBlock` menyusun sendiri judul, titik penuntun, dan nomor halamannya, dan template yang berjudul "Daftar Isi" kini benar-benar membawa bloknya (`services/templates/toc-blocks.ts`). Yang tersisa: nomor di berkas DOCX adalah potretan saat ekspor, bukan field yang bisa disegarkan Word. |
 
 Blok HTML punya batasnya sendiri, dan itu memang harganya: saat diekspor ia
 diratakan menjadi gambar, jadi teks di dalamnya tidak bisa dicari atau disunting
@@ -353,9 +353,17 @@ dijadwalkan setelah galeri, galerinya akan terlihat jadi padahal hasilnya tidak 
 Bukan kegagalan rencana ini, melainkan pekerjaan editor yang berdiri sendiri dan sebaiknya
 diprioritaskan terpisah: penomoran halaman per section (romawi → arab), mesin gaya sitasi,
 gaya paragraf **bernama** buatan pengguna, hanging indent per blok dari toolbar, caption
-otomatis & cross-reference, TOC dengan nomor halaman, serta nomor baris di margin. Sebagian
+otomatis & cross-reference, serta nomor baris di margin. Sebagian
 besar ada di `docs/GOOGLE-DOCS-GAP-EDITOR-SHELL.md`; template hanya membuat kebutuhannya jadi
 kentara.
+
+Daftar isi punya kisah yang sama bentuknya. Markdown tidak bisa menyatakan node
+`tocBlock`, jadi kerangka yang dikompilasi hanya menghasilkan judul "Daftar Isi"
+yang kosong - dan yang mengisinya kemudian adalah model, dengan mengetik titik
+satu per satu dan menebak nomor halaman. Di tipografi akademik yang rata
+kanan-kiri, barisan titik itu diregangkan sampai nomornya berpencar ke tengah
+baris. Sekarang bloknya disisipkan saat kompilasi (`toc-blocks.ts`), dan
+deskripsi `insert_toc` menyatakan dirinya satu-satunya cara yang benar.
 
 Satu lubang yang baru tertutup: format template dulu **hanya** bisa datang saat
 dokumen dilahirkan (dari `/new` atau endpoint draf). Penulis yang membuka

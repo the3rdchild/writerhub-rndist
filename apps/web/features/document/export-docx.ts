@@ -534,10 +534,20 @@ export async function exportDocx(
 
 			case 'tocBlock': {
 				const snapshot = String(node.attrs.snapshot ?? '')
+				/*
+				 * Tiap baris potretan berbentuk `Judul⇥Halaman`. Tanpa perhentian
+				 * tab, Word merender tab itu apa adanya - judulnya lalu nomornya
+				 * menggantung di tengah baris, tanpa titik penuntun. Perhentian
+				 * rata kanan di tepi kolom teks yang membuatnya terbaca sebagai
+				 * daftar isi, dan titiknya digambar Word sendiri.
+				 */
+				const tabStops = [
+					{ type: 'right' as const, position: px(sectionContentWidth), leader: 'dot' as const },
+				]
 				return snapshot
 					.split('\n')
 					.filter((line) => line.trim())
-					.map((line) => new Paragraph({ text: line }))
+					.map((line) => new Paragraph({ text: line, tabStops }))
 			}
 
 			default:

@@ -152,7 +152,7 @@ Tahun
 			],
 			caveats: [
 				'Nomor halaman romawi (i, ii, iii) di bagian awal belum otomatis - atur manual.',
-				'Daftar isi belum memuat nomor halaman otomatis.',
+				'Nomor halaman di daftar isi adalah potretan saat diekspor, bukan field yang bisa disegarkan Word.',
 			],
 		},
 	},
@@ -267,7 +267,7 @@ Tahun
 			],
 			caveats: [
 				'Nomor halaman romawi (i, ii, iii) di bagian awal belum otomatis - atur manual.',
-				'Daftar isi belum memuat nomor halaman otomatis.',
+				'Nomor halaman di daftar isi adalah potretan saat diekspor, bukan field yang bisa disegarkan Word.',
 			],
 		},
 	},
@@ -388,7 +388,7 @@ Tahun
 			],
 			caveats: [
 				'Nomor halaman romawi (i, ii, iii) di bagian awal belum otomatis - atur manual.',
-				'Daftar isi belum memuat nomor halaman otomatis.',
+				'Nomor halaman di daftar isi adalah potretan saat diekspor, bukan field yang bisa disegarkan Word.',
 			],
 		},
 	},
