@@ -7,10 +7,10 @@ import { applyCommand, type ChatCommand, matchCommands } from '@/features/chat/c
 import { useSelectionScope } from '@/features/editor/selection'
 import { cn } from '@/lib/utils'
 import { ChatCommandMenu } from '../chat-command-menu'
-import { PanelError } from '../panel-parts'
 import { ComposerToolbar } from './composer-toolbar'
 import { MessageBubble } from './message-bubble'
 import { StepTimeline, TaskSeparator } from './step-timeline'
+import { TurnError } from './turn-error'
 
 export function AiChatPanel() {
 	const {
@@ -19,6 +19,7 @@ export function AiChatPanel() {
 		steps,
 		isRunning,
 		error,
+		retry,
 		attachment,
 		attach,
 		clearAttachment,
@@ -163,7 +164,7 @@ export function AiChatPanel() {
 					</>
 				)}
 
-				{error && <PanelError message={error} />}
+				{error && <TurnError error={error} onRetry={retry} disabled={isRunning} />}
 			</div>
 
 			<div className="flex shrink-0 flex-col gap-2 px-4 py-3">

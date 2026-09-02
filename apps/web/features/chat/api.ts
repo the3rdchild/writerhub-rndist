@@ -7,6 +7,7 @@ import type {
 	ToolCall,
 } from '@writer-hub/shared'
 import { FALLBACK_TOOL_FENCE } from '@writer-hub/shared'
+import { ChatTurnError } from './failure'
 
 export interface StreamChatHandlers {
 	onDelta: (text: string) => void
@@ -55,7 +56,14 @@ export async function streamChat(
 	if (!response.ok || !response.body) {
 		const body = await response.json().catch(() => null)
 		const detail = body?.errors?.join(', ') || body?.message
-		throw new Error(detail || `Percakapan gagal (${response.status})`)
+		// 502/503/504 datang dari proxy atau gateway, bukan dari model - sekali
+		// coba lagi sering cukup.
+		const retryable = response.status >= 502 && response.status <= 504
+		throw new ChatTurnError(
+			detail || `Percakapan gagal (${response.status})`,
+			retryable ? 'provider_unreachable' : 'provider_rejected',
+			retryable,
+		)
 	}
 
 	const reader = response.body.getReader()
@@ -88,8 +96,9 @@ export async function streamChat(
 			else if (event.type === 'reasoning') on.onReasoning?.(event.text)
 			else if (event.type === 'usage') {
 				on.onUsage?.({ promptTokens: event.promptTokens, completionTokens: event.completionTokens })
-			} else if (event.type === 'error') throw new Error(event.message)
-			else if (event.type === 'done') return
+			} else if (event.type === 'error') {
+				throw new ChatTurnError(event.message, event.code ?? 'unknown', event.retryable ?? false)
+			} else if (event.type === 'done') return
 		}
 	}
 }

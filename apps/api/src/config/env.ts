@@ -87,6 +87,16 @@ export const env = {
 	AI_BASE_URL: str('AI_BASE_URL', 'https://openrouter.ai/api/v1'),
 	AI_API_KEY: str('AI_API_KEY'),
 	AI_MODEL: str('AI_MODEL', 'openai/gpt-4o-mini'),
+	/**
+	 * Batas waktu satu panggilan ke provider AI. Tanpa ini yang menentukan
+	 * adalah timeout bawaan runtime - batas yang tidak kita pilih, tidak sama
+	 * antar versi Bun, dan pesan galatnya bukan milik kita.
+	 *
+	 * Longgar dengan sengaja: satu giliran chat yang menulis panjang memang
+	 * bisa berjalan menit-menitan, dan memotongnya di tengah lebih buruk
+	 * daripada menunggu.
+	 */
+	AI_REQUEST_TIMEOUT_MS: num('AI_REQUEST_TIMEOUT_MS', 120_000),
 
 	// ── Riset web (Tavily) ──────────────────────────────────────────────────
 	TAVILY_API_KEY: str('TAVILY_API_KEY'),

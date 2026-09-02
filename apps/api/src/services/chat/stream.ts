@@ -1,4 +1,5 @@
 import type { ChatStreamEvent } from '@writer-hub/shared'
+import { chatProviderFailure, toChatFailure } from './failure'
 
 /**
  * Menerjemahkan SSE gaya OpenAI dari provider menjadi ChatStreamEvent milik
@@ -50,13 +51,7 @@ export function openChatStream(
 
 				if (!upstream.ok || !upstream.body) {
 					const detail = await upstream.text().catch(() => '')
-					const credentialsRejected = upstream.status === 401 || upstream.status === 403
-					send({
-						type: 'error',
-						message: credentialsRejected
-							? 'Kunci API provider AI ditolak - periksa AI_API_KEY'
-							: `Provider AI membalas ${upstream.status}. ${detail.slice(0, 300)}`.trim(),
-					})
+					send({ type: 'error', ...chatProviderFailure(upstream.status, detail) })
 					return
 				}
 
@@ -64,7 +59,10 @@ export function openChatStream(
 				await pumpUpstream(upstream.body, send)
 				send({ type: 'done' })
 			} catch (error) {
-				send({ type: 'error', message: error instanceof Error ? error.message : 'Stream terputus' })
+				// Dulu di sini `error.message` diteruskan apa adanya - dan karena
+				// `DOMException` lolos cek `instanceof Error`, "The operation timed
+				// out." dari timeout bawaan runtime sampai ke layar penulis.
+				send({ type: 'error', ...toChatFailure(error) })
 			} finally {
 				clearInterval(ping)
 				closed = true

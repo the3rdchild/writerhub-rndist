@@ -2,6 +2,7 @@
 
 import { generateJSON } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
+import type { ProviderErrorCode } from '@writer-hub/shared'
 import {
 	CHAT_CONTEXT_LIMITS,
 	type ChatMessage,
@@ -29,6 +30,7 @@ import { useSync } from '@/features/sync/sync-context'
 import { useActiveTemplate } from '@/features/templates/use-templates'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import { parseFallbackCalls, streamChat, stripFallbackCalls } from './api'
+import { chatFailureHint, toChatTurnError } from './failure'
 import { isRemoteReadTool, remoteToolLabel, runRemoteReadTool } from './remote-tools'
 import {
 	applyWriteTool,
@@ -151,12 +153,28 @@ function editorOutlineSummary(editor: Editor): string | undefined {
 	return parts.join('\n\n')
 }
 
+/**
+ * Kegagalan giliran yang sedang ditampilkan. Ia membawa sebabnya, bukan hanya
+ * kalimatnya, supaya panel bisa memutuskan apakah pantas menawarkan
+ * "Lanjutkan" - dan supaya kalimat seperti "The operation timed out." tidak
+ * pernah lagi sampai ke penulis.
+ */
+export interface ChatError {
+	message: string
+	code: ProviderErrorCode
+	hint: string | null
+	/** Sudah dicoba ulang sekali sendiri sebelum ditampilkan. */
+	autoRetried: boolean
+}
+
 interface ChatContextValue {
 	messages: ChatTurn[]
 	streaming: string | null
 	steps: ChatStep[]
 	isRunning: boolean
-	error: string | null
+	error: ChatError | null
+	/** Melanjutkan giliran terakhir dari langkah yang sudah tersimpan. */
+	retry: () => void
 
 	attachment: ChatAttachment | null
 	attach: (attachment: ChatAttachment) => void
@@ -182,6 +200,9 @@ interface ChatContextValue {
 	setModel: (value: string) => void
 }
 
+/** Jeda sebelum percobaan ulang otomatis - cukup untuk gangguan sekejap lewat. */
+const AUTO_RETRY_DELAY_MS = 1_500
+
 const ChatContext = createContext<ChatContextValue | null>(null)
 
 export function ChatProvider({ children }: { children: ReactNode }) {
@@ -193,10 +214,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const language = useDocumentLanguage()
 	const [messages, setMessages] = useState<ChatTurn[]>([])
 	const [streaming, setStreaming] = useState<string | null>(null)
-	const [error, setError] = useState<string | null>(null)
+	const [error, setError] = useState<ChatError | null>(null)
 	const [attachment, setAttachment] = useState<ChatAttachment | null>(null)
 	const [includeDocument, setIncludeDocument] = useState(false)
 	const [currentTaskId, setCurrentTaskId] = useState<string | undefined>(undefined)
+	const currentTaskIdRef = useRef<string | undefined>(undefined)
+	currentTaskIdRef.current = currentTaskId
 	const [appliedActionIds, setAppliedActionIds] = useState<Set<string>>(() => new Set())
 	const [autoApply, setAutoApply] = usePersistentState('writer-hub-chat-auto-apply', false)
 	const autoApplyRef = useRef(autoApply)
@@ -225,6 +248,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const stepsRef = useRef<ChatStep[]>([])
 
 	const abortRef = useRef<AbortController | null>(null)
+	const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	/** Ada percobaan ulang otomatis yang sedang menunggu gilirannya. */
+	const retryPendingRef = useRef(false)
+	const startTurnRef = useRef<((history: ChatTurn[], taskId: string, autoRetried?: boolean) => void) | null>(
+		null,
+	)
 	const editorRef = useRef(editor)
 	editorRef.current = editor
 	const toolsRef = useRef(true)
@@ -264,8 +293,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	}, [])
 
 	const stop = useCallback(() => {
+		// Percobaan ulang yang masih menunggu ikut dibatalkan; tanpa ini
+		// percakapan yang sudah dihentikan penulis hidup lagi sedetik kemudian.
+		if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+		retryTimerRef.current = null
+		retryPendingRef.current = false
 		abortRef.current?.abort()
 		abortRef.current = null
+		setStreaming(null)
 	}, [])
 
 	const setStepsBoth = (next: ChatStep[]) => {
@@ -554,19 +589,47 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		},
 		[],
 	)
+	/*
+	 * Satu giliran, dengan satu kesempatan mengulang diam-diam.
+	 *
+	 * Yang diulang adalah `messagesRef.current`, bukan `history` yang dikirim
+	 * ke sini: hasil alat yang sudah selesai sudah ter-commit ke sana sebelum
+	 * rekursi (lihat `commit([...history, step, ...results])` di atas), jadi
+	 * percobaan ulang melanjutkan dari langkah terakhir yang berhasil dan tidak
+	 * mengulang pencarian web yang tadi sudah memakan waktu.
+	 */
 	const startTurn = useCallback(
-		(history: ChatTurn[], taskId: string) => {
+		(history: ChatTurn[], taskId: string, autoRetried = false) => {
 			const controller = new AbortController()
 			abortRef.current = controller
 
 			runTurn(history, 0, controller, taskId)
 				.catch((cause: unknown) => {
 					if (controller.signal.aborted) return
-					setError(cause instanceof Error ? cause.message : 'Percakapan gagal')
+					const failure = toChatTurnError(cause)
+
+					if (failure.retryable && !autoRetried) {
+						// Panel tetap terbaca "sedang berjalan" selama jeda ini; tanpa
+						// penanda ini `finally` di bawah mengosongkannya dulu, dan
+						// percakapan tampak berhenti sedetik lalu hidup lagi sendiri.
+						retryPendingRef.current = true
+						retryTimerRef.current = setTimeout(() => {
+							retryPendingRef.current = false
+							startTurnRef.current?.(messagesRef.current, taskId, true)
+						}, AUTO_RETRY_DELAY_MS)
+						return
+					}
+
+					setError({
+						message: failure.message,
+						code: failure.code,
+						hint: chatFailureHint(failure.code),
+						autoRetried,
+					})
 				})
 				.finally(() => {
 					abortRef.current = null
-					setStreaming(null)
+					if (!retryPendingRef.current) setStreaming(null)
 					const pending = pendingAutoApplyRef.current
 					pendingAutoApplyRef.current = null
 					if (pending && !controller.signal.aborted) applyActionsRef.current?.(pending)
@@ -574,6 +637,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		},
 		[runTurn],
 	)
+	startTurnRef.current = startTurn
+
+	/**
+	 * Melanjutkan giliran terakhir tanpa kehilangan percakapannya. Ia memakai
+	 * `taskId` yang sama supaya langkah dan usulan hasil percobaan ini tetap
+	 * terhitung sebagai tugas yang sama.
+	 */
+	const retry = useCallback(() => {
+		if (abortRef.current || messagesRef.current.length === 0) return
+
+		setError(null)
+		setStreaming('')
+		startTurnRef.current?.(messagesRef.current, currentTaskIdRef.current ?? newTaskId(), false)
+	}, [])
 
 	const send = useCallback(
 		(prompt: string) => {
@@ -715,6 +792,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			steps,
 			isRunning: streaming !== null,
 			error,
+			retry,
 			attachment,
 			attach: setAttachment,
 			clearAttachment: () => setAttachment(null),
@@ -742,6 +820,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			streaming,
 			steps,
 			error,
+			retry,
 			attachment,
 			includeDocument,
 			send,

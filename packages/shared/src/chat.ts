@@ -1,3 +1,5 @@
+import type { ProviderErrorCode } from './provider-failure'
+
 export type ChatRole = 'user' | 'assistant' | 'tool'
 
 export interface ChatMessage {
@@ -38,7 +40,12 @@ export type ChatStreamEvent =
 	| { type: 'usage'; promptTokens?: number; completionTokens?: number }
 	| { type: 'ping' }
 	| { type: 'done' }
-	| { type: 'error'; message: string }
+	/**
+	 * `message` sudah berupa kalimat untuk penulis, bukan pesan pengecualian.
+	 * `code` dan `retryable` yang dibaca antarmuka untuk memutuskan apakah
+	 * giliran ini layak diulang sendiri sebelum penulis diganggu.
+	 */
+	| { type: 'error'; message: string; code?: ProviderErrorCode; retryable?: boolean }
 
 export const CHAT_CONTEXT_LIMITS = {
 	selection: 8_000,

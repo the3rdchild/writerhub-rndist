@@ -92,7 +92,13 @@ export default class ChatService extends JobSubmissionService {
 				messages: buildMessages(body, withTools, memory, templateRules),
 				...(withTools ? { tools: toProviderTools({ research: body.research }), tool_choice: 'auto' } : {}),
 			}),
-			signal: this.context.req.raw.signal,
+			/*
+			 * Dua sebab berhenti sekaligus: penulis menutup percakapannya, atau
+			 * provider tidak juga menjawab. Yang kedua dulu tidak ada - batas
+			 * waktunya milik runtime, dan `DOMException`-nya bocor sampai ke
+			 * layar sebagai "The operation timed out."
+			 */
+			signal: AbortSignal.any([this.context.req.raw.signal, AbortSignal.timeout(env.AI_REQUEST_TIMEOUT_MS)]),
 		})
 	}
 
