@@ -14,6 +14,8 @@ export async function findDocumentsByOwner(ownerId: string, projectId?: string) 
 			id: documents.id,
 			title: documents.title,
 			projectId: documents.project_id,
+			templateSlug: documents.template_slug,
+			layout: documents.layout,
 			tabCount: tabCountFor(),
 			updatedAt: documents.updated_at,
 			createdAt: documents.created_at,

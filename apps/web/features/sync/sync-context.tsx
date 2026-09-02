@@ -34,6 +34,13 @@ import {
 } from '@/features/sessions/ydoc'
 import { deleteLocalVersionsExcept } from '@/features/versions/local-store'
 import { usePersistentState } from '@/lib/use-persistent-state'
+import {
+	applyDocLayout,
+	applyTabLayout,
+	layoutSyncKey,
+	readDocLayout,
+	readTabLayoutOverride,
+} from './layout-sync'
 import { fragmentToJSON, jsonToFragment } from './serialize'
 import { resolveTitle } from './title-sync'
 
@@ -51,6 +58,8 @@ export interface SyncLinkage {
 	documentId: string
 	lastSyncedAt: number
 	lastDocTitle?: string
+	/** Kunci `layoutSyncKey` dari tata letak dasar dokumen yang terakhir terkirim. */
+	lastDocLayoutKey?: string
 }
 
 interface SyncContextValue {
@@ -159,6 +168,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 					content: serializeTab(tabId),
 					emoji: meta.emoji,
 					language: meta.language,
+					layout: readTabLayoutOverride(doc, tabId),
 				})
 				backupComments(linkage.serverId, meta.comments)
 				if (
@@ -168,9 +178,15 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				) {
 					await updateDocument(linkage.documentId, { title: docTitle })
 				}
+				const docLayout = parentId ? readDocLayout(doc, parentId) : null
+				const docLayoutKey = layoutSyncKey(docLayout)
+				if (parentId && docLayoutKey !== (linkage.lastDocLayoutKey ?? '')) {
+					await updateDocument(linkage.documentId, { layout: docLayout })
+				}
 				const synced: SyncLinkage = {
 					...linkage,
 					lastSyncedAt: Date.now(),
+					lastDocLayoutKey: docLayoutKey,
 					...(docTitle !== undefined ? { lastDocTitle: docTitle } : {}),
 				}
 				setStore((current) => ({
@@ -380,6 +396,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 					content: serializeTab(tabId),
 					emoji: meta.emoji,
 					language: meta.language,
+					layout: parentId ? readDocLayout(doc, parentId) : null,
+					tabLayout: readTabLayoutOverride(doc, tabId),
 				})
 				const serverTabId = created.tabs[0]?.id
 				if (!serverTabId) throw new Error('Respons dokumen tanpa tab')
@@ -392,6 +410,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 							documentId: created.id,
 							lastSyncedAt: Date.now(),
 							lastDocTitle: docTitle,
+							lastDocLayoutKey: layoutSyncKey(parentId ? readDocLayout(doc, parentId) : null),
 						},
 					},
 				}))
@@ -425,6 +444,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				const docId = createLocalDocument(doc, serverDoc.title)
 				firstTabId = readTabs(doc, docId)[0]?.id ?? ''
 				if (!firstTabId) return
+				applyDocLayout(doc, docId, serverDoc.layout)
 				pairs.push({ localTabId: firstTabId, serverTabId: serverDoc.tabs[0].id })
 				for (const serverTab of serverDoc.tabs.slice(1)) {
 					pairs.push({
@@ -435,6 +455,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				for (const [index, pair] of pairs.entries()) {
 					const serverTab = serverDoc.tabs[index]
 					jsonToFragment(doc, pair.localTabId, contents[index].content)
+					applyTabLayout(doc, pair.localTabId, serverTab.layout ?? null)
 					updateTab(doc, pair.localTabId, {
 						title: serverTab.title,
 						emoji: serverTab.emoji,
@@ -455,6 +476,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 						documentId: serverDoc.id,
 						lastSyncedAt: now,
 						lastDocTitle: serverDoc.title,
+						lastDocLayoutKey: layoutSyncKey(serverDoc.layout),
 					}
 				}
 				return { ...current, linkage: next }
@@ -513,6 +535,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 							content: serializeTab(tabId),
 							emoji: meta.emoji,
 							language: meta.language,
+							layout: readDocLayout(doc, docId),
+							tabLayout: readTabLayoutOverride(doc, tabId),
 						})
 						const serverTabId = created.tabs[0]?.id
 						if (!serverTabId) throw new Error('Respons dokumen tanpa tab')
@@ -526,6 +550,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 									documentId: created.id,
 									lastSyncedAt: Date.now(),
 									lastDocTitle: dok.title,
+									lastDocLayoutKey: layoutSyncKey(readDocLayout(doc, docId)),
 								},
 							},
 						}))
@@ -535,6 +560,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 							content: serializeTab(tabId),
 							emoji: meta.emoji,
 							language: meta.language,
+							layout: readTabLayoutOverride(doc, tabId),
 						})
 						const serverDocId = parentId
 						setStore((current) => ({

@@ -1,4 +1,5 @@
-import type { Document, NewDocument } from '@/db/schemas'
+import type { TabLayout } from '@writer-hub/shared'
+import type { Document, NewDocument, Template } from '@/db/schemas'
 import { AppError } from '@/lib/error'
 import {
 	deleteDocument,
@@ -9,12 +10,22 @@ import {
 } from '@/repository/document'
 import { findTabsByDocument, insertTab } from '@/repository/document-tab'
 import { findOrCreateDefaultProject, findProjectById } from '@/repository/project'
+import { findTemplateBySlug } from '@/repository/template'
 import BaseService from '@/services/base.service'
 import { snapshotIntervalTab } from '@/services/tabs/service'
 import type { DocumentDetail, DocumentSummary, TabRow, TabSummary } from './dto'
 import { createDocumentBodySchema, updateDocumentBodySchema } from './dto'
 
 const EMPTY_CONTENT: Record<string, unknown> = { type: 'doc', content: [] }
+
+/** Tata letak dasar dokumen dari spec template: geometri halaman + perabotnya. */
+function templateLayout(template: Template | null): TabLayout | null {
+	if (!template) return null
+	return {
+		pageSetup: template.spec.layout.pageSetup,
+		...(template.spec.layout.furniture ? { furniture: template.spec.layout.furniture } : {}),
+	}
+}
 
 export default class DocumentsService extends BaseService {
 	async list(): Promise<Response> {
@@ -27,6 +38,8 @@ export default class DocumentsService extends BaseService {
 				id: row.id,
 				title: row.title,
 				projectId: row.projectId,
+				templateSlug: row.templateSlug,
+				layout: row.layout,
 				tabCount: Number(row.tabCount),
 				updatedAt: row.updatedAt.getTime(),
 				createdAt: row.createdAt.getTime(),
@@ -54,8 +67,21 @@ export default class DocumentsService extends BaseService {
 				return this.error({ errors: body.error.issues.map((issue) => issue.message) })
 			}
 
-			const { content, emoji, language, projectId, title } = body.data
+			const { content, emoji, language, layout, tabLayout, templateSlug, projectId, title } =
+				body.data
 			const identityId = await this.identityId()
+
+			// Template menentukan judul, isi, dan tata letak bawaannya; nilai yang
+			// dikirim pemanggil tetap menang bila keduanya ada.
+			let template: Template | null = null
+			if (templateSlug) {
+				template = await findTemplateBySlug(templateSlug, identityId)
+				if (!template) throw AppError.badRequest(`Template "${templateSlug}" tidak dikenal`)
+			}
+
+			const resolvedTitle = title ?? template?.name
+			if (!resolvedTitle) throw AppError.badRequest('Judul wajib diisi')
+
 			let targetProjectId: string
 			if (projectId) {
 				await this.ownedProject(projectId)
@@ -65,17 +91,20 @@ export default class DocumentsService extends BaseService {
 			}
 
 			const document = await insertDocument({
-				title,
+				title: resolvedTitle,
 				project_id: targetProjectId,
+				template_slug: template?.slug ?? null,
+				layout: layout ?? templateLayout(template) ?? null,
 			})
 			if (!document) throw AppError.internalServerError('Gagal menyimpan dokumen')
 
 			const tab = await insertTab({
 				document_id: document.id,
-				title,
-				content: content ?? EMPTY_CONTENT,
+				title: resolvedTitle,
+				content: content ?? template?.content ?? EMPTY_CONTENT,
 				emoji: emoji ?? null,
 				language: language ?? null,
+				layout: tabLayout ?? null,
 				position: 0,
 			})
 			if (!tab) throw AppError.internalServerError('Gagal menyimpan tab pertama')
@@ -100,7 +129,7 @@ export default class DocumentsService extends BaseService {
 				values.project_id = projectId
 			}
 			if (Object.keys(values).length === 0) {
-				return this.error({ errors: ['Tidak ada field yang bisa diubah (title/projectId)'] })
+				return this.error({ errors: ['Tidak ada field yang bisa diubah (title/projectId/layout)'] })
 			}
 
 			const document = await updateDocument(this.documentId(), await this.identityId(), values)
@@ -143,6 +172,7 @@ export default class DocumentsService extends BaseService {
 			title: tab.title,
 			emoji: tab.emoji,
 			language: tab.language,
+			layout: tab.layout,
 			position: tab.position,
 			updatedAt: tab.updated_at.getTime(),
 			createdAt: tab.created_at.getTime(),
@@ -151,6 +181,8 @@ export default class DocumentsService extends BaseService {
 			id: document.id,
 			title: document.title,
 			projectId: document.project_id,
+			templateSlug: document.template_slug,
+			layout: document.layout,
 			tabCount: tabSummaries.length,
 			tabs: tabSummaries,
 			updatedAt: document.updated_at.getTime(),

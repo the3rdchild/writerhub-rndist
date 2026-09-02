@@ -99,6 +99,8 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 								id: document.serverId,
 								title: document.title,
 								projectId: document.projectId as string,
+								templateSlug: null,
+								layout: null,
 								tabCount: document.tabCount,
 								updatedAt: document.updatedAt,
 								createdAt: 0,

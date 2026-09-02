@@ -14,6 +14,7 @@ import share from './share.route'
 import status from './status.route'
 import stream from './stream.route'
 import tabs from './tabs.route'
+import templates from './templates.route'
 
 export const v1Routes = [
 	health,
@@ -27,6 +28,7 @@ export const v1Routes = [
 	share,
 	documents,
 	tabs,
+	templates,
 	projects,
 	memory,
 	history,
