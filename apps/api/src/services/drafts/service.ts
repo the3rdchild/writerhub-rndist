@@ -7,8 +7,8 @@ import { findTabsByDocument, insertTab } from '@/repository/document-tab'
 import { findOrCreateDefaultProject, findProjectById } from '@/repository/project'
 import { findTemplateBySlug } from '@/repository/template'
 import JobSubmissionService from '@/services/job-submission.service'
-import { templateDocumentLayout, templateTabLayout } from '@/services/templates/layout'
 import { snapshotIntervalTab } from '@/services/tabs/service'
+import { templateDocumentLayout, templateTabLayout } from '@/services/templates/layout'
 import { type DraftRequest, draftRequestSchema } from './dto'
 import { type ProviderConfig, providerConfig } from './generation'
 import { headingTitle, markdownToDoc, type ProseMirrorDoc } from './markdown-doc'
@@ -158,17 +158,15 @@ export default class DraftsService extends JobSubmissionService {
 		provider: ProviderConfig,
 	): Promise<void> {
 		await rememberDraftRequest(documentId, request)
+		const template = await this.findTemplate(request.templateSlug)
 		await startDraftGeneration({
 			documentId,
 			tabId,
 			ownerId: await this.identityId(),
 			createdBy: this.ownerId(),
 			provider,
-			messages: buildDraftMessages(
-				request,
-				await this.styleMemory(),
-				await this.templateRules(request.templateSlug),
-			),
+			messages: buildDraftMessages(request, await this.styleMemory(), template?.spec.aiRules),
+			columns: template?.spec.layout.columns,
 			// Judul dari prompt hanya penambal sampai naskahnya punya heading
 			// sendiri; judul yang ditentukan pemanggil tidak boleh ditimpa.
 			titleFromHeading: !request.title,
@@ -184,16 +182,15 @@ export default class DraftsService extends JobSubmissionService {
 	}
 
 	/**
-	 * Aturan format untuk prompt penulisan. Template yang dihapus di antara
+	 * Template untuk penulisan latar belakang. Template yang dihapus di antara
 	 * permintaan dan percobaan ulang dilewati diam-diam - drafnya tetap ditulis.
 	 */
-	private async templateRules(slug?: string): Promise<string[] | undefined> {
-		if (!slug) return undefined
+	private async findTemplate(slug?: string): Promise<Template | null> {
+		if (!slug) return null
 		try {
-			const template = await findTemplateBySlug(slug, await this.identityId())
-			return template?.spec.aiRules
+			return await findTemplateBySlug(slug, await this.identityId())
 		} catch {
-			return undefined
+			return null
 		}
 	}
 
