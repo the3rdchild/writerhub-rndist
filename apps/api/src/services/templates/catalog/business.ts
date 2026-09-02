@@ -19,6 +19,10 @@ const ARIAL_11 = { family: 'Arial, Helvetica, sans-serif', sizePt: 11 }
  * Dokumen kantor: paragraf balok tanpa indent, dipisah jarak - bukan indent
  * baris pertama seperti karya ilmiah. Judulnya masih boleh membesar, tapi
  * bertingkat wajar (16/13/11pt), bukan setinggi judul halaman web.
+ *
+ * Bagian tingkat 1 menyambung di halaman yang sama: memo, surat, notulen, dan
+ * CV justru rusak kalau tiap bagiannya dipaksa berhalaman sendiri - CV dua
+ * halaman bisa menjadi enam.
  */
 const BUSINESS_TYPOGRAPHY: DocumentTypography = {
 	baseFont: ARIAL_11,
@@ -29,6 +33,19 @@ const BUSINESS_TYPOGRAPHY: DocumentTypography = {
 		2: { sizePt: 13, spaceBeforePt: 12, spaceAfterPt: 4 },
 		3: { sizePt: 11, spaceBeforePt: 10, spaceAfterPt: 3 },
 		4: { sizePt: 11, italic: true, spaceBeforePt: 8, spaceAfterPt: 2 },
+	},
+}
+
+/**
+ * Untuk dokumen panjang yang tiap bagiannya berdiri sendiri - proposal, laporan
+ * berkala, SOP, rencana bisnis. Di sana bagian baru memang dibaca sebagai
+ * lembar baru, sama seperti BAB di karya ilmiah.
+ */
+const BUSINESS_REPORT_TYPOGRAPHY: DocumentTypography = {
+	...BUSINESS_TYPOGRAPHY,
+	headings: {
+		...BUSINESS_TYPOGRAPHY.headings,
+		1: { ...BUSINESS_TYPOGRAPHY.headings?.[1], pageBreakBefore: true },
 	},
 }
 
@@ -82,7 +99,7 @@ Tanggal
 					pageColor: null,
 					pageless: false,
 				},
-				typography: BUSINESS_TYPOGRAPHY,
+				typography: BUSINESS_REPORT_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -144,7 +161,7 @@ Penyusun: Nama
 					pageColor: null,
 					pageless: false,
 				},
-				typography: BUSINESS_TYPOGRAPHY,
+				typography: BUSINESS_REPORT_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -198,7 +215,7 @@ Penyusun: Nama
 					pageColor: null,
 					pageless: false,
 				},
-				typography: BUSINESS_TYPOGRAPHY,
+				typography: BUSINESS_REPORT_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -566,7 +583,7 @@ Alamat | Telepon | Email | LinkedIn
 					pageColor: null,
 					pageless: false,
 				},
-				typography: BUSINESS_TYPOGRAPHY,
+				typography: BUSINESS_REPORT_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -626,7 +643,7 @@ Alamat | Telepon | Email | LinkedIn
 					pageColor: null,
 					pageless: false,
 				},
-				typography: BUSINESS_TYPOGRAPHY,
+				typography: BUSINESS_REPORT_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',

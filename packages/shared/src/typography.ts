@@ -51,6 +51,15 @@ export interface BlockStyle {
 	spaceBeforePt: number
 	spaceAfterPt: number
 	lineHeight: number
+	/**
+	 * Blok ini selalu memulai lembar baru. Dipakai judul BAB karya ilmiah, di
+	 * mana "menyambung kalau masih ada ruang" justru melanggar formatnya.
+	 *
+	 * Ia sengaja tinggal di sini, bukan sebagai atribut node: aturannya milik
+	 * template dan berlaku untuk setiap judul setingkat itu - termasuk bab yang
+	 * ditambahkan penulis besok, yang tidak akan pernah membawa atribut apa pun.
+	 */
+	pageBreakBefore: boolean
 }
 
 /** Yang boleh ditulis sebuah template; sisanya diisi `resolveBlockStyle`. */
@@ -113,6 +122,7 @@ function baseStyle(typography: DocumentTypography): BlockStyle {
 		spaceBeforePt: 0,
 		spaceAfterPt: 0,
 		lineHeight: typography.lineHeight,
+		pageBreakBefore: false,
 	}
 }
 
@@ -144,4 +154,16 @@ export function resolveHeadingStyle(typography: DocumentTypography, level: Headi
 		spaceAfterPt: round(sizePt * HEADING_SPACE_AFTER_EM),
 		...override,
 	}
+}
+
+/** Kesembilan tingkat judul; daftar milik editor ada di `heading-extension.ts`. */
+const ALL_HEADING_LEVELS: readonly HeadingLevel[] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+/**
+ * Tingkat judul mana yang memulai halaman baru. Paginasi kanvas memakainya
+ * sebagai daftar angka - bukan membaca gaya terhitung tiap blok - karena ia
+ * berjalan ulang tiap ketikan.
+ */
+export function headingBreakLevels(typography: DocumentTypography): HeadingLevel[] {
+	return ALL_HEADING_LEVELS.filter((level) => resolveHeadingStyle(typography, level).pageBreakBefore)
 }

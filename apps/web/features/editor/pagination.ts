@@ -30,6 +30,8 @@ export interface Measurement {
 	top: number
 	bottom: number
 	isBreak: boolean
+	/** Blok ini membuka lembar baru sebelum dirinya sendiri. */
+	breakBefore?: boolean
 	isSectionBreak?: boolean
 	kind: SpacerKind
 	columns?: number
@@ -63,11 +65,14 @@ interface PaginationState {
 	blockPages: BlockPage[]
 	blockSections: { pos: number; section: number }[]
 	pageless: boolean
+	breakBeforeLevels: number[]
 }
 
 export interface PaginationOptions {
 	geometry: PageGeometry
 	setup?: PageSetup
+	/** Tingkat judul yang selalu memulai lembar baru; dari tipografi dokumen. */
+	breakBeforeLevels?: number[]
 	onPageCountChange?: (pageCount: number) => void
 	onSheetsChange?: (sheets: SheetGeometry[]) => void
 	onSectionsChange?: (setups: PageSetup[]) => void
@@ -84,13 +89,32 @@ export interface PaginationMeta {
 	geometry?: PageGeometry
 	setup?: PageSetup
 	pageless?: boolean
+	breakBeforeLevels?: number[]
 }
 
 function measureBlocks(view: EditorView): Measurement[] {
 	const inserted = insertedHeights(view)
 	const measurements: Measurement[] = []
 	let cumulative = 0
-	const setup = paginationKey.getState(view.state)?.setup
+	const state = paginationKey.getState(view.state)
+	const setup = state?.setup
+	const breakLevels = state?.breakBeforeLevels ?? []
+
+	/*
+	 * Dua sumber hentian halaman, keduanya murah.
+	 *
+	 * Atribut `pageBreakBefore` datang dari butir menu "Tambah hentian halaman
+	 * sebelum" (`block-keep.ts`); dulu ia hanya menghasilkan CSS `break-before`,
+	 * jadi ia bekerja saat mencetak tapi kanvasnya tidak ikut berubah.
+	 *
+	 * Aturan tingkat judul datang dari tipografi template - itulah yang membuat
+	 * tiap BAB membuka lembar baru, termasuk bab yang ditambahkan besok dan
+	 * tidak membawa atribut apa pun.
+	 */
+	const breaksBefore = (node: PMNode): boolean => {
+		if (node.attrs.pageBreakBefore === true) return true
+		return node.type.name === 'heading' && breakLevels.includes(Number(node.attrs.level))
+	}
 	const regions = setup ? columnRegions(view.state.doc, setup) : []
 
 	view.state.doc.forEach((node, offset) => {
@@ -155,6 +179,7 @@ function measureBlocks(view: EditorView): Measurement[] {
 			top,
 			bottom: top + dom.offsetHeight,
 			isBreak: node.type.name === PAGE_BREAK_NODE,
+			breakBefore: breaksBefore(node) || undefined,
 			isSectionBreak: node.type.name === SECTION_BREAK_NODE || undefined,
 			kind: 'block',
 			keepWithNext: KEEP_WITH_NEXT.has(node.type.name) || undefined,
@@ -385,6 +410,13 @@ export function computeSpacers(
 		 */
 		const isFirstOnPage = block.top <= pageStart + 0.5
 		const overflows = block.bottom > pageStart + sheet.contentHeight
+
+		/*
+		 * Blok yang minta membuka lembar baru, tapi kebetulan sudah berada di
+		 * awal lembar, dibiarkan. Mendorongnya hanya melahirkan halaman kosong -
+		 * dan itulah yang akan terjadi pada BAB I di halaman pertama.
+		 */
+		if (block.breakBefore && !isFirstOnPage) forceNext = true
 
 		/*
 		 * keepWithNext: blok yang memintanya tidak boleh tertinggal sendirian di
@@ -707,6 +739,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 						blockPages: [],
 						blockSections: [],
 						pageless: this.options.pageless ?? false,
+						breakBeforeLevels: this.options.breakBeforeLevels ?? [],
 					}),
 
 					apply(tr, current, _old, newState) {
@@ -719,6 +752,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 									pageless: incoming.pageless,
 									geometry: incoming.geometry ?? current.geometry,
 									setup: incoming.setup ?? current.setup,
+									breakBeforeLevels: incoming.breakBeforeLevels ?? current.breakBeforeLevels,
 									spacers: incoming.pageless ? [] : current.spacers,
 									decorations: incoming.pageless ? DecorationSet.empty : current.decorations,
 								}
@@ -728,10 +762,12 @@ export const Pagination = Extension.create<PaginationOptions>({
 									...current,
 									geometry: incoming.geometry ?? current.geometry,
 									setup: incoming.setup ?? current.setup,
+									breakBeforeLevels: incoming.breakBeforeLevels ?? current.breakBeforeLevels,
 								}
 							}
 
 							return {
+								breakBeforeLevels: incoming.breakBeforeLevels ?? current.breakBeforeLevels,
 								geometry: incoming.geometry ?? current.geometry,
 								setup: incoming.setup ?? current.setup,
 								pageless: current.pageless,

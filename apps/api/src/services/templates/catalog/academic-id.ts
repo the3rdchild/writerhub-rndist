@@ -27,7 +27,7 @@ const ACADEMIC_ID_TYPOGRAPHY: DocumentTypography = {
 	lineHeight: 1.5,
 	paragraph: { align: 'justify', firstLinePt: 28 },
 	headings: {
-		1: { sizePt: 12, align: 'center', spaceBeforePt: 12, spaceAfterPt: 6 },
+		1: { sizePt: 12, align: 'center', spaceBeforePt: 12, spaceAfterPt: 6, pageBreakBefore: true },
 		2: { sizePt: 12, spaceBeforePt: 12, spaceAfterPt: 0 },
 		3: { sizePt: 12, spaceBeforePt: 6, spaceAfterPt: 0 },
 		4: { sizePt: 12, spaceBeforePt: 6, spaceAfterPt: 0 },

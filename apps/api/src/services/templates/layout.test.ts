@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { type DocumentTypography, resolveHeadingStyle, type TemplateSpec } from '@writer-hub/shared'
+import {
+	type DocumentTypography,
+	headingBreakLevels,
+	resolveHeadingStyle,
+	type TemplateSpec,
+} from '@writer-hub/shared'
 import { BUILTIN_TEMPLATES } from './catalog'
 import { templateDocumentLayout, templateTabLayout } from './layout'
 
@@ -112,5 +117,59 @@ describe('tipografi katalog bawaan', () => {
 			return spec ? resolveHeadingStyle(spec, 1).sizePt >= 24 : false
 		})
 		expect(berjudulBesar.length).toBeGreaterThan(0)
+	})
+})
+
+describe('hentian halaman per bab', () => {
+	function typographyOf(slug: string): DocumentTypography {
+		const template = BUILTIN_TEMPLATES.find((item) => item.slug === slug)
+		const typography = template?.spec.layout.typography
+		if (!typography) throw new Error(`${slug} tanpa tipografi`)
+		return typography
+	}
+
+	// Di karya ilmiah yang tingkat 1 bukan cuma BAB - Abstrak, Daftar Isi, dan
+	// Daftar Pustaka juga - dan semuanya memang berhalaman sendiri.
+	test('karya ilmiah membuka lembar baru di tiap judul tingkat 1', () => {
+		const akademik = BUILTIN_TEMPLATES.filter((template) => template.category === 'academic_id')
+		expect(akademik.length).toBeGreaterThan(0)
+
+		for (const template of akademik) {
+			const typography = typographyOf(template.slug)
+			expect(headingBreakLevels(typography), `${template.slug}`).toEqual([1])
+			expect(resolveHeadingStyle(typography, 2).pageBreakBefore, `${template.slug} subbab`).toBe(false)
+		}
+	})
+
+	// Laporan panjang ikut; memo, surat, notulen, dan CV tidak - memecah CV per
+	// bagian mengubah dua halaman menjadi enam.
+	test('hanya template bisnis berbentuk laporan yang ikut', () => {
+		const laporan = ['proposal-proyek', 'laporan-bulanan', 'laporan-kuartalan', 'sop', 'rencana-bisnis']
+		for (const slug of laporan) {
+			expect(headingBreakLevels(typographyOf(slug)), slug).toEqual([1])
+		}
+
+		const menyambung = ['notulen-rapat', 'memo-internal', 'surat-resmi', 'surat-lamaran-kerja', 'cv-ats']
+		for (const slug of menyambung) {
+			expect(headingBreakLevels(typographyOf(slug)), slug).toEqual([])
+		}
+	})
+
+	// Paper dua kolom mengalir menerus; halaman baru tiap bagian merusaknya.
+	test('paper dan cetakan marketing tidak ikut', () => {
+		const lain = BUILTIN_TEMPLATES.filter(
+			(template) => template.category === 'paper' || template.category === 'marketing',
+		)
+		for (const template of lain) {
+			expect(headingBreakLevels(typographyOf(template.slug)), template.slug).toEqual([])
+		}
+	})
+
+	test('dokumen tanpa aturan itu tidak memecah apa pun', () => {
+		const polos: DocumentTypography = {
+			baseFont: { family: 'serif', sizePt: 11 },
+			lineHeight: 1.5,
+		}
+		expect(headingBreakLevels(polos)).toEqual([])
 	})
 })

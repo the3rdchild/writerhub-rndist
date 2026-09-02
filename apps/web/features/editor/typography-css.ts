@@ -38,6 +38,9 @@ function declarations(style: BlockStyle): string[] {
 		`margin-bottom: ${style.spaceAfterPt}pt`,
 		`margin-left: ${style.indentPt}pt`,
 		`text-indent: ${style.firstLinePt}pt`,
+		// Paginasi kanvas memakai daftar tingkatnya sendiri (`headingBreakLevels`);
+		// baris ini yang mengurus hasil cetak dan PDF.
+		...(style.pageBreakBefore ? ['break-before: page'] : []),
 	]
 }
 

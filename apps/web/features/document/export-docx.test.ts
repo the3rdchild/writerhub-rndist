@@ -452,3 +452,85 @@ describe('blok HTML di berkas DOCX', () => {
 		expect(strFromU8(files['word/document.xml'])).not.toContain('RAHASIA')
 	})
 })
+
+describe('hentian halaman di berkas DOCX', () => {
+	const berbab: DocumentTypography = {
+		baseFont: { family: '"Times New Roman", Times, serif', sizePt: 12 },
+		lineHeight: 1.5,
+		headings: { 1: { sizePt: 12, pageBreakBefore: true } },
+	}
+
+	async function documentXmlOf(content: JSONContent[], typography?: DocumentTypography) {
+		const doc = buildSchema().nodeFromJSON({ type: 'doc', content })
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+			typography,
+		})
+		const files = unzipSync(new Uint8Array(await blob.arrayBuffer()))
+		return { document: strFromU8(files['word/document.xml']), styles: strFromU8(files['word/styles.xml']) }
+	}
+
+	const heading = (text: string): JSONContent => ({
+		type: 'heading',
+		attrs: { level: 1 },
+		content: [{ type: 'text', text }],
+	})
+
+	// Tanpa ini BAB tetap menyambung di berkasnya meski kanvasnya sudah benar.
+	test('gaya Heading 1 membawa hentian halaman', async () => {
+		const { styles } = await documentXmlOf([heading('BAB I')], berbab)
+		const style = styles.match(/<w:style [^>]*w:styleId="Heading1"[\s\S]*?<\/w:style>/)?.[0]
+
+		expect(style).toContain('<w:pageBreakBefore/>')
+	})
+
+	test('template tanpa aturan itu tidak memaksa hentian', async () => {
+		const { styles } = await documentXmlOf([heading('Bagian')], {
+			baseFont: { family: 'Arial', sizePt: 11 },
+			lineHeight: 1.15,
+		})
+		const style = styles.match(/<w:style [^>]*w:styleId="Heading1"[\s\S]*?<\/w:style>/)?.[0]
+
+		expect(style).not.toContain('<w:pageBreakBefore/>')
+	})
+
+	/*
+	 * Butir menu "Tambah hentian halaman sebelum" dulu berhenti sebagai CSS:
+	 * ia bekerja saat mencetak, tapi hilang sama sekali dari berkas ekspor.
+	 */
+	test('hentian manual satu blok ikut terekspor', async () => {
+		const { document } = await documentXmlOf([
+			{ type: 'paragraph', content: [{ type: 'text', text: 'sebelum' }] },
+			{
+				type: 'paragraph',
+				attrs: { pageBreakBefore: true },
+				content: [{ type: 'text', text: 'sesudah' }],
+			},
+		])
+
+		expect(document).toContain('<w:pageBreakBefore/>')
+	})
+
+	test('saklar keep ikut terekspor', async () => {
+		const { document } = await documentXmlOf([
+			{
+				type: 'paragraph',
+				attrs: { keepWithNext: true, keepLines: true },
+				content: [{ type: 'text', text: 'menyatu' }],
+			},
+		])
+
+		expect(document).toContain('<w:keepNext/>')
+		expect(document).toContain('<w:keepLines/>')
+	})
+
+	test('paragraf biasa tidak membawa properti itu', async () => {
+		const { document } = await documentXmlOf([
+			{ type: 'paragraph', content: [{ type: 'text', text: 'polos' }] },
+		])
+
+		expect(document).not.toContain('<w:pageBreakBefore/>')
+		expect(document).not.toContain('<w:keepNext/>')
+	})
+})

@@ -71,6 +71,29 @@ describe('lembar gaya tipografi', () => {
 	})
 })
 
+describe('hentian halaman di lembar gaya', () => {
+	const berbab: DocumentTypography = {
+		...skripsi,
+		headings: { ...skripsi.headings, 1: { ...skripsi.headings?.[1], pageBreakBefore: true } },
+	}
+
+	// Paginasi kanvas punya jalurnya sendiri (`headingBreakLevels`); baris CSS
+	// ini yang mengurus hasil cetak dan PDF.
+	test('judul yang membuka lembar baru menyebutkannya di CSS', () => {
+		const css = typographyRules(berbab)
+		expect(declaration(css, '.document-body h1', 'break-before')).toBe('page')
+	})
+
+	test('tingkat lain tidak ikut', () => {
+		const css = typographyRules(berbab)
+		expect(declaration(css, '.document-body h2', 'break-before')).toBeNull()
+	})
+
+	test('template tanpa aturan itu tidak menulis apa pun', () => {
+		expect(typographyRules(skripsi)).not.toContain('break-before')
+	})
+})
+
 describe('penyelesaian gaya judul', () => {
 	test('penimpa template menang atas tangga bawaan', () => {
 		expect(resolveHeadingStyle(skripsi, 1).sizePt).toBe(12)

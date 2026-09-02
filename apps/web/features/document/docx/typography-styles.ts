@@ -52,6 +52,9 @@ function runOf(style: BlockStyle, family: string) {
 function paragraphOf(style: BlockStyle) {
 	return {
 		alignment: DOCX_ALIGNMENT[style.align] ?? 'left',
+		// Aturan tingkat judul, bukan atribut per blok: ia ikut gaya Heading-nya
+		// jadi bab yang ditambahkan di dalam Word pun tetap membuka lembar baru.
+		...(style.pageBreakBefore ? { pageBreakBefore: true } : {}),
 		spacing: {
 			before: pt(style.spaceBeforePt),
 			after: pt(style.spaceAfterPt),

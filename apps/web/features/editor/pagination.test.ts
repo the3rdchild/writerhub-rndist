@@ -590,3 +590,67 @@ describe('peta blok→section (§P8&P9, cetak per-section)', () => {
 		).toEqual([0, 0, 1])
 	})
 })
+
+/*
+ * Judul yang selalu membuka lembar baru - BAB di karya ilmiah. Sumbernya dua:
+ * aturan tingkat judul milik tipografi template, dan butir menu "Tambah
+ * hentian halaman sebelum" per blok. Keduanya bermuara ke `breakBefore`.
+ */
+describe('hentian halaman sebelum blok', () => {
+	function withBreakAt(heights: number[], breakIndex: number): Measurement[] {
+		return layout(heights).map((block, index) =>
+			index === breakIndex ? { ...block, breakBefore: true } : block,
+		)
+	}
+
+	test('blok yang memintanya pindah ke lembar berikutnya meski masih muat', () => {
+		// Dua blok pendek yang jelas muat bersama di satu halaman.
+		const blocks = withBreakAt([200, 200], 1)
+		const tops = renderedTops(blocks)
+
+		expectStartsPage(tops[0], 1)
+		expectStartsPage(tops[1], 2)
+		expect(computeSpacers(blocks, geometry).pageCount).toBe(2)
+	})
+
+	/*
+	 * Penjaga terpenting: BAB I ada di paling atas halaman pertama. Kalau
+	 * permintaannya dituruti mentah-mentah, halaman 1 jadi kosong dan seluruh
+	 * naskah bergeser satu lembar.
+	 */
+	test('blok yang sudah di awal lembar tidak melahirkan halaman kosong', () => {
+		const blocks = withBreakAt([200, 200], 0)
+
+		expect(computeSpacers(blocks, geometry).spacers).toEqual([])
+		expect(computeSpacers(blocks, geometry).pageCount).toBe(1)
+	})
+
+	test('tanpa permintaan itu, blok tetap menyambung seperti biasa', () => {
+		const blocks = layout([200, 200])
+
+		expect(computeSpacers(blocks, geometry).spacers).toEqual([])
+		expect(computeSpacers(blocks, geometry).pageCount).toBe(1)
+	})
+
+	test('beberapa bab berurutan masing-masing dapat lembarnya sendiri', () => {
+		const blocks = layout([200, 200, 200]).map((block, index) =>
+			index > 0 ? { ...block, breakBefore: true } : block,
+		)
+		const tops = renderedTops(blocks)
+
+		expectStartsPage(tops[0], 1)
+		expectStartsPage(tops[1], 2)
+		expectStartsPage(tops[2], 3)
+	})
+
+	// Blok yang meluap sudah didorong oleh aturan luapan; permintaan hentian
+	// tidak boleh membuatnya melompat dua lembar sekaligus.
+	test('blok meluap yang juga meminta hentian tetap maju satu lembar', () => {
+		const blocks = withBreakAt([contentHeight - 50, 200], 1)
+		const tops = renderedTops(blocks)
+
+		expectStartsPage(tops[0], 1)
+		expectStartsPage(tops[1], 2)
+		expect(computeSpacers(blocks, geometry).pageCount).toBe(2)
+	})
+})

@@ -68,6 +68,7 @@ export function buildEditorExtensions({
 	onPageCountChange,
 	onSheetsChange,
 	onSectionsChange,
+	breakBeforeLevels,
 	collaboration,
 	slashCommand,
 }: {
@@ -76,6 +77,8 @@ export function buildEditorExtensions({
 	onPageCountChange?: (pageCount: number) => void
 	onSheetsChange?: (sheets: SheetGeometry[]) => void
 	onSectionsChange?: (setups: PageSetup[]) => void
+	/** Tingkat judul yang selalu membuka lembar baru; dari tipografi dokumen. */
+	breakBeforeLevels?: number[]
 	collaboration?: { document: Y.Doc; field: string } | null
 	slashCommand?: Pick<SlashCommandOptions, 'onOpen' | 'onUpdate' | 'onClose'>
 } = {}): Extensions {
@@ -140,7 +143,14 @@ export function buildEditorExtensions({
 		TrailingParagraph,
 		TocBlock.extend({ addNodeView: () => TocBlockNodeView }),
 		HtmlBlock.extend({ addNodeView: () => HtmlBlockNodeView }),
-		Pagination.configure({ geometry, setup, onPageCountChange, onSheetsChange, onSectionsChange }),
+		Pagination.configure({
+			geometry,
+			setup,
+			onPageCountChange,
+			onSheetsChange,
+			onSectionsChange,
+			breakBeforeLevels,
+		}),
 		...(slashCommand
 			? [
 					SlashCommand.configure({

@@ -1,6 +1,7 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
+import { headingBreakLevels } from '@writer-hub/shared'
 import { useMemo, useState } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { SheetFurniture } from '@/features/editor/page-furniture/sheet-furniture'
@@ -62,6 +63,7 @@ export function DocumentCanvas({
 
 	const geometry = useMemo(() => pageGeometry(setup), [setup])
 	const typeRules = useMemo(() => typographyRules(typography), [typography])
+	const breakBeforeLevels = useMemo(() => headingBreakLevels(typography), [typography])
 	const { width, height, margins, gap, pageStride, contentHeight } = geometry
 	const codeBlockMaxHeight = setup.pageless
 		? 'none'
@@ -246,6 +248,7 @@ export function DocumentCanvas({
 										onPageCountChange={setPageCount}
 										onSheetsChange={setSheets}
 										onSectionsChange={setSectionSetups}
+										breakBeforeLevels={breakBeforeLevels}
 									/>
 								)}
 							</div>

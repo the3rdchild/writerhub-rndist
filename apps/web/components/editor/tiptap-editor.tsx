@@ -37,6 +37,7 @@ export function TiptapEditor({
 	onPageCountChange,
 	onSheetsChange,
 	onSectionsChange,
+	breakBeforeLevels,
 }: {
 	containerRef: React.RefObject<HTMLDivElement | null>
 	onReady?: (editor: Editor | null) => void
@@ -46,6 +47,8 @@ export function TiptapEditor({
 	onPageCountChange?: (pageCount: number) => void
 	onSheetsChange?: (sheets: SheetGeometry[]) => void
 	onSectionsChange?: (setups: PageSetup[]) => void
+	/** Tingkat judul yang membuka lembar baru; dari tipografi dokumen. */
+	breakBeforeLevels?: number[]
 }) {
 	const { state, dispatch } = useDocument()
 	const { doc, activeId } = useSessions()
@@ -66,6 +69,7 @@ export function TiptapEditor({
 			extensions: buildEditorExtensions({
 				geometry,
 				setup,
+				breakBeforeLevels,
 				onPageCountChange: (pageCount) => pageCountRef.current?.(pageCount),
 				onSheetsChange: (sheets) => sheetsRef.current?.(sheets),
 				onSectionsChange: (setups) => sectionsRef.current?.(setups),
@@ -114,11 +118,16 @@ export function TiptapEditor({
 	useEffect(
 		function pushPageGeometry() {
 			if (!editor) return
-			const transaction = editor.state.tr.setMeta(paginationKey, { geometry, setup, pageless })
+			const transaction = editor.state.tr.setMeta(paginationKey, {
+				geometry,
+				setup,
+				pageless,
+				breakBeforeLevels,
+			})
 			transaction.setMeta('addToHistory', false)
 			editor.view.dispatch(transaction)
 		},
-		[editor, geometry, setup, pageless],
+		[editor, geometry, setup, pageless, breakBeforeLevels],
 	)
 	const syncedEditorRef = useRef<Editor | null>(null)
 	useEffect(

@@ -146,6 +146,23 @@ function marksOf(node: PMNode): Marks {
 }
 
 /**
+ * Saklar penanganan halaman milik satu blok (`features/editor/block-keep.ts`)
+ * menjadi properti paragraf DOCX.
+ *
+ * Sebelumnya keempatnya berhenti di kanvas: butir menu "Tambah hentian halaman
+ * sebelum" menghasilkan CSS `break-before` yang hanya berlaku saat mencetak,
+ * dan tidak satu pun ikut ke berkas hasil ekspor.
+ */
+function blockKeepOf(node: PMNode): Record<string, unknown> {
+	return {
+		...(node.attrs.pageBreakBefore === true ? { pageBreakBefore: true } : {}),
+		...(node.attrs.keepWithNext === true ? { keepNext: true } : {}),
+		...(node.attrs.keepLines === true ? { keepLines: true } : {}),
+		...(node.attrs.widowControl === false ? { widowControl: false } : {}),
+	}
+}
+
+/**
  * Membaca URI `data:` PNG menjadi bita. Mengembalikan `null` untuk apa pun yang
  * bukan PNG - potretan yang gagal disimpan sebagai string kosong.
  */
@@ -239,6 +256,7 @@ export async function exportDocx(
 		return new Paragraph({
 			children: runsOf(node),
 			...(alignment ? { alignment } : {}),
+			...blockKeepOf(node),
 			...spacingOf(node),
 			indent: {
 				left: px(Number(node.attrs.indentLeft) || 0),

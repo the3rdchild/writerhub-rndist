@@ -38,6 +38,7 @@ Dirangkum dari pemeriksaan kode, bukan dari dokumen lain — beberapa baris di
 | 34 tool editor yang bisa dipanggil model (`set_page_setup`, `set_columns`, `insert_toc`, `apply_paragraph_style`, …) | `packages/shared/src/tools.ts` |
 | Konverter Markdown → ProseMirror **di sisi server** | `apps/api/src/services/drafts/markdown-doc.ts` |
 | Tipografi per template: huruf badan + gaya judul 1-9, berlaku di kanvas dan ikut ke DOCX | `packages/shared/src/typography.ts`, `features/editor/typography-css.ts`, `features/document/docx/typography-styles.ts` |
+| Judul yang selalu membuka lembar baru (BAB, Abstrak, Daftar Pustaka) — kanvas, cetak, dan DOCX | `typography.ts` (`pageBreakBefore`, `headingBreakLevels`), `features/editor/pagination.ts` |
 | Blok rancangan HTML terkurung, dua mode: `page` (satu lembar penuh, full-bleed) dan `embed` (sisipan) + tool `insert_html_block` | `features/editor/html-block.ts`, `html-sandbox.ts`, `html-raster.ts` |
 
 Yang terakhir penting: kerangka template bisa ditulis sebagai Markdown biasa lalu dikompilasi
@@ -354,6 +355,14 @@ gaya paragraf **bernama** buatan pengguna, hanging indent per blok dari toolbar,
 otomatis & cross-reference, TOC dengan nomor halaman, serta nomor baris di margin. Sebagian
 besar ada di `docs/GOOGLE-DOCS-GAP-EDITOR-SHELL.md`; template hanya membuat kebutuhannya jadi
 kentara.
+
+Satu hal yang **keluar** dari daftar ini: judul yang membuka lembar baru. Ia
+kini bagian dari tipografi template (`BlockStyle.pageBreakBefore`), dinyalakan
+di seluruh template akademik dan di template bisnis yang berbentuk laporan
+panjang — bukan di memo, surat, notulen, dan CV, yang justru rusak kalau tiap
+bagiannya dipaksa berhalaman sendiri. Aturannya berlaku per **tingkat** judul,
+jadi bab yang ditambahkan penulis besok ikut terkena tanpa perlu membawa
+atribut apa pun.
 
 **Penomoran judul (`format.headingScheme`) masih ikut daftar ini.** Nilainya sudah tercatat di
 tiap template — `bab-romawi`, `decimal` — tapi belum ada yang menomori judulnya; "BAB I" masih
