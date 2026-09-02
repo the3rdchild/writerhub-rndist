@@ -44,6 +44,15 @@ export function languagePrompt(language: string | undefined): string {
 }
 
 /**
+ * Panjang yang diminta. Selain mengarahkan model, angka inilah yang dipakai
+ * sebagai pembagi saat menaksir kemajuan (lihat `progress.ts`) - jadi ia harus
+ * benar-benar sampai ke model, bukan cuma dipakai menghitung di belakang.
+ */
+export function lengthPrompt(words: number | undefined): string {
+	return words ? `Aim for roughly ${words} words in total.` : ''
+}
+
+/**
  * Pesan berformat OpenAI untuk satu permintaan draf. Bagian yang kosong -
  * misalnya memori gaya yang belum pernah diisi - dibuang, bukan disisipkan
  * sebagai paragraf hampa.
@@ -56,6 +65,7 @@ export function buildDraftMessages(
 		DRAFT_SYSTEM_PROMPT,
 		languagePrompt(request.language),
 		tonePrompt(request.tone),
+		lengthPrompt(request.words),
 		memoryPrompt(memory),
 	]
 		.filter(Boolean)

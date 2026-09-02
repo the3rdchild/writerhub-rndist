@@ -98,7 +98,27 @@ Yang perlu diketahui pemanggil:
   (`apps/api/src/services/drafts/runner.ts`).
 - **`GET /api/v1/drafts/:documentId`** memberi status yang sama sampai ia `ready` atau
   `failed`. Halaman `/d/<documentId>` di `apps/web` menunggunya sendiri, jadi pengguna boleh
-  membuka tautannya seketika.
+  membuka tautannya seketika. Selama `generating` ia membawa `progress`:
+
+  ```json
+  { "phase": "writing", "percent": 62, "characters": 1120, "targetCharacters": 1800 }
+  ```
+
+  `percent` adalah **taksiran** - panjang karakter yang sudah diterima dibagi panjang yang
+  diminta ke model - dan sengaja berhenti di 95% selama naskahnya masih mengalir. Model tidak
+  tahu panjang keluarannya sendiri, jadi tidak ada angka yang lebih pasti dari itu. Kirim
+  `words` supaya pembaginya adalah panjang yang memang diminta, bukan bawaan.
+- **Kegagalan selalu punya sebab yang bisa diperiksa program.** Status `failed` membawa
+  `errorCode` (`provider_unreachable`, `provider_rejected`, `quota_exceeded`, `timeout`,
+  `empty_response`, `save_failed`, `unknown`) di samping `error` yang bisa dibaca manusia.
+  Penulisan yang prosesnya mati di tengah jalan - deployment yang restart, misalnya - tidak
+  menggantung sebagai `generating` selamanya: catatan statusnya bertenggat, dan sesudah lewat
+  ia terbaca sebagai `timeout`.
+- **`POST /api/v1/drafts/:documentId/retry`** menulis ulang draf yang gagal ke dokumen yang
+  sama, memakai permintaan asli yang tersimpan (24 jam). Tanpa badan permintaan - tombol
+  "tulis ulang" di halaman `/d/<documentId>` memakainya, dan halaman itu tidak pernah melihat
+  prompt aslinya. Draf yang masih ditulis membalas 409; permintaan yang sudah kedaluwarsa
+  membalas 422.
 - **Kirim `content` (Markdown) alih-alih `prompt`** kalau naskahnya sudah jadi di sisi
   pemanggil. Dokumen langsung `ready` (201) dan tidak ada panggilan LLM sama sekali.
 - **`title` opsional.** Tanpa itu judul diambil dari heading pertama naskah, dengan potongan

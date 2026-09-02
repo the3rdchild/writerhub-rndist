@@ -1,11 +1,15 @@
 import { env } from '@/config/env'
 import type { ResolvedProvider } from '@/lib/provider-resolver'
+import { DraftFailure, providerFailure } from './failure'
 
 /**
- * Satu panggilan ke provider AI untuk meminta naskah draf - tanpa stream,
- * tanpa tool, tanpa Hono. Berbeda dari AI Chat yang menyalurkan token ke
- * browser, di sini tidak ada yang menonton: pemanggil sudah pulang membawa
- * tautannya, dan yang dibutuhkan cuma naskah utuhnya.
+ * Satu panggilan ke provider AI untuk meminta naskah draf - tanpa tool, tanpa
+ * Hono. Berbeda dari AI Chat yang menyalurkan token ke browser, di sini tidak
+ * ada yang menonton: pemanggil sudah pulang membawa tautannya.
+ *
+ * Naskahnya tetap diminta sebagai stream, tapi bukan untuk diteruskan ke mana
+ * pun - hanya supaya panjang yang sudah masuk bisa dilaporkan sebagai kemajuan.
+ * Tanpa itu, satu-satunya kabar selama beberapa menit adalah "sedang ditulis".
  */
 
 const TEMPERATURE = 0.6
@@ -22,6 +26,21 @@ export interface ProviderConfig {
 	model: string
 }
 
+/** Dipanggil setiap kali sepotong naskah masuk, dengan panjang total sejauh ini. */
+export type ProgressReporter = (characters: number) => void
+
+/**
+ * Bagian ReadableStream yang benar-benar dipakai. Tipe bawaan `Response.body`
+ * berbeda antara lib DOM dan Bun; yang dibutuhkan cuma pembacanya - sama
+ * seperti `ByteSource` di jalur stream AI Chat.
+ */
+interface ByteSource {
+	getReader(): {
+		read(): Promise<{ done: boolean; value?: Uint8Array }>
+		releaseLock(): void
+	}
+}
+
 /**
  * Provider dari admin-ppe didahulukan, nilai env dipakai sebagai cadangan -
  * aturan yang sama dengan AI Chat. Null berarti tidak ada kredensial sama
@@ -36,26 +55,106 @@ export function providerConfig(provider: ResolvedProvider | null): ProviderConfi
 }
 
 export async function generateDraftMarkdown(
-	{ baseUrl, apiKey, model }: ProviderConfig,
+	config: ProviderConfig,
 	messages: Array<{ role: string; content: string }>,
+	onProgress?: ProgressReporter,
 ): Promise<string> {
-	const response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
-		method: 'POST',
-		headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-		body: JSON.stringify({ model, temperature: TEMPERATURE, messages }),
-		signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-	})
+	const streamed = await callProvider(config, messages, true)
 
-	if (!response.ok) {
-		const detail = await response.text().catch(() => '')
-		throw new Error(`Provider AI membalas ${response.status}. ${detail.slice(0, 300)}`.trim())
+	// Provider yang tidak mengenal `stream` menolaknya di depan, bukan di
+	// tengah naskah. Satu percobaan ulang tanpa stream lebih baik daripada
+	// memaksa seluruh fitur bergantung pada dukungan yang tidak universal -
+	// kemajuannya saja yang hilang.
+	if (!streamed.ok && streamed.status >= 400 && streamed.status < 500) {
+		const detail = await streamed.text().catch(() => '')
+		const whole = await callProvider(config, messages, false)
+		if (!whole.ok) throw providerFailure(streamed.status, detail)
+
+		return unwrapFence(requireMarkdown(await readWholeMarkdown(whole)))
 	}
 
-	const payload = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> }
-	const markdown = payload.choices?.[0]?.message?.content?.trim()
-	if (!markdown) throw new Error('Provider AI mengembalikan naskah kosong')
+	if (!streamed.ok || !streamed.body) {
+		throw providerFailure(streamed.status, await streamed.text().catch(() => ''))
+	}
 
-	return unwrapFence(markdown)
+	return unwrapFence(requireMarkdown(await readStreamedMarkdown(streamed.body, onProgress)))
+}
+
+function callProvider(
+	{ baseUrl, apiKey, model }: ProviderConfig,
+	messages: Array<{ role: string; content: string }>,
+	stream: boolean,
+): Promise<Response> {
+	return fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
+		method: 'POST',
+		headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+		body: JSON.stringify({ model, temperature: TEMPERATURE, messages, ...(stream ? { stream: true } : {}) }),
+		signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+	})
+}
+
+async function readWholeMarkdown(response: Response): Promise<string> {
+	const payload = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> }
+	return payload.choices?.[0]?.message?.content ?? ''
+}
+
+/**
+ * SSE gaya OpenAI: satu peristiwa per baris `data:`, ditutup `[DONE]`.
+ * Potongan yang tidak bisa dibaca dilewati - satu baris rusak tidak boleh
+ * menjatuhkan naskah yang sudah terkumpul.
+ */
+async function readStreamedMarkdown(body: ByteSource, onProgress?: ProgressReporter): Promise<string> {
+	const reader = body.getReader()
+	const decoder = new TextDecoder()
+	let buffer = ''
+	let markdown = ''
+
+	try {
+		while (true) {
+			const { done, value } = await reader.read()
+			if (done) break
+
+			buffer += decoder.decode(value, { stream: true })
+			const events = buffer.split('\n\n')
+			buffer = events.pop() ?? ''
+
+			for (const event of events) {
+				const piece = deltaContent(event)
+				if (!piece) continue
+
+				markdown += piece
+				onProgress?.(markdown.length)
+			}
+		}
+	} finally {
+		reader.releaseLock()
+	}
+
+	return markdown
+}
+
+function deltaContent(event: string): string {
+	for (const line of event.split('\n')) {
+		if (!line.startsWith('data:')) continue
+
+		const payload = line.slice(5).trim()
+		if (!payload || payload === '[DONE]') continue
+
+		try {
+			const parsed = JSON.parse(payload) as { choices?: Array<{ delta?: { content?: string } }> }
+			const content = parsed.choices?.[0]?.delta?.content
+			if (content) return content
+		} catch {
+			// Potongan JSON yang belum utuh: dilewati, sisanya menyusul di event berikutnya.
+		}
+	}
+	return ''
+}
+
+function requireMarkdown(markdown: string): string {
+	const trimmed = markdown.trim()
+	if (!trimmed) throw new DraftFailure('empty_response', 'Provider AI mengembalikan naskah kosong.')
+	return trimmed
 }
 
 /**

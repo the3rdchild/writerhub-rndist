@@ -6,6 +6,10 @@ const MAX_PROMPT_CHARS = 8_000
 /** Naskah siap pakai boleh jauh lebih panjang - ia memang sudah berupa dokumen. */
 const MAX_CONTENT_CHARS = 200_000
 
+/** Batas panjang yang boleh diminta; di bawah ini bukan dokumen, di atasnya bukan satu panggilan. */
+const MIN_TARGET_WORDS = 100
+const MAX_TARGET_WORDS = 5_000
+
 /**
  * Satu badan permintaan melayani dua alur pemanggil:
  *
@@ -22,6 +26,9 @@ export const draftRequestSchema = z
 		content: z.string().trim().min(1).max(MAX_CONTENT_CHARS).optional(),
 		title: z.string().trim().min(1).max(500).optional(),
 		tone: z.enum(REWRITE_TONE_IDS).optional(),
+		// Ikut masuk ke prompt, bukan cuma jadi angka pembanding: taksiran
+		// kemajuan hanya jujur kalau panjangnya memang yang kami minta.
+		words: z.number().int().min(MIN_TARGET_WORDS).max(MAX_TARGET_WORDS).optional(),
 		language: z.string().trim().min(1).max(32).optional(),
 		projectId: z.uuid().optional(),
 	})

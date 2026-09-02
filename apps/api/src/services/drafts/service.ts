@@ -1,4 +1,4 @@
-import type { DraftHandoff, DraftStatus } from '@writer-hub/shared'
+import type { DraftHandoff, DraftProgress } from '@writer-hub/shared'
 import { env } from '@/config/env'
 import type { Document, DocumentTab } from '@/db/schemas'
 import { AppError } from '@/lib/error'
@@ -8,11 +8,13 @@ import { findOrCreateDefaultProject, findProjectById } from '@/repository/projec
 import JobSubmissionService from '@/services/job-submission.service'
 import { snapshotIntervalTab } from '@/services/tabs/service'
 import { type DraftRequest, draftRequestSchema } from './dto'
-import { providerConfig } from './generation'
+import { type ProviderConfig, providerConfig } from './generation'
 import { headingTitle, markdownToDoc, type ProseMirrorDoc } from './markdown-doc'
+import { draftPercent, targetCharacters } from './progress'
 import { buildDraftMessages } from './prompt'
-import { runDraftGeneration } from './runner'
-import { markGenerating, readDraftState } from './status'
+import { recallDraftRequest, rememberDraftRequest } from './request-store'
+import { startDraftGeneration } from './runner'
+import { type DraftState, readDraftState } from './status'
 
 /**
  * Menukar satu permintaan "buatkan …" dari klien eksternal dengan sebuah
@@ -20,8 +22,9 @@ import { markGenerating, readDraftState } from './status'
  *
  * Dokumennya dibuat lebih dulu dan selalu utuh - punya id, judul, proyek, dan
  * satu tab - supaya tautannya bisa dibalas seketika. Kalau naskahnya masih
- * harus ditulis, itu berlangsung sesudah balasan dikirim (lihat `runner.ts`)
- * dan kemajuannya ditanyakan lewat `status()`.
+ * harus ditulis, itu berlangsung sesudah balasan dikirim (lihat `runner.ts`),
+ * kemajuannya ditanyakan lewat `status()`, dan kegagalannya bisa diulang lewat
+ * `retry()` tanpa pemanggil perlu menyimpan prompt aslinya.
  */
 
 /** Bentuk dokumen kosong yang sama dengan yang dipakai DocumentsService. */
@@ -44,7 +47,7 @@ export default class DraftsService extends JobSubmissionService {
 
 			return body.content
 				? await this.parkReadyDraft(body, body.content, projectId)
-				: await this.startGeneratedDraft(body, projectId, identityId)
+				: await this.startGeneratedDraft(body, projectId)
 		} catch (error) {
 			return this.failFromError(error)
 		}
@@ -52,16 +55,44 @@ export default class DraftsService extends JobSubmissionService {
 
 	async status(): Promise<Response> {
 		try {
-			const documentId = this.uuidParam('documentId', 'ID dokumen')
-			const document = await findDocumentById(documentId, await this.identityId())
-			if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
+			const { document, tab } = await this.ownedDraft()
+			const state = await readDraftState(document.id)
 
-			const [tab] = await findTabsByDocument(documentId)
-			if (!tab) throw AppError.notFound('Dokumen ini tidak punya tab')
+			return this.success({ data: this.toHandoff(document, tab.id, state) })
+		} catch (error) {
+			return this.failFromError(error)
+		}
+	}
 
-			const state = await readDraftState(documentId)
+	/**
+	 * Menulis ulang draf yang gagal, ke dalam dokumen yang sama. Permintaan
+	 * aslinya diambil dari simpanan, jadi penulis yang cuma memegang tautan pun
+	 * bisa mencoba lagi - ia tidak pernah melihat prompt yang menghasilkannya.
+	 */
+	async retry(): Promise<Response> {
+		try {
+			const { document, tab } = await this.ownedDraft()
+
+			const current = await readDraftState(document.id)
+			if (current.status === 'generating') {
+				throw AppError.conflict('Draf ini masih ditulis - tunggu sampai selesai sebelum mencoba lagi.')
+			}
+
+			const request = await recallDraftRequest(document.id)
+			if (!request?.prompt) {
+				throw AppError.cantProcess(
+					'Permintaan aslinya sudah tidak tersimpan. Kirim ulang permintaannya lewat POST /api/v1/drafts.',
+				)
+			}
+
+			const config = await this.resolveGenerationProvider()
+			if (!config) return this.providerUnavailable()
+
+			await this.beginGeneration(document.id, tab.id, request, config)
+
 			return this.success({
-				data: this.toHandoff(document, tab.id, state.status, state.error),
+				data: this.toHandoff(document, tab.id, await readDraftState(document.id)),
+				status: 202,
 			})
 		} catch (error) {
 			return this.failFromError(error)
@@ -77,43 +108,71 @@ export default class DraftsService extends JobSubmissionService {
 		await snapshotIntervalTab(tab.id, content, this.ownerId())
 
 		return this.success({
-			data: this.toHandoff(document, tab.id, 'ready'),
+			data: this.toHandoff(document, tab.id, { status: 'ready' }),
 			status: 201,
 		})
 	}
 
 	/** Dokumen dibuat kosong dulu; naskahnya menyusul di latar belakang. */
-	private async startGeneratedDraft(
-		body: DraftRequest,
-		projectId: string,
-		identityId: string,
-	): Promise<Response> {
-		const provider = await this.authorizeAndResolveProvider()
-		const config = providerConfig(provider)
-		if (!config) {
-			return this.error({ errors: ['Provider AI belum dikonfigurasi untuk penulisan draf.'], status: 503 })
-		}
+	private async startGeneratedDraft(body: DraftRequest, projectId: string): Promise<Response> {
+		const config = await this.resolveGenerationProvider()
+		if (!config) return this.providerUnavailable()
 
 		const title = body.title ?? this.promptTitle(body.prompt) ?? FALLBACK_TITLE
 		const { document, tab } = await this.createDocument(title, EMPTY_CONTENT, projectId)
 
-		await markGenerating(document.id)
-		runDraftGeneration({
-			documentId: document.id,
-			tabId: tab.id,
-			ownerId: identityId,
-			createdBy: this.ownerId(),
-			provider: config,
-			messages: buildDraftMessages(body, await this.styleMemory()),
-			// Judul dari prompt hanya penambal sampai naskahnya punya heading
-			// sendiri; judul yang ditentukan pemanggil tidak boleh ditimpa.
-			titleFromHeading: !body.title,
-		})
+		await this.beginGeneration(document.id, tab.id, body, config)
 
 		return this.success({
-			data: this.toHandoff(document, tab.id, 'generating'),
+			data: this.toHandoff(document, tab.id, await readDraftState(document.id)),
 			status: 202,
 		})
+	}
+
+	/**
+	 * Satu-satunya jalan masuk ke penulisan latar belakang, dipakai permintaan
+	 * baru maupun percobaan ulang - keduanya harus meninggalkan jejak yang sama:
+	 * permintaan tersimpan, status `generating` tercatat.
+	 */
+	private async beginGeneration(
+		documentId: string,
+		tabId: string,
+		request: DraftRequest,
+		provider: ProviderConfig,
+	): Promise<void> {
+		await rememberDraftRequest(documentId, request)
+		await startDraftGeneration({
+			documentId,
+			tabId,
+			ownerId: await this.identityId(),
+			createdBy: this.ownerId(),
+			provider,
+			messages: buildDraftMessages(request, await this.styleMemory()),
+			// Judul dari prompt hanya penambal sampai naskahnya punya heading
+			// sendiri; judul yang ditentukan pemanggil tidak boleh ditimpa.
+			titleFromHeading: !request.title,
+			words: request.words,
+		})
+	}
+
+	private async resolveGenerationProvider(): Promise<ProviderConfig | null> {
+		return providerConfig(await this.authorizeAndResolveProvider())
+	}
+
+	private providerUnavailable(): Response {
+		return this.error({ errors: ['Provider AI belum dikonfigurasi untuk penulisan draf.'], status: 503 })
+	}
+
+	/** Dokumen milik pemanggil beserta tab pertamanya - bentuk yang dipakai status dan retry. */
+	private async ownedDraft(): Promise<{ document: Document; tab: DocumentTab }> {
+		const documentId = this.uuidParam('documentId', 'ID dokumen')
+		const document = await findDocumentById(documentId, await this.identityId())
+		if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
+
+		const [tab] = await findTabsByDocument(documentId)
+		if (!tab) throw AppError.notFound('Dokumen ini tidak punya tab')
+
+		return { document, tab }
 	}
 
 	private async createDocument(
@@ -157,15 +216,30 @@ export default class DraftsService extends JobSubmissionService {
 			: line
 	}
 
-	private toHandoff(document: Document, tabId: string, status: DraftStatus, error?: string): DraftHandoff {
+	private toHandoff(document: Document, tabId: string, state: DraftState): DraftHandoff {
 		return {
 			documentId: document.id,
 			tabId,
 			title: document.title,
-			status,
+			status: state.status,
 			url: `${env.WEB_URL.replace(/\/$/, '')}/d/${document.id}`,
 			statusUrl: `${env.SERVICE_URL}/api/v1/drafts/${document.id}`,
-			...(error ? { error } : {}),
+			...(state.status === 'generating' ? { progress: toProgress(state) } : {}),
+			...(state.error ? { error: state.error } : {}),
+			...(state.errorCode ? { errorCode: state.errorCode } : {}),
 		}
 	}
+}
+
+/**
+ * Catatan status yang belum sempat dilengkapi - misalnya dibaca tepat sesudah
+ * `generating` ditulis - tetap harus menghasilkan kemajuan yang masuk akal,
+ * bukan bidang kosong yang harus ditebak pembacanya.
+ */
+function toProgress(state: DraftState): DraftProgress {
+	const phase = state.phase ?? 'preparing'
+	const characters = state.characters ?? 0
+	const target = state.targetCharacters ?? targetCharacters(undefined)
+
+	return { phase, characters, targetCharacters: target, percent: draftPercent(phase, characters, target) }
 }

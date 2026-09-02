@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { env } from '@/config/env'
+import { DraftFailure } from './failure'
 import { generateDraftMarkdown, providerConfig } from './generation'
 
 const realFetch = globalThis.fetch
@@ -14,7 +15,27 @@ interface Recorded {
 	body: Record<string, unknown>
 }
 
-function stubFetch(payload: unknown, status = 200): Recorded[] {
+/** Balasan SSE gaya OpenAI: satu peristiwa per potongan naskah. */
+function sse(pieces: string[], status = 200): Response {
+	const events = pieces
+		.map((content) => `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`)
+		.join('')
+
+	return new Response(`${events}data: [DONE]\n\n`, {
+		status,
+		headers: { 'content-type': 'text/event-stream' },
+	})
+}
+
+function completion(content: string): Response {
+	return new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content } }] }), {
+		status: 200,
+		headers: { 'content-type': 'application/json' },
+	})
+}
+
+/** Balasan diambil berurutan; yang terakhir dipakai ulang untuk panggilan sesudahnya. */
+function stubFetch(...responses: Response[]): Recorded[] {
 	const calls: Recorded[] = []
 	globalThis.fetch = (async (url: string, init: RequestInit) => {
 		calls.push({
@@ -22,16 +43,9 @@ function stubFetch(payload: unknown, status = 200): Recorded[] {
 			headers: init.headers as Record<string, string>,
 			body: JSON.parse(String(init.body)),
 		})
-		return new Response(typeof payload === 'string' ? payload : JSON.stringify(payload), {
-			status,
-			headers: { 'content-type': 'application/json' },
-		})
+		return responses[Math.min(calls.length - 1, responses.length - 1)]
 	}) as unknown as typeof fetch
 	return calls
-}
-
-function completion(content: string) {
-	return { choices: [{ message: { role: 'assistant', content } }] }
 }
 
 const config = { baseUrl: 'https://provider.test/v1/', apiKey: 'kunci', model: 'model-uji' }
@@ -49,46 +63,74 @@ const resolved = {
 }
 
 describe('generateDraftMarkdown', () => {
-	test('meminta satu balasan utuh, bukan stream', async () => {
-		const calls = stubFetch(completion('# Judul\n\nisi'))
+	test('meminta naskahnya sebagai stream', async () => {
+		const calls = stubFetch(sse(['# Judul\n\nisi']))
 		await generateDraftMarkdown(config, messages)
 
 		expect(calls[0].url).toBe('https://provider.test/v1/chat/completions')
 		expect(calls[0].headers.authorization).toBe('Bearer kunci')
 		expect(calls[0].body.model).toBe('model-uji')
-		expect(calls[0].body.stream).toBeUndefined()
+		expect(calls[0].body.stream).toBe(true)
 		expect(calls[0].body.messages).toEqual(messages)
 	})
 
-	test('mengembalikan naskah apa adanya', async () => {
-		stubFetch(completion('# Judul\n\nisi'))
+	test('potongan stream dirakit kembali menjadi satu naskah', async () => {
+		stubFetch(sse(['# Judul', '\n\nsatu ', 'kalimat utuh']))
 
-		expect(await generateDraftMarkdown(config, messages)).toBe('# Judul\n\nisi')
+		expect(await generateDraftMarkdown(config, messages)).toBe('# Judul\n\nsatu kalimat utuh')
+	})
+
+	test('kemajuan dilaporkan sebagai panjang naskah yang sudah masuk', async () => {
+		stubFetch(sse(['abc', 'de', 'f']))
+		const reported: number[] = []
+
+		await generateDraftMarkdown(config, messages, (characters) => reported.push(characters))
+
+		expect(reported).toEqual([3, 5, 6])
 	})
 
 	test('pagar yang membungkus seluruh jawaban dibuang', async () => {
-		stubFetch(completion('```markdown\n# Judul\n\nisi\n```'))
+		stubFetch(sse(['```markdown\n# Judul\n\nisi\n```']))
 
 		expect(await generateDraftMarkdown(config, messages)).toBe('# Judul\n\nisi')
 	})
 
 	test('pagar di tengah naskah dibiarkan - ia bagian dari dokumen', async () => {
 		const markdown = '# Judul\n\n```python\nprint(1)\n```\n\npenutup'
-		stubFetch(completion(markdown))
+		stubFetch(sse([markdown]))
 
 		expect(await generateDraftMarkdown(config, messages)).toBe(markdown)
 	})
 
-	test('balasan galat provider menyebut kodenya', async () => {
-		stubFetch({ error: 'nope' }, 429)
+	test('provider yang menolak stream dicoba ulang tanpa stream', async () => {
+		const calls = stubFetch(new Response('stream tidak didukung', { status: 400 }), completion('# Judul'))
 
-		await expect(generateDraftMarkdown(config, messages)).rejects.toThrow('429')
+		expect(await generateDraftMarkdown(config, messages)).toBe('# Judul')
+		expect(calls).toHaveLength(2)
+		expect(calls[1].body.stream).toBeUndefined()
+	})
+
+	test('kuota habis punya kodenya sendiri supaya layak dicoba lagi', async () => {
+		stubFetch(new Response('rate limited', { status: 429 }))
+
+		const failure = (await generateDraftMarkdown(config, messages).catch((e) => e)) as DraftFailure
+		expect(failure).toBeInstanceOf(DraftFailure)
+		expect(failure.code).toBe('quota_exceeded')
+	})
+
+	test('kredensial ditolak dibedakan dari kegagalan lain', async () => {
+		stubFetch(new Response('bad key', { status: 401 }))
+
+		const failure = (await generateDraftMarkdown(config, messages).catch((e) => e)) as DraftFailure
+		expect(failure.code).toBe('provider_rejected')
+		expect(failure.message).toContain('401')
 	})
 
 	test('naskah kosong dianggap gagal, bukan dokumen kosong', async () => {
-		stubFetch(completion('   '))
+		stubFetch(sse(['   ']))
 
-		await expect(generateDraftMarkdown(config, messages)).rejects.toThrow('kosong')
+		const failure = (await generateDraftMarkdown(config, messages).catch((e) => e)) as DraftFailure
+		expect(failure.code).toBe('empty_response')
 	})
 })
 

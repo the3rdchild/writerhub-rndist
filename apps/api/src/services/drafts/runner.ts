@@ -2,9 +2,11 @@ import LoggerClient from '@/lib/logger'
 import { touchDocument, updateDocument } from '@/repository/document'
 import { updateTab } from '@/repository/document-tab'
 import { snapshotIntervalTab } from '@/services/tabs/service'
+import { toDraftFailure } from './failure'
 import { generateDraftMarkdown, type ProviderConfig } from './generation'
 import { headingTitle, markdownToDoc } from './markdown-doc'
-import { markFailed, markReady } from './status'
+import { targetCharacters } from './progress'
+import { markFailed, markGenerating, markReady } from './status'
 
 /**
  * Menyelesaikan draf sesudah balasan HTTP-nya dikirim: minta naskah ke
@@ -14,9 +16,24 @@ import { markFailed, markReady } from './status'
  * satu permintaan - begitu tautan dikembalikan, `Context` Hono beserta
  * signal-nya sudah tidak berlaku, dan apa pun yang masih memegangnya akan ikut
  * dibatalkan. Fungsi di sini sengaja tidak tahu-menahu soal HTTP.
+ *
+ * Karena tidak ada pemanggil yang menunggu, **tidak ada satu jalur pun yang
+ * boleh berakhir tanpa menandai status.** Setiap keluar dari fungsi ini
+ * meninggalkan `ready` atau `failed`; kalau prosesnya sendiri yang mati, tenggat
+ * di catatan status yang menutupnya (lihat `status.ts`).
  */
 
 const log = LoggerClient.getInstance()
+
+/**
+ * Batas hidup satu penulisan draf. Sedikit lebih longgar dari batas waktu
+ * permintaan ke provider, supaya konversi dan penyimpanan naskah yang datang
+ * di detik terakhir tidak ikut dianggap terbengkalai.
+ */
+export const DRAFT_DEADLINE_MS = 6 * 60_000
+
+/** Jeda minimum antar pencatatan kemajuan - tanpa ini setiap token menulis ke Redis. */
+const PROGRESS_INTERVAL_MS = 1_500
 
 export interface DraftGeneration {
 	documentId: string
@@ -29,30 +46,54 @@ export interface DraftGeneration {
 	messages: Array<{ role: string; content: string }>
 	/** Judul boleh diambil dari heading pertama karena pemanggil tidak menentukannya. */
 	titleFromHeading: boolean
+	/** Panjang yang diminta pemanggil; dasar taksiran kemajuan. */
+	words?: number
 }
 
 /**
- * Sengaja tidak mengembalikan Promise: pemanggilnya adalah jalur permintaan
- * HTTP yang tidak boleh menunggu. Semua galat berakhir sebagai status `failed`
- * yang bisa dibaca lewat endpoint status, bukan sebagai rejection yang hilang.
+ * Menandai draf sebagai sedang ditulis, lalu melanjutkan di latar belakang.
+ *
+ * Penandaannya ditunggu, penulisannya tidak: begitu fungsi ini selesai, status
+ * `generating` sudah bisa dibaca siapa pun yang membuka tautannya - termasuk
+ * pemanggil yang langsung menanyakannya di milidetik berikutnya.
  */
-export function runDraftGeneration(input: DraftGeneration): void {
-	void writeDraft(input).catch((error) => {
+export async function startDraftGeneration(input: DraftGeneration): Promise<void> {
+	const deadline = Date.now() + DRAFT_DEADLINE_MS
+	const target = targetCharacters(input.words)
+
+	await markGenerating(input.documentId, {
+		phase: 'preparing',
+		characters: 0,
+		targetCharacters: target,
+		deadline,
+	})
+
+	void writeDraft(input, target, deadline).catch((error) => {
 		log.error({ err: error, documentId: input.documentId }, 'Generasi draf gagal total')
 	})
 }
 
-async function writeDraft({
-	documentId,
-	tabId,
-	ownerId,
-	createdBy,
-	provider,
-	messages,
-	titleFromHeading,
-}: DraftGeneration): Promise<void> {
+async function writeDraft(
+	{ documentId, tabId, ownerId, createdBy, provider, messages, titleFromHeading }: DraftGeneration,
+	targetCharacters: number,
+	deadline: number,
+): Promise<void> {
+	const progress = (phase: 'writing' | 'saving', characters: number) =>
+		markGenerating(documentId, { phase, characters, targetCharacters, deadline })
+
+	let markdown: string
 	try {
-		const markdown = await generateDraftMarkdown(provider, messages)
+		markdown = await generateDraftMarkdown(provider, messages, throttled(progress))
+	} catch (error) {
+		const failure = toDraftFailure(error)
+		log.error({ err: error, documentId, code: failure.code }, 'Provider gagal menulis draf')
+		await markFailed(documentId, { code: failure.code, message: failure.message })
+		return
+	}
+
+	try {
+		await progress('saving', markdown.length)
+
 		const content = markdownToDoc(markdown)
 		const title = titleFromHeading ? headingTitle(markdown) : null
 
@@ -63,8 +104,26 @@ async function writeDraft({
 		await snapshotIntervalTab(tabId, content, createdBy)
 		await markReady(documentId)
 	} catch (error) {
-		const message = error instanceof Error ? error.message : 'Draf gagal ditulis'
-		log.error({ err: error, documentId, tabId }, 'Gagal menulis draf')
-		await markFailed(documentId, message)
+		log.error({ err: error, documentId, tabId }, 'Naskah draf gagal disimpan')
+		await markFailed(documentId, {
+			code: 'save_failed',
+			message: 'Naskahnya selesai ditulis tapi gagal disimpan ke dokumen.',
+		})
+	}
+}
+
+/**
+ * Kemajuan dilaporkan per potongan naskah - beberapa puluh kali per detik pada
+ * provider yang cepat. Yang membacanya hanya halaman penantian yang menanyakan
+ * status tiap dua detik, jadi menulis lebih sering dari itu murni beban Redis.
+ */
+function throttled(report: (phase: 'writing', characters: number) => Promise<void>): (n: number) => void {
+	let last = 0
+
+	return (characters: number) => {
+		const now = Date.now()
+		if (now - last < PROGRESS_INTERVAL_MS) return
+		last = now
+		void report('writing', characters)
 	}
 }

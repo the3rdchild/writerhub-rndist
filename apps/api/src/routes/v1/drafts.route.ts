@@ -8,5 +8,6 @@ drafts.use('*', authMiddleware)
 
 drafts.post('/', (c) => new DraftsService(c).create())
 drafts.get('/:documentId', (c) => new DraftsService(c).status())
+drafts.post('/:documentId/retry', (c) => new DraftsService(c).retry())
 
 export default drafts
