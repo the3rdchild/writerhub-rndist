@@ -14,6 +14,15 @@ export interface ChatContext {
 	surrounding?: string
 	document?: string
 	title?: string
+	/**
+	 * Geometri halaman yang sedang berlaku, sudah berupa kalimat siap pakai.
+	 *
+	 * Ikut di setiap permintaan, bukan menunggu model memanggil
+	 * `get_page_setup`: rancangan HTML satu halaman harus tahu kertasnya
+	 * potret atau lanskap **sebelum** ia menulis satu baris CSS pun, dan
+	 * mengandalkan model ingat bertanya lebih dulu terbukti tidak cukup.
+	 */
+	page?: string
 }
 
 export interface ChatRequest {

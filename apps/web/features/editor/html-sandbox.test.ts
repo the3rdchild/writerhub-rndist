@@ -54,9 +54,26 @@ describe('kurungan blok HTML', () => {
 
 	test('dasar gaya dipakai bersama bingkai dan pemotret', () => {
 		const { srcdoc } = sandboxDocument('')
-		expect(srcdoc).toContain(`html, body { ${SANDBOX_ROOT_STYLE} }`)
+		expect(srcdoc).toContain(SANDBOX_ROOT_STYLE)
 		expect(srcdoc).toContain(SANDBOX_CONTENT_CSS)
 		expect(SANDBOX_ROOT_STYLE).toContain('margin:0')
+	})
+
+	/*
+	 * Tanpa tinggi di akar, `html` dan `body` bertinggi `auto` - dan setiap
+	 * persentase yang mengacu padanya jatuh kembali menjadi `auto`. Rancangan
+	 * satu halaman yang menulis `height: 100%`, persis seperti yang diperintahkan
+	 * deskripsi `insert_html_block`, mengerut ke setinggi isinya dan menggantung
+	 * di sepertiga atas kertas.
+	 */
+	test('akar dokumen punya tinggi, supaya height:100% bisa bekerja', () => {
+		expect(sandboxDocument('').srcdoc).toContain('height: 100%')
+	})
+
+	// Pemotret memberi pembungkusnya tinggi piksel sendiri; kalau tinggi ikut
+	// masuk ke konstanta bersama, ia justru menimpanya.
+	test('tinggi tidak ikut ke konstanta yang dipakai pemotret', () => {
+		expect(SANDBOX_ROOT_STYLE).not.toContain('height')
 	})
 })
 

@@ -36,6 +36,7 @@ import { chatFailureHint, toChatTurnError } from './failure'
 import { isRemoteReadTool, remoteToolLabel, runRemoteReadTool } from './remote-tools'
 import {
 	applyWriteTool,
+	pageSummary,
 	type ReadToolContext,
 	readToolLabel,
 	runReadTool,
@@ -343,6 +344,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			selection: current?.text,
 			surrounding: current?.surrounding,
 			document: documentText,
+			page: pageSummary(appRef.current.setup),
 		}
 	}, [])
 

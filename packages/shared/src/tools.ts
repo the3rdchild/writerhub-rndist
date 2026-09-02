@@ -354,7 +354,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 					type: 'string',
 					enum: ['page', 'embed'],
 					description:
-						'"page" for a design that occupies one whole sheet edge to edge - a flyer, poster or one-pager. It is placed alone on its own page, bleeds past the margins, and its height is fixed by the paper, so the root element must be width:100%; height:100% and anything taller is CUT OFF at the page edge, never scaled down. "embed" (default) is a small piece that flows inline with the surrounding text and uses the "height" argument.',
+						'"page" for a design that occupies one whole sheet edge to edge - a flyer, poster or one-pager. It is placed alone on its own page and bleeds past the margins. The frame you are given is ALREADY exactly the sheet, in the document\'s current size and orientation - both are stated in the editor context you receive, so never hardcode pixel dimensions and never assume landscape. Give the root element width:100%; height:100% and lay everything out inside it; a fixed height leaves the design hanging in the top part of the paper, and anything taller than the sheet is CUT OFF at the page edge, never scaled down. "embed" (default) is a small piece that flows inline with the surrounding text and uses the "height" argument.',
 				},
 				height: {
 					type: 'number',

@@ -53,6 +53,25 @@ export const HTML_PROBE_SOURCE = 'writerhub-html-block'
 export const SANDBOX_ROOT_STYLE =
 	'margin:0;padding:0;font-family:system-ui,sans-serif;overflow:hidden;word-wrap:break-word'
 
+/**
+ * Tinggi kotak terluar, dan alasannya perlu disebut sama sekali.
+ *
+ * Bingkai blok selalu punya tinggi yang pasti - setinggi lembar di mode
+ * halaman, setinggi atribut di mode sisipan. Tapi `html` dan `body` di dalamnya
+ * tidak mewarisi itu: tanpa aturan ini keduanya bertinggi `auto`, dan setiap
+ * persentase yang mengacu padanya jatuh kembali menjadi `auto`.
+ *
+ * Akibatnya `height: 100%` - yang justru **kami sendiri** perintahkan ke model
+ * lewat deskripsi `insert_html_block` - membuat rancangan mengerut ke setinggi
+ * isinya, bukan memenuhi halaman. Model yang patuh tetap menghasilkan flyer
+ * yang menggantung di sepertiga atas kertas.
+ *
+ * Tidak disatukan ke `SANDBOX_ROOT_STYLE` karena pemotret sudah memberi
+ * pembungkusnya tinggi piksel yang sebenarnya; menaruh `100%` di konstanta
+ * bersama justru akan menimpanya.
+ */
+const ROOT_HEIGHT = 'height: 100%'
+
 /** Aturan untuk isi di dalam kotak itu; sama di kedua tempat. */
 export const SANDBOX_CONTENT_CSS = 'img, svg, video { max-width: 100%; }'
 
@@ -115,7 +134,7 @@ export function sandboxDocument(html: string): SandboxedDocument {
 		srcdoc: [
 			'<!doctype html><html><head><meta charset="utf-8">',
 			`<meta http-equiv="Content-Security-Policy" content="${policy(nonce)}">`,
-			`<style>html, body { ${SANDBOX_ROOT_STYLE} } ${SANDBOX_CONTENT_CSS}</style>`,
+			`<style>html, body { ${SANDBOX_ROOT_STYLE}; ${ROOT_HEIGHT} } ${SANDBOX_CONTENT_CSS}</style>`,
 			'</head><body>',
 			html,
 			`<script nonce="${nonce}">${probeScript(token)}</script>`,

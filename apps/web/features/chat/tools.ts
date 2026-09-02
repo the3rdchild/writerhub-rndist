@@ -149,22 +149,11 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 		case 'get_page_setup': {
 			const { setup } = context
 			const cm = (px: number) => Math.round((px / INCH) * 2.54 * 100) / 100
-			const sizeLabel =
-				setup.size === 'custom'
-					? `custom (${setup.customWidth ?? 0}×${setup.customHeight ?? 0}px)`
-					: (PAGE_SIZES[setup.size]?.label ?? setup.size)
-			// Ukuran px ikut disebut karena penulis HTML butuh angka kanvas, bukan
-			// ukuran kertas dalam cm: tanpa itu rancangan satu halaman ditulis
-			// dengan lebar tebakan lalu terpotong di tepi.
-			const geometry = pageGeometry(setup)
 			return [
-				`Size: ${sizeLabel}, ${setup.orientation}`,
-				`Sheet (px at 96dpi): ${Math.round(geometry.width)} x ${Math.round(geometry.height)}`,
-				`Content box (px at 96dpi): ${Math.round(geometry.contentWidth)} x ${Math.round(geometry.contentHeight)}`,
-				'insert_html_block with fit "page" fills the whole sheet, bleeding past the margins.',
+				pageSummary(setup),
 				`Margins (cm): top ${cm(setup.margins.top)}, bottom ${cm(setup.margins.bottom)}, left ${cm(setup.margins.left)}, right ${cm(setup.margins.right)}`,
+				'insert_html_block with fit "page" fills the whole sheet, bleeding past the margins.',
 				`Page color: ${setup.pageColor ?? 'theme default'}`,
-				`Pageless: ${setup.pageless ? 'yes' : 'no'}`,
 			].join('\n')
 		}
 
@@ -258,6 +247,28 @@ export function summarizeToolResult(result: string): string {
 	const lines = result.split('\n')
 	const first = lines[0].slice(0, 100)
 	return lines.length > 1 ? `${first} … (+${lines.length - 1} baris)` : first
+}
+
+/**
+ * Geometri halaman dalam satu baris, untuk model.
+ *
+ * Dipakai dua tempat sekaligus: konteks editor yang ikut di **setiap**
+ * permintaan chat, dan alat `get_page_setup`. Satu perumus supaya keduanya
+ * tidak mungkin menyebut ukuran yang berbeda - rancangan HTML satu halaman
+ * bersandar pada angka ini, dan salah orientasi saja sudah cukup membuat
+ * flyer potret ditulis dengan tata letak lanskap.
+ */
+export function pageSummary(setup: PageSetup): string {
+	const label =
+		setup.size === 'custom'
+			? `custom ${setup.customWidth ?? 0}x${setup.customHeight ?? 0}px`
+			: (PAGE_SIZES[setup.size]?.label ?? setup.size)
+	if (setup.pageless) return `${label}, pageless (no fixed sheet)`
+
+	const geometry = pageGeometry(setup)
+	const sheet = `${Math.round(geometry.width)}x${Math.round(geometry.height)}px`
+	const content = `${Math.round(geometry.contentWidth)}x${Math.round(geometry.contentHeight)}px`
+	return `${label} ${setup.orientation}; sheet ${sheet}, content box ${content} (96dpi)`
 }
 
 export interface WriteToolContext {

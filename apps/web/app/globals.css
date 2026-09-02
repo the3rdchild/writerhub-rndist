@@ -609,9 +609,10 @@ a {
   height: var(--page-content-height, 640px);
 }
 
-/* Penanda isi terpotong: melayang, supaya ia tidak ikut menambah tinggi blok
-   yang justru sedang dijaga agar pas satu halaman. */
-.html-block-clipped {
+/* Penanda isi terpotong dan isi kurang: melayang, supaya keduanya tidak ikut
+   menambah tinggi blok yang justru sedang dijaga agar pas satu halaman. */
+.html-block-clipped,
+.html-block-underfilled {
   position: absolute;
   bottom: 6px;
   left: 6px;
@@ -625,6 +626,12 @@ a {
   padding: 2px 7px;
   font-size: 0.7rem;
   color: var(--foreground);
+}
+
+/* Kurang mengisi itu saran, bukan kesalahan - jadi ia lebih tenang. */
+.html-block-underfilled {
+  border-color: var(--line-strong);
+  color: var(--foreground-muted);
 }
 
 .html-block-frame,

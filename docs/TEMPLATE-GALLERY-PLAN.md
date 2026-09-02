@@ -76,6 +76,16 @@ lebih tinggi dari lembar **dipotong**, tidak dikecilkan, dan editor menandainya.
 tapi dijepit setinggi satu halaman, karena blok yang melewatinya tidak bisa lagi
 diselamatkan paginasi.
 
+Ukuran rancangan mode halaman tidak pernah ditebak model: bingkainya **sudah**
+persis selembar kertas dalam ukuran dan orientasi yang sedang berlaku, dan
+geometri itu ikut di konteks editor setiap permintaan chat (`pageSummary`) —
+bukan menunggu model ingat memanggil `get_page_setup`. Akar dokumen di dalam
+sandbox diberi tinggi sungguhan, tanpa itu `height: 100%` yang justru kita
+perintahkan sendiri jatuh menjadi `auto` dan rancangannya menggantung di
+sepertiga atas kertas. Sandbox hanya **menyediakan** tinggi itu, tidak memaksa;
+rancangan yang tetap lebih pendek ditandai editor sebagai "isi baru mengisi
+n% halaman".
+
 Isinya dirender di `<iframe>` berasal unik dengan CSP `default-src 'none'`, jadi
 gambar dan font harus tertanam sebagai URI `data:`. Bingkainya diberi
 `allow-scripts` **hanya** supaya ia bisa melaporkan tinggi isinya sendiri —

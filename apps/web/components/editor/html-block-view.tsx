@@ -1,7 +1,7 @@
 'use client'
 
 import { type NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import { Code2, Eye, Maximize2, Scissors, StretchHorizontal, Trash2 } from 'lucide-react'
+import { ArrowDownToLine, Code2, Eye, Maximize2, Scissors, StretchHorizontal, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clampHtmlBlockHeight, type HtmlBlockAttrs } from '@/features/editor/html-block'
 import { rasterizeHtml } from '@/features/editor/html-raster'
@@ -46,6 +46,16 @@ const CAPTURE_DELAY_MS = 250
 
 /** Selisih sekecil ini datang dari pembulatan, bukan dari isi yang benar-benar hilang. */
 const CLIP_TOLERANCE_PX = 4
+
+/**
+ * Di bawah bagian ini, rancangan satu halaman terbaca sebagai menggantung -
+ * bukan sebagai pilihan tata letak.
+ *
+ * Sandbox hanya **menyediakan** tinggi halaman, ia tidak memaksa: rancangan
+ * yang menulis tinggi tetap tetap boleh lebih pendek dari kertasnya. Penanda
+ * inilah satu-satunya umpan balik bahwa itu terjadi.
+ */
+const UNDERFILL_RATIO = 0.9
 
 export function HtmlBlockView({ node, updateAttributes, selected, editor, deleteNode }: NodeViewProps) {
 	const attrs = node.attrs as HtmlBlockAttrs
@@ -175,8 +185,14 @@ export function HtmlBlockView({ node, updateAttributes, selected, editor, delete
 	 * menghilang tanpa jejak dari hasil ekspor.
 	 */
 	const visibleHeight = frameRef.current?.clientHeight ?? 0
-	const clipped = contentHeight !== null && visibleHeight > 0 ? contentHeight - visibleHeight : 0
+	const measured = contentHeight !== null && visibleHeight > 0
+	const clipped = measured ? (contentHeight as number) - visibleHeight : 0
 	const isClipped = clipped > CLIP_TOLERANCE_PX
+
+	// Hanya mode halaman yang punya "penuh" untuk diukur; sisipan memang
+	// setinggi yang penulis tentukan sendiri.
+	const filled = measured ? (contentHeight as number) / visibleHeight : 1
+	const isUnderfilled = isPage && !isClipped && filled < UNDERFILL_RATIO
 
 	return (
 		<NodeViewWrapper
@@ -224,6 +240,13 @@ export function HtmlBlockView({ node, updateAttributes, selected, editor, delete
 				<div className="html-block-clipped" contentEditable={false}>
 					<Scissors className="h-3.5 w-3.5" />
 					Isi terpotong {Math.round(clipped)}px
+				</div>
+			)}
+
+			{isUnderfilled && !showSource && (
+				<div className="html-block-underfilled" contentEditable={false}>
+					<ArrowDownToLine className="h-3.5 w-3.5" />
+					Isi baru mengisi {Math.round(filled * 100)}% halaman
 				</div>
 			)}
 
