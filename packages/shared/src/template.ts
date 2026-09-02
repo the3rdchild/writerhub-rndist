@@ -50,7 +50,11 @@ export interface TemplateSpec {
 	caveats?: string[]
 }
 
-/** Bentuk kartu di galeri. `content` ikut supaya pratinjau tidak butuh panggilan per kartu. */
+/**
+ * Bentuk template di kawat, sama untuk daftar katalog maupun pengambilan per
+ * slug. `content` selalu ikut: pratinjau kartu galeri dirender darinya, jadi
+ * memisahkannya hanya akan menambah satu panggilan per kartu.
+ */
 export interface TemplateSummary {
 	slug: string
 	name: string
@@ -62,5 +66,3 @@ export interface TemplateSummary {
 	/** Kerangka ProseMirror hasil kompilasi Markdown. */
 	content: Record<string, unknown>
 }
-
-export type TemplateDetail = TemplateSummary

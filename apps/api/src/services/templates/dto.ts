@@ -1,9 +1,10 @@
-import type { TemplateCategory, TemplateDetail, TemplateLocale, TemplateSummary } from '@writer-hub/shared'
+import type { TemplateCategory, TemplateLocale, TemplateSummary } from '@writer-hub/shared'
 import type { Template } from '@/db/schemas'
 
-export type { TemplateDetail, TemplateSummary }
+export type { TemplateSummary }
 
-export function toSummary(row: Template): TemplateSummary {
+/** Baris tabel menjadi bentuk kawat - dipakai daftar katalog maupun ambil per slug. */
+export function toTemplate(row: Template): TemplateSummary {
 	return {
 		slug: row.slug,
 		name: row.name,
@@ -14,8 +15,4 @@ export function toSummary(row: Template): TemplateSummary {
 		builtin: row.builtin,
 		content: row.content,
 	}
-}
-
-export function toDetail(row: Template): TemplateDetail {
-	return toSummary(row)
 }
