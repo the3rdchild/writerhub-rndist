@@ -149,3 +149,33 @@ describe('alat riset web', () => {
 		expect(names).toContain('fetch_url')
 	})
 })
+
+describe('apply_template_format', () => {
+	const tool = EDITOR_TOOLS.find((item) => item.name === 'apply_template_format')
+
+	test('terdaftar sebagai alat tulis', () => {
+		expect(tool).toBeDefined()
+		expect(tool?.kind).toBe('write')
+	})
+
+	test('slug template wajib diisi', () => {
+		expect(tool?.parameters.required).toEqual(['template'])
+		expect(tool?.parameters.properties.template).toBeDefined()
+	})
+
+	/*
+	 * Alasan alat ini ada: dokumen kosong berangkat dari margin 1 inci, dan
+	 * model yang menebak angka format skripsi sendiri lewat set_page_setup
+	 * menghasilkan dokumen yang tampak hampir benar. Deskripsinya harus
+	 * mengatakan itu, karena deskripsi inilah satu-satunya yang dibaca model.
+	 */
+	test('deskripsinya mengarahkan menjauh dari menebak angka sendiri', () => {
+		expect(tool?.description).toContain('set_page_setup')
+		expect(tool?.description).toContain('margins')
+	})
+
+	test('contoh slug-nya nyata, bukan karangan', () => {
+		const description = tool?.parameters.properties.template.description ?? ''
+		expect(description).toContain('skripsi-s1')
+	})
+})

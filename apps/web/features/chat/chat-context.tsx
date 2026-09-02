@@ -2,7 +2,7 @@
 
 import { generateJSON } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
-import type { ProviderErrorCode } from '@writer-hub/shared'
+import type { ProviderErrorCode, TemplateSpec } from '@writer-hub/shared'
 import {
 	CHAT_CONTEXT_LIMITS,
 	type ChatMessage,
@@ -23,10 +23,12 @@ import { toEditorContent } from '@/features/editor/markdown'
 import { paginationKey } from '@/features/editor/pagination'
 import { editorPlainText } from '@/features/editor/text-content'
 import { usePageSetup } from '@/features/editor/use-page-setup'
+import { useTypography } from '@/features/editor/use-typography'
 import { sessionLabel, useSessions } from '@/features/sessions/session-context'
 import { createTab as createTabInDoc } from '@/features/sessions/ydoc'
 import { buildSchema, fragmentToJSON, jsonToFragment } from '@/features/sync/serialize'
 import { useSync } from '@/features/sync/sync-context'
+import { getTemplate } from '@/features/templates/api'
 import { useActiveTemplate } from '@/features/templates/use-templates'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import { parseFallbackCalls, streamChat, stripFallbackCalls } from './api'
@@ -263,8 +265,60 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 	const contextRef = useRef({ attachment, includeDocument, state })
 	contextRef.current = { attachment, includeDocument, state }
-	const appRef = useRef({ setup, setPageSetup, doc, activeDocId, activeId, sessions, comments })
-	appRef.current = { setup, setPageSetup, doc, activeDocId, activeId, sessions, comments }
+	const { setTypography } = useTypography()
+	const appRef = useRef({
+		setup,
+		setPageSetup,
+		setTypography,
+		doc,
+		activeDocId,
+		activeId,
+		sessions,
+		comments,
+	})
+	appRef.current = {
+		setup,
+		setPageSetup,
+		setTypography,
+		doc,
+		activeDocId,
+		activeId,
+		sessions,
+		comments,
+	}
+
+	/*
+	 * Spec template yang sudah diambil, menurut slug.
+	 *
+	 * Diisi di `runTurn` - yang asinkron - begitu model memanggil
+	 * `apply_template_format`, lalu dibaca sinkron saat usulannya diterapkan.
+	 * Katalog tidak pernah diunduh utuh: hanya template yang benar-benar
+	 * diminta, sekali per sesi.
+	 */
+	const templateSpecsRef = useRef(new Map<string, TemplateSpec>())
+
+	/**
+	 * Mengambil spec untuk tiap `apply_template_format` yang slug-nya belum
+	 * pernah diambil. Kegagalan sengaja didiamkan di sini: alat tulisnya yang
+	 * melaporkan "template tidak dikenal" ke model, lengkap dengan slug yang
+	 * salah - sehingga model bisa memperbaiki pilihannya sendiri.
+	 */
+	const loadTemplateSpecs = useCallback(async (calls: ToolCall[]) => {
+		const pending = new Set(
+			calls
+				.filter((call) => call.name === 'apply_template_format')
+				.map((call) => String(call.arguments.template ?? '').trim())
+				.filter((slug) => slug !== '' && !templateSpecsRef.current.has(slug)),
+		)
+
+		await Promise.all(
+			[...pending].map(async (slug) => {
+				try {
+					templateSpecsRef.current.set(slug, (await getTemplate(slug)).spec)
+				} catch {}
+			}),
+		)
+	}, [])
 	const commit = useCallback((next: ChatTurn[]) => {
 		messagesRef.current = next
 		setMessages(next)
@@ -473,6 +527,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			const reads = calls.filter((call) => isReadTool(call.name))
 			const writes = calls.filter((call) => !isReadTool(call.name))
 
+			// Spec template diambil di sini, selagi masih boleh menunggu.
+			await loadTemplateSpecs(writes)
+
 			const assistant: ChatTurn = {
 				role: 'assistant',
 				content: visible,
@@ -587,7 +644,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				budgetSpent,
 			)
 		},
-		[],
+		[loadTemplateSpecs],
 	)
 	/*
 	 * Satu giliran, dengan satu kesempatan mengulang diam-diam.
@@ -686,6 +743,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						markRun(feature, { text: state.text, offset: 0, scoped: false, language: language.code }),
 					setup: appRef.current.setup,
 					setPageSetup: appRef.current.setPageSetup,
+					setTypography: appRef.current.setTypography,
+					templateSpecs: templateSpecsRef.current,
 					createTab: createTabWithContent,
 				},
 				call,

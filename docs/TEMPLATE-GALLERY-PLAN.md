@@ -39,6 +39,7 @@ Dirangkum dari pemeriksaan kode, bukan dari dokumen lain — beberapa baris di
 | Konverter Markdown → ProseMirror **di sisi server** | `apps/api/src/services/drafts/markdown-doc.ts` |
 | Tipografi per template: huruf badan + gaya judul 1-9, berlaku di kanvas dan ikut ke DOCX | `packages/shared/src/typography.ts`, `features/editor/typography-css.ts`, `features/document/docx/typography-styles.ts` |
 | Judul yang selalu membuka lembar baru (BAB, Abstrak, Daftar Pustaka) — kanvas, cetak, dan DOCX | `typography.ts` (`pageBreakBefore`, `headingBreakLevels`), `features/editor/pagination.ts` |
+| Alat `apply_template_format` — model menerapkan format template ke dokumen yang **sudah ada** | `packages/shared/src/tools.ts`, `features/chat/tools.ts` |
 | Blok rancangan HTML terkurung, dua mode: `page` (satu lembar penuh, full-bleed) dan `embed` (sisipan) + tool `insert_html_block` | `features/editor/html-block.ts`, `html-sandbox.ts`, `html-raster.ts` |
 
 Yang terakhir penting: kerangka template bisa ditulis sebagai Markdown biasa lalu dikompilasi
@@ -355,6 +356,15 @@ gaya paragraf **bernama** buatan pengguna, hanging indent per blok dari toolbar,
 otomatis & cross-reference, TOC dengan nomor halaman, serta nomor baris di margin. Sebagian
 besar ada di `docs/GOOGLE-DOCS-GAP-EDITOR-SHELL.md`; template hanya membuat kebutuhannya jadi
 kentara.
+
+Satu lubang yang baru tertutup: format template dulu **hanya** bisa datang saat
+dokumen dilahirkan (dari `/new` atau endpoint draf). Penulis yang membuka
+dokumen kosong lalu meminta AI menulis skripsi mendapat naskah berformat benar
+di atas halaman berformat salah — margin 1 inci bawaan, bukan 4-3-3-3 — karena
+tidak ada satu pun jalan menerapkan format ke dokumen yang sudah ada. Alat
+`apply_template_format` menutup itu: satu panggilan menerapkan kertas, margin,
+tipografi, dan hentian bab sekaligus dari katalog. Prompt sistem menyuruh model
+memanggilnya lebih dulu, sebelum menulis isi.
 
 Satu hal yang **keluar** dari daftar ini: judul yang membuka lembar baru. Ia
 kini bagian dari tipografi template (`BlockStyle.pageBreakBefore`), dinyalakan

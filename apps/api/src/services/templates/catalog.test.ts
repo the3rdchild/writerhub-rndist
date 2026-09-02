@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { EDITOR_TOOLS } from '@writer-hub/shared'
 import { BUILTIN_TEMPLATES } from './catalog'
 import { compileTemplateContent } from './compile'
 
@@ -40,6 +41,28 @@ describe('katalog template bawaan', () => {
 			const breaks = doc.content.filter((node) => node.type === 'sectionBreak')
 			expect(breaks, `${template.slug} tanpa sectionBreak`).toHaveLength(1)
 			expect(breaks[0].attrs?.columns).toEqual(template.spec.layout.columns)
+		}
+	})
+})
+
+describe('slug yang disebutkan ke model', () => {
+	/*
+	 * `apply_template_format` menyebut sejumlah slug sebagai contoh di deskripsi
+	 * parameternya, dan itulah satu-satunya daftar yang pernah dilihat model.
+	 * Slug yang salah ketik tidak akan pernah ketahuan saat kompilasi - ia
+	 * muncul sebagai "Template tidak dikenal" di tengah percakapan penulis.
+	 */
+	test('setiap contoh slug di deskripsi alat benar-benar ada di katalog', () => {
+		const tool = EDITOR_TOOLS.find((item) => item.name === 'apply_template_format')
+		const template = tool?.parameters.properties.template as { description?: string } | undefined
+		const description = template?.description ?? ''
+
+		const mentioned = [...description.matchAll(/"([a-z0-9-]+)"/g)].map((match) => match[1])
+		expect(mentioned.length).toBeGreaterThan(5)
+
+		const known = new Set(BUILTIN_TEMPLATES.map((template) => template.slug))
+		for (const slug of mentioned) {
+			expect(known.has(slug), `slug "${slug}" disebut ke model tapi tidak ada di katalog`).toBe(true)
 		}
 	})
 })

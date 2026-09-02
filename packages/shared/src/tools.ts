@@ -322,6 +322,23 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		},
 	},
 	{
+		name: 'apply_template_format',
+		kind: 'write',
+		description:
+			'Apply a built-in document format to the whole document at once: paper size, margins, body font and size, line spacing, heading styles, and which heading levels start a new page. Use this FIRST when the writer asks for a document of a known kind - an Indonesian skripsi/tesis/disertasi, a business proposal or report, a conference paper, a flyer - and the document does not already follow that format. It is far more reliable than guessing margins and font sizes yourself with set_page_setup and set_font, because the numbers come from the template catalog. It answers with the writing rules for that format - citation style, heading scheme, and the format rules themselves - so you do not need to call get_template_rules afterwards. Applies to the whole document, not a selection.',
+		parameters: {
+			type: 'object',
+			properties: {
+				template: {
+					type: 'string',
+					description:
+						'Template slug from the catalog, e.g. "skripsi-s1", "tesis-s2", "disertasi-s3", "proposal-penelitian", "laporan-kerja-praktik", "makalah-kuliah", "artikel-jurnal-nasional", "ieee-conference", "apa7-student", "proposal-proyek", "laporan-bulanan", "sop", "flyer-a4", "poster-a3".',
+				},
+			},
+			required: ['template'],
+		},
+	},
+	{
 		name: 'insert_html_block',
 		kind: 'write',
 		description:

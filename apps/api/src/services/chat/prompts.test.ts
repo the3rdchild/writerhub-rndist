@@ -69,7 +69,15 @@ describe('perangkaian prompt sistem', () => {
 		expect(prompt).toContain('- Cite as bracketed numbers: [1], [2].')
 		expect(prompt.indexOf('Tone: formal')).toBeLessThan(prompt.indexOf('Cite as bracketed numbers'))
 
-		expect(buildSystemPrompt({ ...dasar, templateRules: [] })).not.toContain('template')
+		/*
+		 * Yang harus lenyap adalah **bloknya**, bukan setiap kata "template".
+		 * Prompt dasarnya menyebut nama alat `apply_template_format` dan
+		 * `get_template_rules` dan memang selalu menyebutnya - mencocokkan kata
+		 * lepas membuat uji ini gagal karena alasan yang tidak ia maksud.
+		 */
+		expect(buildSystemPrompt({ ...dasar, templateRules: [] })).not.toContain(
+			'This document was created from a template',
+		)
 		expect(buildSystemPrompt({ ...dasar, templateRules: undefined })).not.toContain('\n\n\n')
 	})
 })

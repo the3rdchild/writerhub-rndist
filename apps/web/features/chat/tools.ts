@@ -1,7 +1,7 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import type { AnalysisFeature, TemplateSpec, ToolCall } from '@writer-hub/shared'
+import type { AnalysisFeature, DocumentTypography, TemplateSpec, ToolCall } from '@writer-hub/shared'
 import type { PanelId } from '@/features/analysis/panel-context'
 import { COMMENT_MARK } from '@/features/comments/comment-mark'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
@@ -267,6 +267,16 @@ export interface WriteToolContext {
 	runModule: (feature: AnalysisFeature) => void
 	setup: PageSetup
 	setPageSetup: (setup: PageSetup, scope: 'document' | 'tab') => void
+	setTypography: (typography: DocumentTypography, scope: 'document' | 'tab') => void
+	/**
+	 * Spec template yang sudah diambil saat panggilan alatnya tiba.
+	 *
+	 * Penerapan alat tulis berjalan sinkron - hasilnya dipakai langsung oleh
+	 * kartu usulan - sedangkan mengambil spec butuh jaringan. Karena itu
+	 * pengambilannya dilakukan lebih awal, di `runTurn` yang memang asinkron,
+	 * dan yang tersisa di sini tinggal membacanya.
+	 */
+	templateSpecs: Map<string, TemplateSpec>
 	createTab: (title: string | undefined, markdown: string | undefined) => void
 }
 
@@ -325,6 +335,8 @@ export function describeToolCall(call: ToolCall): string {
 		}
 		case 'set_toc_options':
 			return 'Update table-of-contents settings'
+		case 'apply_template_format':
+			return `Apply document format: ${call.arguments.template ?? '?'}`
 		case 'insert_mermaid':
 			return 'Insert Mermaid diagram'
 		case 'insert_html_block':
@@ -617,6 +629,37 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 				editor.state.tr.setNodeMarkup(target.pos, undefined, { ...target.attrs, ...patch }),
 			)
 			return { ok: true, message: 'Table-of-contents settings updated.' }
+		}
+
+		case 'apply_template_format': {
+			const slug = String(call.arguments.template ?? '').trim()
+			const spec = slug ? context.templateSpecs.get(slug) : undefined
+			if (!spec) return { ok: false, message: `Template "${slug}" tidak dikenal.` }
+
+			const { pageSetup, typography } = spec.layout
+			context.setPageSetup(pageSetup, 'document')
+			if (typography) context.setTypography(typography, 'document')
+
+			const cmOf = (px: number) => Math.round((px / INCH) * 2.54 * 10) / 10
+			const margins = `${cmOf(pageSetup.margins.top)}/${cmOf(pageSetup.margins.right)}/${cmOf(pageSetup.margins.bottom)}/${cmOf(pageSetup.margins.left)} cm`
+			const font = typography ? `, ${typography.baseFont.sizePt}pt spasi ${typography.lineHeight}` : ''
+
+			/*
+			 * Aturan menulisnya ikut dikembalikan di sini, bukan diserahkan ke
+			 * `get_template_rules`: alat itu membaca slug template dari ringkasan
+			 * dokumen **server**, sedangkan dokumen yang baru diformat lewat jalur
+			 * ini boleh jadi belum pernah tersinkron. Menyuruh model memanggilnya
+			 * akan dijawab "dokumen ini dibuat tanpa template" - padahal formatnya
+			 * baru saja diterapkan.
+			 */
+			return {
+				ok: true,
+				message: [
+					`Format ${slug} diterapkan: margin ${margins}${font}.`,
+					`Citation style: ${spec.format.citationStyle}; heading scheme: ${spec.format.headingScheme}.`,
+					...spec.aiRules.map((rule) => `- ${rule}`),
+				].join('\n'),
+			}
 		}
 
 		case 'insert_html_block': {
