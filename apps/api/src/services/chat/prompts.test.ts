@@ -57,6 +57,23 @@ describe('perangkaian prompt sistem', () => {
 		expect(prompt).toContain('Ransel, WritingHub')
 		expect(prompt).toContain('hindari jargon')
 	})
+
+	test('aturan template duduk sesudah memori gaya dan lenyap bila kosong', () => {
+		const memory = { tone: 'formal' } as StyleMemory
+		const prompt = buildSystemPrompt({
+			...dasar,
+			memory,
+			templateRules: ['Cite as bracketed numbers: [1], [2].'],
+		})
+
+		expect(prompt).toContain('- Cite as bracketed numbers: [1], [2].')
+		expect(prompt.indexOf('Tone: formal')).toBeLessThan(
+			prompt.indexOf('Cite as bracketed numbers'),
+		)
+
+		expect(buildSystemPrompt({ ...dasar, templateRules: [] })).not.toContain('template')
+		expect(buildSystemPrompt({ ...dasar, templateRules: undefined })).not.toContain('\n\n\n')
+	})
 })
 
 describe('blok memori', () => {

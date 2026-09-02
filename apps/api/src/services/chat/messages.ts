@@ -40,12 +40,17 @@ export function toProviderMessage(message: ChatBody['messages'][number]): Record
 	return { role: message.role, content: message.content }
 }
 
-export function buildMessages(body: ChatBody, withTools: boolean, memory: StyleMemory | null): unknown[] {
+export function buildMessages(
+	body: ChatBody,
+	withTools: boolean,
+	memory: StyleMemory | null,
+	templateRules?: string[],
+): unknown[] {
 	const { messages, context, research } = body
 	const contextPart = contextMessage(context)
 
 	return [
-		{ role: 'system', content: buildSystemPrompt({ withTools, research, memory }) },
+		{ role: 'system', content: buildSystemPrompt({ withTools, research, memory, templateRules }) },
 		...(contextPart ? [contextPart] : []),
 		...messages.map(toProviderMessage),
 	]

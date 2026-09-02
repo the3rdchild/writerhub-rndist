@@ -24,12 +24,14 @@ export async function streamChat(
 		tools = true,
 		research = false,
 		model,
+		templateSlug,
 	}: {
 		messages: ChatMessage[]
 		context?: ChatContext
 		tools?: boolean
 		research?: boolean
 		model?: string
+		templateSlug?: string
 	},
 	handlers: StreamChatHandlers | ((text: string) => void),
 	signal?: AbortSignal,
@@ -39,7 +41,14 @@ export async function streamChat(
 	const response = await fetch('/api/chat', {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({ messages, context, tools, research, ...(model ? { model } : {}) }),
+		body: JSON.stringify({
+			messages,
+			context,
+			tools,
+			research,
+			...(model ? { model } : {}),
+			...(templateSlug ? { templateSlug } : {}),
+		}),
 		signal,
 	})
 

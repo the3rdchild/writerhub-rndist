@@ -98,10 +98,27 @@ export function memoryPrompt(memory: StyleMemory | null): string {
 	].join('\n')
 }
 
+/**
+ * Aturan format dari template dokumen yang sedang dibuka. Disisipkan sesudah
+ * memori gaya supaya aturan template menang atas preferensi umum pengguna,
+ * tapi tetap tunduk pada permintaan eksplisit di pesan
+ * (`docs/TEMPLATE-GALLERY-PLAN.md` §5.3).
+ */
+export function templateRulesPrompt(aiRules: string[] | undefined): string {
+	if (!aiRules?.length) return ''
+	return [
+		'This document was created from a template. Its format rules override the',
+		"user's general preferences, but an explicit request in the conversation",
+		'wins over them:',
+		...aiRules.map((rule) => `- ${rule}`),
+	].join('\n')
+}
+
 export interface SystemPromptInput {
 	withTools: boolean
 	research: boolean
 	memory: StyleMemory | null
+	templateRules?: string[]
 }
 
 /**
@@ -109,12 +126,13 @@ export interface SystemPromptInput {
  * ini. Bagian yang kosong - misalnya memori gaya yang belum diisi pengguna -
  * dibuang, bukan disisipkan sebagai paragraf hampa.
  */
-export function buildSystemPrompt({ withTools, research, memory }: SystemPromptInput): string {
+export function buildSystemPrompt({ withTools, research, memory, templateRules }: SystemPromptInput): string {
 	return [
 		SYSTEM_PROMPT,
 		withTools ? TOOL_GUIDANCE : fallbackToolPrompt({ research }),
 		research ? RESEARCH_GUIDANCE : RESEARCH_OFF_NOTICE,
 		memoryPrompt(memory),
+		templateRulesPrompt(templateRules),
 		TASK_BOUNDARY_GUIDANCE,
 	]
 		.filter(Boolean)

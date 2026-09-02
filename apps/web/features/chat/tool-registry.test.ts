@@ -12,6 +12,7 @@ describe('registri alat editor', () => {
 			'get_document_stats',
 			'get_selection',
 			'get_page_setup',
+			'get_template_rules',
 			'list_tabs',
 			'read_tab',
 			'get_comments',

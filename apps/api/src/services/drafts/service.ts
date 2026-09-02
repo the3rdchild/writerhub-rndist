@@ -1,10 +1,11 @@
-import type { DraftHandoff, DraftProgress } from '@writer-hub/shared'
+import type { DraftHandoff, DraftProgress, TabLayout } from '@writer-hub/shared'
 import { env } from '@/config/env'
-import type { Document, DocumentTab } from '@/db/schemas'
+import type { Document, DocumentTab, Template } from '@/db/schemas'
 import { AppError } from '@/lib/error'
 import { findDocumentById, insertDocument } from '@/repository/document'
 import { findTabsByDocument, insertTab } from '@/repository/document-tab'
 import { findOrCreateDefaultProject, findProjectById } from '@/repository/project'
+import { findTemplateBySlug } from '@/repository/template'
 import JobSubmissionService from '@/services/job-submission.service'
 import { snapshotIntervalTab } from '@/services/tabs/service'
 import { type DraftRequest, draftRequestSchema } from './dto'
@@ -33,6 +34,14 @@ const EMPTY_CONTENT: ProseMirrorDoc = { type: 'doc', content: [{ type: 'paragrap
 const TITLE_FROM_PROMPT_CHARS = 80
 const FALLBACK_TITLE = 'Draf tanpa judul'
 
+/** Tata letak dasar dokumen dari spec template: geometri halaman + perabotnya. */
+function templateLayout(template: Template): TabLayout {
+	return {
+		pageSetup: template.spec.layout.pageSetup,
+		...(template.spec.layout.furniture ? { furniture: template.spec.layout.furniture } : {}),
+	}
+}
+
 export default class DraftsService extends JobSubmissionService {
 	async create(): Promise<Response> {
 		try {
@@ -44,10 +53,11 @@ export default class DraftsService extends JobSubmissionService {
 			const body = parsed.data
 			const identityId = await this.identityId()
 			const projectId = await this.resolveProjectId(body.projectId, identityId)
+			const template = body.templateSlug ? await this.requireTemplate(body.templateSlug) : null
 
 			return body.content
-				? await this.parkReadyDraft(body, body.content, projectId)
-				: await this.startGeneratedDraft(body, projectId)
+				? await this.parkReadyDraft(body, body.content, projectId, template)
+				: await this.startGeneratedDraft(body, projectId, template)
 		} catch (error) {
 			return this.failFromError(error)
 		}
@@ -100,10 +110,15 @@ export default class DraftsService extends JobSubmissionService {
 	}
 
 	/** Naskah sudah jadi di sisi pemanggil - tinggal disimpan sebagai dokumen. */
-	private async parkReadyDraft(body: DraftRequest, markdown: string, projectId: string): Promise<Response> {
+	private async parkReadyDraft(
+		body: DraftRequest,
+		markdown: string,
+		projectId: string,
+		template: Template | null,
+	): Promise<Response> {
 		const title = body.title ?? headingTitle(markdown) ?? this.promptTitle(body.prompt) ?? FALLBACK_TITLE
 		const content = markdownToDoc(markdown)
-		const { document, tab } = await this.createDocument(title, content, projectId)
+		const { document, tab } = await this.createDocument(title, content, projectId, template)
 
 		await snapshotIntervalTab(tab.id, content, this.ownerId())
 
@@ -113,13 +128,22 @@ export default class DraftsService extends JobSubmissionService {
 		})
 	}
 
-	/** Dokumen dibuat kosong dulu; naskahnya menyusul di latar belakang. */
-	private async startGeneratedDraft(body: DraftRequest, projectId: string): Promise<Response> {
+	/**
+	 * Dokumen dibuat dulu - dengan kerangka template bila ada, supaya yang
+	 * membukanya selama penulisan melihat bentuk akhirnya; naskahnya menyusul
+	 * di latar belakang dan menggantikan kerangka itu.
+	 */
+	private async startGeneratedDraft(
+		body: DraftRequest,
+		projectId: string,
+		template: Template | null,
+	): Promise<Response> {
 		const config = await this.resolveGenerationProvider()
 		if (!config) return this.providerUnavailable()
 
-		const title = body.title ?? this.promptTitle(body.prompt) ?? FALLBACK_TITLE
-		const { document, tab } = await this.createDocument(title, EMPTY_CONTENT, projectId)
+		const title = body.title ?? template?.name ?? this.promptTitle(body.prompt) ?? FALLBACK_TITLE
+		const initial = template ? (template.content as ProseMirrorDoc) : EMPTY_CONTENT
+		const { document, tab } = await this.createDocument(title, initial, projectId, template)
 
 		await this.beginGeneration(document.id, tab.id, body, config)
 
@@ -147,12 +171,37 @@ export default class DraftsService extends JobSubmissionService {
 			ownerId: await this.identityId(),
 			createdBy: this.ownerId(),
 			provider,
-			messages: buildDraftMessages(request, await this.styleMemory()),
+			messages: buildDraftMessages(
+				request,
+				await this.styleMemory(),
+				await this.templateRules(request.templateSlug),
+			),
 			// Judul dari prompt hanya penambal sampai naskahnya punya heading
 			// sendiri; judul yang ditentukan pemanggil tidak boleh ditimpa.
 			titleFromHeading: !request.title,
 			words: request.words,
 		})
+	}
+
+	/** Template wajib ada saat permintaan dibuat - slug asing membalas 400. */
+	private async requireTemplate(slug: string): Promise<Template> {
+		const template = await findTemplateBySlug(slug, await this.identityId())
+		if (!template) throw AppError.badRequest(`Template "${slug}" tidak dikenal`)
+		return template
+	}
+
+	/**
+	 * Aturan format untuk prompt penulisan. Template yang dihapus di antara
+	 * permintaan dan percobaan ulang dilewati diam-diam - drafnya tetap ditulis.
+	 */
+	private async templateRules(slug?: string): Promise<string[] | undefined> {
+		if (!slug) return undefined
+		try {
+			const template = await findTemplateBySlug(slug, await this.identityId())
+			return template?.spec.aiRules
+		} catch {
+			return undefined
+		}
 	}
 
 	private async resolveGenerationProvider(): Promise<ProviderConfig | null> {
@@ -179,8 +228,14 @@ export default class DraftsService extends JobSubmissionService {
 		title: string,
 		content: ProseMirrorDoc,
 		projectId: string,
+		template: Template | null,
 	): Promise<{ document: Document; tab: DocumentTab }> {
-		const document = await insertDocument({ title, project_id: projectId })
+		const document = await insertDocument({
+			title,
+			project_id: projectId,
+			template_slug: template?.slug ?? null,
+			layout: template ? templateLayout(template) : null,
+		})
 		if (!document) throw AppError.internalServerError('Gagal menyimpan dokumen')
 
 		const tab = await insertTab({ document_id: document.id, title, content, position: 0 })

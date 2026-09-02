@@ -26,6 +26,8 @@ export const chatBodySchema = z.object({
 	tools: z.boolean().optional().default(true),
 	research: z.boolean().optional().default(false),
 	model: z.string().max(200).optional(),
+	/** Template dokumen yang sedang dibuka; aturan formatnya ikut ke prompt. */
+	templateSlug: z.string().max(64).optional(),
 })
 
 export type ChatBody = z.infer<typeof chatBodySchema>
