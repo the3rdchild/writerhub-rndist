@@ -181,7 +181,9 @@ export const MARKETING_TEMPLATES: BuiltinTemplateDefinition[] = [
 				'Keep Paket Harga as a table.',
 				'Match the Sampul, Kontak, and Penutup panels to the outer side of the fold.',
 			],
-			caveats: ['Lipatan hanya diwakili tiga kolom - atur urutan panel sampul, kontak, dan penutup secara manual saat mencetak.'],
+			caveats: [
+				'Lipatan hanya diwakili tiga kolom - atur urutan panel sampul, kontak, dan penutup secara manual saat mencetak.',
+			],
 		},
 	},
 	{

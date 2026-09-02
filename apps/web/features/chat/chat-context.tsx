@@ -354,9 +354,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				}
 			},
 			comments: app.comments,
-			template: template
-				? { name: template.name, slug: template.slug, spec: template.spec }
-				: null,
+			template: template ? { name: template.name, slug: template.slug, spec: template.spec } : null,
 		}
 	}
 	const createTabWithContent = (title: string | undefined, markdown: string | undefined) => {

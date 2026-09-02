@@ -445,7 +445,8 @@ email@example.com
 	{
 		slug: 'elsevier-manuscript',
 		name: 'Manuskrip Jurnal (Elsevier)',
-		description: 'Manuskrip Elsevier satu kolom spasi ganda dengan title page, highlights, dan sitasi Vancouver.',
+		description:
+			'Manuskrip Elsevier satu kolom spasi ganda dengan title page, highlights, dan sitasi Vancouver.',
 		category: 'paper',
 		locale: 'en',
 		position: 6,

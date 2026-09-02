@@ -36,10 +36,7 @@ const furnitureLineSchema = z.object({
 	align: z.enum(['left', 'center', 'right']),
 })
 
-const furnitureSlotSchema = z.partialRecord(
-	z.enum(['default', 'first', 'even']),
-	furnitureLineSchema,
-)
+const furnitureSlotSchema = z.partialRecord(z.enum(['default', 'first', 'even']), furnitureLineSchema)
 
 const pageFurnitureSchema = z.object({
 	header: furnitureSlotSchema.optional(),

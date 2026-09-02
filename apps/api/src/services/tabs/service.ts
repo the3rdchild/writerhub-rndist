@@ -1,5 +1,5 @@
-import type { NewDocumentTab } from '@/db/schemas'
 import type { TabLayoutOverride } from '@writer-hub/shared'
+import type { NewDocumentTab } from '@/db/schemas'
 import { AppError } from '@/lib/error'
 import LoggerClient from '@/lib/logger'
 import { deleteDocument, findDocumentById, touchDocument } from '@/repository/document'

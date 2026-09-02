@@ -25,9 +25,7 @@ describe('tabLayoutSchema', () => {
 	})
 
 	test('ukuran kertas di luar daftar ditolak', () => {
-		expect(
-			tabLayoutSchema.safeParse({ pageSetup: { ...VALID_SETUP, size: 'a2' } }).success,
-		).toBe(false)
+		expect(tabLayoutSchema.safeParse({ pageSetup: { ...VALID_SETUP, size: 'a2' } }).success).toBe(false)
 	})
 })
 

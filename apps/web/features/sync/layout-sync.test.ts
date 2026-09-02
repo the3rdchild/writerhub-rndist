@@ -1,9 +1,15 @@
 import { describe, expect, test } from 'bun:test'
 import type { TabLayout, TabLayoutOverride } from '@writer-hub/shared'
 import * as Y from 'yjs'
-import type { PageSetup } from '@/features/editor/page-geometry'
 import { setPageFurnitureForTab } from '@/features/editor/page-furniture/page-furniture-ydoc'
-import { createDocument, createTab, readDocs, readTabs, setPageSetupForDoc, setPageSetupForTab } from '@/features/sessions/ydoc'
+import type { PageSetup } from '@/features/editor/page-geometry'
+import {
+	createDocument,
+	readDocs,
+	readTabs,
+	setPageSetupForDoc,
+	setPageSetupForTab,
+} from '@/features/sessions/ydoc'
 import {
 	applyDocLayout,
 	applyTabLayout,

@@ -1,5 +1,5 @@
-import type { TemplateSpec } from '@writer-hub/shared'
 import { describe, expect, test } from 'bun:test'
+import type { TemplateSpec } from '@writer-hub/shared'
 import { BUILTIN_TEMPLATES } from './catalog'
 import { templateDocumentLayout, templateTabLayout } from './layout'
 

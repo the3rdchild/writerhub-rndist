@@ -11,8 +11,8 @@ import { findTabsByDocument, insertTab } from '@/repository/document-tab'
 import { findOrCreateDefaultProject, findProjectById } from '@/repository/project'
 import { findTemplateBySlug } from '@/repository/template'
 import BaseService from '@/services/base.service'
-import { templateDocumentLayout, templateTabLayout } from '@/services/templates/layout'
 import { snapshotIntervalTab } from '@/services/tabs/service'
+import { templateDocumentLayout, templateTabLayout } from '@/services/templates/layout'
 import type { DocumentDetail, DocumentSummary, TabRow, TabSummary } from './dto'
 import { createDocumentBodySchema, updateDocumentBodySchema } from './dto'
 
@@ -58,8 +58,7 @@ export default class DocumentsService extends BaseService {
 				return this.error({ errors: body.error.issues.map((issue) => issue.message) })
 			}
 
-			const { content, emoji, language, layout, tabLayout, templateSlug, projectId, title } =
-				body.data
+			const { content, emoji, language, layout, tabLayout, templateSlug, projectId, title } = body.data
 			const identityId = await this.identityId()
 
 			// Template menentukan judul, isi, dan tata letak bawaannya; nilai yang
