@@ -550,7 +550,16 @@ a {
  */
 .html-block {
   position: relative;
+}
+
+/* Sisipan menyatakan jaraknya sendiri, mode halaman menyatakan ketiadaannya.
+   Keduanya memakai kelas mode, bukan saling menimpa lewat urutan berkas. */
+.html-block-embed {
   margin: 0.75em 0;
+}
+
+.html-block-page {
+  margin: 0;
 }
 
 /*
@@ -566,7 +575,18 @@ a {
  * Bingkainya lalu diposisikan mutlak dan digeser keluar sebesar margin, jadi
  * warnanya sampai tepi kertas tanpa mengubah satu pun angka tata letak.
  */
-.document-body > .html-block-page {
+/*
+ * Container buatan TipTap, bukan elemen ber-kelas `.html-block-*`.
+ *
+ * Node view ini punya dua lapis DOM - pembungkus buatan TipTap di luar,
+ * `NodeViewWrapper` di dalam - dan yang menjadi anak langsung badan dokumen
+ * adalah yang luar. Jadi `.document-body > * + *` mengenainya, dan tanpa aturan
+ * ini rancangan satu halaman berhenti 0,75em di bawah tepi kertas.
+ *
+ * Atributnya dipasang `HTML_BLOCK_FIT_ATTR` di `html-block-view.tsx`. Sisipan
+ * sengaja dibiarkan: jarak antar bloknya memang datang dari aturan itu.
+ */
+.document-body > [data-html-block-fit='page'] {
   margin: 0;
 }
 

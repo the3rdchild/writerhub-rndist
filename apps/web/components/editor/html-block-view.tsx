@@ -10,6 +10,16 @@ import { cn } from '@/lib/utils'
 
 export const HTML_REFRESH_EVENT = 'writerhub:html-refresh'
 
+/**
+ * Ditempelkan ke pembungkus buatan TipTap, dan disasar `globals.css`.
+ *
+ * Atribut sendiri, bukan kelas `node-htmlBlock` bawaan TipTap: kelas itu
+ * dibangun dari nama node di dalam pustaka dan bukan API yang kita kendalikan,
+ * jadi menyandarkan tata letak halaman padanya berarti ia bisa patah diam-diam
+ * saat pustakanya berganti versi.
+ */
+export const HTML_BLOCK_FIT_ATTR = 'data-html-block-fit'
+
 interface RefreshRequest {
 	/** Tiap blok menaruh janji potretannya di sini supaya ekspor bisa menunggu. */
 	pending: Promise<void>[]
@@ -229,4 +239,16 @@ export function HtmlBlockView({ node, updateAttributes, selected, editor, delete
 	)
 }
 
-export const HtmlBlockNodeView = ReactNodeViewRenderer(HtmlBlockView)
+/*
+ * `attrs` menempelkan mode blok ke elemen pembungkus buatan TipTap.
+ *
+ * Perlu, karena node view ini punya **dua** lapis DOM: TipTap membuat container
+ * (`div.react-renderer.node-htmlBlock`) lalu memasang `NodeViewWrapper` di
+ * dalamnya, dan yang menjadi anak langsung `.document-body` adalah containernya
+ * - bukan elemen ber-kelas `.html-block-*`. Tanpa ini, aturan jarak antar blok
+ * `.document-body > * + *` mengenai container dan mode halaman terdorong turun
+ * beberapa piksel dari tepi kertas.
+ */
+export const HtmlBlockNodeView = ReactNodeViewRenderer(HtmlBlockView, {
+	attrs: ({ node }) => ({ [HTML_BLOCK_FIT_ATTR]: String(node.attrs.fit) }),
+})
