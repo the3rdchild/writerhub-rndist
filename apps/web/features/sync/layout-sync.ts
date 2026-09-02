@@ -5,9 +5,11 @@
  * putar-baliknya bisa diuji tanpa jaringan - lihat
  * `docs/TEMPLATE-GALLERY-PLAN.md` §7 P1.
  *
- * Perabot halaman hanya punya representasi per tab di Y.Doc, jadi
- * `applyDocLayout` mengabaikan `furniture` milik dasar dokumen: perabot itu
- * diterapkan ke tiap tab lewat `applyTabLayout`.
+ * Perabot halaman hanya punya representasi per tab di Y.Doc - tidak ada
+ * pembaca untuk perabot tingkat dokumen - jadi `applyDocLayout` sengaja hanya
+ * menerapkan `pageSetup`. Perabot bawaan template karena itu dikirim server
+ * sebagai penimpa tab (`apps/api/src/services/templates/layout.ts`), bukan
+ * sebagai bagian dasar dokumen.
  */
 
 import type { TabLayout, TabLayoutOverride } from '@writer-hub/shared'

@@ -1,4 +1,4 @@
-import type { DraftHandoff, DraftProgress, TabLayout } from '@writer-hub/shared'
+import type { DraftHandoff, DraftProgress } from '@writer-hub/shared'
 import { env } from '@/config/env'
 import type { Document, DocumentTab, Template } from '@/db/schemas'
 import { AppError } from '@/lib/error'
@@ -7,6 +7,7 @@ import { findTabsByDocument, insertTab } from '@/repository/document-tab'
 import { findOrCreateDefaultProject, findProjectById } from '@/repository/project'
 import { findTemplateBySlug } from '@/repository/template'
 import JobSubmissionService from '@/services/job-submission.service'
+import { templateDocumentLayout, templateTabLayout } from '@/services/templates/layout'
 import { snapshotIntervalTab } from '@/services/tabs/service'
 import { type DraftRequest, draftRequestSchema } from './dto'
 import { type ProviderConfig, providerConfig } from './generation'
@@ -33,14 +34,6 @@ const EMPTY_CONTENT: ProseMirrorDoc = { type: 'doc', content: [{ type: 'paragrap
 
 const TITLE_FROM_PROMPT_CHARS = 80
 const FALLBACK_TITLE = 'Draf tanpa judul'
-
-/** Tata letak dasar dokumen dari spec template: geometri halaman + perabotnya. */
-function templateLayout(template: Template): TabLayout {
-	return {
-		pageSetup: template.spec.layout.pageSetup,
-		...(template.spec.layout.furniture ? { furniture: template.spec.layout.furniture } : {}),
-	}
-}
 
 export default class DraftsService extends JobSubmissionService {
 	async create(): Promise<Response> {
@@ -234,11 +227,17 @@ export default class DraftsService extends JobSubmissionService {
 			title,
 			project_id: projectId,
 			template_slug: template?.slug ?? null,
-			layout: template ? templateLayout(template) : null,
+			layout: template ? templateDocumentLayout(template.spec) : null,
 		})
 		if (!document) throw AppError.internalServerError('Gagal menyimpan dokumen')
 
-		const tab = await insertTab({ document_id: document.id, title, content, position: 0 })
+		const tab = await insertTab({
+			document_id: document.id,
+			title,
+			content,
+			layout: template ? templateTabLayout(template.spec) : null,
+			position: 0,
+		})
 		if (!tab) throw AppError.internalServerError('Gagal menyimpan tab pertama')
 
 		return { document, tab }

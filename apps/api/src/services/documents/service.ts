@@ -1,4 +1,3 @@
-import type { TabLayout } from '@writer-hub/shared'
 import type { Document, NewDocument, Template } from '@/db/schemas'
 import { AppError } from '@/lib/error'
 import {
@@ -12,20 +11,12 @@ import { findTabsByDocument, insertTab } from '@/repository/document-tab'
 import { findOrCreateDefaultProject, findProjectById } from '@/repository/project'
 import { findTemplateBySlug } from '@/repository/template'
 import BaseService from '@/services/base.service'
+import { templateDocumentLayout, templateTabLayout } from '@/services/templates/layout'
 import { snapshotIntervalTab } from '@/services/tabs/service'
 import type { DocumentDetail, DocumentSummary, TabRow, TabSummary } from './dto'
 import { createDocumentBodySchema, updateDocumentBodySchema } from './dto'
 
 const EMPTY_CONTENT: Record<string, unknown> = { type: 'doc', content: [] }
-
-/** Tata letak dasar dokumen dari spec template: geometri halaman + perabotnya. */
-function templateLayout(template: Template | null): TabLayout | null {
-	if (!template) return null
-	return {
-		pageSetup: template.spec.layout.pageSetup,
-		...(template.spec.layout.furniture ? { furniture: template.spec.layout.furniture } : {}),
-	}
-}
 
 export default class DocumentsService extends BaseService {
 	async list(): Promise<Response> {
@@ -94,7 +85,7 @@ export default class DocumentsService extends BaseService {
 				title: resolvedTitle,
 				project_id: targetProjectId,
 				template_slug: template?.slug ?? null,
-				layout: layout ?? templateLayout(template) ?? null,
+				layout: layout ?? (template && templateDocumentLayout(template.spec)) ?? null,
 			})
 			if (!document) throw AppError.internalServerError('Gagal menyimpan dokumen')
 
@@ -104,7 +95,7 @@ export default class DocumentsService extends BaseService {
 				content: content ?? template?.content ?? EMPTY_CONTENT,
 				emoji: emoji ?? null,
 				language: language ?? null,
-				layout: tabLayout ?? null,
+				layout: tabLayout ?? (template && templateTabLayout(template.spec)) ?? null,
 				position: 0,
 			})
 			if (!tab) throw AppError.internalServerError('Gagal menyimpan tab pertama')
