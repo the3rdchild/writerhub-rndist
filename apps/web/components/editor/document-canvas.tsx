@@ -215,6 +215,22 @@ export function DocumentCanvas({
 										paddingBottom: margins.bottom,
 										paddingLeft: margins.left,
 										'--code-block-max-height': codeBlockMaxHeight,
+										/*
+										 * Geometri lembar untuk blok yang harus tahu ukuran
+										 * halaman, bukan cuma ukuran kolom teks
+										 * (`features/editor/html-block.ts`). Mode pageless
+										 * tidak punya lembar, jadi nilainya sengaja tidak
+										 * diisi dan CSS-nya jatuh ke bawaan.
+										 */
+										...(setup.pageless
+											? {}
+											: {
+													'--page-content-height': `${contentHeight}px`,
+													'--page-width': `${width}px`,
+													'--page-height': `${height}px`,
+													'--page-margin-top': `${margins.top}px`,
+													'--page-margin-left': `${margins.left}px`,
+												}),
 									} as React.CSSProperties
 								}
 							>

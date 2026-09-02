@@ -465,6 +465,38 @@ export async function exportDocx(
 				const height = Number(node.attrs.snapshotHeight) || 0
 				if (width <= 0 || height <= 0) return []
 
+				/*
+				 * Mode halaman diekspor sebagai gambar berjangkar ke **kertas**,
+				 * bukan ke kolom teks: ukurannya dipakai apa adanya dan titik
+				 * awalnya sudut lembar, jadi warnanya sampai tepi persis seperti
+				 * di kanvas. Tanpa jangkar ini ia diperkecil masuk ke dalam margin
+				 * dan berkasnya tidak lagi serupa dengan yang dilihat penulis.
+				 *
+				 * Ia juga memulai halaman baru. Word tidak tahu blok ini "milik"
+				 * satu lembar - tanpa pemenggal, naskah lain bisa ikut mendarat di
+				 * halaman yang sama lalu tertimpa gambarnya.
+				 */
+				if (node.attrs.fit === 'page') {
+					return [
+						new Paragraph({
+							pageBreakBefore: true,
+							children: [
+								new ImageRun({
+									data: png,
+									type: 'png',
+									transformation: { width: Math.round(width), height: Math.round(height) },
+									floating: {
+										horizontalPosition: { relative: 'page', offset: 0 },
+										verticalPosition: { relative: 'page', offset: 0 },
+										behindDocument: true,
+										allowOverlap: true,
+									},
+								}),
+							],
+						}),
+					]
+				}
+
 				const scale = Math.min(1, sectionContentWidth / width)
 				return [
 					new Paragraph({

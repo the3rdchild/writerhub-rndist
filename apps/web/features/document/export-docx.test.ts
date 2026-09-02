@@ -388,6 +388,58 @@ describe('blok HTML di berkas DOCX', () => {
 	})
 
 	// HTML mentahnya tidak pernah bocor ke berkas: yang diekspor gambarnya.
+	// Full-bleed di kanvas harus full-bleed juga di berkas. Gambar yang
+	// berjangkar ke kolom teks akan diperkecil masuk margin, dan hasil ekspornya
+	// tidak lagi serupa dengan yang dilihat penulis.
+	test('mode halaman berjangkar ke kertas, bukan ke kolom teks', async () => {
+		const files = await docxFiles({
+			html: '<h1>Flyer</h1>',
+			fit: 'page',
+			snapshot: PNG_1PX,
+			snapshotWidth: 794,
+			snapshotHeight: 1123,
+		})
+		const xml = strFromU8(files['word/document.xml'])
+
+		expect(xml).toContain('<wp:anchor')
+		expect(xml).toContain('relativeFrom="page"')
+		// Sudut lembar, bukan sudut kotak konten.
+		expect(xml).toContain('<wp:posOffset>0</wp:posOffset>')
+		// 794px x 9525 EMU/px - ukuran lembar penuh, bukan lebar kolom teks.
+		expect(xml).toContain('cx="7562850"')
+	})
+
+	// Word tidak tahu blok ini memiliki satu lembar penuh; tanpa pemenggal,
+	// naskah lain mendarat di halaman yang sama lalu tertimpa gambarnya.
+	test('mode halaman memulai halaman baru', async () => {
+		const files = await docxFiles({
+			html: '<h1>Flyer</h1>',
+			fit: 'page',
+			snapshot: PNG_1PX,
+			snapshotWidth: 794,
+			snapshotHeight: 1123,
+		})
+		expect(strFromU8(files['word/document.xml'])).toContain('<w:pageBreakBefore/>')
+	})
+
+	// Sisipan tetap seperti semula: mengalir di dalam kolom teks, diperkecil
+	// kalau lebih lebar, dan tidak memaksa halaman baru.
+	test('sisipan tidak berjangkar dan tidak memenggal halaman', async () => {
+		const files = await docxFiles({
+			html: '<p>kecil</p>',
+			fit: 'embed',
+			height: 200,
+			snapshot: PNG_1PX,
+			snapshotWidth: 400,
+			snapshotHeight: 200,
+		})
+		const xml = strFromU8(files['word/document.xml'])
+
+		expect(xml).toContain('<w:drawing>')
+		expect(xml).not.toContain('<wp:anchor')
+		expect(xml).not.toContain('<w:pageBreakBefore/>')
+	})
+
 	test('sumber HTML tidak ikut ke dalam berkas', async () => {
 		const files = await docxFiles({
 			html: '<h1>RAHASIA</h1>',

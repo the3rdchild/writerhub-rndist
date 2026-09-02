@@ -8,7 +8,7 @@ import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offset
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { toEditorContent } from '@/features/editor/markdown'
 import { MATH_BLOCK, MATH_INLINE, stripDelimiters } from '@/features/editor/math'
-import { clampMargins, INCH, PAGE_SIZES, type PageSetup } from '@/features/editor/page-geometry'
+import { clampMargins, INCH, PAGE_SIZES, type PageSetup, pageGeometry } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
 import { isSectionScope, sectionRange } from '@/features/editor/section-scope'
 import { editorPlainText } from '@/features/editor/text-content'
@@ -153,8 +153,15 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 				setup.size === 'custom'
 					? `custom (${setup.customWidth ?? 0}×${setup.customHeight ?? 0}px)`
 					: (PAGE_SIZES[setup.size]?.label ?? setup.size)
+			// Ukuran px ikut disebut karena penulis HTML butuh angka kanvas, bukan
+			// ukuran kertas dalam cm: tanpa itu rancangan satu halaman ditulis
+			// dengan lebar tebakan lalu terpotong di tepi.
+			const geometry = pageGeometry(setup)
 			return [
 				`Size: ${sizeLabel}, ${setup.orientation}`,
+				`Sheet (px at 96dpi): ${Math.round(geometry.width)} x ${Math.round(geometry.height)}`,
+				`Content box (px at 96dpi): ${Math.round(geometry.contentWidth)} x ${Math.round(geometry.contentHeight)}`,
+				'insert_html_block with fit "page" fills the whole sheet, bleeding past the margins.',
 				`Margins (cm): top ${cm(setup.margins.top)}, bottom ${cm(setup.margins.bottom)}, left ${cm(setup.margins.left)}, right ${cm(setup.margins.right)}`,
 				`Page color: ${setup.pageColor ?? 'theme default'}`,
 				`Pageless: ${setup.pageless ? 'yes' : 'no'}`,
@@ -616,13 +623,17 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const html = String(call.arguments.html ?? '').trim()
 			if (!html) return { ok: false, message: 'Nothing to insert.' }
 
+			const fit = call.arguments.fit === 'page' ? 'page' : 'embed'
 			const height = Number(call.arguments.height)
 			editor
 				.chain()
 				.focus()
-				.insertHtmlBlock({ html, ...(height ? { height } : {}) })
+				.insertHtmlBlock({ html, fit, ...(height ? { height } : {}) })
 				.run()
-			return { ok: true, message: 'HTML design block inserted.' }
+			return {
+				ok: true,
+				message: fit === 'page' ? 'Full-page HTML design inserted.' : 'HTML design block inserted.',
+			}
 		}
 
 		case 'insert_mermaid': {

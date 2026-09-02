@@ -2,10 +2,25 @@ import { mergeAttributes, Node } from '@tiptap/core'
 
 export const HTML_BLOCK = 'htmlBlock'
 
+/**
+ * Dua watak yang berbeda urusan, bukan satu blok dengan sakelar hiasan:
+ *
+ * - `embed` - sisipan kecil yang ikut mengalir bersama naskah, tingginya diatur
+ *   penulis. Untuk hal kecil yang ditempel di tengah dokumen.
+ * - `page` - rancangan satu halaman penuh yang mengisi lembar sampai tepi
+ *   kertas. Tingginya bukan urusan penulis melainkan urusan geometri halaman,
+ *   jadi ia tidak bisa ditarik dan tidak bisa meluap.
+ */
+export type HtmlBlockFit = 'embed' | 'page'
+
 export interface HtmlBlockAttrs {
 	/** Sumber rancangannya. Tidak dipercaya - lihat `html-sandbox.ts`. */
 	html: string
-	/** Tinggi blok di kanvas, dalam px. Lebarnya selalu selebar badan naskah. */
+	fit: HtmlBlockFit
+	/**
+	 * Tinggi blok di kanvas, dalam px. Hanya dipakai `fit: 'embed'`; mode
+	 * halaman mengambil tingginya dari geometri lembar.
+	 */
 	height: number
 	/**
 	 * PNG hasil potretan terakhir sebagai URI `data:`, diperbarui
@@ -20,6 +35,7 @@ export interface HtmlBlockAttrs {
 
 export const DEFAULT_HTML_BLOCK_ATTRS: HtmlBlockAttrs = {
 	html: '',
+	fit: 'embed',
 	height: 320,
 	snapshot: '',
 	snapshotWidth: 0,
@@ -27,11 +43,25 @@ export const DEFAULT_HTML_BLOCK_ATTRS: HtmlBlockAttrs = {
 }
 
 const MIN_HEIGHT = 48
+
+/**
+ * Batas atas terakhir untuk dokumen tanpa geometri halaman - mode pageless,
+ * atau saat tinggi lembar belum sempat terbaca. Halaman sungguhan selalu lebih
+ * pendek dari ini, jadi ia hampir tidak pernah yang menentukan.
+ */
 const MAX_HEIGHT = 4000
 
-export function clampHtmlBlockHeight(height: number): number {
-	if (!Number.isFinite(height)) return DEFAULT_HTML_BLOCK_ATTRS.height
-	return Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, Math.round(height)))
+/**
+ * Menjepit tinggi blok sisipan. `pageLimit` adalah tinggi kotak konten halaman:
+ * sisipan tidak boleh lebih tinggi dari itu, karena blok yang melampaui satu
+ * halaman tidak bisa lagi diselamatkan paginasi - begitu ia jadi blok pertama
+ * di sebuah halaman, mendorongnya cuma memindahkan luapan
+ * (`features/editor/pagination.ts`).
+ */
+export function clampHtmlBlockHeight(height: number, pageLimit?: number): number {
+	const ceiling = pageLimit && pageLimit > MIN_HEIGHT ? Math.min(MAX_HEIGHT, pageLimit) : MAX_HEIGHT
+	if (!Number.isFinite(height)) return Math.min(DEFAULT_HTML_BLOCK_ATTRS.height, ceiling)
+	return Math.max(MIN_HEIGHT, Math.min(ceiling, Math.round(height)))
 }
 
 /**
@@ -54,6 +84,11 @@ export const HtmlBlock = Node.create({
 	addAttributes() {
 		return {
 			html: { default: DEFAULT_HTML_BLOCK_ATTRS.html },
+			fit: {
+				default: DEFAULT_HTML_BLOCK_ATTRS.fit,
+				parseHTML: (element) => (element.getAttribute('data-fit') === 'page' ? 'page' : 'embed'),
+				renderHTML: (attributes) => ({ 'data-fit': String(attributes.fit) }),
+			},
 			height: {
 				default: DEFAULT_HTML_BLOCK_ATTRS.height,
 				parseHTML: (element) => clampHtmlBlockHeight(Number(element.getAttribute('data-height'))),
@@ -71,6 +106,7 @@ export const HtmlBlock = Node.create({
 				tag: `div[data-type="${HTML_BLOCK}"]`,
 				getAttrs: (element) => ({
 					html: element.getAttribute('data-html') ?? '',
+					fit: element.getAttribute('data-fit') === 'page' ? 'page' : 'embed',
 					height: clampHtmlBlockHeight(Number(element.getAttribute('data-height'))),
 				}),
 			},

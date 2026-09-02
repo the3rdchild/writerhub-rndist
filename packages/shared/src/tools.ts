@@ -325,7 +325,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'insert_html_block',
 		kind: 'write',
 		description:
-			'Insert a self-contained HTML design block - use it for flyers, pamphlets, posters, banners and other colourful print pieces whose layout cannot be expressed as paragraphs and headings (gradients, absolute positioning, overlapping elements). Do NOT use it for ordinary prose: the block is flattened to an image on DOCX export, so text inside it is not searchable or editable in Word. The HTML is rendered in a locked-down frame: no scripts run and no network requests are made, so every image and font must be embedded as a data: URI, and all CSS must be inline or in a <style> tag. Pass only the markup that belongs inside <body>.',
+			'Insert a self-contained HTML design block - use it for flyers, pamphlets, posters, banners and other colourful print pieces whose layout cannot be expressed as paragraphs and headings (gradients, absolute positioning, overlapping elements). Do NOT use it for ordinary prose: the block is flattened to an image on DOCX export, so text inside it is not searchable or editable in Word. The HTML is rendered in a locked-down frame: your scripts never run and no network requests are made, so every image and font must be embedded as a data: URI, and all CSS must be inline or in a <style> tag. Pass only the markup that belongs inside <body>. Call get_page_setup first to learn the exact pixel canvas you are designing into.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -333,9 +333,16 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 					type: 'string',
 					description: 'HTML fragment for the body: markup plus inline <style>. No scripts, no remote URLs.',
 				},
+				fit: {
+					type: 'string',
+					enum: ['page', 'embed'],
+					description:
+						'"page" for a design that occupies one whole sheet edge to edge - a flyer, poster or one-pager. It is placed alone on its own page, bleeds past the margins, and its height is fixed by the paper, so the root element must be width:100%; height:100% and anything taller is CUT OFF at the page edge, never scaled down. "embed" (default) is a small piece that flows inline with the surrounding text and uses the "height" argument.',
+				},
 				height: {
 					type: 'number',
-					description: 'Block height on the page in pixels at 96 dpi. Defaults to 320.',
+					description:
+						'Block height in pixels at 96 dpi. Only used when fit is "embed"; ignored for "page". Defaults to 320, and is capped at the height of one page.',
 				},
 			},
 			required: ['html'],

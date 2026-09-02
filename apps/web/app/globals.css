@@ -553,6 +553,60 @@ a {
   margin: 0.75em 0;
 }
 
+/*
+ * Mode satu halaman.
+ *
+ * Kuncinya pemisahan antara kotak tata letak dan yang terlihat. Pembungkusnya
+ * menempati **persis kotak konten halaman** - itu yang dibaca paginasi, dan
+ * karena tingginya pas satu halaman, aturan yang sudah ada di pagination.ts
+ * (blok meluap didorong ke halaman berikutnya kecuali ia sudah jadi yang
+ * pertama) otomatis menaruhnya sendirian di satu lembar. Tidak ada mekanisme
+ * pemenggal baru yang perlu ditambahkan.
+ *
+ * Bingkainya lalu diposisikan mutlak dan digeser keluar sebesar margin, jadi
+ * warnanya sampai tepi kertas tanpa mengubah satu pun angka tata letak.
+ */
+.document-body > .html-block-page {
+  margin: 0;
+}
+
+.html-block-page .html-block-stage {
+  position: relative;
+  height: var(--page-content-height, 640px);
+}
+
+.html-block-page .html-block-frame {
+  position: absolute;
+  top: calc(-1 * var(--page-margin-top, 0px));
+  left: calc(-1 * var(--page-margin-left, 0px));
+  width: var(--page-width, 100%);
+  height: var(--page-height, 100%);
+  border: 0;
+  border-radius: 0;
+}
+
+.html-block-page .html-block-source {
+  height: var(--page-content-height, 640px);
+}
+
+/* Penanda isi terpotong: melayang, supaya ia tidak ikut menambah tinggi blok
+   yang justru sedang dijaga agar pas satu halaman. */
+.html-block-clipped {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  z-index: 3;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  border-radius: 5px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  padding: 2px 7px;
+  font-size: 0.7rem;
+  color: var(--foreground);
+}
+
 .html-block-frame,
 .html-block-source {
   display: block;

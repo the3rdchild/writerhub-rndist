@@ -38,7 +38,7 @@ Dirangkum dari pemeriksaan kode, bukan dari dokumen lain — beberapa baris di
 | 34 tool editor yang bisa dipanggil model (`set_page_setup`, `set_columns`, `insert_toc`, `apply_paragraph_style`, …) | `packages/shared/src/tools.ts` |
 | Konverter Markdown → ProseMirror **di sisi server** | `apps/api/src/services/drafts/markdown-doc.ts` |
 | Tipografi per template: huruf badan + gaya judul 1-9, berlaku di kanvas dan ikut ke DOCX | `packages/shared/src/typography.ts`, `features/editor/typography-css.ts`, `features/document/docx/typography-styles.ts` |
-| Blok rancangan HTML terkurung (flyer, poster) + tool `insert_html_block` | `features/editor/html-block.ts`, `html-sandbox.ts`, `html-raster.ts` |
+| Blok rancangan HTML terkurung, dua mode: `page` (satu lembar penuh, full-bleed) dan `embed` (sisipan) + tool `insert_html_block` | `features/editor/html-block.ts`, `html-sandbox.ts`, `html-raster.ts` |
 
 Yang terakhir penting: kerangka template bisa ditulis sebagai Markdown biasa lalu dikompilasi
 menjadi konten dokumen di server — tidak perlu menulis JSON ProseMirror dengan tangan, dan tidak
@@ -60,9 +60,27 @@ perlu konverter kedua.
 Blok HTML punya batasnya sendiri, dan itu memang harganya: saat diekspor ia
 diratakan menjadi gambar, jadi teks di dalamnya tidak bisa dicari atau disunting
 di Word. Ia untuk cetakan promosi — flyer, pamflet, poster — bukan untuk badan
-naskah. Isinya dirender di `<iframe sandbox="">` tanpa satu pun kemampuan, dan
-CSP-nya menutup jaringan, jadi gambar dan font harus tertanam sebagai URI
-`data:`.
+naskah.
+
+Dua modenya berbeda urusan. **`page`** mengisi satu lembar penuh sampai tepi
+kertas: tinggi pembungkusnya dikunci ke kotak konten halaman, jadi aturan luapan
+yang sudah ada di `pagination.ts` menaruhnya sendirian di satu lembar tanpa
+mekanisme pemenggal baru, sementara bingkainya digeser keluar sebesar margin
+supaya warnanya sampai tepi. Di DOCX ia menjadi gambar berjangkar ke *kertas*
+(`relativeFrom="page"`, offset 0), bukan ke kolom teks — kalau tidak, hasil
+ekspornya menyusut ke dalam margin dan tidak lagi serupa dengan kanvas. Isi yang
+lebih tinggi dari lembar **dipotong**, tidak dikecilkan, dan editor menandainya.
+**`embed`** adalah sisipan yang mengalir bersama naskah; tingginya bisa ditarik
+tapi dijepit setinggi satu halaman, karena blok yang melewatinya tidak bisa lagi
+diselamatkan paginasi.
+
+Isinya dirender di `<iframe>` berasal unik dengan CSP `default-src 'none'`, jadi
+gambar dan font harus tertanam sebagai URI `data:`. Bingkainya diberi
+`allow-scripts` **hanya** supaya ia bisa melaporkan tinggi isinya sendiri —
+tanpa itu penanda "terpotong" mustahil, sebab asal unik membuat
+`contentDocument` tak terbaca dari luar. Yang menahan skrip milik HTML tetap
+mati adalah `script-src` yang cuma menerima satu nonce acak per render;
+`allow-same-origin` tidak pernah diberikan.
 
 Kekurangan ini **tidak menghalangi rilis** — ia menentukan cara menulis catatan di kartu
 template ("nomor halaman romawi di bagian awal belum otomatis") dan mengisi daftar pekerjaan
