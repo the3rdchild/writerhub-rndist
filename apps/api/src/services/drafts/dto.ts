@@ -31,6 +31,8 @@ export const draftRequestSchema = z
 		words: z.number().int().min(MIN_TARGET_WORDS).max(MAX_TARGET_WORDS).optional(),
 		language: z.string().trim().min(1).max(32).optional(),
 		projectId: z.uuid().optional(),
+		/** Template yang melahirkan dokumen; aturan formatnya ikut ke prompt penulisan. */
+		templateSlug: z.string().trim().min(1).max(64).optional(),
 	})
 	.refine((body) => Boolean(body.prompt || body.content), {
 		message: 'Butuh `prompt` (untuk ditulis WritingHub) atau `content` (Markdown siap pakai)',

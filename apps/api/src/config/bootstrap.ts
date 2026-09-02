@@ -3,6 +3,7 @@ import { env } from '@/config/env'
 import { RedisClient } from '@/config/redis'
 import { checkDatabaseConnection, disconnectDatabase } from '@/db'
 import QueueClient from '@/lib/queue'
+import { seedBuiltinTemplatesSafely } from '@/services/templates/seed'
 
 const globalRuntime = globalThis as typeof globalThis & {
 	__signalHandlers?: { sigint: () => void; sigterm: () => void }
@@ -13,6 +14,8 @@ export async function bootstrap(): Promise<void> {
 
 	if (!(await checkDatabaseConnection())) throw new Error('PostgreSQL connection failed')
 	if (!(await RedisClient.checkConnection())) throw new Error('Redis connection failed')
+
+	await seedBuiltinTemplatesSafely()
 
 	const server = Bun.serve({
 		hostname: '0.0.0.0',

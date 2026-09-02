@@ -26,6 +26,7 @@ import { sessionLabel, useSessions } from '@/features/sessions/session-context'
 import { createTab as createTabInDoc } from '@/features/sessions/ydoc'
 import { buildSchema, fragmentToJSON, jsonToFragment } from '@/features/sync/serialize'
 import { useSync } from '@/features/sync/sync-context'
+import { useActiveTemplate } from '@/features/templates/use-templates'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import { parseFallbackCalls, streamChat, stripFallbackCalls } from './api'
 import { isRemoteReadTool, remoteToolLabel, runRemoteReadTool } from './remote-tools'
@@ -208,6 +209,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const { linkage } = useSync()
 	const researchTabRef = useRef<string | null>(null)
 	researchTabRef.current = activeId ? (linkage[activeId]?.serverId ?? null) : null
+	// Template asal dokumen aktif: slug-nya ikut ke prompt server, spec-nya
+	// menjawab alat baca get_template_rules.
+	const activeTemplate = useActiveTemplate()
+	const templateRef = useRef(activeTemplate)
+	templateRef.current = activeTemplate
 	const applyActionsRef = useRef<((calls: ToolCall[]) => void) | null>(null)
 	const pendingAutoApplyRef = useRef<ToolCall[] | null>(null)
 	const messagesRef = useRef<ChatTurn[]>(messages)
@@ -328,6 +334,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	}
 	const buildReadContext = (editor: Editor): ReadToolContext => {
 		const app = appRef.current
+		const template = templateRef.current
 		return {
 			editor,
 			pageCount: paginationKey.getState(editor.state)?.pageCount ?? 1,
@@ -347,6 +354,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				}
 			},
 			comments: app.comments,
+			template: template ? { name: template.name, slug: template.slug, spec: template.spec } : null,
 		}
 	}
 	const createTabWithContent = (title: string | undefined, markdown: string | undefined) => {
@@ -380,6 +388,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						tools: toolsRef.current,
 						research: researchRef.current,
 						model: modelRef.current,
+						templateSlug: templateRef.current?.slug,
 					},
 					{
 						onDelta: (delta) => {

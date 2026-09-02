@@ -34,7 +34,7 @@ import { cn } from '@/lib/utils'
 const RECENT_DOCUMENT_LIMIT = 10
 
 export function NavMenu() {
-	const { activeDocId, hydrated, newDocument } = useSessions()
+	const { activeDocId, hydrated } = useSessions()
 	const { setSettingsOpen } = useSettings()
 	const router = useRouter()
 	const [projectsOpen, setProjectsOpen] = useState(false)
@@ -77,10 +77,12 @@ export function NavMenu() {
 
 					<DropdownSeparator />
 
+					{/* Mengarah ke galeri, bukan langsung membuat dokumen kosong:
+					    kartu "Dokumen kosong" di sana yang memegang jalur lama. */}
 					<DropdownItem
 						icon={<Plus className="h-4 w-4" />}
 						onSelect={() => {
-							newDocument()
+							router.push('/new')
 							close()
 						}}
 					>

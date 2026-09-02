@@ -1884,3 +1884,66 @@ html.light .range-highlight {
   background: var(--overlay-hover);
   font-weight: 600;
 }
+
+/* Pratinjau kartu galeri template - halaman berskala kecil, bukan editor. */
+.template-preview h1 {
+	font-size: 1.5em;
+	font-weight: 700;
+	margin: 0.35em 0 0.15em;
+}
+.template-preview h2 {
+	font-size: 1.2em;
+	font-weight: 700;
+	margin: 0.3em 0 0.12em;
+}
+.template-preview h3,
+.template-preview h4,
+.template-preview h5,
+.template-preview h6 {
+	font-size: 1em;
+	font-weight: 600;
+	margin: 0.25em 0 0.1em;
+}
+.template-preview p {
+	margin: 0.12em 0;
+}
+.template-preview ul,
+.template-preview ol {
+	padding-left: 1.3em;
+	margin: 0.12em 0;
+}
+.template-preview ul {
+	list-style: disc;
+}
+.template-preview ol {
+	list-style: decimal;
+}
+.template-preview blockquote {
+	border-left: 2px solid var(--border-subtle);
+	padding-left: 0.8em;
+	color: #4b5563;
+}
+.template-preview table {
+	border-collapse: collapse;
+	width: 100%;
+	font-size: 0.85em;
+	margin: 0.3em 0;
+}
+.template-preview th,
+.template-preview td {
+	border: 1px solid #d1d5db;
+	padding: 0.2em 0.5em;
+	text-align: left;
+}
+.template-preview th {
+	background: #f3f4f6;
+	font-weight: 600;
+}
+.template-preview hr {
+	border: none;
+	border-top: 1px solid #d1d5db;
+	margin: 0.4em 0;
+}
+.template-preview hr.section-break {
+	border-top-style: dashed;
+}

@@ -1,7 +1,7 @@
 import { REWRITE_TONES, type RewriterTone, type StyleMemory } from '@writer-hub/shared'
 // Preferensi gaya tersimpan sudah punya satu terjemahan ke instruksi prompt.
 // Menyalinnya ke sini akan membuat dua versi yang lambat laun berbeda.
-import { memoryPrompt } from '@/services/chat/prompts'
+import { memoryPrompt, templateRulesPrompt } from '@/services/chat/prompts'
 import type { DraftRequest } from './dto'
 
 /**
@@ -60,6 +60,7 @@ export function lengthPrompt(words: number | undefined): string {
 export function buildDraftMessages(
 	request: DraftRequest,
 	memory: StyleMemory | null,
+	templateRules?: string[],
 ): Array<{ role: string; content: string }> {
 	const system = [
 		DRAFT_SYSTEM_PROMPT,
@@ -67,6 +68,7 @@ export function buildDraftMessages(
 		tonePrompt(request.tone),
 		lengthPrompt(request.words),
 		memoryPrompt(memory),
+		templateRulesPrompt(templateRules),
 	]
 		.filter(Boolean)
 		.join('\n\n')

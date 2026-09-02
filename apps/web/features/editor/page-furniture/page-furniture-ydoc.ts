@@ -9,6 +9,9 @@ import { normalizePageFurniture, type PageFurniture } from './model'
  */
 const KEY = 'pageFurniture'
 
+/** Diekspor agar penyusun/penerapan `TabLayout` tidak menduplikasi nama kuncinya. */
+export const PAGE_FURNITURE_KEY = KEY
+
 export function readPageFurniture(doc: Y.Doc, tabId: string): PageFurniture | null {
 	const entry = tabsRoot(doc).meta.get(tabId)
 	if (!(entry instanceof Y.Map)) return null

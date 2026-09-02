@@ -1,7 +1,7 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import type { AnalysisFeature, ToolCall } from '@writer-hub/shared'
+import type { AnalysisFeature, TemplateSpec, ToolCall } from '@writer-hub/shared'
 import type { PanelId } from '@/features/analysis/panel-context'
 import { COMMENT_MARK } from '@/features/comments/comment-mark'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
@@ -61,6 +61,8 @@ export interface ReadToolContext {
 	tabs: { id: string; label: string; active: boolean }[]
 	readTab: (tabId: string) => string | null
 	comments: CommentThread[]
+	/** Template asal dokumen aktif; null untuk dokumen kosong. */
+	template: { name: string; slug: string; spec: TemplateSpec } | null
 }
 
 export function runReadTool(context: ReadToolContext, call: ToolCall): string {
@@ -159,6 +161,28 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 			].join('\n')
 		}
 
+		case 'get_template_rules': {
+			const template = context.template
+			if (!template) return 'This document was created without a template; no format rules apply.'
+			const { spec } = template
+			const required = spec.structure.filter((item) => item.required).map((item) => item.heading)
+			const optional = spec.structure.filter((item) => !item.required).map((item) => item.heading)
+			return [
+				`Template: ${template.name} (${template.slug})`,
+				`Citation style: ${spec.format.citationStyle}; heading scheme: ${spec.format.headingScheme}; language: ${spec.format.language}.`,
+				spec.format.abstractWords
+					? `Abstract length: ${spec.format.abstractWords[0]}-${spec.format.abstractWords[1]} words.`
+					: null,
+				required.length > 0 ? `Required sections, in order: ${required.join(' → ')}` : null,
+				optional.length > 0 ? `Optional sections: ${optional.join(', ')}` : null,
+				spec.layout.columns ? `Body layout: ${spec.layout.columns.count} columns.` : null,
+				'Format rules:',
+				...spec.aiRules.map((rule) => `- ${rule}`),
+			]
+				.filter(Boolean)
+				.join('\n')
+		}
+
 		case 'list_tabs': {
 			if (context.tabs.length === 0) return 'The document has no tabs.'
 			return context.tabs.map((tab) => `${tab.id} - ${tab.label}${tab.active ? ' (active)' : ''}`).join('\n')
@@ -208,6 +232,8 @@ export function readToolLabel(editor: Editor, call: ToolCall): string {
 			return 'Membaca teks yang disorot'
 		case 'get_page_setup':
 			return 'Membaca tata letak halaman'
+		case 'get_template_rules':
+			return 'Membaca aturan format template'
 		case 'list_tabs':
 			return 'Mendaftar tab dokumen'
 		case 'read_tab': {

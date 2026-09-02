@@ -71,6 +71,13 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		parameters: { type: 'object', properties: {} },
 	},
 	{
+		name: 'get_template_rules',
+		kind: 'read',
+		description:
+			'Get the format rules of the template this document was created from: citation style, heading scheme, required sections and AI rules. Returns null when the document has no template. Use this when asked to check format compliance.',
+		parameters: { type: 'object', properties: {} },
+	},
+	{
 		name: 'list_tabs',
 		kind: 'read',
 		description: 'List the tabs of the active document with their ids and titles.',

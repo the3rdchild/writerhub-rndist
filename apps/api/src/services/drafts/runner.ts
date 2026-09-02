@@ -2,6 +2,8 @@ import LoggerClient from '@/lib/logger'
 import { touchDocument, updateDocument } from '@/repository/document'
 import { updateTab } from '@/repository/document-tab'
 import { snapshotIntervalTab } from '@/services/tabs/service'
+import type { SectionColumns } from '@/services/templates/section-columns'
+import { withColumnsAfterTitle } from '@/services/templates/section-columns'
 import { toDraftFailure } from './failure'
 import { generateDraftMarkdown, type ProviderConfig } from './generation'
 import { headingTitle, markdownToDoc } from './markdown-doc'
@@ -46,6 +48,12 @@ export interface DraftGeneration {
 	messages: Array<{ role: string; content: string }>
 	/** Judul boleh diambil dari heading pertama karena pemanggil tidak menentukannya. */
 	titleFromHeading: boolean
+	/**
+	 * Kolom badan naskah dari template asal. Kontennya ditulis ulang utuh,
+	 * jadi pembatas section pembawanya harus disisipkan lagi sesudah naskah
+	 * jadi - tanpa ini draf paper IEEE keluar satu kolom.
+	 */
+	columns?: SectionColumns
 	/** Panjang yang diminta pemanggil; dasar taksiran kemajuan. */
 	words?: number
 }
@@ -74,7 +82,7 @@ export async function startDraftGeneration(input: DraftGeneration): Promise<void
 }
 
 async function writeDraft(
-	{ documentId, tabId, ownerId, createdBy, provider, messages, titleFromHeading }: DraftGeneration,
+	{ documentId, tabId, ownerId, createdBy, provider, messages, titleFromHeading, columns }: DraftGeneration,
 	targetCharacters: number,
 	deadline: number,
 ): Promise<void> {
@@ -94,7 +102,8 @@ async function writeDraft(
 	try {
 		await progress('saving', markdown.length)
 
-		const content = markdownToDoc(markdown)
+		const generated = markdownToDoc(markdown)
+		const content = columns ? withColumnsAfterTitle(generated, columns) : generated
 		const title = titleFromHeading ? headingTitle(markdown) : null
 
 		await updateTab(tabId, { content, ...(title ? { title } : {}) })

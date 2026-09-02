@@ -1,3 +1,4 @@
+import type { TabLayoutOverride } from '@writer-hub/shared'
 import { index, integer, jsonb, pgTable, text, uuid, varchar } from 'drizzle-orm/pg-core'
 import { timestamps } from '@/db/utils/common-table'
 import { documents } from './document'
@@ -13,6 +14,8 @@ export const documentTabs = pgTable(
 		content: jsonb('content').notNull().$type<Record<string, unknown>>(),
 		emoji: varchar('emoji', { length: 32 }),
 		language: varchar('language', { length: 32 }),
+		/** Penimpa `documents.layout` untuk tab ini; null berarti ikut dokumen. */
+		layout: jsonb('layout').$type<TabLayoutOverride>(),
 		position: integer('position').notNull().default(0),
 
 		updated_at: timestamps.updatedAt,

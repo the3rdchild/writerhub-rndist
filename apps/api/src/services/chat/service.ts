@@ -2,6 +2,7 @@ import type { StyleMemory } from '@writer-hub/shared'
 import { DEFAULT_CHAT_MODEL, isKnownChatModel, toProviderTools } from '@writer-hub/shared'
 import { env } from '@/config/env'
 import type { ResolvedProvider } from '@/lib/provider-resolver'
+import { findTemplateBySlug } from '@/repository/template'
 import JobSubmissionService from '@/services/job-submission.service'
 import { type ChatBody, chatBodySchema } from './dto'
 import { buildMessages } from './messages'
@@ -42,7 +43,9 @@ export default class ChatService extends JobSubmissionService {
 			}
 
 			const memory = await this.styleMemory()
-			const call = (withTools: boolean) => this.callProvider(config, parsed.data, withTools, memory)
+			const templateRules = await this.templateRules(parsed.data.templateSlug)
+			const call = (withTools: boolean) =>
+				this.callProvider(config, parsed.data, withTools, memory, templateRules)
 
 			return new Response(openChatStream(call, parsed.data.tools ?? false), { headers: SSE_HEADERS })
 		} catch (error) {
@@ -74,6 +77,7 @@ export default class ChatService extends JobSubmissionService {
 		body: ChatBody,
 		withTools: boolean,
 		memory: StyleMemory | null,
+		templateRules?: string[],
 	): Promise<Response> {
 		return fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
 			method: 'POST',
@@ -85,11 +89,26 @@ export default class ChatService extends JobSubmissionService {
 				model,
 				stream: true,
 				temperature: TEMPERATURE,
-				messages: buildMessages(body, withTools, memory),
+				messages: buildMessages(body, withTools, memory, templateRules),
 				...(withTools ? { tools: toProviderTools({ research: body.research }), tool_choice: 'auto' } : {}),
 			}),
 			signal: this.context.req.raw.signal,
 		})
+	}
+
+	/**
+	 * Aturan format template dokumen yang sedang dibuka. Slug yang tidak dikenal
+	 * - misalnya template yang sudah dihapus - dilewati diam-diam: chat tidak
+	 * boleh gagal hanya karena referensi template basi.
+	 */
+	private async templateRules(slug?: string): Promise<string[] | undefined> {
+		if (!slug) return undefined
+		try {
+			const template = await findTemplateBySlug(slug, await this.identityId())
+			return template?.spec.aiRules
+		} catch {
+			return undefined
+		}
 	}
 }
 

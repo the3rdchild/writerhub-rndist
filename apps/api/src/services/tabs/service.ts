@@ -1,3 +1,4 @@
+import type { TabLayoutOverride } from '@writer-hub/shared'
 import type { NewDocumentTab } from '@/db/schemas'
 import { AppError } from '@/lib/error'
 import LoggerClient from '@/lib/logger'
@@ -74,6 +75,7 @@ export default class TabsService extends BaseService {
 				content: body.data.content ?? EMPTY_CONTENT,
 				emoji: body.data.emoji ?? null,
 				language: body.data.language ?? null,
+				layout: body.data.layout ?? null,
 				position: await nextTabPosition(document.id),
 			})
 			if (!tab) throw AppError.internalServerError('Gagal menyimpan tab')
@@ -103,7 +105,9 @@ export default class TabsService extends BaseService {
 			const existing = await this.ownedTab()
 			const values: Partial<NewDocumentTab> = { ...body.data }
 			if (Object.keys(values).length === 0) {
-				return this.error({ errors: ['Tidak ada field yang bisa diubah (title/content/emoji/language)'] })
+				return this.error({
+					errors: ['Tidak ada field yang bisa diubah (title/content/emoji/language/layout)'],
+				})
 			}
 			const tab = await updateTab(existing.id, values)
 			if (!tab) throw AppError.internalServerError('Gagal menyimpan tab')
@@ -193,6 +197,7 @@ export default class TabsService extends BaseService {
 		title: string
 		emoji: string | null
 		language: string | null
+		layout: TabLayoutOverride | null
 		position: number
 		updated_at: Date
 		created_at: Date
@@ -203,6 +208,7 @@ export default class TabsService extends BaseService {
 			title: tab.title,
 			emoji: tab.emoji,
 			language: tab.language,
+			layout: tab.layout,
 			position: tab.position,
 			updatedAt: tab.updated_at.getTime(),
 			createdAt: tab.created_at.getTime(),
@@ -216,6 +222,7 @@ export default class TabsService extends BaseService {
 		content: Record<string, unknown>
 		emoji: string | null
 		language: string | null
+		layout: TabLayoutOverride | null
 		position: number
 		updated_at: Date
 		created_at: Date
@@ -227,6 +234,7 @@ export default class TabsService extends BaseService {
 			content: tab.content,
 			emoji: tab.emoji,
 			language: tab.language,
+			layout: tab.layout,
 			position: tab.position,
 			updatedAt: tab.updated_at.getTime(),
 			createdAt: tab.created_at.getTime(),
