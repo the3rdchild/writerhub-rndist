@@ -29,6 +29,7 @@ arsitektur dari membaca beberapa berkas.
 | History, Projects, Memory | `docs/HISTORY-PROJECTS-MEMORY-PLAN.md` |
 | Glosarium | `docs/GLOSSARY-MAKER-PLAN.md` |
 | Riset web di chat | `docs/WEB-RESEARCH-PLAN.md` |
+| Template dokumen & galeri | `docs/TEMPLATE-GALLERY-PLAN.md` |
 | Bekerja paralel dengan agen lain | `docs/WORKPLAN-P1-P12-DUA-JALUR.md` |
 
 Hampir setiap area fitur **sudah punya PRD atau rencana tertulis**. Menulis rancangan baru
