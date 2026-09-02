@@ -1,9 +1,8 @@
 'use client'
 
-import type { CitationStyle } from '@writer-hub/shared'
+import type { CitationStyle, TemplateSummary } from '@writer-hub/shared'
 import { FileText } from 'lucide-react'
 import { contentToPreviewHtml } from '@/features/templates/preview-html'
-import { useTemplate } from '@/features/templates/use-templates'
 import { TemplatePreview } from './template-preview'
 
 const CITATION_LABEL: Record<CitationStyle, string> = {
@@ -15,7 +14,7 @@ const CITATION_LABEL: Record<CitationStyle, string> = {
 }
 
 interface TemplateDetailPanelProps {
-	slug: string
+	template: TemplateSummary
 	pending: boolean
 	error: string | null
 	onUse: () => void
@@ -26,18 +25,7 @@ interface TemplateDetailPanelProps {
  * caveats - catatan jujur tentang bagian format yang belum otomatis - sebelum
  * pengguna menekan "Pakai template ini" (`docs/TEMPLATE-GALLERY-PLAN.md` §6).
  */
-export function TemplateDetailPanel({ slug, pending, error, onUse }: TemplateDetailPanelProps) {
-	const detail = useTemplate(slug)
-
-	if (!detail.data) {
-		return (
-			<aside className="flex w-96 shrink-0 items-center justify-center border-l border-line bg-surface">
-				<div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-			</aside>
-		)
-	}
-
-	const template = detail.data
+export function TemplateDetailPanel({ template, pending, error, onUse }: TemplateDetailPanelProps) {
 	const { spec } = template
 
 	return (
@@ -84,9 +72,7 @@ export function TemplateDetailPanel({ slug, pending, error, onUse }: TemplateDet
 
 				{spec.caveats && spec.caveats.length > 0 && (
 					<section>
-						<h3 className="text-xs font-semibold uppercase tracking-wide text-faint">
-							Belum otomatis
-						</h3>
+						<h3 className="text-xs font-semibold uppercase tracking-wide text-faint">Belum otomatis</h3>
 						<ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-muted">
 							{spec.caveats.map((caveat) => (
 								<li key={caveat}>{caveat}</li>

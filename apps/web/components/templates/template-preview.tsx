@@ -22,11 +22,7 @@ export function TemplatePreview({ pageSetup, html, width, className }: TemplateP
 	const scale = width / page.width
 
 	return (
-		<div
-			className={className}
-			style={{ width, height: page.height * scale, overflow: 'hidden' }}
-			aria-hidden
-		>
+		<div className={className} style={{ width, height: page.height * scale, overflow: 'hidden' }} aria-hidden>
 			<div
 				style={{
 					width: page.width,
@@ -38,7 +34,7 @@ export function TemplatePreview({ pageSetup, html, width, className }: TemplateP
 			>
 				<div
 					className="template-preview h-full w-full px-[6%] py-[5%] text-[13px] leading-snug"
-					// HTML hasil contentToPreviewHtml - seluruh teks sudah lolos escape.
+					// biome-ignore lint/security/noDangerouslySetInnerHtml: HTML dari contentToPreviewHtml - seluruh teks sudah lolos escape di sana.
 					dangerouslySetInnerHTML={{ __html: html }}
 				/>
 			</div>

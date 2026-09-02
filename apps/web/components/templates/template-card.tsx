@@ -2,7 +2,6 @@
 
 import type { TemplateSummary } from '@writer-hub/shared'
 import { contentToPreviewHtml } from '@/features/templates/preview-html'
-import { useTemplate } from '@/features/templates/use-templates'
 import { TemplatePreview } from './template-preview'
 
 interface TemplateCardProps {
@@ -12,8 +11,6 @@ interface TemplateCardProps {
 }
 
 export function TemplateCard({ template, selected, onSelect }: TemplateCardProps) {
-	const detail = useTemplate(template.slug)
-
 	return (
 		<button
 			type="button"
@@ -25,7 +22,7 @@ export function TemplateCard({ template, selected, onSelect }: TemplateCardProps
 			<div className="flex justify-center border-b border-line bg-[var(--overlay-hover)] px-4 pt-4">
 				<TemplatePreview
 					pageSetup={template.spec.layout.pageSetup}
-					html={detail.data ? contentToPreviewHtml(detail.data.content) : ''}
+					html={contentToPreviewHtml(template.content)}
 					width={150}
 					className="rounded-t-sm"
 				/>

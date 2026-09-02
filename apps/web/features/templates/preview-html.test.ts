@@ -36,8 +36,14 @@ describe('contentToPreviewHtml', () => {
 						{
 							type: 'tableRow',
 							content: [
-								{ type: 'tableHeader', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Kolom' }] }] },
-								{ type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Isi' }] }] },
+								{
+									type: 'tableHeader',
+									content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Kolom' }] }],
+								},
+								{
+									type: 'tableCell',
+									content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Isi' }] }],
+								},
 							],
 						},
 					],
@@ -58,9 +64,7 @@ describe('contentToPreviewHtml', () => {
 	test('teks berbahaya lolos escape', () => {
 		const html = contentToPreviewHtml({
 			type: 'doc',
-			content: [
-				{ type: 'paragraph', content: [{ type: 'text', text: '<script>alert("x")</script>' }] },
-			],
+			content: [{ type: 'paragraph', content: [{ type: 'text', text: '<script>alert("x")</script>' }] }],
 		})
 
 		expect(html).not.toContain('<script>')

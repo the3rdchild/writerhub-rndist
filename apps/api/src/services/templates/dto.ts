@@ -12,9 +12,10 @@ export function toSummary(row: Template): TemplateSummary {
 		locale: row.locale as TemplateLocale,
 		spec: row.spec,
 		builtin: row.builtin,
+		content: row.content,
 	}
 }
 
 export function toDetail(row: Template): TemplateDetail {
-	return { ...toSummary(row), content: row.content }
+	return toSummary(row)
 }

@@ -36,19 +36,20 @@ export function TemplateGallery() {
 	const [pending, setPending] = useState(false)
 	const [useError, setUseError] = useState<string | null>(null)
 
+	const selected = (templates.data ?? []).find((item) => item.slug === selectedSlug)
+
 	const visible = useMemo(() => {
 		const needle = query.trim().toLowerCase()
 		return (templates.data ?? []).filter((template) => {
 			if (category !== 'all' && template.category !== category) return false
 			if (!needle) return true
 			return (
-				template.name.toLowerCase().includes(needle) ||
-				template.description.toLowerCase().includes(needle)
+				template.name.toLowerCase().includes(needle) || template.description.toLowerCase().includes(needle)
 			)
 		})
 	}, [templates.data, category, query])
 
-	const useTemplate = async (template: TemplateSummary) => {
+	const createFromTemplate = async (template: TemplateSummary) => {
 		setPending(true)
 		setUseError(null)
 		try {
@@ -110,7 +111,11 @@ export function TemplateGallery() {
 				</nav>
 
 				<main className="flex-1 overflow-y-auto px-6 py-6">
-					{templates.isError ? (
+					{templates.isPending ? (
+						<div className="flex h-64 items-center justify-center">
+							<div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+						</div>
+					) : templates.isError ? (
 						<div className="flex h-64 flex-col items-center justify-center text-center">
 							<h2 className="text-lg font-medium text-foreground">Gagal memuat template</h2>
 							<p className="mt-1 max-w-md text-sm text-muted">
@@ -147,15 +152,12 @@ export function TemplateGallery() {
 					)}
 				</main>
 
-				{selectedSlug && (
+				{selected && (
 					<TemplateDetailPanel
-						slug={selectedSlug}
+						template={selected}
 						pending={pending}
 						error={useError}
-						onUse={() => {
-							const template = (templates.data ?? []).find((item) => item.slug === selectedSlug)
-							if (template) void useTemplate(template)
-						}}
+						onUse={() => void createFromTemplate(selected)}
 					/>
 				)}
 			</div>

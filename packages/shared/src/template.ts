@@ -50,7 +50,7 @@ export interface TemplateSpec {
 	caveats?: string[]
 }
 
-/** Bentuk kartu di galeri - tanpa `content` kerangka yang berat. */
+/** Bentuk kartu di galeri. `content` ikut supaya pratinjau tidak butuh panggilan per kartu. */
 export interface TemplateSummary {
 	slug: string
 	name: string
@@ -59,9 +59,8 @@ export interface TemplateSummary {
 	locale: TemplateLocale
 	spec: TemplateSpec
 	builtin: boolean
-}
-
-export interface TemplateDetail extends TemplateSummary {
 	/** Kerangka ProseMirror hasil kompilasi Markdown. */
 	content: Record<string, unknown>
 }
+
+export type TemplateDetail = TemplateSummary
