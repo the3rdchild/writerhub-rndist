@@ -215,7 +215,25 @@ export default class AssetsService extends BaseService {
 		}
 	}
 
-	/** Mencatat aset mana yang dirujuk sebuah dokumen - lihat catatan kelas. */
+	/**
+	 * Mencatat aset mana yang dirujuk sebuah dokumen - lihat catatan kelas.
+	 *
+	 * CATATAN, DITUNDA DENGAN SENGAJA: daftarnya datang dari klien, dan klien
+	 * adalah pihak yang diuntungkan kalau ia berbohong. Melaporkan aset yang
+	 * sebenarnya tidak dipakai akan memperluas apa yang bisa dilihat pemegang
+	 * share link dokumen itu - persis kebocoran yang `document_assets` ada untuk
+	 * mencegahnya.
+	 *
+	 * Yang benar adalah menurunkannya di server: isi naskah sudah lewat sini
+	 * lewat `PUT /v1/tabs/:tabId` (`TabsService.update`), jadi tabel ini bisa
+	 * ditulis dari `document_tabs.content` yang baru disimpan dengan memindai
+	 * rujukan `asset://<uuid>` di dalamnya. Endpoint ini lalu hilang seluruhnya,
+	 * dan klien tidak perlu pernah tahu tabelnya ada.
+	 *
+	 * Saringan proyek di bawah membatasi kerusakannya - aset proyek lain tidak
+	 * bisa ditautkan - tapi ia tidak menutup celahnya, hanya mengecilkannya.
+	 * Jangan andalkan endpoint ini sebelum penurunan di server terpasang.
+	 */
 	async setLinks(): Promise<Response> {
 		try {
 			const body = setDocumentAssetsBodySchema.safeParse(await this.context.req.json())

@@ -6,6 +6,8 @@ const assets = createRouter().basePath('/assets')
 
 assets.post('/', authMiddleware, (c) => new AssetsService(c).upload())
 assets.get('/', authMiddleware, (c) => new AssetsService(c).list())
+// Sementara: daftarnya dipercaya dari klien. Rencananya diturunkan server saat
+// isi tab disimpan, dan endpoint ini hilang - alasannya di AssetsService.setLinks.
 assets.put('/links', authMiddleware, (c) => new AssetsService(c).setLinks())
 assets.delete('/:id', authMiddleware, (c) => new AssetsService(c).remove())
 
