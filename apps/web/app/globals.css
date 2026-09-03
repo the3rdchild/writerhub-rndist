@@ -183,6 +183,18 @@ a {
   background: var(--canvas);
 }
 
+/*
+ * Kertas: kotak yang memuat seluruh lembar sekaligus naskahnya.
+ *
+ * Berposisi karena latar tiap lembar diposisikan mutlak terhadapnya. Dulu
+ * peran ini dipegang `.document-zoom-inner`, yang hanya ada di kanvas
+ * penyunting - itu sebabnya tampilan berbagi dan riwayat versi harus
+ * menyusun lembarnya sendiri, lalu menyimpang.
+ */
+.document-paper {
+  position: relative;
+}
+
 .document-sheet {
   background: var(--surface-raised);
   border: 1px solid var(--border-subtle);

@@ -4,10 +4,11 @@ import { EditorContent, useEditor } from '@tiptap/react'
 import { ArrowLeft, Lock } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
+import { DocumentPaper } from '@/components/editor/document-paper'
 import { buildEditorExtensions } from '@/features/editor/extensions'
-import { DEFAULT_PAGE_SETUP, pageGeometry } from '@/features/editor/page-geometry'
-import { paginationKey } from '@/features/editor/pagination'
-import { typographyRules } from '@/features/editor/typography-css'
+import { DEFAULT_PAGE_SETUP, pageGeometry, type SheetGeometry } from '@/features/editor/page-geometry'
+import { DEFAULT_TYPOGRAPHY } from '@/features/editor/typography'
+import { useDocumentGeometry } from '@/features/editor/use-document-geometry'
 import {
 	SHARE_ACCESS_LABELS,
 	SHARE_ROLE_LABELS,
@@ -43,14 +44,24 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 	 * dirancang penulisnya.
 	 */
 	const setup = selectedTab?.layout?.pageSetup ?? payload.layout?.pageSetup ?? DEFAULT_PAGE_SETUP
-	const typography = selectedTab?.layout?.typography ?? payload.layout?.typography ?? null
+	const typography = selectedTab?.layout?.typography ?? payload.layout?.typography ?? DEFAULT_TYPOGRAPHY
+	const furniture = selectedTab?.layout?.furniture ?? payload.layout?.furniture ?? null
 
 	const geometry = useMemo(() => pageGeometry(setup), [setup])
-	const typeRules = useMemo(() => (typography ? typographyRules(typography) : null), [typography])
+
+	// Lembar datang dari paginasi, sama seperti di kanvas: tanpa berlangganan
+	// keduanya, dokumen berhalaman banyak dirender ke satu lembar raksasa.
+	const [pageCount, setPageCount] = useState(1)
+	const [sheets, setSheets] = useState<SheetGeometry[]>([])
 
 	const editor = useEditor({
 		immediatelyRender: false,
-		extensions: buildEditorExtensions({ geometry, setup }),
+		extensions: buildEditorExtensions({
+			geometry,
+			setup,
+			onPageCountChange: setPageCount,
+			onSheetsChange: setSheets,
+		}),
 		content: selectedTab?.content,
 		editable: false,
 		editorProps: {
@@ -74,25 +85,9 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 		[editor, selectedTab],
 	)
 
-	/*
-	 * Extensions hanya dibangun sekali, jadi geometri yang berubah - karena tab
-	 * lain punya penimpanya sendiri - harus didorong lewat meta, persis cara
-	 * `tiptap-editor.tsx` melakukannya. Tanpa ini, berpindah tab memakai lembar
-	 * milik tab sebelumnya.
-	 */
-	useEffect(
-		function pushPageGeometry() {
-			if (!editor) return
-			const transaction = editor.state.tr.setMeta(paginationKey, {
-				geometry,
-				setup,
-				pageless: setup.pageless,
-			})
-			transaction.setMeta('addToHistory', false)
-			editor.view.dispatch(transaction)
-		},
-		[editor, geometry, setup],
-	)
+	// Tab lain boleh punya penimpa tata letaknya sendiri, jadi geometri yang
+	// berubah harus didorong ke paginasi - extensions hanya dibangun sekali.
+	useDocumentGeometry(editor, { geometry, setup })
 
 	const accessLabel = SHARE_ACCESS_LABELS[payload.access]
 	const roleLabel = SHARE_ROLE_LABELS[payload.role]
@@ -127,8 +122,6 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 				</Link>
 			</header>
 
-			{typeRules && <style>{typeRules}</style>}
-
 			<div className="flex flex-1 overflow-hidden">
 				{hasMultipleTabs && (
 					<aside className="w-56 shrink-0 overflow-y-auto border-r border-line px-2 py-4">
@@ -153,37 +146,15 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 
 				<main className="flex flex-1 justify-center overflow-auto px-4 py-6">
 					<div className="document-canvas">
-						<div
-							className="document-sheet relative"
-							style={
-								setup.pageless
-									? { width: geometry.width }
-									: { width: geometry.width, minHeight: geometry.height }
-							}
+						<DocumentPaper
+							setup={setup}
+							typography={typography}
+							furniture={furniture}
+							sheets={sheets}
+							pageCount={pageCount}
 						>
-							{/* Struktur sama dengan kanvas utama: margin jadi padding di
-							    pembungkus dalam, bukan di lembar, dan geometri halaman
-							    diteruskan lewat CSS variables supaya blok HTML mode satu
-							    halaman bisa menembus margin sampai tepi kertas. */}
-							<div
-								className="document-page-padding relative"
-								style={
-									{
-										paddingTop: geometry.margins.top,
-										paddingRight: geometry.margins.right,
-										paddingBottom: geometry.margins.bottom,
-										paddingLeft: geometry.margins.left,
-										'--page-content-height': `${geometry.contentHeight}px`,
-										'--page-width': `${geometry.width}px`,
-										'--page-height': `${geometry.height}px`,
-										'--page-margin-top': `${geometry.margins.top}px`,
-										'--page-margin-left': `${geometry.margins.left}px`,
-									} as React.CSSProperties
-								}
-							>
-								<EditorContent editor={editor} />
-							</div>
-						</div>
+							<EditorContent editor={editor} />
+						</DocumentPaper>
 					</div>
 				</main>
 			</div>

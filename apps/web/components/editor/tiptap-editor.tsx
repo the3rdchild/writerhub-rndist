@@ -15,9 +15,9 @@ import {
 	pageGeometry,
 	type SheetGeometry,
 } from '@/features/editor/page-geometry'
-import { paginationKey } from '@/features/editor/pagination'
 import type { SlashCommandState } from '@/features/editor/slash-command'
 import { editorPlainText, textToParagraphs } from '@/features/editor/text-content'
+import { useDocumentGeometry } from '@/features/editor/use-document-geometry'
 import { useSessions } from '@/features/sessions/session-context'
 import { ImageToolbar } from './image-toolbar'
 import { MathPopover } from './math-popover'
@@ -115,20 +115,7 @@ export function TiptapEditor({
 		},
 		[editor],
 	)
-	useEffect(
-		function pushPageGeometry() {
-			if (!editor) return
-			const transaction = editor.state.tr.setMeta(paginationKey, {
-				geometry,
-				setup,
-				pageless,
-				breakBeforeLevels,
-			})
-			transaction.setMeta('addToHistory', false)
-			editor.view.dispatch(transaction)
-		},
-		[editor, geometry, setup, pageless, breakBeforeLevels],
-	)
+	useDocumentGeometry(editor, { geometry, setup, pageless, breakBeforeLevels })
 	const syncedEditorRef = useRef<Editor | null>(null)
 	useEffect(
 		function syncTextFromDocumentState() {

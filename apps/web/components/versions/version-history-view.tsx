@@ -5,11 +5,12 @@ import { EditorContent, useEditor } from '@tiptap/react'
 import { ArrowLeft, Pin, Plus } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { FEATURE_META } from '@/components/activity/feature-meta'
+import { DocumentPaper } from '@/components/editor/document-paper'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { buildEditorExtensions } from '@/features/editor/extensions'
-import { pageGeometry } from '@/features/editor/page-geometry'
-import { paginationKey } from '@/features/editor/pagination'
-import { typographyRules } from '@/features/editor/typography-css'
+import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
+import { pageGeometry, type SheetGeometry } from '@/features/editor/page-geometry'
+import { useDocumentGeometry } from '@/features/editor/use-document-geometry'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useTypography } from '@/features/editor/use-typography'
 import type { HistoryFeature } from '@/features/history/types'
@@ -95,12 +96,25 @@ export function VersionHistoryView() {
 	 */
 	const { setup } = usePageSetup()
 	const { typography } = useTypography()
+	const { furniture } = usePageFurniture()
 	const geometry = useMemo(() => pageGeometry(setup), [setup])
-	const typeRules = useMemo(() => typographyRules(typography), [typography])
+
+	// Lembar datang dari paginasi, sama seperti di kanvas: tanpa berlangganan
+	// keduanya, versi berhalaman banyak dirender ke satu lembar raksasa.
+	const [pageCount, setPageCount] = useState(1)
+	const [sheets, setSheets] = useState<SheetGeometry[]>([])
 
 	const editor = useEditor({
 		immediatelyRender: false,
-		extensions: [...buildEditorExtensions({ geometry, setup }), VersionDiffHighlight],
+		extensions: [
+			...buildEditorExtensions({
+				geometry,
+				setup,
+				onPageCountChange: setPageCount,
+				onSheetsChange: setSheets,
+			}),
+			VersionDiffHighlight,
+		],
 		editable: false,
 		editorProps: {
 			attributes: {
@@ -136,24 +150,9 @@ export function VersionHistoryView() {
 		[editor, selectedContent, showDiff, selectedId, draftText],
 	)
 
-	/*
-	 * Extensions hanya dibangun sekali, jadi geometri yang berubah - penulis
-	 * mengganti ukuran kertas selagi riwayat terbuka - harus didorong lewat
-	 * meta, persis cara `tiptap-editor.tsx` melakukannya.
-	 */
-	useEffect(
-		function pushPageGeometry() {
-			if (!editor) return
-			const transaction = editor.state.tr.setMeta(paginationKey, {
-				geometry,
-				setup,
-				pageless: setup.pageless,
-			})
-			transaction.setMeta('addToHistory', false)
-			editor.view.dispatch(transaction)
-		},
-		[editor, geometry, setup],
-	)
+	// Penulis boleh mengganti ukuran kertas selagi riwayat terbuka, jadi
+	// geometri yang berubah harus didorong ke paginasi.
+	useDocumentGeometry(editor, { geometry, setup })
 
 	const grouped = useMemo(() => {
 		const map = new Map<string, VersionSummary[]>()
@@ -202,7 +201,6 @@ export function VersionHistoryView() {
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col bg-background">
-			<style>{typeRules}</style>
 			<header className="flex shrink-0 items-center gap-3 border-b border-line bg-surface px-4 py-3">
 				<button
 					type="button"
@@ -224,37 +222,15 @@ export function VersionHistoryView() {
 			<div className="flex min-h-0 flex-1">
 				<main className="relative flex min-w-0 flex-1 justify-center overflow-auto px-4 py-6">
 					<div className="document-canvas">
-						<div
-							className="document-sheet relative"
-							style={
-								setup.pageless
-									? { width: geometry.width }
-									: { width: geometry.width, minHeight: geometry.height }
-							}
+						<DocumentPaper
+							setup={setup}
+							typography={typography}
+							furniture={furniture}
+							sheets={sheets}
+							pageCount={pageCount}
 						>
-							{/* Struktur sama dengan kanvas utama: margin jadi padding di
-							    pembungkus dalam, bukan di lembar, dan geometri halaman
-							    diteruskan lewat CSS variables supaya blok HTML mode satu
-							    halaman bisa menembus margin sampai tepi kertas. */}
-							<div
-								className="document-page-padding relative"
-								style={
-									{
-										paddingTop: geometry.margins.top,
-										paddingRight: geometry.margins.right,
-										paddingBottom: geometry.margins.bottom,
-										paddingLeft: geometry.margins.left,
-										'--page-content-height': `${geometry.contentHeight}px`,
-										'--page-width': `${geometry.width}px`,
-										'--page-height': `${geometry.height}px`,
-										'--page-margin-top': `${geometry.margins.top}px`,
-										'--page-margin-left': `${geometry.margins.left}px`,
-									} as React.CSSProperties
-								}
-							>
-								<EditorContent editor={editor} />
-							</div>
-						</div>
+							<EditorContent editor={editor} />
+						</DocumentPaper>
 					</div>
 					{selectedId !== null && detail.isPending && (
 						<div className="absolute inset-0 flex items-center justify-center bg-background/60">
