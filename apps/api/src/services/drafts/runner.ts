@@ -5,6 +5,7 @@ import { updateTab } from '@/repository/document-tab'
 import { snapshotIntervalTab } from '@/services/tabs/service'
 import type { SectionColumns } from '@/services/templates/section-columns'
 import { withColumnsAfterTitle } from '@/services/templates/section-columns'
+import type { DesignCanvas } from './design-repair'
 import { toDraftFailure } from './failure'
 import { generateDraftMarkdown, type ProviderConfig } from './generation'
 import { headingTitle, markdownToDoc } from './markdown-doc'
@@ -70,6 +71,8 @@ export interface DraftGeneration {
 	 * bawaannya.
 	 */
 	designLayout?: TabLayout
+	/** Lembar yang sama, dalam piksel - dipakai menambal ukuran tetap. */
+	canvas?: DesignCanvas
 }
 
 /**
@@ -107,6 +110,7 @@ async function writeDraft(
 		columns,
 		allowHtmlBlock,
 		designLayout,
+		canvas,
 	}: DraftGeneration,
 	targetCharacters: number,
 	deadline: number,
@@ -127,7 +131,7 @@ async function writeDraft(
 	try {
 		await progress('saving', markdown.length)
 
-		const generated = markdownToDoc(markdown, { allowHtmlBlock })
+		const generated = markdownToDoc(markdown, { allowHtmlBlock, canvas })
 		/*
 		 * Rancangan satu halaman tidak punya badan naskah untuk dikolomkan - ia
 		 * satu blok yang mengisi seluruh lembar. Memasang pembatas section di

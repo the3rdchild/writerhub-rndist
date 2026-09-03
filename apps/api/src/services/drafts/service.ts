@@ -9,7 +9,7 @@ import { findTemplateBySlug } from '@/repository/template'
 import JobSubmissionService from '@/services/job-submission.service'
 import { snapshotIntervalTab } from '@/services/tabs/service'
 import { templateDocumentLayout, templateTabLayout } from '@/services/templates/layout'
-import { designLayout } from './design-layout'
+import { designCanvas, designLayout } from './design-layout'
 import { type DraftRequest, draftRequestSchema } from './dto'
 import { type ProviderConfig, providerConfig } from './generation'
 import { headingTitle, markdownToDoc, type ProseMirrorDoc } from './markdown-doc'
@@ -128,7 +128,10 @@ export default class DraftsService extends JobSubmissionService {
 		template: Template | null,
 	): Promise<Response> {
 		const title = body.title ?? headingTitle(markdown) ?? this.promptTitle(body.prompt) ?? FALLBACK_TITLE
-		const content = markdownToDoc(markdown, { allowHtmlBlock: allowsDesign(body) })
+		const content = markdownToDoc(markdown, {
+			allowHtmlBlock: allowsDesign(body),
+			canvas: designCanvas(body.prompt),
+		})
 		// Naskahnya sudah ada, jadi bentuknya sudah pasti di sini - lembarnya bisa
 		// langsung disetel saat dokumen dibuat, tanpa perlu diperbaiki menyusul.
 		const layout = isDesignDoc(content) ? designLayout(body.prompt) : null
@@ -197,6 +200,7 @@ export default class DraftsService extends JobSubmissionService {
 			// memegangnya; runner memakainya cuma kalau jawabannya ternyata
 			// benar-benar sebuah rancangan.
 			designLayout: designLayout(request.prompt),
+			canvas: designCanvas(request.prompt),
 		})
 	}
 

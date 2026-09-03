@@ -1,3 +1,4 @@
+import { type DesignCanvas, repairDesignHtml } from './design-repair'
 /**
  * Menerjemahkan Markdown menjadi dokumen ProseMirror - bentuk yang disimpan
  * kolom `content` pada `document_tabs`.
@@ -363,6 +364,11 @@ function htmlBlockNode(html: string): DocNode {
 
 export interface MarkdownDocOptions {
 	/**
+	 * Ukuran lembar yang akan ditempati rancangan. Ada supaya ukuran tetap
+	 * sebesar kertas bisa dikembalikan jadi `100%` - lihat `design-repair.ts`.
+	 */
+	canvas?: DesignCanvas
+	/**
 	 * Izin menjadikan jawaban satu-pagar-html sebagai blok rancangan alih-alih
 	 * blok kode. Mati secara bawaan: mengubah pagar HTML menjadi rancangan tanpa
 	 * diminta akan menelan contoh kode di dalam artikel teknis.
@@ -373,7 +379,10 @@ export interface MarkdownDocOptions {
 export function markdownToDoc(markdown: string, options: MarkdownDocOptions = {}): ProseMirrorDoc {
 	if (options.allowHtmlBlock) {
 		const html = singleHtmlBlock(markdown)
-		if (html) return { type: 'doc', content: [htmlBlockNode(html)] }
+		if (html) {
+			const repaired = options.canvas ? repairDesignHtml(html, options.canvas).html : html
+			return { type: 'doc', content: [htmlBlockNode(repaired)] }
+		}
 	}
 
 	const lines = markdown.replace(/\r\n/g, '\n').split('\n')
