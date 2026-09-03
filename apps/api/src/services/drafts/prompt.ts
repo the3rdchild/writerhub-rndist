@@ -25,6 +25,52 @@ export const DRAFT_SYSTEM_PROMPT = [
 	'section - no placeholders like "[isi di sini]" and no outline-only drafts.',
 ].join(' ')
 
+/**
+ * Naskah berupa rancangan satu halaman, bukan prosa.
+ *
+ * Aturannya nyaris sama dengan `insert_html_block` di AI Chat, dan memang harus
+ * begitu: keduanya berakhir di blok yang sama, dirender bingkai terkurung yang
+ * sama (`html-sandbox.ts`), dan diratakan jadi gambar oleh pengekspor yang sama.
+ * Satu-satunya beda, di sini tidak ada editor yang bisa ditanyai geometrinya -
+ * jadi rancangannya harus mengisi ruang yang diberikan, berapa pun ukurannya.
+ */
+export const DRAFT_FLYER_PROMPT = [
+	'Return ONE fenced ```html block and nothing else - no prose before or',
+	'after it, no explanation, no second block.',
+	'Inside it, write the body markup of a self-contained one-page design.',
+	'Give the root element width:100% and height:100% and lay everything out',
+	'inside it: the frame you are given IS the sheet, so never hardcode pixel',
+	'dimensions, and anything taller than it is cut off at the page edge rather',
+	'than scaled down.',
+	'All CSS must be inline or in a <style> tag inside the block.',
+	'NOTHING loads from a URL - no icon library, no web font, no remote image.',
+	'Draw icons, logos, badges and decorative shapes as inline <svg>: markup is',
+	'not a network request, so it renders, prints as vector, and survives export.',
+	'Write the path data yourself, and do not let emoji stand in for icons.',
+	'Raster images must be data: URIs; fonts must be data: URIs or system fonts.',
+	'Scripts never run, so the design must be complete without them.',
+	'Design it properly: real typographic hierarchy, layered shapes, gradients',
+	'and custom SVG iconography - not a coloured box with text on it.',
+].join(' ')
+
+/**
+ * Izin memilih sendiri, dipakai saat pemanggil tidak menyatakan bentuknya.
+ *
+ * Diletakkan sebagai satu kalimat di ujung prompt dokumen, bukan sebagai prompt
+ * ketiga: yang dibutuhkan model hanyalah tahu bahwa pintu keluar itu ada.
+ * Deteksinya di sisi kami sengaja sempit - hanya jawaban yang seluruhnya satu
+ * pagar ```html yang dianggap rancangan (lihat `markdown-doc.ts`), jadi artikel
+ * yang kebetulan memuat contoh HTML tetap jadi dokumen biasa.
+ */
+export const DRAFT_AUTO_CLAUSE = [
+	'EXCEPTION: if the request is for a flyer, poster, pamphlet, banner,',
+	'one-pager, certificate or invitation - anything whose whole point is a',
+	'visual one-page layout rather than running text - do not write a document.',
+	'Answer instead with ONE fenced ```html block and nothing else, following',
+	'these rules:',
+	DRAFT_FLYER_PROMPT,
+].join(' ')
+
 /** Register per permintaan, memakai daftar tone yang sama dengan Paraphraser. */
 export function tonePrompt(tone: RewriterTone | undefined): string {
 	const selected = tone ? REWRITE_TONES.find((item) => item.id === tone) : undefined
@@ -62,16 +108,27 @@ export function buildDraftMessages(
 	memory: StyleMemory | null,
 	templateRules?: string[],
 ): Array<{ role: string; content: string }> {
-	const system = [
-		DRAFT_SYSTEM_PROMPT,
-		languagePrompt(request.language),
-		tonePrompt(request.tone),
-		lengthPrompt(request.words),
-		memoryPrompt(memory),
-		templateRulesPrompt(templateRules),
-	]
-		.filter(Boolean)
-		.join('\n\n')
+	/*
+	 * Rancangan satu halaman tidak punya panjang kata, register, maupun aturan
+	 * format template yang berarti - semuanya menggambarkan prosa. Menyisipkan
+	 * keduanya hanya mengaburkan satu-satunya perintah yang penting di sini.
+	 */
+	const system =
+		request.kind === 'flyer'
+			? [DRAFT_FLYER_PROMPT, languagePrompt(request.language)].filter(Boolean).join('\n\n')
+			: [
+					DRAFT_SYSTEM_PROMPT,
+					languagePrompt(request.language),
+					tonePrompt(request.tone),
+					lengthPrompt(request.words),
+					memoryPrompt(memory),
+					templateRulesPrompt(templateRules),
+					// Template menyatakan bentuknya sendiri; jangan tawarkan pintu
+					// keluar yang bertentangan dengan kerangka yang sudah dipilih.
+					request.kind === 'document' || templateRules?.length ? '' : DRAFT_AUTO_CLAUSE,
+				]
+					.filter(Boolean)
+					.join('\n\n')
 
 	return [
 		{ role: 'system', content: system },

@@ -33,6 +33,13 @@ export interface ProseMirrorDoc extends Record<string, unknown> {
 	content: DocNode[]
 }
 
+/** Nama node blok rancangan di skema editor (`apps/web/features/editor/html-block.ts`). */
+const HTML_BLOCK = 'htmlBlock'
+/** Bawaan tinggi blok sisipan. Mode halaman mengabaikannya, tapi skemanya menuntut angka. */
+const HTML_BLOCK_HEIGHT = 320
+
+const HTML_FENCE = /^```html\s*$/i
+
 const TABLE_DIVIDER = /^\s*\|?[\s:-]*-[\s|:-]*\|?\s*$/
 const HORIZONTAL_RULE = /^(?:-{3,}|\*{3,}|_{3,})$/
 const HEADING = /^(#{1,6})\s+(.*)$/
@@ -237,7 +244,91 @@ const BLOCK_READERS: BlockReader[] = [
 	readParagraph,
 ]
 
-export function markdownToDoc(markdown: string): ProseMirrorDoc {
+/**
+ * HTML rancangan satu halaman, kalau jawabannya memang berupa itu.
+ *
+ * Deteksinya sengaja sempit: seluruh jawaban harus **hanya** satu pagar
+ * ```html, paling banyak didahului satu baris judul. Prosa sebelum atau
+ * sesudahnya membatalkannya, dan itu justru maksudnya - artikel yang memuat
+ * contoh HTML adalah dokumen, dan potongan itu memang harus tetap jadi blok
+ * kode. Menebak lebih agresif berarti sesekali menelan naskah pengguna ke dalam
+ * bingkai terkurung, dan itu kesalahan yang jauh lebih mahal daripada
+ * kebalikannya.
+ *
+ * Judul di depan dibiarkan lewat karena model sering tetap menuliskannya meski
+ * diminta hanya satu pagar - dan judul itu berguna: `headingTitle` memungutnya
+ * sebagai judul dokumen, jadi ia tidak hilang, hanya pindah tempat.
+ */
+export function singleHtmlBlock(markdown: string): string | null {
+	const lines = markdown.replace(/\r\n/g, '\n').split('\n')
+
+	let index = 0
+	let headings = 0
+	while (index < lines.length) {
+		const line = lines[index].trim()
+		if (!line) {
+			index += 1
+			continue
+		}
+		if (HEADING.test(line) && headings === 0) {
+			headings += 1
+			index += 1
+			continue
+		}
+		break
+	}
+
+	if (index >= lines.length || !HTML_FENCE.test(lines[index].trim())) return null
+
+	const body: string[] = []
+	let cursor = index + 1
+	while (cursor < lines.length && !lines[cursor].trim().startsWith('```')) {
+		body.push(lines[cursor])
+		cursor += 1
+	}
+	// Pagar yang tidak pernah ditutup berarti jawabannya terpotong; menyimpannya
+	// sebagai rancangan berarti menyimpan HTML yang separuh.
+	if (cursor >= lines.length) return null
+
+	for (let after = cursor + 1; after < lines.length; after += 1) {
+		if (lines[after].trim()) return null
+	}
+
+	const html = body.join('\n').trim()
+	return html || null
+}
+
+function htmlBlockNode(html: string): DocNode {
+	return {
+		type: HTML_BLOCK,
+		attrs: {
+			html,
+			fit: 'page',
+			height: HTML_BLOCK_HEIGHT,
+			// Potretan adalah turunan yang dibuat editor saat blok ini terlihat;
+			// server tidak punya DOM untuk membuatnya, dan tidak perlu.
+			snapshot: '',
+			snapshotWidth: 0,
+			snapshotHeight: 0,
+		},
+	}
+}
+
+export interface MarkdownDocOptions {
+	/**
+	 * Izin menjadikan jawaban satu-pagar-html sebagai blok rancangan alih-alih
+	 * blok kode. Mati secara bawaan: mengubah pagar HTML menjadi rancangan tanpa
+	 * diminta akan menelan contoh kode di dalam artikel teknis.
+	 */
+	allowHtmlBlock?: boolean
+}
+
+export function markdownToDoc(markdown: string, options: MarkdownDocOptions = {}): ProseMirrorDoc {
+	if (options.allowHtmlBlock) {
+		const html = singleHtmlBlock(markdown)
+		if (html) return { type: 'doc', content: [htmlBlockNode(html)] }
+	}
+
 	const lines = markdown.replace(/\r\n/g, '\n').split('\n')
 	const content: DocNode[] = []
 	let index = 0

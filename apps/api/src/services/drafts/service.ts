@@ -35,6 +35,18 @@ const EMPTY_CONTENT: ProseMirrorDoc = { type: 'doc', content: [{ type: 'paragrap
 const TITLE_FROM_PROMPT_CHARS = 80
 const FALLBACK_TITLE = 'Draf tanpa judul'
 
+/**
+ * Apakah jawaban model boleh berakhir sebagai blok rancangan.
+ *
+ * `document` menutupnya rapat - pemanggil sudah menyatakan ia mau prosa, dan
+ * contoh HTML di dalam artikel teknis harus tetap jadi blok kode. Dua nilai
+ * lainnya membukanya; deteksinya sendiri sempit (`singleHtmlBlock`), jadi
+ * membuka pintu ini tidak berarti setiap pagar HTML berubah bentuk.
+ */
+function allowsDesign(request: DraftRequest): boolean {
+	return request.kind !== 'document'
+}
+
 export default class DraftsService extends JobSubmissionService {
 	async create(): Promise<Response> {
 		try {
@@ -110,7 +122,7 @@ export default class DraftsService extends JobSubmissionService {
 		template: Template | null,
 	): Promise<Response> {
 		const title = body.title ?? headingTitle(markdown) ?? this.promptTitle(body.prompt) ?? FALLBACK_TITLE
-		const content = markdownToDoc(markdown)
+		const content = markdownToDoc(markdown, { allowHtmlBlock: allowsDesign(body) })
 		const { document, tab } = await this.createDocument(title, content, projectId, template)
 
 		await snapshotIntervalTab(tab.id, content, this.ownerId())
@@ -171,6 +183,7 @@ export default class DraftsService extends JobSubmissionService {
 			// sendiri; judul yang ditentukan pemanggil tidak boleh ditimpa.
 			titleFromHeading: !request.title,
 			words: request.words,
+			allowHtmlBlock: allowsDesign(request),
 		})
 	}
 

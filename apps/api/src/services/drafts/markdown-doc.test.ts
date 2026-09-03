@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { headingTitle, markdownToDoc } from './markdown-doc'
+import { headingTitle, markdownToDoc, singleHtmlBlock } from './markdown-doc'
 
 describe('markdownToDoc', () => {
 	test('judul menjadi heading dengan levelnya', () => {
@@ -137,5 +137,69 @@ describe('headingTitle', () => {
 
 	test('null kalau tidak ada heading sama sekali', () => {
 		expect(headingTitle('cuma paragraf biasa')).toBeNull()
+	})
+})
+
+const FLYER = ['```html', '<div style="height:100%">Aksi</div>', '```'].join('\n')
+
+describe('rancangan satu halaman', () => {
+	test('jawaban satu pagar html menjadi blok rancangan', () => {
+		const doc = markdownToDoc(FLYER, { allowHtmlBlock: true })
+
+		expect(doc.content).toHaveLength(1)
+		expect(doc.content[0].type).toBe('htmlBlock')
+		expect(doc.content[0].attrs?.fit).toBe('page')
+		expect(doc.content[0].attrs?.html).toBe('<div style="height:100%">Aksi</div>')
+	})
+
+	/*
+	 * Judul di depan dibiarkan lewat karena model sering tetap menuliskannya.
+	 * Ia tidak hilang - `headingTitle` memungutnya sebagai judul dokumen - tapi
+	 * ia tidak boleh ikut sebagai node, karena blok mode halaman mengisi satu
+	 * lembar penuh dan apa pun di atasnya mendorongnya ke lembar kedua.
+	 */
+	test('judul di depan dipungut sebagai judul, bukan sebagai node', () => {
+		const source = `# Aksi Demo\n\n${FLYER}`
+		const doc = markdownToDoc(source, { allowHtmlBlock: true })
+
+		expect(doc.content).toHaveLength(1)
+		expect(doc.content[0].type).toBe('htmlBlock')
+		expect(headingTitle(source)).toBe('Aksi Demo')
+	})
+
+	test('tanpa izin, pagar html tetap jadi blok kode', () => {
+		const doc = markdownToDoc(FLYER)
+
+		expect(doc.content[0].type).toBe('codeBlock')
+		expect(doc.content[0].attrs?.language).toBe('html')
+	})
+
+	/*
+	 * Batas yang paling penting: artikel yang MEMBICARAKAN HTML adalah dokumen,
+	 * dan potongannya harus tetap jadi blok kode. Menebak lebih agresif berarti
+	 * sesekali menelan naskah pengguna ke dalam bingkai terkurung.
+	 */
+	test('prosa di sekitar pagar membatalkannya', () => {
+		const before = markdownToDoc(`Contohnya begini:\n\n${FLYER}`, { allowHtmlBlock: true })
+		expect(before.content.some((node) => node.type === 'htmlBlock')).toBe(false)
+
+		const after = markdownToDoc(`${FLYER}\n\nBegitulah cara kerjanya.`, { allowHtmlBlock: true })
+		expect(after.content.some((node) => node.type === 'htmlBlock')).toBe(false)
+	})
+
+	test('dua pagar bukan satu rancangan', () => {
+		expect(singleHtmlBlock(`${FLYER}\n\n${FLYER}`)).toBeNull()
+	})
+
+	test('pagar yang tidak pernah ditutup ditolak', () => {
+		expect(singleHtmlBlock('```html\n<div>separuh')).toBeNull()
+	})
+
+	test('bahasa lain bukan rancangan', () => {
+		expect(singleHtmlBlock('```js\nalert(1)\n```')).toBeNull()
+	})
+
+	test('pagar html kosong ditolak', () => {
+		expect(singleHtmlBlock('```html\n\n```')).toBeNull()
 	})
 })

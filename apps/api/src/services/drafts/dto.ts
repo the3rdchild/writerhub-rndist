@@ -30,6 +30,23 @@ export const draftRequestSchema = z
 		// kemajuan hanya jujur kalau panjangnya memang yang kami minta.
 		words: z.number().int().min(MIN_TARGET_WORDS).max(MAX_TARGET_WORDS).optional(),
 		language: z.string().trim().min(1).max(32).optional(),
+		/**
+		 * Bentuk naskah yang diminta.
+		 *
+		 * `document` menghasilkan prosa Markdown - itu yang selalu terjadi
+		 * sebelumnya, apa pun yang tertulis di `prompt`. Permintaan "buatkan
+		 * flyer" pun keluar sebagai dokumen berjudul dan berparagraf, karena
+		 * satu-satunya bentuk yang dikenal jalur ini adalah dokumen.
+		 *
+		 * `flyer` menghasilkan satu rancangan HTML mandiri yang mengisi satu
+		 * halaman penuh - flyer, poster, one-pager, sertifikat, undangan.
+		 *
+		 * `auto` (bawaan) menyerahkan pilihannya ke model berdasarkan
+		 * permintaannya sendiri. Ia dipilih sebagai bawaan karena pemanggil
+		 * eksternal sering hanya meneruskan kalimat penggunanya apa adanya, dan
+		 * tidak punya tempat untuk menyatakan bentuk yang diinginkan.
+		 */
+		kind: z.enum(['auto', 'document', 'flyer']).optional(),
 		projectId: z.uuid().optional(),
 		/** Template yang melahirkan dokumen; aturan formatnya ikut ke prompt penulisan. */
 		templateSlug: z.string().trim().min(1).max(64).optional(),

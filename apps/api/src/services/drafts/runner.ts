@@ -56,6 +56,12 @@ export interface DraftGeneration {
 	columns?: SectionColumns
 	/** Panjang yang diminta pemanggil; dasar taksiran kemajuan. */
 	words?: number
+	/**
+	 * Izin menjadikan jawaban satu-pagar-html sebagai blok rancangan. Ikut ke
+	 * sini dan tidak disimpulkan ulang dari prompt: yang menentukan bentuk
+	 * naskah adalah permintaannya, dan permintaan itu hanya ada di service.
+	 */
+	allowHtmlBlock?: boolean
 }
 
 /**
@@ -82,7 +88,17 @@ export async function startDraftGeneration(input: DraftGeneration): Promise<void
 }
 
 async function writeDraft(
-	{ documentId, tabId, ownerId, createdBy, provider, messages, titleFromHeading, columns }: DraftGeneration,
+	{
+		documentId,
+		tabId,
+		ownerId,
+		createdBy,
+		provider,
+		messages,
+		titleFromHeading,
+		columns,
+		allowHtmlBlock,
+	}: DraftGeneration,
 	targetCharacters: number,
 	deadline: number,
 ): Promise<void> {
@@ -102,8 +118,14 @@ async function writeDraft(
 	try {
 		await progress('saving', markdown.length)
 
-		const generated = markdownToDoc(markdown)
-		const content = columns ? withColumnsAfterTitle(generated, columns) : generated
+		const generated = markdownToDoc(markdown, { allowHtmlBlock })
+		/*
+		 * Rancangan satu halaman tidak punya badan naskah untuk dikolomkan - ia
+		 * satu blok yang mengisi seluruh lembar. Memasang pembatas section di
+		 * atasnya hanya mendorongnya ke halaman kedua.
+		 */
+		const isDesign = generated.content.length === 1 && generated.content[0].type === 'htmlBlock'
+		const content = columns && !isDesign ? withColumnsAfterTitle(generated, columns) : generated
 		const title = titleFromHeading ? headingTitle(markdown) : null
 
 		await updateTab(tabId, { content, ...(title ? { title } : {}) })
