@@ -57,6 +57,7 @@ export default class ShareService extends BaseService {
 				.select({
 					documentId: shares.document_id,
 					documentTitle: documents.title,
+					documentLayout: documents.layout,
 					access: shares.access,
 					role: shares.role,
 					createdAt: shares.created_at,
@@ -73,14 +74,25 @@ export default class ShareService extends BaseService {
 			}
 
 			const tabs = await findTabsByDocument(row.documentId)
+			/*
+			 * Tata letak ikut dikirim - dasar dokumen plus penimpa tiap tab.
+			 * Penerima tautan tidak punya Y.Doc, jadi tanpa ini ia tidak punya
+			 * cara tahu ukuran kertas, margin, maupun huruf dokumennya, dan
+			 * merendernya dengan bawaan A4 potret margin satu inci. Untuk naskah
+			 * biasa itu terlihat sekadar berbeda; untuk rancangan satu halaman -
+			 * flyer, poster - ia salah bentuk, karena blok itu ukurannya persis
+			 * kotak konten halaman.
+			 */
 			const response: SharedDocumentResponse = {
 				documentTitle: row.documentTitle,
+				layout: row.documentLayout ?? null,
 				tabs: tabs.map((tab) => ({
 					id: tab.id,
 					title: tab.title,
 					emoji: tab.emoji,
 					language: tab.language,
 					content: tab.content,
+					layout: tab.layout ?? null,
 				})),
 				access: row.access,
 				role: row.role,

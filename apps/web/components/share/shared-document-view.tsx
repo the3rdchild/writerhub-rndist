@@ -5,7 +5,9 @@ import { ArrowLeft, Lock } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { buildEditorExtensions } from '@/features/editor/extensions'
-import { pageGeometry } from '@/features/editor/page-geometry'
+import { DEFAULT_PAGE_SETUP, pageGeometry } from '@/features/editor/page-geometry'
+import { paginationKey } from '@/features/editor/pagination'
+import { typographyRules } from '@/features/editor/typography-css'
 import {
 	SHARE_ACCESS_LABELS,
 	SHARE_ROLE_LABELS,
@@ -29,10 +31,26 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 		[payload.tabs, selectedTabId],
 	)
 
-	const geometry = useMemo(() => pageGeometry(), [])
+	/*
+	 * Tata letak datang dari muatan share, bukan dari bawaan.
+	 *
+	 * Penerima tautan tidak punya Y.Doc - tempat penyunting menyimpan ukuran
+	 * kertas, margin, dan tipografinya - jadi keduanya dikirim server
+	 * (`ShareService.getByToken`). Urutannya sama dengan `resolvePageSetup` di
+	 * `sessions/ydoc.ts`: penimpa tab menang atas dasar dokumen, lalu bawaan.
+	 * Tanpa ini rancangan satu halaman selalu salah bentuk, karena tingginya
+	 * persis kotak konten halaman - halaman yang ternyata bukan halaman yang
+	 * dirancang penulisnya.
+	 */
+	const setup = selectedTab?.layout?.pageSetup ?? payload.layout?.pageSetup ?? DEFAULT_PAGE_SETUP
+	const typography = selectedTab?.layout?.typography ?? payload.layout?.typography ?? null
+
+	const geometry = useMemo(() => pageGeometry(setup), [setup])
+	const typeRules = useMemo(() => (typography ? typographyRules(typography) : null), [typography])
+
 	const editor = useEditor({
 		immediatelyRender: false,
-		extensions: buildEditorExtensions({ geometry }),
+		extensions: buildEditorExtensions({ geometry, setup }),
 		content: selectedTab?.content,
 		editable: false,
 		editorProps: {
@@ -54,6 +72,26 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 			return () => window.clearTimeout(timer)
 		},
 		[editor, selectedTab],
+	)
+
+	/*
+	 * Extensions hanya dibangun sekali, jadi geometri yang berubah - karena tab
+	 * lain punya penimpanya sendiri - harus didorong lewat meta, persis cara
+	 * `tiptap-editor.tsx` melakukannya. Tanpa ini, berpindah tab memakai lembar
+	 * milik tab sebelumnya.
+	 */
+	useEffect(
+		function pushPageGeometry() {
+			if (!editor) return
+			const transaction = editor.state.tr.setMeta(paginationKey, {
+				geometry,
+				setup,
+				pageless: setup.pageless,
+			})
+			transaction.setMeta('addToHistory', false)
+			editor.view.dispatch(transaction)
+		},
+		[editor, geometry, setup],
 	)
 
 	const accessLabel = SHARE_ACCESS_LABELS[payload.access]
@@ -89,6 +127,8 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 				</Link>
 			</header>
 
+			{typeRules && <style>{typeRules}</style>}
+
 			<div className="flex flex-1 overflow-hidden">
 				{hasMultipleTabs && (
 					<aside className="w-56 shrink-0 overflow-y-auto border-r border-line px-2 py-4">
@@ -115,7 +155,11 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 					<div className="document-canvas">
 						<div
 							className="document-sheet relative"
-							style={{ width: geometry.width, minHeight: geometry.height }}
+							style={
+								setup.pageless
+									? { width: geometry.width }
+									: { width: geometry.width, minHeight: geometry.height }
+							}
 						>
 							{/* Struktur sama dengan kanvas utama: margin jadi padding di
 							    pembungkus dalam, bukan di lembar, dan geometri halaman

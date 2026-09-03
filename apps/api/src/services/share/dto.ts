@@ -1,3 +1,4 @@
+import type { TabLayout, TabLayoutOverride } from '@writer-hub/shared'
 import { z } from 'zod'
 
 export const shareAccessSchema = z.enum(['anyone', 'restricted'])
@@ -17,6 +18,13 @@ export interface SharedTab {
 	emoji: string | null
 	language: string | null
 	content: Record<string, unknown>
+	/**
+	 * Penimpa tata letak milik tab ini; null berarti ia mengikuti dasar
+	 * dokumen. Ikut dikirim karena penerima tautan tidak punya Y.Doc - tanpa
+	 * ini ia merender naskah orang lain dengan ukuran kertas, margin, dan huruf
+	 * bawaan, dan rancangan satu halaman jadi salah bentuk.
+	 */
+	layout: TabLayoutOverride | null
 }
 
 export interface CreateShareResponse {
@@ -31,6 +39,8 @@ export interface CreateShareResponse {
 
 export interface SharedDocumentResponse {
 	documentTitle: string
+	/** Tata letak dasar dokumen; tab bisa menimpanya lewat `SharedTab.layout`. */
+	layout: TabLayout | null
 	tabs: SharedTab[]
 	access: 'anyone' | 'restricted'
 	role: 'viewer' | 'commenter' | 'editor'

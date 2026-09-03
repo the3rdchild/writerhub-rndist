@@ -1,4 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
+import type { TabLayout, TabLayoutOverride } from '@writer-hub/shared'
 export type ShareAccess = 'anyone' | 'restricted'
 export type ShareRole = 'viewer' | 'commenter' | 'editor'
 
@@ -8,10 +9,14 @@ export interface SharedTab {
 	emoji: string | null
 	language: string | null
 	content: JSONContent
+	/** Penimpa tata letak tab ini; null berarti mengikuti dasar dokumen. */
+	layout: TabLayoutOverride | null
 }
 
 export interface SharePayload {
 	documentTitle: string
+	/** Tata letak dasar dokumen; tab bisa menimpanya lewat `SharedTab.layout`. */
+	layout: TabLayout | null
 	tabs: SharedTab[]
 	access: ShareAccess
 	role: ShareRole
