@@ -180,6 +180,28 @@ describe('apply_template_format', () => {
 	})
 })
 
+describe('insert_html_block', () => {
+	const tool = EDITOR_TOOLS.find((item) => item.name === 'insert_html_block')
+
+	/*
+	 * Bingkainya menutup jaringan rapat-rapat, jadi ikon tidak bisa datang dari
+	 * mana pun kecuali ditulis sendiri. Deskripsi lamanya cuma bilang gambar
+	 * harus ber-URI `data:` - kalimat yang terbaca seperti larangan gambar, dan
+	 * mendorong model memakai emoji sebagai ikon. Inline SVG harus disebut
+	 * eksplisit, karena deskripsi inilah satu-satunya yang dibaca model.
+	 */
+	test('menyebut inline SVG sebagai cara membuat ikon', () => {
+		expect(tool?.description).toContain('inline <svg>')
+	})
+
+	test('menutup jalan yang tidak akan berhasil', () => {
+		// Tidak ada yang bisa dimuat lewat URL, dan `<img>` berisi SVG rapuh di
+		// jalur ekspor DOCX.
+		expect(tool?.description).toContain('NOTHING loads from a URL')
+		expect(tool?.description).toContain('data:image/svg+xml')
+	})
+})
+
 describe('insert_toc', () => {
 	const tool = EDITOR_TOOLS.find((item) => item.name === 'insert_toc')
 
