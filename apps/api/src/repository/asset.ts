@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, count, desc, eq, inArray } from 'drizzle-orm'
 import db from '@/db'
 import type { NewAsset } from '@/db/schemas'
 import { assets, documentAssets } from '@/db/schemas'
@@ -21,6 +21,11 @@ export async function findAssetByChecksum(projectId: string, checksum: string) {
 		.where(and(eq(assets.project_id, projectId), eq(assets.checksum, checksum)))
 		.limit(1)
 	return row ?? null
+}
+
+export async function countAssetsInProject(projectId: string): Promise<number> {
+	const [row] = await db.select({ total: count() }).from(assets).where(eq(assets.project_id, projectId))
+	return row?.total ?? 0
 }
 
 export async function findAssetsByProject(projectId: string) {

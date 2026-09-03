@@ -86,7 +86,13 @@ export const env = {
 	/** Umur URL aset dalam detik. Cukup untuk merender, terlalu pendek untuk dibagikan. */
 	ASSET_URL_TTL_SECONDS: num('ASSET_URL_TTL_SECONDS', 900),
 	/** Batas ukuran satu berkas aset, dalam megabyte. */
-	ASSET_MAX_MB: num('ASSET_MAX_MB', 5),
+	ASSET_MAX_MB: num('ASSET_MAX_MB', 3),
+	/**
+	 * Batas jumlah aset per proyek. Bukan penagihan melainkan rem: tanpa angka
+	 * apa pun, satu unggahan massal yang keliru bisa mengisi bucket tanpa ada
+	 * yang menyadarinya sampai tagihannya datang.
+	 */
+	ASSET_MAX_PER_PROJECT: num('ASSET_MAX_PER_PROJECT', 500),
 
 	// ── Antrean worker (nama harus sama persis dengan services/worker) ──────
 	GRAMMAR_QUEUE_NAME: str('GRAMMAR_QUEUE_NAME', 'GRAMMAR_QUEUE'),

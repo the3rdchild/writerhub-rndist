@@ -9,6 +9,7 @@ import { canAccessProject } from '@/lib/project-access'
 import { verifyAsset } from '@/lib/signed-url'
 import { sanitizeSvg } from '@/lib/svg-sanitize'
 import {
+	countAssetsInProject,
 	deleteAsset,
 	findAssetByChecksum,
 	findAssetById,
@@ -72,6 +73,17 @@ export default class AssetsService extends BaseService {
 			const existing = await findAssetByChecksum(body.data.projectId, checksum)
 			if (existing) {
 				return this.success({ data: { ...this.toSummary(existing), deduplicated: true } })
+			}
+
+			/*
+			 * Kuota diperiksa SESUDAH dedupe: mengunggah ulang berkas yang sudah
+			 * ada tidak menambah baris, jadi menolaknya karena kuota berarti
+			 * menolak sesuatu yang tidak memakan tempat sama sekali.
+			 */
+			if ((await countAssetsInProject(body.data.projectId)) >= env.ASSET_MAX_PER_PROJECT) {
+				throw AppError.cantProcess(
+					`Proyek ini sudah memuat ${env.ASSET_MAX_PER_PROJECT} aset. Hapus yang tidak terpakai dulu.`,
+				)
 			}
 
 			const id = crypto.randomUUID()
