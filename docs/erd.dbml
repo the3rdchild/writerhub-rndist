@@ -1,3 +1,20 @@
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║ Skema WriterHub                                                          ║
+// ╠══════════════════════════════════════════════════════════════════════════╣
+// ║ Berkas ini DOKUMENTASI, bukan sumber kebenaran. Yang menentukan bentuk    ║
+// ║ tabel sebenarnya adalah `apps/api/src/db/schemas/*.ts` dan migrasi di     ║
+// ║ `apps/api/src/db/migrations/`.                                           ║
+// ║                                                                          ║
+// ║ Karena dipelihara tangan, ia pernah tertinggal: `templates` sempat tidak  ║
+// ║ ada di sini sama sekali, dan `documents.layout` serta                     ║
+// ║ `document_tabs.layout` menyusul belakangan tanpa ikut tercatat. Kalau     ║
+// ║ Anda menambah kolom, perbarui juga di sini - dan bandingkan dengan        ║
+// ║ keluaran `bun run db:generate` yang menyebut jumlah kolom tiap tabel.     ║
+// ║                                                                          ║
+// ║ Bagian terakhir berisi tabel yang BELUM ADA. Ia ditandai jelas dan tidak  ║
+// ║ punya migrasi.                                                           ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+
 Enum identity_origin {
   ransel
   ppe
@@ -30,6 +47,8 @@ Enum pool_request_status {
   cancelled
 }
 
+// ── Identitas & proyek ─────────────────────────────────────────────────────
+
 Table identity {
   id uuid [pk, not null]
   user_id varchar(255) [not null]
@@ -37,8 +56,10 @@ Table identity {
   created_at timestamp [not null, default: `now()`]
 
   Indexes {
-    (user_id, origin) [unique]
+    (user_id, origin) [unique, name: 'identity_user_origin_idx']
   }
+
+  Note: 'Satu baris per (user_id, origin). Portal luar yang memiliki user_id-nya; tabel ini yang memetakannya ke UUID internal.'
 }
 
 Table projects {
@@ -50,19 +71,32 @@ Table projects {
   created_at timestamp [not null, default: `now()`]
 
   Indexes {
-    (owner_id, updated_at)
+    (owner_id, updated_at) [name: 'projects_owner_idx']
   }
+
+  Note: 'Belum punya tabel anggota: akses proyek hari ini berarti kepemilikan. Pemeriksaannya terpusat di lib/project-access.ts supaya penambahan anggota nanti hanya mengubah satu fungsi. Lihat project_members di bagian rencana.'
 }
+
+Table user_memories {
+  owner_id uuid [pk, not null]
+  preferences jsonb [not null, default: `'{}'::jsonb`]
+  updated_at timestamp [not null, default: `now()`]
+  created_at timestamp [not null, default: `now()`]
+}
+
+// ── Dokumen ────────────────────────────────────────────────────────────────
 
 Table documents {
   id uuid [pk, not null]
   title text [not null]
   project_id uuid [not null]
+  template_slug varchar(64) [note: 'template yang melahirkan dokumen ini; null untuk dokumen kosong']
+  layout jsonb [note: 'tata letak dasar; tab bisa menimpanya lewat document_tabs.layout']
   updated_at timestamp [not null, default: `now()`]
   created_at timestamp [not null, default: `now()`]
 
   Indexes {
-    (project_id, updated_at)
+    (project_id, updated_at) [name: 'documents_project_idx']
   }
 }
 
@@ -73,13 +107,16 @@ Table document_tabs {
   content jsonb [not null]
   emoji varchar(32)
   language varchar(32)
+  layout jsonb [note: 'penimpa documents.layout untuk tab ini; null berarti ikut dokumen']
   position integer [not null, default: 0]
   updated_at timestamp [not null, default: `now()`]
   created_at timestamp [not null, default: `now()`]
 
   Indexes {
-    (document_id, position)
+    (document_id, position) [name: 'document_tabs_document_idx']
   }
+
+  Note: 'Isi naskah tersimpan di server lewat PUT /v1/tabs/:tabId. Itu satu-satunya titik tempat server melihat isi dokumen - dan karena itu tempat yang benar untuk menurunkan document_assets.'
 }
 
 Table document_versions {
@@ -91,19 +128,71 @@ Table document_versions {
   word_count integer [not null, default: 0]
   created_by varchar(255)
   created_at timestamp [not null, default: `now()`]
+
+  Note: 'Tanpa updated_at: versi adalah rekaman, ia tidak pernah disunting.'
 }
 
-Table metadata_version {
+Table templates {
   id uuid [pk, not null]
-  job_id varchar(255) [not null, unique]
-  request_id uuid [not null]
-  // Nullable: hasil riset web tidak menghasilkan versi dokumen apa pun.
-  version_id uuid
-  feature varchar(50) [not null]
-  result jsonb [not null]
+  slug varchar(64) [not null, unique]
+  name text [not null]
+  description text [not null]
+  category varchar(32) [not null]
+  locale varchar(8) [not null]
+  spec jsonb [not null]
+  content jsonb [not null]
+  builtin boolean [not null, default: false]
+  owner_id uuid [note: 'null untuk template bawaan/global']
+  position integer [not null, default: 0]
   updated_at timestamp [not null, default: `now()`]
   created_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (category, position) [name: 'templates_category_idx']
+    owner_id [name: 'templates_owner_idx']
+  }
+
+  Note: 'Bawaan dan buatan pengguna di tabel yang sama, dibedakan kolom builtin; yang bawaan di-upsert saat boot berdasarkan slug.'
 }
+
+// ── Aset gambar ────────────────────────────────────────────────────────────
+
+Table assets {
+  id uuid [pk, not null]
+  project_id uuid [not null]
+  key varchar(512) [not null, note: 'kunci objek di penyimpanan, bukan URL - URL selalu diterbitkan saat diminta']
+  mime varchar(127) [not null]
+  bytes integer [not null]
+  width integer
+  height integer
+  name varchar(255) [not null]
+  checksum char(64) [not null, note: 'sha256 isi berkas; dedupe per proyek']
+  created_by uuid
+  updated_at timestamp [not null, default: `now()`]
+  created_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (project_id, created_at) [name: 'assets_project_idx']
+    (project_id, checksum) [name: 'assets_project_checksum_idx']
+  }
+
+  Note: 'Kepemilikan mengikuti proyek - itu yang membuatnya berguna sebagai pustaka lintas dokumen. Tapi kepemilikan BUKAN pemberian akses: lihat document_assets. SVG dibersihkan saat unggah (lib/svg-sanitize.ts), jadi yang tersimpan sudah tidak berbahaya apa pun yang membukanya nanti.'
+}
+
+Table document_assets {
+  document_id uuid [not null]
+  asset_id uuid [not null]
+  created_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (document_id, asset_id) [pk]
+    asset_id [name: 'document_assets_asset_idx']
+  }
+
+  Note: 'Ada murni untuk keamanan. Pemilik proyek boleh menerbitkan URL untuk aset mana pun miliknya; pemegang share link HANYA untuk yang tercatat di sini bagi dokumen itu. Tanpa pembedaan itu, satu tautan access=anyone ke satu dokumen membuka seluruh pustaka proyeknya ke internet. CATATAN: sekarang diisi klien lewat PUT /v1/assets/links, dan klien adalah pihak yang diuntungkan kalau ia berbohong - rencananya diturunkan server saat document_tabs.content disimpan.'
+}
+
+// ── Pekerjaan AI & berbagi ─────────────────────────────────────────────────
 
 Table pool_request {
   id uuid [pk, not null]
@@ -120,61 +209,32 @@ Table pool_request {
   created_at timestamp [not null, default: `now()`]
 
   Indexes {
-    (user_id, created_at)
+    (user_id, created_at) [name: 'pool_request_user_created_idx']
   }
 }
 
-Table assets {
+Table metadata_version {
   id uuid [pk, not null]
-  project_id uuid [not null]
-  key varchar(512) [not null, note: 'kunci objek di penyimpanan, bukan URL']
-  mime varchar(127) [not null]
-  bytes integer [not null]
-  width integer
-  height integer
-  name varchar(255) [not null]
-  checksum char(64) [not null, note: 'sha256 isi berkas, dasar dedupe per proyek']
-  created_by uuid
+  job_id varchar(255) [not null, unique]
+  request_id uuid [not null]
+  version_id uuid [note: 'nullable: hasil riset web tidak menghasilkan versi dokumen apa pun']
+  feature varchar(50) [not null]
+  result jsonb [not null]
   updated_at timestamp [not null, default: `now()`]
   created_at timestamp [not null, default: `now()`]
-
-  Indexes {
-    (project_id, created_at)
-    (project_id, checksum)
-  }
-}
-
-// Aset mana yang benar-benar dirujuk sebuah dokumen. Ada murni untuk keamanan:
-// kepemilikan aset mengikuti proyek, tapi izin menerbitkan URL bagi pemegang
-// share link mengikuti tabel ini - kalau tidak, satu tautan publik ke satu
-// dokumen membuka seluruh pustaka proyeknya.
-Table document_assets {
-  document_id uuid [not null]
-  asset_id uuid [not null]
-  created_at timestamp [not null, default: `now()`]
-
-  Indexes {
-    (document_id, asset_id) [pk]
-    (asset_id)
-  }
 }
 
 Table shares {
   id uuid [pk, not null]
-  document_id uuid
+  document_id uuid [note: 'nullable dengan delete: set null - tautan yang dokumennya sudah dihapus tetap ada sebagai baris yatim']
   token varchar(255) [not null, unique]
   access share_access [not null]
   role share_role [not null]
   created_by varchar(255)
   updated_at timestamp [not null, default: `now()`]
   created_at timestamp [not null, default: `now()`]
-}
 
-Table user_memories {
-  owner_id uuid [pk, not null]
-  preferences jsonb [not null, default: `'{}'::jsonb`]
-  updated_at timestamp [not null, default: `now()`]
-  created_at timestamp [not null, default: `now()`]
+  Note: 'access=anyone berarti tautan publik tanpa autentikasi. Itu sebabnya izin aset tidak boleh mengikuti scope proyek.'
 }
 
 Ref: projects.owner_id > identity.id
@@ -182,6 +242,7 @@ Ref: user_memories.owner_id > identity.id
 Ref: documents.project_id > projects.id [delete: restrict]
 Ref: document_tabs.document_id > documents.id [delete: cascade]
 Ref: document_versions.tab_id > document_tabs.id [delete: cascade]
+Ref: templates.owner_id > identity.id [delete: cascade]
 Ref: metadata_version.request_id > pool_request.id [delete: cascade]
 Ref: metadata_version.version_id > document_versions.id [delete: cascade]
 Ref: pool_request.tab_id > document_tabs.id [delete: set null]
@@ -190,3 +251,73 @@ Ref: assets.project_id > projects.id [delete: cascade]
 Ref: assets.created_by > identity.id
 Ref: document_assets.document_id > documents.id [delete: cascade]
 Ref: document_assets.asset_id > assets.id [delete: cascade]
+
+// Ada di database hari ini.
+TableGroup terpasang {
+  identity
+  projects
+  user_memories
+  documents
+  document_tabs
+  document_versions
+  templates
+  assets
+  document_assets
+  pool_request
+  metadata_version
+  shares
+}
+
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║ RENCANA - BELUM ADA DI DATABASE                                          ║
+// ║                                                                          ║
+// ║ Tabel di bawah ini TIDAK punya skema Drizzle dan TIDAK punya migrasi.    ║
+// ║ Ia digambar di sini supaya bentuk akhirnya terbaca sekarang, bukan       ║
+// ║ karena ia sudah ada. Jangan menulis kode yang mengandalkannya.           ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+
+Enum project_role_RENCANA {
+  owner
+  editor
+  viewer
+}
+
+Table project_members_RENCANA {
+  project_id uuid [not null]
+  identity_id uuid [not null]
+  role project_role_RENCANA [not null]
+  created_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (project_id, identity_id) [pk]
+    identity_id
+  }
+
+  Note: 'Saat ini akses proyek = kepemilikan. Ketika tabel ini masuk, satu-satunya yang berubah adalah isi canAccessProject() di lib/project-access.ts - bukan setiap tempat yang memeriksa izin. Itulah alasan fungsi itu sudah ada sekarang meski isinya sepele.'
+}
+
+Table asset_library_RENCANA {
+  id uuid [pk, not null]
+  slug varchar(64) [not null, unique]
+  name varchar(255) [not null]
+  category varchar(32) [not null]
+  key varchar(512) [not null]
+  mime varchar(127) [not null]
+  width integer
+  height integer
+  position integer [not null, default: 0]
+  updated_at timestamp [not null, default: `now()`]
+  created_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (category, position)
+  }
+
+  Note: 'Pustaka bawaan ala Canva. Sengaja TIDAK punya project_id maupun owner_id: ia global dan publik menurut definisinya, disajikan langsung dari prefix bucket yang publik tanpa tanda tangan. Mencampurnya ke tabel assets berarti membayar ongkos otorisasi untuk berkas yang boleh dilihat siapa saja.'
+}
+
+// BELUM ADA. Tanpa skema Drizzle, tanpa migrasi.
+TableGroup rencana {
+  project_members_RENCANA
+  asset_library_RENCANA
+}
