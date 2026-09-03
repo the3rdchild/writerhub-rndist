@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import { ALL_TOOLS, EDITOR_TOOLS, isReadTool, RESEARCH_TOOLS, toProviderTools } from '@writer-hub/shared'
+
+const executor = readFileSync(new URL('./tools.ts', import.meta.url), 'utf8')
 
 describe('registri alat editor', () => {
 	test('nama alat unik', () => {
@@ -199,6 +202,42 @@ describe('insert_html_block', () => {
 		// jalur ekspor DOCX.
 		expect(tool?.description).toContain('NOTHING loads from a URL')
 		expect(tool?.description).toContain('data:image/svg+xml')
+	})
+})
+
+/*
+ * Alat yang dideklarasikan tapi tidak punya cabang pelaksana gagal diam-diam:
+ * model memanggilnya, `switch` jatuh ke default, dan yang terlihat pengguna
+ * hanyalah permintaan yang tidak terjadi apa-apa. Sudah pernah terjadi -
+ * `convert_to_html_block` sempat terdaftar tanpa pelaksananya.
+ */
+describe('setiap alat punya pelaksana', () => {
+	test.each(EDITOR_TOOLS.map((tool) => tool.name))('%s ditangani di tools.ts', (name) => {
+		expect(executor).toContain(`case '${name}'`)
+	})
+})
+
+describe('convert_to_html_block', () => {
+	const tool = EDITOR_TOOLS.find((item) => item.name === 'convert_to_html_block')
+
+	test('terdaftar sebagai alat tulis', () => {
+		expect(tool?.kind).toBe('write')
+	})
+
+	/*
+	 * Alasan alat ini ada: tanpanya, satu-satunya cara merender HTML yang sudah
+	 * ada di dokumen adalah membacanya utuh lalu mengirimnya kembali lewat
+	 * insert_html_block - menulis ulang rancangan yang sudah jadi. Satu
+	 * permintaan konversi sempat menghabiskan dua menit karenanya.
+	 */
+	test('deskripsinya melarang jalan memutar yang mahal itu', () => {
+		expect(tool?.description).toContain('NEVER')
+		expect(tool?.description).toContain('insert_html_block')
+	})
+
+	test('tidak menerima HTML - ia mencarinya sendiri', () => {
+		expect(tool?.parameters.properties.html).toBeUndefined()
+		expect(tool?.parameters.required ?? []).toEqual([])
 	})
 })
 

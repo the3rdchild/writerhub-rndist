@@ -6,6 +6,7 @@ import type { PanelId } from '@/features/analysis/panel-context'
 import { COMMENT_MARK } from '@/features/comments/comment-mark'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
 import { replaceTextRange } from '@/features/editor/apply-text'
+import { DEFAULT_HTML_BLOCK_ATTRS, HTML_BLOCK } from '@/features/editor/html-block'
 import { toEditorContent } from '@/features/editor/markdown'
 import { MATH_BLOCK, MATH_INLINE, stripDelimiters } from '@/features/editor/math'
 import { clampMargins, INCH, PAGE_SIZES, type PageSetup, pageGeometry } from '@/features/editor/page-geometry'
@@ -15,6 +16,7 @@ import { editorPlainText } from '@/features/editor/text-content'
 import { TOC_BLOCK, type TocBlockAttrs, type TocListKind } from '@/features/editor/toc-block'
 import type { CommentThread } from '@/features/sessions/types'
 import { countWords } from '@/lib/utils'
+import { blockSummary, htmlCandidates } from './html-block-candidates'
 
 interface Heading {
 	index: number
@@ -70,10 +72,16 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 	switch (call.name) {
 		case 'get_outline': {
 			const list = headings(editor)
-			if (list.length === 0) return 'The document has no headings.'
-			return list
-				.map((heading) => `${heading.index}. ${'#'.repeat(heading.level)} ${heading.text}`)
-				.join('\n')
+			const outline =
+				list.length === 0
+					? 'The document has no headings.'
+					: list.map((heading) => `${heading.index}. ${'#'.repeat(heading.level)} ${heading.text}`).join('\n')
+
+			// Bentuk dokumen ikut, bukan cuma judulnya: rancangan satu halaman
+			// tidak punya judul sama sekali, dan kerangka kosong membuat model
+			// membaca isinya berkali-kali demi menebak apa yang ada di sana.
+			const blocks = blockSummary(editor.state.doc)
+			return blocks ? `${outline}\n\n${blocks}` : outline
 		}
 
 		case 'read_section': {
@@ -352,6 +360,8 @@ export function describeToolCall(call: ToolCall): string {
 			return 'Insert Mermaid diagram'
 		case 'insert_html_block':
 			return 'Insert HTML design block'
+		case 'convert_to_html_block':
+			return 'Render existing HTML as a design block'
 		case 'insert_table':
 			return `Insert table ${call.arguments.rows ?? '?'}×${call.arguments.cols ?? '?'}`
 		case 'apply_paragraph_style':
@@ -687,6 +697,44 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			return {
 				ok: true,
 				message: fit === 'page' ? 'Full-page HTML design inserted.' : 'HTML design block inserted.',
+			}
+		}
+
+		case 'convert_to_html_block': {
+			const candidates = htmlCandidates(editor.state.doc)
+			if (candidates.length === 0) {
+				return {
+					ok: false,
+					message:
+						'No HTML-looking block found in this document. Use insert_html_block to create a new design.',
+				}
+			}
+
+			const at = Number(call.arguments.index)
+			const chosen = candidates[Number.isInteger(at) && at >= 0 ? at : 0]
+			if (!chosen) return { ok: false, message: `No candidate with index ${call.arguments.index}.` }
+
+			const fit = call.arguments.fit === 'embed' ? 'embed' : 'page'
+			/*
+			 * Diganti lewat rentangnya dalam satu rantai, bukan disisipkan lalu
+			 * yang lama dihapus: HTML yang pecah bisa mencakup puluhan blok, dan
+			 * dua langkah terpisah meninggalkan satu keadaan antara yang terlihat
+			 * di kanvas semua orang yang sedang membuka dokumen itu.
+			 */
+			editor
+				.chain()
+				.focus()
+				.deleteRange({ from: chosen.from, to: chosen.to })
+				.insertContentAt(chosen.from, {
+					type: HTML_BLOCK,
+					attrs: { ...DEFAULT_HTML_BLOCK_ATTRS, html: chosen.html, fit },
+				})
+				.run()
+
+			const where = chosen.source === 'codeBlock' ? 'a code block' : 'loose text blocks'
+			return {
+				ok: true,
+				message: `Converted ${where} into a ${fit === 'page' ? 'full-page' : 'inline'} design block.`,
 			}
 		}
 

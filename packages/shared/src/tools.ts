@@ -18,7 +18,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'get_outline',
 		kind: 'read',
 		description:
-			'List every heading in the document with its level and index. Use this first to orient yourself before reading or editing a long document.',
+			'List every heading in the document with its level and index, followed by a summary of the block kinds it actually holds - tables, code blocks, rendered design blocks, images. Use this FIRST to orient yourself: a document with no headings is not necessarily empty, and the block summary tells you what it really is without reading it. It also flags HTML that is sitting in the document unrendered, which convert_to_html_block fixes in one step.',
 		parameters: { type: 'object', properties: {} },
 	},
 	{
@@ -363,6 +363,28 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 				},
 			},
 			required: ['html'],
+		},
+	},
+	{
+		name: 'convert_to_html_block',
+		kind: 'write',
+		description:
+			'Turn HTML that is already sitting in the document as ordinary text or as a code block into a real rendered design block. Use this whenever the writer asks to render, preview or "make a flyer out of" markup that is already there - NEVER read the markup and re-send it through insert_html_block, which costs a full rewrite of a design you already have. It takes no HTML: it finds the markup in the document and converts it in place. Answers with what it converted, or tells you no HTML-looking block was found.',
+		parameters: {
+			type: 'object',
+			properties: {
+				fit: {
+					type: 'string',
+					enum: ['page', 'embed'],
+					description:
+						'"page" (default) for a whole-sheet design - flyer, poster, one-pager. "embed" for a small piece that flows with the text.',
+				},
+				index: {
+					type: 'number',
+					description:
+						'Which candidate to convert when the document holds more than one, 0-based, longest first. Defaults to the first.',
+				},
+			},
 		},
 	},
 	{
