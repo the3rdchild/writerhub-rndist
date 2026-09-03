@@ -1,4 +1,5 @@
 import { relations } from 'drizzle-orm'
+import { assets, documentAssets } from './asset'
 import { documents } from './document'
 import { documentTabs } from './document-tab'
 import { documentVersions } from './document-version'
@@ -34,12 +35,25 @@ export const userMemoryRelations = relations(userMemories, ({ one }) => ({
 export const projectRelations = relations(projects, ({ many, one }) => ({
 	owner: one(identity, { fields: [projects.owner_id], references: [identity.id] }),
 	documents: many(documents),
+	assets: many(assets),
+}))
+
+export const assetRelations = relations(assets, ({ many, one }) => ({
+	project: one(projects, { fields: [assets.project_id], references: [projects.id] }),
+	uploader: one(identity, { fields: [assets.created_by], references: [identity.id] }),
+	documents: many(documentAssets),
+}))
+
+export const documentAssetRelations = relations(documentAssets, ({ one }) => ({
+	document: one(documents, { fields: [documentAssets.document_id], references: [documents.id] }),
+	asset: one(assets, { fields: [documentAssets.asset_id], references: [assets.id] }),
 }))
 
 export const documentRelations = relations(documents, ({ many, one }) => ({
 	project: one(projects, { fields: [documents.project_id], references: [projects.id] }),
 	tabs: many(documentTabs),
 	shares: many(shares),
+	assets: many(documentAssets),
 }))
 
 export const shareRelations = relations(shares, ({ one }) => ({

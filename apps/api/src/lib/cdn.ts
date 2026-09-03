@@ -1,4 +1,4 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { env } from '@/config/env'
 
@@ -39,6 +39,26 @@ export async function getPresignedUrl(
 	expiresIn = DEFAULT_PRESIGNED_TTL_SECONDS,
 ): Promise<string> {
 	return getSignedUrl(s3Client, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn })
+}
+
+/**
+ * Mengambil isi objek sebagai bytes.
+ *
+ * Perlu di samping presigned URL karena dua pembacanya berbeda watak: bingkai
+ * blok HTML memuat gambar lewat URL (ia tidak bisa mengirim cookie, jadi URL
+ * bertanda tangan satu-satunya jalan), sementara jalur ekspor harus menyisipkan
+ * bytes-nya sebagai `data:` URI supaya berkas hasil tetap utuh tanpa jaringan.
+ * Yang kedua mengambilnya lewat sini.
+ */
+export async function getObjectBytes(key: string): Promise<Uint8Array> {
+	const result = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }))
+	const body = result.Body
+	if (!body) throw new Error(`Objek ${key} kosong`)
+	return new Uint8Array(await body.transformToByteArray())
+}
+
+export async function deleteObject(key: string): Promise<void> {
+	await s3Client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }))
 }
 
 export { s3Client }

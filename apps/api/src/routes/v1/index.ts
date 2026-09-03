@@ -1,4 +1,5 @@
 import analysis from './analysis.route'
+import assets from './assets.route'
 import chat from './chat.route'
 import documents from './documents.route'
 import drafts from './drafts.route'
@@ -34,4 +35,5 @@ export const v1Routes = [
 	history,
 	research,
 	drafts,
+	assets,
 ]

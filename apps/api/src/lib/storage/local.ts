@@ -28,6 +28,11 @@ function resolveWithinRoot(key: string): string {
 	return target
 }
 
+/** Path absolut sebuah key di disk, sudah dijamin berada di dalam ROOT. */
+export function storagePath(key: string): string {
+	return resolveWithinRoot(key)
+}
+
 export async function writeLocalFile(
 	key: string,
 	body: Buffer | ArrayBuffer | Uint8Array | string,

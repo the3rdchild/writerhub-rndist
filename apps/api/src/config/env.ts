@@ -74,6 +74,20 @@ export const env = {
 	CDN_REGION: str('CDN_REGION', 'us-east-1'),
 	S3_USE_OBJECT_ACL: bool('S3_USE_OBJECT_ACL'),
 
+	// ── Aset gambar milik proyek ────────────────────────────────────────────
+	/**
+	 * Kunci HMAC untuk URL aset bertanda tangan. Sengaja terpisah dari rahasia
+	 * autentikasi: URL aset dibagikan ke bingkai berasal-opaque dan berumur
+	 * pendek, jadi ia punya profil risiko sendiri dan harus bisa dirotasi
+	 * sendiri. Kosong berarti penerbitan URL menolak bekerja, bukan diam-diam
+	 * memakai kunci lemah.
+	 */
+	ASSET_URL_SECRET: str('ASSET_URL_SECRET'),
+	/** Umur URL aset dalam detik. Cukup untuk merender, terlalu pendek untuk dibagikan. */
+	ASSET_URL_TTL_SECONDS: num('ASSET_URL_TTL_SECONDS', 900),
+	/** Batas ukuran satu berkas aset, dalam megabyte. */
+	ASSET_MAX_MB: num('ASSET_MAX_MB', 5),
+
 	// ── Antrean worker (nama harus sama persis dengan services/worker) ──────
 	GRAMMAR_QUEUE_NAME: str('GRAMMAR_QUEUE_NAME', 'GRAMMAR_QUEUE'),
 	GRAMMAR_JOB_NAME: str('GRAMMAR_JOB_NAME', 'PROCESS_GRAMMAR'),

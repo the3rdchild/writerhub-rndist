@@ -169,6 +169,13 @@
       "when": 1788326077993,
       "tag": "0023_premium_wendigo",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788406026300,
+      "tag": "0024_sticky_slipstream",
+      "breakpoints": true
     }
   ]
 }
