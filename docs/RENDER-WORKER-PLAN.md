@@ -177,16 +177,52 @@ berkasnya isi lama.
 
 ---
 
-## 9. Risiko & pertanyaan terbuka
+## 9. Font: dikunci, dan dipilih menurut tema
 
-1. **Font.** Chromium di kontainer tidak punya font sistem yang sama dengan mesin
-   penulis. Rancangan yang mengandalkan `system-ui` akan tampil berbeda di berkas
-   hasil render dibanding di kanvas. Perlu paket font yang dipasang di image worker,
-   dan daftarnya harus sama dengan yang ditawarkan editor.
-2. **Naskah berhalaman banyak sebagai gambar** menghasilkan N berkas. Belum diputuskan:
-   satu ZIP, atau hanya halaman pertama?
-3. **Job yatim.** Kalau worker mati di tengah render, siapa yang menandai `failed`?
+Chromium di kontainer tidak punya font sistem yang sama dengan mesin penulis, jadi
+rancangan yang mengandalkan `system-ui` akan tampil **berbeda** di berkas hasil
+render dibanding di kanvas. Itu justru bagian yang paling terlihat pada flyer, dan
+ia mengubah "PDF-nya sama dengan yang saya lihat" dari jaminan menjadi harapan.
+
+Karena itu daftarnya dikunci: satu himpunan font yang dipasang di image worker,
+sama persis dengan yang ditawarkan editor. Sumber kebenarannya `features/editor/font-catalog.ts`.
+
+Tapi mengunci saja tidak cukup, dan di sini ada peluang yang tidak jelas sejak awal:
+**font punya nada.** Permintaan "flyer ceria untuk lomba anak" tidak boleh dijawab
+dengan Times New Roman, dan permintaan "undangan resmi" tidak boleh dijawab dengan
+font display yang main-main. Model sekarang tidak diberi tahu apa pun soal ini - ia
+hanya diberi `system-ui`, jadi seluruh rancangan berakhir dengan suara yang sama.
+
+Rencananya: katalog font membawa **label nada** (formal, ramah, tegas, klasik,
+teknis), dan prompt rancangan menyebutkan pilihan yang tersedia beserta nadanya.
+Ini bukan sekadar mencegah kegagalan render - ia menaikkan kualitas hasil secara
+konkret, dengan ongkos beberapa baris di prompt.
+
+### Ketergantungannya
+
+Bagian ini **tidak bisa dikerjakan sendirian**. Sandbox mengunci
+`font-family: system-ui, sans-serif` di `SANDBOX_ROOT_STYLE`, dan CSP-nya
+`font-src data:` - jadi flyer hari ini hanya bisa memakai font sistem. Memberi model
+pilihan sungguhan menuntut salah satu dari:
+
+- font disematkan sebagai `data:` URI di dalam `srcdoc` (mandiri, tapi menggemukkan
+  tiap blok), atau
+- `font-src` dibuka ke origin aset - yaitu pekerjaan CSP yang sama dengan resolver
+  `asset://`.
+
+Jalur kedua lebih rapi dan sudah direncanakan untuk aset. Font karena itu ikut
+gelombang itu, bukan gelombang worker render.
+
+---
+
+## 10. Risiko & pertanyaan terbuka
+
+1. **Naskah berhalaman banyak sebagai gambar** menghasilkan N berkas. Keputusan:
+   gambar hanya untuk dokumen 1-3 halaman; permintaan "beberapa desain" dijawab
+   maksimal 3. Permintaan gambar untuk **dokumen** - apalagi berhalaman banyak -
+   ditolak, dengan saran beralih ke WritingHub untuk hasil yang lebih baik.
+2. **Job yatim.** Kalau worker mati di tengah render, siapa yang menandai `failed`?
    Pola tenggat di `drafts/status.ts` sudah menyelesaikan ini untuk penulisan dan bisa
    dipakai ulang apa adanya.
-4. **Kuota.** Merender itu jauh lebih mahal daripada menulis. Apakah ia dihitung
+3. **Kuota.** Merender itu jauh lebih mahal daripada menulis. Apakah ia dihitung
    terhadap kuota alat pengguna (`ensureToolQuota`) atau gratis?
