@@ -3,6 +3,7 @@ import assets from './assets.route'
 import chat from './chat.route'
 import documents from './documents.route'
 import drafts from './drafts.route'
+import exports_ from './exports.route'
 import files from './files.route'
 import grammar from './grammar.route'
 import health from './health.route'
@@ -36,4 +37,5 @@ export const v1Routes = [
 	research,
 	drafts,
 	assets,
+	exports_,
 ]

@@ -36,6 +36,19 @@ export async function findDocumentById(id: string, ownerId: string) {
 	return row?.document ?? null
 }
 
+/**
+ * Dokumen tanpa memeriksa pemiliknya.
+ *
+ * Hanya untuk jalur yang izinnya sudah diperiksa dengan cara lain - rute ekspor
+ * memakai token bertanda tangan yang terikat ke id dokumen ini
+ * (`lib/signed-url.ts`), jadi memegang tokennya SUDAH merupakan izinnya.
+ * Jangan dipakai di jalur yang bersandar pada sesi.
+ */
+export async function findDocumentUnscoped(id: string) {
+	const [row] = await db.select().from(documents).where(eq(documents.id, id)).limit(1)
+	return row ?? null
+}
+
 export async function insertDocument(values: NewDocument) {
 	const [row] = await db.insert(documents).values(values).returning()
 	return row ?? null

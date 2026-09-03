@@ -94,6 +94,14 @@ export const env = {
 	 */
 	ASSET_MAX_PER_PROJECT: num('ASSET_MAX_PER_PROJECT', 500),
 
+	// ── Render berkas di server ─────────────────────────────────────────────
+	/**
+	 * Umur token rute ekspor. Sangat pendek dengan sengaja: ia hanya perlu
+	 * bertahan selama satu kunjungan peramban worker, dan token yang bocor
+	 * membuka isi satu dokumen sampai ia kedaluwarsa.
+	 */
+	RENDER_TOKEN_TTL_SECONDS: num('RENDER_TOKEN_TTL_SECONDS', 300),
+
 	// ── Antrean worker (nama harus sama persis dengan services/worker) ──────
 	GRAMMAR_QUEUE_NAME: str('GRAMMAR_QUEUE_NAME', 'GRAMMAR_QUEUE'),
 	GRAMMAR_JOB_NAME: str('GRAMMAR_JOB_NAME', 'PROCESS_GRAMMAR'),
