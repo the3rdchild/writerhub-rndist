@@ -8,6 +8,10 @@ import { FEATURE_META } from '@/components/activity/feature-meta'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { buildEditorExtensions } from '@/features/editor/extensions'
 import { pageGeometry } from '@/features/editor/page-geometry'
+import { paginationKey } from '@/features/editor/pagination'
+import { typographyRules } from '@/features/editor/typography-css'
+import { usePageSetup } from '@/features/editor/use-page-setup'
+import { useTypography } from '@/features/editor/use-typography'
 import type { HistoryFeature } from '@/features/history/types'
 import { useSessions } from '@/features/sessions/session-context'
 import { fragmentToJSON } from '@/features/sync/serialize'
@@ -79,10 +83,24 @@ export function VersionHistoryView() {
 	const selectedContent = selectedId === null ? draftJson : (detail.data?.content ?? null)
 	const selectedVersion = selectedId === null ? null : (detail.data ?? null)
 
-	const geometry = useMemo(() => pageGeometry(), [])
+	/*
+	 * Tata letak diambil dari tab yang sedang dibuka, bukan dari bawaan.
+	 *
+	 * Tampilan ini menggantikan seluruh halaman kerja (`workspace-page.tsx`),
+	 * jadi kanvas utama - satu-satunya yang menyuntikkan aturan tipografi dan
+	 * menghitung geometri lembar - tidak ikut terpasang. Membaca ulang dari
+	 * Y.Doc lewat hook yang sama membuat riwayat versi menampilkan naskah pada
+	 * kertas dan huruf yang sama dengan penyuntingnya; dengan bawaan A4 potret,
+	 * rancangan satu halaman selalu salah bentuk.
+	 */
+	const { setup } = usePageSetup()
+	const { typography } = useTypography()
+	const geometry = useMemo(() => pageGeometry(setup), [setup])
+	const typeRules = useMemo(() => typographyRules(typography), [typography])
+
 	const editor = useEditor({
 		immediatelyRender: false,
-		extensions: [...buildEditorExtensions({ geometry }), VersionDiffHighlight],
+		extensions: [...buildEditorExtensions({ geometry, setup }), VersionDiffHighlight],
 		editable: false,
 		editorProps: {
 			attributes: {
@@ -116,6 +134,25 @@ export function VersionHistoryView() {
 			return () => window.clearTimeout(timer)
 		},
 		[editor, selectedContent, showDiff, selectedId, draftText],
+	)
+
+	/*
+	 * Extensions hanya dibangun sekali, jadi geometri yang berubah - penulis
+	 * mengganti ukuran kertas selagi riwayat terbuka - harus didorong lewat
+	 * meta, persis cara `tiptap-editor.tsx` melakukannya.
+	 */
+	useEffect(
+		function pushPageGeometry() {
+			if (!editor) return
+			const transaction = editor.state.tr.setMeta(paginationKey, {
+				geometry,
+				setup,
+				pageless: setup.pageless,
+			})
+			transaction.setMeta('addToHistory', false)
+			editor.view.dispatch(transaction)
+		},
+		[editor, geometry, setup],
 	)
 
 	const grouped = useMemo(() => {
@@ -165,6 +202,7 @@ export function VersionHistoryView() {
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col bg-background">
+			<style>{typeRules}</style>
 			<header className="flex shrink-0 items-center gap-3 border-b border-line bg-surface px-4 py-3">
 				<button
 					type="button"
@@ -188,7 +226,11 @@ export function VersionHistoryView() {
 					<div className="document-canvas">
 						<div
 							className="document-sheet relative"
-							style={{ width: geometry.width, minHeight: geometry.height }}
+							style={
+								setup.pageless
+									? { width: geometry.width }
+									: { width: geometry.width, minHeight: geometry.height }
+							}
 						>
 							{/* Struktur sama dengan kanvas utama: margin jadi padding di
 							    pembungkus dalam, bukan di lembar, dan geometri halaman
