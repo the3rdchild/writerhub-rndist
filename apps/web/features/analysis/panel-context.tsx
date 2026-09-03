@@ -28,7 +28,7 @@ interface PanelContextValue {
 const PanelContext = createContext<PanelContextValue | null>(null)
 
 export function PanelProvider({ children }: { children: ReactNode }) {
-	const [activePanel, setActivePanel] = useState<PanelId | null>('proofreader')
+	const [activePanel, setActivePanel] = useState<PanelId | null>('ai_chat')
 	const [lastRun, setLastRun] = useState<LastRunMap>({})
 
 	const togglePanel = useCallback((panel: PanelId) => {
