@@ -106,7 +106,7 @@ export default class DraftsService extends JobSubmissionService {
 				)
 			}
 
-			const config = await this.resolveGenerationProvider()
+			const config = await this.resolveGenerationProvider(request.model)
 			if (!config) return this.providerUnavailable()
 
 			await this.beginGeneration(document.id, tab.id, request, config)
@@ -152,7 +152,7 @@ export default class DraftsService extends JobSubmissionService {
 		projectId: string,
 		template: Template | null,
 	): Promise<Response> {
-		const config = await this.resolveGenerationProvider()
+		const config = await this.resolveGenerationProvider(body.model)
 		if (!config) return this.providerUnavailable()
 
 		const title = body.title ?? template?.name ?? this.promptTitle(body.prompt) ?? FALLBACK_TITLE
@@ -220,8 +220,8 @@ export default class DraftsService extends JobSubmissionService {
 		}
 	}
 
-	private async resolveGenerationProvider(): Promise<ProviderConfig | null> {
-		return providerConfig(await this.authorizeAndResolveProvider())
+	private async resolveGenerationProvider(requestedModel?: string): Promise<ProviderConfig | null> {
+		return providerConfig(await this.authorizeAndResolveProvider(), requestedModel)
 	}
 
 	private providerUnavailable(): Response {

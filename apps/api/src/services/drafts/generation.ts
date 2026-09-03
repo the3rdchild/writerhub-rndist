@@ -1,4 +1,5 @@
 import { env } from '@/config/env'
+import { pickModel } from '@/lib/pick-model'
 import type { ResolvedProvider } from '@/lib/provider-resolver'
 import { DraftFailure, providerFailure } from './failure'
 
@@ -46,12 +47,18 @@ interface ByteSource {
  * aturan yang sama dengan AI Chat. Null berarti tidak ada kredensial sama
  * sekali, dan pemanggil membalas 503.
  */
-export function providerConfig(provider: ResolvedProvider | null): ProviderConfig | null {
+export function providerConfig(
+	provider: ResolvedProvider | null,
+	requestedModel?: string,
+): ProviderConfig | null {
 	const baseUrl = provider?.baseUrl || env.AI_BASE_URL
 	const apiKey = provider?.apiKey || env.AI_API_KEY
 	if (!baseUrl || !apiKey) return null
 
-	return { baseUrl, apiKey, model: provider?.modelId || env.AI_MODEL }
+	// Aturan pemilihan model dipinjam dari AI Chat, bukan ditulis ulang: dua
+	// tempat yang memutuskan sendiri berarti pengguna mendapat model berbeda
+	// tergantung pintu mana yang ia masuki.
+	return { baseUrl, apiKey, model: pickModel(requestedModel, provider?.modelId || env.AI_MODEL, baseUrl) }
 }
 
 export async function generateDraftMarkdown(

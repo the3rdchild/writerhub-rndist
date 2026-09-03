@@ -47,6 +47,13 @@ export const draftRequestSchema = z
 		 * tidak punya tempat untuk menyatakan bentuk yang diinginkan.
 		 */
 		kind: z.enum(['auto', 'document', 'flyer']).optional(),
+		/**
+		 * Model yang diminta. Aturannya sama persis dengan AI Chat
+		 * (`lib/pick-model.ts`): hanya dihormati kalau ia model yang dikenal dan
+		 * sambungannya memang bisa diarahkan per permintaan. Tanpa ini, jalur
+		 * draf memakai model bawaan penggunanya - yang juga bawaan AI Chat.
+		 */
+		model: z.string().trim().max(200).optional(),
 		projectId: z.uuid().optional(),
 		/** Template yang melahirkan dokumen; aturan formatnya ikut ke prompt penulisan. */
 		templateSlug: z.string().trim().min(1).max(64).optional(),

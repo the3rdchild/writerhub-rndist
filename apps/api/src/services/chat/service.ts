@@ -1,6 +1,7 @@
 import type { StyleMemory } from '@writer-hub/shared'
-import { DEFAULT_CHAT_MODEL, isKnownChatModel, toProviderTools } from '@writer-hub/shared'
+import { toProviderTools } from '@writer-hub/shared'
 import { env } from '@/config/env'
+import { pickModel } from '@/lib/pick-model'
 import type { ResolvedProvider } from '@/lib/provider-resolver'
 import { findTemplateBySlug } from '@/repository/template'
 import JobSubmissionService from '@/services/job-submission.service'
@@ -122,8 +123,3 @@ export default class ChatService extends JobSubmissionService {
  * Model pilihan pengguna hanya dihormati di OpenRouter. Provider lain punya
  * daftar model sendiri, jadi meneruskan nama dari klien ke sana akan ditolak.
  */
-function pickModel(requested: string | undefined, fallback: string, baseUrl: string): string {
-	if (!requested || !isKnownChatModel(requested) || requested === DEFAULT_CHAT_MODEL) return fallback
-
-	return baseUrl.includes('openrouter.ai') ? requested : fallback
-}
