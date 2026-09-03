@@ -2,9 +2,9 @@
 
 import { FileDown } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { refreshHtmlBlocks } from '@/components/editor/html-block-view'
 import { download, safeFilename } from '@/features/document/download'
 import { exportDocx, mergeTabContents } from '@/features/document/export-docx'
+import { prepareForExport } from '@/features/document/prepare-export'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
 import { pageGeometry } from '@/features/editor/page-geometry'
@@ -74,7 +74,7 @@ export function ExportDocxDialog() {
 		try {
 			// Hanya tab yang terbuka yang punya bingkai untuk dipotret; tab lain
 			// memakai potretan yang sudah tersimpan saat blok itu terlihat.
-			if (editor) await refreshHtmlBlocks(editor.view.dom)
+			await prepareForExport(editor)
 			const merged = mergeTabContents(chosen.map((tab) => fragmentToJSON(doc, tab.id)))
 			const blob = await exportDocx(buildSchema().nodeFromJSON(merged), {
 				title,

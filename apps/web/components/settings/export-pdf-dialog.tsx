@@ -1,11 +1,15 @@
 'use client'
 
 import { FileDown, Printer } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { prepareForExport } from '@/features/document/prepare-export'
+import { useEditorInstance } from '@/features/editor/editor-context'
 import { useSettings } from '@/features/settings/settings-context'
 
 export function ExportPdfDialog() {
 	const { exportOpen, setExportOpen } = useSettings()
+	const { editor } = useEditorInstance()
+	const [preparing, setPreparing] = useState(false)
 	const overlayRef = useRef<HTMLDivElement>(null)
 
 	useEffect(
@@ -28,8 +32,24 @@ export function ExportPdfDialog() {
 
 	if (!exportOpen) return null
 
-	const print = () => {
+	/*
+	 * Blok turunan disegarkan **sebelum** dialog cetak dibuka, dan ditunggu.
+	 *
+	 * `window.print()` memblokir utas begitu ia dipanggil, jadi render Mermaid
+	 * atau potretan blok HTML yang baru dimulai tidak akan pernah sempat masuk ke
+	 * berkas - kode diagram tercetak sebagai teks mentah. Jeda 100ms yang dulu
+	 * ada di sini menunggu dialog ini menutup, bukan menunggu render selesai.
+	 */
+	const print = async () => {
+		if (preparing) return
+		setPreparing(true)
+		try {
+			await prepareForExport(editor)
+		} finally {
+			setPreparing(false)
+		}
 		setExportOpen(false)
+		// Satu bingkai supaya dialog benar-benar lepas dari DOM sebelum dicetak.
 		setTimeout(() => window.print(), 100)
 	}
 
@@ -104,10 +124,11 @@ export function ExportPdfDialog() {
 					<button
 						type="button"
 						onClick={print}
-						className="flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
+						disabled={preparing}
+						className="flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-60"
 					>
 						<Printer className="h-4 w-4" />
-						Buka dialog cetak
+						{preparing ? 'Menyiapkan…' : 'Buka dialog cetak'}
 					</button>
 				</div>
 			</div>

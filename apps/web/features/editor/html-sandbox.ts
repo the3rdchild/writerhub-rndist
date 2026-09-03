@@ -72,8 +72,18 @@ export const SANDBOX_ROOT_STYLE =
  */
 const ROOT_HEIGHT = 'height: 100%'
 
-/** Aturan untuk isi di dalam kotak itu; sama di kedua tempat. */
-export const SANDBOX_CONTENT_CSS = 'img, svg, video { max-width: 100%; }'
+/**
+ * Aturan untuk isi di dalam kotak itu; sama di kedua tempat.
+ *
+ * `print-color-adjust: exact` ada di sini karena bingkainya **dokumen
+ * tersendiri**: tidak ada satu pun aturan cetak di `globals.css` yang menembus
+ * ke dalamnya. Tanpa ini, Chrome menuruti setelan "Background graphics" yang
+ * mati secara bawaan - latar merah flyer hilang, dan teks putih di atasnya
+ * tercetak putih di atas kertas putih. Halamannya keluar seolah kosong, bukan
+ * seolah salah warna, jadi kegagalannya sulit dikenali.
+ */
+export const SANDBOX_CONTENT_CSS =
+	'img, svg, video { max-width: 100%; } * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }'
 
 export interface SandboxedDocument {
 	srcdoc: string

@@ -62,17 +62,15 @@ function loadImage(source: string): Promise<HTMLImageElement> {
 }
 
 /**
- * Mengembalikan PNG sebagai URI `data:`, atau `null` kalau HTML-nya tidak bisa
- * digambar. Kegagalan bukan alasan menggagalkan ekspor: blok yang gagal dipotret
- * cukup tidak ikut, dan sisanya tetap terekspor.
+ * Menggambar satu sumber SVG ke kanvas lalu membacanya sebagai PNG. Dipakai
+ * kedua pemotret di berkas ini - yang membungkus HTML dan yang mengambil SVG
+ * jadi - supaya skala dan penanganan gagalnya cuma ditulis sekali.
  */
-export async function rasterizeHtml(html: string, width: number, height: number): Promise<string | null> {
+async function pngFromSvg(svg: string, width: number, height: number): Promise<string | null> {
 	if (width <= 0 || height <= 0) return null
 
 	try {
-		const image = await loadImage(
-			`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgSource(html, width, height))}`,
-		)
+		const image = await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`)
 
 		const canvas = document.createElement('canvas')
 		canvas.width = Math.round(width * RASTER_SCALE)
@@ -87,4 +85,66 @@ export async function rasterizeHtml(html: string, width: number, height: number)
 	} catch {
 		return null
 	}
+}
+
+/**
+ * Mengembalikan PNG sebagai URI `data:`, atau `null` kalau HTML-nya tidak bisa
+ * digambar. Kegagalan bukan alasan menggagalkan ekspor: blok yang gagal dipotret
+ * cukup tidak ikut, dan sisanya tetap terekspor.
+ */
+export async function rasterizeHtml(html: string, width: number, height: number): Promise<string | null> {
+	if (width <= 0 || height <= 0) return null
+	return pngFromSvg(svgSource(html, width, height), width, height)
+}
+
+/**
+ * Ukuran hakiki sebuah SVG, dibaca dari `viewBox` lebih dulu.
+ *
+ * Urutannya penting untuk keluaran Mermaid: sejak versi 10 ia menulis
+ * `width="100%"` pada elemen akar, jadi atribut `width`/`height` bukan angka
+ * piksel yang bisa dipakai - hanya `viewBox` yang menyimpan ukuran sebenarnya.
+ */
+export function svgSize(svg: string): { width: number; height: number } | null {
+	const root = new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement
+	if (!root || root.getElementsByTagName('parsererror').length > 0) return null
+
+	const box = root
+		.getAttribute('viewBox')
+		?.trim()
+		.split(/[\s,]+/)
+		.map(Number)
+	if (box?.length === 4 && box.every(Number.isFinite) && box[2] > 0 && box[3] > 0) {
+		return { width: box[2], height: box[3] }
+	}
+
+	const width = Number.parseFloat(root.getAttribute('width') ?? '')
+	const height = Number.parseFloat(root.getAttribute('height') ?? '')
+	if (width > 0 && height > 0) return { width, height }
+	return null
+}
+
+/**
+ * Memotret SVG yang sudah jadi - keluaran Mermaid - menjadi PNG.
+ *
+ * Ukurannya dipaksa ke atribut piksel dulu. `<img>` menggambar SVG memakai
+ * ukuran hakikinya, dan Mermaid justru menuliskan `width="100%"` plus
+ * `max-width` sebaris: dibiarkan apa adanya, diagramnya mendarat di kanvas
+ * dengan ukuran cadangan 300x150 dan hasilnya pecah.
+ */
+export async function rasterizeSvg(
+	svg: string,
+): Promise<{ png: string; width: number; height: number } | null> {
+	const size = svgSize(svg)
+	if (!size) return null
+
+	const root = new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement
+	if (!root || root.getElementsByTagName('parsererror').length > 0) return null
+
+	root.setAttribute('width', String(size.width))
+	root.setAttribute('height', String(size.height))
+	root.setAttribute('style', `width:${size.width}px;height:${size.height}px`)
+	if (!root.getAttribute('xmlns')) root.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+
+	const png = await pngFromSvg(new XMLSerializer().serializeToString(root), size.width, size.height)
+	return png ? { png, ...size } : null
 }

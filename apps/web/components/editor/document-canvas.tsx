@@ -32,8 +32,29 @@ function pageRuleBody(setup: PageSetup): string {
 	return `size: ${mm(width)}mm ${mm(height)}mm; margin: ${mm(margins.top)}mm ${mm(margins.right)}mm ${mm(margins.bottom)}mm ${mm(margins.left)}mm;`
 }
 
+/**
+ * Lembar khusus untuk flyer satu halaman: seukuran kertas, tanpa margin sama
+ * sekali.
+ *
+ * Di kanvas, blok mode halaman menembus margin dengan digeser keluar sejauh
+ * margin itu (`globals.css`). Di kertas cara itu tidak bisa dipakai: peramban
+ * memotong apa pun yang jatuh di luar area halaman, jadi flyer-nya keluar
+ * tergeser dan terpangkas. Yang benar adalah menghapus marginnya, dan `@page`
+ * bernama satu-satunya cara CSS menyatakan itu untuk sebagian halaman saja -
+ * mekanisme yang sama yang sudah dipakai `page: secN` di bawah.
+ *
+ * Ukurannya diambil dari tata letak dasar. Dokumen dengan section berukuran
+ * kertas berbeda-beda hanya punya satu lembar flyer; itu penyederhanaan yang
+ * disengaja - flyer adalah cetakan promosi, bukan bagian dari aliran naskah
+ * yang berganti geometri.
+ */
+function flyerPageRule(base: PageSetup): string {
+	const { width, height } = pageGeometry(base)
+	return `@page flyer { size: ${mm(width)}mm ${mm(height)}mm; margin: 0; }`
+}
+
 function printPageRules(base: PageSetup, sections: readonly PageSetup[]): string {
-	const rules = [`@page { ${pageRuleBody(base)} }`]
+	const rules = [`@page { ${pageRuleBody(base)} }`, flyerPageRule(base)]
 
 	sections.forEach((setup, index) => {
 		if (index === 0) return

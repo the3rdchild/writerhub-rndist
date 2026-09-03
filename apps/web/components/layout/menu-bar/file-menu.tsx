@@ -1,13 +1,12 @@
 'use client'
 import { Boxes, Download, Files, FileText, Printer, RotateCcw, Upload } from 'lucide-react'
 import { useState } from 'react'
-import { refreshHtmlBlocks } from '@/components/editor/html-block-view'
-import { refreshTocBlocks } from '@/components/editor/toc-block-view'
 import { DropdownSeparator, Submenu } from '@/components/ui/dropdown'
 import { useDocument } from '@/features/document/document-context'
 import { download, safeFilename } from '@/features/document/download'
 import { exportDocx } from '@/features/document/export-docx'
 import { useDocumentImport } from '@/features/document/import-context'
+import { prepareForExport } from '@/features/document/prepare-export'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
 import { pageGeometry } from '@/features/editor/page-geometry'
@@ -36,8 +35,7 @@ export function FileMenu() {
 
 	const downloadDocx = async () => {
 		if (!editor || exporting) return
-		refreshTocBlocks(editor.view.dom)
-		await refreshHtmlBlocks(editor.view.dom)
+		await prepareForExport(editor)
 		if (sessions.length > 1) {
 			setDocxExportOpen(true)
 			return
@@ -116,7 +114,12 @@ export function FileMenu() {
 					</Submenu>
 					<Item
 						icon={<Printer className="h-4 w-4" />}
-						onSelect={() => run(close, () => window.print())}
+						onSelect={() =>
+							run(close, async () => {
+								await prepareForExport(editor)
+								window.print()
+							})
+						}
 						shortcut={keys('doc.print')}
 					>
 						Cetak

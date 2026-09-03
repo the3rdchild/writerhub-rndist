@@ -4,6 +4,7 @@ import type { JSONContent } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import type { DocumentTypography } from '@writer-hub/shared'
 import { HTML_BLOCK } from '@/features/editor/html-block'
+import { rasterizeSvg } from '@/features/editor/html-raster'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import type { PageFurniture } from '@/features/editor/page-furniture/model'
 import {
@@ -180,6 +181,20 @@ function pngFromDataUrl(value: string): Uint8Array | null {
 	}
 }
 
+/** Huruf lebar-tetap untuk blok kode di Word; ada di Windows maupun Office Mac. */
+const CODE_FONT = 'Consolas'
+
+/** SVG Mermaid yang tersimpan di dokumen, tanpa kembar. */
+function collectMermaidSvgs(root: PMNode): Set<string> {
+	const found = new Set<string>()
+	root.descendants((node) => {
+		if (node.type.name !== 'codeBlock' || node.attrs.language !== 'mermaid') return
+		const svg = String(node.attrs.mermaidSvg ?? '')
+		if (svg) found.add(svg)
+	})
+	return found
+}
+
 export function mergeTabContents(tabs: JSONContent[]): JSONContent {
 	const content: JSONContent[] = []
 	for (const [index, tab] of tabs.entries()) {
@@ -298,6 +313,16 @@ export async function exportDocx(
 		})
 	}
 	let sectionContentWidth = geometry.contentWidth
+
+	/*
+	 * Diagram Mermaid yang sudah diratakan jadi PNG, berkunci SVG-nya.
+	 *
+	 * Dikumpulkan lebih dulu karena `blockOf` sinkron sementara rasterisasi
+	 * tidak: satu-satunya cara gambar itu sampai ke sana adalah sudah jadi
+	 * sebelum penelusuran dokumen dimulai. Kuncinya SVG dan bukan node-nya
+	 * supaya dua diagram yang sama cukup digambar sekali.
+	 */
+	const mermaidImages = new Map<string, { png: Uint8Array; width: number; height: number }>()
 
 	const tableOf = (node: PMNode) => {
 		const widths = tableColumnWidths(node, sectionContentWidth)
@@ -532,6 +557,45 @@ export async function exportDocx(
 				]
 			}
 
+			/*
+			 * Blok kode. Mermaid ikut sebagai gambar - Word tidak mengenal
+			 * diagram - sementara bahasa lain jadi paragraf berhuruf mesin ketik.
+			 *
+			 * Tanpa case ini keduanya jatuh ke `default` di bawah dan keluar
+			 * sebagai paragraf teks biasa: diagram tercetak sebagai kodenya, dan
+			 * kode kehilangan huruf lebar-tetapnya sehingga indentasinya tidak
+			 * lagi lurus.
+			 */
+			case 'codeBlock': {
+				if (node.attrs.language === 'mermaid') {
+					const image = mermaidImages.get(String(node.attrs.mermaidSvg ?? ''))
+					if (image) {
+						const scale = Math.min(1, sectionContentWidth / image.width)
+						return [
+							new Paragraph({
+								children: [
+									new ImageRun({
+										data: image.png,
+										type: 'png',
+										transformation: {
+											width: Math.round(image.width * scale),
+											height: Math.round(image.height * scale),
+										},
+									}),
+								],
+							}),
+						]
+					}
+					// Diagram yang belum sempat dirender jatuh ke sumbernya di
+					// bawah: kode yang masih bisa dibaca lebih berguna daripada
+					// lubang kosong di naskah.
+				}
+
+				return node.textContent
+					.split('\n')
+					.map((line) => new Paragraph({ children: [new TextRun({ text: line, font: CODE_FONT })] }))
+			}
+
 			case 'tocBlock': {
 				const snapshot = String(node.attrs.snapshot ?? '')
 				/*
@@ -606,6 +670,16 @@ export async function exportDocx(
 		span ? pageGeometry(span.setup).contentWidth : geometry.contentWidth
 
 	sectionContentWidth = contentWidthOf(spans[0])
+
+	// Semua diagram diratakan sekaligus, sebelum satu pun blok dibangun.
+	await Promise.all(
+		[...collectMermaidSvgs(root)].map(async (svg) => {
+			const raster = await rasterizeSvg(svg)
+			if (!raster) return
+			const png = pngFromDataUrl(raster.png)
+			if (png) mermaidImages.set(svg, { png, width: raster.width, height: raster.height })
+		}),
+	)
 
 	root.forEach((node) => {
 		if (node.type.name === SECTION_BREAK_NODE && spans.length > 0) {

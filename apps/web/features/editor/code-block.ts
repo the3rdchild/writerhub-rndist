@@ -32,6 +32,28 @@ export const CODE_LANGUAGES: Array<{ value: string; label: string }> = [
 ]
 
 export const CodeBlock = CodeBlockLowlight.extend({
+	/*
+	 * Diagram Mermaid yang sudah jadi disimpan di node-nya sendiri, bukan cuma di
+	 * state node view.
+	 *
+	 * Alasannya sama dengan `snapshot` pada blok HTML: yang membaca hasil render
+	 * bukan hanya layar. Ekspor DOCX membaca isi dari dokumen - blok di tab yang
+	 * sedang tidak terbuka tidak punya node view sama sekali - dan jalur cetak
+	 * tidak bisa menunggu render Mermaid yang asinkron. Disimpan begini,
+	 * keduanya menemukan diagramnya sudah ada.
+	 *
+	 * `rendered: false` menahannya keluar dari HTML dokumen: ia turunan dari
+	 * sumbernya, bukan isi. `mermaidSource` menyimpan sumber yang melahirkannya,
+	 * satu-satunya cara tahu apakah SVG yang tersimpan masih sesuai kodenya.
+	 */
+	addAttributes() {
+		return {
+			...this.parent?.(),
+			mermaidSvg: { default: '', rendered: false },
+			mermaidSource: { default: '', rendered: false },
+		}
+	},
+
 	addNodeView() {
 		return ReactNodeViewRenderer(CodeBlockNodeView)
 	},
