@@ -3,6 +3,7 @@
 import {
 	BookMarked,
 	Bot,
+	Images,
 	Languages,
 	MessageSquare,
 	MessagesSquare,
@@ -18,8 +19,8 @@ import { RailIsland, type RailItem } from './rail-island'
  *
  * Pembagiannya bukan estetika melainkan pertanyaan yang berbeda. Pulau atas
  * **memeriksa naskah yang sudah ada** - proofreader, detektor, plagiarisme,
- * terjemahan. Pulau bawah akan **memasukkan sumber ke dalam naskah** - aset,
- * dokumen, referensi - dan belum berisi apa pun. Menamai bedanya sekarang
+ * terjemahan. Pulau bawah **memasukkan sumber ke dalam naskah** - aset hari
+ * ini, lalu dokumen dan referensi menyusul. Menamai bedanya sekarang
  * menentukan ke mana perkakas berikutnya pergi; tanpa itu keduanya menyatu
  * lagi menjadi satu daftar panjang tanpa urutan yang bisa dijelaskan.
  */
@@ -35,8 +36,10 @@ export const ANALYSIS_PANELS: readonly RailItem[] = [
 	{ id: 'comments', icon: MessageSquare, label: 'Comments' },
 ]
 
+export const SOURCE_PANELS: readonly RailItem[] = [{ id: 'assets', icon: Images, label: 'Aset' }]
+
 /** Daftar rata untuk pemakai yang tidak peduli pengelompokannya (menu Tools). */
-export const PANELS: readonly RailItem[] = [...ANALYSIS_PANELS]
+export const PANELS: readonly RailItem[] = [...ANALYSIS_PANELS, ...SOURCE_PANELS]
 
 export function PanelRail() {
 	/*
@@ -50,6 +53,7 @@ export function PanelRail() {
 	return (
 		<div className="absolute right-4 top-1/2 z-30 flex -translate-y-1/2 flex-col items-end gap-2">
 			<RailIsland items={ANALYSIS_PANELS} />
+			<RailIsland items={SOURCE_PANELS} />
 		</div>
 	)
 }

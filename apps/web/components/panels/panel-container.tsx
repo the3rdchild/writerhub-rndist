@@ -7,6 +7,7 @@ import { useDocument } from '@/features/document/document-context'
 import { AiChatPanel } from './ai-chat-panel'
 import { AiDetectorPanel } from './ai-detector-panel'
 import { AiRewriterPanel } from './ai-rewriter-panel'
+import { AssetsPanel } from './assets-panel'
 import { CommentsPanel } from './comments-panel'
 import { GlossaryPanel } from './glossary-panel'
 import { HumanizerPanel } from './humanizer-panel'
@@ -24,6 +25,7 @@ const PANEL_TITLES: Record<PanelId, string> = {
 	plagiarism: 'Plagiarism Checker',
 	translator: 'Translator',
 	glossary: 'Glosarium',
+	assets: 'Aset',
 }
 
 function PanelBody({ panel }: { panel: PanelId }) {
@@ -46,6 +48,8 @@ function PanelBody({ panel }: { panel: PanelId }) {
 			return <TranslatorPanel />
 		case 'glossary':
 			return <GlossaryPanel />
+		case 'assets':
+			return <AssetsPanel />
 	}
 }
 
