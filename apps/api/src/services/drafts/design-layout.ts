@@ -1,4 +1,10 @@
-import type { PageOrientation, PageSetup, PageSizeId, TabLayout } from '@writer-hub/shared'
+import {
+	PAGE_SIZES,
+	type PageOrientation,
+	type PageSetup,
+	type PageSizeId,
+	type TabLayout,
+} from '@writer-hub/shared'
 
 /**
  * Tata letak lembar untuk rancangan satu halaman, dibaca dari permintaannya
@@ -65,4 +71,35 @@ export function designPageSetup(prompt: string | undefined): PageSetup {
 
 export function designLayout(prompt: string | undefined): TabLayout {
 	return { pageSetup: designPageSetup(prompt) }
+}
+
+/**
+ * Kanvas yang akan didapat rancangannya, dalam piksel CSS pada 96 DPI.
+ *
+ * Ini yang hilang di percobaan pertama, dan akibatnya terlihat: rancangannya
+ * hanya mengisi sepertiga atas kertas. Model diminta memakai `height: 100%`
+ * tapi tidak pernah diberi tahu lembarnya tinggi atau lebar - jadi ia menyusun
+ * komposisi yang lebarnya wajar untuk layar, lalu komposisi itu duduk di
+ * puncak kertas potret. Itu bukan model yang buruk, itu perancang yang bekerja
+ * tanpa melihat kertasnya.
+ *
+ * AI Chat tidak punya masalah ini: ia bisa memanggil `get_page_setup` dan
+ * membaca kotak kanvasnya. Jalur draf tidak punya alat, jadi angkanya harus
+ * ikut di prompt.
+ */
+export function designCanvas(prompt: string | undefined): { width: number; height: number } {
+	const setup = designPageSetup(prompt)
+	const { width, height } = PAGE_SIZES[setup.size]
+	return setup.orientation === 'landscape' ? { width: height, height: width } : { width, height }
+}
+
+/** Satu kalimat untuk prompt: ukuran lembar beserta bentuknya. */
+export function canvasPrompt(prompt: string | undefined): string {
+	const { width, height } = designCanvas(prompt)
+	const shape = height >= width ? 'TALL (portrait)' : 'WIDE (landscape)'
+	return [
+		`The sheet you are designing on is exactly ${width}x${height} CSS pixels at 96dpi - it is ${shape}.`,
+		'Compose for that shape and fill it edge to edge: a layout that only reaches',
+		'the top third of the sheet is a failed flyer, not a minimal one.',
+	].join(' ')
 }

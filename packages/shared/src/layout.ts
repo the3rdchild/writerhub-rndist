@@ -12,21 +12,37 @@ import type { DocumentTypography } from './typography'
 
 export type PageOrientation = 'portrait' | 'landscape'
 
-export type PageSizeId =
-	| 'letter'
-	| 'tabloid'
-	| 'legal'
-	| 'statement'
-	| 'executive'
-	| 'folio'
-	| 'a3'
-	| 'a4'
-	| 'a5'
-	| 'b4'
-	| 'b5'
-	| 'custom'
-
 /** Satuan piksel CSS pada 96 DPI, sama seperti di editor. */
+export const INCH = 96
+
+/**
+ * Ukuran kertas dalam piksel CSS pada 96 DPI - potret, sebelum orientasi
+ * diterapkan.
+ *
+ * Ada di paket bersama karena tiga pihak memerlukannya dan dulu hanya satu yang
+ * memilikinya: editor menghitung geometri lembar, API draf harus memberi tahu
+ * model kanvas yang sedang dirancangnya, dan daftar `PageSizeId` di sini
+ * sebelumnya ditulis tangan sebagai union terpisah yang harus dijaga tetap
+ * sama. Sekarang union itu diturunkan dari tabelnya sendiri, jadi keduanya
+ * tidak bisa lagi berselisih.
+ */
+export const PAGE_SIZES = {
+	letter: { label: 'Letter (8,5" × 11")', width: 816, height: 1056 },
+	tabloid: { label: 'Tabloid (11" × 17")', width: 1056, height: 1632 },
+	legal: { label: 'Legal (8,5" × 14")', width: 816, height: 1344 },
+	statement: { label: 'Statement (5,5" × 8,5")', width: 528, height: 816 },
+	executive: { label: 'Executive (7,25" × 10,5")', width: 696, height: 1008 },
+	folio: { label: 'Folio (8,5" × 13")', width: 816, height: 1248 },
+	a3: { label: 'A3 (297 × 420 mm)', width: 1123, height: 1587 },
+	a4: { label: 'A4 (210 × 297 mm)', width: 794, height: 1123 },
+	a5: { label: 'A5 (148 × 210 mm)', width: 559, height: 794 },
+	b4: { label: 'B4 (250 × 353 mm)', width: 945, height: 1334 },
+	b5: { label: 'B5 (176 × 250 mm)', width: 665, height: 945 },
+	custom: { label: 'Ukuran khusus', width: 0, height: 0 },
+} as const
+
+export type PageSizeId = keyof typeof PAGE_SIZES
+
 export interface PageMargins {
 	top: number
 	right: number

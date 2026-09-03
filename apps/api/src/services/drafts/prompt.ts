@@ -2,6 +2,7 @@ import { REWRITE_TONES, type RewriterTone, type StyleMemory } from '@writer-hub/
 // Preferensi gaya tersimpan sudah punya satu terjemahan ke instruksi prompt.
 // Menyalinnya ke sini akan membuat dua versi yang lambat laun berbeda.
 import { memoryPrompt, templateRulesPrompt } from '@/services/chat/prompts'
+import { canvasPrompt } from './design-layout'
 import type { DraftRequest } from './dto'
 
 /**
@@ -115,7 +116,9 @@ export function buildDraftMessages(
 	 */
 	const system =
 		request.kind === 'flyer'
-			? [DRAFT_FLYER_PROMPT, languagePrompt(request.language)].filter(Boolean).join('\n\n')
+			? [DRAFT_FLYER_PROMPT, canvasPrompt(request.prompt), languagePrompt(request.language)]
+					.filter(Boolean)
+					.join('\n\n')
 			: [
 					DRAFT_SYSTEM_PROMPT,
 					languagePrompt(request.language),
@@ -125,7 +128,9 @@ export function buildDraftMessages(
 					templateRulesPrompt(templateRules),
 					// Template menyatakan bentuknya sendiri; jangan tawarkan pintu
 					// keluar yang bertentangan dengan kerangka yang sudah dipilih.
-					request.kind === 'document' || templateRules?.length ? '' : DRAFT_AUTO_CLAUSE,
+					request.kind === 'document' || templateRules?.length
+						? ''
+						: `${DRAFT_AUTO_CLAUSE} ${canvasPrompt(request.prompt)}`,
 				]
 					.filter(Boolean)
 					.join('\n\n')

@@ -1,26 +1,15 @@
-export const INCH = 96
+import { INCH, PAGE_SIZES, type PageOrientation, type PageSizeId } from '@writer-hub/shared'
 
-export const PAGE_SIZES = {
-	letter: { label: 'Letter (8,5" × 11")', width: 816, height: 1056 },
-	tabloid: { label: 'Tabloid (11" × 17")', width: 1056, height: 1632 },
-	legal: { label: 'Legal (8,5" × 14")', width: 816, height: 1344 },
-	statement: { label: 'Statement (5,5" × 8,5")', width: 528, height: 816 },
-	executive: { label: 'Executive (7,25" × 10,5")', width: 696, height: 1008 },
-	folio: { label: 'Folio (8,5" × 13")', width: 816, height: 1248 },
-	a3: { label: 'A3 (297 × 420 mm)', width: 1123, height: 1587 },
-	a4: { label: 'A4 (210 × 297 mm)', width: 794, height: 1123 },
-	a5: { label: 'A5 (148 × 210 mm)', width: 559, height: 794 },
-	b4: { label: 'B4 (250 × 353 mm)', width: 945, height: 1334 },
-	b5: { label: 'B5 (176 × 250 mm)', width: 665, height: 945 },
-	custom: { label: 'Ukuran khusus', width: 0, height: 0 },
-} as const
-
-export type PageSizeId = keyof typeof PAGE_SIZES
+/*
+ * Tabel ukuran kertas hidup di `@writer-hub/shared`: API draf memerlukannya
+ * juga - ia harus memberi tahu model kanvas yang sedang dirancangnya - dan dua
+ * salinan angka kertas adalah dua salinan yang akan berselisih.
+ */
+export { INCH, PAGE_SIZES, type PageOrientation, type PageSizeId } from '@writer-hub/shared'
 
 export const DEFAULT_PAGE_SIZE: PageSizeId = 'a4'
 export const MIN_CUSTOM_SIDE = 3 * INCH
 export const MAX_CUSTOM_SIDE = 48 * INCH
-export type PageOrientation = 'portrait' | 'landscape'
 
 export const DEFAULT_PAGE_ORIENTATION: PageOrientation = 'portrait'
 
