@@ -203,3 +203,62 @@ describe('rancangan satu halaman', () => {
 		expect(singleHtmlBlock('```html\n\n```')).toBeNull()
 	})
 })
+
+describe('rancangan tanpa pagar', () => {
+	/*
+	 * Kegagalan yang melahirkan cabang ini: model yang diminta membalas dengan
+	 * satu pagar justru langsung menuliskan `<!DOCTYPE html>`. Ditolak, naskah
+	 * itu jatuh ke pengurai Markdown dan mendarat sebagai paragraf demi
+	 * paragraf berisi tag - persis yang tersimpan di dokumen pengguna.
+	 */
+	test('HTML telanjang tetap dikenali sebagai rancangan', () => {
+		const doc = markdownToDoc('<section style="height:100%">Aksi</section>', {
+			allowHtmlBlock: true,
+		})
+
+		expect(doc.content).toHaveLength(1)
+		expect(doc.content[0].type).toBe('htmlBlock')
+	})
+
+	test('prosa biasa tidak ikut tertarik', () => {
+		expect(singleHtmlBlock('Ini paragraf biasa tentang <html>.')).toBeNull()
+		expect(singleHtmlBlock('# Judul\n\nParagraf pertama.')).toBeNull()
+	})
+
+	test('tag tanpa penutup bukan rancangan', () => {
+		expect(singleHtmlBlock('<br>')).toBeNull()
+	})
+})
+
+describe('dokumen HTML utuh diratakan', () => {
+	/*
+	 * Bingkai blok menyediakan doctype, html, head dan body-nya sendiri, jadi
+	 * dokumen utuh yang disisipkan apa adanya menghasilkan body bersarang di
+	 * dalam body.
+	 */
+	const FULL = [
+		'<!DOCTYPE html>',
+		'<html lang="id">',
+		'<head><meta charset="UTF-8"><style>.t{color:red}</style></head>',
+		'<body style="height:100%"><h1>Aksi</h1></body>',
+		'</html>',
+	].join('\n')
+
+	test('hanya isi body yang tersisa, plus gaya dari head', () => {
+		const html = singleHtmlBlock(FULL)
+
+		expect(html).toContain('.t{color:red}')
+		expect(html).toContain('<h1>Aksi</h1>')
+		expect(html).not.toContain('<!DOCTYPE')
+		expect(html).not.toContain('<body')
+		expect(html).not.toContain('<head')
+	})
+
+	test('atribut body diselamatkan sebagai pembungkus', () => {
+		expect(singleHtmlBlock(FULL)).toContain('<div style="height:100%">')
+	})
+
+	test('potongan yang memang sudah tanpa body dibiarkan utuh', () => {
+		expect(singleHtmlBlock('<div class="flyer">isi</div>')).toBe('<div class="flyer">isi</div>')
+	})
+})

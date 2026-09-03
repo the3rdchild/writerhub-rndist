@@ -1,4 +1,4 @@
-import type { DraftHandoff, DraftProgress } from '@writer-hub/shared'
+import type { DraftHandoff, DraftProgress, TabLayout } from '@writer-hub/shared'
 import { env } from '@/config/env'
 import type { Document, DocumentTab, Template } from '@/db/schemas'
 import { AppError } from '@/lib/error'
@@ -9,6 +9,7 @@ import { findTemplateBySlug } from '@/repository/template'
 import JobSubmissionService from '@/services/job-submission.service'
 import { snapshotIntervalTab } from '@/services/tabs/service'
 import { templateDocumentLayout, templateTabLayout } from '@/services/templates/layout'
+import { designLayout } from './design-layout'
 import { type DraftRequest, draftRequestSchema } from './dto'
 import { type ProviderConfig, providerConfig } from './generation'
 import { headingTitle, markdownToDoc, type ProseMirrorDoc } from './markdown-doc'
@@ -45,6 +46,11 @@ const FALLBACK_TITLE = 'Draf tanpa judul'
  */
 function allowsDesign(request: DraftRequest): boolean {
 	return request.kind !== 'document'
+}
+
+/** Naskah yang seluruhnya satu blok rancangan - lihat `markdownToDoc`. */
+function isDesignDoc(content: ProseMirrorDoc): boolean {
+	return content.content.length === 1 && content.content[0].type === 'htmlBlock'
 }
 
 export default class DraftsService extends JobSubmissionService {
@@ -123,7 +129,10 @@ export default class DraftsService extends JobSubmissionService {
 	): Promise<Response> {
 		const title = body.title ?? headingTitle(markdown) ?? this.promptTitle(body.prompt) ?? FALLBACK_TITLE
 		const content = markdownToDoc(markdown, { allowHtmlBlock: allowsDesign(body) })
-		const { document, tab } = await this.createDocument(title, content, projectId, template)
+		// Naskahnya sudah ada, jadi bentuknya sudah pasti di sini - lembarnya bisa
+		// langsung disetel saat dokumen dibuat, tanpa perlu diperbaiki menyusul.
+		const layout = isDesignDoc(content) ? designLayout(body.prompt) : null
+		const { document, tab } = await this.createDocument(title, content, projectId, template, layout)
 
 		await snapshotIntervalTab(tab.id, content, this.ownerId())
 
@@ -184,6 +193,10 @@ export default class DraftsService extends JobSubmissionService {
 			titleFromHeading: !request.title,
 			words: request.words,
 			allowHtmlBlock: allowsDesign(request),
+			// Dihitung dari permintaan di sini karena hanya service yang
+			// memegangnya; runner memakainya cuma kalau jawabannya ternyata
+			// benar-benar sebuah rancangan.
+			designLayout: designLayout(request.prompt),
 		})
 	}
 
@@ -232,12 +245,14 @@ export default class DraftsService extends JobSubmissionService {
 		content: ProseMirrorDoc,
 		projectId: string,
 		template: Template | null,
+		/** Menimpa tata letak template; dipakai rancangan satu halaman. */
+		layout: TabLayout | null = null,
 	): Promise<{ document: Document; tab: DocumentTab }> {
 		const document = await insertDocument({
 			title,
 			project_id: projectId,
 			template_slug: template?.slug ?? null,
-			layout: template ? templateDocumentLayout(template.spec) : null,
+			layout: layout ?? (template ? templateDocumentLayout(template.spec) : null),
 		})
 		if (!document) throw AppError.internalServerError('Gagal menyimpan dokumen')
 

@@ -95,6 +95,20 @@ describe('generateDraftMarkdown', () => {
 		expect(await generateDraftMarkdown(config, messages)).toBe('# Judul\n\nisi')
 	})
 
+	/*
+	 * Regresi yang benar-benar terjadi: model menurut dan membalas dengan tepat
+	 * satu pagar ```html, lalu pagarnya dilucuti di sini - sebelum
+	 * `markdownToDoc` sempat mengenalinya sebagai rancangan. Yang tersisa HTML
+	 * mentah tanpa penanda, dan ia mendarat di kanvas sebagai paragraf demi
+	 * paragraf berisi tag.
+	 */
+	test('pagar html TIDAK dibuang - ia jawabannya, bukan pembungkusnya', async () => {
+		const answer = '```html\n<div style="height:100%">Aksi</div>\n```'
+		stubFetch(sse([answer]))
+
+		expect(await generateDraftMarkdown(config, messages)).toBe(answer)
+	})
+
 	test('pagar di tengah naskah dibiarkan - ia bagian dari dokumen', async () => {
 		const markdown = '# Judul\n\n```python\nprint(1)\n```\n\npenutup'
 		stubFetch(sse([markdown]))

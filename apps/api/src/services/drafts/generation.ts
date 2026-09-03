@@ -158,10 +158,23 @@ function requireMarkdown(markdown: string): string {
 }
 
 /**
+ * Pagar yang berarti "seluruh jawaban terbungkus", bukan pagar yang isinya
+ * memang kode.
+ *
+ * Bahasanya dibatasi dengan sengaja. Dulu pola ini menerima bahasa apa pun,
+ * dan itu justru menelan satu-satunya bentuk jawaban yang benar untuk
+ * rancangan satu halaman: model menurut, membalas dengan tepat satu pagar
+ * ```html, lalu pagarnya dilucuti di sini - sebelum `markdownToDoc` sempat
+ * mengenalinya. Yang tersisa HTML mentah tanpa penanda, dan ia mendarat di
+ * kanvas sebagai paragraf demi paragraf berisi tag.
+ */
+const WRAPPER_FENCE = /^```(?:markdown|md|text|txt)?\n([\s\S]*)\n```$/i
+
+/**
  * Sebagian model tetap membungkus seluruh jawaban dalam satu pagar ```markdown
  * meski diminta tidak. Dibiarkan, seluruh dokumen masuk sebagai satu blok kode.
  */
 function unwrapFence(markdown: string): string {
-	const match = /^```[a-z]*\n([\s\S]*)\n```$/i.exec(markdown)
+	const match = WRAPPER_FENCE.exec(markdown)
 	return match ? match[1] : markdown
 }

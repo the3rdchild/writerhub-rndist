@@ -1,3 +1,4 @@
+import type { TabLayout } from '@writer-hub/shared'
 import LoggerClient from '@/lib/logger'
 import { touchDocument, updateDocument } from '@/repository/document'
 import { updateTab } from '@/repository/document-tab'
@@ -62,6 +63,13 @@ export interface DraftGeneration {
 	 * naskah adalah permintaannya, dan permintaan itu hanya ada di service.
 	 */
 	allowHtmlBlock?: boolean
+	/**
+	 * Lembar untuk rancangan satu halaman, dibaca dari permintaannya
+	 * (`design-layout.ts`). Dipakai HANYA kalau jawaban model ternyata benar
+	 * sebuah rancangan - dokumen prosa tetap memakai lembar template atau
+	 * bawaannya.
+	 */
+	designLayout?: TabLayout
 }
 
 /**
@@ -98,6 +106,7 @@ async function writeDraft(
 		titleFromHeading,
 		columns,
 		allowHtmlBlock,
+		designLayout,
 	}: DraftGeneration,
 	targetCharacters: number,
 	deadline: number,
@@ -129,7 +138,16 @@ async function writeDraft(
 		const title = titleFromHeading ? headingTitle(markdown) : null
 
 		await updateTab(tabId, { content, ...(title ? { title } : {}) })
-		if (title) await updateDocument(documentId, ownerId, { title })
+		/*
+		 * Lembarnya baru bisa ditentukan sekarang: pada `kind: 'auto'` bentuk
+		 * jawaban belum diketahui saat dokumen dibuat. Dokumen prosa tidak
+		 * disentuh - lembar template yang sudah dipasang di sana harus bertahan.
+		 */
+		const patch = {
+			...(title ? { title } : {}),
+			...(isDesign && designLayout ? { layout: designLayout } : {}),
+		}
+		if (Object.keys(patch).length > 0) await updateDocument(documentId, ownerId, patch)
 		else await touchDocument(documentId)
 
 		await snapshotIntervalTab(tabId, content, createdBy)

@@ -259,6 +259,68 @@ const BLOCK_READERS: BlockReader[] = [
  * diminta hanya satu pagar - dan judul itu berguna: `headingTitle` memungutnya
  * sebagai judul dokumen, jadi ia tidak hilang, hanya pindah tempat.
  */
+/** Jawaban yang seluruhnya satu pagar ```html, atau null. */
+function fencedHtml(lines: readonly string[]): string | null {
+	if (lines.length === 0 || !HTML_FENCE.test(lines[0].trim())) return null
+
+	const body: string[] = []
+	let cursor = 1
+	while (cursor < lines.length && !lines[cursor].trim().startsWith('```')) {
+		body.push(lines[cursor])
+		cursor += 1
+	}
+	// Pagar yang tidak pernah ditutup berarti jawabannya terpotong; menyimpannya
+	// sebagai rancangan berarti menyimpan HTML yang separuh.
+	if (cursor >= lines.length) return null
+
+	for (let after = cursor + 1; after < lines.length; after += 1) {
+		if (lines[after].trim()) return null
+	}
+
+	return body.join('\n').trim() || null
+}
+
+/**
+ * Jawaban yang berupa HTML telanjang, tanpa pagar sama sekali.
+ *
+ * Model yang diminta membalas dengan satu pagar kerap melewatkan pagarnya dan
+ * langsung menuliskan `<!DOCTYPE html>`. Menolaknya berarti naskah itu jatuh ke
+ * pengurai Markdown dan mendarat sebagai paragraf demi paragraf berisi tag -
+ * hasil yang tidak berguna bagi siapa pun.
+ *
+ * Syaratnya tetap ketat: seluruh jawaban harus dibuka tanda `<` dan memuat tag
+ * penutup. Prosa - dalam bahasa apa pun - praktis tidak pernah dimulai begitu.
+ */
+function bareHtml(text: string): string | null {
+	const trimmed = text.trim()
+	if (!trimmed.startsWith('<') || !trimmed.includes('</')) return null
+	return trimmed
+}
+
+/**
+ * Meratakan dokumen HTML utuh menjadi potongan yang muat di dalam blok.
+ *
+ * Bingkai blok menyediakan `<!doctype>`, `<html>`, `<head>` dan `<body>`-nya
+ * sendiri (`html-sandbox.ts`), jadi dokumen utuh yang disisipkan apa adanya
+ * menghasilkan `<body>` bersarang di dalam `<body>` - bentuk yang ditolerir
+ * peramban dengan cara yang tidak bisa diramalkan.
+ *
+ * `<style>` di dalam `<head>` ikut dipindahkan, kalau tidak seluruh rancangan
+ * kehilangan gayanya. Atribut pada `<body>` sendiri - yang kerap membawa latar
+ * dan tinggi penuh - diselamatkan sebagai pembungkus `<div>`.
+ */
+function bodyMarkup(html: string): string {
+	const body = /<body([^>]*)>([\s\S]*?)<\/body>/i.exec(html)
+	if (!body) return html
+
+	const head = /<head[^>]*>([\s\S]*?)<\/head>/i.exec(html)
+	const styles = head ? (head[1].match(/<style[\s\S]*?<\/style>/gi) ?? []).join('\n') : ''
+	const attributes = body[1].trim()
+	const inner = attributes ? `<div ${attributes}>${body[2]}</div>` : body[2]
+
+	return `${styles}\n${inner}`.trim()
+}
+
 export function singleHtmlBlock(markdown: string): string | null {
 	const lines = markdown.replace(/\r\n/g, '\n').split('\n')
 
@@ -278,24 +340,9 @@ export function singleHtmlBlock(markdown: string): string | null {
 		break
 	}
 
-	if (index >= lines.length || !HTML_FENCE.test(lines[index].trim())) return null
-
-	const body: string[] = []
-	let cursor = index + 1
-	while (cursor < lines.length && !lines[cursor].trim().startsWith('```')) {
-		body.push(lines[cursor])
-		cursor += 1
-	}
-	// Pagar yang tidak pernah ditutup berarti jawabannya terpotong; menyimpannya
-	// sebagai rancangan berarti menyimpan HTML yang separuh.
-	if (cursor >= lines.length) return null
-
-	for (let after = cursor + 1; after < lines.length; after += 1) {
-		if (lines[after].trim()) return null
-	}
-
-	const html = body.join('\n').trim()
-	return html || null
+	const rest = lines.slice(index)
+	const html = fencedHtml(rest) ?? bareHtml(rest.join('\n'))
+	return html ? bodyMarkup(html) : null
 }
 
 function htmlBlockNode(html: string): DocNode {
