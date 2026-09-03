@@ -93,13 +93,27 @@ export function designCanvas(prompt: string | undefined): { width: number; heigh
 	return setup.orientation === 'landscape' ? { width: height, height: width } : { width, height }
 }
 
-/** Satu kalimat untuk prompt: ukuran lembar beserta bentuknya. */
+/**
+ * Satu kalimat untuk prompt: bentuk lembar beserta ukurannya.
+ *
+ * Urutannya disengaja - bentuk dulu, angka belakangan, dan angkanya dinyatakan
+ * sebagai bahan menakar proporsi. Versi pertama menyebut angkanya lebih dulu
+ * dan model menyalinnya bulat-bulat menjadi `width: 794px; height: 1123px`,
+ * padahal kalimat berikutnya melarang ukuran tetap. Menyebut ukuran persis lalu
+ * melarang memakainya adalah dua perintah yang bertabrakan; yang menang selalu
+ * yang paling konkret.
+ */
 export function canvasPrompt(prompt: string | undefined): string {
 	const { width, height } = designCanvas(prompt)
 	const shape = height >= width ? 'TALL (portrait)' : 'WIDE (landscape)'
+	const ratio = (Math.max(width, height) / Math.min(width, height)).toFixed(2)
+
 	return [
-		`The sheet you are designing on is exactly ${width}x${height} CSS pixels at 96dpi - it is ${shape}.`,
-		'Compose for that shape and fill it edge to edge: a layout that only reaches',
-		'the top third of the sheet is a failed flyer, not a minimal one.',
+		`The sheet is ${shape}, with a ${ratio}:1 side ratio.`,
+		`For judging proportions only, that is ${width}x${height} CSS pixels at 96dpi -`,
+		'use those numbers to decide how big a headline should feel, NOT as values to',
+		'write into your CSS.',
+		'Fill the sheet edge to edge: a layout that reaches only the top third is a',
+		'failed flyer, not a minimal one.',
 	].join(' ')
 }

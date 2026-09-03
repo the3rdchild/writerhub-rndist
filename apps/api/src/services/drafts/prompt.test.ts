@@ -105,3 +105,46 @@ describe('bentuk naskah yang diminta', () => {
 		expect(system).toContain('inline <svg>')
 	})
 })
+
+describe('kanvas yang diberitahukan ke model', () => {
+	/*
+	 * Kegagalan yang melahirkan tes ini: versi pertama menyebut "the sheet is
+	 * exactly 794x1123 CSS pixels" lalu melarang ukuran tetap di kalimat
+	 * berikutnya. Model menyalin angkanya bulat-bulat menjadi
+	 * `width:794px; height:1123px`. Menyebut ukuran persis lalu melarang
+	 * memakainya adalah dua perintah yang bertabrakan, dan yang menang selalu
+	 * yang paling konkret.
+	 */
+	test('angkanya dinyatakan sebagai takaran, bukan nilai untuk ditulis', () => {
+		const system = systemOf({ prompt: 'Buatkan flyer', kind: 'flyer' }, null)
+
+		expect(system).toContain('794x1123')
+		expect(system).toContain('NOT as values to')
+		expect(system).toContain('never a fixed')
+	})
+
+	test('bentuk lembar disebut sebelum angkanya', () => {
+		const system = systemOf({ prompt: 'Buatkan flyer', kind: 'flyer' }, null)
+
+		expect(system.indexOf('TALL (portrait)')).toBeLessThan(system.indexOf('794x1123'))
+	})
+
+	test('lembar mengikuti ukuran yang diminta', () => {
+		const system = systemOf({ prompt: 'Buatkan poster A3 lanskap', kind: 'flyer' }, null)
+
+		expect(system).toContain('WIDE (landscape)')
+		expect(system).toContain('1587x1123')
+	})
+
+	/*
+	 * Idiom halaman web yang paling merusak: <body> dijadikan viewport yang
+	 * menengahkan "kertas" di dalamnya. Di sini blok itu SUDAH kertasnya, jadi
+	 * hasilnya rancangan yang melayang dengan margin mati di sekelilingnya.
+	 */
+	test('idiom viewport dilarang terang-terangan', () => {
+		const system = systemOf({ prompt: 'Buatkan flyer', kind: 'flyer' }, null)
+
+		expect(system).toContain('min-height:100vh')
+		expect(system).toContain('your markup IS the sheet')
+	})
+})
