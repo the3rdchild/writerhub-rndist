@@ -29,9 +29,10 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 		[payload.tabs, selectedTabId],
 	)
 
+	const geometry = useMemo(() => pageGeometry(), [])
 	const editor = useEditor({
 		immediatelyRender: false,
-		extensions: buildEditorExtensions({ geometry: pageGeometry() }),
+		extensions: buildEditorExtensions({ geometry }),
 		content: selectedTab?.content,
 		editable: false,
 		editorProps: {
@@ -46,7 +47,11 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 		function showSelectedTab() {
 			if (!editor || !selectedTab) return
 
-			editor.commands.setContent(selectedTab.content, { emitUpdate: false })
+			const timer = window.setTimeout(() => {
+				if (editor.isDestroyed) return
+				editor.commands.setContent(selectedTab.content, { emitUpdate: false })
+			}, 0)
+			return () => window.clearTimeout(timer)
 		},
 		[editor, selectedTab],
 	)
@@ -106,10 +111,34 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 					</aside>
 				)}
 
-				<main className="flex flex-1 justify-center overflow-y-auto px-4 py-6">
-					<div className="document-canvas w-full max-w-[816px]">
-						<div className="document-sheet min-h-[1056px] bg-surface-raised p-[96px] shadow-[var(--page-shadow)]">
-							<EditorContent editor={editor} />
+				<main className="flex flex-1 justify-center overflow-auto px-4 py-6">
+					<div className="document-canvas">
+						<div
+							className="document-sheet relative"
+							style={{ width: geometry.width, minHeight: geometry.height }}
+						>
+							{/* Struktur sama dengan kanvas utama: margin jadi padding di
+							    pembungkus dalam, bukan di lembar, dan geometri halaman
+							    diteruskan lewat CSS variables supaya blok HTML mode satu
+							    halaman bisa menembus margin sampai tepi kertas. */}
+							<div
+								className="document-page-padding relative"
+								style={
+									{
+										paddingTop: geometry.margins.top,
+										paddingRight: geometry.margins.right,
+										paddingBottom: geometry.margins.bottom,
+										paddingLeft: geometry.margins.left,
+										'--page-content-height': `${geometry.contentHeight}px`,
+										'--page-width': `${geometry.width}px`,
+										'--page-height': `${geometry.height}px`,
+										'--page-margin-top': `${geometry.margins.top}px`,
+										'--page-margin-left': `${geometry.margins.left}px`,
+									} as React.CSSProperties
+								}
+							>
+								<EditorContent editor={editor} />
+							</div>
 						</div>
 					</div>
 				</main>

@@ -79,9 +79,10 @@ export function VersionHistoryView() {
 	const selectedContent = selectedId === null ? draftJson : (detail.data?.content ?? null)
 	const selectedVersion = selectedId === null ? null : (detail.data ?? null)
 
+	const geometry = useMemo(() => pageGeometry(), [])
 	const editor = useEditor({
 		immediatelyRender: false,
-		extensions: [...buildEditorExtensions({ geometry: pageGeometry() }), VersionDiffHighlight],
+		extensions: [...buildEditorExtensions({ geometry }), VersionDiffHighlight],
 		editable: false,
 		editorProps: {
 			attributes: {
@@ -183,10 +184,34 @@ export function VersionHistoryView() {
 			</header>
 
 			<div className="flex min-h-0 flex-1">
-				<main className="relative flex min-w-0 flex-1 justify-center overflow-y-auto px-4 py-6">
-					<div className="document-canvas w-full max-w-[816px]">
-						<div className="document-sheet min-h-[1056px] bg-surface-raised p-[96px] shadow-[var(--page-shadow)]">
-							<EditorContent editor={editor} />
+				<main className="relative flex min-w-0 flex-1 justify-center overflow-auto px-4 py-6">
+					<div className="document-canvas">
+						<div
+							className="document-sheet relative"
+							style={{ width: geometry.width, minHeight: geometry.height }}
+						>
+							{/* Struktur sama dengan kanvas utama: margin jadi padding di
+							    pembungkus dalam, bukan di lembar, dan geometri halaman
+							    diteruskan lewat CSS variables supaya blok HTML mode satu
+							    halaman bisa menembus margin sampai tepi kertas. */}
+							<div
+								className="document-page-padding relative"
+								style={
+									{
+										paddingTop: geometry.margins.top,
+										paddingRight: geometry.margins.right,
+										paddingBottom: geometry.margins.bottom,
+										paddingLeft: geometry.margins.left,
+										'--page-content-height': `${geometry.contentHeight}px`,
+										'--page-width': `${geometry.width}px`,
+										'--page-height': `${geometry.height}px`,
+										'--page-margin-top': `${geometry.margins.top}px`,
+										'--page-margin-left': `${geometry.margins.left}px`,
+									} as React.CSSProperties
+								}
+							>
+								<EditorContent editor={editor} />
+							</div>
 						</div>
 					</div>
 					{selectedId !== null && detail.isPending && (
