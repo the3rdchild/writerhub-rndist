@@ -4,7 +4,6 @@ import {
 	BookMarked,
 	Bot,
 	Languages,
-	type LucideIcon,
 	MessageSquare,
 	MessagesSquare,
 	RefreshCw,
@@ -12,10 +11,19 @@ import {
 	SpellCheck,
 	UserCheck,
 } from 'lucide-react'
-import { type PanelId, usePanels } from '@/features/analysis/panel-context'
-import { cn } from '@/lib/utils'
+import { RailIsland, type RailItem } from './rail-island'
 
-export const PANELS: Array<{ id: PanelId; icon: LucideIcon; label: string }> = [
+/**
+ * Rail kanan, dua pulau.
+ *
+ * Pembagiannya bukan estetika melainkan pertanyaan yang berbeda. Pulau atas
+ * **memeriksa naskah yang sudah ada** - proofreader, detektor, plagiarisme,
+ * terjemahan. Pulau bawah akan **memasukkan sumber ke dalam naskah** - aset,
+ * dokumen, referensi - dan belum berisi apa pun. Menamai bedanya sekarang
+ * menentukan ke mana perkakas berikutnya pergi; tanpa itu keduanya menyatu
+ * lagi menjadi satu daftar panjang tanpa urutan yang bisa dijelaskan.
+ */
+export const ANALYSIS_PANELS: readonly RailItem[] = [
 	{ id: 'ai_chat', icon: MessagesSquare, label: 'AI Chat' },
 	{ id: 'proofreader', icon: SpellCheck, label: 'Proofreader' },
 	{ id: 'ai_detector', icon: Bot, label: 'AI Detector' },
@@ -27,48 +35,21 @@ export const PANELS: Array<{ id: PanelId; icon: LucideIcon; label: string }> = [
 	{ id: 'comments', icon: MessageSquare, label: 'Comments' },
 ]
 
-const COLLAPSED_WIDTH = 56
-const EXPANDED_WIDTH = 208
+/** Daftar rata untuk pemakai yang tidak peduli pengelompokannya (menu Tools). */
+export const PANELS: readonly RailItem[] = [...ANALYSIS_PANELS]
 
 export function PanelRail() {
-	const { activePanel, togglePanel } = usePanels()
-
+	/*
+	 * Kedua pulau hidup di SATU kolom flex yang di-center, bukan dua elemen
+	 * `absolute` yang masing-masing memposisikan diri. Kalau keduanya absolut,
+	 * pulau bawah harus menebak tinggi pulau atas - dan tebakan itu meleset
+	 * begitu satu perkakas ditambahkan, lalu keduanya bertumpuk di layar
+	 * pendek. Sebagai satu kolom, keduanya tetap ter-center sebagai grup dan
+	 * yang bawah selalu di bawah.
+	 */
 	return (
-		<div
-			className="group/rail absolute right-4 top-1/2 z-30 -translate-y-1/2 overflow-hidden rounded-2xl border border-line bg-surface-raised py-2 shadow-[var(--page-shadow)] transition-[width] duration-200 ease-out"
-			style={{ width: COLLAPSED_WIDTH }}
-			onMouseEnter={(event) => {
-				event.currentTarget.style.width = `${EXPANDED_WIDTH}px`
-			}}
-			onMouseLeave={(event) => {
-				event.currentTarget.style.width = `${COLLAPSED_WIDTH}px`
-			}}
-		>
-			{PANELS.map(({ id, icon: Icon, label }) => {
-				const isActive = activePanel === id
-				return (
-					<button
-						key={id}
-						type="button"
-						onClick={() => togglePanel(id)}
-						aria-label={label}
-						aria-pressed={isActive}
-						className={cn(
-							'flex h-11 w-full items-center gap-3 border-l-2 pl-[17px] transition-colors',
-							isActive
-								? 'border-accent bg-accent/10 text-accent'
-								: 'border-transparent text-subtle hover:bg-[var(--overlay-hover)] hover:text-foreground',
-						)}
-					>
-						<Icon className="h-5 w-5 shrink-0" />
-						{/* Label ikut ada di DOM saat menyempit supaya tetap terbaca
-						    pembaca layar; yang disembunyikan hanya tampilannya. */}
-						<span className="whitespace-nowrap text-sm font-medium opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100">
-							{label}
-						</span>
-					</button>
-				)
-			})}
+		<div className="absolute right-4 top-1/2 z-30 flex -translate-y-1/2 flex-col items-end gap-2">
+			<RailIsland items={ANALYSIS_PANELS} />
 		</div>
 	)
 }
