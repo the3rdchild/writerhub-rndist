@@ -93,7 +93,11 @@ export function VersionHistoryView() {
 	useEffect(
 		function showSelectedVersion() {
 			if (!editor || editor.isDestroyed || !selectedContent) return
-			editor.commands.setContent(selectedContent, { emitUpdate: false })
+			const timer = window.setTimeout(() => {
+				if (editor.isDestroyed) return
+				editor.commands.setContent(selectedContent, { emitUpdate: false })
+			}, 0)
+			return () => window.clearTimeout(timer)
 		},
 		[editor, selectedContent],
 	)
@@ -104,7 +108,11 @@ export function VersionHistoryView() {
 				showDiff && selectedId !== null && draftText !== null
 					? computeVersionDiff(versionPlainText(selectedContent), draftText)
 					: null
-			editor.view.dispatch(editor.state.tr.setMeta(versionDiffHighlightKey, ranges))
+			const timer = window.setTimeout(() => {
+				if (editor.isDestroyed) return
+				editor.view.dispatch(editor.state.tr.setMeta(versionDiffHighlightKey, ranges))
+			}, 0)
+			return () => window.clearTimeout(timer)
 		},
 		[editor, selectedContent, showDiff, selectedId, draftText],
 	)
