@@ -25,7 +25,12 @@ ENV BUN_INSTALL_CACHE_DIR=/tmp/bun-cache \
 USER 65534:65534
 FROM bun-base AS bun-deps
 
-COPY --chown=65534:65534 package.json bun.lock ./
+# bunfig.toml ikut SEBELUM `bun install`: ia yang menentukan tata letak
+# node_modules (lihat berkasnya). Tanpa baris ini, image memasang dengan tata
+# letak simlink terisolasi sementara host memakai hoisted - dua lingkungan yang
+# resolusi modulnya berbeda, dan itu persis jenis selisih yang membuat "jalan di
+# mesin saya" jadi jawaban yang tidak berguna.
+COPY --chown=65534:65534 package.json bun.lock bunfig.toml ./
 COPY --chown=65534:65534 tsconfig.base.json ./
 COPY --chown=65534:65534 packages/shared/package.json ./packages/shared/
 COPY --chown=65534:65534 apps/api/package.json ./apps/api/
