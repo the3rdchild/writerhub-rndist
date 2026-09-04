@@ -33,7 +33,52 @@ cd services/worker && python entry.py
 | `bun run build`                                                      |
 | `bun run db:generate` / `db:migrate` / `db:push` / `db:studio` |
 
-aUji worker Python berdiri sendiri - ia tidak menyentuh Redis maupun basis data, jadi tidak
+#### Kalau build Docker gagal mengunduh paket
+
+Gejalanya `bun install` di dalam build berhenti dengan `ConnectionRefused` atau
+`FailedToOpenSocket` untuk banyak tarball sekaligus. Itu **DNS**, bukan paketnya.
+
+Perbaikannya di daemon Docker, bukan di `docker-compose.yml`:
+
+```json
+// /etc/docker/daemon.json
+{ "dns": ["1.1.1.1"] }
+```
+
+**Jangan menambahkan `network: host` pada langkah build.** Ia pernah dipakai di
+sini sebagai penambal dan sudah dicabut, karena dua alasan:
+
+- Di rootless Docker (`rootlesskit` + `slirp4netns --detach-netns`), "host"
+  adalah netns milik `dockerd` - **bukan** host asli. DNS di sana justru tidak
+  berfungsi, sementara jaringan bridge bawaan mendapat resolver slirp
+  (`10.0.2.3`) yang bekerja. Penambalnya membuat gejalanya lebih parah, bukan
+  hilang.
+- Ia memberi langkah build akses ke seluruh jaringan host, padahal yang
+  dibutuhkan hanya resolusi nama.
+
+#### node_modules memakai tata letak hoisted
+
+`bunfig.toml` menyetel `linker = "hoisted"`, jadi paket dipasang gaya npm alih-alih
+simlink terisolasi bawaan Bun. Alasannya Turbopack - satu-satunya bundler di Next 16 -
+gagal menyelesaikan `@tiptap/extension-code-block-lowlight` dan
+`@tiptap/extension-table-of-contents` lewat simlink itu, meski keduanya terpasang
+benar. Kegagalannya sempat tak terlihat lama karena cache Turbopack menyimpan hasil
+resolusi lama: hijau di mesin yang cache-nya panas, merah di checkout bersih.
+
+Satu jebakan saat memperbaruinya: **volume bernama membayangi direktori dari image**,
+jadi membangun ulang image saja tidak mengubah `node_modules` yang sudah ada di
+container. Volume modulnya harus ikut dibuang - dan `pgdata` jangan sampai ikut:
+
+```bash
+docker compose build
+docker compose down                      # tanpa -v
+docker volume rm writer-hub_node_modules writer-hub_web_node_modules \
+                 writer-hub_api_node_modules writer-hub_shared_node_modules \
+                 writer-hub_web_next
+docker compose up -d
+```
+
+Uji worker Python berdiri sendiri - ia tidak menyentuh Redis maupun basis data, jadi tidak
 perlu stack yang menyala:
 
 ```bash
