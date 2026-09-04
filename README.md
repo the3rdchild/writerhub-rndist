@@ -78,6 +78,41 @@ docker volume rm writer-hub_node_modules writer-hub_web_node_modules \
 docker compose up -d
 ```
 
+#### Jangan menjalankan build Next di host
+
+Layanan dev berjalan sebagai **UID 65534** (lihat `USER` di `Dockerfile`), sementara
+`./apps` di-bind-mount dari host sebagai UID pemiliknya. Apa pun yang ingin ditulis
+Next ke dalam `apps/` karena itu ditolak dari dalam container.
+
+Yang pertama kena selalu `apps/web/next-env.d.ts`, dan ia berkas yang **dilacak git**:
+
+| Dijalankan | Isi yang ditulisnya |
+| --- | --- |
+| `next build` | `import "./.next/types/routes.d.ts"` |
+| `next dev` | `import "./.next/dev/types/routes.d.ts"` |
+
+Jadi satu `bun run --cwd apps/web build` di host menukar isinya, container melihatnya
+basi, mencoba menulisnya balik, dan mati dengan
+
+```
+Unhandled Rejection: Error: EACCES: permission denied, open '/app/apps/web/next-env.d.ts'
+```
+
+Pesan itu muncul **sesudah** web sempat bilang `✓ Ready`, jadi ia tidak terlihat
+berhubungan dengan build yang baru dijalankan. Build di dalam container saja:
+
+```bash
+docker compose exec web bun run build
+```
+
+Kalau terlanjur:
+
+```bash
+git restore apps/web/next-env.d.ts
+rm -rf apps/web/.next
+docker compose restart web
+```
+
 Uji worker Python berdiri sendiri - ia tidak menyentuh Redis maupun basis data, jadi tidak
 perlu stack yang menyala:
 

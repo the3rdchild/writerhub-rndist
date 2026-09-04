@@ -3,6 +3,7 @@
 import { type NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { ArrowDownToLine, Code2, Eye, Maximize2, Scissors, StretchHorizontal, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { fontFaceCss } from '@/features/editor/font-embed'
 import { clampHtmlBlockHeight, type HtmlBlockAttrs } from '@/features/editor/html-block'
 import { rasterizeHtml } from '@/features/editor/html-raster'
 import { HTML_PROBE_SOURCE, HTML_SANDBOX, sandboxDocument } from '@/features/editor/html-sandbox'
@@ -69,7 +70,30 @@ export function HtmlBlockView({ node, updateAttributes, selected, editor, delete
 	const updateAttributesRef = useRef(updateAttributes)
 	updateAttributesRef.current = updateAttributes
 
-	const document_ = useMemo(() => sandboxDocument(attrs.html), [attrs.html])
+	/**
+	 * Bingkainya tidak bisa memuat font dari URL - CSP-nya `font-src data:` -
+	 * jadi bytes-nya harus ikut masuk ke `srcdoc`. Mengambilnya asinkron, jadi
+	 * render pertama memakai font sistem dan render berikutnya menggantinya.
+	 * Pergantian itu tidak terlihat sebagai kedipan karena `font-embed`
+	 * menyimpan berkasnya: hanya blok pertama yang memakai satu keluarga yang
+	 * benar-benar menunggu jaringan.
+	 */
+	const [fontCss, setFontCss] = useState('')
+
+	useEffect(
+		function embedFontsUsedByDesign(): () => void {
+			let cancelled = false
+			void fontFaceCss(attrs.html).then((css) => {
+				if (!cancelled) setFontCss(css)
+			})
+			return () => {
+				cancelled = true
+			}
+		},
+		[attrs.html],
+	)
+
+	const document_ = useMemo(() => sandboxDocument(attrs.html, fontCss), [attrs.html, fontCss])
 
 	const capture = useCallback(async () => {
 		const frame = frameRef.current

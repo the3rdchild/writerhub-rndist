@@ -16,10 +16,14 @@
  * - HTML-nya harus **XML yang sah**; `<br>` tanpa penutup mematikan SVG-nya.
  *   `toXhtml` yang mengurusnya - ia membaca dengan pengurai HTML yang pemaaf,
  *   lalu menuliskannya kembali sebagai XML yang ketat.
- * - Sumber daya jauh tidak ikut. Gambar harus ber-URI `data:`, dan huruf yang
- *   dipakai adalah yang ada di sistem.
+ * - Sumber daya jauh tidak ikut. Gambar harus ber-URI `data:`, dan begitu pula
+ *   fontnya - `font-embed.ts` yang menyematkannya. Ini satu-satunya jalur yang
+ *   tersedia di sini: dokumen SVG-dalam-`<img>` tidak memuat apa pun dari URL,
+ *   bahkan dari origin yang sama, jadi melonggarkan CSP bingkai tidak menolong
+ *   pemotret sama sekali.
  */
 
+import { fontFaceCss } from './font-embed'
 import { SANDBOX_CONTENT_CSS, SANDBOX_ROOT_STYLE } from './html-sandbox'
 
 /** Dipotret dua kali lipat supaya tidak pecah saat dicetak. */
@@ -39,14 +43,14 @@ export function toXhtml(html: string): string {
 	return new XMLSerializer().serializeToString(wrapper)
 }
 
-function svgSource(html: string, width: number, height: number): string {
+function svgSource(html: string, width: number, height: number, fontCss: string): string {
 	return [
 		`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
 		`<foreignObject x="0" y="0" width="${width}" height="${height}">`,
 		// Ruang yang sama dengan bingkai di kanvas, plus dasar gaya yang sama -
 		// tanpa keduanya teksnya membungkus di tempat yang berbeda.
 		`<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;${SANDBOX_ROOT_STYLE}">`,
-		`<style>${SANDBOX_CONTENT_CSS}</style>`,
+		`<style>${fontCss}${SANDBOX_CONTENT_CSS}</style>`,
 		toXhtml(html),
 		'</div></foreignObject></svg>',
 	].join('')
@@ -94,7 +98,7 @@ async function pngFromSvg(svg: string, width: number, height: number): Promise<s
  */
 export async function rasterizeHtml(html: string, width: number, height: number): Promise<string | null> {
 	if (width <= 0 || height <= 0) return null
-	return pngFromSvg(svgSource(html, width, height), width, height)
+	return pngFromSvg(svgSource(html, width, height, await fontFaceCss(html)), width, height)
 }
 
 /**

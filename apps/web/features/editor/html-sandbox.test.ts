@@ -121,6 +121,23 @@ describe('skrip: hanya probe yang boleh jalan', () => {
 		expect(a.srcdoc).toContain(HTML_PROBE_SOURCE)
 	})
 
+	/*
+	 * Bingkainya ber-CSP `font-src data:`, jadi font tidak bisa dirujuk lewat
+	 * URL - bytes-nya harus ikut masuk ke `srcdoc`. Yang menyelesaikannya
+	 * `font-embed.ts`; di sini yang dijaga cuma bahwa titik masuknya ada dan
+	 * mendarat di dalam `<style>`, bukan di luar sebagai teks.
+	 */
+	test('css font yang dikirim mendarat di dalam style', () => {
+		const face = "@font-face{font-family:'Lora';src:url(data:font/woff2;base64,AAA) format('woff2')}"
+		const { srcdoc } = sandboxDocument('<p>x</p>', face)
+
+		expect(srcdoc).toContain(`<style>${face}html, body {`)
+	})
+
+	test('tanpa font, bentuk srcdoc-nya tidak berubah', () => {
+		expect(sandboxDocument('<p>x</p>').srcdoc).toContain('<style>html, body {')
+	})
+
 	// Skrip yang ikut di HTML tidak membawa nonce, jadi CSP menolaknya - ia
 	// masuk apa adanya ke dokumen, tapi tidak pernah dieksekusi.
 	test('skrip milik HTML tidak diberi nonce', () => {

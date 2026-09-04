@@ -78,7 +78,7 @@ const FAMILIES: Family[] = [
 	{ family: 'Pacifico', slug: 'pacifico', weights: '400', styles: ['normal'] },
 ]
 
-const OUT_DIR = new URL('../assets/fonts/', import.meta.url).pathname
+const OUT_DIR = new URL('../public/fonts/', import.meta.url).pathname
 
 /**
  * Google mensyaratkan tupel sumbu terurut menaik, dan menuntut sumbu `ital`
@@ -146,13 +146,13 @@ for (const spec of FAMILIES) {
 		await Bun.write(`${OUT_DIR}${name}`, bytes)
 		written++
 		lines.push(
-			`\t\t{ path: '../../assets/fonts/${name}', weight: '${face.weight}', style: '${face.style}' },`,
+			`\t\t{ path: '../../public/fonts/${name}', weight: '${face.weight}', style: '${face.style}' },`,
 		)
 	}
 	entries.push(`\t// ${spec.family}\n${lines.join('\n')}`)
 	console.log(`${spec.family}: ${faces.length} berkas`)
 }
 
-console.log(`\n${written} berkas tersimpan di apps/web/assets/fonts/\n`)
+console.log(`\n${written} berkas tersimpan di apps/web/public/fonts/\n`)
 console.log('Entri `src` untuk features/editor/fonts.ts:\n')
 console.log(entries.join('\n'))

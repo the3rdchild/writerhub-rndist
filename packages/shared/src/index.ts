@@ -1,6 +1,7 @@
 export * from './analysis'
 export * from './chat'
 export * from './draft'
+export * from './fonts'
 export * from './grammar'
 export * from './http'
 export * from './job'

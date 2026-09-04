@@ -1,4 +1,4 @@
-import type { DraftHandoff, DraftProgress, TabLayout } from '@writer-hub/shared'
+import type { DraftHandoff, DraftOutput, DraftProgress, TabLayout } from '@writer-hub/shared'
 import { env } from '@/config/env'
 import type { Document, DocumentTab, Template } from '@/db/schemas'
 import { AppError } from '@/lib/error'
@@ -13,6 +13,7 @@ import { designCanvas, designLayout } from './design-layout'
 import { type DraftRequest, draftRequestSchema } from './dto'
 import { type ProviderConfig, providerConfig } from './generation'
 import { headingTitle, markdownToDoc, type ProseMirrorDoc } from './markdown-doc'
+import { pendingRenderErrors, resolveOutputs } from './output'
 import { draftPercent, targetCharacters } from './progress'
 import { buildDraftMessages } from './prompt'
 import { recallDraftRequest, rememberDraftRequest } from './request-store'
@@ -78,8 +79,14 @@ export default class DraftsService extends JobSubmissionService {
 		try {
 			const { document, tab } = await this.ownedDraft()
 			const state = await readDraftState(document.id)
+			// Keluaran yang diminta ikut tersimpan bersama permintaannya, jadi
+			// jawaban status membawa daftar yang sama dengan jawaban pembuatnya -
+			// pemanggil yang hanya memegang `statusUrl` tidak kehilangan apa pun.
+			const request = await recallDraftRequest(document.id)
 
-			return this.success({ data: this.toHandoff(document, tab.id, state) })
+			return this.success({
+				data: this.toHandoff(document, tab.id, state, request ? resolveOutputs(request) : []),
+			})
 		} catch (error) {
 			return this.failFromError(error)
 		}
@@ -112,7 +119,7 @@ export default class DraftsService extends JobSubmissionService {
 			await this.beginGeneration(document.id, tab.id, request, config)
 
 			return this.success({
-				data: this.toHandoff(document, tab.id, await readDraftState(document.id)),
+				data: this.toHandoff(document, tab.id, await readDraftState(document.id), resolveOutputs(request)),
 				status: 202,
 			})
 		} catch (error) {
@@ -140,7 +147,7 @@ export default class DraftsService extends JobSubmissionService {
 		await snapshotIntervalTab(tab.id, content, this.ownerId())
 
 		return this.success({
-			data: this.toHandoff(document, tab.id, { status: 'ready' }),
+			data: this.toHandoff(document, tab.id, { status: 'ready' }, resolveOutputs(body)),
 			status: 201,
 		})
 	}
@@ -165,7 +172,7 @@ export default class DraftsService extends JobSubmissionService {
 		await this.beginGeneration(document.id, tab.id, body, config)
 
 		return this.success({
-			data: this.toHandoff(document, tab.id, await readDraftState(document.id)),
+			data: this.toHandoff(document, tab.id, await readDraftState(document.id), resolveOutputs(body)),
 			status: 202,
 		})
 	}
@@ -299,7 +306,17 @@ export default class DraftsService extends JobSubmissionService {
 			: line
 	}
 
-	private toHandoff(document: Document, tabId: string, state: DraftState): DraftHandoff {
+	/**
+	 * `outputs` kosong berarti tidak ada berkas yang diminta, dan jawabannya
+	 * tidak menyebut unduhan sama sekali - bentuk yang persis sama dengan
+	 * sebelum medan `output` ada.
+	 */
+	private toHandoff(
+		document: Document,
+		tabId: string,
+		state: DraftState,
+		outputs: readonly DraftOutput[] = [],
+	): DraftHandoff {
 		return {
 			documentId: document.id,
 			tabId,
@@ -310,6 +327,9 @@ export default class DraftsService extends JobSubmissionService {
 			...(state.status === 'generating' ? { progress: toProgress(state) } : {}),
 			...(state.error ? { error: state.error } : {}),
 			...(state.errorCode ? { errorCode: state.errorCode } : {}),
+			// Statusnya tetap apa adanya: dokumennya siap, hanya berkasnya yang
+			// belum ada. Lihat `pendingRenderErrors`.
+			...(outputs.length ? { downloads: [], renderErrors: pendingRenderErrors(outputs) } : {}),
 		}
 	}
 }

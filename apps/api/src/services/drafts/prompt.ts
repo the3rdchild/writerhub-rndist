@@ -1,4 +1,4 @@
-import { REWRITE_TONES, type RewriterTone, type StyleMemory } from '@writer-hub/shared'
+import { fontChoicePrompt, REWRITE_TONES, type RewriterTone, type StyleMemory } from '@writer-hub/shared'
 // Preferensi gaya tersimpan sudah punya satu terjemahan ke instruksi prompt.
 // Menyalinnya ke sini akan membuat dua versi yang lambat laun berbeda.
 import { memoryPrompt, templateRulesPrompt } from '@/services/chat/prompts'
@@ -34,10 +34,24 @@ export const DRAFT_SYSTEM_PROMPT = [
  * sama (`html-sandbox.ts`), dan diratakan jadi gambar oleh pengekspor yang sama.
  * Satu-satunya beda, di sini tidak ada editor yang bisa ditanyai geometrinya -
  * jadi rancangannya harus mengisi ruang yang diberikan, berapa pun ukurannya.
+ *
+ * **Baris judul di depan diminta, bukan sekadar ditoleransi.** Versi pertama
+ * melarang apa pun sebelum pagarnya, dan akibatnya baru terlihat di nama berkas:
+ * rancangan tidak punya heading Markdown, jadi `headingTitle` mengembalikan null
+ * dan judul dokumen jatuh ke `promptTitle` - 80 karakter pertama kalimat
+ * penggunanya. Unduhannya bernama "buatin saya pamflet jangan buang sampah,
+ * outputnya pdf.pdf".
+ *
+ * Hilirnya sudah menampung sejak awal: `singleHtmlBlock` melewatkan satu heading
+ * di depan pagar dan `headingTitle` memungutnya (`markdown-doc.ts`). Yang kurang
+ * cuma izin di sini.
  */
 export const DRAFT_FLYER_PROMPT = [
-	'Return ONE fenced ```html block and nothing else - no prose before or',
-	'after it, no explanation, no second block.',
+	'Open with a single "# " title line naming the piece - the title of the design',
+	'itself, not a restatement of the request. Keep it short: it becomes the',
+	'document title and the name of the downloaded file.',
+	'Then return ONE fenced ```html block and nothing else - no prose between the',
+	'title and the fence, no explanation after it, no second block.',
 	'Inside it, write the body markup of a self-contained one-page design.',
 	'You are NOT writing a web page that displays a sheet - your markup IS the',
 	'sheet. So: give the root element width:100% and height:100%, never a fixed',
@@ -49,11 +63,12 @@ export const DRAFT_FLYER_PROMPT = [
 	'Content taller than the sheet is cut off at the page edge rather than',
 	'scaled down, so compose to fit rather than trusting it to shrink.',
 	'All CSS must be inline or in a <style> tag inside the block.',
-	'NOTHING loads from a URL - no icon library, no web font, no remote image.',
+	'NOTHING loads from a URL - no icon library, no remote image, no font file.',
 	'Draw icons, logos, badges and decorative shapes as inline <svg>: markup is',
 	'not a network request, so it renders, prints as vector, and survives export.',
 	'Write the path data yourself, and do not let emoji stand in for icons.',
-	'Raster images must be data: URIs; fonts must be data: URIs or system fonts.',
+	'Raster images must be data: URIs.',
+	fontChoicePrompt(),
 	'Scripts never run, so the design must be complete without them.',
 	'Design it properly: real typographic hierarchy, layered shapes, gradients',
 	'and custom SVG iconography - not a coloured box with text on it.',
@@ -65,15 +80,16 @@ export const DRAFT_FLYER_PROMPT = [
  * Diletakkan sebagai satu kalimat di ujung prompt dokumen, bukan sebagai prompt
  * ketiga: yang dibutuhkan model hanyalah tahu bahwa pintu keluar itu ada.
  * Deteksinya di sisi kami sengaja sempit - hanya jawaban yang seluruhnya satu
- * pagar ```html yang dianggap rancangan (lihat `markdown-doc.ts`), jadi artikel
- * yang kebetulan memuat contoh HTML tetap jadi dokumen biasa.
+ * pagar ```html, paling banyak didahului satu baris judul, yang dianggap
+ * rancangan (lihat `markdown-doc.ts`); artikel yang kebetulan memuat contoh HTML
+ * tetap jadi dokumen biasa.
  */
 export const DRAFT_AUTO_CLAUSE = [
 	'EXCEPTION: if the request is for a flyer, poster, pamphlet, banner,',
 	'one-pager, certificate or invitation - anything whose whole point is a',
 	'visual one-page layout rather than running text - do not write a document.',
-	'Answer instead with ONE fenced ```html block and nothing else, following',
-	'these rules:',
+	'Answer instead with a "# " title line followed by ONE fenced ```html block',
+	'and nothing else, following these rules:',
 	DRAFT_FLYER_PROMPT,
 ].join(' ')
 

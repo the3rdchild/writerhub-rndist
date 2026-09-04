@@ -134,8 +134,14 @@ function probeScript(token: string): string {
 
 /**
  * Membungkus potongan HTML menjadi satu dokumen utuh untuk `srcdoc`.
+ *
+ * `fontCss` datang sebagai argumen, bukan diambil sendiri di sini, karena
+ * mengambilnya asinkron sementara fungsi ini murni dan diuji sebagai fungsi
+ * murni. Yang menyelesaikannya `font-embed.ts`; pemanggil yang belum sempat
+ * menunggunya cukup tidak mengirim apa-apa, dan rancangannya jatuh ke font
+ * sistem seperti sebelumnya.
  */
-export function sandboxDocument(html: string): SandboxedDocument {
+export function sandboxDocument(html: string, fontCss = ''): SandboxedDocument {
 	const token = randomToken()
 	const nonce = randomToken()
 
@@ -144,7 +150,7 @@ export function sandboxDocument(html: string): SandboxedDocument {
 		srcdoc: [
 			'<!doctype html><html><head><meta charset="utf-8">',
 			`<meta http-equiv="Content-Security-Policy" content="${policy(nonce)}">`,
-			`<style>html, body { ${SANDBOX_ROOT_STYLE}; ${ROOT_HEIGHT} } ${SANDBOX_CONTENT_CSS}</style>`,
+			`<style>${fontCss}html, body { ${SANDBOX_ROOT_STYLE}; ${ROOT_HEIGHT} } ${SANDBOX_CONTENT_CSS}</style>`,
 			'</head><body>',
 			html,
 			`<script nonce="${nonce}">${probeScript(token)}</script>`,

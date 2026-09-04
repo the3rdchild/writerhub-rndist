@@ -104,6 +104,50 @@ describe('bentuk naskah yang diminta', () => {
 		expect(system).not.toContain('800 words')
 		expect(system).toContain('inline <svg>')
 	})
+
+	/*
+	 * Rancangan tidak punya heading Markdown, jadi tanpa baris judul yang diminta
+	 * di depan pagarnya `headingTitle` mengembalikan null dan judul dokumen jatuh
+	 * ke potongan kalimat penggunanya - yang lalu menjadi nama berkas unduhan.
+	 * Hilirnya sudah memungut judul itu (`markdown-doc.ts`); yang perlu dijaga di
+	 * sini adalah bahwa prompt-nya benar-benar memintanya, dan tidak kembali
+	 * melarang apa pun sebelum pagar seperti versi pertamanya.
+	 */
+	test('rancangan diminta membuka dengan baris judul', () => {
+		const system = systemOf({ prompt: 'Buatkan flyer', kind: 'flyer' }, null)
+
+		expect(system).toContain('"# " title line')
+		expect(system).not.toContain('no prose before')
+	})
+
+	test('pintu keluar otomatis meminta judul yang sama', () => {
+		const system = systemOf({ prompt: 'Buatkan flyer aksi' }, null)
+
+		expect(system).toContain('EXCEPTION')
+		expect(system).toContain('"# " title line')
+	})
+
+	/*
+	 * Font sekarang disematkan penyunting (`font-embed.ts` di apps/web), jadi
+	 * model boleh menyebut keluarga sungguhan. Yang mudah rusak justru kalimat
+	 * lamanya: melarang "web font" sambil menawarkan daftar font adalah dua
+	 * perintah yang bertabrakan, dan pelajaran dari `26cc150` adalah bahwa yang
+	 * menang selalu yang paling konkret.
+	 */
+	test('rancangan diberi pilihan font beserta nadanya', () => {
+		const system = systemOf({ prompt: 'Buatkan undangan resmi', kind: 'flyer' }, null)
+
+		expect(system).toContain('Playfair Display')
+		expect(system).toContain('elegant:')
+		expect(system).not.toContain('no web font')
+	})
+
+	test('font tetap dilarang dimuat dari URL', () => {
+		const system = systemOf({ prompt: 'Buatkan flyer', kind: 'flyer' }, null)
+
+		expect(system).toContain('no font file')
+		expect(system).toContain('do not write @font-face yourself')
+	})
 })
 
 describe('kanvas yang diberitahukan ke model', () => {

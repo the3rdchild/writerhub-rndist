@@ -1,4 +1,4 @@
-import { REWRITE_TONE_IDS } from '@writer-hub/shared'
+import { DRAFT_OUTPUTS, REWRITE_TONE_IDS } from '@writer-hub/shared'
 import { z } from 'zod'
 
 /** Cukup untuk satu permintaan "buatkan …" beserta konteksnya, bukan untuk naskah utuh. */
@@ -47,6 +47,22 @@ export const draftRequestSchema = z
 		 * tidak punya tempat untuk menyatakan bentuk yang diinginkan.
 		 */
 		kind: z.enum(['auto', 'document', 'flyer']).optional(),
+		/**
+		 * Berkas yang diminta ikut dibuatkan, di samping dokumennya.
+		 *
+		 * Skalar maupun larik sama sahnya - `'pdf'` dan `['pdf','png']` keduanya
+		 * diterima dan dinormalkan jadi larik tanpa duplikat. Memaksa pemanggil
+		 * menulis `['pdf']` untuk kasus yang paling umum adalah pajak tanpa
+		 * imbalan.
+		 *
+		 * Tanpa medan ini, format masih bisa terbaca dari `prompt`
+		 * (`output.ts`); tanpa keduanya, tidak ada yang dirender sama sekali -
+		 * itu yang menjaga pemanggil lama tidak mendadak menyalakan perender.
+		 */
+		output: z
+			.union([z.enum(DRAFT_OUTPUTS), z.array(z.enum(DRAFT_OUTPUTS)).min(1).max(DRAFT_OUTPUTS.length)])
+			.transform((value) => (Array.isArray(value) ? [...new Set(value)] : [value]))
+			.optional(),
 		/**
 		 * Model yang diminta. Aturannya sama persis dengan AI Chat
 		 * (`lib/pick-model.ts`): hanya dihormati kalau ia model yang dikenal dan
