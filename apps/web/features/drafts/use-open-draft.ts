@@ -1,6 +1,6 @@
 'use client'
 
-import type { DraftErrorCode, DraftProgress } from '@writer-hub/shared'
+import type { DraftErrorCode, DraftProgress, DraftStatus } from '@writer-hub/shared'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getDocument } from '@/features/documents/api'
@@ -26,6 +26,19 @@ const POLL_INTERVAL_MS = 2_000
 
 /** Batas tunggu di sisi ini; API punya tenggatnya sendiri yang lebih pendek. */
 const MAX_WAIT_MS = 10 * 60_000
+
+/**
+ * Status yang berarti naskahnya sudah tersimpan - dan hanya itu yang ditunggu
+ * di sini.
+ *
+ * `queued` dan `rendering` menggambarkan pekerjaan **sesudah** naskahnya jadi:
+ * mengubah dokumen menjadi berkas untuk pemanggil eksternal
+ * (docs/RENDER-WORKER-PLAN.md §2). Dokumennya sendiri sudah utuh. Menunggu
+ * sampai `ready` berarti menahan penulisnya di layar tunggu demi berkas yang
+ * bukan ia yang meminta - dan karena `progress` hanya terisi selama
+ * `generating`, yang ia lihat adalah bilah yang kembali ke 0%.
+ */
+const WRITTEN: readonly DraftStatus[] = ['ready', 'queued', 'rendering']
 
 export type OpenDraftPhase = 'waiting' | 'opening' | 'error'
 
@@ -110,7 +123,7 @@ export function useOpenDraft(documentId: string): OpenDraftState {
 					)
 					return
 				}
-				if (handoff.status === 'ready') {
+				if (WRITTEN.includes(handoff.status)) {
 					void openRef.current()
 					return
 				}

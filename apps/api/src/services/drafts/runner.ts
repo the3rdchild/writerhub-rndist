@@ -1,4 +1,4 @@
-import type { TabLayout } from '@writer-hub/shared'
+import type { DraftOutput, TabLayout } from '@writer-hub/shared'
 import LoggerClient from '@/lib/logger'
 import { touchDocument, updateDocument } from '@/repository/document'
 import { updateTab } from '@/repository/document-tab'
@@ -10,6 +10,7 @@ import { toDraftFailure } from './failure'
 import { generateDraftMarkdown, type ProviderConfig } from './generation'
 import { headingTitle, markdownToDoc } from './markdown-doc'
 import { targetCharacters } from './progress'
+import { enqueueDraftRender } from './render'
 import { markFailed, markGenerating, markReady } from './status'
 
 /**
@@ -73,6 +74,12 @@ export interface DraftGeneration {
 	designLayout?: TabLayout
 	/** Lembar yang sama, dalam piksel - dipakai menambal ukuran tetap. */
 	canvas?: DesignCanvas
+	/**
+	 * Berkas yang diminta pemanggil. Job rendernya dititipkan begitu naskahnya
+	 * tersimpan - menulis dan merender dipisah supaya Chromium tidak menganggur
+	 * menunggu model mengetik (docs/RENDER-WORKER-PLAN.md §2).
+	 */
+	outputs?: readonly DraftOutput[]
 }
 
 /**
@@ -111,6 +118,7 @@ async function writeDraft(
 		allowHtmlBlock,
 		designLayout,
 		canvas,
+		outputs,
 	}: DraftGeneration,
 	targetCharacters: number,
 	deadline: number,
@@ -155,6 +163,16 @@ async function writeDraft(
 		else await touchDocument(documentId)
 
 		await snapshotIntervalTab(tabId, content, createdBy)
+
+		/*
+		 * Job render dititipkan sebelum `markReady`, bukan sesudahnya: kalau
+		 * terbalik, penanya status sempat melihat `ready` dengan berkas yang
+		 * "tak terlacak" sebelum berputar kembali ke `queued`. Gagal menitipkan
+		 * tidak menggagalkan drafnya - `enqueueDraftRender` menutup catatannya
+		 * sendiri dengan hasil kosong.
+		 */
+		if (outputs?.length) await enqueueDraftRender(documentId, outputs)
+
 		await markReady(documentId)
 	} catch (error) {
 		log.error({ err: error, documentId, tabId }, 'Naskah draf gagal disimpan')

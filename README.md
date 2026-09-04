@@ -17,9 +17,16 @@ bun run dev:web                       # http://localhost:3000
 python3 -m venv .venv                 # di luar `services/worker`
 . .venv/bin/activate
 pip install -r services/worker/requirements.txt
+playwright install chromium            # perender PDF; lewati kalau tidak dipakai
 
 cd services/worker && python entry.py
 ```
+
+Perender PDF menyetir Chromium lewat Playwright dan mengunggah hasilnya ke bucket yang
+sama dengan aset (prefix `exports/`), jadi ia butuh `CDN_*` di `services/worker/.env`
+**dan** `STORAGE_DRIVER=s3` di `apps/api`. Tanpa keduanya, `/draft` tetap menjawab
+`status: ready` - hanya `renderErrors` yang menerangkan berkasnya tidak jadi. Di dalam
+compose Chromium sudah ikut di image worker dan tidak ada langkah tambahan.
 
 ### docker
 

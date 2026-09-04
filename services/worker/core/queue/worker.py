@@ -28,13 +28,18 @@ def _mark_failed(job_id: str | None, message: str) -> None:
         logger.exception("[worker] gagal menandai job failed | job_id=%s", job_id)
 
 
-def _run_with_deadline(handler, data: dict, job_id: str | None, label: str) -> None:
-    """Jalankan handler di thread anak; lewat JOB_DEADLINE_SECONDS → tandai failed
+def _run_with_deadline(handler, data: dict, job_id: str | None, label: str, deadline_seconds: int | None = None):
+    """Jalankan handler di thread anak; lewat tenggat → tandai failed
        dan kembali ke antrean, jadi satu job menggantung tidak membekukan semuanya.
 
        Thread anak yang tertinggal TIDAK dipaksa berhenti (Python tak punya kill
        thread yang aman) - ia mati sendiri karena requests ber-timeout 60 detik.
+
+       `deadline_seconds` menggantikan JOB_DEADLINE_SECONDS untuk antrean yang
+       tenggatnya berbeda - mis. render, yang halamannya dimatikan jauh lebih
+       cepat daripada job AI yang menulis menit-menitan.
     """
+    deadline = deadline_seconds or JOB_DEADLINE_SECONDS
     done = threading.Event()
 
     def _target():
@@ -47,16 +52,16 @@ def _run_with_deadline(handler, data: dict, job_id: str | None, label: str) -> N
 
     worker = threading.Thread(target=_target, name=f"{label}-job-{job_id}", daemon=True)
     worker.start()
-    worker.join(timeout=JOB_DEADLINE_SECONDS)
+    worker.join(timeout=deadline)
 
     if worker.is_alive():
         logger.error(
-            "[%s] job melebihi batas waktu %ds | id=%s", label, JOB_DEADLINE_SECONDS, job_id
+            "[%s] job melebihi batas waktu %ds | id=%s", label, deadline, job_id
         )
-        _mark_failed(job_id, f"Job melebihi batas waktu ({JOB_DEADLINE_SECONDS}s)")
+        _mark_failed(job_id, f"Job melebihi batas waktu ({deadline}s)")
 
 
-def _consumer(handler, queue_name: str, r, label: str) -> None:
+def _consumer(handler, queue_name: str, r, label: str, deadline_seconds: int | None = None) -> None:
     queue_wait_key = wait_key(queue_name)
 
     while True:
@@ -82,34 +87,37 @@ def _consumer(handler, queue_name: str, r, label: str) -> None:
 
         logger.info(f"[job masuk] queue={queue_name} id={job_id}")
 
-        _run_with_deadline(handler, data, payload_job_id, label)
+        _run_with_deadline(handler, data, payload_job_id, label, deadline_seconds)
         r.delete(job_hash_key(queue_name, job_id))
 
 
-def start(handler, queue_name: str = QUEUE_NAME, concurrency: int = WORKER_CONCURRENCY):
+def start(handler, queue_name: str = QUEUE_NAME, concurrency: int = WORKER_CONCURRENCY, deadline_seconds: int | None = None):
     """
     Nunggu job dari Redis pake BRPOP, lalu lempar ke handler.
     queue_name opsional - default queue grammar (backward compatible).
 
     concurrency: jumlah pengambil paralel per antrean (§P11). Satu job tier AI
     memakan puluhan detik; tanpa ini satu pemakai mengunci yang lain.
+
+    deadline_seconds: tenggat satu job untuk antrean ini; tanpa ini dipakai
+    JOB_DEADLINE_SECONDS global.
     """
     r = redis.from_url(REDIS_URL)
     queue_wait_key = wait_key(queue_name)
     label = f"worker-{queue_name.lower()}"
 
     logger.info(
-        f"[{label}] dengerin {queue_wait_key} (concurrency={concurrency}, deadline={JOB_DEADLINE_SECONDS}s)..."
+        f"[{label}] dengerin {queue_wait_key} (concurrency={concurrency}, deadline={deadline_seconds or JOB_DEADLINE_SECONDS}s)..."
     )
 
     if concurrency <= 1:
-        _consumer(handler, queue_name, r, label)
+        _consumer(handler, queue_name, r, label, deadline_seconds)
         return
 
     threads = []
     for i in range(concurrency):
         t = threading.Thread(
-            target=_consumer, args=(handler, queue_name, r, f"{label}-{i}"),
+            target=_consumer, args=(handler, queue_name, r, f"{label}-{i}", deadline_seconds),
             daemon=True, name=f"{label}-{i}",
         )
         t.start()

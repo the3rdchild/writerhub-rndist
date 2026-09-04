@@ -108,15 +108,15 @@ describe('skema permintaan', () => {
 
 describe('pendingRenderErrors', () => {
 	/*
-	 * Kontraknya dikunci sebelum perendernya ada supaya PPE menuliskan
-	 * penanganannya sekali saja: begitu worker mendarat, entri di sini berubah
-	 * jadi entri di `downloads` tanpa PPE mengubah apa pun.
+	 * Bentuknya dikunci sebelum perendernya ada supaya PPE menuliskan
+	 * penanganannya sekali saja: begitu naskahnya selesai, entri di sini
+	 * berubah jadi entri di `downloads` tanpa PPE mengubah apa pun.
 	 */
 	test('tiap keluaran yang diminta mendapat alasannya sendiri', () => {
 		const errors = pendingRenderErrors(['pdf', 'docx'])
 
 		expect(errors.map((error) => error.output)).toEqual(['pdf', 'docx'])
-		expect(errors[0].reason).toContain('belum tersedia')
+		expect(errors[0].reason).toContain('naskahnya selesai')
 	})
 
 	test('tidak ada yang diminta, tidak ada yang dilaporkan', () => {

@@ -1,14 +1,15 @@
 # WritingHub — Rencana: Worker Render (PDF / DOCX / gambar untuk `/draft`)
 
-Status: **R2 dan R5 sudah mendarat, begitu pula font di §9; yang tersisa perendernya
-sendiri (R1, R3, R4).** Disusun 4 September 2026 · Baseline `a7e3be2`. Kontraknya dikunci
-dalam tinjauan 4 September 2026 - §7, §8, §9 dan §10 di bawah sudah memuat hasilnya, dan
-§9 berubah paling banyak: ketergantungan yang ditulis di draf pertama ternyata tidak ada.
+Status: **R1-R5 sudah mendarat untuk PDF, begitu pula font di §9. Yang tersisa R6
+(substitusi peramban pengguna untuk DOCX/gambar) dan perender DOCX/PNG/JPG-nya sendiri.**
+Disusun 4 September 2026 · Baseline `a7e3be2`. Kontraknya dikunci dalam tinjauan
+4 September 2026 - §7, §8, §9 dan §10 di bawah sudah memuat hasilnya, dan §9 berubah
+paling banyak: ketergantungan yang ditulis di draf pertama ternyata tidak ada.
 
-Yang sudah bisa dipakai PPE hari ini: `output` diterima dan dibaca, dan permintaannya
-dijawab `status: 'ready'` dengan `renderErrors` yang menerangkan perendernya belum ada.
-Begitu R3 mendarat, entri itu berubah jadi entri di `downloads` **tanpa PPE mengubah
-apa pun** - itu memang alasan kontraknya dikunci lebih dulu.
+Yang sudah bisa dipakai PPE hari ini: `output: 'pdf'` menghasilkan entri di `downloads`
+berisi presigned URL yang bisa langsung diunduh penggunanya. Format lain tetap dijawab
+`renderErrors` yang menerangkan perendernya belum ada - persis bentuk yang sudah dikunci
+lebih dulu, jadi PPE tidak mengubah apa pun ketika perender berikutnya mendarat.
 
 Dipicu satu alur nyata: pengguna di **AI Chat PPE** meminta *"buatin saya pamflet
 jangan buang sampah, outputnya pdf"*. Alih-alih PPE merender sendiri, permintaannya
@@ -22,10 +23,10 @@ penggunanya sendiri.
 
 | # | Butir | Jenis | Ukuran |
 |---|---|---|---|
-| **R1** | Pisahkan job **menulis** dari job **merender** | Arsitektur | Sedang |
+| **R1** | Pisahkan job **menulis** dari job **merender** | Arsitektur | **Selesai** |
 | **R2** | Rute ekspor bertoken + penanda kesiapan halaman | API + web | **Selesai** (`e5e401e`) |
-| **R3** | Worker Playwright di `services/worker`, kolam terbatas | Worker | Besar |
-| **R4** | Penyimpanan hasil: prefix `exports/`, lifecycle 1 hari | Infra | Kecil |
+| **R3** | Worker Playwright di `services/worker`, kolam terbatas | Worker | **Selesai** (PDF) |
+| **R4** | Penyimpanan hasil: prefix `exports/`, lifecycle 1 hari | Infra | **Selesai** - kecuali aturan lifecycle-nya, lihat §6 |
 | **R5** | Kontrak `/draft`: medan `output`, status & tautan unduh baru | Shared + API | **Selesai** |
 | **R6** | Peramban pengguna menggantikan sandbox — **sebagian saja**, lihat §3 | Web | Sedang |
 
@@ -146,7 +147,46 @@ worker hanya **menyetir** aplikasi, seluruh logika ekspor tetap TypeScript di ha
   halamannya.
 - Satu kunjungan menghasilkan **semua** keluaran yang diminta — memuat dokumen dua kali
   untuk PDF lalu DOCX adalah pemborosan terbesar yang bisa dihindari gratis.
-- Chromium ~250–400 MB per instance, 1–2 dtk start dengan kolam hangat.
+- Yang dipasang **hanya `chrome-headless-shell`**, bukan Chrome lengkap. Mesinnya
+  sama dan PDF-nya identik byte-per-byte (diuji), tapi yang lengkap membawa UI,
+  GPU dan ekstensi yang tidak pernah disentuh: 184 MB unduhan dan 389 MB disk
+  untuk jalur yang tidak ada di sini. Tumpukan GL dari `install-deps`
+  (`libgl1-mesa-dri` beserta `libllvm15` dan `libz3-4`, ~40 MB) ikut dibuang -
+  `ldd chrome-headless-shell` tidak menyebutnya sama sekali, dan cetaknya tetap
+  berhasil setelah ketiganya dicabut.
+- Chromium ~250–400 MB per instance, 1–2 dtk start. **Kolam hangatnya tidak jadi
+  dibangun**, dan sebabnya struktural: `core/queue/worker.py` menjalankan tiap job di
+  benang baru, jadi peramban yang disimpan per-benang berumur satu job - dan benang
+  yang ditinggalkan karena lewat tenggat tidak pernah kembali menutupnya. Chromium yang
+  bocor tiap job lebih mahal daripada 1-2 detik yang dihemat, jadi perambannya
+  diluncurkan dan ditutup di dalam satu `_print_pdf`. Kalau kolam itu memang
+  dibutuhkan kelak, yang harus berubah lebih dulu adalah pemilik benangnya.
+
+### 5.1 Dua jebakan yang sudah ditemui, dan gejalanya menyesatkan
+
+Keduanya muncul sebagai hal yang sama - `data-export-ready` tidak pernah
+terpasang, worker menunggu sampai `RENDER_PAGE_TIMEOUT_S` lalu menyerah - dan
+tidak satu pun meninggalkan galat di konsol peramban.
+
+**1. Next dev memblokir sumber daya `/_next/*` lintas-origin.** Worker membuka
+`http://web:3000`, jadi Host-nya `web`; Next 15+ menolak melayani chunk dev ke
+host yang tidak ada di `allowedDevOrigins`. Akibatnya chunk editor (TipTap,
+ProseMirror, Yjs) menggantung, React tidak pernah hidrasi, dan halamannya
+berhenti sebagai markup SSR yang tidak pernah hidup. Sebabnya cuma terbaca di
+log `web`, bukan di peramban:
+
+```
+⚠ Blocked cross-origin request to Next.js dev resource /_next/webpack-hmr from "web".
+```
+
+Ditambal di `apps/web/next.config.ts` (`allowedDevOrigins: ['web']`). Hanya soal
+`next dev`; build produksi tidak punya sumber daya dev untuk diblokir.
+
+**2. Token yang kedaluwarsa dijawab 404, bukan 401.** Rute ekspor sengaja
+menyamakan "tanda tangan salah" dengan "dokumen tidak ada" supaya penebak tidak
+bisa memetakan mana yang benar-benar ada. Konsekuensinya saat memeriksa masalah:
+halaman 404 juga tidak memasang penanda siap, jadi gejalanya identik dengan
+kegagalan render. Periksa umur tokennya lebih dulu.
 
 ---
 
@@ -155,6 +195,14 @@ worker hanya **menyetir** aplikasi, seluruh logika ekspor tetap TypeScript di ha
 - Prefix **`exports/`**, terpisah dari `assets/`. Aturan lifecycle "hapus setelah 1
   hari" adalah konfigurasi bucket; satu aturan yang salah sasaran akan menghapus
   pustaka aset proyek orang, dan itu baru ketahuan seminggu kemudian.
+  **Belum dipasang** - satu-satunya bagian R4 yang tidak bisa dikerjakan dari repo,
+  dan tanpanya hasil render menumpuk di bucket tanpa pernah dibuang. Sasarannya
+  harus `exports/` saja, jangan seluruh bucket.
+- Worker mengunggahnya dengan boto3 memakai `CDN_*` yang sama dengan apps/api, lalu
+  hanya **kuncinya** yang dicatat di Redis; presigned URL-nya diterbitkan apps/api
+  setiap kali status ditanya. Konsekuensinya: perender hanya bekerja pada
+  `STORAGE_DRIVER=s3`. Driver `local` tidak punya padanan yang bisa dijangkau worker
+  dari proses lain, dan itu batas yang disengaja - bukan cacat yang menunggu tambalan.
 - Umur URL bertanda tangan **harus lebih pendek** dari umur objeknya.
   `PRESIGNED_TTL_SECONDS` sekarang 24 jam — persis seumur objek — jadi URL yang
   diterbitkan di jam ke-23 mati sebelum kedaluwarsa.

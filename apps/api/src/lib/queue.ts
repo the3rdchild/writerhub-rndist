@@ -5,6 +5,7 @@ import { RedisClient } from '@/config/redis'
 class QueueClient {
 	private static instance: Queue | null = null
 	private static analysisInstance: Queue | null = null
+	private static renderInstance: Queue | null = null
 
 	static getInstance(): Queue {
 		if (!QueueClient.instance) {
@@ -24,6 +25,15 @@ class QueueClient {
 		return QueueClient.analysisInstance
 	}
 
+	static getRenderInstance(): Queue {
+		if (!QueueClient.renderInstance) {
+			QueueClient.renderInstance = new Queue(env.RENDER_QUEUE_NAME ?? 'RENDER_QUEUE', {
+				connection: RedisClient.getInstance(),
+			})
+		}
+		return QueueClient.renderInstance
+	}
+
 	static async enqueueGrammarJob(jobId: string, payload: Record<string, unknown>): Promise<void> {
 		await QueueClient.getInstance().add(
 			env.GRAMMAR_JOB_NAME ?? 'PROCESS_GRAMMAR',
@@ -39,6 +49,19 @@ class QueueClient {
 	static async enqueueAnalysisJob(jobId: string, payload: Record<string, unknown>): Promise<void> {
 		await QueueClient.getAnalysisInstance().add(
 			env.ANALYSIS_JOB_NAME ?? 'PROCESS_ANALYSIS',
+			{ jobId, payload },
+			{
+				jobId,
+				removeOnComplete: true,
+				removeOnFail: true,
+			},
+		)
+	}
+
+	/** jobId = documentId, supaya render terakhir untuk satu dokumen tidak menumpuk. */
+	static async enqueueRenderJob(jobId: string, payload: Record<string, unknown>): Promise<void> {
+		await QueueClient.getRenderInstance().add(
+			env.RENDER_JOB_NAME ?? 'RENDER_DOCUMENT',
 			{ jobId, payload },
 			{
 				jobId,
@@ -71,6 +94,10 @@ class QueueClient {
 		if (QueueClient.analysisInstance) {
 			await QueueClient.analysisInstance.close()
 			QueueClient.analysisInstance = null
+		}
+		if (QueueClient.renderInstance) {
+			await QueueClient.renderInstance.close()
+			QueueClient.renderInstance = null
 		}
 	}
 }

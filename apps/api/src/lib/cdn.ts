@@ -34,11 +34,42 @@ export async function uploadFile(
 	return key
 }
 
+export interface PresignOptions {
+	/**
+	 * Nama berkas yang ditawarkan peramban saat mengunduh. Tanpa ini, objek
+	 * `exports/<uuid>.pdf` diunduh dengan nama UUID-nya - sah, tapi tidak
+	 * membantu siapa pun yang membuka foldernya kemudian.
+	 */
+	downloadFilename?: string
+}
+
+/**
+ * Tanda kutip, backslash, dan karakter kendali tidak sah di dalam nilai header
+ * yang dikutip; sisanya (termasuk spasi dan non-ASCII) aman karena SDK yang
+ * menyandikan headernya.
+ */
+function quotedHeaderValue(name: string): string {
+	return name.replace(/["\\\r\n]/g, '').trim() || 'file'
+}
+
 export async function getPresignedUrl(
 	key: string,
 	expiresIn = DEFAULT_PRESIGNED_TTL_SECONDS,
+	options: PresignOptions = {},
 ): Promise<string> {
-	return getSignedUrl(s3Client, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn })
+	const disposition = options.downloadFilename
+		? `attachment; filename="${quotedHeaderValue(options.downloadFilename)}"`
+		: undefined
+
+	return getSignedUrl(
+		s3Client,
+		new GetObjectCommand({
+			Bucket: bucket,
+			Key: key,
+			...(disposition ? { ResponseContentDisposition: disposition } : {}),
+		}),
+		{ expiresIn },
+	)
 }
 
 /**

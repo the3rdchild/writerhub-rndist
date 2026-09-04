@@ -23,3 +23,12 @@ export interface ExportPayload {
  * sama sekali.
  */
 export const EXPORT_READY_ATTRIBUTE = 'data-export-ready'
+
+/**
+ * Jumlah halaman terakhir, dipasang bersebelahan dengan penanda siap.
+ *
+ * Sudah pasti benar pada detik penanda terpasang - paginasinya baru tenang
+ * ketika itulah - jadi worker memantaunya untuk menolak dokumen yang kelewat
+ * besar **sebelum** membayar biaya mencetaknya (`RENDER_MAX_PAGES`).
+ */
+export const EXPORT_PAGES_ATTRIBUTE = 'data-export-pages'

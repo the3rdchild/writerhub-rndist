@@ -16,6 +16,7 @@ import { headingTitle, markdownToDoc, type ProseMirrorDoc } from './markdown-doc
 import { pendingRenderErrors, resolveOutputs } from './output'
 import { draftPercent, targetCharacters } from './progress'
 import { buildDraftMessages } from './prompt'
+import { enqueueDraftRender, type RenderHandoffPart, renderHandoff } from './render'
 import { recallDraftRequest, rememberDraftRequest } from './request-store'
 import { startDraftGeneration } from './runner'
 import { type DraftState, readDraftState } from './status'
@@ -85,7 +86,7 @@ export default class DraftsService extends JobSubmissionService {
 			const request = await recallDraftRequest(document.id)
 
 			return this.success({
-				data: this.toHandoff(document, tab.id, state, request ? resolveOutputs(request) : []),
+				data: await this.toHandoff(document, tab.id, state, request ? resolveOutputs(request) : []),
 			})
 		} catch (error) {
 			return this.failFromError(error)
@@ -119,7 +120,12 @@ export default class DraftsService extends JobSubmissionService {
 			await this.beginGeneration(document.id, tab.id, request, config)
 
 			return this.success({
-				data: this.toHandoff(document, tab.id, await readDraftState(document.id), resolveOutputs(request)),
+				data: await this.toHandoff(
+					document,
+					tab.id,
+					await readDraftState(document.id),
+					resolveOutputs(request),
+				),
 				status: 202,
 			})
 		} catch (error) {
@@ -146,8 +152,13 @@ export default class DraftsService extends JobSubmissionService {
 
 		await snapshotIntervalTab(tab.id, content, this.ownerId())
 
+		// Naskahnya sudah ada, jadi perendernya bisa langsung dimulai - tidak
+		// ada penulisan yang harus ditunggu lebih dulu.
+		const outputs = resolveOutputs(body)
+		if (outputs.length) await enqueueDraftRender(document.id, outputs)
+
 		return this.success({
-			data: this.toHandoff(document, tab.id, { status: 'ready' }, resolveOutputs(body)),
+			data: await this.toHandoff(document, tab.id, { status: 'ready' }, outputs),
 			status: 201,
 		})
 	}
@@ -172,7 +183,7 @@ export default class DraftsService extends JobSubmissionService {
 		await this.beginGeneration(document.id, tab.id, body, config)
 
 		return this.success({
-			data: this.toHandoff(document, tab.id, await readDraftState(document.id), resolveOutputs(body)),
+			data: await this.toHandoff(document, tab.id, await readDraftState(document.id), resolveOutputs(body)),
 			status: 202,
 		})
 	}
@@ -198,6 +209,10 @@ export default class DraftsService extends JobSubmissionService {
 			provider,
 			messages: buildDraftMessages(request, await this.styleMemory(), template?.spec.aiRules),
 			columns: template?.spec.layout.columns,
+			// Keluaran yang diminta dihitung di sini karena hanya service yang
+			// memegang permintaannya; runner menitipkannya ke antrean render
+			// begitu naskahnya tersimpan.
+			outputs: resolveOutputs(request),
 			// Judul dari prompt hanya penambal sampai naskahnya punya heading
 			// sendiri; judul yang ditentukan pemanggil tidak boleh ditimpa.
 			titleFromHeading: !request.title,
@@ -307,29 +322,46 @@ export default class DraftsService extends JobSubmissionService {
 	}
 
 	/**
+	 * Bagian `downloads`/`renderErrors`, atau tidak sama sekali.
+	 *
 	 * `outputs` kosong berarti tidak ada berkas yang diminta, dan jawabannya
 	 * tidak menyebut unduhan sama sekali - bentuk yang persis sama dengan
-	 * sebelum medan `output` ada.
+	 * sebelum medan `output` ada. Selama naskahnya belum selesai, catatan
+	 * rendernya belum ada untuk dibaca: job baru dititipkan setelah naskahnya
+	 * tersimpan (docs/RENDER-WORKER-PLAN.md §2).
 	 */
-	private toHandoff(
+	private async renderPart(
+		document: Document,
+		state: DraftState,
+		outputs: readonly DraftOutput[],
+	): Promise<RenderHandoffPart> {
+		if (!outputs.length) return {}
+		if (state.status !== 'ready') {
+			return { downloads: [], renderErrors: pendingRenderErrors(outputs) }
+		}
+		return renderHandoff(document.id, document.title, outputs)
+	}
+
+	private async toHandoff(
 		document: Document,
 		tabId: string,
 		state: DraftState,
 		outputs: readonly DraftOutput[] = [],
-	): DraftHandoff {
+	): Promise<DraftHandoff> {
+		const render = await this.renderPart(document, state, outputs)
+
 		return {
 			documentId: document.id,
 			tabId,
 			title: document.title,
-			status: state.status,
+			status: render.status ?? state.status,
 			url: `${env.WEB_URL.replace(/\/$/, '')}/d/${document.id}`,
 			statusUrl: `${env.SERVICE_URL}/api/v1/drafts/${document.id}`,
 			...(state.status === 'generating' ? { progress: toProgress(state) } : {}),
 			...(state.error ? { error: state.error } : {}),
 			...(state.errorCode ? { errorCode: state.errorCode } : {}),
-			// Statusnya tetap apa adanya: dokumennya siap, hanya berkasnya yang
-			// belum ada. Lihat `pendingRenderErrors`.
-			...(outputs.length ? { downloads: [], renderErrors: pendingRenderErrors(outputs) } : {}),
+			...(render.downloads ? { downloads: render.downloads } : {}),
+			...(render.renderErrors ? { renderErrors: render.renderErrors } : {}),
 		}
 	}
 }

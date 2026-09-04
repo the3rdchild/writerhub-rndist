@@ -63,16 +63,61 @@ export function resolveOutputs(request: DraftRequest): DraftOutput[] {
 }
 
 /**
- * Alasan yang dilaporkan selama perendernya belum ada.
+ * Alasan untuk keluaran yang diminta ketika naskahnya sendiri belum selesai -
+ * `generating`, dan `failed` yang tidak akan pernah punya naskah.
  *
- * Kontraknya sengaja dikunci lebih dulu (lihat `docs/RENDER-WORKER-PLAN.md` §7),
- * jadi pemanggil sudah bisa menulis penanganannya sekarang: begitu worker
- * mendarat, entri di sini berubah menjadi entri di `downloads` tanpa PPE
- * mengubah apa pun. Statusnya tetap `ready` karena dokumennya memang siap.
+ * Bukan kegagalan, dan kalimatnya harus mencerminkan itu: render baru
+ * dititipkan setelah naskahnya tersimpan (docs/RENDER-WORKER-PLAN.md §2), jadi
+ * satu-satunya jawaban jujur di sini adalah "belum, tanyakan lagi".
  */
-const NOT_IMPLEMENTED =
-	'Perender berkas belum tersedia. Dokumennya sudah bisa dibuka dan dicetak dari WritingHub.'
+const NOT_WRITTEN_YET = 'Berkasnya baru dibuat setelah naskahnya selesai - tanyakan lagi lewat statusUrl.'
 
 export function pendingRenderErrors(outputs: readonly DraftOutput[]): DraftRenderError[] {
-	return outputs.map((output) => ({ output, reason: NOT_IMPLEMENTED }))
+	return outputs.map((output) => ({ output, reason: NOT_WRITTEN_YET }))
+}
+
+/**
+ * Format yang bisa dihasilkan perender hari ini. Yang di luar daftar ini tetap
+ * dijawab `renderErrors` - sebagian berhasil adalah keadaan normal, bukan
+ * kekecualian - tapi alasannya jujur: perendernya memang belum ada.
+ */
+export const RENDERABLE_OUTPUTS: readonly DraftOutput[] = ['pdf']
+
+/**
+ * Alasan untuk keluaran yang diminta tapi tidak ada di `downloads` **sesudah**
+ * render selesai. Beda dari `pendingRenderErrors`: di sini pekerjaannya sudah
+ * berakhir, jadi "belum tersedia" hanya benar untuk format yang perendernya
+ * memang belum ditulis.
+ */
+export function unrenderedReason(output: DraftOutput): string {
+	if (!RENDERABLE_OUTPUTS.includes(output)) {
+		return `Perender ${output.toUpperCase()} belum tersedia. Dokumennya sudah bisa dibuka dan dicetak dari WritingHub.`
+	}
+	return `Render ${output.toUpperCase()} berakhir tanpa hasil yang tercatat. Coba minta ulang dokumennya.`
+}
+
+/** Panjang nama berkas yang masih enak dibaca di bilah unduhan. */
+const MAX_FILENAME_CHARS = 100
+
+/**
+ * Nama berkas unduhan dari judul dokumen - objeknya bernama UUID, dan nama
+ * itulah yang dipakai peramban tanpa `ResponseContentDisposition`.
+ *
+ * Murni dan bisa diuji karena salahnya senyap: satu garis miring yang lolos
+ * berubah jadi folder lain di peramban pembacanya, bukan galat di sini.
+ */
+export function downloadFileName(title: string, output: DraftOutput): string {
+	const base = title
+		.replace(/[\r\n\t]+/g, ' ')
+		// Karakter yang bermakna di path (Windows maupun Unix) dan yang tidak
+		// sah di header HTTP dibuang; sisanya - termasuk non-ASCII - aman
+		// karena SDK yang menyandikan headernya.
+		// biome-ignore lint/suspicious/noControlCharactersInRegex: justru karakter kendali itu yang sedang dibuang - ia tidak sah di dalam nilai header
+		.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '')
+		.replace(/\s+/g, ' ')
+		.trim()
+		.slice(0, MAX_FILENAME_CHARS)
+		.trimEnd()
+
+	return `${base || 'dokumen'}.${output}`
 }

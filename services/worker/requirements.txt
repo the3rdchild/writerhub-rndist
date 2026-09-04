@@ -8,3 +8,5 @@ textstat
 pypdf
 python-docx
 langdetect
+playwright
+boto3

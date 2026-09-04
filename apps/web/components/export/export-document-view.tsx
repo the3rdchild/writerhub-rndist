@@ -9,7 +9,7 @@ import { buildEditorExtensions } from '@/features/editor/extensions'
 import { DEFAULT_PAGE_SETUP, pageGeometry, type SheetGeometry } from '@/features/editor/page-geometry'
 import { DEFAULT_TYPOGRAPHY } from '@/features/editor/typography'
 import { useDocumentGeometry } from '@/features/editor/use-document-geometry'
-import { EXPORT_READY_ATTRIBUTE, type ExportPayload } from '@/features/export/types'
+import { EXPORT_PAGES_ATTRIBUTE, EXPORT_READY_ATTRIBUTE, type ExportPayload } from '@/features/export/types'
 
 /**
  * Halaman yang dikunjungi perender berkas.
@@ -72,13 +72,16 @@ export function ExportDocumentView({ payload }: { payload: ExportPayload }) {
 			// jeda terakhir setelah semuanya berhenti bergeser.
 			const timer = setTimeout(async () => {
 				await prepareForExport(editor)
-				if (!cancelled) document.body.setAttribute(EXPORT_READY_ATTRIBUTE, 'true')
+				if (cancelled) return
+				document.body.setAttribute(EXPORT_READY_ATTRIBUTE, 'true')
+				document.body.setAttribute(EXPORT_PAGES_ATTRIBUTE, String(pageCount))
 			}, SETTLE_MS)
 
 			return () => {
 				cancelled = true
 				clearTimeout(timer)
 				document.body.removeAttribute(EXPORT_READY_ATTRIBUTE)
+				document.body.removeAttribute(EXPORT_PAGES_ATTRIBUTE)
 			}
 		},
 		// `pageCount` dan `sheets` ada di sini justru supaya efeknya diulang tiap

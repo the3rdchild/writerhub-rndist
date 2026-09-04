@@ -123,6 +123,10 @@ services:
     environment:
       DATABASE_URL: postgresql://writer:writer@postgres:5432/writer_hub
       REDIS_URL: redis://redis:6379
+      # Perender membuka halaman ekspor dari DALAM jaringan Docker, jadi di sini
+      # hostname internal justru yang benar - kebalikan dari SERVICE_URL milik
+      # `api` di atas, yang ditujukan ke luar. Lihat docs/RENDER-WORKER-PLAN.md.
+      RENDER_WEB_URL: http://web:3000
     volumes:
       - ./services/worker:/app
     depends_on:
@@ -130,6 +134,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      # Bukan syarat untuk start - job grammar tidak menyentuh web sama sekali -
+      # tapi perender tidak punya apa pun untuk dibuka tanpanya.
+      web:
+        condition: service_started
     restart: unless-stopped
 
 volumes:

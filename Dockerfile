@@ -111,12 +111,17 @@ RUN bun install --frozen-lockfile
 RUN mkdir -p /app/apps/web/.next
 
 ENTRYPOINT ["dumb-init", "--"]
-FROM python:${PYTHON_VERSION}-slim-bookworm AS worker
+FROM python:${PYTHON_VERSION}-slim-bookworm AS worker-base
 
+# PLAYWRIGHT_BROWSERS_PATH sengaja di luar $HOME dan di luar /app: $HOME milik
+# root saat build tapi /tmp saat jalan, dan /app tertimpa bind mount di
+# worker-dev. Keduanya berarti Chromium yang diunduh saat build tidak ketemu
+# lagi saat dijalankan.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONIOENCODING=utf-8 \
-    HOME=/tmp
+    HOME=/tmp \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources \
     && apt-get update -o Acquire::https::Verify-Peer=false -o Acquire::https::Verify-Host=false \
@@ -132,30 +137,41 @@ WORKDIR /app
 COPY services/worker/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Chromium untuk perender berkas (services/render_service.py).
+#
+# Yang dipasang **hanya** chrome-headless-shell, bukan Chrome lengkap: keduanya
+# mesin yang sama dan menghasilkan PDF yang identik byte-per-byte, tapi yang
+# lengkap membawa UI, GPU dan ekstensi yang tidak pernah kita sentuh - 184 MB
+# unduhan dan 389 MB di disk untuk jalur yang tidak ada di sini. `playwright
+# install chromium` memasang keduanya plus ffmpeg (hanya untuk rekam video).
+#
+# Pustaka sistemnya tetap datang dari `install-deps` supaya daftarnya jadi
+# tanggungan Playwright, bukan kita - lalu tumpukan GL-nya dibuang. Itu bukan
+# tebakan: `ldd chrome-headless-shell` tidak menyebut libGL/libEGL/mesa-dri sama
+# sekali (hanya libgbm dan libdrm), dan mencetak PDF tetap berhasil setelah
+# ketiga paket ini dicabut. Ia hanya dibutuhkan mode berkepala.
+#
+# Emoji ikut karena flyer memakainya dan tanpa fontnya ia tercetak kotak kosong;
+# sisa fontnya disematkan halaman ekspor sebagai `data:` URI, bukan dari sistem
+# (docs/RENDER-WORKER-PLAN.md §9).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fonts-noto-color-emoji \
+    && playwright install-deps chromium \
+    && apt-get remove -y --purge libgl1-mesa-dri libllvm15 libz3-4 \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/* \
+    && playwright install chromium-headless-shell \
+    && chmod -R a+rX ${PLAYWRIGHT_BROWSERS_PATH}
+FROM worker-base AS worker
+
 USER 65534:65534
 COPY --chown=65534:65534 services/worker/ ./
 
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["python", "entry.py"]
-FROM python:${PYTHON_VERSION}-slim-bookworm AS worker-dev
+FROM worker-base AS worker-dev
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PYTHONIOENCODING=utf-8 \
-    HOME=/tmp
-
-RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources \
-    && apt-get update -o Acquire::https::Verify-Peer=false -o Acquire::https::Verify-Host=false \
-    && apt-get install -y --no-install-recommends -o Acquire::https::Verify-Peer=false -o Acquire::https::Verify-Host=false ca-certificates \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends dumb-init \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /app && chown -R 65534:65534 /app
-
-WORKDIR /app
-
-COPY services/worker/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt watchdog
+RUN pip install --no-cache-dir watchdog
 
 USER 65534:65534
 

@@ -101,6 +101,21 @@ export const env = {
 	 * membuka isi satu dokumen sampai ia kedaluwarsa.
 	 */
 	RENDER_TOKEN_TTL_SECONDS: num('RENDER_TOKEN_TTL_SECONDS', 300),
+	/** Nama antrean render - harus sama persis dengan `services/worker`. */
+	RENDER_QUEUE_NAME: str('RENDER_QUEUE_NAME', 'RENDER_QUEUE'),
+	RENDER_JOB_NAME: str('RENDER_JOB_NAME', 'RENDER_DOCUMENT'),
+	/** Plafon halaman satu render; berlaku semua orang, bukan soal tier. */
+	RENDER_MAX_PAGES: num('RENDER_MAX_PAGES', 50),
+	/** Sesudah sekian detik mengantre, job rendernya dilepas. */
+	RENDER_QUEUE_TIMEOUT_S: num('RENDER_QUEUE_TIMEOUT_S', 300),
+	/** Tenggat satu render; sesudahnya halamannya dimatikan dan slotnya bebas. */
+	RENDER_PAGE_TIMEOUT_S: num('RENDER_PAGE_TIMEOUT_S', 120),
+	/**
+	 * Umur URL unduh hasil render. Harus lebih pendek dari lifecycle objeknya
+	 * (1 hari): URL yang diterbitkan di jam ke-23 tidak boleh mati setelah
+	 * objeknya - atau sebaliknya, mengungguli pembersihannya.
+	 */
+	EXPORT_URL_TTL_S: num('EXPORT_URL_TTL_S', 43_200),
 
 	// ── Antrean worker (nama harus sama persis dengan services/worker) ──────
 	GRAMMAR_QUEUE_NAME: str('GRAMMAR_QUEUE_NAME', 'GRAMMAR_QUEUE'),
