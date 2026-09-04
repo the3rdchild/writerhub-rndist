@@ -1,0 +1,18 @@
+# Tata letak node_modules: gaya npm (hoisted), bukan simlink terisolasi.
+#
+# Bawaan Bun memasang tiap paket di `node_modules/.bun/<nama>@<versi>+<hash>/`
+# lalu menautkannya lewat simlink. Turbopack - satu-satunya bundler di Next 16,
+# webpack sudah dibuang - gagal menyelesaikan dua paket lewat tautan itu:
+#
+#     Module not found: Can't resolve '@tiptap/extension-code-block-lowlight'
+#     Module not found: Can't resolve '@tiptap/extension-table-of-contents'
+#
+# Keduanya terpasang benar dan `Bun.resolveSync` menemukannya; yang gagal hanya
+# resolusi Turbopack. Kegagalannya sempat tidak terlihat berbulan-bulan karena
+# cache Turbopack menyimpan hasil resolusi lama - build hijau di mesin yang
+# sudah punya cache, dan merah di checkout bersih seperti CI.
+#
+# Ditulis di sini dan bukan sebagai flag `bun install --linker=hoisted` supaya
+# ia berlaku di mana pun: mesin pengembang, image Docker, dan CI.
+[install]
+linker = "hoisted"
