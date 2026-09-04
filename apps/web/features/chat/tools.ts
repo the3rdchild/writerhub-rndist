@@ -7,6 +7,7 @@ import { COMMENT_MARK } from '@/features/comments/comment-mark'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { DEFAULT_HTML_BLOCK_ATTRS, HTML_BLOCK } from '@/features/editor/html-block'
+import { escapeNodeSelection } from '@/features/editor/insert-point'
 import { toEditorContent } from '@/features/editor/markdown'
 import { MATH_BLOCK, MATH_INLINE, stripDelimiters } from '@/features/editor/math'
 import { clampMargins, INCH, PAGE_SIZES, type PageSetup, pageGeometry } from '@/features/editor/page-geometry'
@@ -17,6 +18,20 @@ import { TOC_BLOCK, type TocBlockAttrs, type TocListKind } from '@/features/edit
 import type { CommentThread } from '@/features/sessions/types'
 import { countWords } from '@/lib/utils'
 import { blockSummary, htmlCandidates } from './html-block-candidates'
+
+/**
+ * Rantai untuk alat yang menyisipkan sesuatu di kursor - lihat
+ * `escapeNodeSelection` untuk kenapa langkah tambahan itu perlu.
+ */
+function insertChain(editor: Editor) {
+	return editor
+		.chain()
+		.focus()
+		.command(({ tr }) => {
+			escapeNodeSelection(tr)
+			return true
+		})
+}
 
 interface Heading {
 	index: number
@@ -516,7 +531,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const markdown = String(call.arguments.markdown ?? '')
 			if (!markdown.trim()) return { ok: false, message: 'Nothing to insert.' }
 
-			const chain = editor.chain().focus()
+			const chain = insertChain(editor)
 			if (call.arguments.position === 'end') chain.setTextSelection(editor.state.doc.content.size)
 			chain.insertContent(toEditorContent(markdown)).run()
 
@@ -536,16 +551,14 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 		case 'insert_math': {
 			const latex = stripDelimiters(String(call.arguments.latex ?? ''))
 			if (!latex) return { ok: false, message: 'Nothing to insert.' }
-			editor
-				.chain()
-				.focus()
+			insertChain(editor)
 				.setMath(latex, call.arguments.display === true)
 				.run()
 			return { ok: true, message: 'Formula inserted.' }
 		}
 
 		case 'insert_page_break':
-			editor.chain().focus().setPageBreak().run()
+			insertChain(editor).setPageBreak().run()
 			return { ok: true, message: 'Page break inserted.' }
 
 		case 'add_comment': {
@@ -623,13 +636,13 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 				pageSetup: pageSetupPatch(args, context.setup),
 				columns: Number.isInteger(count) ? columnsFromArgs(count, args.gap_cm) : null,
 			}
-			editor.chain().focus().setSectionBreak(attrs).run()
+			insertChain(editor).setSectionBreak(attrs).run()
 			return { ok: true, message: 'Section break inserted.' }
 		}
 
 		case 'insert_toc': {
 			const attrs = tocAttrsFromArgs(call.arguments)
-			editor.chain().focus().insertToc(attrs).run()
+			insertChain(editor).insertToc(attrs).run()
 			return { ok: true, message: 'Table of contents inserted.' }
 		}
 
@@ -689,11 +702,16 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 
 			const fit = call.arguments.fit === 'page' ? 'page' : 'embed'
 			const height = Number(call.arguments.height)
-			editor
-				.chain()
-				.focus()
+			/*
+			 * Hasil rantainya dilaporkan apa adanya. Sebelumnya alat ini selalu
+			 * menjawab "ok", jadi sisipan yang gagal tetap muncul di lini masa
+			 * sebagai "Applied" - dan model melanjutkan seolah sampulnya ada.
+			 */
+			const inserted = insertChain(editor)
 				.insertHtmlBlock({ html, fit, ...(height ? { height } : {}) })
 				.run()
+			if (!inserted) return { ok: false, message: 'The design block could not be inserted here.' }
+
 			return {
 				ok: true,
 				message: fit === 'page' ? 'Full-page HTML design inserted.' : 'HTML design block inserted.',
@@ -741,9 +759,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 		case 'insert_mermaid': {
 			const source = String(call.arguments.source ?? '').trim()
 			if (!source) return { ok: false, message: 'Nothing to insert.' }
-			editor
-				.chain()
-				.focus()
+			insertChain(editor)
 				.insertContent({
 					type: 'codeBlock',
 					attrs: { language: 'mermaid' },
@@ -757,7 +773,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const rows = Math.max(1, Math.min(50, Number(call.arguments.rows) || 0))
 			const cols = Math.max(1, Math.min(12, Number(call.arguments.cols) || 0))
 			const header = call.arguments.header_row !== false
-			editor.chain().focus().insertTable({ rows, cols, withHeaderRow: header }).run()
+			insertChain(editor).insertTable({ rows, cols, withHeaderRow: header }).run()
 			return { ok: true, message: `Table ${rows}×${cols} inserted.` }
 		}
 
@@ -1052,9 +1068,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const verdict = publicImageUrl(src)
 			if (verdict) return { ok: false, message: verdict }
 
-			editor
-				.chain()
-				.focus()
+			insertChain(editor)
 				.setImage({ src, alt: String(call.arguments.alt ?? '') || null })
 				.run()
 			return { ok: true, message: 'Image inserted.' }

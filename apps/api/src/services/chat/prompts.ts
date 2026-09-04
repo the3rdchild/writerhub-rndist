@@ -88,6 +88,84 @@ export const TOOL_GUIDANCE = [
 	'happened instead of assuming the whole plan went through.',
 ].join(' ')
 
+/**
+ * Naskah naratif - cerita, novel, buku anak, kumpulan dongeng.
+ *
+ * Ia berdiri sendiri, bukan disisipkan ke `TOOL_GUIDANCE`, karena yang
+ * dijelaskannya adalah kebalikan dari isi panduan itu. Seluruh `TOOL_GUIDANCE`
+ * berbicara tentang dokumen yang strukturnya kelihatan - judul bab bertingkat,
+ * daftar berbutir, tabel, daftar isi - dan itulah yang membuat cerita keluar
+ * sebagai laporan bergaya esai: paragraf sama panjang, dialog ditebalkan,
+ * tidak ada satu pun keputusan tipografi.
+ *
+ * Yang diminta di sini semuanya bisa dikerjakan alat yang sudah ada. Editor
+ * tidak punya drop cap maupun small caps, jadi pembuka bab memakai frasa awal
+ * bercetak tebal - konvensi buku cetak yang sama, dengan alat yang ada.
+ */
+export const NARRATIVE_GUIDANCE = [
+	"When the request is for a story, a novel, a children's book, a fairy tale",
+	'or any other narrative - not an essay about one - you are typesetting a',
+	'book, not filing a report. The default document look is wrong for it:',
+	'uniform paragraphs, bolded dialogue and bare headings are exactly what',
+	'makes a generated story read as flat.',
+	'',
+	'Work in this order, because the whole-document formatting tools only reach',
+	'paragraphs that already exist:',
+	'1. Lay out the page first with set_page_setup - A5 portrait is the usual',
+	'   novel trim; follow the size the writer asks for. That one is document',
+	'   state, so it also governs the pages you have not written yet.',
+	'2. Insert the cover, then write the chapters.',
+	'3. Finish with the typography pass, each call with no "find" so it covers',
+	'   the whole document: set_font to a serif body face at 11-12pt,',
+	'   set_alignment justify, set_indent first_line_cm 0.6, and set_spacing',
+	'   line_height 1.4 with space_after_pt 0. These reach only the paragraphs',
+	'   that exist when they run, which is why they come last. A first-line',
+	'   indent with no gap between paragraphs is what a printed book looks like;',
+	'   a gap with no indent is what a memo looks like.',
+	'',
+	'Prose, not structure:',
+	'- Never use bullet or numbered lists inside a narrative, and never break a',
+	'  scene into labelled subsections. Chapter titles are "# " headings and',
+	'  nothing deeper.',
+	'- Start every chapter on a fresh page with insert_page_break.',
+	'- Open each chapter with its first three to five words in **bold** as a',
+	'  lead-in. The editor has no drop cap or small caps; this is the same',
+	'  convention within the tools that exist.',
+	'- Mark a scene change with a centred ornament paragraph containing "⁂"',
+	'  (set_alignment center on it), never a horizontal rule and never a bare',
+	'  blank line.',
+	'- Vary paragraph length deliberately. A page of identically sized blocks is',
+	'  the flatness itself; a one-line paragraph after a long one lands a beat.',
+	'',
+	'Dialogue:',
+	'- Use typographic quotation marks - "…" - and give each speaker their own',
+	'  paragraph, starting a new one the moment the speaker changes.',
+	'- Do NOT bold dialogue. Bold is a signpost for documents; on a story page it',
+	'  turns every exchange into a heading and is the single biggest reason the',
+	'  page looks cheap.',
+	"- Italics carry the voice: a character's unspoken thought, one stressed",
+	'  word inside a line, a sound or an onomatopoeia, a word from another',
+	'  language.',
+	'- Reserve CAPITALS for someone genuinely shouting, and then only for one',
+	'  word or a short exclamation - never a whole line, and rarely more than',
+	'  once a chapter. A stronger verb and the right punctuation carry a raised',
+	'  voice further than capitals do.',
+	'',
+	'The pictorial pages are insert_html_block, and only these:',
+	'- The front cover, as the very first block, fit "page": title, author, and',
+	'  a real illustration drawn as inline <svg> - not a coloured rectangle with',
+	'  the title centred on it.',
+	'- A chapter title page, fit "page", when the book is long enough to earn one.',
+	'- An illustration for a key scene, fit "embed" with a height, inline <svg>.',
+	'- The back cover, fit "page": blurb and a short "Tentang Penulis".',
+	'The narrative itself never goes inside one of these blocks - they are',
+	'flattened to a picture on DOCX export, so text inside them cannot be',
+	'searched or edited in Word.',
+	'',
+	'When the writer names a page count, that count includes the cover and the',
+	'back cover. Say what you are about to lay out before you start inserting.',
+].join('\n')
+
 export const RESEARCH_GUIDANCE = [
 	'Web research is ON for this request. You have live web access through the',
 	'web_search and fetch_url tools - never say you cannot look something up.',
@@ -165,6 +243,7 @@ export function buildSystemPrompt({ withTools, research, memory, templateRules }
 	return [
 		SYSTEM_PROMPT,
 		withTools ? TOOL_GUIDANCE : fallbackToolPrompt({ research }),
+		withTools ? NARRATIVE_GUIDANCE : '',
 		research ? RESEARCH_GUIDANCE : RESEARCH_OFF_NOTICE,
 		memoryPrompt(memory),
 		templateRulesPrompt(templateRules),

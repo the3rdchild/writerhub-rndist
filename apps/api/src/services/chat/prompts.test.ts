@@ -3,6 +3,7 @@ import type { StyleMemory } from '@writer-hub/shared'
 import {
 	buildSystemPrompt,
 	memoryPrompt,
+	NARRATIVE_GUIDANCE,
 	RESEARCH_GUIDANCE,
 	RESEARCH_OFF_NOTICE,
 	SYSTEM_PROMPT,
@@ -23,6 +24,25 @@ describe('perangkaian prompt sistem', () => {
 	test('panduan tool hanya ikut saat tool aktif', () => {
 		expect(buildSystemPrompt({ ...dasar, withTools: true })).toContain(TOOL_GUIDANCE)
 		expect(buildSystemPrompt({ ...dasar, withTools: false })).not.toContain(TOOL_GUIDANCE)
+	})
+
+	test('panduan naratif ikut bersama panduan tool', () => {
+		// Ia menjelaskan alat editor - tanpa alat, tidak ada yang bisa dipanggil.
+		expect(buildSystemPrompt({ ...dasar, withTools: true })).toContain(NARRATIVE_GUIDANCE)
+		expect(buildSystemPrompt({ ...dasar, withTools: false })).not.toContain(NARRATIVE_GUIDANCE)
+	})
+
+	test('panduan naratif menyuruh tipografi dijalankan setelah naskah ada', () => {
+		/*
+		 * set_font, set_indent dan kawan-kawan tanpa "find" hanya menjangkau
+		 * paragraf yang sudah ada saat dipanggil. Urutannya bukan gaya penulisan
+		 * prompt, melainkan syarat supaya panggilannya tidak sia-sia.
+		 */
+		const sampul = NARRATIVE_GUIDANCE.indexOf('Insert the cover')
+		const tipografi = NARRATIVE_GUIDANCE.indexOf('set_font to a serif body face')
+
+		expect(sampul).toBeGreaterThan(-1)
+		expect(tipografi).toBeGreaterThan(sampul)
 	})
 
 	test('riset aktif dan nonaktif memakai pemberitahuan yang berbeda', () => {
