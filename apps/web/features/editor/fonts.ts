@@ -1,173 +1,241 @@
-import {
-	Caveat,
-	EB_Garamond,
-	Inter,
-	JetBrains_Mono,
-	Lato,
-	Lexend,
-	Libre_Baskerville,
-	Lobster,
-	Lora,
-	Merriweather,
-	Montserrat,
-	Nunito,
-	Open_Sans,
-	Oswald,
-	Pacifico,
-	Playfair_Display,
-	Poppins,
-	Raleway,
-	Roboto,
-	Roboto_Mono,
-	Roboto_Slab,
-	Source_Serif_4,
-	Spectral,
-} from 'next/font/google'
+import localFont from 'next/font/local'
 
-const ui = Inter({
-	subsets: ['latin'],
+/**
+ * Font disajikan dari repo, bukan lewat `next/font/google`.
+ *
+ * `next/font/google` mengunduh setiap berkas font saat kompilasi. Dengan 23
+ * keluarga di sini - dan Google menyertakan semua subset (cyrillic, greek,
+ * vietnamese, dan seterusnya) terlepas dari opsi `subsets`, karena opsi itu
+ * hanya mengatur preload - satu kompilasi dingin menembakkan ~290 permintaan
+ * serentak ke fonts.gstatic.com. Sebagian gagal, dan Turbopack menyimpan
+ * kegagalan itu di cache-nya, jadi build patah permanen dengan
+ *
+ *     Module not found: Can't resolve '@vercel/turbopack-next/internal/font/google/font'
+ *
+ * sampai `.next` dihapus. Tidak ada opsi retry atau pembatas konkurensi yang
+ * bisa disetel untuk itu.
+ *
+ * Berkas woff2 subset `latin` kini tersimpan di `apps/web/assets/fonts/`, jadi
+ * build tidak menyentuh jaringan sama sekali - di mesin pengembang, di image
+ * Docker, maupun di CI. Perbarui dengan `bun run apps/web/scripts/download-fonts.ts`
+ * setelah mengubah daftar font; skrip itu juga yang mencetak entri `src` di
+ * bawah ini.
+ *
+ * Keluarga variable font cukup satu berkas per gaya: rentang `weight` di
+ * bawah menyatakan seluruh rentang yang didukung berkasnya.
+ */
+
+const ui = localFont({
+	src: [{ path: '../../assets/fonts/inter-normal-100-900.woff2', weight: '100 900', style: 'normal' }],
 	variable: '--font-ui',
-	weight: ['400', '500', '600', '700'],
 })
 
-const document = Source_Serif_4({
-	subsets: ['latin'],
+const document = localFont({
+	src: [
+		{ path: '../../assets/fonts/source-serif-4-normal-200-900.woff2', weight: '200 900', style: 'normal' },
+		{ path: '../../assets/fonts/source-serif-4-italic-200-900.woff2', weight: '200 900', style: 'italic' },
+	],
 	variable: '--font-document',
-	weight: ['400', '600', '700'],
-	style: ['normal', 'italic'],
+	adjustFontFallback: 'Times New Roman',
 })
 
-const lato = Lato({
-	subsets: ['latin'],
+const lato = localFont({
+	src: [
+		{ path: '../../assets/fonts/lato-normal-400.woff2', weight: '400', style: 'normal' },
+		{ path: '../../assets/fonts/lato-normal-700.woff2', weight: '700', style: 'normal' },
+		{ path: '../../assets/fonts/lato-italic-400.woff2', weight: '400', style: 'italic' },
+		{ path: '../../assets/fonts/lato-italic-700.woff2', weight: '700', style: 'italic' },
+	],
 	variable: '--font-lato',
-	weight: ['400', '700'],
-	style: ['normal', 'italic'],
 	preload: false,
 })
 
-const lexend = Lexend({ subsets: ['latin'], variable: '--font-lexend', preload: false })
+const lexend = localFont({
+	src: [{ path: '../../assets/fonts/lexend-normal-100-900.woff2', weight: '100 900', style: 'normal' }],
+	variable: '--font-lexend',
+	preload: false,
+})
 
-const montserrat = Montserrat({
-	subsets: ['latin'],
+const montserrat = localFont({
+	src: [
+		{ path: '../../assets/fonts/montserrat-normal-100-900.woff2', weight: '100 900', style: 'normal' },
+		{ path: '../../assets/fonts/montserrat-italic-100-900.woff2', weight: '100 900', style: 'italic' },
+	],
 	variable: '--font-montserrat',
-	style: ['normal', 'italic'],
 	preload: false,
 })
 
-const nunito = Nunito({
-	subsets: ['latin'],
+const nunito = localFont({
+	src: [
+		{ path: '../../assets/fonts/nunito-normal-200-1000.woff2', weight: '200 1000', style: 'normal' },
+		{ path: '../../assets/fonts/nunito-italic-200-1000.woff2', weight: '200 1000', style: 'italic' },
+	],
 	variable: '--font-nunito',
-	style: ['normal', 'italic'],
 	preload: false,
 })
 
-const openSans = Open_Sans({
-	subsets: ['latin'],
+const openSans = localFont({
+	src: [
+		{ path: '../../assets/fonts/open-sans-normal-300-800.woff2', weight: '300 800', style: 'normal' },
+		{ path: '../../assets/fonts/open-sans-italic-300-800.woff2', weight: '300 800', style: 'italic' },
+	],
 	variable: '--font-open-sans',
-	style: ['normal', 'italic'],
 	preload: false,
 })
 
-const oswald = Oswald({ subsets: ['latin'], variable: '--font-oswald', preload: false })
+const oswald = localFont({
+	src: [{ path: '../../assets/fonts/oswald-normal-200-700.woff2', weight: '200 700', style: 'normal' }],
+	variable: '--font-oswald',
+	preload: false,
+})
 
-const poppins = Poppins({
-	subsets: ['latin'],
+const poppins = localFont({
+	src: [
+		{ path: '../../assets/fonts/poppins-normal-400.woff2', weight: '400', style: 'normal' },
+		{ path: '../../assets/fonts/poppins-normal-700.woff2', weight: '700', style: 'normal' },
+		{ path: '../../assets/fonts/poppins-italic-400.woff2', weight: '400', style: 'italic' },
+		{ path: '../../assets/fonts/poppins-italic-700.woff2', weight: '700', style: 'italic' },
+	],
 	variable: '--font-poppins',
-	weight: ['400', '700'],
-	style: ['normal', 'italic'],
 	preload: false,
 })
 
-const raleway = Raleway({
-	subsets: ['latin'],
+const raleway = localFont({
+	src: [
+		{ path: '../../assets/fonts/raleway-normal-100-900.woff2', weight: '100 900', style: 'normal' },
+		{ path: '../../assets/fonts/raleway-italic-100-900.woff2', weight: '100 900', style: 'italic' },
+	],
 	variable: '--font-raleway',
-	style: ['normal', 'italic'],
 	preload: false,
 })
 
-const roboto = Roboto({
-	subsets: ['latin'],
+const roboto = localFont({
+	src: [
+		{ path: '../../assets/fonts/roboto-normal-100-900.woff2', weight: '100 900', style: 'normal' },
+		{ path: '../../assets/fonts/roboto-italic-100-900.woff2', weight: '100 900', style: 'italic' },
+	],
 	variable: '--font-roboto',
-	style: ['normal', 'italic'],
 	preload: false,
 })
 
-const ebGaramond = EB_Garamond({
-	subsets: ['latin'],
+const ebGaramond = localFont({
+	src: [
+		{ path: '../../assets/fonts/eb-garamond-normal-400-800.woff2', weight: '400 800', style: 'normal' },
+		{ path: '../../assets/fonts/eb-garamond-italic-400-800.woff2', weight: '400 800', style: 'italic' },
+	],
 	variable: '--font-eb-garamond',
-	style: ['normal', 'italic'],
 	preload: false,
+	adjustFontFallback: 'Times New Roman',
 })
 
-const libreBaskerville = Libre_Baskerville({
-	subsets: ['latin'],
+const libreBaskerville = localFont({
+	src: [
+		{
+			path: '../../assets/fonts/libre-baskerville-normal-400-700.woff2',
+			weight: '400 700',
+			style: 'normal',
+		},
+		{
+			path: '../../assets/fonts/libre-baskerville-italic-400-700.woff2',
+			weight: '400 700',
+			style: 'italic',
+		},
+	],
 	variable: '--font-libre-baskerville',
-	style: ['normal', 'italic'],
 	preload: false,
+	adjustFontFallback: 'Times New Roman',
 })
 
-const lora = Lora({
-	subsets: ['latin'],
+const lora = localFont({
+	src: [
+		{ path: '../../assets/fonts/lora-normal-400-700.woff2', weight: '400 700', style: 'normal' },
+		{ path: '../../assets/fonts/lora-italic-400-700.woff2', weight: '400 700', style: 'italic' },
+	],
 	variable: '--font-lora',
-	style: ['normal', 'italic'],
 	preload: false,
+	adjustFontFallback: 'Times New Roman',
 })
 
-const merriweather = Merriweather({
-	subsets: ['latin'],
+const merriweather = localFont({
+	src: [
+		{ path: '../../assets/fonts/merriweather-normal-300-900.woff2', weight: '300 900', style: 'normal' },
+		{ path: '../../assets/fonts/merriweather-italic-300-900.woff2', weight: '300 900', style: 'italic' },
+	],
 	variable: '--font-merriweather',
-	style: ['normal', 'italic'],
 	preload: false,
+	adjustFontFallback: 'Times New Roman',
 })
 
-const playfairDisplay = Playfair_Display({
-	subsets: ['latin'],
+const playfairDisplay = localFont({
+	src: [
+		{
+			path: '../../assets/fonts/playfair-display-normal-400-900.woff2',
+			weight: '400 900',
+			style: 'normal',
+		},
+		{
+			path: '../../assets/fonts/playfair-display-italic-400-900.woff2',
+			weight: '400 900',
+			style: 'italic',
+		},
+	],
 	variable: '--font-playfair-display',
-	style: ['normal', 'italic'],
 	preload: false,
+	adjustFontFallback: 'Times New Roman',
 })
 
-const robotoSlab = Roboto_Slab({
-	subsets: ['latin'],
+const robotoSlab = localFont({
+	src: [{ path: '../../assets/fonts/roboto-slab-normal-100-900.woff2', weight: '100 900', style: 'normal' }],
 	variable: '--font-roboto-slab',
 	preload: false,
+	adjustFontFallback: 'Times New Roman',
 })
 
-const spectral = Spectral({
-	subsets: ['latin'],
+const spectral = localFont({
+	src: [
+		{ path: '../../assets/fonts/spectral-normal-400.woff2', weight: '400', style: 'normal' },
+		{ path: '../../assets/fonts/spectral-normal-700.woff2', weight: '700', style: 'normal' },
+		{ path: '../../assets/fonts/spectral-italic-400.woff2', weight: '400', style: 'italic' },
+		{ path: '../../assets/fonts/spectral-italic-700.woff2', weight: '700', style: 'italic' },
+	],
 	variable: '--font-spectral',
-	weight: ['400', '700'],
-	style: ['normal', 'italic'],
 	preload: false,
+	adjustFontFallback: 'Times New Roman',
 })
 
-const jetbrainsMono = JetBrains_Mono({
-	subsets: ['latin'],
+const jetbrainsMono = localFont({
+	src: [
+		{ path: '../../assets/fonts/jetbrains-mono-normal-100-800.woff2', weight: '100 800', style: 'normal' },
+		{ path: '../../assets/fonts/jetbrains-mono-italic-100-800.woff2', weight: '100 800', style: 'italic' },
+	],
 	variable: '--font-jetbrains-mono',
-	style: ['normal', 'italic'],
 	preload: false,
 })
 
-const robotoMono = Roboto_Mono({
-	subsets: ['latin'],
+const robotoMono = localFont({
+	src: [
+		{ path: '../../assets/fonts/roboto-mono-normal-100-700.woff2', weight: '100 700', style: 'normal' },
+		{ path: '../../assets/fonts/roboto-mono-italic-100-700.woff2', weight: '100 700', style: 'italic' },
+	],
 	variable: '--font-roboto-mono',
-	style: ['normal', 'italic'],
 	preload: false,
 })
 
-const caveat = Caveat({ subsets: ['latin'], variable: '--font-caveat', preload: false })
+const caveat = localFont({
+	src: [{ path: '../../assets/fonts/caveat-normal-400-700.woff2', weight: '400 700', style: 'normal' }],
+	variable: '--font-caveat',
+	preload: false,
+})
 
-const lobster = Lobster({
-	subsets: ['latin'],
+const lobster = localFont({
+	src: [{ path: '../../assets/fonts/lobster-normal-400.woff2', weight: '400', style: 'normal' }],
 	variable: '--font-lobster',
-	weight: '400',
 	preload: false,
 })
 
-const pacifico = Pacifico({
-	subsets: ['latin'],
+const pacifico = localFont({
+	src: [{ path: '../../assets/fonts/pacifico-normal-400.woff2', weight: '400', style: 'normal' }],
 	variable: '--font-pacifico',
-	weight: '400',
 	preload: false,
 })
 
