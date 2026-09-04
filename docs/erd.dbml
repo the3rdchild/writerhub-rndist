@@ -321,3 +321,35 @@ TableGroup rencana {
   project_members_RENCANA
   asset_library_RENCANA
 }
+
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║ SENGAJA TANPA TABEL                                                      ║
+// ║                                                                          ║
+// ║ Bagian ini tidak menggambar apa pun. Ia ada supaya pembaca berikutnya    ║
+// ║ tidak menambahkan tabel yang memang diputuskan untuk tidak ada.          ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+
+// ── Draf & ekspor berkas ───────────────────────────────────────────────────
+//
+// `POST /v1/drafts` menerima `output` ('pdf' | 'docx' | 'png' | 'jpg') dan
+// menjawab dengan `downloads` serta `renderErrors`. Tidak satu pun dari itu
+// punya tabel, dan itu keputusan - bukan kelalaian:
+//
+// - **Permintaan draf** tinggal di Redis, `draft:request:<documentId>`, TTL 24
+//   jam (`services/drafts/request-store.ts`). Ia hanya perlu bertahan selama
+//   tombol "coba lagi" masih masuk akal.
+// - **Status penulisan** di Redis juga, `draft:status:<documentId>`, dengan
+//   tenggat yang ditegakkan (`services/drafts/status.ts`). Alasannya tertulis
+//   di sana: sesudah naskahnya tersimpan di tabnya, dokumen itu tidak berbeda
+//   dari dokumen mana pun - kolom permanen justru akan basi.
+// - **Berkas hasil render** tinggal di bucket dengan prefix `exports/` dan
+//   aturan lifecycle "hapus setelah 1 hari"; yang dikembalikan API adalah URL
+//   bertanda tangan yang umurnya lebih pendek dari objeknya. Tidak ada baris
+//   yang perlu diingat untuk sesuatu yang dihapus besok.
+//
+// Bandingkan dengan `assets` di atas, yang justru **punya** tabel: aset adalah
+// pustaka yang dipakai ulang lintas dokumen dan izinnya harus bisa ditelusuri
+// (`document_assets`). Berkas ekspor tidak dipakai ulang dan tidak punya
+// pertanyaan izin selain tanda tangannya sendiri.
+//
+// Lihat `docs/RENDER-WORKER-PLAN.md` §6 dan §7.

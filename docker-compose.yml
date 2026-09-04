@@ -67,7 +67,17 @@ services:
     environment:
       DATABASE_URL: postgresql://writer:writer@postgres:5432/writer_hub
       REDIS_HOST: redis
-      SERVICE_URL: http://api:8080
+      # SERVICE_URL sengaja TIDAK di-override di sini - `apps/api/.env` sudah
+      # menyetelnya ke http://localhost:8080, dan itu memang nilai yang benar.
+      #
+      # Ia dipakai apps/api untuk menyusun URL yang diserahkan KE LUAR:
+      # `statusUrl` draf, URL status job, dan URL aset driver lokal (yang
+      # dimuat <iframe> di browser). Diisi `http://api:8080`, semuanya jadi
+      # tidak bisa dibuka siapa pun di luar jaringan Docker - termasuk browser
+      # penggunanya sendiri dan backend PPE.
+      #
+      # Lalu lintas web -> api tidak lewat sini; ia punya API_URL sendiri di
+      # service `web` di bawah, dan di sanalah hostname internal memang benar.
     volumes:
       - ./apps:/app/apps
       - ./packages:/app/packages
