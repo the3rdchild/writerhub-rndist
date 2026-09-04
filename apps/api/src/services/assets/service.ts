@@ -129,15 +129,32 @@ export default class AssetsService extends BaseService {
 		}
 	}
 
-	/** URL berumur pendek untuk dimuat bingkai blok HTML. */
+	/** URL berumur pendek untuk pemilik proyek; izinnya datang dari sesi. */
 	async mintUrls(): Promise<Response> {
+		return this.mintFor(undefined)
+	}
+
+	/**
+	 * Sama, untuk pemegang share link.
+	 *
+	 * Terpisah dari yang di atas karena keduanya butuh middleware yang berbeda,
+	 * dan itu tidak bisa diselesaikan di dalam satu handler: `authMiddleware`
+	 * yang mengisi identitas di context, jadi rute tanpanya TIDAK PERNAH punya
+	 * sesi untuk dibaca - cabang sesinya mati diam-diam. Satu rute yang mencoba
+	 * melayani keduanya berakhir hanya melayani satu.
+	 */
+	async mintUrlsShared(): Promise<Response> {
+		return this.mintFor(this.context.req.param('token'))
+	}
+
+	private async mintFor(shareToken: string | undefined): Promise<Response> {
 		try {
 			const body = mintAssetUrlsBodySchema.safeParse(await this.context.req.json())
 			if (!body.success) {
 				return this.error({ errors: body.error.issues.map((issue) => issue.message) })
 			}
 
-			const allowed = await this.authorizeAssets(body.data.ids, body.data.shareToken)
+			const allowed = await this.authorizeAssets(body.data.ids, shareToken)
 			const expiresAt = Math.floor(Date.now() / 1000) + env.ASSET_URL_TTL_SECONDS
 
 			const urls: AssetUrl[] = await Promise.all(
@@ -168,9 +185,17 @@ export default class AssetsService extends BaseService {
 	 * berkas hasil ekspor wajib utuh tanpa jaringan.
 	 */
 	async inline(): Promise<Response> {
+		return this.inlineFor(undefined)
+	}
+
+	/** Sama, untuk pemegang share link - lihat catatan di `mintUrlsShared`. */
+	async inlineShared(): Promise<Response> {
+		return this.inlineFor(this.context.req.param('token'))
+	}
+
+	private async inlineFor(shareToken: string | undefined): Promise<Response> {
 		try {
 			const id = this.uuidParam('id', 'ID aset')
-			const shareToken = this.context.req.query('shareToken')
 			const [asset] = await this.authorizeAssets([id], shareToken)
 			if (!asset) throw AppError.notFound('Aset tidak ditemukan')
 

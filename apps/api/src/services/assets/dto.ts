@@ -14,8 +14,6 @@ export const uploadAssetBodySchema = z.object({
 
 export const mintAssetUrlsBodySchema = z.object({
 	ids: z.array(z.uuid()).min(1).max(100),
-	/** Ada berarti pemintanya pemegang share link, bukan pemilik proyek. */
-	shareToken: z.string().trim().min(1).max(255).optional(),
 })
 
 export const setDocumentAssetsBodySchema = z.object({
