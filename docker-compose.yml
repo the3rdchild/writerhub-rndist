@@ -1,11 +1,13 @@
 name: writer-hub
-x-build-network: &build-network host
-
+# Jangan set `network: host` untuk build: di rootless Docker (rootlesskit +
+# slirp4netns --detach-netns), "host" adalah netns milik dockerd, bukan host
+# asli - DNS di sana tidak berfungsi dan `bun install` gagal dengan
+# ConnectionRefused/FailedToOpenSocket. Network default (bridge) justru
+# mendapat DNS slirp (10.0.2.3) yang bekerja.
 x-bun-dev: &bun-dev
   build:
     context: .
     target: bun-dev
-    network: *build-network
   volumes:
     - ./apps:/app/apps
     - ./packages:/app/packages
@@ -106,7 +108,6 @@ services:
     build:
       context: .
       target: worker-dev
-      network: *build-network
     working_dir: /app
     env_file: ./services/worker/.env
     environment:
