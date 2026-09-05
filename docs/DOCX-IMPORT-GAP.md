@@ -481,6 +481,17 @@ memang menyebut dirinya kebalikan konstanta di `docx/units.ts`.
 | "PROGRAM STUDI…" | halaman 2 | halaman 1, pada 787–805 px dari 896 px |
 | Akhir sampul | — | 877 px, sisa 19 px sebelum batas lembar |
 
+**Bawaan dokumen kosong ikut diluruskan.** Menu "Spasi baris" menampilkan
+`DEFAULT_LINE_SPACING = '1.15'` sebagai yang berlaku ketika sebuah blok belum menyatakan
+spasinya sendiri, sementara dokumen kosong sebenarnya dirender `cssLineHeight(1,5) = 1,73`.
+`DEFAULT_LINE_HEIGHT` kini **1** (spasi dokumen), sehingga yang dirender 1,15 - sama dengan
+yang tertulis di menu, dan sama dengan spasi tunggal hasil impor. Satu tes mengunci
+kesetaraan itu (`cssLineHeight(DEFAULT_LINE_HEIGHT) === Number(DEFAULT_LINE_SPACING)`) supaya
+keduanya tidak bisa berpisah lagi. Konsekuensinya dokumen kosong baru tampil lebih rapat
+daripada sebelumnya, dan ekspor DOCX-nya menulis `w:line=240` (tunggal) - bukan lagi 360.
+Diperiksa di aplikasi: badan naskah 16,87 px pada huruf 14,67 px (rasio 1,15) dan menu
+mencentang "1.15".
+
 **Yang masih tersisa** — ukuran tanda paragraf (`w:pPr/w:rPr/w:sz`) pada paragraf kosong tidak
 terbawa: enam paragraf kosong di sampul ini seharusnya 12 pt, terimpor sebagai ukuran badan
 naskah (11 pt). Bukan celah importer melainkan batas model editor — `textStyle` adalah mark,

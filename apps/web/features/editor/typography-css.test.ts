@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { cssLineHeight, type DocumentTypography, resolveHeadingStyle } from '@writer-hub/shared'
+import {
+	cssLineHeight,
+	DEFAULT_LINE_HEIGHT,
+	type DocumentTypography,
+	resolveHeadingStyle,
+} from '@writer-hub/shared'
+import { DEFAULT_LINE_SPACING } from './spacing-options'
+import { defaultTypography } from './typography'
 import { typographyRules } from './typography-css'
 
 const skripsi: DocumentTypography = {
@@ -108,5 +115,21 @@ describe('penyelesaian gaya judul', () => {
 	test('judul selalu tebal kecuali template menyatakan sebaliknya', () => {
 		expect(resolveHeadingStyle(kosong, 1).bold).toBe(true)
 		expect(resolveHeadingStyle({ ...kosong, headings: { 1: { bold: false } } }, 1).bold).toBe(false)
+	})
+})
+
+describe('bawaan spasi baris', () => {
+	/*
+	 * Menu "Spasi baris" menampilkan `DEFAULT_LINE_SPACING` sebagai yang sedang
+	 * berlaku ketika blok belum menyatakan spasinya sendiri. Kalau angka itu
+	 * tidak sama dengan yang benar-benar dirender kanvas, UI berbohong: dokumen
+	 * kosong pernah dirender 1,73 sementara menunya mengaku 1,15.
+	 */
+	test('angka di menu sama dengan yang dirender dokumen kosong', () => {
+		expect(cssLineHeight(DEFAULT_LINE_HEIGHT)).toBe(Number(DEFAULT_LINE_SPACING))
+	})
+
+	test('lembar gaya dokumen kosong memakai angka itu juga', () => {
+		expect(typographyRules(defaultTypography())).toContain(`line-height: ${DEFAULT_LINE_SPACING}`)
 	})
 })

@@ -74,7 +74,18 @@ export interface DocumentTypography {
 }
 
 export const DEFAULT_BASE_FONT_SIZE_PT = 11
-export const DEFAULT_LINE_HEIGHT = 1.5
+
+/**
+ * Spasi baris dokumen kosong, dalam **spasi dokumen** (1 = tunggal).
+ *
+ * Nilainya terikat pada `DEFAULT_LINE_SPACING` di
+ * `apps/web/features/editor/spacing-options.ts`: menu "Spasi baris" menampilkan
+ * angka itu sebagai yang sedang berlaku ketika sebuah blok belum menyatakan
+ * spasinya sendiri, jadi angka yang tampil harus sama dengan angka yang benar-
+ * benar dirender - `cssLineHeight(1) = 1,15`. Sebelumnya bawaannya 1,5, yang
+ * dirender 1,73 sementara menu tetap mengaku 1,15.
+ */
+export const DEFAULT_LINE_HEIGHT = 1
 
 /** Spasi dokumen → `line-height` CSS. Kebalikan `WORD_LINE_TO_CSS` di `docx/units.ts`. */
 export const LINE_SPACING_TO_CSS = 1.15
