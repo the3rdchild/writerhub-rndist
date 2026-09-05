@@ -68,7 +68,6 @@ export interface TemplateSummary {
 	category: TemplateCategory
 	locale: TemplateLocale
 	spec: TemplateSpec
-	builtin: boolean
 	/** Kerangka ProseMirror hasil kompilasi Markdown. */
 	content: Record<string, unknown>
 }

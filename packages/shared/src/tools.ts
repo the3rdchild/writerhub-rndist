@@ -614,6 +614,36 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		},
 	},
 	{
+		name: 'rename_document',
+		kind: 'write',
+		description:
+			'Rename the active document: the title shown above the editor and in the library, which reads "Untitled document" until someone changes it. Use this whenever the writer asks for a title or a new name, and after you have written a document that still carries the placeholder name. You CAN do this - never answer that renaming is beyond your tools, and never type the title into the page as a substitute for it. Renames the document itself; use rename_tab for the label of one tab.',
+		parameters: {
+			type: 'object',
+			properties: {
+				title: { type: 'string', description: 'The new document title.' },
+			},
+			required: ['title'],
+		},
+	},
+	{
+		name: 'rename_tab',
+		kind: 'write',
+		description:
+			'Rename one tab of the active document: the label in the tab strip, e.g. turning "Untitled document" into "Bab 1 - Pendahuluan". Defaults to the tab being edited; pass tab_id from list_tabs to rename another one. This changes the tab label only - use rename_document for the document title itself.',
+		parameters: {
+			type: 'object',
+			properties: {
+				title: { type: 'string', description: 'The new tab title.' },
+				tab_id: {
+					type: 'string',
+					description: 'Tab id as returned by list_tabs. Defaults to the active tab.',
+				},
+			},
+			required: ['title'],
+		},
+	},
+	{
 		name: 'create_tab',
 		kind: 'write',
 		description:

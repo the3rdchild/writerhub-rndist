@@ -228,7 +228,7 @@ export default class DraftsService extends JobSubmissionService {
 
 	/** Template wajib ada saat permintaan dibuat - slug asing membalas 400. */
 	private async requireTemplate(slug: string): Promise<Template> {
-		const template = await findTemplateBySlug(slug, await this.identityId())
+		const template = await findTemplateBySlug(slug)
 		if (!template) throw AppError.badRequest(`Template "${slug}" tidak dikenal`)
 		return template
 	}
@@ -240,7 +240,7 @@ export default class DraftsService extends JobSubmissionService {
 	private async findTemplate(slug?: string): Promise<Template | null> {
 		if (!slug) return null
 		try {
-			return await findTemplateBySlug(slug, await this.identityId())
+			return await findTemplateBySlug(slug)
 		} catch {
 			return null
 		}

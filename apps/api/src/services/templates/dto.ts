@@ -12,7 +12,6 @@ export function toTemplate(row: Template): TemplateSummary {
 		category: row.category as TemplateCategory,
 		locale: row.locale as TemplateLocale,
 		spec: row.spec,
-		builtin: row.builtin,
 		content: row.content,
 	}
 }

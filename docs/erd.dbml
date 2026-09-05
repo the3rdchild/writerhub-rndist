@@ -132,27 +132,68 @@ Table document_versions {
   Note: 'Tanpa updated_at: versi adalah rekaman, ia tidak pernah disunting.'
 }
 
+// ── Template ───────────────────────────────────────────────────────────────
+//
+// KEPUTUSAN: template TIDAK dimiliki siapa pun. Ia katalog buatan dev.
+//
+// Tidak ada "template saya". Pengguna yang punya format sendiri mengimpor
+// DOCX-nya lewat jalur impor biasa lalu menyunting dari situ - tidak ada baris
+// yang lahir dari tindakan pengguna. Format per universitas ditulis tangan
+// oleh dev sebagai template bawaan.
+//
+// Alasannya: portal PPE dijual ke khalayak umum dan tidak memberi identitas
+// institusi apa pun, jadi satu-satunya pemilik yang bisa dipasang adalah
+// perorangan - dan format skripsi Unpad bukan milik seorang mahasiswa. Kalau
+// scope-nya perorangan, satu format yang sama tersimpan ulang sebanyak
+// mahasiswa yang mengunggahnya, dan tidak seorang pun bisa membaginya.
+//
+// Tabel ini dulu punya `owner_id` (selalu NULL) dan `builtin` (selalu true),
+// ditambahkan di P0 untuk mengantisipasi "template buatan pengguna" yang tidak
+// pernah datang. Keduanya dihapus bersama `templates_owner_idx` di migrasi
+// `0025_careful_sugar_man.sql`. Jangan menambahkannya kembali tanpa fitur yang
+// benar-benar mengisinya - kolom yang ditambahkan lebih dulu daripada
+// pemakainya adalah persis kesalahan yang migrasi itu perbaiki.
+//
+// ┌ MENAMBAH TEMPLATE BARU - baca ini dulu ─────────────────────────────────┐
+//
+// 1. Definisinya KODE, bukan baris database. Tulis di
+//    `services/templates/catalog/<kategori>.ts`; ia di-upsert saat boot
+//    berdasarkan slug. Menyisipkan baris langsung ke tabel akan tertimpa.
+//
+// 2. Slug per institusi memakai awalan institusi, yang umum tanpa awalan:
+//       unpad-ta1-elektro, ugm-skripsi, itb-tesis
+//       skripsi-id, ieee-paper
+//
+// 3. JANGAN mengganti slug yang sudah dirilis. `documents.template_slug`
+//    menyimpannya sebagai varchar TANPA foreign key, jadi mengganti nama
+//    tidak memicu error apa pun - ia hanya diam-diam memutus dokumen lama
+//    dari templatenya, dan tidak ada constraint yang akan memberi tahu.
+//
+// 4. `category` hanya punya 4 nilai, jadi ia tidak bisa memisahkan template
+//    antar universitas. Itu tugas `institution` - lihat kolomnya di bawah.
+//
+// └─────────────────────────────────────────────────────────────────────────┘
+
 Table templates {
   id uuid [pk, not null]
-  slug varchar(64) [not null, unique]
+  slug varchar(64) [not null, unique, note: 'unik GLOBAL; berawalan institusi untuk template per kampus']
   name text [not null]
   description text [not null]
   category varchar(32) [not null]
   locale varchar(8) [not null]
   spec jsonb [not null]
   content jsonb [not null]
-  builtin boolean [not null, default: false]
-  owner_id uuid [note: 'null untuk template bawaan/global']
+// institution varchar(128) [note: 'BELUM ADA - sengaja ditahan. Label penyaring galeri, mis. "Universitas Padjadjaran"; NULL untuk template umum. LABEL, BUKAN PEMILIK: tanpa FK, tidak ikut pemeriksaan izin apa pun. Ditahan sampai ada cukup template institusi untuk disaring; menambahkannya sekarang mengulang kesalahan owner_id.']
   position integer [not null, default: 0]
   updated_at timestamp [not null, default: `now()`]
   created_at timestamp [not null, default: `now()`]
 
   Indexes {
     (category, position) [name: 'templates_category_idx']
-    owner_id [name: 'templates_owner_idx']
+//  institution [name: 'templates_institution_idx']   BELUM ADA
   }
 
-  Note: 'Bawaan dan buatan pengguna di tabel yang sama, dibedakan kolom builtin; yang bawaan di-upsert saat boot berdasarkan slug.'
+  Note: 'Seluruh isinya bawaan: ditulis sebagai kode dan di-upsert saat boot berdasarkan slug. Tidak ada jalur tulis dari pengguna - routes/v1/templates.route.ts hanya punya GET.'
 }
 
 // ── Aset gambar ────────────────────────────────────────────────────────────
@@ -242,7 +283,6 @@ Ref: user_memories.owner_id > identity.id
 Ref: documents.project_id > projects.id [delete: restrict]
 Ref: document_tabs.document_id > documents.id [delete: cascade]
 Ref: document_versions.tab_id > document_tabs.id [delete: cascade]
-Ref: templates.owner_id > identity.id [delete: cascade]
 Ref: metadata_version.request_id > pool_request.id [delete: cascade]
 Ref: metadata_version.version_id > document_versions.id [delete: cascade]
 Ref: pool_request.tab_id > document_tabs.id [delete: set null]

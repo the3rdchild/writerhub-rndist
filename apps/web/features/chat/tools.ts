@@ -70,6 +70,8 @@ const SNIPPET_RADIUS = 80
 const MAX_HITS = 8
 const MAX_SECTION_CHARS = 6_000
 const MAX_TAB_CHARS = 20_000
+/** Batas judul di API dokumen; judul dari model dipotong sebelum sampai ke sana. */
+const MAX_TITLE_CHARS = 500
 
 export interface ReadToolContext {
 	editor: Editor
@@ -312,6 +314,10 @@ export interface WriteToolContext {
 	 */
 	templateSpecs: Map<string, TemplateSpec>
 	createTab: (title: string | undefined, markdown: string | undefined) => void
+	/** Mengganti judul dokumen aktif - nama yang tampil di atas editor. */
+	renameDocument: (title: string) => ToolOutcome
+	/** Mengganti label satu tab; `tabId` kosong berarti tab yang sedang dibuka. */
+	renameTab: (tabId: string | undefined, title: string) => ToolOutcome
 }
 
 export interface ToolOutcome {
@@ -430,9 +436,24 @@ export function describeToolCall(call: ToolCall): string {
 			return 'Insert image'
 		case 'create_tab':
 			return `Create tab “${String(call.arguments.title ?? '').slice(0, 40) || 'baru'}”`
+		case 'rename_document':
+			return `Rename the document to “${String(call.arguments.title ?? '').slice(0, 40)}”`
+		case 'rename_tab':
+			return `Rename ${call.arguments.tab_id ? `tab ${String(call.arguments.tab_id).slice(0, 12)}` : 'this tab'} to “${String(call.arguments.title ?? '').slice(0, 40)}”`
 		default:
 			return call.name
 	}
+}
+
+/**
+ * Judul yang dikirim model dirapikan sebelum dipakai: satu baris, tanpa spasi
+ * berlebih, dan tidak melebihi batas judul yang diterima server.
+ */
+function cleanTitle(value: unknown): string {
+	return String(value ?? '')
+		.replace(/\s+/g, ' ')
+		.trim()
+		.slice(0, MAX_TITLE_CHARS)
 }
 
 function scopeLabel(call: ToolCall): string {
@@ -1079,6 +1100,19 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const markdown = typeof call.arguments.markdown === 'string' ? call.arguments.markdown : undefined
 			context.createTab(title, markdown)
 			return { ok: true, message: `Tab "${title ?? 'baru'}" created.` }
+		}
+
+		case 'rename_document': {
+			const title = cleanTitle(call.arguments.title)
+			if (!title) return { ok: false, message: 'A title is required.' }
+			return context.renameDocument(title)
+		}
+
+		case 'rename_tab': {
+			const title = cleanTitle(call.arguments.title)
+			if (!title) return { ok: false, message: 'A title is required.' }
+			const tabId = typeof call.arguments.tab_id === 'string' ? call.arguments.tab_id.trim() : ''
+			return context.renameTab(tabId || undefined, title)
 		}
 
 		default:

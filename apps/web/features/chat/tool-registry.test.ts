@@ -33,6 +33,8 @@ describe('registri alat editor', () => {
 			'restructure_section',
 			'insert_image',
 			'create_tab',
+			'rename_document',
+			'rename_tab',
 		]
 
 		for (const name of reads) expect(isReadTool(name)).toBe(true)
@@ -79,6 +81,8 @@ describe('registri alat editor', () => {
 			format_text: ['find'],
 			restructure_section: ['heading_index', 'action'],
 			insert_image: ['src'],
+			rename_document: ['title'],
+			rename_tab: ['title'],
 		}
 
 		for (const [name, keys] of Object.entries(required)) {
@@ -180,6 +184,34 @@ describe('apply_template_format', () => {
 	test('contoh slug-nya nyata, bukan karangan', () => {
 		const description = tool?.parameters.properties.template.description ?? ''
 		expect(description).toContain('skripsi-s1')
+	})
+})
+
+describe('alat penamaan', () => {
+	/*
+	 * Alasan alat ini ada: tanpanya model menjawab bahwa mengganti judul di luar
+	 * kemampuannya dan menyuruh penulis mengetik sendiri - padahal judul adalah
+	 * hal pertama yang diminta setelah dokumen jadi. Deskripsinya harus
+	 * mengatakan itu, karena deskripsi inilah satu-satunya yang dibaca model.
+	 */
+	test('rename_document menutup jawaban "tidak bisa"', () => {
+		const tool = EDITOR_TOOLS.find((item) => item.name === 'rename_document')
+		expect(tool?.kind).toBe('write')
+		expect(tool?.description).toContain('Untitled document')
+		expect(tool?.description).toContain('never answer that renaming is beyond your tools')
+	})
+
+	test('rename_tab memakai tab aktif saat tab_id tidak disebut', () => {
+		const tool = EDITOR_TOOLS.find((item) => item.name === 'rename_tab')
+		expect(tool?.kind).toBe('write')
+		expect(tool?.parameters.required ?? []).not.toContain('tab_id')
+		const tabId = tool?.parameters.properties.tab_id as { description: string } | undefined
+		expect(tabId?.description).toContain('Defaults to the active tab')
+	})
+
+	test('keduanya dibedakan supaya tidak tertukar', () => {
+		expect(EDITOR_TOOLS.find((item) => item.name === 'rename_document')?.description).toContain('rename_tab')
+		expect(EDITOR_TOOLS.find((item) => item.name === 'rename_tab')?.description).toContain('rename_document')
 	})
 })
 

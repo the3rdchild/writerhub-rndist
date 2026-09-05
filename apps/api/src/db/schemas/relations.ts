@@ -8,7 +8,6 @@ import { metadataVersion } from './metadata-version'
 import { poolRequest } from './pool-request'
 import { projects } from './project'
 import { shares } from './share'
-import { templates } from './template'
 import { userMemories } from './user-memory'
 
 /**
@@ -25,7 +24,6 @@ import { userMemories } from './user-memory'
 export const identityRelations = relations(identity, ({ many, one }) => ({
 	projects: many(projects),
 	memory: one(userMemories),
-	templates: many(templates),
 }))
 
 export const userMemoryRelations = relations(userMemories, ({ one }) => ({
@@ -88,8 +86,4 @@ export const metadataVersionRelations = relations(metadataVersion, ({ one }) => 
 		fields: [metadataVersion.version_id],
 		references: [documentVersions.id],
 	}),
-}))
-
-export const templateRelations = relations(templates, ({ one }) => ({
-	owner: one(identity, { fields: [templates.owner_id], references: [identity.id] }),
 }))

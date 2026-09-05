@@ -41,6 +41,25 @@ const ACADEMIC_ID_TYPOGRAPHY_DOUBLE: DocumentTypography = {
 	lineHeight: 2,
 }
 
+/**
+ * Proposal TA I Capstone Design Teknik Elektro Unpad. Berbeda dari tipografi
+ * akademik lain di berkas ini, angkanya **tertulis di pedomannya sendiri**:
+ * "Huruf: Times New Roman, Spasi: Double, Spacing Before 0 pt After 0 pt,
+ * Alignment: Justify". Karena itu jarak antarparagraf ditulis nol eksplisit -
+ * bukan diwarisi.
+ */
+const UNPAD_TA1_TYPOGRAPHY: DocumentTypography = {
+	baseFont: TIMES_12,
+	lineHeight: 2,
+	paragraph: { align: 'justify', firstLinePt: 28, spaceBeforePt: 0, spaceAfterPt: 0 },
+	headings: {
+		1: { sizePt: 12, align: 'center', spaceBeforePt: 12, spaceAfterPt: 6, pageBreakBefore: true },
+		2: { sizePt: 12, spaceBeforePt: 12, spaceAfterPt: 0 },
+		3: { sizePt: 12, spaceBeforePt: 6, spaceAfterPt: 0 },
+		4: { sizePt: 12, spaceBeforePt: 6, spaceAfterPt: 0 },
+	},
+}
+
 export const ACADEMIC_ID_TEMPLATES: BuiltinTemplateDefinition[] = [
 	{
 		slug: 'skripsi-s1',
@@ -772,6 +791,184 @@ email@example.com
 				'Ucapan Terima Kasih is optional; keep it to one short paragraph when present.',
 			],
 			caveats: ['Format tiap jurnal nasional berbeda - sesuaikan kerangka ini dengan pedoman jurnal tujuan.'],
+		},
+	},
+	{
+		slug: 'unpad-ta1-elektro',
+		name: 'Proposal TA I Capstone (Unpad Elektro)',
+		description:
+			'Proposal Tugas Akhir I Capstone Design Teknik Elektro Unpad: tiga BAB, spasi ganda, dengan panduan isi tiap bagian.',
+		category: 'academic_id',
+		locale: 'id',
+		position: 8,
+		markdown: `# Halaman Sampul
+
+PROPOSAL PROYEK TUGAS AKHIR CAPSTONE DESIGN
+
+**JUDUL PROPOSAL PROYEK TUGAS AKHIR**
+
+*Maksimal 20 kata, huruf kapital, singkat, jelas, dan mewakili isi proyek.*
+
+Disusun sebagai salah satu tahapan pelaksanaan Tugas Akhir Capstone Design dan memenuhi mata kuliah Tugas Akhir I pada Program Studi Sarjana Teknik Elektro, Fakultas Matematika dan Ilmu Pengetahuan Alam, Universitas Padjadjaran.
+
+Disusun oleh:
+
+Nama Mahasiswa 1 - NPM XXXXXXXXXX
+Nama Mahasiswa 2 - NPM XXXXXXXXXX
+Nama Mahasiswa 3 - NPM XXXXXXXXXX
+
+PROGRAM STUDI SARJANA TEKNIK ELEKTRO
+FAKULTAS MATEMATIKA DAN ILMU PENGETAHUAN ALAM
+UNIVERSITAS PADJADJARAN
+Tahun
+
+# Halaman Pengesahan
+
+HALAMAN PENGESAHAN PROPOSAL PROYEK TUGAS AKHIR CAPSTONE DESIGN
+
+**JUDUL TUGAS AKHIR**
+
+Disusun oleh:
+
+Nama Mahasiswa 1 - NPM XXXXXXXXXX
+Nama Mahasiswa 2 - NPM XXXXXXXXXX
+Nama Mahasiswa 3 - NPM XXXXXXXXXX
+
+Proposal proyek ini telah diperiksa dan disetujui sebagai salah satu tahapan pelaksanaan Tugas Akhir Capstone Design dan pemenuhan mata kuliah Tugas Akhir I.
+
+Tanggal Pengesahan: Jatinangor, HH-BB-TTTT
+
+Pembimbing 1 - Nama, NIP
+Pembimbing 2 - Nama, NIP
+Pembimbing 3 - Nama, NIP
+
+Mengetahui,
+Ketua Program Studi Teknik Elektro - Nama, NIP
+
+# Daftar Isi
+
+# Daftar Gambar
+
+# Daftar Tabel
+
+# BAB I Pendahuluan
+
+## Masalah yang Harus Dipecahkan
+
+*Jelaskan permasalahan nyata berbasis data atau fakta lapangan, urgensi penyelesaiannya, dampak permasalahan, stakeholder atau pengguna terkait, constraint atau batasan engineering, dan relevansinya dengan bidang Teknik Elektro.*
+
+*Masalah harus realistis, open-ended, dan memungkinkan pendekatan engineering design.*
+
+## Karakteristik Solusi yang Diharapkan
+
+*Jelaskan target solusi secara umum: fungsi utama sistem atau produk, kebutuhan pengguna, target performa, kriteria keberhasilan, aspek keandalan dan keselamatan, kemudahan implementasi, efisiensi biaya atau energi, serta potensi pengembangan lebih lanjut.*
+
+## Tujuan
+
+*Jelaskan tujuan proyek secara terukur dan operasional. Contoh: merancang sistem monitoring energi berbasis IoT; mengembangkan prototipe perangkat monitoring; mengimplementasikan komunikasi data real-time; melakukan validasi awal fungsi sistem.*
+
+# BAB II Spesifikasi Produk
+
+## Fungsi
+
+*Jelaskan fungsi utama produk atau sistem, input dan output sistem, cara kerja umum sistem, dan interaksi antar subsistem. Contoh: sistem mampu membaca parameter listrik; sistem mampu mengirim data ke server; sistem mampu menampilkan data monitoring.*
+
+## Karakteristik/Kriteria
+
+*Jelaskan spesifikasi dan target performa produk: akurasi, delay komunikasi, konsumsi daya, kapasitas sistem, keandalan operasi, portabilitas, keselamatan penggunaan, dan standar atau regulasi terkait. Contoh: akurasi minimal 95%; delay maksimal 2 detik; operasi kontinu 24 jam.*
+
+# BAB III Perancangan Alat
+
+## Alternatif Solusi/Metoda
+
+*Jelaskan beberapa alternatif solusi atau metode yang memungkinkan, minimal dua. Bandingkan kelebihan dan kekurangannya dengan mempertimbangkan performa, kompleksitas, biaya, ketersediaan komponen, kemudahan implementasi, dan skalabilitas.*
+
+| Alternatif | Kelebihan | Kekurangan |
+| --- | --- | --- |
+| Solusi A |  |  |
+| Solusi B |  |  |
+
+## Penetapan Solusi
+
+*Jelaskan solusi terpilih beserta alasan pemilihannya berdasarkan analisis teknis, efisiensi biaya, kemudahan integrasi, keandalan sistem, potensi pengembangan, dan kesesuaian dengan kebutuhan pengguna.*
+
+*Bagian ini dapat memuat diagram blok sistem, konsep hardware, konsep software, arsitektur umum sistem, konsep komunikasi data, dan gambaran awal implementasi.*
+
+# Daftar Pustaka
+
+# Lampiran
+
+*Opsional. Dapat memuat diagram blok, flowchart, skematik awal, estimasi biaya, datasheet komponen, jadwal pelaksanaan, pembagian tugas tim, dan studi awal atau simulasi.*
+`,
+		spec: {
+			layout: {
+				pageSetup: {
+					size: 'a4',
+					orientation: 'portrait',
+					margins: MARGIN_4_3_3_3,
+					pageColor: null,
+					pageless: false,
+				},
+				typography: UNPAD_TA1_TYPOGRAPHY,
+			},
+			format: {
+				citationStyle: 'ieee',
+				headingScheme: 'bab-romawi',
+				language: 'id',
+			},
+			structure: [
+				{ heading: 'Halaman Sampul', level: 1, required: true },
+				{ heading: 'Halaman Pengesahan', level: 1, required: true },
+				{ heading: 'Daftar Isi', level: 1, required: true },
+				{ heading: 'Daftar Gambar', level: 1, required: true },
+				{ heading: 'Daftar Tabel', level: 1, required: true },
+				{ heading: 'BAB I Pendahuluan', level: 1, required: true },
+				{
+					heading: 'Masalah yang Harus Dipecahkan',
+					level: 2,
+					required: true,
+					hint: 'Bagian wajib BAB I',
+				},
+				{
+					heading: 'Karakteristik Solusi yang Diharapkan',
+					level: 2,
+					required: true,
+					hint: 'Bagian wajib BAB I',
+				},
+				{ heading: 'Tujuan', level: 2, required: true, hint: 'Bagian wajib BAB I' },
+				{ heading: 'BAB II Spesifikasi Produk', level: 1, required: true },
+				{ heading: 'Fungsi', level: 2, required: true, hint: 'Bagian wajib BAB II' },
+				{
+					heading: 'Karakteristik/Kriteria',
+					level: 2,
+					required: true,
+					hint: 'Bagian wajib BAB II',
+				},
+				{ heading: 'BAB III Perancangan Alat', level: 1, required: true },
+				{
+					heading: 'Alternatif Solusi/Metoda',
+					level: 2,
+					required: true,
+					hint: 'Minimal dua alternatif yang dibandingkan',
+				},
+				{ heading: 'Penetapan Solusi', level: 2, required: true, hint: 'Bagian wajib BAB III' },
+				{ heading: 'Daftar Pustaka', level: 1, required: false },
+				{ heading: 'Lampiran', level: 1, required: false },
+			],
+			aiRules: [
+				'This document is a TA I (Tugas Akhir I) Capstone Design proposal for the Electrical Engineering undergraduate programme at Universitas Padjadjaran.',
+				'It has exactly three chapters: BAB I Pendahuluan, BAB II Spesifikasi Produk, BAB III Perancangan Alat. Do not add BAB IV or BAB V - implementation and results belong to TA II, not this proposal.',
+				'Write in formal academic Indonesian (bahasa baku).',
+				'BAB I frames a real, open-ended engineering problem backed by field data, and states measurable objectives.',
+				'BAB II states the product specification as verifiable numbers - accuracy, delay, power draw, capacity - not adjectives.',
+				'BAB III compares at least two candidate solutions before justifying the chosen one.',
+				'The deliverables of TA I are a data-driven problem statement, a product specification, engineering alternatives, and an initial design decision - not a finished implementation.',
+			],
+			caveats: [
+				'Pedoman aslinya hanya menyebut huruf, spasi, dan perataan; margin 4-3-3-3 di sini mengikuti kelaziman skripsi Indonesia, bukan angka yang tertulis di pedoman - pastikan ke koordinator TA.',
+				'Pedoman aslinya tidak menyebut gaya sitasi. Kerangka ini memakai IEEE sesuai kelaziman Teknik Elektro.',
+				'Nomor halaman romawi (i, ii, iii) di bagian awal belum otomatis - atur manual.',
+			],
 		},
 	},
 ]

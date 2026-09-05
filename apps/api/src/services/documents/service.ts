@@ -65,7 +65,7 @@ export default class DocumentsService extends BaseService {
 			// dikirim pemanggil tetap menang bila keduanya ada.
 			let template: Template | null = null
 			if (templateSlug) {
-				template = await findTemplateBySlug(templateSlug, identityId)
+				template = await findTemplateBySlug(templateSlug)
 				if (!template) throw AppError.badRequest(`Template "${templateSlug}" tidak dikenal`)
 			}
 

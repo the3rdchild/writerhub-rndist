@@ -111,7 +111,7 @@ export default class ChatService extends JobSubmissionService {
 	private async templateRules(slug?: string): Promise<string[] | undefined> {
 		if (!slug) return undefined
 		try {
-			const template = await findTemplateBySlug(slug, await this.identityId())
+			const template = await findTemplateBySlug(slug)
 			return template?.spec.aiRules
 		} catch {
 			return undefined

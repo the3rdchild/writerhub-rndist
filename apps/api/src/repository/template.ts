@@ -1,42 +1,34 @@
-import { and, asc, eq, isNull, or } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 import db from '@/db'
 import type { NewTemplate } from '@/db/schemas'
 import { templates } from '@/db/schemas'
 
-/** Template yang terlihat pengguna: bawaan/global plus miliknya sendiri. */
-export async function findVisibleTemplates(ownerId: string, category?: string) {
-	const conditions = [or(isNull(templates.owner_id), eq(templates.owner_id, ownerId))]
-	if (category) conditions.push(eq(templates.category, category))
-
+/**
+ * Katalog template, disaring kategori bila diminta. Tidak ada penyaringan per
+ * pengguna: seluruh isinya bawaan dan sama untuk semua orang.
+ */
+export async function findTemplates(category?: string) {
 	return db
 		.select()
 		.from(templates)
-		.where(and(...conditions))
+		.where(category ? eq(templates.category, category) : undefined)
 		.orderBy(asc(templates.category), asc(templates.position))
 }
 
-export async function findTemplateBySlug(slug: string, ownerId?: string) {
-	const visibility = ownerId
-		? or(isNull(templates.owner_id), eq(templates.owner_id, ownerId))
-		: isNull(templates.owner_id)
-	const [row] = await db
-		.select()
-		.from(templates)
-		.where(and(eq(templates.slug, slug), visibility))
-		.limit(1)
+export async function findTemplateBySlug(slug: string) {
+	const [row] = await db.select().from(templates).where(eq(templates.slug, slug)).limit(1)
 	return row ?? null
 }
 
 /**
- * Upsert template bawaan berdasarkan slug: definisi bawaan ditulis sebagai
- * kode dan disalin ke tabel saat boot. Baris milik pengguna (`owner_id` terisi)
- * tidak pernah disentuh di sini - slug-nya memang tidak bisa bertabrakan
- * karena constraint unik, tapi fungsi ini hanya dipanggil dengan slug bawaan.
+ * Upsert template berdasarkan slug: definisi bawaan ditulis sebagai kode dan
+ * disalin ke tabel saat boot. Slug adalah satu-satunya identitas yang dipegang
+ * pemanggil - `id` tidak pernah disebut di luar tabel ini.
  */
-export async function upsertBuiltinTemplate(values: Omit<NewTemplate, 'builtin' | 'owner_id'>) {
+export async function upsertBuiltinTemplate(values: NewTemplate) {
 	const [row] = await db
 		.insert(templates)
-		.values({ ...values, builtin: true, owner_id: null })
+		.values(values)
 		.onConflictDoUpdate({
 			target: templates.slug,
 			set: {

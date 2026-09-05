@@ -1,12 +1,16 @@
 import type { TemplateSpec } from '@writer-hub/shared'
-import { boolean, index, integer, jsonb, pgTable, text, uuid, varchar } from 'drizzle-orm/pg-core'
+import { index, integer, jsonb, pgTable, text, uuid, varchar } from 'drizzle-orm/pg-core'
 import { timestamps } from '@/db/utils/common-table'
-import { identity } from './identity'
 
 /**
- * Katalog template dokumen. Bawaan dan buatan pengguna hidup berdampingan di
- * tabel yang sama; bawaan di-upsert saat boot berdasarkan `slug` (lihat
- * `docs/TEMPLATE-GALLERY-PLAN.md` §2-§3).
+ * Katalog template dokumen. Seluruh isinya bawaan: ditulis sebagai kode di
+ * `services/templates/catalog/` dan di-upsert saat boot berdasarkan `slug`.
+ *
+ * Tabel ini sengaja TIDAK punya kolom pemilik. Tidak ada "template saya" -
+ * pengguna yang punya format sendiri mengimpor DOCX-nya lewat jalur impor biasa
+ * dan menyunting dari situ, tanpa melahirkan baris di sini. Format per
+ * universitas ditulis tangan sebagai template bawaan, dengan slug berawalan
+ * institusi (`unpad-ta1-elektro`). Alasan lengkapnya di `docs/erd.dbml`.
  */
 export const templates = pgTable(
 	'templates',
@@ -19,18 +23,12 @@ export const templates = pgTable(
 		locale: varchar('locale', { length: 8 }).notNull(),
 		spec: jsonb('spec').notNull().$type<TemplateSpec>(),
 		content: jsonb('content').notNull().$type<Record<string, unknown>>(),
-		builtin: boolean('builtin').notNull().default(false),
-		/** null untuk template bawaan/global. */
-		owner_id: uuid('owner_id').references(() => identity.id, { onDelete: 'cascade' }),
 		position: integer('position').notNull().default(0),
 
 		updated_at: timestamps.updatedAt,
 		created_at: timestamps.createdAt,
 	},
-	(table) => [
-		index('templates_category_idx').on(table.category, table.position),
-		index('templates_owner_idx').on(table.owner_id),
-	],
+	(table) => [index('templates_category_idx').on(table.category, table.position)],
 )
 
 export type Template = typeof templates.$inferSelect

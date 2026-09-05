@@ -212,7 +212,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const { state } = useDocument()
 	const { editor } = useEditorInstance()
 	const { setActivePanel, markRun } = usePanels()
-	const { doc, activeDocId, activeId, sessions, comments, addComment } = useSessions()
+	const { doc, activeDocId, activeId, sessions, comments, addComment, renameDocument, renameSession } =
+		useSessions()
 	const { setup, setPageSetup } = usePageSetup()
 	const language = useDocumentLanguage()
 	const [messages, setMessages] = useState<ChatTurn[]>([])
@@ -276,6 +277,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		activeId,
 		sessions,
 		comments,
+		renameDocument,
+		renameSession,
 	})
 	appRef.current = {
 		setup,
@@ -286,6 +289,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		activeId,
 		sessions,
 		comments,
+		renameDocument,
+		renameSession,
 	}
 
 	/*
@@ -456,6 +461,28 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			const json = generateJSON(toEditorContent(markdown), buildEditorExtensions())
 			jsonToFragment(app.doc, id, json)
 		}
+	}
+
+	const renameActiveDocument = (title: string): ToolOutcome => {
+		const app = appRef.current
+		if (!app.activeDocId) return { ok: false, message: 'No document is open.' }
+		app.renameDocument(app.activeDocId, title)
+		return { ok: true, message: `Document renamed to "${title}".` }
+	}
+
+	/*
+	 * Tab yang tidak disebutkan berarti tab yang sedang dibuka. Id yang disebut
+	 * dicocokkan dulu ke daftar tab dokumen ini - `updateTab` diam saja untuk id
+	 * yang tidak ada, dan model perlu tahu kalau tebakannya meleset.
+	 */
+	const renameTabById = (tabId: string | undefined, title: string): ToolOutcome => {
+		const app = appRef.current
+		const target = tabId ?? app.activeId
+		if (!target) return { ok: false, message: 'No tab is open.' }
+		const tab = app.sessions.find((session) => session.id === target)
+		if (!tab) return { ok: false, message: `No tab with id ${target}. Call list_tabs first.` }
+		app.renameSession(target, title)
+		return { ok: true, message: `Tab renamed to "${title}".` }
 	}
 	const runTurn = useCallback(
 		async (
@@ -748,6 +775,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					setTypography: appRef.current.setTypography,
 					templateSpecs: templateSpecsRef.current,
 					createTab: createTabWithContent,
+					renameDocument: renameActiveDocument,
+					renameTab: renameTabById,
 				},
 				call,
 			)
