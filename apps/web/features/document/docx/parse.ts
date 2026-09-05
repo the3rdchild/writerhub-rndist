@@ -41,10 +41,19 @@ function readerOf(context: ParseContext): ReadParagraph {
 	return (paragraph) => paragraphBlocks(paragraph, context)
 }
 
+/**
+ * Font sebuah run.
+ *
+ * Kalau `w:rFonts` tidak ada sama sekali - tidak di run, tidak di style, tidak
+ * di `docDefaults` - Word memakai font **tema** (`+minor-latin`), bukan font
+ * bawaan pembacanya. Tanpa cadangan ini seluruh naskah dirender dengan font
+ * bawaan kanvas, dan karena metrik tiap font berbeda, tinggi setiap barisnya
+ * ikut berubah.
+ */
 function fontOf(props: RunProps, theme: ThemeFonts): string | undefined {
 	if (props.font) return props.font
-	if (!props.fontTheme) return undefined
-	return /^major/i.test(props.fontTheme) ? theme.major : theme.minor
+	if (props.fontTheme) return /^major/i.test(props.fontTheme) ? theme.major : theme.minor
+	return theme.minor
 }
 
 function marksOf(

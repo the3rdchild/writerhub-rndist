@@ -1,3 +1,4 @@
+import { cssLineHeight } from '@writer-hub/shared'
 import { webfontFamily } from '@/features/editor/font-catalog'
 export const TWIPS_PER_PX = 15
 
@@ -47,16 +48,27 @@ export function highlightColor(value: string | undefined): string | undefined {
 	return HIGHLIGHTS[value] ?? undefined
 }
 
-const WORD_LINE_TO_CSS = 1.15
-
+/**
+ * `w:line` → `line-height` CSS.
+ *
+ * Satuannya sama dengan yang dipakai tipografi dokumen: 1 berarti spasi
+ * tunggal, dan `cssLineHeight` yang mengubahnya ke ukuran CSS. Satu sumber
+ * angka untuk keduanya - kalau importer memakai faktor sendiri, dokumen hasil
+ * impor dan dokumen buatan editor akan berselisih tinggi baris diam-diam.
+ *
+ * Spasi tunggal **tidak** boleh menjadi `normal`. `normal` menyerahkan tinggi
+ * baris kepada metrik font yang kebetulan merender: Source Serif 4 - font
+ * bawaan kanvas - menghitung 1,371, sementara Word menghitung ~1,15 untuk font
+ * temanya. Selisih 15% per baris cukup untuk membuat halaman sampul yang di
+ * Word memenuhi satu lembar meluber ke lembar kedua.
+ */
 export function toLineHeight(line: number | undefined, rule: string | undefined): string {
-	if (line === undefined || line <= 0) return 'normal'
+	// Tanpa keterangan apa pun, Word memakai spasi tunggal.
+	if (line === undefined || line <= 0) return String(cssLineHeight(1))
 
 	if (rule === 'exact' || rule === 'atLeast') return `${twipsToPx(line)}px`
 
-	const multiple = line / 240
-	if (multiple === 1) return 'normal'
-	return String(Math.round(multiple * WORD_LINE_TO_CSS * 100) / 100)
+	return String(cssLineHeight(line / 240))
 }
 
 export function toFontStack(font: string | undefined): string | undefined {

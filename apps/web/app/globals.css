@@ -557,6 +557,22 @@ a {
 }
 
 /*
+ * Gambar dan tabel tidak ikut jarak baku itu.
+ *
+ * Word maupun Google Docs tidak menyisipkan apa pun di atas keduanya - jarak
+ * di sekitarnya milik paragraf sebelah, dan gambar bahkan duduk di dalam
+ * paragrafnya sendiri. Aturannya harus mengenai pembungkus buatan TipTap
+ * (`.tableWrapper`, `.react-renderer`), karena itulah yang menjadi anak
+ * langsung badan dokumen; atribut node hanya sampai ke elemen di dalamnya.
+ */
+.document-body > .tableWrapper + *,
+.document-body > * + .tableWrapper,
+.document-body > .node-image + *,
+.document-body > * + .node-image {
+  margin-top: 0;
+}
+
+/*
  * Blok rancangan HTML. Bingkainya terkurung (`html-sandbox.ts`), jadi tidak ada
  * satu pun gaya di berkas ini yang bocor ke dalamnya - dan sebaliknya.
  */

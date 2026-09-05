@@ -24,6 +24,7 @@ kehilangan seluruh kerangkanya.
 | **B. Turun kelas** | Masuk, tapi kehilangan struktur atau formatnya | [§4](#4-celah-b--masuk-tapi-turun-kelas) (S1–S12) |
 | **C. Sudah aman** | Terbawa dengan benar — jangan dirusak saat memperbaiki A/B | [§5](#5-yang-sudah-aman) |
 | **D. Hasil perbaikan** | Status tiap celah setelah implementasi + audit ulang | [§8](#8-hasil-setelah-perbaikan) |
+| **E. Sampul dua halaman** | Font tema, spasi tunggal, dan jarak media — diverifikasi di aplikasi | [§9](#9-sampul-yang-meluber-ke-halaman-kedua-5-september-2026) |
 
 Ongkos ditulis **S** (di bawah satu jam), **M** (setengah hari), **L** (lebih dari sehari,
 perlu keputusan produk dulu).
@@ -425,6 +426,67 @@ Dua perubahan bentuk yang perlu dicatat:
 2. **Media dan tabel tidak mengimpor `parse.ts`.** Keduanya memuat paragraf, tapi perangkainya
    tetap di `parse.ts`; pembacanya disuntikkan sebagai `ReadParagraph` supaya tidak ada impor
    melingkar.
+
+---
+
+## 9. Sampul yang meluber ke halaman kedua (5 September 2026)
+
+**Gejala** — `Naufal_Proposal_TA_Capstone_Bab1-3_v1.docx`: sampul yang di Google Docs pas satu
+lembar terpecah jadi dua setelah diimpor. Dugaan awal jatuh ke margin dan header/footer.
+Keduanya tidak bersalah:
+
+- `w:pgMar` = 1701 twip = 1,18″ = 2,99 cm, terimpor jadi 113 px — persis yang ditampilkan
+  dialog Google Docs.
+- `pageGeometry.contentHeight = height − top − bottom` = 896 px; Word menghitung 895,9 px.
+- Paginasi tidak pernah mengurangi ruang untuk perabot halaman ([`pagination.ts`](../apps/web/features/editor/pagination.ts)
+  membandingkan `block.bottom` dengan `pageStart + sheet.contentHeight`, tanpa potongan lain).
+
+**Sebabnya font.** Berkas ini tidak menyebut font sama sekali: tidak ada `w:rFonts` di run,
+di style, maupun di `docDefaults`. Word menyelesaikannya lewat font **tema**
+(`minorFont = Cambria`); importer hanya melihat tema kalau `rPr` membawa `asciiTheme`, jadi
+seluruh naskah jatuh ke font bawaan kanvas, **Source Serif 4**. Metrik keduanya berbeda jauh —
+dibaca langsung dari berkas fontnya:
+
+```
+source-serif-4-normal-200-900.woff2   upem=1000
+  hhea asc=1036 desc=-335 gap=0  →  line-height: normal ≈ 1,371
+```
+
+Cambria ≈ 1,17. Dan karena paragraf sampul tidak menyebut `w:line`, importer menulis
+`line-height: normal` — nilai yang **menyerahkan tinggi baris kepada font yang kebetulan
+merender**. Hasilnya setiap baris ~17% lebih tinggi; pada halaman yang di Word terisi 95%, itu
+cukup untuk melempar blok terakhir ke lembar berikutnya.
+
+**Perbaikan**
+
+| # | Perubahan | Berkas |
+|---|---|---|
+| 1 | Font tema dipakai saat `w:rFonts` tidak ada sama sekali — perilaku Word (`+minor-latin`) | [`parse.ts`](../apps/web/features/document/docx/parse.ts) `fontOf` |
+| 2 | Spasi tunggal tidak lagi jadi `normal`. `toLineHeight` kini selalu angka dan memakai `cssLineHeight` dari `@writer-hub/shared` — satu sumber dengan tipografi dokumen, jadi impor dan dokumen buatan editor tidak bisa berselisih diam-diam | [`units.ts`](../apps/web/features/document/docx/units.ts) |
+| 3 | Gambar dan tabel tidak lagi kebagian jarak baku `0,75em`. Aturannya harus mengenai pembungkus buatan TipTap (`.tableWrapper`, `.node-image`) — atribut node hanya sampai ke elemen di dalamnya | [`globals.css`](../apps/web/app/globals.css) |
+
+Satuan yang dipakai: `w:line / 240` adalah **spasi dokumen** (1 = tunggal), dan
+`cssLineHeight(x) = x × 1,15` yang mengubahnya ke CSS. Angka 1,15 itu bukan tebakan — ia
+sudah menjadi `LINE_SPACING_TO_CSS` di `packages/shared/src/typography.ts`, dan komentarnya
+memang menyebut dirinya kebalikan konstanta di `docx/units.ts`.
+
+**Verifikasi di aplikasi sungguhan.** Chromium di kontainer `worker` (Playwright) membuka
+`http://web:3000`, mengunggah berkasnya lewat input impor, lalu mengukur DOM-nya:
+
+| | Sebelum | Sesudah |
+|---|---|---|
+| Font teks sampul | Source Serif 4 (bawaan kanvas) | `Cambria, serif` |
+| `line-height` paragraf | `normal` (≈1,371 × 14,67 px) | `1.15` (16,87 px) |
+| `margin-top` tabel & gambar | 11 px | 0 px |
+| "PROGRAM STUDI…" | halaman 2 | halaman 1, pada 787–805 px dari 896 px |
+| Akhir sampul | — | 877 px, sisa 19 px sebelum batas lembar |
+
+**Yang masih tersisa** — ukuran tanda paragraf (`w:pPr/w:rPr/w:sz`) pada paragraf kosong tidak
+terbawa: enam paragraf kosong di sampul ini seharusnya 12 pt, terimpor sebagai ukuran badan
+naskah (11 pt). Bukan celah importer melainkan batas model editor — `textStyle` adalah mark,
+dan mark butuh node teks; paragraf kosong tidak punya tempat menyimpannya. Memperbaikinya
+berarti menambah atribut ukuran pada node paragraf, dan editor sendiri punya batas yang sama
+saat penulis mengatur ukuran pada paragraf kosong.
 
 ---
 

@@ -748,15 +748,48 @@ describe('perataan dan indentasi', () => {
 	})
 })
 
+describe('font tema', () => {
+	/*
+	 * Sampul Naufal tidak menyebut font sama sekali - tidak di run, tidak di
+	 * style, tidak di docDefaults. Word memakai `minorFont` tema; tanpa cadangan
+	 * ini seluruh naskah jatuh ke font bawaan kanvas dan tinggi barisnya ikut
+	 * berubah.
+	 */
+	test('run tanpa rFonts memakai minorFont tema', async () => {
+		const result = await readDocx(
+			docx({ body: p(r('isi')), theme: { major: 'Calibri', minor: 'Cambria' } }),
+		)
+		const mark = markNamed(blocks(result.content)[0], 'textStyle')
+		expect(mark?.attrs?.fontFamily).toBe('Cambria, serif')
+	})
+
+	test('rFonts eksplisit tetap menang atas tema', async () => {
+		const result = await readDocx(
+			docx({
+				body: p(r('isi', '<w:rFonts w:ascii="Arial"/>')),
+				theme: { major: 'Calibri', minor: 'Cambria' },
+			}),
+		)
+		const mark = markNamed(blocks(result.content)[0], 'textStyle')
+		expect(mark?.attrs?.fontFamily).toBe('Arial, sans-serif')
+	})
+})
+
 describe('spasi', () => {
 	test('spasi 1,5 Word lebih longgar dari 1,5 CSS', async () => {
 		const result = await readDocx(docx({ body: p(r('isi'), '<w:spacing w:line="360" w:lineRule="auto"/>') }))
 		expect(blocks(result.content)[0]?.attrs?.lineHeight).toBe('1.73')
 	})
 
-	test('spasi tunggal jadi normal, bukan angka', async () => {
+	/*
+	 * Spasi tunggal pernah diterjemahkan menjadi `normal`, dan `normal`
+	 * menyerahkan tinggi baris kepada metrik font yang kebetulan merender -
+	 * Source Serif 4 menghitung 1,371, Word ~1,15. Sampul yang di Word pas satu
+	 * lembar karenanya meluber ke lembar kedua.
+	 */
+	test('spasi tunggal jadi angka, bukan normal', async () => {
 		const result = await readDocx(docx({ body: p(r('isi'), '<w:spacing w:line="240" w:lineRule="auto"/>') }))
-		expect(blocks(result.content)[0]?.attrs?.lineHeight).toBe('normal')
+		expect(blocks(result.content)[0]?.attrs?.lineHeight).toBe('1.15')
 	})
 
 	test('spasi pasti dinyatakan dalam piksel', async () => {
@@ -766,7 +799,9 @@ describe('spasi', () => {
 	test('paragraf tanpa keterangan spasi tetap dinyatakan rapat', async () => {
 		const attrs = blocks((await readDocx(docx({ body: p(r('isi')) }))).content)[0]?.attrs
 
-		expect(attrs?.lineHeight).toBe('normal')
+		// Tanpa keterangan apa pun Word memakai spasi tunggal - dan tunggal
+		// dinyatakan dengan angka, bukan diserahkan ke metrik font.
+		expect(attrs?.lineHeight).toBe('1.15')
 		expect(attrs?.spaceBefore).toBe(0)
 		expect(attrs?.spaceAfter).toBe(0)
 	})
