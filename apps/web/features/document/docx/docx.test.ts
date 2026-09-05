@@ -209,7 +209,7 @@ describe('judul', () => {
 })
 
 describe('field', () => {
-	test('kode field tidak jadi teks, hasilnya iya', async () => {
+	test('field TOC diganti node daftar isi yang hidup', async () => {
 		const field = `
 			<w:r><w:fldChar w:fldCharType="begin"/></w:r>
 			<w:r><w:instrText xml:space="preserve"> TOC \\o "1-4" \\h </w:instrText></w:r>
@@ -218,7 +218,10 @@ describe('field', () => {
 			<w:r><w:fldChar w:fldCharType="end"/></w:r>`
 		const result = await readDocx(docx({ body: p(field) }))
 
-		expect(textOf(blocks(result.content)[0])).toBe('BAB I PENDAHULUAN')
+		const block = blocks(result.content)[0]
+		expect(block?.type).toBe('tocBlock')
+		expect(block?.attrs?.listKind).toBe('isi')
+		expect(block?.attrs?.maxLevel).toBe(4)
 	})
 
 	test('field tanpa hasil tersimpan tidak menelan paragraf sesudahnya', async () => {
@@ -1121,17 +1124,21 @@ describe('impor section (E4)', () => {
 		const body =
 			p(r('satu'), sectPr(pgSz(11906, 16838))) +
 			p(r('dua')) +
-			sectPr(pgSz(11906, 16838) + '<w:cols w:num="2" w:space="708"/>')
+			sectPr(`${pgSz(11906, 16838)}<w:cols w:num="2" w:space="708"/>`)
 		const result = await readDocx(docx({ body }))
 
 		expect(sectionBreaksOf(result.content)[0]?.attrs?.columns).toEqual({ count: 2, gap: 47 })
 	})
 
-	test('kolom di section pertama dilaporkan, bukan dibuang diam-diam', async () => {
+	test('kolom di section pertama dibawa pembatas menerus di awal dokumen', async () => {
 		const result = await readDocx(
-			docx({ body: p(r('isi')) + sectPr(pgSz(11906, 16838) + '<w:cols w:num="2"/>') }),
+			docx({ body: p(r('isi')) + sectPr(`${pgSz(11906, 16838)}<w:cols w:num="2"/>`) }),
 		)
-		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain('kolom di bagian pertama')
+		const blocks_ = blocks(result.content)
+		expect(blocks_[0]?.type).toBe('sectionBreak')
+		expect(blocks_[0]?.attrs?.columns).toEqual({ count: 2 })
+		expect(blocks_[0]?.attrs?.continuous).toBe(true)
+		expect(result.warnings.map((warning) => warning.message).join('\n')).not.toContain('kolom')
 	})
 
 	test('pembatas tetap dibuat walau kedua section ber setelan sama', async () => {
@@ -1178,7 +1185,7 @@ describe('impor section (E4)', () => {
 		const body =
 			p(r('satu'), sectPr(pgSz(11906, 16838))) +
 			p(r('dua')) +
-			sectPr(pgSz(11906, 16838) + '<w:type w:val="continuous"/>')
+			sectPr(`${pgSz(11906, 16838)}<w:type w:val="continuous"/>`)
 		const result = await readDocx(docx({ body }))
 
 		expect(sectionBreaksOf(result.content)[0]?.attrs?.continuous).toBe(true)
@@ -1188,7 +1195,7 @@ describe('impor section (E4)', () => {
 		const body =
 			p(r('satu'), sectPr(pgSz(11906, 16838))) +
 			p(r('dua')) +
-			sectPr(pgSz(12240, 15840) + '<w:type w:val="continuous"/>')
+			sectPr(`${pgSz(12240, 15840)}<w:type w:val="continuous"/>`)
 		const result = await readDocx(docx({ body }))
 
 		const pembatas = sectionBreaksOf(result.content)[0]
@@ -1328,5 +1335,340 @@ describe('rumus matematika (OMML)', () => {
 		expect(blocks(result.content)).toHaveLength(1)
 		expect(paragraf?.content?.map((node) => node.type)).toEqual(['mathInline', 'text', 'text'])
 		expect(textOf(paragraf)).toBe('\t(1)')
+	})
+})
+
+describe('celah impor — S4/S11/S12 format run', () => {
+	test('superscript dan subscript jadi mark', async () => {
+		const body =
+			p(r('atas', '<w:vertAlign w:val="superscript"/>')) + p(r('bawah', '<w:vertAlign w:val="subscript"/>'))
+		const result = await readDocx(docx({ body }))
+
+		expect(marksOf(blocks(result.content)[0])).toContain('superscript')
+		expect(marksOf(blocks(result.content)[1])).toContain('subscript')
+	})
+
+	test('arsiran run (w:shd) jadi backgroundColor textStyle', async () => {
+		const result = await readDocx(docx({ body: p(r('sorot', '<w:shd w:val="clear" w:fill="FFFF00"/>')) }))
+		const mark = markNamed(blocks(result.content)[0], 'textStyle')
+		expect(mark?.attrs?.backgroundColor).toBe('#ffff00')
+	})
+
+	test('teks tersembunyi (w:vanish) tidak ikut tampil', async () => {
+		const result = await readDocx(
+			docx({ body: p(`${r('tampul')}<w:r><w:rPr><w:vanish/></w:rPr><w:t>rahasia</w:t></w:r>`) }),
+		)
+		expect(textOf(blocks(result.content)[0])).toBe('tampul')
+		// Membuang teks tanpa memberi tahu adalah kelas kehilangan yang sama
+		// dengan yang hendak dihapus impor ini.
+		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain('teks tersembunyi')
+	})
+
+	test('sorotan warna hex kustom terbawa', async () => {
+		const result = await readDocx(docx({ body: p(r('aksen', '<w:highlight w:val="FF8800"/>')) }))
+		const mark = markNamed(blocks(result.content)[0], 'highlight')
+		expect(mark?.attrs?.color).toBe('#ff8800')
+	})
+
+	test('glyph w:sym dari font simbol dipetakan ke Unicode', async () => {
+		const sym = '<w:r><w:sym w:font="Wingdings" w:char="F0A7"/></w:r>'
+		const result = await readDocx(docx({ body: p(sym) }))
+		expect(textOf(blocks(result.content)[0])).toBe('▪')
+	})
+})
+
+describe('celah impor — S1/S2 judul', () => {
+	test('outlineLvl 8 jadi heading level 9, tanpa dipangkas ke 6', async () => {
+		const result = await readDocx(docx({ body: p(r('caption'), '<w:outlineLvl w:val="8"/>') }))
+		expect(blocks(result.content)[0]?.type).toBe('heading')
+		expect(blocks(result.content)[0]?.attrs?.level).toBe(9)
+	})
+
+	test('nama heading terlokalisasi (제목1, Judul 3) dikenali', async () => {
+		const styles = `
+			<w:style w:type="paragraph" w:styleId="Ko1"><w:name w:val="제목1"/><w:basedOn w:val="Normal"/></w:style>
+			<w:style w:type="paragraph" w:styleId="J3"><w:name w:val="Judul 3"/><w:basedOn w:val="Normal"/></w:style>`
+		const body = p(r('judul korea'), '<w:pStyle w:val="Ko1"/>') + p(r('judul indo'), '<w:pStyle w:val="J3"/>')
+		const result = await readDocx(docx({ body, styles }))
+
+		expect(blocks(result.content)[0]?.attrs?.level).toBe(1)
+		expect(blocks(result.content)[1]?.attrs?.level).toBe(3)
+	})
+
+	test('nama style daun menang atas leluhur di rantai basedOn', async () => {
+		const styles = `<w:style w:type="paragraph" w:styleId="H1"><w:name w:val="heading 1"/></w:style>
+			<w:style w:type="paragraph" w:styleId="Sub"><w:name w:val="Judul 3"/><w:basedOn w:val="H1"/></w:style>`
+		const result = await readDocx(docx({ body: p(r('Bagian'), '<w:pStyle w:val="Sub"/>'), styles }))
+
+		const block = blocks(result.content)[0]
+		expect(block?.type).toBe('heading')
+		expect(block?.attrs?.level).toBe(3)
+	})
+
+	test('heuristik nomor: dokumen tanpa kerangka mendapat heading dari polanya', async () => {
+		const body =
+			p(r('1. PENDAHULUAN')) +
+			p(r('isi naskah biasa yang panjang sekali sehingga bukan heading.')) +
+			p(r('2.1. Landasan')) +
+			p(r('2.2. Metode'))
+		const result = await readDocx(docx({ body }))
+		const levels = blocks(result.content)
+			.filter((block) => block.type === 'heading')
+			.map((block) => block.attrs?.level)
+
+		expect(levels).toEqual([1, 2, 2])
+	})
+
+	test('heuristik nomor tidak menyentuh dokumen yang punya heading style', async () => {
+		const styles =
+			'<w:style w:type="paragraph" w:styleId="H1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/></w:style>'
+		const body = p(r('Bab Resmi'), '<w:pStyle w:val="H1"/>') + p('1. kalimat bernomor yang bukan judul')
+		const result = await readDocx(docx({ body, styles }))
+
+		expect(blocks(result.content).filter((block) => block.type === 'heading')).toHaveLength(1)
+		expect(blocks(result.content)[1]?.type).toBe('paragraph')
+	})
+})
+
+describe('celah impor — tabel (S9/S10/D6)', () => {
+	test('w:tblHeader hanya menjadikan baris pertama header', async () => {
+		const row = (text: string) => `<w:tr><w:trPr><w:tblHeader/></w:trPr><w:tc>${p(r(text))}</w:tc></w:tr>`
+		const table = `<w:tbl>${row('kepala')}${row('isi')}</w:tbl>`
+		const result = await readDocx(docx({ body: table }))
+		const table_ = blocks(result.content)[0]
+		const cellTypes = (table_?.content ?? []).map((row_) => row_?.content?.[0]?.type)
+
+		expect(cellTypes).toEqual(['tableHeader', 'tableCell'])
+	})
+
+	test('border dari style tabel dipakai bila tblPr tidak membawanya', async () => {
+		const styles = `
+			<w:style w:type="table" w:styleId="Grid"><w:name w:val="Table Grid"/>
+			<w:tblPr><w:tblBorders>
+				<w:top w:val="single" w:sz="4" w:color="0000FF"/>
+				<w:left w:val="single" w:sz="4" w:color="0000FF"/>
+				<w:bottom w:val="single" w:sz="4" w:color="0000FF"/>
+				<w:right w:val="single" w:sz="4" w:color="0000FF"/>
+			</w:tblBorders></w:tblPr></w:style>`
+		const table = `<w:tbl><w:tblPr><w:tblStyle w:val="Grid"/></w:tblPr><w:tr><w:tc>${p(r('sel'))}</w:tc></w:tr></w:tbl>`
+		const result = await readDocx(docx({ body: table, styles }))
+		const attrs = blocks(result.content)[0]?.attrs as Record<string, unknown>
+
+		expect(attrs.borderColor).toBe('#0000ff')
+		expect(attrs.borderWidth).toBe(1)
+	})
+
+	test('tabel bersarang diratakan menjadi paragraf, teksnya selamat', async () => {
+		const inner = `<w:tbl><w:tr><w:tc>${p(r('dalam A'))}</w:tc><w:tc>${p(r('dalam B'))}</w:tc></w:tr></w:tbl>`
+		const outer = `<w:tbl><w:tr><w:tc>${p(r('luar'))}${inner}</w:tc></w:tr></w:tbl>`
+		const result = await readDocx(docx({ body: outer }))
+
+		const cell = blocks(result.content)[0]?.content?.[0]?.content?.[0]
+		const texts = (cell?.content ?? []).map(textOf)
+		expect(texts.join(' ')).toContain('dalam A')
+		expect(texts.join(' ')).toContain('dalam B')
+		expect((cell?.content ?? []).some((block) => block.type === 'table')).toBe(false)
+	})
+})
+
+describe('celah impor — media (D1/D2/D3)', () => {
+	const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
+	const anchor = (embedId: string) =>
+		`<w:drawing xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+		<wp:anchor><wp:extent cx="9525" cy="9525"/><wp:docPr id="1" name="logo"/>
+		<a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="${embedId}"/></pic:blipFill><pic:spPr/></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing>`
+
+	test('gambar mengambang (wp:anchor) masuk sebagai image', async () => {
+		const rels = `<Relationship Id="rIdA" Type="${REL_NS}/image" Target="media/logo.png"/>`
+		const result = await readDocx(
+			docx({ body: p(`<w:r>${anchor('rIdA')}</w:r>`), rels, media: { 'media/logo.png': PNG } }),
+		)
+
+		const image = blocks(result.content).find((block) => block.type === 'image')
+		expect(image).toBeDefined()
+		expect(String(image?.attrs?.src)).toMatch(/^data:image\/png;base64,/)
+	})
+
+	test('isi kotak teks (mc:AlternateContent → fallback VML) jadi paragraf', async () => {
+		const MC = 'xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"'
+		const V = 'xmlns:v="urn:schemas-microsoft-com:vml"'
+		const ac = `<mc:AlternateContent ${MC}><mc:Choice Requires="wps"><w:drawing/></mc:Choice>
+			<mc:Fallback><w:pict ${V}><v:shape><v:textbox><w:txbxContent>${p(r('isi kotak'))}</w:txbxContent></v:textbox></v:shape></w:pict></mc:Fallback></mc:AlternateContent>`
+		const result = await readDocx(docx({ body: p(`<w:r>${ac}</w:r>`) }))
+
+		expect(textOf(blocks(result.content)[0])).toContain('isi kotak')
+	})
+
+	test('pratinjau objek tertanam (PNG) masuk, EMF dilaporkan', async () => {
+		const rels = `
+			<Relationship Id="rIdP" Type="${REL_NS}/image" Target="media/objek.png"/>
+			<Relationship Id="rIdE" Type="${REL_NS}/image" Target="media/objek.emf"/>`
+		const V = 'xmlns:v="urn:schemas-microsoft-com:vml"'
+		const objek = (rid: string) =>
+			`<w:object><v:shape ${V} style="width:87.45pt;height:29.45pt"><v:imagedata r:id="${rid}"/></v:shape></w:object>`
+		const body = p(`<w:r>${objek('rIdP')}</w:r>`) + p(`<w:r>${objek('rIdE')}</w:r>`)
+		const result = await readDocx(
+			docx({ body, rels, media: { 'media/objek.png': PNG, 'media/objek.emf': PNG } }),
+		)
+
+		const images = blocks(result.content).filter((block) => block.type === 'image')
+		expect(images).toHaveLength(1)
+		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain('EMF')
+	})
+})
+
+describe('celah impor — revisi & peringatan (D7/S7)', () => {
+	test('revisi terlacak dihitung dan dilaporkan', async () => {
+		const body = p(`<w:ins>${r('baru')}</w:ins><w:del><w:r><w:delText>lama</w:delText></w:r></w:del>`)
+		const result = await readDocx(docx({ body }))
+
+		const messages = result.warnings.map((warning) => warning.message)
+		expect(messages.join('\n')).toContain('2 revisi terlacak')
+		// Sebab ini punya kalimatnya sendiri; ia tidak boleh muncul lagi
+		// sebagai nama tag mentah di daftar "tidak dikenali".
+		expect(messages.join('\n')).not.toContain('revisi.')
+	})
+
+	test('tautan internal dilaporkan, teksnya tetap masuk', async () => {
+		const result = await readDocx(
+			docx({ body: p(`<w:hyperlink w:anchor="_Toc1">${r('Bab I')}</w:hyperlink>`) }),
+		)
+		expect(textOf(blocks(result.content)[0])).toBe('Bab I')
+		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain('tautan internal')
+	})
+})
+
+describe('celah impor — catatan kaki (D4)', () => {
+	test('footnoteReference menjadi footnoteRef dan isi catatannya di akhir', async () => {
+		const body = p(`${r('naskah')}<w:r><w:footnoteReference w:id="2"/></w:r>`)
+		const footnotes = `<?xml version="1.0"?><w:footnotes ${W}>
+			<w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>
+			<w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>
+			<w:footnote w:id="2"><w:p>${r('catatan pinggir')}</w:p></w:footnote>
+		</w:footnotes>`
+		const rels = `<Relationship Id="rIdFn" Type="${REL_NS}/footnotes" Target="footnotes.xml"/>`
+		const { unzipSync } = await import('fflate')
+		const data = docx({ body, rels })
+		const withFootnotes = zipSync({ ...unzipSync(data), 'word/footnotes.xml': strToU8(footnotes) })
+		const result = await readDocx(withFootnotes)
+
+		const paragraf = blocks(result.content)[0]
+		expect(paragraf?.content?.map((node) => node.type)).toEqual(['text', 'footnoteRef'])
+		const note = blocks(result.content).at(-1)
+		expect(note?.type).toBe('footnote')
+		expect(textOf(note)).toBe('catatan pinggir')
+	})
+})
+
+describe('celah impor — daftar isi (S3/S5)', () => {
+	test('field TOC lintas paragraf ditelan utuh menjadi satu TocBlock', async () => {
+		const open = `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r>
+			<w:r><w:instrText xml:space="preserve"> TOC \\o "1-3" \\h </w:instrText></w:r>
+			<w:r><w:fldChar w:fldCharType="separate"/></w:r>${r('entri lama 1')}</w:p>`
+		const middle = p(r('entri lama 2'))
+		const close = `<w:p>${r('entri lama 3')}<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`
+		const result = await readDocx(docx({ body: open + middle + close }))
+
+		const types = blocks(result.content).map((block) => block.type)
+		expect(types).toEqual(['tocBlock'])
+		expect(blocks(result.content)[0]?.attrs?.maxLevel).toBe(3)
+	})
+
+	test('field TOC \\c "Gambar" menjadi daftar gambar', async () => {
+		const field = `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r>
+			<w:r><w:instrText xml:space="preserve"> TOC \\c "Gambar" </w:instrText></w:r>
+			<w:r><w:fldChar w:fldCharType="separate"/></w:r>${r('Gambar 1')}</w:p><w:p><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`
+		const result = await readDocx(docx({ body: field }))
+		expect(blocks(result.content)[0]?.attrs?.listKind).toBe('gambar')
+	})
+
+	test('daftar isi manual tiga baris tab diganti TocBlock, sisanya tetap', async () => {
+		const tocLines =
+			p(`${r('Bab Satu')}<w:r><w:tab/></w:r>${r('3')}`) +
+			p(`${r('Bab Dua')}<w:r><w:tab/></w:r>${r('7')}`) +
+			p(`${r('Bab Tiga')}<w:r><w:tab/></w:r>${r('9')}`)
+		const result = await readDocx(docx({ body: tocLines + p(r('naskah')) }))
+
+		expect(blocks(result.content)[0]?.type).toBe('tocBlock')
+		expect(blocks(result.content)[1]?.type).toBe('paragraph')
+	})
+
+	/*
+	 * Daftar isi bawaan Word memakai switch \h: tiap entri adalah field
+	 * PAGEREF/HYPERLINK tersendiri lengkap dengan begin…end sendiri. Versi
+	 * pertama menutup field TOC pada `end` mana pun, jadi ia berhenti di entri
+	 * pertama - sisanya bocor sebagai paragraf basi, lalu tertangkap
+	 * replaceManualToc dan menghasilkan DUA daftar isi berturut-turut.
+	 */
+	test('entri ber-PAGEREF tidak menutup field TOC lebih awal', async () => {
+		const entry = (label: string, page: string) =>
+			`<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r>
+			<w:r><w:instrText xml:space="preserve"> PAGEREF _Toc1 \\h </w:instrText></w:r>
+			<w:r><w:fldChar w:fldCharType="separate"/></w:r>${r(`${label}\t${page}`)}
+			<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`
+
+		const body =
+			p(r('Sebelum')) +
+			`<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r>
+				<w:r><w:instrText xml:space="preserve"> TOC \\o "1-3" \\h </w:instrText></w:r>
+				<w:r><w:fldChar w:fldCharType="separate"/></w:r></w:p>` +
+			entry('Bab 1 Pendahuluan', '1') +
+			entry('Bab 2 Tinjauan', '5') +
+			entry('Bab 3 Metode', '9') +
+			entry('Bab 4 Hasil', '15') +
+			`<w:p><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>` +
+			p(r('Sesudah'))
+
+		const types = blocks(await readDocx(docx({ body })).then((result) => result.content)).map(
+			(block) => block.type,
+		)
+		expect(types.filter((type) => type === 'tocBlock')).toHaveLength(1)
+		expect(types).toEqual(['paragraph', 'tocBlock', 'paragraph'])
+	})
+
+	test('field TOC tanpa penutup berhenti di pengaman dan dilaporkan', async () => {
+		const open = `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r>
+			<w:r><w:instrText xml:space="preserve"> TOC \\o "1-3" </w:instrText></w:r>
+			<w:r><w:fldChar w:fldCharType="separate"/></w:r></w:p>`
+		const body = open + p(r('entri')).repeat(600)
+		const result = await readDocx(docx({ body }))
+
+		expect(blocks(result.content).filter((block) => block.type === 'tocBlock')).toHaveLength(1)
+		expect(result.warnings.some((warning) => warning.message.includes('tidak punya penutup'))).toBe(true)
+		// Sebab yang punya kalimat sendiri tidak boleh muncul lagi sebagai tag mentah.
+		expect(result.warnings.some((warning) => warning.message.includes('daftar-isi-tanpa-penutup'))).toBe(
+			false,
+		)
+	})
+
+	test('baris tab kurang dari tiga dibiarkan sebagai paragraf', async () => {
+		const tocLines =
+			p(`${r('Mengetahui')}<w:r><w:tab/></w:r>${r('3')}`) + p(`${r('Bandung')}<w:r><w:tab/></w:r>${r('7')}`)
+		const result = await readDocx(docx({ body: tocLines }))
+		expect(blocks(result.content).every((block) => block.type === 'paragraph')).toBe(true)
+	})
+})
+
+describe('celah impor — komentar Word (D5)', () => {
+	test('rentang komentar menjadi mark, isinya jadi thread ber nama aslinya', async () => {
+		const body = p(
+			`<w:commentRangeStart w:id="7"/>${r('frasa yang dikomentari')}<w:commentRangeEnd w:id="7"/><w:r><w:commentReference w:id="7"/></w:r>`,
+		)
+		const comments = `<?xml version="1.0"?><w:comments ${W}>
+			<w:comment w:id="7" w:author="Budi Reviewer" w:date="2026-09-01T10:00:00Z"><w:p>${r('tolong dirapikan')}</w:p></w:comment>
+		</w:comments>`
+		const rels = `<Relationship Id="rIdC" Type="${REL_NS}/comments" Target="comments.xml"/>`
+		const { unzipSync } = await import('fflate')
+		const data = docx({ body, rels })
+		const withComments = zipSync({ ...unzipSync(data), 'word/comments.xml': strToU8(comments) })
+		const result = await readDocx(withComments)
+
+		const mark = markNamed(blocks(result.content)[0], 'comment')
+		expect(mark?.attrs?.commentId).toBe('w-7')
+		expect(result.comments).toHaveLength(1)
+		expect(result.comments[0]?.author).toBe('Budi Reviewer')
+		expect(result.comments[0]?.replies[0]?.text).toBe('tolong dirapikan')
+		expect(result.comments[0]?.quote).toBe('frasa yang dikomentari')
 	})
 })

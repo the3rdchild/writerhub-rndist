@@ -54,6 +54,19 @@ export function descend(parent: Element | null | undefined, ...names: string[]):
 	return current
 }
 
+/** Semua elemen bertag `name` di seluruh subtree (depth-first); tanpa nama, semua elemen. */
+export function descendAll(element: Element, name?: string): Element[] {
+	const found: Element[] = []
+	const walk = (node: Element): void => {
+		for (const childNode of children(node)) {
+			if (name === undefined || tagName(childNode) === name) found.push(childNode)
+			walk(childNode)
+		}
+	}
+	walk(element)
+	return found
+}
+
 export function tagName(element: Element): string {
 	return localNameOf(element)
 }

@@ -147,6 +147,27 @@ const BULLETS: Record<string, string> = {
 	'\uf04a': '☺', // Wingdings, wajah
 }
 
+/** Font yang menyimpan glyph di area PUA (`F0xx`) milik Word. */
+const SYMBOL_FONTS =
+	/^(symbol|wingdings[\s-]*\d*|webdings|monotype sorts|outlook|zapf dingbats|segoe ui symbol)$/i
+
+/**
+ * Padanan Unicode untuk `w:sym` yang memakai font simbol.
+ * Mengembalikan `undefined` bila kode bukan glyph PUA yang dikenal.
+ */
+export function symbolGlyph(code: number, font: string | undefined): string | undefined {
+	const inPua = code >= 0xf000 && code <= 0xf8ff
+	if (!inPua) return undefined
+	if (font && !SYMBOL_FONTS.test(font.trim())) return undefined
+	const mapped = BULLETS[String.fromCodePoint(code)]
+	if (mapped) return mapped
+	// PUA tanpa padanan dikenal: turunkan ke area normal dulu (F0A7 → U+00A7),
+	// supaya karakter Latin-1 yang sering dipakai tetap terbaca.
+	const lowered = code - 0xf000
+	if (lowered >= 0x20 && lowered <= 0xff) return String.fromCodePoint(lowered)
+	return '•'
+}
+
 function toBullet(text: string): string {
 	return [...text]
 		.map((character) => {

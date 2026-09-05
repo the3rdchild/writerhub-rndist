@@ -1,5 +1,5 @@
 import type { PageFurniture, PageFurnitureLine } from '@/features/editor/page-furniture/model'
-import { readRelationships } from './parse'
+import { readRelationships } from './context'
 import type { XmlParser } from './xml'
 import { attr, child, children, descend, tagName, val } from './xml'
 import { type DocxArchive, resolvePath } from './zip'

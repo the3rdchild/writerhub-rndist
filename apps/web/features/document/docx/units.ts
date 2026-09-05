@@ -41,6 +41,9 @@ const HIGHLIGHTS: Record<string, string> = {
 
 export function highlightColor(value: string | undefined): string | undefined {
 	if (!value) return undefined
+	// Nama warna Word dikenali; nilai hex langsung dipakai apa adanya supaya
+	// sorotan kustom tidak lenyap diam-diam.
+	if (/^[0-9a-f]{6}$/i.test(value)) return `#${value.toLowerCase()}`
 	return HIGHLIGHTS[value] ?? undefined
 }
 

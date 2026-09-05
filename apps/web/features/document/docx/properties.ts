@@ -1,4 +1,6 @@
+import { type BorderAttrs, readBorderAttrs } from './table-props'
 import { attr, child, children, intVal, onOff, val } from './xml'
+
 export type Alignment = 'left' | 'center' | 'right' | 'justify'
 
 export interface ParagraphProps {
@@ -26,6 +28,10 @@ export interface RunProps {
 	fontTheme?: string
 	color?: string
 	highlight?: string
+	/** Arsiran latar run (`w:shd` `fill`) — warna hex tanpa `#`. */
+	shading?: string
+	/** Teks tersembunyi (`w:vanish`) — tidak boleh ikut tampil. */
+	vanish?: boolean
 	caps?: boolean
 	smallCaps?: boolean
 	vertAlign?: 'superscript' | 'subscript'
@@ -139,6 +145,13 @@ export function readRunProps(rPr: Element | null): RunProps {
 	const highlight = val(child(rPr, 'highlight'))
 	if (highlight && highlight !== 'none') props.highlight = highlight
 
+	const shd = child(rPr, 'shd')
+	const fill = attr(shd, 'fill')
+	if (fill && fill.toLowerCase() !== 'auto' && val(shd) !== 'nil') props.shading = fill
+
+	const vanish = onOff(child(rPr, 'vanish'))
+	if (vanish !== undefined) props.vanish = vanish
+
 	const vertAlign = val(child(rPr, 'vertAlign'))
 	if (vertAlign === 'superscript' || vertAlign === 'subscript') props.vertAlign = vertAlign
 	for (const key of Object.keys(props) as (keyof RunProps)[]) {
@@ -155,6 +168,8 @@ export interface StyleDefinition {
 	basedOn?: string
 	paragraph: ParagraphProps
 	run: RunProps
+	/** `w:tblBorders` dari `w:tblPr` style tabel — dipakai saat tabel tanpa border langsung. */
+	tableBorders?: BorderAttrs | null
 }
 
 export interface DocxStyles {
@@ -188,6 +203,7 @@ export function readStyles(root: Element | null): DocxStyles {
 			basedOn: val(child(style, 'basedOn')),
 			paragraph: readParagraphProps(child(style, 'pPr')),
 			run: readRunProps(child(style, 'rPr')),
+			tableBorders: readBorderAttrs(child(child(style, 'tblPr'), 'tblBorders')),
 		}
 		styles.byId.set(id, definition)
 		const isDefault = attr(style, 'default')
@@ -202,7 +218,13 @@ export function readStyles(root: Element | null): DocxStyles {
 export function resolveStyle(
 	styles: DocxStyles,
 	styleId: string | undefined,
-): { paragraph: ParagraphProps; run: RunProps; name?: string } {
+): {
+	paragraph: ParagraphProps
+	run: RunProps
+	/** Semua nama style pada rantai `basedOn`, dari dasar ke daun. */
+	names: string[]
+	tableBorders?: BorderAttrs | null
+} {
 	const chain: StyleDefinition[] = []
 	const seen = new Set<string>()
 
@@ -215,10 +237,17 @@ export function resolveStyle(
 
 	let paragraph = styles.defaultParagraph
 	let run = styles.defaultRun
+	let tableBorders: BorderAttrs | null | undefined
 	for (const definition of chain) {
 		paragraph = merge(paragraph, definition.paragraph)
 		run = merge(run, definition.run)
+		if (definition.tableBorders !== null) tableBorders = definition.tableBorders
 	}
 
-	return { paragraph, run, name: chain.at(-1)?.name }
+	return {
+		paragraph,
+		run,
+		names: chain.map((definition) => definition.name),
+		...(tableBorders !== undefined ? { tableBorders } : {}),
+	}
 }

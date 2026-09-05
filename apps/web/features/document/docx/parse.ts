@@ -1,19 +1,15 @@
 import type { JSONContent } from '@tiptap/core'
 import { MATH_BLOCK, MATH_INLINE } from '@/features/editor/math'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
-import {
-	DEFAULT_PAGE_SETUP,
-	PAGE_SIZES,
-	type PageMargins,
-	type PageSetup,
-	type PageSizeId,
-	sameSheetGeometry,
-} from '@/features/editor/page-geometry'
+import { DEFAULT_PAGE_SETUP, sameSheetGeometry } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
+import { type ParseContext, type ReadParagraph, skip, type ThemeFonts } from './context'
+import { headingLevel, numberedHeadingLevel, promoteNumberedHeadings } from './headings'
+import { type ListTag, withoutListIndents, wrapListBlocks } from './lists'
 import { ommlToLatex } from './math'
-import type { Numberer } from './numbering'
+import { mediaElement, runMedia } from './media'
+import { symbolGlyph } from './numbering'
 import {
-	type DocxStyles,
 	merge,
 	type ParagraphProps,
 	type RunProps,
@@ -21,81 +17,28 @@ import {
 	readRunProps,
 	resolveStyle,
 } from './properties'
-import { cellPropsOf, rowPropsOf, tablePropsOf } from './table-props'
 import {
-	emuToPx,
-	halfPointsToPt,
-	highlightColor,
-	toCssColor,
-	toFontStack,
-	toLineHeight,
-	twipsToPx,
-} from './units'
-import { attr, child, children, descend, intVal, tagName, val } from './xml'
-import { type DocxArchive, resolvePath } from './zip'
+	leadingColumnsBreak,
+	mergeSetup,
+	type PageSetupPatch,
+	readSectPr,
+	type SectionProps,
+} from './sections'
+import { tableBlocks } from './tables'
+import {
+	fieldDepthDelta,
+	MAX_SWALLOWED,
+	replaceManualToc,
+	type TocField,
+	tocBlockOf,
+	tocFieldOf,
+} from './toc'
+import { halfPointsToPt, highlightColor, toCssColor, toFontStack, toLineHeight, twipsToPx } from './units'
+import { attr, child, children, descend, descendAll, tagName, val } from './xml'
 
-export interface ThemeFonts {
-	major?: string
-	minor?: string
-}
-
-export interface Relationship {
-	type: string
-	target: string
-	external: boolean
-}
-
-export type Relationships = Map<string, Relationship>
-
-export interface ParseContext {
-	styles: DocxStyles
-	relationships: Relationships
-	theme: ThemeFonts
-	numberer: Numberer
-	skipped: Map<string, number>
-	archive: DocxArchive
-	mainPart: string
-}
-
-function skip(context: ParseContext, name: string): void {
-	context.skipped.set(name, (context.skipped.get(name) ?? 0) + 1)
-}
-
-export function readRelationships(root: Element | null): Relationships {
-	const result: Relationships = new Map()
-	if (!root) return result
-
-	for (const relationship of children(root, 'Relationship')) {
-		const id = attr(relationship, 'Id')
-		const target = attr(relationship, 'Target')
-		if (!id || !target) continue
-		result.set(id, {
-			type: attr(relationship, 'Type') ?? '',
-			target,
-			external: attr(relationship, 'TargetMode') === 'External',
-		})
-	}
-	return result
-}
-
-function headingLevel(props: ParagraphProps, styleName: string | undefined): number | undefined {
-	if (props.outlineLevel !== undefined) return Math.min(6, props.outlineLevel + 1)
-
-	if (!styleName) return undefined
-	const numbered = /^heading\s*([1-9])$/i.exec(styleName.trim())
-	if (numbered) return Math.min(6, Number.parseInt(numbered[1] as string, 10))
-	if (/^title$/i.test(styleName.trim())) return 1
-	if (/^subtitle$/i.test(styleName.trim())) return 2
-
-	return undefined
-}
-
-export function readTheme(root: Element | null): ThemeFonts {
-	const scheme = descend(root, 'themeElements', 'fontScheme')
-	if (!scheme) return {}
-
-	const typefaceOf = (name: string) => attr(descend(scheme, name, 'latin'), 'typeface') || undefined
-	return { major: typefaceOf('majorFont'), minor: typefaceOf('minorFont') }
+/** Pembaca paragraf untuk modul media & tabel, terikat pada konteks ini. */
+function readerOf(context: ParseContext): ReadParagraph {
+	return (paragraph) => paragraphBlocks(paragraph, context)
 }
 
 function fontOf(props: RunProps, theme: ThemeFonts): string | undefined {
@@ -104,13 +47,20 @@ function fontOf(props: RunProps, theme: ThemeFonts): string | undefined {
 	return /^major/i.test(props.fontTheme) ? theme.major : theme.minor
 }
 
-function marksOf(props: RunProps, link: string | undefined, theme: ThemeFonts): JSONContent['marks'] {
+function marksOf(
+	props: RunProps,
+	link: string | undefined,
+	theme: ThemeFonts,
+	comments?: string[],
+): JSONContent['marks'] {
 	const marks: NonNullable<JSONContent['marks']> = []
 
 	if (props.bold) marks.push({ type: 'bold' })
 	if (props.italic) marks.push({ type: 'italic' })
 	if (props.underline) marks.push({ type: 'underline' })
 	if (props.strike) marks.push({ type: 'strike' })
+	if (props.vertAlign === 'superscript') marks.push({ type: 'superscript' })
+	if (props.vertAlign === 'subscript') marks.push({ type: 'subscript' })
 
 	const style: Record<string, string> = {}
 	const fontFamily = toFontStack(fontOf(props, theme))
@@ -118,6 +68,8 @@ function marksOf(props: RunProps, link: string | undefined, theme: ThemeFonts): 
 	if (props.halfPoints !== undefined) style.fontSize = `${halfPointsToPt(props.halfPoints)}pt`
 	const color = toCssColor(props.color)
 	if (color) style.color = color
+	const shading = toCssColor(props.shading)
+	if (shading) style.backgroundColor = shading
 	if (!props.bold) style.fontWeight = 'normal'
 	if (Object.keys(style).length > 0) marks.push({ type: 'textStyle', attrs: style })
 
@@ -125,6 +77,8 @@ function marksOf(props: RunProps, link: string | undefined, theme: ThemeFonts): 
 	if (highlight) marks.push({ type: 'highlight', attrs: { color: highlight } })
 
 	if (link) marks.push({ type: 'link', attrs: { href: link } })
+
+	for (const id of comments ?? []) marks.push({ type: 'comment', attrs: { commentId: id } })
 
 	return marks.length > 0 ? marks : undefined
 }
@@ -143,9 +97,13 @@ function paragraphAttrs(props: ParagraphProps): Record<string, unknown> {
 	return attrs
 }
 
-function runText(run: Element, context: ParseContext): { text: string; pageBreak: boolean } {
+function runText(
+	run: Element,
+	context: ParseContext,
+): { text: string; pageBreak: boolean; footnote?: number } {
 	let text = ''
 	let pageBreak = false
+	let footnote: number | undefined
 
 	for (const node of children(run)) {
 		switch (tagName(node)) {
@@ -169,9 +127,16 @@ function runText(run: Element, context: ParseContext): { text: string; pageBreak
 			case 'softHyphen':
 				break
 
+			case 'footnoteReference': {
+				const id = Number.parseInt(attr(node, 'id') ?? '', 10)
+				if (Number.isFinite(id)) footnote = id
+				break
+			}
 			case 'sym': {
-				const code = attr(node, 'char')
-				if (code) text += String.fromCodePoint(Number.parseInt(code, 16))
+				const code = Number.parseInt(attr(node, 'char') ?? '', 16)
+				if (Number.isFinite(code)) {
+					text += symbolGlyph(code, attr(node, 'font')) ?? String.fromCodePoint(code)
+				}
 				break
 			}
 			case 'instrText':
@@ -179,6 +144,11 @@ function runText(run: Element, context: ParseContext): { text: string; pageBreak
 			case 'rPr':
 			case 'lastRenderedPageBreak':
 			case 'softHyphenPlaceholder':
+			// Media dalam run sudah ditangani runMedia — jangan dihitung dua kali.
+			case 'drawing':
+			case 'pict':
+			case 'object':
+			case 'AlternateContent':
 				break
 
 			default:
@@ -186,92 +156,28 @@ function runText(run: Element, context: ParseContext): { text: string; pageBreak
 		}
 	}
 
-	return { text, pageBreak }
+	return { text, pageBreak, footnote }
 }
 
 function linkTarget(hyperlink: Element, context: ParseContext): string | undefined {
 	const id = attr(hyperlink, 'id')
-	if (!id) return undefined
+	if (!id) {
+		// Tautan internal (w:anchor): editornya belum punya sasaran bookmark —
+		// teksnya tetap masuk, tapi pengguna perlu tahu tautannya tak hidup.
+		if (attr(hyperlink, 'anchor')) skip(context, 'tautan-internal')
+		return undefined
+	}
 
 	const relationship = context.relationships.get(id)
 	if (!relationship) return undefined
 	return relationship.external ? relationship.target : undefined
 }
 
-function mediaType(path: string): string {
-	const ext = path.includes('.') ? path.slice(path.lastIndexOf('.') + 1).toLowerCase() : ''
-	switch (ext) {
-		case 'png':
-			return 'image/png'
-		case 'jpg':
-		case 'jpeg':
-			return 'image/jpeg'
-		case 'gif':
-			return 'image/gif'
-		case 'bmp':
-			return 'image/bmp'
-		case 'webp':
-			return 'image/webp'
-		case 'svg':
-			return 'image/svg+xml'
-		case 'tif':
-		case 'tiff':
-			return 'image/tiff'
-		default:
-			return 'application/octet-stream'
-	}
-}
-
-function toDataUrl(mediaPath: string, bytes: Uint8Array): string {
-	let binary = ''
-	for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i])
-	return `data:${mediaType(mediaPath)};base64,${btoa(binary)}`
-}
-
-function readInlineImage(drawing: Element, context: ParseContext): JSONContent | null {
-	const extent = descend(drawing, 'inline', 'extent')
-	const cx = extent ? Number.parseInt(attr(extent, 'cx') ?? '', 10) : NaN
-	const cy = extent ? Number.parseInt(attr(extent, 'cy') ?? '', 10) : NaN
-	const blip = descend(drawing, 'inline', 'graphic', 'graphicData', 'pic', 'blipFill', 'blip')
-	const embedId = blip ? attr(blip, 'embed') : undefined
-	if (!embedId) return null
-
-	const relationship = context.relationships.get(embedId)
-	if (!relationship || relationship.external) return null
-
-	const mediaPath = resolvePath(context.mainPart, relationship.target)
-	const bytes = context.archive.bytes(mediaPath)
-	if (!bytes) return null
-
-	const docPr = descend(drawing, 'inline', 'docPr')
-	const alt = docPr ? (attr(docPr, 'descr') ?? attr(docPr, 'name') ?? undefined) : undefined
-
-	const attrs: Record<string, unknown> = { src: toDataUrl(mediaPath, bytes) }
-	if (alt) attrs.alt = alt
-	if (Number.isFinite(cx)) attrs.width = emuToPx(cx)
-	if (Number.isFinite(cy)) attrs.height = emuToPx(cy)
-
-	return { type: 'image', attrs }
-}
-
-function findImage(element: Element, context: ParseContext): JSONContent | null {
-	for (const candidate of children(element)) {
-		const name = tagName(candidate)
-		if (name === 'drawing') {
-			const image = readInlineImage(candidate, context)
-			if (image) return image
-			skip(context, 'drawing')
-		} else if (name === 'pict') {
-			skip(context, 'pict')
-		}
-	}
-	return null
-}
-
 interface ParagraphBuilder {
 	blocks: JSONContent[]
 	inline: JSONContent[]
-	images: JSONContent[]
+	/** Blok penyusul (gambar, isi kotak teks) setelah paragraf jangkarnya. */
+	after: JSONContent[]
 	attrs: Record<string, unknown>
 	/** Level heading paragraf ini (dipakai saat flush paragraf oleh math blok). */
 	level?: number
@@ -299,25 +205,37 @@ function walkInline(
 					else if (type === 'end') fields.pop()
 				}
 				if (fields.includes(true)) break
-				const image = findImage(node, context)
-				if (image) {
-					builder.images.push(image)
-					break
+				builder.after.push(...runMedia(node, context, readerOf(context)))
+
+				const rPr = child(node, 'rPr')
+				if (rPr) {
+					if (child(rPr, 'spacing')) skip(context, 'jarak-huruf')
+					if (child(rPr, 'position')) skip(context, 'posisi-teks')
 				}
 
-				const props = merge(inherited, readRunProps(child(node, 'rPr')))
-				const { text, pageBreak } = runText(node, context)
+				const props = merge(inherited, readRunProps(rPr))
+				const { text, pageBreak, footnote } = runText(node, context)
 
-				if (text) {
-					builder.inline.push({ type: 'text', text, marks: marksOf(props, link, context.theme) })
+				if (footnote !== undefined && context.footnotes.has(footnote)) {
+					builder.inline.push({ type: 'footnoteRef', attrs: { id: `fn-${footnote}` } })
+					context.state.footnoteQueue.push(footnote)
+				}
+
+				const stack = context.state.commentStack
+				const comments = stack && stack.length > 0 ? stack.map((id) => `w-${id}`) : undefined
+				if (text && props.vanish) skip(context, 'teks-tersembunyi')
+				if (text && !props.vanish) {
+					builder.inline.push({ type: 'text', text, marks: marksOf(props, link, context.theme, comments) })
+					if (stack && stack.length > 0) {
+						for (const id of stack) {
+							const quotes = context.state.commentQuotes
+							if (quotes) quotes.set(id, (quotes.get(id) ?? '') + text)
+						}
+					}
 				}
 				if (pageBreak) splitAtPageBreak(builder)
 				break
 			}
-
-			case 'hyperlink':
-				walkInline(node, context, inherited, linkTarget(node, context) ?? link, builder, fields)
-				break
 
 			case 'oMath': {
 				const latex = ommlToLatex(node)
@@ -336,7 +254,14 @@ function walkInline(
 				}
 				break
 			}
+			case 'hyperlink':
+				walkInline(node, context, inherited, linkTarget(node, context) ?? link, builder, fields)
+				break
+
 			case 'ins':
+				skip(context, 'revisi')
+				walkInline(node, context, inherited, link, builder, fields)
+				break
 			case 'smartTag':
 			case 'sdtContent':
 				walkInline(node, context, inherited, link, builder, fields)
@@ -347,16 +272,38 @@ function walkInline(
 				break
 
 			case 'del':
+				skip(context, 'revisi')
+				break
 			case 'pPr':
 			case 'bookmarkStart':
 			case 'bookmarkEnd':
 			case 'proofErr':
-			case 'commentRangeStart':
-			case 'commentRangeEnd':
 				break
 
-			default:
+			case 'commentRangeStart': {
+				const id = attr(node, 'id')
+				if (id && context.commentMeta.has(id)) context.state.commentStack.push(id)
+				break
+			}
+			case 'commentRangeEnd': {
+				const id = attr(node, 'id')
+				const stack = context.state.commentStack
+				if (id && stack) {
+					const at = stack.lastIndexOf(id)
+					if (at !== -1) stack.splice(at, 1)
+				}
+				break
+			}
+
+			default: {
+				// Media bisa menempel langsung di paragraf (di luar run).
+				const media = mediaElement(node, context, readerOf(context))
+				if (media) {
+					builder.after.push(...media)
+					break
+				}
 				skip(context, name)
+			}
 		}
 	}
 }
@@ -383,7 +330,7 @@ function flushParagraph(builder: ParagraphBuilder): void {
 	builder.flushed = true
 }
 
-export function paragraphBlocks(paragraph: Element, context: ParseContext): JSONContent[] {
+export function paragraphBlocks(paragraph: Element, context: ParseContext, heuristic = false): JSONContent[] {
 	const pPr = child(paragraph, 'pPr')
 	const styleId = val(child(pPr, 'pStyle'))
 	const style = resolveStyle(context.styles, styleId ?? context.styles.defaultParagraphStyleId)
@@ -392,10 +339,13 @@ export function paragraphBlocks(paragraph: Element, context: ParseContext): JSON
 	const runProps = style.run
 	const markProps = merge(runProps, readRunProps(child(pPr, 'rPr')))
 
+	if (pPr && child(pPr, 'pBdr')) skip(context, 'garis-paragraf')
+
 	const attrs = paragraphAttrs(paragraphProps)
 
-	const level = headingLevel(paragraphProps, style.name)
-	const builder: ParagraphBuilder = { blocks: [], inline: [], images: [], attrs, level }
+	const numbered = heuristic ? numberedHeadingLevel(paragraphTextOf(paragraph)) : undefined
+	const level = headingLevel(paragraphProps, style.names, numbered)
+	const builder: ParagraphBuilder = { blocks: [], inline: [], after: [], attrs, level }
 	walkInline(paragraph, context, runProps, undefined, builder, [])
 
 	let listTag: ListTag | undefined
@@ -421,377 +371,38 @@ export function paragraphBlocks(paragraph: Element, context: ParseContext): JSON
 			}
 		}
 	}
-	const imageOnly = builder.images.length > 0 && builder.inline.length === 0
+	const mediaOnly = builder.after.length > 0 && builder.inline.length === 0
 	// Paragraf yang isinya sudah terdorong oleh math blok tidak perlu paragraf kosong tambahan.
 	const trailingEmpty = builder.flushed === true && builder.inline.length === 0 && builder.blocks.length > 0
-	if ((!imageOnly || level !== undefined) && !trailingEmpty) {
+	if ((!mediaOnly || level !== undefined) && !trailingEmpty) {
 		const blockAttrs = level ? { ...attrs, level } : attrs
 		const paragraphAttrs = listTag ? { ...withoutListIndents(blockAttrs), _list: listTag } : blockAttrs
 
+		// Kandidat heading bernomor ditandai; dipromosikan bila dokumen ini
+		// memang tak punya kerangka sama sekali (lihat promoteNumberedHeadings).
+		// Paragraf bernomor Word bukan kandidat: promosinya akan menyisakan
+		// `_list` pada node heading yang tidak pernah dibersihkan wrapListBlocks.
+		const maybe =
+			level === undefined && numbered !== undefined && !listTag ? { _maybeHeading: numbered } : undefined
+		const markedAttrs = maybe ? { ...paragraphAttrs, ...maybe } : paragraphAttrs
+
 		builder.blocks.push({
 			type: level ? 'heading' : 'paragraph',
-			...(Object.keys(paragraphAttrs).length > 0 ? { attrs: paragraphAttrs } : {}),
+			...(Object.keys(markedAttrs).length > 0 ? { attrs: markedAttrs } : {}),
 			...(builder.inline.length > 0 ? { content: builder.inline } : {}),
 		})
 	}
-	for (const image of builder.images) builder.blocks.push(image)
+	for (const extra of builder.after) builder.blocks.push(extra)
 	if (paragraphProps.pageBreakBefore) builder.blocks.unshift({ type: PAGE_BREAK_NODE })
 
 	return builder.blocks
 }
 
-/** Info sementara pada paragraf bernomor; dipakai wrapListBlocks lalu dibuang. */
-interface ListTag {
-	numId: number
-	ilvl: number
-	format: string
-	value: number
-	indent: number
-}
-
-/** Atribut HTML `type` untuk orderedList sesuai format penomoran Word. */
-function listTypeOf(format: string): string | undefined {
-	switch (format) {
-		case 'lowerLetter':
-			return 'a'
-		case 'upperLetter':
-			return 'A'
-		case 'lowerRoman':
-			return 'i'
-		case 'upperRoman':
-			return 'I'
-		default:
-			return undefined
-	}
-}
-
-/** Indentasi paragraf tidak relevan di dalam listItem (tata letaknya milik list). */
-function withoutListIndents(attrs: Record<string, unknown>): Record<string, unknown> {
-	const { indentLeft, indentRight, indentFirstLine, ...rest } = attrs
-	return rest
-}
-
-interface ListContext {
-	numId: number
-	ilvl: number
-	indent: number
-	node: JSONContent
-	item: JSONContent | null
-}
-
-const ATOM_BLOCKS = new Set(['mathBlock', 'image'])
-
-function listOf(tag: ListTag): JSONContent {
-	if (tag.format === 'bullet') return { type: 'bulletList', content: [] }
-
-	const attrs: Record<string, unknown> = {}
-	const type = listTypeOf(tag.format)
-	if (type) attrs.type = type
-	// List yang lanjut setelah terputus memulai dari angka terakhirnya.
-	if (tag.value !== 1) attrs.start = tag.value
-	return { type: 'orderedList', ...(Object.keys(attrs).length > 0 ? { attrs } : {}), content: [] }
-}
-
-/**
- * Gabungkan paragraf bertanda `_list` berurutan menjadi node list bertingkat.
- * Aturan penempatan (meniru Word):
- * - numId sama + ilvl sama → satu list; ilvl lebih dalam → list anak.
- * - numId berbeda dengan indentasi lebih dalam → list anak pada item sebelumnya
- *   (penulis Word kerfa memakai instance penomoran terpisah untuk sub-list).
- * - Paragraf tak bernomor yang menjorok setidaknya sedalam item terbuka dianggap
- *   paragraf lanjutan dan ikut item itu (pola "keterangan di bawah item" ala Word).
- * - Blok atom (rumus, gambar) di antara item masuk ke item yang sedang terbuka;
- *   blok lain menutup list (nomor lanjut diteruskan lewat atribut start).
- */
-export function wrapListBlocks(blocks: JSONContent[]): JSONContent[] {
-	const out: JSONContent[] = []
-	const stack: ListContext[] = []
-
-	const openAt = (tag: ListTag, parent: ListContext | null): ListContext => {
-		const context: ListContext = { ...tag, node: listOf(tag), item: null }
-		if (parent) (parent.item?.content as JSONContent[]).push(context.node)
-		else out.push(context.node)
-		return context
-	}
-
-	const appendItem = (context: ListContext, paragraph: JSONContent): void => {
-		const item: JSONContent = { type: 'listItem', content: [paragraph] }
-		;(context.node.content as JSONContent[]).push(item)
-		context.item = item
-	}
-
-	for (const block of blocks) {
-		const tag = block.type === 'paragraph' ? ((block.attrs ?? {})._list as ListTag | undefined) : undefined
-
-		if (tag) {
-			const { _list, ...rest } = block.attrs as Record<string, unknown>
-			const paragraph: JSONContent = {
-				type: 'paragraph',
-				...(Object.keys(rest).length > 0 ? { attrs: rest } : {}),
-				...(block.content ? { content: block.content } : {}),
-			}
-
-			// Cari konteks yang bisa menampung paragraf ini.
-			for (;;) {
-				const top = stack[stack.length - 1]
-				if (!top) {
-					const context = openAt(tag, null)
-					stack.push(context)
-					appendItem(context, paragraph)
-					break
-				}
-
-				if (top.numId === tag.numId) {
-					if (top.ilvl === tag.ilvl) {
-						appendItem(top, paragraph)
-						break
-					}
-					if (top.ilvl < tag.ilvl) {
-						const context = openAt(tag, top)
-						stack.push(context)
-						appendItem(context, paragraph)
-						break
-					}
-					stack.pop()
-					continue
-				}
-
-				if (tag.indent > top.indent) {
-					const context = openAt(tag, top)
-					stack.push(context)
-					appendItem(context, paragraph)
-					break
-				}
-				stack.pop()
-			}
-			continue
-		}
-
-		// Paragraf lanjutan: tak bernomor tapi menjorok sedalam item terbuka
-		// (mis. "Indicators for … as follows." di bawah item SWOT) — ikut item itu.
-		if (block.type === 'paragraph' && stack.length > 0) {
-			const top = stack[stack.length - 1] as ListContext
-			const indent = Number(block.attrs?.indentLeft) || 0
-			if (indent > 0 && indent >= top.indent && top.item) {
-				const rest = withoutListIndents(block.attrs as Record<string, unknown>)
-				;(top.item.content as JSONContent[]).push({
-					type: 'paragraph',
-					...(Object.keys(rest).length > 0 ? { attrs: rest } : {}),
-					...(block.content ? { content: block.content } : {}),
-				})
-				continue
-			}
-		}
-
-		// Blok atom mengikuti item yang sedang terbuka (rumus/gambar milik item itu).
-		if (block.type !== undefined && ATOM_BLOCKS.has(block.type) && stack.length > 0) {
-			const top = stack[stack.length - 1] as ListContext
-			;(top.item?.content as JSONContent[]).push(block)
-			continue
-		}
-
-		stack.length = 0
-		out.push(block)
-	}
-
-	return out
-}
-
-function cellContent(tc: Element, context: ParseContext): JSONContent[] {
-	const blocks: JSONContent[] = []
-	for (const node of children(tc)) {
-		if (tagName(node) === 'p') blocks.push(...paragraphBlocks(node, context))
-	}
-	return wrapListBlocks(blocks.length > 0 ? blocks : [{ type: 'paragraph' }])
-}
-
-function gridSpanOf(tcPr: Element | null): number {
-	const span = intVal(child(tcPr, 'gridSpan'))
-	return span !== undefined && span > 1 ? span : 1
-}
-
-/** `restart` membuka penggabungan, `continue` (atau tanpa val) melanjutkannya. */
-function vMergeOf(tcPr: Element | null): 'restart' | 'continue' | null {
-	const vMerge = child(tcPr, 'vMerge')
-	if (!vMerge) return null
-	return val(vMerge) === 'restart' ? 'restart' : 'continue'
-}
-
-interface TableMerger {
-	/** Kolom awal sel → node sel terbit (dipakai menaikkan rowspan sel asal). */
-	origins: Map<number, JSONContent>
-}
-
-function tableRowBlocks(
-	row: Element,
-	context: ParseContext,
-	merger: TableMerger,
-	gridWidths: number[],
-): JSONContent | null {
-	const trPr = child(row, 'trPr')
-	const isHeader = trPr ? child(trPr, 'tblHeader') !== null : false
-	const rowAttrs = rowPropsOf(trPr)
-
-	const cells: JSONContent[] = []
-	let totalCells = 0
-	let column = 0
-	for (const tc of children(row, 'tc')) {
-		totalCells += 1
-		const tcPr = child(tc, 'tcPr')
-		const span = gridSpanOf(tcPr)
-		const vMerge = vMergeOf(tcPr)
-
-		if (vMerge === 'continue') {
-			const origin = merger.origins.get(column)
-			if (origin) {
-				// Sel lanjutan menaikkan tinggi sel asalnya, lalu lenyap dari hasil.
-				const attrs = (origin.attrs ?? {}) as Record<string, unknown>
-				attrs.rowspan = Number(attrs.rowspan ?? 1) + 1
-				origin.attrs = attrs
-				column += span
-				continue
-			}
-			// vMerge tanpa restart tidak punya sel asal: bawa isinya sebagai sel biasa.
-		}
-
-		const attrs = cellPropsOf(tcPr)
-		if (span > 1) attrs.colspan = span
-		if (vMerge === 'restart') attrs.rowspan = 1
-		// Lebar kolom dari tblGrid: irisan sesuai rentang kolom sel (colspan ikut menjumlah).
-		if (gridWidths.length >= column + span) {
-			attrs.colwidth = gridWidths.slice(column, column + span)
-		} else if (gridWidths.length === 0) {
-			// Cadangan tanpa tblGrid: lebar sel tcW (dxa) dibagi rata ke kolom bentangannya.
-			const tcW = child(tcPr, 'tcW')
-			const width = attr(tcW, 'w')
-			if (attr(tcW, 'type') === 'dxa' && width !== undefined) {
-				const perColumn = Math.round(twipsToPx(Number.parseInt(width, 10) || 0) / span)
-				if (perColumn > 0) attrs.colwidth = Array.from({ length: span }, () => perColumn)
-			}
-		}
-
-		const cell: JSONContent = {
-			type: isHeader ? 'tableHeader' : 'tableCell',
-			...(Object.keys(attrs).length > 0 ? { attrs } : {}),
-			content: cellContent(tc, context),
-		}
-		cells.push(cell)
-		for (let offset = 0; offset < span; offset += 1) merger.origins.set(column + offset, cell)
-		column += span
-	}
-
-	// Baris yang seluruhnya lanjutan penggabungan tidak punya sel sendiri —
-	// ketinggiannya sudah diwakili rowspan sel asal di baris sebelumnya.
-	if (totalCells > 0 && cells.length === 0) return null
-	if (cells.length === 0)
-		return {
-			type: 'tableRow',
-			...(Object.keys(rowAttrs).length > 0 ? { attrs: rowAttrs } : {}),
-			content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }],
-		}
-	return {
-		type: 'tableRow',
-		...(Object.keys(rowAttrs).length > 0 ? { attrs: rowAttrs } : {}),
-		content: cells,
-	}
-}
-
-function tableBlocks(tbl: Element, context: ParseContext): JSONContent[] {
-	// Lebar kolom dari w:tblGrid. Hanya w:gridCol anak langsung yang dibaca,
-	// sehingga w:tblGridChange (perubahan terlacak) bersarang otomatis diabaikan.
-	const gridWidths: number[] = []
-	const tblGrid = child(tbl, 'tblGrid')
-	if (tblGrid) {
-		for (const gridCol of children(tblGrid, 'gridCol')) {
-			const width = Number.parseInt(attr(gridCol, 'w') ?? '', 10)
-			if (Number.isFinite(width)) gridWidths.push(twipsToPx(width))
-		}
-	}
-
-	const merger: TableMerger = { origins: new Map() }
-	const rows: JSONContent[] = []
-	for (const tr of children(tbl, 'tr')) {
-		const row = tableRowBlocks(tr, context, merger, gridWidths)
-		if (row) rows.push(row)
-	}
-	const tblPr = child(tbl, 'tblPr')
-	const jc = val(child(tblPr, 'jc'))
-	const hasHeader = rows.some((row) => row.content?.some((cell) => cell.type === 'tableHeader'))
-
-	const attrs: Record<string, unknown> = tablePropsOf(tblPr)
-	if (jc === 'center' || jc === 'right') attrs.textAlign = jc
-	if (!hasHeader) attrs.repeatHeader = false
-	if (rows.length === 0) {
-		return [
-			{
-				type: 'table',
-				...(Object.keys(attrs).length > 0 ? { attrs } : {}),
-				content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }],
-			},
-		]
-	}
-
-	return [{ type: 'table', ...(Object.keys(attrs).length > 0 ? { attrs } : {}), content: rows }]
-}
-
-export type PageSetupPatch = Partial<Omit<PageSetup, 'margins'>> & { margins?: Partial<PageMargins> }
-
-interface SectionProps {
-	pageSetup: PageSetupPatch
-	columns: { count: number; gap?: number } | null
-	continuous?: boolean
-}
-
-function matchPageSize(width: number, height: number): PageSizeId | null {
-	for (const [id, size] of Object.entries(PAGE_SIZES)) {
-		if (id === 'custom') continue
-		if (Math.abs(size.width - width) <= 2 && Math.abs(size.height - height) <= 2) {
-			return id as PageSizeId
-		}
-	}
-	return null
-}
-
-function readSectPr(sectPr: Element): SectionProps {
-	const pageSetup: PageSetupPatch = {}
-
-	const pgSz = child(sectPr, 'pgSz')
-	const width = twipsToPx(Number.parseInt(attr(pgSz, 'w') ?? '', 10))
-	const height = twipsToPx(Number.parseInt(attr(pgSz, 'h') ?? '', 10))
-	if (pgSz && width > 0 && height > 0) {
-		const landscape = attr(pgSz, 'orient') === 'landscape'
-		const upright = landscape && width > height ? { width: height, height: width } : { width, height }
-		const size = matchPageSize(upright.width, upright.height)
-		if (size) {
-			pageSetup.size = size
-		} else {
-			pageSetup.size = 'custom'
-			pageSetup.customWidth = upright.width
-			pageSetup.customHeight = upright.height
-		}
-		pageSetup.orientation = landscape ? 'landscape' : 'portrait'
-	}
-
-	const pgMar = child(sectPr, 'pgMar')
-	if (pgMar) {
-		const margins: Partial<PageMargins> = {}
-		for (const side of ['top', 'right', 'bottom', 'left'] as const) {
-			const twips = Number.parseInt(attr(pgMar, side) ?? '', 10)
-			if (Number.isFinite(twips)) margins[side] = Math.max(0, twipsToPx(twips))
-		}
-		if (Object.keys(margins).length > 0) pageSetup.margins = margins
-	}
-
-	let columns: SectionProps['columns'] = null
-	const cols = child(sectPr, 'cols')
-	const count = Number.parseInt(attr(cols, 'num') ?? '', 10)
-	if (Number.isFinite(count) && count >= 2) {
-		columns = { count }
-		const space = Number.parseInt(attr(cols, 'space') ?? '', 10)
-		if (Number.isFinite(space)) columns.gap = twipsToPx(space)
-	}
-
-	return { pageSetup, columns, ...(val(child(sectPr, 'type')) === 'continuous' ? { continuous: true } : {}) }
+/** Teks paragraf mentah (gabungan `w:t`) — untuk heuristik heading bernomor. */
+function paragraphTextOf(paragraph: Element): string {
+	let text = ''
+	for (const node of descendAll(paragraph, 't')) text += node.textContent ?? ''
+	return text
 }
 
 export function bodyBlocks(
@@ -800,18 +411,51 @@ export function bodyBlocks(
 	onSection?: (props: SectionProps, endedAt: number) => void,
 ): JSONContent[] {
 	const blocks: JSONContent[] = []
+	let toc: TocField | null = null
+	let tocDepth = 0
+	let swallowed = 0
 
 	for (const node of children(body)) {
+		// Isi field TOC (hasil basi berikut nomor halamannya) ditelan utuh —
+		// paragraf, tabel, apa pun di antara pembuka dan penutupnya; digantikan
+		// satu node daftar isi yang menyusun entrinya sendiri.
+		if (toc) {
+			swallowed += 1
+			tocDepth += fieldDepthDelta(node)
+
+			// Pengaman: field tanpa penutup tidak boleh menelan seluruh dokumen.
+			// Kalau pengaman ini yang menghentikannya, isi yang terlanjur
+			// tertelan memang hilang - itu harus diberitahukan, bukan didiamkan.
+			const capped = swallowed >= MAX_SWALLOWED
+			if (capped) skip(context, 'daftar-isi-tanpa-penutup')
+			if (tocDepth <= 0 || capped) {
+				blocks.push(tocBlockOf(toc))
+				toc = null
+			}
+			continue
+		}
+
 		switch (tagName(node)) {
 			case 'p': {
-				blocks.push(...paragraphBlocks(node, context))
+				const field = tocFieldOf(node)
+				if (field) {
+					if (field.depth <= 0) blocks.push(tocBlockOf(field))
+					else {
+						toc = field
+						tocDepth = field.depth
+						swallowed = 0
+					}
+					break
+				}
+
+				blocks.push(...paragraphBlocks(node, context, true))
 				const sectPr = descend(node, 'pPr', 'sectPr')
-				if (sectPr) onSection?.(readSectPr(sectPr), blocks.length)
+				if (sectPr) onSection?.(readSectPr(sectPr, context), blocks.length)
 				break
 			}
 
 			case 'tbl':
-				blocks.push(...tableBlocks(node, context))
+				blocks.push(...tableBlocks(node, context, readerOf(context)))
 				break
 
 			case 'sdt': {
@@ -820,7 +464,7 @@ export function bodyBlocks(
 				break
 			}
 			case 'sectPr':
-				onSection?.(readSectPr(node), blocks.length)
+				onSection?.(readSectPr(node, context), blocks.length)
 				break
 
 			case 'bookmarkStart':
@@ -833,11 +477,9 @@ export function bodyBlocks(
 		}
 	}
 
-	return blocks
-}
+	if (toc) blocks.push(tocBlockOf(toc))
 
-function mergeSetup(base: PageSetup, patch: PageSetupPatch): PageSetup {
-	return { ...base, ...patch, margins: { ...base.margins, ...patch.margins } }
+	return blocks
 }
 
 export function readBody(
@@ -846,11 +488,13 @@ export function readBody(
 ): { blocks: JSONContent[]; pageSetup?: PageSetupPatch } {
 	const endings: { at: number; props: SectionProps }[] = []
 	const raw = bodyBlocks(body, context, (props, endedAt) => endings.push({ at: endedAt, props }))
-	if (endings[0]?.props.columns) skip(context, 'kolom-bagian-pertama')
+	const promoted = promoteNumberedHeadings(raw)
 
 	const last = endings[endings.length - 1]
-	if (!last || (endings.length === 1 && last.at >= raw.length)) {
-		return { blocks: wrapListBlocks(raw), pageSetup: last?.props.pageSetup }
+	if (!last || (endings.length === 1 && last.at >= promoted.length)) {
+		const blocks = replaceManualToc(promoted)
+		if (endings[0]?.props.columns) blocks.unshift(leadingColumnsBreak(endings[0].props.columns))
+		return { blocks: appendFootnotes(wrapListBlocks(blocks), context), pageSetup: last?.props.pageSetup }
 	}
 
 	const blocks: JSONContent[] = []
@@ -870,12 +514,27 @@ export function readBody(
 			})
 			resolved = next
 		}
-		blocks.push(...raw.slice(start, at))
+		blocks.push(...promoted.slice(start, at))
 		start = at
 	})
-	blocks.push(...raw.slice(start))
+	blocks.push(...promoted.slice(start))
 
-	return { blocks: wrapListBlocks(blocks), pageSetup: endings[0]?.props.pageSetup }
+	const final = replaceManualToc(blocks)
+	if (endings[0]?.props.columns) final.unshift(leadingColumnsBreak(endings[0].props.columns))
+
+	return { blocks: appendFootnotes(wrapListBlocks(final), context), pageSetup: endings[0]?.props.pageSetup }
+}
+
+/** Isi catatan kaki dirujuk di badan naskah diterbitkan sebagai blok di akhir. */
+function appendFootnotes(blocks: JSONContent[], context: ParseContext): JSONContent[] {
+	const queue = context.state.footnoteQueue
+	if (queue.length === 0) return blocks
+
+	for (const id of queue) {
+		const content = context.footnotes.get(id)
+		if (content) blocks.push({ type: 'footnote', content })
+	}
+	return blocks
 }
 
 export function bodyOf(documentRoot: Element): Element | null {

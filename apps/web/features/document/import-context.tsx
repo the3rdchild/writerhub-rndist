@@ -13,6 +13,7 @@ import {
 	readDocs,
 	readTabs,
 	setPageSetupForTab,
+	updateTab,
 } from '@/features/sessions/ydoc'
 import { jsonToFragment } from '@/features/sync/serialize'
 import { useDocument } from './document-context'
@@ -84,6 +85,7 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 			content: JSONContent,
 			pageSetup?: DocxImport['pageSetup'],
 			furniture?: PageFurniture | null,
+			comments?: DocxImport['comments'],
 		) => {
 			if (!activeDocId) return
 			const tabId = createTab(doc, activeDocId, title)
@@ -91,6 +93,7 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 				jsonToFragment(doc, tabId, content)
 				if (pageSetup) setPageSetupForTab(doc, tabId, resolveImportedSetup(pageSetup))
 				if (furniture) setPageFurnitureForTab(doc, tabId, furniture)
+				if (comments && comments.length > 0) updateTab(doc, tabId, { comments })
 			}, LOCAL_ORIGIN)
 			selectSession(tabId)
 		},
@@ -103,7 +106,13 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 
 			try {
 				const result = await importDocx(file)
-				importToNewTab(file.name.replace(/\.docx$/i, ''), result.content, result.pageSetup, result.furniture)
+				importToNewTab(
+					file.name.replace(/\.docx$/i, ''),
+					result.content,
+					result.pageSetup,
+					result.furniture,
+					result.comments,
+				)
 				setWarnings(result.warnings.map((warning) => warning.message))
 			} catch (cause) {
 				setWarnings([cause instanceof Error ? cause.message : 'Gagal membaca berkas DOCX'])

@@ -61,7 +61,10 @@ export function readBorderAttrs(borders: Element | null): BorderAttrs | null {
 }
 
 /** `w:tblPr` → table node attrs (tblW, tblInd, tblBorders). */
-export function tablePropsOf(tblPr: Element | null): Record<string, unknown> {
+export function tablePropsOf(
+	tblPr: Element | null,
+	styleBorders?: BorderAttrs | null,
+): Record<string, unknown> {
 	if (!tblPr) return {}
 
 	const attrs: Record<string, unknown> = {}
@@ -79,7 +82,8 @@ export function tablePropsOf(tblPr: Element | null): Record<string, unknown> {
 		attrs.indentLeft = twipsToPx(indent)
 	}
 
-	const border = readBorderAttrs(child(tblPr, 'tblBorders'))
+	// Border langsung menang; tanpa itu, pakai border dari style tabel.
+	const border = readBorderAttrs(child(tblPr, 'tblBorders')) ?? styleBorders ?? null
 	if (border) Object.assign(attrs, border)
 
 	return attrs
