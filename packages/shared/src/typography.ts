@@ -94,6 +94,11 @@ export function cssLineHeight(lineSpacing: number): number {
 	return Math.round(lineSpacing * LINE_SPACING_TO_CSS * 100) / 100
 }
 
+/** `line-height` CSS → spasi dokumen. Dipakai kotak isian yang menyebut "spasi". */
+export function documentLineSpacing(css: number): number {
+	return Math.round((css / LINE_SPACING_TO_CSS) * 100) / 100
+}
+
 /**
  * Tangga ukuran judul sebagai kelipatan ukuran badan, dipakai saat template
  * tidak menyebut tingkat itu. Angkanya sengaja sama dengan tangga `em` yang

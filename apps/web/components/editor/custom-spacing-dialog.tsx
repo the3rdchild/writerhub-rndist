@@ -2,7 +2,9 @@
 
 import type { Editor } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
+import { cssLineHeight, documentLineSpacing } from '@writer-hub/shared'
 import { blockSpacingAt } from '@/features/editor/block-spacing-at'
+import { DEFAULT_LINE_SPACING } from '@/features/editor/spacing-options'
 import { ptToPx, pxToPt } from '@/features/editor/spacing-units'
 import { cn } from '@/lib/utils'
 
@@ -29,7 +31,7 @@ export function CustomSpacingDialog({
 	open: boolean
 	onClose: () => void
 }) {
-	const [lineHeight, setLineHeight] = useState('1.15')
+	const [lineHeight, setLineHeight] = useState('1')
 	const [before, setBefore] = useState('0')
 	const [after, setAfter] = useState('0')
 	const overlayRef = useRef<HTMLDivElement>(null)
@@ -39,7 +41,10 @@ export function CustomSpacingDialog({
 		function prefillFromSelection() {
 			if (!open || !editor) return
 			const current = blockSpacingAt(editor)
-			setLineHeight(current.lineHeight ?? '1.15')
+			// Kotaknya menyebut "spasi", jadi yang tampil spasi dokumen - bukan
+			// `line-height` CSS yang tersimpan di atribut blok.
+			const stored = Number.parseFloat(current.lineHeight ?? DEFAULT_LINE_SPACING)
+			setLineHeight(String(documentLineSpacing(Number.isFinite(stored) ? stored : 1.15)))
 			setBefore(String(pxToPt(current.spaceBefore)))
 			setAfter(String(pxToPt(current.spaceAfter)))
 		},
@@ -65,11 +70,11 @@ export function CustomSpacingDialog({
 	if (!open) return null
 
 	const apply = () => {
-		const spacing = Math.max(MIN_LINE_HEIGHT, toNumber(lineHeight, 1.15))
+		const spacing = Math.max(MIN_LINE_HEIGHT, toNumber(lineHeight, 1))
 		editor
 			?.chain()
 			.focus()
-			.setLineHeight(String(spacing))
+			.setLineHeight(String(cssLineHeight(spacing)))
 			.setBlockSpace({
 				before: ptToPx(Math.max(0, toNumber(before, 0))),
 				after: ptToPx(Math.max(0, toNumber(after, 0))),

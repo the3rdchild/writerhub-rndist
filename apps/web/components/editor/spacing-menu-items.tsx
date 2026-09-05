@@ -3,6 +3,7 @@
 import type { Editor } from '@tiptap/react'
 import { useEditorState } from '@tiptap/react'
 import { Check } from 'lucide-react'
+import { cssLineHeight } from '@writer-hub/shared'
 import { DropdownItem, DropdownSeparator } from '@/components/ui/dropdown'
 import { blockKeepAt, type BlockKeepValues } from '@/features/editor/block-keep'
 import { blockSpacingAt } from '@/features/editor/block-spacing-at'
@@ -13,6 +14,7 @@ import {
 	LINE_SPACING_OPTIONS,
 } from '@/features/editor/spacing-options'
 import { ptToPx } from '@/features/editor/spacing-units'
+import { useTypography } from '@/features/editor/use-typography'
 
 interface SpacingState {
 	lineHeight: string
@@ -35,13 +37,14 @@ export function SpacingMenuItems({
 	close: () => void
 	onOpenCustomSpacing: () => void
 }) {
+	const { typography } = useTypography()
 	const current = useEditorState({
 		editor,
 		selector: ({ editor: instance }): SpacingState | null => {
 			if (!instance || instance.isDestroyed) return null
 			const spacing = blockSpacingAt(instance)
 			return {
-				lineHeight: spacing.lineHeight ?? DEFAULT_LINE_SPACING,
+				lineHeight: spacing.lineHeight ?? '',
 				spaceBefore: spacing.spaceBefore,
 				spaceAfter: spacing.spaceAfter,
 				keep: blockKeepAt(instance),
@@ -49,7 +52,13 @@ export function SpacingMenuItems({
 		},
 	})
 
-	const lineHeight = current?.lineHeight ?? DEFAULT_LINE_SPACING
+	/*
+	 * Blok yang belum menyatakan spasinya sendiri mengikuti tipografi dokumen -
+	 * template skripsi berspasi 1,5 harus mencentang "1.5", bukan angka bawaan
+	 * aplikasi. Dokumen tanpa tipografi jatuh ke `DEFAULT_LINE_SPACING`.
+	 */
+	const inherited = typography ? String(cssLineHeight(typography.lineHeight)) : DEFAULT_LINE_SPACING
+	const lineHeight = current?.lineHeight || inherited
 
 	return (
 		<>
@@ -84,9 +93,7 @@ export function SpacingMenuItems({
 					close()
 				}}
 			>
-				{(current?.spaceBefore ?? 0) > 0
-					? 'Hapus spasi sebelum paragraf'
-					: 'Tambah spasi sebelum paragraf'}
+				{(current?.spaceBefore ?? 0) > 0 ? 'Hapus spasi sebelum paragraf' : 'Tambah spasi sebelum paragraf'}
 			</DropdownItem>
 			<DropdownItem
 				onSelect={() => {
