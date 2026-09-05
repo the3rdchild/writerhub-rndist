@@ -317,12 +317,24 @@ function walkInline(
 	}
 }
 
+/**
+ * Tutup isi yang sedang berjalan lalu terbitkan pemenggal halaman.
+ *
+ * Pemenggal yang berdiri sendiri di paragrafnya **tidak** didahului paragraf
+ * kosong: di Word ia hidup di dalam paragrafnya, bukan sesudah satu baris
+ * kosong. Satu paragraf kosong setinggi 17px di depannya sudah cukup membuat
+ * paginasi tidak lagi membaca pemenggal itu "di awal halaman" - penjaga di
+ * `pagination.ts` lewat, isinya didorong satu lembar penuh, dan lahirlah
+ * halaman yang kosong sama sekali.
+ */
 function splitAtPageBreak(builder: ParagraphBuilder): void {
-	builder.blocks.push({
-		type: 'paragraph',
-		...(Object.keys(builder.attrs).length > 0 ? { attrs: builder.attrs } : {}),
-		...(builder.inline.length > 0 ? { content: builder.inline } : {}),
-	})
+	if (builder.inline.length > 0 || builder.blocks.length > 0) {
+		builder.blocks.push({
+			type: 'paragraph',
+			...(Object.keys(builder.attrs).length > 0 ? { attrs: builder.attrs } : {}),
+			...(builder.inline.length > 0 ? { content: builder.inline } : {}),
+		})
+	}
 	builder.blocks.push({ type: PAGE_BREAK_NODE })
 	builder.inline = []
 }

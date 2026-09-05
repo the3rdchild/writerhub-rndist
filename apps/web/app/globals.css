@@ -1431,9 +1431,29 @@ a {
 .document-body .page-break {
   position: relative;
   height: 0;
-  margin: 1.1em 0;
-  border-top: 1px dashed var(--border-strong);
+  /*
+   * Nol, bukan 1.1em. Ruang di sekitar garis penanda dipotong dari halaman
+   * sebelumnya: paginasi memperlakukan node ini sebagai bertinggi nol, jadi
+   * margin apa pun membuat pemenggal mendarat beberapa piksel di bawah tepi
+   * lembar - tidak lagi terbaca "di awal halaman" - lalu isinya didorong satu
+   * lembar lagi dan lahirlah halaman yang kosong sama sekali. Word maupun
+   * Google Docs juga tidak memakan satu baris untuk pemenggal: kursor tetap di
+   * ujung baris terakhir.
+   *
+   * Garisnya digambar pseudo-elemen mutlak supaya tetap terlihat tanpa ikut
+   * dihitung tata letak.
+   */
+  margin: 0;
   user-select: none;
+}
+
+.document-body .page-break::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  border-top: 1px dashed var(--border-strong);
 }
 
 .document-body .page-break::after {
@@ -1449,7 +1469,7 @@ a {
   color: var(--foreground-faint);
 }
 
-.document-body .page-break.ProseMirror-selectednode {
+.document-body .page-break.ProseMirror-selectednode::before {
   border-top-color: var(--accent);
 }
 .document-body .page-break.ProseMirror-selectednode::after {
@@ -1461,9 +1481,17 @@ a {
 .document-body .section-break {
   position: relative;
   height: 0;
-  margin: 1.1em 0;
-  border-top: 3px double var(--border-strong);
+  /* Sama seperti .page-break: tidak boleh memakan ruang teks. */
+  margin: 0;
   user-select: none;
+}
+.document-body .section-break::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  border-top: 3px double var(--border-strong);
 }
 .document-body .section-break::after {
   content: 'Section break';
@@ -1477,7 +1505,7 @@ a {
   line-height: 1.4;
   color: var(--foreground-faint);
 }
-.document-body .section-break.ProseMirror-selectednode {
+.document-body .section-break.ProseMirror-selectednode::before {
   border-top-color: var(--accent);
 }
 .document-body .section-break.ProseMirror-selectednode::after {
@@ -1485,7 +1513,7 @@ a {
 }
 
 /* Pembatas menerus (E5): garisnya lebih tipis - ia tidak memenggal lembar. */
-.document-body .section-break-continuous {
+.document-body .section-break-continuous::before {
   border-top-width: 1px;
   border-top-style: solid;
 }

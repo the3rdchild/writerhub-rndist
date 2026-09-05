@@ -268,6 +268,22 @@ describe('pemisah halaman', () => {
 		expect(textOf(body_[2])).toBe('sesudah')
 	})
 
+	/*
+	 * Di Word pemenggal hidup DI DALAM paragrafnya; paragraf yang isinya hanya
+	 * pemenggal bukan berarti ada satu baris kosong sebelum lembar baru. Satu
+	 * paragraf kosong setinggi 17px di depannya sudah cukup membuat paginasi
+	 * tidak lagi membaca pemenggal itu "di awal halaman", lalu isinya didorong
+	 * satu lembar penuh - dan lahir halaman yang kosong sama sekali.
+	 */
+	test('pemisah yang berdiri sendiri tidak didahului paragraf kosong', async () => {
+		const body = p(r('sebelum')) + p('<w:r><w:br w:type="page"/></w:r>') + p(r('sesudah'))
+		const types = blocks((await readDocx(docx({ body }))).content).map((block) => block.type)
+
+		// Paragraf kosong SESUDAH pemenggal tetap ada: itu tanda paragrafnya
+		// sendiri, dan Word pun menampilkannya di awal lembar baru.
+		expect(types).toEqual(['paragraph', 'pageBreak', 'paragraph', 'paragraph'])
+	})
+
 	test('pageBreakBefore memasang pemisah sebelum paragrafnya', async () => {
 		const result = await readDocx(docx({ body: p(r('bab baru'), '<w:pageBreakBefore/>') }))
 		expect(blocks(result.content).map((block) => block.type)).toEqual(['pageBreak', 'paragraph'])
@@ -1267,6 +1283,51 @@ describe('impor section (E4)', () => {
 		expect(pembatas[1]?.attrs).toMatchObject({ continuous: true, columns: null })
 	})
 })
+describe('rumus di sekitar daftar bernomor', () => {
+	const BULLET = `
+		<w:abstractNum w:abstractNumId="0">
+			<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl>
+		</w:abstractNum>
+		<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>`
+	const item = (text: string) =>
+		p(r(text), '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>')
+	const math = (name: string) =>
+		p(`<m:oMathPara><m:oMath><m:r><m:t>${name}</m:t></m:r></m:oMath></m:oMathPara>`)
+
+	test('rumus di antara dua item ikut item yang membukanya', async () => {
+		const body = item('Langkah satu') + math('E') + item('Langkah dua')
+		const list = blocks((await readDocx(docx({ numbering: BULLET, body }))).content)[0]
+
+		expect(list?.type).toBe('orderedList')
+		const first = list?.content?.[0]
+		expect(first?.content?.map((node) => node.type)).toEqual(['paragraph', 'mathBlock'])
+	})
+
+	/*
+	 * Tanpa lihat-ke-depan, rumus yang mengekor di belakang daftar tersedot ke
+	 * dalam item terakhir - dan daftarnya tidak pernah tertutup. Satu makalah
+	 * IEEE punya 64 rumus beruntun sesudah daftarnya: hasilnya satu blok
+	 * setinggi enam halaman yang dibentangkan penuh dua kolom oleh mesin kolom.
+	 */
+	test('rumus yang mengekor di belakang daftar menutup daftarnya', async () => {
+		const body = item('Langkah satu') + math('A') + math('B') + p(r('Penutup'))
+		const types = blocks((await readDocx(docx({ numbering: BULLET, body }))).content).map(
+			(node) => node.type,
+		)
+
+		expect(types).toEqual(['orderedList', 'mathBlock', 'mathBlock', 'paragraph'])
+	})
+
+	test('rumus di antara dua daftar berbeda tidak ikut daftar sebelumnya', async () => {
+		const other = p(r('Item lain'), '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="2"/></w:numPr>')
+		const numbering = `${BULLET}<w:num w:numId="2"><w:abstractNumId w:val="0"/></w:num>`
+		const body = item('Langkah satu') + math('C') + other
+		const types = blocks((await readDocx(docx({ numbering, body }))).content).map((node) => node.type)
+
+		expect(types).toEqual(['orderedList', 'mathBlock', 'orderedList'])
+	})
+})
+
 describe('rumus matematika (OMML)', () => {
 	const mr = (text: string) => `<m:r><m:t>${text}</m:t></m:r>`
 	const sub = (base: string, subText: string) =>

@@ -710,6 +710,18 @@ export function repeatedHeader(header: PMNode, spacer: Spacer): HTMLElement {
 	const row = DOMSerializer.fromSchema(header.type.schema).serializeNode(header) as HTMLElement
 	row.classList.add('table-header-repeat')
 
+	/*
+	 * Salinan judul selalu satu baris.
+	 *
+	 * Judul dua baris - "No | Kegiatan | Bulan ke-1…" di atas baris berisi
+	 * nomor minggu - menyimpan `rowspan="2"` pada sel kolom pertamanya. Kalau
+	 * atribut itu ikut tersalin, salinannya mengklaim baris data pertama di
+	 * halaman lanjutan: dua kolom awal tampil sebagai blok kosong dan seluruh
+	 * sel baris itu bergeser, sehingga teksnya terjepit di kolom selebar 25px
+	 * dan membungkus satu huruf per baris.
+	 */
+	for (const cell of row.querySelectorAll<HTMLElement>('th, td')) cell.removeAttribute('rowspan')
+
 	return markSpacer(row, spacer)
 }
 

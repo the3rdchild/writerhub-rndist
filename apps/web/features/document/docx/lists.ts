@@ -66,8 +66,9 @@ function listOf(tag: ListTag): JSONContent {
  *   (penulis Word kerfa memakai instance penomoran terpisah untuk sub-list).
  * - Paragraf tak bernomor yang menjorok setidaknya sedalam item terbuka dianggap
  *   paragraf lanjutan dan ikut item itu (pola "keterangan di bawah item" ala Word).
- * - Blok atom (rumus, gambar) di antara item masuk ke item yang sedang terbuka;
- *   blok lain menutup list (nomor lanjut diteruskan lewat atribut start).
+ * - Blok atom (rumus, gambar) masuk ke item yang sedang terbuka **hanya** bila
+ *   sesudahnya list itu berlanjut; yang mengekor di belakang list menutupnya,
+ *   seperti blok lain (nomor lanjut diteruskan lewat atribut start).
  */
 export function wrapListBlocks(blocks: JSONContent[]): JSONContent[] {
 	const out: JSONContent[] = []
@@ -86,7 +87,7 @@ export function wrapListBlocks(blocks: JSONContent[]): JSONContent[] {
 		context.item = item
 	}
 
-	for (const block of blocks) {
+	for (const [index, block] of blocks.entries()) {
 		const tag = block.type === 'paragraph' ? (block.attrs?._list as ListTag | undefined) : undefined
 
 		if (tag) {
@@ -149,11 +150,28 @@ export function wrapListBlocks(blocks: JSONContent[]): JSONContent[] {
 			}
 		}
 
-		// Blok atom mengikuti item yang sedang terbuka (rumus/gambar milik item itu).
+		/*
+		 * Blok atom (rumus, gambar) di antara dua paragraf bernomor milik item
+		 * yang sedang terbuka. Yang **mengekor di belakang** list justru
+		 * menutupnya - dan pembedaan itu wajib: satu makalah IEEE punya daftar
+		 * bernomor yang diikuti 64 rumus blok, dan tanpa lihat-ke-depan
+		 * semuanya tersedot ke dalam satu item. Hasilnya satu list setinggi
+		 * enam halaman, yang oleh mesin kolom dianggap blok raksasa tak
+		 * terpotong lalu dibentangkan penuh dua kolom - makalah tujuh halaman
+		 * membengkak jadi sembilan belas.
+		 */
 		if (block.type !== undefined && ATOM_BLOCKS.has(block.type) && stack.length > 0) {
 			const top = stack[stack.length - 1] as ListContext
-			;(top.item?.content as JSONContent[]).push(block)
-			continue
+			let ahead = index + 1
+			while (ahead < blocks.length && ATOM_BLOCKS.has(blocks[ahead]?.type ?? '')) ahead += 1
+
+			const next = blocks[ahead]
+			const nextAttrs = next?.type === 'paragraph' ? next.attrs : undefined
+			const nextTag = nextAttrs?._list as ListTag | undefined
+			if (nextTag?.numId === top.numId) {
+				;(top.item?.content as JSONContent[]).push(block)
+				continue
+			}
 		}
 
 		stack.length = 0
