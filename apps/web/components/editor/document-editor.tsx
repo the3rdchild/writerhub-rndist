@@ -5,10 +5,14 @@ import { useRef } from 'react'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentImport } from '@/features/document/import-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import { pageBlockRange, paginationKey } from '@/features/editor/pagination'
+import { usePageStatus } from '@/features/editor/use-page-status'
+import { useVisiblePage } from '@/features/editor/use-visible-page'
 import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
 import { useSettings } from '@/features/settings/settings-context'
 import { countWords } from '@/lib/utils'
 import { DocumentCanvas } from './document-canvas'
+import { PageIndicator } from './page-indicator'
 import { TableControls } from './table-controls'
 import { TableOptionsPanel } from './table-options-panel'
 import { TocSettingsDialog } from './toc-settings-dialog'
@@ -22,6 +26,26 @@ export function DocumentEditor() {
 	const { openImport, importing, warnings, dismissWarnings } = useDocumentImport()
 
 	const containerRef = useRef<HTMLDivElement>(null)
+
+	/*
+	 * Indikator halaman mengikuti kursor (seperti bilah status Word). Lompatan
+	 * memindahkan lembar secara instan lalu menaruh kursor di blok pertama
+	 * lembar tujuan, supaya angka yang terbaca dan tempat menyunting lanjut
+	 * berada di halaman yang sama.
+	 */
+	const pages = usePageStatus(editor)
+	const { scrollToPage } = useVisiblePage()
+	const jumpToPage = (target: number) => {
+		scrollToPage(target)
+		if (!editor || editor.isDestroyed) return
+		const state = paginationKey.getState(editor.state)
+		const range = state ? pageBlockRange(state.blockPages, target - 1, editor.state.doc.content.size) : null
+		if (range)
+			editor
+				.chain()
+				.setTextSelection(Math.min(range.from + 1, editor.state.doc.content.size))
+				.run()
+	}
 
 	const pasteFromClipboard = async () => {
 		try {
@@ -106,6 +130,10 @@ export function DocumentEditor() {
 			<TocSettingsDialog />
 
 			<div className="flex shrink-0 items-center gap-3 bg-surface px-4 py-1.5">
+				{!state.file && pages.pageCount > 1 && (
+					<PageIndicator page={pages.page} pageCount={pages.pageCount} onJump={jumpToPage} />
+				)}
+
 				{settings.showWordCount && !state.file && (
 					<span className="text-xs text-subtle">
 						{countWords(state.text)} words · {state.text.length} characters

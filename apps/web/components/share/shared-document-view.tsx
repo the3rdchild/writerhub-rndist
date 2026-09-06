@@ -5,10 +5,12 @@ import { ArrowLeft, Lock } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { DocumentPaper } from '@/components/editor/document-paper'
+import { PageIndicator } from '@/components/editor/page-indicator'
 import { buildEditorExtensions } from '@/features/editor/extensions'
 import { DEFAULT_PAGE_SETUP, pageGeometry, type SheetGeometry } from '@/features/editor/page-geometry'
 import { DEFAULT_TYPOGRAPHY } from '@/features/editor/typography'
 import { useDocumentGeometry } from '@/features/editor/use-document-geometry'
+import { useVisiblePage } from '@/features/editor/use-visible-page'
 import {
 	SHARE_ACCESS_LABELS,
 	SHARE_ROLE_LABELS,
@@ -53,6 +55,9 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 	// keduanya, dokumen berhalaman banyak dirender ke satu lembar raksasa.
 	const [pageCount, setPageCount] = useState(1)
 	const [sheets, setSheets] = useState<SheetGeometry[]>([])
+	// Tampilan baca-saja tidak punya kursor; "halaman sekarang" di sini adalah
+	// lembar yang sedang terlihat, dan lompatannya cukup menggulung.
+	const { page, scrollToPage } = useVisiblePage()
 
 	const editor = useEditor({
 		immediatelyRender: false,
@@ -114,12 +119,15 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 						</div>
 					</div>
 				</div>
-				<Link
-					href="/"
-					className="hidden rounded-xl bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover sm:inline-block"
-				>
-					Buka di editor
-				</Link>
+				<div className="flex items-center gap-3">
+					{pageCount > 1 && <PageIndicator page={page} pageCount={pageCount} onJump={scrollToPage} />}
+					<Link
+						href="/"
+						className="hidden rounded-xl bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover sm:inline-block"
+					>
+						Buka di editor
+					</Link>
+				</div>
 			</header>
 
 			<div className="flex flex-1 overflow-hidden">

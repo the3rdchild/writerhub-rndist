@@ -6,6 +6,7 @@ import { ArrowLeft, Pin, Plus } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { FEATURE_META } from '@/components/activity/feature-meta'
 import { DocumentPaper } from '@/components/editor/document-paper'
+import { PageIndicator } from '@/components/editor/page-indicator'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { buildEditorExtensions } from '@/features/editor/extensions'
 import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
@@ -13,6 +14,7 @@ import { pageGeometry, type SheetGeometry } from '@/features/editor/page-geometr
 import { useDocumentGeometry } from '@/features/editor/use-document-geometry'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useTypography } from '@/features/editor/use-typography'
+import { useVisiblePage } from '@/features/editor/use-visible-page'
 import type { HistoryFeature } from '@/features/history/types'
 import { useSessions } from '@/features/sessions/session-context'
 import { fragmentToJSON } from '@/features/sync/serialize'
@@ -103,6 +105,8 @@ export function VersionHistoryView() {
 	// keduanya, versi berhalaman banyak dirender ke satu lembar raksasa.
 	const [pageCount, setPageCount] = useState(1)
 	const [sheets, setSheets] = useState<SheetGeometry[]>([])
+	// Sama seperti tampilan berbagi: tanpa kursor, "sekarang" = lembar terlihat.
+	const { page, scrollToPage } = useVisiblePage()
 
 	const editor = useEditor({
 		immediatelyRender: false,
@@ -216,6 +220,9 @@ export function VersionHistoryView() {
 					<p className="text-xs text-muted">
 						{selectedVersion ? dateFormat.format(new Date(selectedVersion.createdAt)) : 'Versi saat ini'}
 					</p>
+				</div>
+				<div className="ml-auto shrink-0">
+					{pageCount > 1 && <PageIndicator page={page} pageCount={pageCount} onJump={scrollToPage} />}
 				</div>
 			</header>
 
