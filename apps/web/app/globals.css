@@ -2052,6 +2052,7 @@ html.light .range-highlight {
     margin: 0;
     border: 0;
   }
+  .document-body .page-break::before,
   .document-body .page-break::after {
     display: none;
   }
@@ -2064,6 +2065,7 @@ html.light .range-highlight {
     margin: 0;
     border: 0;
   }
+  .document-body .section-break::before,
   .document-body .section-break::after {
     display: none;
   }
