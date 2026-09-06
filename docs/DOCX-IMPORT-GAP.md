@@ -4,6 +4,10 @@ Status: **Butir S/M selesai diimplementasi 5 September 2026; modul dipecah ulang
 tersisa D8 & S8 (keputusan produk)** ·
 Audit awal & baseline kode `e81162b` (branch `main`); hasil verifikasi ulang ada di [§8](#8-hasil-setelah-perbaikan).
 
+> **Lanjutan:** putaran berikutnya membandingkan ekspor PDF Google Docs lawan Writer Hub dari satu
+> berkas yang sama, dan fokusnya bergeser dari impor ke **render & cetak** —
+> lihat [DOCX-IMPORT-GAP-V2.md](DOCX-IMPORT-GAP-V2.md).
+
 Dokumen ini mendata konten DOCX yang **belum** terbawa ke editor, diverifikasi dengan
 menjalankan importer yang sebenarnya (`apps/web/features/document/docx/`) terhadap empat
 berkas uji nyata, bukan dari membaca kode saja.
