@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 function sheetsOf(): HTMLElement[] {
 	return Array.from(document.querySelectorAll<HTMLElement>('.document-sheet'))
@@ -15,12 +15,19 @@ function sheetsOf(): HTMLElement[] {
  * Wadah gulungnya tidak seragam antar tampilan, tapi selalu leluhur terdekat
  * `.overflow-auto` dari lembar, jadi ia dicari per ukuran, bukan diteruskan
  * sebagai ref.
+ *
+ * `onUserScroll` dipanggil (ter-throttle rAF) tiap kali wadahnya bergulir —
+ * pemanggil hybrid memakainya untuk mengalihkan sumber angka ke lembar
+ * terlihat. Gulungan programatik pun memanggilnya; pemanggil yang peduli
+ * cukup menegaskan kembali sumbernya setelah aksinya sendiri.
  */
-export function useVisiblePage(): {
+export function useVisiblePage(onUserScroll?: () => void): {
 	page: number
 	scrollToPage: (page: number) => void
 } {
 	const [page, setPage] = useState(1)
+	const notifyRef = useRef(onUserScroll)
+	notifyRef.current = onUserScroll
 
 	const measure = useCallback(() => {
 		const list = sheetsOf()
@@ -53,6 +60,7 @@ export function useVisiblePage(): {
 				if (frame) return
 				frame = requestAnimationFrame(() => {
 					frame = 0
+					notifyRef.current?.()
 					measure()
 				})
 			}

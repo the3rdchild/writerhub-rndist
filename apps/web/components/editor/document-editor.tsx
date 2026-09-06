@@ -1,7 +1,7 @@
 'use client'
 
 import { Clipboard, FileText, Upload, X } from 'lucide-react'
-import { useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentImport } from '@/features/document/import-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
@@ -28,15 +28,34 @@ export function DocumentEditor() {
 	const containerRef = useRef<HTMLDivElement>(null)
 
 	/*
-	 * Indikator halaman mengikuti kursor (seperti bilah status Word). Lompatan
-	 * memindahkan lembar secara instan lalu menaruh kursor di blok pertama
-	 * lembar tujuan, supaya angka yang terbaca dan tempat menyunting lanjut
-	 * berada di halaman yang sama.
+	 * Angka halaman itu hibrida: interaksi terakhir yang menang. Menyunting
+	 * (klik, ketik) menyerahkannya ke kursor seperti bilah status Word;
+	 * menggulir menyerahkannya ke lembar yang sedang terlihat — sehingga
+	 * sekadar menjelajah lewat scroll tetap memberi tahu halaman, termasuk
+	 * lembar yang isinya kode (blok kode tak punya posisi kursor teks untuk
+	 * diikuti). Lompatan memindahkan keduanya: lembar secara instan, lalu
+	 * kursor ke blok pertama lembar tujuan supaya lanjut menyunting berada
+	 * di halaman yang terbaca.
 	 */
 	const pages = usePageStatus(editor)
-	const { scrollToPage } = useVisiblePage()
+	const [pageSource, setPageSource] = useState<'caret' | 'scroll'>('caret')
+	const followScroll = useCallback(() => setPageSource('scroll'), [])
+	const { page: visiblePage, scrollToPage } = useVisiblePage(followScroll)
+	useEffect(
+		function caretDrivesAfterSelection() {
+			if (!editor || editor.isDestroyed) return
+			const on = () => setPageSource('caret')
+			editor.on('selectionUpdate', on)
+			return () => {
+				editor.off('selectionUpdate', on)
+			}
+		},
+		[editor],
+	)
+	const currentPage = pageSource === 'caret' ? pages.page : visiblePage
 	const jumpToPage = (target: number) => {
 		scrollToPage(target)
+		setPageSource('caret')
 		if (!editor || editor.isDestroyed) return
 		const state = paginationKey.getState(editor.state)
 		const range = state ? pageBlockRange(state.blockPages, target - 1, editor.state.doc.content.size) : null
@@ -131,7 +150,7 @@ export function DocumentEditor() {
 
 			<div className="flex shrink-0 items-center gap-3 bg-surface px-4 py-1.5">
 				{!state.file && pages.pageCount > 1 && (
-					<PageIndicator page={pages.page} pageCount={pages.pageCount} onJump={jumpToPage} />
+					<PageIndicator page={currentPage} pageCount={pages.pageCount} onJump={jumpToPage} />
 				)}
 
 				{settings.showWordCount && !state.file && (
