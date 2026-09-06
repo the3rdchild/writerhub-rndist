@@ -187,6 +187,21 @@ export function TocBlockView({
 		},
 		[editor],
 	)
+	/*
+	 * Nomor halaman diturunkan dari geometri kanvas (V2 lapis 1). Ia dulu
+	 * dibaca sekali saat node dipasang - sebelum paginator menyisipkan
+	 * pengganjalnya - lalu tak pernah dihitung ulang, sehingga tiga daftar
+	 * identik memotret tiga keadaan antara yang berbeda (15/14/13). Setiap
+	 * kali susunan pengganjal berubah (pageTick), angkanya dihitung ulang
+	 * dari tata letak yang sudah mapan.
+	 */
+	useEffect(
+		function refreshPagesOnPaginationSettle() {
+			if (pageTick === 0) return
+			refresh(false)
+		},
+		[pageTick, refresh],
+	)
 	useLayoutEffect(() => {
 		const pos = getPos()
 		const wrapper = pos === undefined ? null : editor.view.nodeDOM(pos)

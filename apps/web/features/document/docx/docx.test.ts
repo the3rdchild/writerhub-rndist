@@ -224,7 +224,76 @@ describe('field', () => {
 		expect(block?.attrs?.maxLevel).toBe(4)
 	})
 
-	test('field tanpa hasil tersimpan tidak menelan paragraf sesudahnya', async () => {
+	test('field TOC bergaya dengan contoh "Gambar" jadi daftar gambar', async () => {
+		const styles = `<w:style w:type="paragraph" w:styleId="Heading5"><w:name w:val="heading 5"/></w:style>`
+		const field = `
+			<w:r><w:fldChar w:fldCharType="begin"/></w:r>
+			<w:r><w:instrText xml:space="preserve"> TOC \\h \\u \\z \\t "Heading 5,1," </w:instrText></w:r>
+			<w:r><w:fldChar w:fldCharType="separate"/></w:r>
+			<w:r><w:fldChar w:fldCharType="end"/></w:r>`
+		const result = await readDocx(
+			docx({
+				styles,
+				body: p(field) + p(r('Gambar 2.1 Papan Arduino'), '<w:pStyle w:val="Heading5"/>'),
+			}),
+		)
+
+		const block = blocks(result.content)[0]
+		expect(block?.type).toBe('tocBlock')
+		expect(block?.attrs?.listKind).toBe('gambar')
+		expect(block?.attrs?.minLevel).toBe(7)
+		expect(block?.attrs?.maxLevel).toBe(9)
+	})
+
+	test('field TOC bergaya dengan contoh "Tabel" jadi daftar tabel', async () => {
+		const styles = `
+			<w:style w:type="paragraph" w:styleId="Heading5"><w:name w:val="heading 5"/></w:style>
+			<w:style w:type="paragraph" w:styleId="Heading6"><w:name w:val="heading 6"/></w:style>`
+		const field = `
+			<w:r><w:fldChar w:fldCharType="begin"/></w:r>
+			<w:r><w:instrText xml:space="preserve"> TOC \\h \\u \\z \\t "Heading 5,5,Heading 6,1" </w:instrText></w:r>
+			<w:r><w:fldChar w:fldCharType="separate"/></w:r>
+			<w:r><w:fldChar w:fldCharType="end"/></w:r>`
+		const result = await readDocx(
+			docx({
+				styles,
+				body: p(field) + p(r('Tabel 3.1 Data uji'), '<w:pStyle w:val="Heading6"/>'),
+			}),
+		)
+
+		const block = blocks(result.content)[0]
+		expect(block?.type).toBe('tocBlock')
+		expect(block?.attrs?.listKind).toBe('tabel')
+		expect(block?.attrs?.minLevel).toBe(7)
+		expect(block?.attrs?.maxLevel).toBe(9)
+	})
+
+	test('field TOC bergaya berisi kerangka tetap jadi daftar isi', async () => {
+		const styles = `
+			<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/></w:style>
+			<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/></w:style>`
+		const field = `
+			<w:r><w:fldChar w:fldCharType="begin"/></w:r>
+			<w:r><w:instrText xml:space="preserve"> TOC \\h \\u \\z \\t "Heading 1,1,Heading 2,2," </w:instrText></w:r>
+			<w:r><w:fldChar w:fldCharType="separate"/></w:r>
+			<w:r><w:fldChar w:fldCharType="end"/></w:r>`
+		const result = await readDocx(
+			docx({
+				styles,
+				body:
+					p(field) +
+					p(r('BAB 1 PENDAHULUAN'), '<w:pStyle w:val="Heading1"/>') +
+					p(r('Latar Belakang'), '<w:pStyle w:val="Heading2"/>'),
+			}),
+		)
+
+		const block = blocks(result.content)[0]
+		expect(block?.type).toBe('tocBlock')
+		expect(block?.attrs?.listKind).toBe('isi')
+		expect(block?.attrs?.maxLevel).toBe(2)
+	})
+
+	test('field TOC tanpa hasil tersimpan tidak menelan paragraf sesudahnya', async () => {
 		const field = `
 			<w:r><w:fldChar w:fldCharType="begin"/></w:r>
 			<w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>

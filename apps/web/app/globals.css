@@ -2070,6 +2070,30 @@ html.light .range-highlight {
     display: none;
   }
 
+  /*
+   * Gambar (V3): pegangan ukur, tombol hapus, dan bingkai pilihan adalah
+   * perkakas layar - pernah tercetak garis biru, titik, dan tanda ×
+   * mengelilingi Gambar 3.4 di halaman 28 PDF. Keluarga yang sama dengan
+   * penanda break, cuma terlewat.
+   */
+  .document-body .resizable-image-handle,
+  .document-body .resizable-image-delete {
+    display: none !important;
+  }
+  .document-body .resizable-image-wrapper[data-selected] .resizable-image-figure {
+    outline: none;
+  }
+  /*
+   * Gambar (V4): kertas dipaginasi peramban tanpa pengganjal yang menjaganya,
+   * jadi gambar harus menjaga dirinya sendiri agar tidak terbelah di batas
+   * halaman. Gambar yang lebih tinggi dari satu halaman penuh tetap terpenggal
+   * - itu memang tak terhindarkan.
+   */
+  .document-body .resizable-image-wrapper,
+  .document-body .resizable-image-figure {
+    break-inside: avoid;
+  }
+
   /* Saat dicetak browser yang memenggal tabel, jadi sisipan layar justru
      mengganggu: baris kosongnya menyisakan lubang dan headernya jadi ganda. */
   .document-body .page-break-row,

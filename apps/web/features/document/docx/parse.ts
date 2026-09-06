@@ -29,6 +29,7 @@ import {
 	fieldDepthDelta,
 	MAX_SWALLOWED,
 	replaceManualToc,
+	styleTextSamplerOf,
 	type TocField,
 	tocBlockOf,
 	tocFieldOf,
@@ -430,8 +431,14 @@ export function bodyBlocks(
 	body: Element,
 	context: ParseContext,
 	onSection?: (props: SectionProps, endedAt: number) => void,
+	sampleOf?: (styleName: string) => string | undefined,
 ): JSONContent[] {
 	const blocks: JSONContent[] = []
+	/*
+	 * Contoh teks per gaya dipakai menentukan jenis field TOC bergaya (`\t`,
+	 * V5); dihitung sekali untuk seluruh badan lalu dibawa turun ke sdt.
+	 */
+	const styleTexts = sampleOf ?? styleTextSamplerOf(body, context.styles)
 	let toc: TocField | null = null
 	let tocDepth = 0
 	let swallowed = 0
@@ -458,7 +465,7 @@ export function bodyBlocks(
 
 		switch (tagName(node)) {
 			case 'p': {
-				const field = tocFieldOf(node)
+				const field = tocFieldOf(node, styleTexts)
 				if (field) {
 					if (field.depth <= 0) blocks.push(tocBlockOf(field))
 					else {
@@ -481,7 +488,7 @@ export function bodyBlocks(
 
 			case 'sdt': {
 				const content = child(node, 'sdtContent')
-				if (content) blocks.push(...bodyBlocks(content, context, onSection))
+				if (content) blocks.push(...bodyBlocks(content, context, onSection, styleTexts))
 				break
 			}
 			case 'sectPr':
