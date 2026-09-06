@@ -240,6 +240,23 @@ export interface SystemPromptInput {
 }
 
 /**
+ * Penjaga tanda baca anti-gaya-mesin (default aktif, bisa dimatikan lewat AI
+ * Memory). Ditulis tanpa em dash sama sekali supaya instruksinya dan
+ * keluarannya konsisten.
+ */
+export function dashRulePrompt(allowDashes: boolean | undefined): string {
+	if (allowDashes === true) return ''
+	return [
+		'Punctuation rule: never use the em dash or en dash as punctuation',
+		'in a sentence, neither surrounded by spaces nor attached to words.',
+		'Use a comma, parentheses, a colon, or split the sentence instead.',
+		'The only allowed dash between numbers in a range is a plain hyphen',
+		'(for example 2019-2020). This applies to your chat replies and to any',
+		'content you write into the document alike.',
+	].join(' ')
+}
+
+/**
  * Merangkai bagian-bagian prompt sesuai kemampuan yang aktif untuk permintaan
  * ini. Bagian yang kosong - misalnya memori gaya yang belum diisi pengguna -
  * dibuang, bukan disisipkan sebagai paragraf hampa.
@@ -247,6 +264,7 @@ export interface SystemPromptInput {
 export function buildSystemPrompt({ withTools, research, memory, templateRules }: SystemPromptInput): string {
 	return [
 		SYSTEM_PROMPT,
+		dashRulePrompt(memory?.allowDashes),
 		withTools ? TOOL_GUIDANCE : fallbackToolPrompt({ research }),
 		withTools ? NARRATIVE_GUIDANCE : '',
 		research ? RESEARCH_GUIDANCE : RESEARCH_OFF_NOTICE,

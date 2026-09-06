@@ -1,4 +1,5 @@
 import type { ChatStreamEvent } from '@writer-hub/shared'
+import { sanitizeAIDashes, sanitizeToolArguments } from '@writer-hub/shared'
 import { chatProviderFailure, toChatFailure } from './failure'
 
 /**
@@ -24,9 +25,15 @@ export interface PartialToolCall {
 
 export const PING_INTERVAL_MS = 15_000
 
+export interface ChatStreamOptions {
+	/** Ganti dash prosa keluaran AI dengan koma (penjaga gaya anti-mesin). */
+	dashGuard?: boolean
+}
+
 export function openChatStream(
 	call: (withTools: boolean) => Promise<Response>,
 	wantsTools: boolean,
+	options: ChatStreamOptions = {},
 ): ReadableStream<Uint8Array> {
 	const encoder = new TextEncoder()
 
@@ -56,7 +63,7 @@ export function openChatStream(
 				}
 
 				send({ type: 'status', phase: 'thinking' })
-				await pumpUpstream(upstream.body, send)
+				await pumpUpstream(upstream.body, send, options)
 				send({ type: 'done' })
 			} catch (error) {
 				// Dulu di sini `error.message` diteruskan apa adanya - dan karena
@@ -72,12 +79,45 @@ export function openChatStream(
 	})
 }
 
-async function pumpUpstream(body: ByteSource, send: (event: ChatStreamEvent) => void): Promise<void> {
+async function pumpUpstream(
+	body: ByteSource,
+	send: (event: ChatStreamEvent) => void,
+	options: ChatStreamOptions = {},
+): Promise<void> {
 	const decoder = new TextDecoder()
 	const reader = body.getReader()
 	let buffer = ''
 	const pending = new Map<number, PartialToolCall>()
 	let phase: 'thinking' | 'reading' | 'writing' = 'thinking'
+
+	/*
+	 * Penjaga dash (opsional). Pembersihnya butuh konteks karakter
+	 * sebelum-sesudah dash, padahal delta tiba terpotong-potong; ujung untai
+	 * yang masih mungkin disambung angka atau spasi ditahan satu putaran,
+	 * selebihnya langsung dibersihkan dan dikirim supaya pengalaman
+	 * mengetik-hidup tidak terganggu.
+	 */
+	const dashGuard = options.dashGuard === true
+	let carry = ''
+	const flushable = (text: string): number => {
+		const tail = /[ \t\d—–-]+$/.exec(text)
+		return tail ? text.length - tail[0].length : text.length
+	}
+	const emitDelta = (raw: string, final: boolean) => {
+		const combined = carry + raw
+		if (final) {
+			carry = ''
+			send({ type: 'delta', text: sanitizeAIDashes(combined) })
+			return
+		}
+		const cut = flushable(combined)
+		if (cut <= 0) {
+			carry = combined
+			return
+		}
+		carry = combined.slice(cut)
+		send({ type: 'delta', text: sanitizeAIDashes(combined.slice(0, cut)) })
+	}
 
 	try {
 		while (true) {
@@ -105,7 +145,8 @@ async function pumpUpstream(body: ByteSource, send: (event: ChatStreamEvent) => 
 							phase = 'writing'
 							send({ type: 'status', phase })
 						}
-						send({ type: 'delta', text })
+						if (dashGuard) emitDelta(text, false)
+						else send({ type: 'delta', text })
 					}
 					const reasoning = delta?.reasoning_content ?? delta?.reasoning
 					if (typeof reasoning === 'string' && reasoning.length > 0) {
@@ -145,9 +186,12 @@ async function pumpUpstream(body: ByteSource, send: (event: ChatStreamEvent) => 
 				type: 'tool_call',
 				id: call.id || `call_${call.name}_${Math.random().toString(36).slice(2, 8)}`,
 				name: call.name,
-				arguments: call.arguments || '{}',
+				arguments: dashGuard ? sanitizeToolArguments(call.arguments || '{}') : call.arguments || '{}',
 			})
 		}
+		// Penyangga delta yang tersisa tidak boleh hilang; rentang angka di
+		// ujung balasan ikut dinilai dengan konteks penuhnya di sini.
+		if (dashGuard && carry) emitDelta('', true)
 	} finally {
 		reader.releaseLock()
 	}

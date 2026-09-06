@@ -5,6 +5,7 @@ export const memoryPreferencesSchema = z.object({
 	language: z.string().max(100).optional(),
 	glossary: z.array(z.string().min(1).max(100)).max(100).optional(),
 	notes: z.string().max(500).optional(),
+	allowDashes: z.boolean().optional(),
 })
 
 export type MemoryPreferences = z.infer<typeof memoryPreferencesSchema>

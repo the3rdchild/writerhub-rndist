@@ -30,6 +30,11 @@ export interface StyleMemory {
 	language?: string
 	glossary?: string[]
 	notes?: string
+	/**
+	 * Benarkan em/en dash sebagai tanda baca kalimat pada keluaran AI.
+	 * Bawaan (undefined/false): dash prosa diganti koma, rentang angka tetap.
+	 */
+	allowDashes?: boolean
 }
 
 export interface TextRange {

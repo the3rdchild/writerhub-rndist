@@ -55,6 +55,16 @@ describe('perangkaian prompt sistem', () => {
 		expect(mati).not.toContain(RESEARCH_GUIDANCE)
 	})
 
+	test('aturan dash aktif secara bawaan dan hilang bila diizinkan', () => {
+		const bawaan = buildSystemPrompt(dasar)
+		expect(bawaan).toContain('never use the em dash or en dash')
+
+		const diizinkan = buildSystemPrompt({ ...dasar, memory: { allowDashes: true } as StyleMemory })
+		expect(diizinkan).not.toContain('never use the em dash or en dash')
+		// Instruksinya sendiri pun tidak boleh memuat karakter yang dilarangnya.
+		expect(bawaan.slice(SYSTEM_PROMPT.length)).not.toMatch(/[—–]/)
+	})
+
 	test('memori kosong tidak meninggalkan paragraf hampa', () => {
 		// Bagian dirangkai dengan join('\n\n'), jadi bagian kosong yang lolos
 		// filter akan tampak sebagai tiga baris baru berturut-turut.

@@ -48,7 +48,12 @@ export default class ChatService extends JobSubmissionService {
 			const call = (withTools: boolean) =>
 				this.callProvider(config, parsed.data, withTools, memory, templateRules)
 
-			return new Response(openChatStream(call, parsed.data.tools ?? false), { headers: SSE_HEADERS })
+			// Penjaga dash tunduk pada preferensi tersimpan: aktif kecuali penulis
+			// sengaja menyalakannya di AI Memory.
+			const dashGuard = memory?.allowDashes !== true
+			return new Response(openChatStream(call, parsed.data.tools ?? false, { dashGuard }), {
+				headers: SSE_HEADERS,
+			})
 		} catch (error) {
 			return this.failFromError(error)
 		}

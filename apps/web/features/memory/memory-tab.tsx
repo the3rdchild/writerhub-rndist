@@ -19,6 +19,7 @@ export function MemoryTab() {
 	const [glossary, setGlossary] = useState<string[]>([])
 	const [term, setTerm] = useState('')
 	const [notes, setNotes] = useState('')
+	const [allowDashes, setAllowDashes] = useState(false)
 	const [saved, setSaved] = useState(false)
 	useEffect(
 		function fillFormFromSavedMemory() {
@@ -27,6 +28,7 @@ export function MemoryTab() {
 			setLanguage(memory.data.language ?? '')
 			setGlossary(memory.data.glossary ?? [])
 			setNotes(memory.data.notes ?? '')
+			setAllowDashes(memory.data.allowDashes === true)
 			setSaved(false)
 		},
 		[memory.data],
@@ -46,6 +48,7 @@ export function MemoryTab() {
 		if (language) preferences.language = language
 		if (glossary.length > 0) preferences.glossary = glossary
 		if (notes.trim()) preferences.notes = notes.trim()
+		if (allowDashes) preferences.allowDashes = true
 
 		setSaved(false)
 		save.mutate(preferences, { onSuccess: () => setSaved(true) })
@@ -193,6 +196,25 @@ export function MemoryTab() {
 				>
 					{notes.length}/{NOTES_MAX}
 				</span>
+			</Field>
+
+			<Field label="Em / en dashes (— –) in AI sentences">
+				<label className="flex cursor-pointer items-start gap-2">
+					<input
+						type="checkbox"
+						checked={allowDashes}
+						onChange={(event) => {
+							setAllowDashes(event.target.checked)
+							setSaved(false)
+						}}
+						className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
+					/>
+					<span className="text-xs leading-relaxed text-muted">
+						Allow the AI to use dashes as sentence punctuation. Off by default: AI replies and document
+						content use commas instead, which reads less machine-written. Number ranges (2019–2020) keep their
+						dash either way.
+					</span>
+				</label>
 			</Field>
 
 			<div className="flex items-center gap-3">
