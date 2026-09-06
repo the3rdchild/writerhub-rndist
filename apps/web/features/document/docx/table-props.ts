@@ -65,7 +65,13 @@ export function tablePropsOf(
 	tblPr: Element | null,
 	styleBorders?: BorderAttrs | null,
 ): Record<string, unknown> {
-	if (!tblPr) return {}
+	/*
+	 * "Tidak disebut" dan "dinyatakan nihil" harus berujung sama: tabel polos.
+	 * Tanpa penanda eksplisit, kanvas memasang kisi bawaannya pada tabel yang di
+	 * Word tampil tanpa garis (sampul, blok tanda tangan) — penanda itulah yang
+	 * membuat gaya kanvas tunduk (V6).
+	 */
+	if (!tblPr) return { borderStyle: 'none' }
 
 	const attrs: Record<string, unknown> = {}
 
@@ -82,9 +88,12 @@ export function tablePropsOf(
 		attrs.indentLeft = twipsToPx(indent)
 	}
 
-	// Border langsung menang; tanpa itu, pakai border dari style tabel.
-	const border = readBorderAttrs(child(tblPr, 'tblBorders')) ?? styleBorders ?? null
+	// Border langsung menang; tanpa itu, pakai border dari style tabel; kali
+	// keduanya nihil, "tanpa garis" ditulis eksplisit supaya kisi bawaan
+	// kanvas tidak menimpa rupa sumbernya.
+	const border = readBorderAttrs(child(tblPr, 'tblBorders')) ?? styleBorders
 	if (border) Object.assign(attrs, border)
+	else attrs.borderStyle = 'none'
 
 	return attrs
 }

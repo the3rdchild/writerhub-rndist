@@ -567,6 +567,8 @@ a {
  */
 .document-body > .tableWrapper + *,
 .document-body > * + .tableWrapper,
+.document-body > table + *,
+.document-body > * + table,
 .document-body > .node-image + *,
 .document-body > * + .node-image {
   margin-top: 0;
@@ -845,11 +847,14 @@ a {
 
 /* Tabel - satu-satunya tempat gaya tabel ditulis. Dulu ada blok kedua di bawah
    yang menimpa sebagian nilai di sini, sehingga menyunting yang ini sering
-   tidak berefek apa pun; nilai yang menang sudah digabung ke sini. */
+   tidak berefek apa pun; nilai yang menang sudah digabung ke sini.
+
+   Tanpa margin: di Word maupun Docs jarak di sekeliling tabel milik paragraf
+   sebelah (lihat pengecualian .tableWrapper pada aturan `> * + *` di atas);
+   margin di sini menimbunnya kembali dengan 11px yang tidak ada di sumber. */
 .document-body table {
   border-collapse: collapse;
   width: 100%;
-  margin: 0.75em 0;
   table-layout: fixed;
   overflow: hidden;
 }
@@ -865,6 +870,16 @@ a {
   background: var(--overlay-hover);
   font-weight: 600;
   text-align: left;
+}
+/* Tabel polos dari sumbernya (V6): impor menulis `borderStyle: 'none'`
+   eksplisit - sampul, blok tanda tangan. Kisi sel dan latar baris judul
+   bawaan harus tunduk ke penanda itu, bukan menimpa rupa sumbernya. */
+.document-body table[data-border-style='none'] th,
+.document-body table[data-border-style='none'] td {
+  border: none;
+}
+.document-body table[data-border-style='none'] th {
+  background: none;
 }
 .document-body .selectedCell::after {
   content: '';
@@ -2099,6 +2114,23 @@ html.light .range-highlight {
   .document-body .page-break-row,
   .document-body .table-header-repeat {
     display: none !important;
+  }
+
+  /*
+   * Paritas aturan penggalan kanvas-kertas (V1): paginator kanvas menjaga
+   * setiap judul agar tidak yatim di dasar lembar (KEEP_WITH_NEXT), tapi di
+   * kertas hanya yang membawa atribut eksplisit. Tanpa aturan ini kertas
+   * memenggal di tempat yang kanvas hindarkan - dua mesin berselisih
+   * halaman padahal naskahnya sama.
+   */
+  .document-body h1,
+  .document-body h2,
+  .document-body h3,
+  .document-body h4,
+  .document-body h5,
+  .document-body h6,
+  .document-body .heading {
+    break-after: avoid;
   }
 
   /*

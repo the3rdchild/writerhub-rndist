@@ -151,7 +151,7 @@ function measureBlocks(view: EditorView): Measurement[] {
 			return
 		}
 
-		if (dom.hasAttribute(SELF_PAGINATE_ATTRIBUTE)) {
+		if (dom.hasAttribute(SELF_PAGINATE_ATTRIBUTE) || dom.querySelector(`[${SELF_PAGINATE_ATTRIBUTE}]`)) {
 			let internal = 0
 			for (const element of dom.querySelectorAll<HTMLElement>(`[${SPACER_ATTRIBUTE}]`)) {
 				internal += element.offsetHeight
@@ -394,6 +394,25 @@ export function computeSpacers(
 			continue
 		}
 
+		if (block.isBreak) {
+			/*
+			 * Pemenggal bertinggi nol tidak menempati ruang, jadi ia tidak
+			 * pernah meluap dan tidak pernah menjadi penerima spacer biasa.
+			 * Tugasnya satu: menandai bahwa blok sesudahnya membuka lembar
+			 * baru. Pemenggal BERUNTUN adalah satu-satunya pengecualian:
+			 * penulis meminta lembar kosong di antaranya, jadi tiap
+			 * pemenggal tambahan mengosongkan satu lembar di tempat -
+			 * bukan dengan spacer miliknya, melainkan lembar kosong
+			 * sungguhan lewat pushSheet (spacer milik pemenggal yang dulu
+			 * ikut mendorong blok SESUDAHNYA dua kali - itulah asal dua
+			 * lembar kosong liar setelah blok daftar isi yang meluber).
+			 */
+			blockPages.push({ pos: block.pos, page: sheets.length - 1 })
+			if (forceNext) pushSheet()
+			forceNext = true
+			continue
+		}
+
 		const sheet = sheets[sheets.length - 1]
 		/*
 		 * `isFirstOnPage` hanya menjaga luapan: blok yang lebih tinggi dari satu
@@ -470,7 +489,13 @@ export function computeSpacers(
 		}
 		if (block.kind === 'block') blockPages.push({ pos: block.pos, page: sheets.length - 1 })
 
-		forceNext = block.isBreak
+		/*
+		 * Permintaan lembar baru sudah dipenuhi oleh blok ini; tanpa reset,
+		 * ia menular ke semua blok sesudahnya dan tiap blok mendapat lembarnya
+		 * sendiri. (Dulu bagian dari `forceNext = block.isBreak`; pemenggal
+		 * kini berhenti lebih awal, jadi nilainya selalu false di sini.)
+		 */
+		forceNext = false
 		const canvasBottom = block.bottom + cumulative + baseMargins.top
 		const before = sheets.length
 		while (nextContentTop() < canvasBottom - 0.5) pushSheet()

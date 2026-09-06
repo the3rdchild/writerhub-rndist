@@ -3,7 +3,9 @@
 import { type CommandProps, Extension } from '@tiptap/core'
 import { Table, TableRow } from '@tiptap/extension-table'
 import type { Node as PMNode } from '@tiptap/pm/model'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { CellSelection, findTable, TableMap } from '@tiptap/pm/tables'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
 import { CustomTableCell, CustomTableHeader, NO_COLOR } from '@/features/editor/custom-table'
 import { columnWidths, locateTable } from '@/features/editor/table-ops'
@@ -196,7 +198,67 @@ export const TableNodeProps = Table.extend({
 			},
 		}
 	},
+
+	/*
+	 * Tabel resizable memakai TableView milik ProseMirror, yang merakit DOM
+	 * sendiri dan tidak pernah memanggil renderHTML - atribut bingkai (dari
+	 * impor DOCX maupun panel tabel) tidak pernah sampai ke elemen hidupnya.
+	 * Dekorasi node-lah yang menempelkannya: ia ikut dipelihara ProseMirror,
+	 * berlaku di kanvas dan di hasil cetak, dan tetap sinkron saat atribut
+	 * berubah (V6: tabel polos dari sumber tampil polos, bukan kisi bawaan).
+	 */
+	addProseMirrorPlugins() {
+		return [
+			new Plugin<{ decorations: DecorationSet }>({
+				key: new PluginKey('tableBorderDecoration'),
+				state: {
+					init: (_, state) => ({ decorations: borderDecorations(state.doc) }),
+					apply: (tr, value) =>
+						tr.docChanged
+							? { decorations: borderDecorations(tr.doc) }
+							: { decorations: value.decorations.map(tr.mapping, tr.doc) },
+				},
+				props: {
+					decorations(state) {
+						return this.getState(state)?.decorations
+					},
+				},
+			}),
+		]
+	},
 })
+
+function borderDecorations(doc: PMNode): DecorationSet {
+	const decorations: Decoration[] = []
+
+	doc.descendants((node, pos) => {
+		if (node.type.name !== 'table') return
+		const { borderColor, borderWidth, borderStyle } = node.attrs as {
+			borderColor?: string | null
+			borderWidth?: number | null
+			borderStyle?: string | null
+		}
+		const style: string[] = []
+		const attrs: Record<string, string> = {}
+		if (borderColor) {
+			attrs['data-border-color'] = borderColor
+			style.push(`border-color: ${borderColor}`)
+		}
+		if (borderWidth) {
+			attrs['data-border-width'] = String(borderWidth)
+			style.push(`border-width: ${borderWidth}px`)
+		}
+		if (borderStyle) {
+			attrs['data-border-style'] = borderStyle
+			style.push(`border-style: ${borderStyle}`)
+		}
+		if (style.length > 0) attrs.style = style.join('; ')
+		if (Object.keys(attrs).length === 0) return
+		decorations.push(Decoration.node(pos, pos + node.nodeSize, attrs))
+	})
+
+	return DecorationSet.create(doc, decorations)
+}
 
 /** Rows covered by the selection (CellSelection → all covered; text → cursor row). */
 function rowsInSelection({ state }: CommandProps): number[] {

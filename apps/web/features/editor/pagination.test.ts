@@ -374,6 +374,33 @@ describe('blok self-paginate (blok TOC)', () => {
 		expectStartsPage(100 + spacers[0].height, 2)
 		expect(pageCount).toBe(2)
 	})
+
+	test('pemenggal setelah blok self-paginate tidak melahirkan lembar kosong beruntun', () => {
+		/*
+		 * V1: rantai daftar isi → pemenggal → judul bab berikutnya, dengan
+		 * celah internal milik daftar isi (toc-page-gap). Dulu pemenggal
+		 * bertinggi nol itu sendiri menerima spacer - mengosongkan satu
+		 * lembar - lalu judul sesudahnya menerima spacer LAGI dan
+		 * mengosongkan lembar berikutnya: dua lembar kosong beruntun di
+		 * kanvas yang di kertasnya tidak ada (lembar 5-6 pada dokumen uji).
+		 */
+		const internal = 700
+		const blocks: Measurement[] = [
+			{ pos: 0, top: 0, bottom: 100, isBreak: false, kind: 'block' },
+			{ pos: 1, top: 100, bottom: 1500, isBreak: false, kind: 'block', selfPaginate: true, internal },
+			{ pos: 2, top: 1500, bottom: 1500, isBreak: true, kind: 'block' },
+			{ pos: 3, top: 1500, bottom: 1548, isBreak: false, kind: 'block' },
+		]
+		const { spacers, pageCount, blockPages } = computeSpacers(blocks, geometry)
+
+		// Pemenggal tidak pernah menjadi penerima spacer: tugasnya hanya
+		// menandai bahwa blok sesudahnya membuka lembar baru.
+		expect(spacers.map((spacer) => spacer.pos)).toEqual([3])
+		// Satu lembar untuk judul+daftar isi yang meluber, satu lagi untuk
+		// judul bab yang diminta pemenggal - tidak ada lembar kosong ekstra.
+		expect(pageCount).toBe(3)
+		expect(blockPages.find((entry) => entry.pos === 3)?.page).toBe(2)
+	})
 })
 
 describe('paginasi tak seragam (§P8&P9)', () => {

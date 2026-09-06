@@ -230,11 +230,12 @@ describe('field', () => {
 			<w:r><w:fldChar w:fldCharType="begin"/></w:r>
 			<w:r><w:instrText xml:space="preserve"> TOC \\h \\u \\z \\t "Heading 5,1," </w:instrText></w:r>
 			<w:r><w:fldChar w:fldCharType="separate"/></w:r>
+			${r('Gambar 2.1 Papan Arduino')}
 			<w:r><w:fldChar w:fldCharType="end"/></w:r>`
 		const result = await readDocx(
 			docx({
 				styles,
-				body: p(field) + p(r('Gambar 2.1 Papan Arduino'), '<w:pStyle w:val="Heading5"/>'),
+				body: p(field) + p(r('Gambar 2.2 Sensor ultrasonik'), '<w:pStyle w:val="Heading5"/>'),
 			}),
 		)
 
@@ -253,11 +254,12 @@ describe('field', () => {
 			<w:r><w:fldChar w:fldCharType="begin"/></w:r>
 			<w:r><w:instrText xml:space="preserve"> TOC \\h \\u \\z \\t "Heading 5,5,Heading 6,1" </w:instrText></w:r>
 			<w:r><w:fldChar w:fldCharType="separate"/></w:r>
+			${r('Tabel 3.1 Data uji')}
 			<w:r><w:fldChar w:fldCharType="end"/></w:r>`
 		const result = await readDocx(
 			docx({
 				styles,
-				body: p(field) + p(r('Tabel 3.1 Data uji'), '<w:pStyle w:val="Heading6"/>'),
+				body: p(field) + p(r('Tabel 3.2 Alat ukur'), '<w:pStyle w:val="Heading6"/>'),
 			}),
 		)
 
@@ -276,6 +278,7 @@ describe('field', () => {
 			<w:r><w:fldChar w:fldCharType="begin"/></w:r>
 			<w:r><w:instrText xml:space="preserve"> TOC \\h \\u \\z \\t "Heading 1,1,Heading 2,2," </w:instrText></w:r>
 			<w:r><w:fldChar w:fldCharType="separate"/></w:r>
+			${r('BAB 1 PENDAHULUAN')}
 			<w:r><w:fldChar w:fldCharType="end"/></w:r>`
 		const result = await readDocx(
 			docx({
@@ -301,6 +304,51 @@ describe('field', () => {
 		const result = await readDocx(docx({ body: p(field) + p(r('lanjut')) }))
 
 		expect(textOf(blocks(result.content)[1])).toBe('lanjut')
+	})
+
+	test('field TOC ber-kalimat "Update Field" dibiarkan sebagai teks, bukan daftar', async () => {
+		const field = `
+			<w:r><w:fldChar w:fldCharType="begin"/></w:r>
+			<w:r><w:instrText xml:space="preserve"> TOC \\h \\u \\z </w:instrText></w:r>
+			<w:r><w:fldChar w:fldCharType="separate"/></w:r>
+			${r('Klik kanan pada daftar ini lalu pilih Update Field untuk memperbarui.')}
+			<w:r><w:fldChar w:fldCharType="end"/></w:r>`
+		const result = await readDocx(docx({ body: p(field) }))
+
+		const block = blocks(result.content)[0]
+		expect(block?.type).toBe('paragraph')
+		expect(textOf(block)).toContain('Klik kanan pada daftar ini')
+	})
+
+	test('field TOC ber-entri sungguhan tetap jadi daftar yang hidup', async () => {
+		const field = `
+			<w:r><w:fldChar w:fldCharType="begin"/></w:r>
+			<w:r><w:instrText xml:space="preserve"> TOC \\o "1-3" \\h </w:instrText></w:r>
+			<w:r><w:fldChar w:fldCharType="separate"/></w:r>
+			${r('BAB 1 PENDAHULUAN')}
+			<w:r><w:fldChar w:fldCharType="end"/></w:r>`
+		const result = await readDocx(docx({ body: p(field) }))
+
+		expect(blocks(result.content)[0]?.type).toBe('tocBlock')
+	})
+
+	test('field TOC lintas paragraf ber-placeholder juga dibiarkan sebagai teks', async () => {
+		const open = `
+			<w:r><w:fldChar w:fldCharType="begin"/></w:r>
+			<w:r><w:instrText xml:space="preserve"> TOC \\h \\u \\z </w:instrText></w:r>`
+		const close = `
+			<w:r><w:fldChar w:fldCharType="end"/></w:r>`
+		const body =
+			p(open) +
+			p('<w:r><w:fldChar w:fldCharType="separate"/></w:r>' + r('No table of contents entries found.')) +
+			p(close) +
+			p(r('setelah daftar'))
+		const result = await readDocx(docx({ body }))
+
+		const first = blocks(result.content)[0]
+		expect(first?.type).toBe('paragraph')
+		expect(textOf(first)).toContain('No table of contents entries found.')
+		expect(textOf(blocks(result.content)[1])).toBe('setelah daftar')
 	})
 })
 
@@ -462,6 +510,28 @@ describe('tabel', () => {
 		expect(block?.attrs?.borderStyle).toBe('dotted')
 		expect(block?.attrs?.borderWidth).toBe(1)
 		expect(block?.attrs?.borderColor).toBe('#0000ff')
+	})
+
+	test('tabel tanpa deklarasi garis membawa "none" eksplisit (V6)', async () => {
+		const table = `<w:tbl><w:tblPr><w:tblW w:w="5670" w:type="dxa"/></w:tblPr>
+			<w:tr><w:tc>${p(r('Nama'))}</w:tc></w:tr></w:tbl>`
+		const block = blocks((await readDocx(docx({ body: table }))).content)[0]
+
+		expect(block?.attrs?.borderStyle).toBe('none')
+		expect(block?.attrs?.borderColor).toBeUndefined()
+	})
+
+	test('tblBorders yang dinyatakan nihil semua juga jadi "none"', async () => {
+		const table = `<w:tbl><w:tblPr><w:tblBorders>
+			<w:top w:val="none" w:sz="0"/>
+			<w:left w:val="nil" w:sz="0"/>
+			<w:bottom w:val="none" w:sz="0"/>
+			<w:right w:val="nil" w:sz="0"/>
+		</w:tblBorders></w:tblPr><w:tr><w:tc>${p(r('tanda tangan'))}</w:tc></w:tr></w:tbl>`
+		const block = blocks((await readDocx(docx({ body: table }))).content)[0]
+
+		expect(block?.attrs?.borderStyle).toBe('none')
+		expect(block?.attrs?.borderColor).toBeUndefined()
 	})
 
 	test('tblW dxa jadi tableWidth piksel, pct diabaikan', async () => {
@@ -841,9 +911,7 @@ describe('font tema', () => {
 	 * berubah.
 	 */
 	test('run tanpa rFonts memakai minorFont tema', async () => {
-		const result = await readDocx(
-			docx({ body: p(r('isi')), theme: { major: 'Calibri', minor: 'Cambria' } }),
-		)
+		const result = await readDocx(docx({ body: p(r('isi')), theme: { major: 'Calibri', minor: 'Cambria' } }))
 		const mark = markNamed(blocks(result.content)[0], 'textStyle')
 		expect(mark?.attrs?.fontFamily).toBe('Cambria, serif')
 	})
@@ -1358,8 +1426,7 @@ describe('rumus di sekitar daftar bernomor', () => {
 			<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl>
 		</w:abstractNum>
 		<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>`
-	const item = (text: string) =>
-		p(r(text), '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>')
+	const item = (text: string) => p(r(text), '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>')
 	const math = (name: string) =>
 		p(`<m:oMathPara><m:oMath><m:r><m:t>${name}</m:t></m:r></m:oMath></m:oMathPara>`)
 
@@ -1380,9 +1447,7 @@ describe('rumus di sekitar daftar bernomor', () => {
 	 */
 	test('rumus yang mengekor di belakang daftar menutup daftarnya', async () => {
 		const body = item('Langkah satu') + math('A') + math('B') + p(r('Penutup'))
-		const types = blocks((await readDocx(docx({ numbering: BULLET, body }))).content).map(
-			(node) => node.type,
-		)
+		const types = blocks((await readDocx(docx({ numbering: BULLET, body }))).content).map((node) => node.type)
 
 		expect(types).toEqual(['orderedList', 'mathBlock', 'mathBlock', 'paragraph'])
 	})

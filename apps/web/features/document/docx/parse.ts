@@ -27,6 +27,7 @@ import {
 import { tableBlocks } from './tables'
 import {
 	fieldDepthDelta,
+	isStaleTocStoredText,
 	MAX_SWALLOWED,
 	replaceManualToc,
 	styleTextSamplerOf,
@@ -442,6 +443,22 @@ export function bodyBlocks(
 	let toc: TocField | null = null
 	let tocDepth = 0
 	let swallowed = 0
+	/* Teks hasil tersimpan field TOC yang sedang terbuka — penanda belum
+	 * pernah di-update (§6.3). Paragraf pembuka ikut dihitung: hasil tersimpan
+	 * field yang satu paragraf dengan pembukanya hanya terbaca dari sana. */
+	let tocStored = ''
+
+	/*
+	 * Hasil field TOC: entri sungguhan → node daftar yang menyusun dirinya
+	 * sendiri; kalimat perintah "Update Field" (belum pernah di-update) atau
+	 * kosong → teks itu dipertahankan sebagai paragraf biasa, seperti yang
+	 * Google Docs lakukan pada field yang sama.
+	 */
+	const closeToc = (field: TocField, capped: boolean) => {
+		if (capped || !isStaleTocStoredText(tocStored)) blocks.push(tocBlockOf(field))
+		else if (tocStored.trim().length > 0)
+			blocks.push({ type: 'paragraph', content: [{ type: 'text', text: tocStored.trim() }] })
+	}
 
 	for (const node of children(body)) {
 		// Isi field TOC (hasil basi berikut nomor halamannya) ditelan utuh —
@@ -450,6 +467,7 @@ export function bodyBlocks(
 		if (toc) {
 			swallowed += 1
 			tocDepth += fieldDepthDelta(node)
+			tocStored += ` ${paragraphTextOf(node)}`
 
 			// Pengaman: field tanpa penutup tidak boleh menelan seluruh dokumen.
 			// Kalau pengaman ini yang menghentikannya, isi yang terlanjur
@@ -457,7 +475,7 @@ export function bodyBlocks(
 			const capped = swallowed >= MAX_SWALLOWED
 			if (capped) skip(context, 'daftar-isi-tanpa-penutup')
 			if (tocDepth <= 0 || capped) {
-				blocks.push(tocBlockOf(toc))
+				closeToc(toc, capped)
 				toc = null
 			}
 			continue
@@ -467,11 +485,14 @@ export function bodyBlocks(
 			case 'p': {
 				const field = tocFieldOf(node, styleTexts)
 				if (field) {
-					if (field.depth <= 0) blocks.push(tocBlockOf(field))
-					else {
+					if (field.depth <= 0) {
+						tocStored = paragraphTextOf(node)
+						closeToc(field, false)
+					} else {
 						toc = field
 						tocDepth = field.depth
 						swallowed = 0
+						tocStored = paragraphTextOf(node)
 					}
 					break
 				}
@@ -505,7 +526,10 @@ export function bodyBlocks(
 		}
 	}
 
-	if (toc) blocks.push(tocBlockOf(toc))
+	if (toc) {
+		closeToc(toc, false)
+		toc = null
+	}
 
 	return blocks
 }

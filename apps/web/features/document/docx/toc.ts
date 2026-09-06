@@ -24,6 +24,20 @@ export interface TocField {
 const FIGURE_CAPTION = /^\s*(?:gambar|figure|fig\.|gbr\.?)/i
 const TABLE_CAPTION = /^\s*(?:tabel|table|tbl\.)/i
 
+/*
+ * Kalimat penanda field TOC yang belum pernah di-update (§6.3): hasil
+ * tersimpannya (antara `separate` dan `end`) berisi kalimat perintah, bukan
+ * entri. Google Docs menulis versi Indonesianya saat menolak mengembangkan
+ * field; Word menulis versi Inggrisnya pada TOC segar tanpa entri.
+ */
+const STALE_TOC_HINT =
+	/(klik kanan|right-click|update field|no table of contents entries|tidak ada entri daftar isi)/i
+
+export function isStaleTocStoredText(text: string): boolean {
+	const trimmed = text.trim()
+	return trimmed.length === 0 || STALE_TOC_HINT.test(trimmed)
+}
+
 function elementTextOf(element: Element): string {
 	let text = ''
 	for (const node of descendAll(element, 't')) text += node.textContent ?? ''

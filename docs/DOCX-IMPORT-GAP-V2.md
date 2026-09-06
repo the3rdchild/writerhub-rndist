@@ -1,7 +1,8 @@
 # WritingHub — Celah Kesetiaan Dokumen v2: impor → render → cetak
 
-Status: **V3, V4, V2-lapis-1, dan V5-sisa selesai 6 September 2026** · lihat [§8](#8-hasil-setelah-perbaikan) ·
-V1 dan V6 menunggu keputusan §6 · baseline `e38ef09` (branch `main`)
+Status: **V3, V4, V2-lapis-1, V5-sisa, §6.3, V6, dan V1-tahap-1 selesai 6 September 2026** ·
+lihat [§8](#8-hasil-setelah-perbaikan) dan [§9](#9-putaran-kedua--v6-63-dan-v1-tahap-1) ·
+V1 tahap 2 (paritas paragraf) dan V7 menunggu pekerjaan lanjutan · baseline `e38ef09` (branch `main`)
 Lanjutan dari [DOCX-IMPORT-GAP.md](DOCX-IMPORT-GAP.md), yang menutup celah di sisi **impor**.
 
 Putaran ini memakai alat ukur yang berbeda: satu berkas `.docx` diekspor ke PDF lewat **dua
@@ -330,6 +331,83 @@ bersama V1.
 - Kanvas: 47 lembar / 39 pengganjal / 8 gambar — tidak berubah.
 - `bun test` 788 lulus (145 di antaranya impor DOCX, termasuk 3 uji baru untuk `\t`);
   `tsc --noEmit` bersih.
+
+---
+
+## 9. Putaran kedua — V6, §6.3, dan V1 tahap 1
+
+Keputusan yang dipakai: **kanvas mengikuti kertas** (V1), V6 **setia pada sumber**, field TOC
+**belum pernah di-update dibiarkan placeholder** seperti Docs (§6.3), caption **tidak**
+dipromosi ke 7–9.
+
+### §6.3 — field TOC basi jadi placeholder
+
+Hasil tersimpan field ternyata membedakan dua dunia: `DAFTAR ISI` di berkas uji membawa entri
+sungguhan (pernah di-update), sedangkan `DAFTAR GAMBAR`/`DAFTAR TABEL` berisi kalimat
+placeholder buatan Google Docs ("Klik kanan pada daftar ini lalu pilih Update Field…").
+Importer kini membaca hasil tersimpan selama menelan field: kalimat perintah atau kosong →
+teks itu dipertahankan sebagai paragraf biasa; entri sungguhan → tetap jadi TocBlock hidup.
+Efek sampingnya menyenangkan: bagian depan kertas kini sejajar halaman-per-halaman dengan
+Google Docs (ISI 3–4, GAMBAR 5, TABEL 6, BAB 1 di 7).
+
+### V6 — garis & jarak tabel setia pada sumber
+
+Tiga lapis yang harus bekerja bersama:
+
+1. **Impor** (`table-props.ts` DOCX): "tak disebut" dan "dinyatakan nihil" sama-sama berujung
+   `borderStyle: 'none'` eksplisit; border style tabel (`w:tblStyle`) tetap menang bila ada.
+2. **DOM hidup**: tabel resizable memakai TableView ProseMirror yang tidak pernah memanggil
+   `renderHTML` — atribut bingkai tidak pernah sampai ke elemen hidupnya, dari dulu. Kini
+   dekorasi node (`tableBorderDecoration`) yang menempelkannya: berlaku di kanvas dan kertas,
+   sinkron saat atribut berubah.
+3. **CSS**: `table[data-border-style='none']` meniadakan kisi sel dan latar baris judul;
+   `margin: 0.75em` milik tabel dihapus (jarak 11px di atas tabel — di Word/Docs tidak ada),
+   dan tabel-anak-langsung ikut pengecualian aturan `> * + *`.
+
+Terukur: tabel sampul/tanda-tangan polos (sel 0px, latar transparan), Tabel 1.1 dst bergaris
+dengan shading abu-abunya sumber, margin tabel 0px.
+
+### V1 tahap 1 — bug paginasi, bukan geometri
+
+Diagnosis menyingkirkan dugaan geometri: konten kanvas dan kertas sama-sama 568px lebar,
+margin sama, contentHeight sama. Sumber selisihnya tiga:
+
+1. **Regresi tersembunyi**: atribut `data-self-paginate` ada di wrapper dalam node view TOC,
+   tapi `view.nodeDOM()` mengembalikan wrapper luar yang tak membawanya — self-pagination TOC
+   **mati diam-diam**, blok 1422px diperlakukan sebagai blok raksasa. Koreksi: deteksi juga
+   lewat keturunan (`querySelector`).
+2. **Pemenggal menerima spacer sendiri**: rantai TOC-meluber → pemenggal → judul bab
+   mendorong dua kali (spacer pemenggal + spacer judul) = dua lembar kosong beruntun. Kini
+   pemenggal hanya menandai `forceNext`; pemenggal beruntun tetap sah mengosongkan satu
+   lembar (kontrak Word, dijaga unit test).
+3. **Paritas aturan**: kanvas menjaga judul dari yatim (`KEEP_WITH_NEXT`) tapi kertas tidak —
+   ditambah `break-after: avoid` untuk judul di media cetak.
+
+Hasil: kanvas **47 → 39 lembar**, bagian depan **paritas penuh** dengan kertas dan Google
+Docs (BAB 1 di halaman 7 di ketiganya). Selisih badan naskah menyusut jadi +5..+6 lembar.
+
+### Sisa V1 tahap 2 — dan mengapa ia besar
+
+Sisa selisih itu struktural: **paginator kanvas memperlakukan paragraf sebagai blok atomik**
+(`offsetTop` + `offsetHeight`, titik penggal hanya di blok/baris tabel/anak kontainer), while
+**kertas memenggal paragraf per baris** dengan widows/orphans 2. Arsitektur spacer tidak bisa
+menyisipkan pengganjal di antara baris-baris satu text node. Paritas penuh menuntut
+fragmentasi tingkat baris di kanvas — widget inline antar baris dengan pengukuran `Range`
+per baris; pekerjaan besar dengan tepi tajam (seleksi, IME, pengukuran berulang), layak
+direncanakan sebagai proyek sendiri. Angka pamungkasnya: 39 lawan 33.
+
+### V7 — masih ada, tercatat
+
+`emulate_media(print)` masih meruntuhkan halaman ber-TOC (*Maximum update depth exceeded*),
+setelah perbaikan tahap 1 sekalipun. Tombol Ekspor PDF sungguhan dan `page.pdf()` tanpa
+emulasi tidak terkena. Digarap bersama V1 tahap 2 (akarnya satu keluarga: osilasi pengganjal
+saat tata letak cetak).
+
+### Regresi putaran ini
+
+- `bun test` 794 lulus (4 uji placeholder TOC, 2 uji border tabel, 1 uji lembar kosong baru);
+  `tsc --noEmit` bersih; biome bersih di berkas yang diubah.
+- Kertas: 33 halaman, 8 gambar utuh (8 referensi XObject), tanpa tanda ×, margin tabel 0px.
 
 ---
 
