@@ -73,6 +73,16 @@ export interface PageNumbering {
 	format: PageNumberFormat
 	/** Lanjut mengalir dari bagian sebelumnya, atau mulai ulang dari N. */
 	restart: 'continue' | number
+	/**
+	 * Nomor ditampilkan pada bagian ini. `false` = bagian ini tanpa nomor —
+	 * satu-satunya cara pengguna membersihkan penomoran, entah untuk halaman
+	 * sampul saja atau untuk sederet halaman lewat pemisah bagian.
+	 *
+	 * Opsional supaya dokumen lama tetap sah; kosong berarti ditampilkan.
+	 * Penghitungnya tetap berjalan di bagian yang disembunyikan, persis seperti
+	 * Word: halaman tanpa nomor tetap terhitung.
+	 */
+	show?: boolean
 }
 
 const ROMAN_PAIRS: [number, string][] = [

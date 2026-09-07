@@ -41,7 +41,13 @@ export function formatSheetNumbers(sheets: readonly NumberedSheet[], fallbackCou
 			counter = rule.restart - 1
 		}
 		counter += 1
-		numbers[sheet.index] = formatPageNumber(counter, rule.format)
+		/*
+		 * Bagian yang disembunyikan tetap DIHITUNG, hanya tidak ditampilkan —
+		 * sama seperti Word. Angka kosong inilah yang membersihkan nomor di
+		 * kedua tempat sekaligus: lencana sudut dan token {page} di dalam
+		 * header/footer, tanpa perlu masing-masing tahu aturannya.
+		 */
+		numbers[sheet.index] = rule.show === false ? '' : formatPageNumber(counter, rule.format)
 		previousSection = section
 	}
 

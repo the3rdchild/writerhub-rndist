@@ -105,6 +105,7 @@ export function PageNumbersDialog() {
 		const next: PageNumbering = {
 			format: numbering.format,
 			restart: numbering.restart === 'continue' ? 'continue' : Math.max(0, Math.floor(restartAt)),
+			show: numbering.show !== false,
 		}
 
 		if (scope === 'tab') {
@@ -162,6 +163,22 @@ export function PageNumbersDialog() {
 								: 'Inserts a section break at the cursor; everything after it follows the new numbering.'}
 						</span>
 					)}
+				</label>
+
+				{/*
+				 * Membersihkan penomoran adalah alurnya sendiri, bukan efek samping.
+				 * Dipasangkan dengan "Apply to" di atas, satu kotak ini bisa membuang
+				 * nomor dari seluruh tab, dari titik kursor ke belakang, atau dari
+				 * satu halaman saja — tanpa menyentuh isi header/footernya.
+				 */}
+				<label className="flex items-center gap-2 text-sm text-foreground">
+					<input
+						type="checkbox"
+						checked={numbering.show !== false}
+						onChange={(event) => setNumbering((c) => ({ ...c, show: event.target.checked }))}
+						className="h-4 w-4 accent-[var(--accent)]"
+					/>
+					Show page numbers
 				</label>
 
 				<div className="flex flex-col gap-1">
@@ -242,7 +259,9 @@ export function PageNumbersDialog() {
 
 				<span className="text-[11px] leading-relaxed text-subtle">
 					Halaman depan romawi lalu isi arab: setel <em>i, ii, iii</em> untuk bagian pertama, taruh kursor di
-					awal BAB 1, lalu pilih “This point forward” dengan format <em>1, 2, 3</em> — start at 1.
+					awal BAB 1, lalu pilih “This point forward” dengan format <em>1, 2, 3</em> — start at 1. Untuk
+					membuang nomor dari sederet halaman, matikan <em>Show page numbers</em> dengan cakupan yang sesuai;
+					halamannya tetap terhitung, hanya angkanya tidak digambar.
 				</span>
 
 				{error && <span className="text-[11px] text-yellow-500">{error}</span>}

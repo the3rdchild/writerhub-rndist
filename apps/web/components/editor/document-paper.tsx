@@ -2,10 +2,16 @@
 
 import type { DocumentTypography } from '@writer-hub/shared'
 import type { ReactNode } from 'react'
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { FurnitureEditor } from '@/features/editor/page-furniture/furniture-editor'
-import type { FurnitureSlot, FurnitureVariant, PageFurniture } from '@/features/editor/page-furniture/model'
+import {
+	type FurnitureSlot,
+	type FurnitureVariant,
+	type PageFurniture,
+	variantFor,
+} from '@/features/editor/page-furniture/model'
 import { formatSheetNumbers } from '@/features/editor/page-furniture/numbering'
+import { FURNITURE_SLOTS } from '@/features/editor/page-furniture/page-furniture-ydoc'
 import { SheetFurniture } from '@/features/editor/page-furniture/sheet-furniture'
 import {
 	footerMarginOf,
@@ -158,6 +164,26 @@ export function DocumentPaper({
 	/* Nomor per lembar mengikuti penomoran section (T4); token {pages} selalu
 	 * desimal seperti NUMPAGES Word. */
 	const sheetNumbers = useMemo(() => formatSheetNumbers(sheets, pageCount), [sheets, pageCount])
+
+	/*
+	 * Lencana sudut adalah CADANGAN, bukan penomoran kedua.
+	 *
+	 * Begitu sebuah lembar punya perabot - header atau footer, walau sengaja
+	 * dikosongkan - perabot itulah yang memutuskan ada tidaknya nomor. Tanpa
+	 * aturan ini, dokumen impor yang footernya membawa {page} tampil dengan DUA
+	 * nomor di tiap halaman, dan mematikan "Show on first page" tidak pernah
+	 * benar-benar menghilangkan nomor di halaman pertama: footernya kosong,
+	 * tapi lencananya tetap menggambar.
+	 */
+	const hasFurnitureOn = useCallback(
+		(pageIndex: number): boolean =>
+			FURNITURE_SLOTS.some((slot) => {
+				const has = (candidate: FurnitureVariant) =>
+					Boolean(furniture?.[slot]?.[candidate] || furnitureHasVariant?.(slot, candidate))
+				return has(variantFor(pageIndex, has))
+			}),
+		[furniture, furnitureHasVariant],
+	)
 	const totalPages = String(sheets.length > 0 ? sheets.length : pageCount)
 
 	/*
@@ -285,17 +311,20 @@ export function DocumentPaper({
 										onExit={onFurnitureDeactivate ?? (() => {})}
 									/>
 								)}
-								{showPageNumbers && !setup.pageless && (
-									<span
-										className="absolute text-[11px] text-faint"
-										style={{ bottom: sheet.margins.bottom / 3, right: sheet.margins.right }}
-									>
-										{/* Ikut penomoran dokumen: kalau bagian ini memakai romawi,
-										 * lencana sudut pun harus membaca "iii", bukan "3" - dua sistem
-										 * angka di satu lembar hanya membingungkan. */}
-										{sheetNumbers[sheet.index] ?? String(sheet.index + 1)}
-									</span>
-								)}
+								{/* Ikut penomoran dokumen: kalau bagian ini memakai romawi, lencana
+								 * sudut pun membaca "iii", bukan "3". Kosong berarti bagian ini
+								 * memang disembunyikan - lencananya pun tidak digambar. */}
+								{showPageNumbers &&
+									!setup.pageless &&
+									!hasFurnitureOn(sheet.index) &&
+									(sheetNumbers[sheet.index] ?? String(sheet.index + 1)) !== '' && (
+										<span
+											className="absolute text-[11px] text-faint"
+											style={{ bottom: sheet.margins.bottom / 3, right: sheet.margins.right }}
+										>
+											{sheetNumbers[sheet.index] ?? String(sheet.index + 1)}
+										</span>
+									)}
 							</div>
 						)
 					})}

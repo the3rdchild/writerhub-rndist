@@ -70,4 +70,20 @@ describe('formatSheetNumbers', () => {
 		/* Lembar pembuka section menampilkan angka restart-nya sendiri (ala Word). */
 		expect(formatSheetNumbers(sheets)).toEqual(['5', '5', '6'])
 	})
+
+	test('show: false mengosongkan nomornya tapi halamannya tetap terhitung', () => {
+		const sheets = [
+			sheet(0, 0, { format: 'decimal', restart: 1, show: false }),
+			sheet(1, 0, { format: 'decimal', restart: 1, show: false }),
+			sheet(2, 1, { format: 'decimal', restart: 'continue' }),
+		]
+		/* Dua halaman pertama tanpa angka, tapi halaman ketiga tetap "3" —
+		 * yang disembunyikan hanya tampilannya, bukan hitungannya. */
+		expect(formatSheetNumbers(sheets)).toEqual(['', '', '3'])
+	})
+
+	test('tanpa show dianggap tampil — dokumen lama tetap sah', () => {
+		const sheets = [sheet(0, 0, { format: 'decimal', restart: 1 })]
+		expect(formatSheetNumbers(sheets)).toEqual(['1'])
+	})
 })
