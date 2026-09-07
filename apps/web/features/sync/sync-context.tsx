@@ -33,6 +33,7 @@ import {
 	updateTab,
 } from '@/features/sessions/ydoc'
 import { deleteLocalVersionsExcept } from '@/features/versions/local-store'
+import { ApiError } from '@/lib/api-client'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import {
 	applyDocLayout,
@@ -73,6 +74,11 @@ interface SyncContextValue {
 }
 
 const SyncContext = createContext<SyncContextValue | null>(null)
+
+/** Galat karena sumber daya di server sudah tidak ada (dihapus atau reset). */
+function isGone(error: unknown): boolean {
+	return error instanceof ApiError && error.status === 404
+}
 
 interface SaveTimers {
 	idle?: ReturnType<typeof setTimeout>
@@ -123,6 +129,44 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 		() => queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_KEY }),
 		[queryClient],
 	)
+	/** Melepas tautan satu tab; tab lain dari dokumen yang sama tetap terhubung. */
+	const unlinkTab = useCallback(
+		(tabId: string) => {
+			clearTimers(tabId)
+			setStatus(tabId, null)
+			setStore((current) => {
+				if (!current.linkage[tabId]) return current
+				const next = { ...current.linkage }
+				delete next[tabId]
+				return { ...current, linkage: next }
+			})
+		},
+		[clearTimers, setStatus, setStore],
+	)
+	/**
+	 * Melepas tautan semua tab milik satu dokumen server. Dipakai saat dokumen
+	 * itu sudah tidak ada, sehingga penyimpanan otomatis berhenti mengirim
+	 * permintaan yang pasti ditolak 404 selamanya.
+	 */
+	const unlinkDocument = useCallback(
+		(serverDocumentId: string) => {
+			const tabIds = Object.entries(linkageRef.current)
+				.filter(([, linkage]) => linkage.documentId === serverDocumentId)
+				.map(([tabId]) => tabId)
+			if (tabIds.length === 0) return
+			for (const tabId of tabIds) {
+				clearTimers(tabId)
+				setStatus(tabId, null)
+			}
+			setStore((current) => {
+				const next = { ...current.linkage }
+				for (const tabId of tabIds) delete next[tabId]
+				return { ...current, linkage: next }
+			})
+			void invalidateDocuments()
+		},
+		[clearTimers, setStatus, setStore, invalidateDocuments],
+	)
 	const serializeTab = useCallback(
 		(tabId: string) => {
 			const current = editorRef.current
@@ -161,27 +205,48 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 			const docTitle = parentId ? readDocs(doc).find((dok) => dok.id === parentId)?.title : undefined
 
 			const sentAtRevision = revisions.current.get(tabId) ?? 0
+			// Menulis ke sumber daya yang sudah dihapus di server hanya akan 404
+			// selamanya - lepas tautannya alih-alih mencoba ulang tanpa akhir.
+			const write = async <T,>(work: Promise<T>, onGone: () => void): Promise<T | null> => {
+				try {
+					return await work
+				} catch (error) {
+					if (!isGone(error)) throw error
+					onGone()
+					return null
+				}
+			}
 			setStatus(tabId, 'saving')
 			try {
-				await updateTabApi(linkage.serverId, {
-					title: meta.title,
-					content: serializeTab(tabId),
-					emoji: meta.emoji,
-					language: meta.language,
-					layout: readTabLayoutOverride(doc, tabId),
-				})
+				const savedTab = await write(
+					updateTabApi(linkage.serverId, {
+						title: meta.title,
+						content: serializeTab(tabId),
+						emoji: meta.emoji,
+						language: meta.language,
+						layout: readTabLayoutOverride(doc, tabId),
+					}),
+					() => unlinkTab(tabId),
+				)
+				if (!savedTab) return false
 				backupComments(linkage.serverId, meta.comments)
 				if (
 					docTitle !== undefined &&
 					linkage.lastDocTitle !== undefined &&
 					docTitle !== linkage.lastDocTitle
 				) {
-					await updateDocument(linkage.documentId, { title: docTitle })
+					const savedTitle = await write(updateDocument(linkage.documentId, { title: docTitle }), () =>
+						unlinkDocument(linkage.documentId),
+					)
+					if (!savedTitle) return false
 				}
 				const docLayout = parentId ? readDocLayout(doc, parentId) : null
 				const docLayoutKey = layoutSyncKey(docLayout)
 				if (parentId && docLayoutKey !== (linkage.lastDocLayoutKey ?? '')) {
-					await updateDocument(linkage.documentId, { layout: docLayout })
+					const savedLayout = await write(updateDocument(linkage.documentId, { layout: docLayout }), () =>
+						unlinkDocument(linkage.documentId),
+					)
+					if (!savedLayout) return false
 				}
 				const synced: SyncLinkage = {
 					...linkage,
@@ -205,7 +270,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				return false
 			}
 		},
-		[doc, serializeTab, setStatus, setStore, invalidateDocuments],
+		[doc, serializeTab, setStatus, setStore, invalidateDocuments, unlinkTab, unlinkDocument],
 	)
 
 	const pushRef = useRef(pushToServer)
@@ -298,12 +363,17 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 								})
 								void invalidateDocuments()
 							})
-							.catch(() => {})
+							.catch((error: unknown) => {
+								// Dokumen yang sudah tidak ada tidak akan pernah menerima
+								// judul ini - lepas tautannya supaya efek di atas berhenti
+								// menjadwalkan PUT yang pasti ditolak 404.
+								if (isGone(error)) unlinkDocument(serverDocId)
+							})
 					}, TITLE_SYNC_MS),
 				)
 			}
 		},
-		[storeHydrated, documents, store.linkage, setStore, invalidateDocuments],
+		[storeHydrated, documents, store.linkage, setStore, invalidateDocuments, unlinkDocument],
 	)
 	useEffect(
 		function syncTitlesFromServer() {
