@@ -690,7 +690,11 @@ export async function exportDocx(
 			)
 			.map((span) => span.pos),
 	)
-	const sections: { properties: ReturnType<typeof sectionProperties>; children: unknown[] }[] = []
+	const sections: {
+		properties: ReturnType<typeof sectionProperties>
+		children: unknown[]
+		span: SectionSpan | null
+	}[] = []
 	let current: unknown[] = []
 	let spanIndex = 0
 
@@ -711,7 +715,11 @@ export async function exportDocx(
 
 	root.forEach((node) => {
 		if (node.type.name === SECTION_BREAK_NODE && spans.length > 0) {
-			sections.push({ properties: sectionProperties(spans[spanIndex] ?? null), children: current })
+			sections.push({
+				properties: sectionProperties(spans[spanIndex] ?? null),
+				children: current,
+				span: spans[spanIndex] ?? null,
+			})
 			spanIndex += 1
 			current = []
 			sectionContentWidth = contentWidthOf(spans[spanIndex])
@@ -719,11 +727,34 @@ export async function exportDocx(
 		}
 		current.push(...blockOf(node))
 	})
-	sections.push({ properties: sectionProperties(spans[spanIndex] ?? null), children: current })
+	sections.push({
+		properties: sectionProperties(spans[spanIndex] ?? null),
+		children: current,
+		span: spans[spanIndex] ?? null,
+	})
 
 	// Perabot halaman dipasang di section pertama; section berikutnya mewarisi
 	// referensinya di Word, meniru perilaku dokumen asal.
-	const furnitureExtras = docxSectionFurniture(furniture, docx, furnitureContent)
+	const hiddenOf = (span: SectionSpan | null) => span?.setup.pageNumbering?.show === false
+	const baseHidden = hiddenOf(sections[0]?.span ?? null)
+	const furnitureExtras = docxSectionFurniture(furniture, docx, furnitureContent, baseHidden)
+	/*
+	 * Bagian yang nomornya dibersihkan memerlukan perabotnya SENDIRI - tanpa
+	 * field PAGE - karena di Word section berikutnya mewarisi milik section
+	 * sebelumnya. Yang ditulis ulang hanya section yang visibilitasnya berbeda
+	 * dari section sebelum-sebelumnya, jadi dokumen yang tidak menyembunyikan
+	 * apa pun keluar persis seperti sebelumnya.
+	 */
+	const furnitureHidden = docxSectionFurniture(furniture, docx, furnitureContent, true)
+	const overrides: (typeof furnitureExtras | null)[] = sections.map(() => null)
+	let effectiveHidden = baseHidden
+	for (const [index, section] of sections.entries()) {
+		if (index === 0) continue
+		const hidden = hiddenOf(section.span)
+		if (hidden === effectiveHidden) continue
+		overrides[index] = hidden ? furnitureHidden : furnitureExtras
+		effectiveHidden = hidden
+	}
 
 	const document = new Document({
 		title,
@@ -737,8 +768,16 @@ export async function exportDocx(
 				index === 0 && furnitureExtras.titlePage
 					? { ...section.properties, titlePage: true }
 					: section.properties,
-			...(index === 0 && furnitureExtras.headers ? { headers: furnitureExtras.headers } : {}),
-			...(index === 0 && furnitureExtras.footers ? { footers: furnitureExtras.footers } : {}),
+			...(index === 0 && furnitureExtras.headers
+				? { headers: furnitureExtras.headers }
+				: overrides[index]?.headers
+					? { headers: overrides[index]?.headers }
+					: {}),
+			...(index === 0 && furnitureExtras.footers
+				? { footers: furnitureExtras.footers }
+				: overrides[index]?.footers
+					? { footers: overrides[index]?.footers }
+					: {}),
 			children: section.children as never,
 		})) as never,
 	})

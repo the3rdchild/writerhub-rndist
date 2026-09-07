@@ -53,10 +53,23 @@ type TextRunOf = InstanceType<DocxModule['TextRun']>
 type ImageRunOf = InstanceType<DocxModule['ImageRun']>
 type RunOf = TextRunOf | ImageRunOf
 
-function tokenRunsOf(docx: DocxModule, text: string, marks: Record<string, unknown>): RunOf[] {
+/**
+ * `hideNumbers` menjatuhkan token alih-alih menerbitkan field PAGE/NUMPAGES.
+ *
+ * Word tidak punya bendera "sembunyikan nomor pada bagian ini" — caranya justru
+ * dengan TIDAK menulis field-nya. Tanpa ini, penomoran yang pengguna bersihkan
+ * di layar akan hidup kembali begitu dokumennya diekspor.
+ */
+function tokenRunsOf(
+	docx: DocxModule,
+	text: string,
+	marks: Record<string, unknown>,
+	hideNumbers: boolean,
+): RunOf[] {
 	return text
 		.split(new RegExp(`(${PAGE_TOKEN}|${PAGES_TOKEN})`))
 		.filter(Boolean)
+		.filter((piece) => !(hideNumbers && (piece === PAGE_TOKEN || piece === PAGES_TOKEN)))
 		.map(
 			(piece): RunOf =>
 				piece === PAGE_TOKEN
@@ -67,7 +80,7 @@ function tokenRunsOf(docx: DocxModule, text: string, marks: Record<string, unkno
 		)
 }
 
-function runsOfNode(docx: DocxModule, node: JSONContent): RunOf[] {
+function runsOfNode(docx: DocxModule, node: JSONContent, hideNumbers: boolean): RunOf[] {
 	const runs: RunOf[] = []
 	for (const child of node.content ?? []) {
 		if (child.type === 'text' && child.text) {
@@ -76,7 +89,7 @@ function runsOfNode(docx: DocxModule, node: JSONContent): RunOf[] {
 				const factory = MARKS[mark.type]
 				if (factory) Object.assign(marks, factory())
 			}
-			runs.push(...tokenRunsOf(docx, child.text, marks))
+			runs.push(...tokenRunsOf(docx, child.text, marks, hideNumbers))
 		} else if (child.type === 'hardBreak') {
 			runs.push(new docx.TextRun({ break: 1 }))
 		} else if (child.type === 'image') {
@@ -109,24 +122,32 @@ function imageRunOf(docx: DocxModule, node: JSONContent): RunOf | null {
 	})
 }
 
-function richParagraphOf(docx: DocxModule, block: JSONContent): InstanceType<DocxModule['Paragraph']> | null {
+function richParagraphOf(
+	docx: DocxModule,
+	block: JSONContent,
+	hideNumbers: boolean,
+): InstanceType<DocxModule['Paragraph']> | null {
 	if (block.type !== 'paragraph') return null
 	const align = block.attrs?.textAlign
 	const alignment =
 		align === 'center' ? docx.AlignmentType.CENTER : align === 'right' ? docx.AlignmentType.RIGHT : undefined
-	const runs = runsOfNode(docx, block)
+	const runs = runsOfNode(docx, block, hideNumbers)
 	return new docx.Paragraph({ children: runs, ...(alignment ? { alignment } : {}) })
 }
 
-function childrenOf(docx: DocxModule, line: PageFurnitureLine) {
-	const runs = tokenRunsOf(docx, line.text, {})
+function childrenOf(docx: DocxModule, line: PageFurnitureLine, hideNumbers: boolean) {
+	const runs = tokenRunsOf(docx, line.text, {}, hideNumbers)
 	return [new docx.Paragraph({ children: runs, alignment: alignOf(docx, line.align) })]
 }
 
-function childrenOfBlocks(docx: DocxModule, blocks: JSONContent[]): InstanceType<DocxModule['Paragraph']>[] {
+function childrenOfBlocks(
+	docx: DocxModule,
+	blocks: JSONContent[],
+	hideNumbers: boolean,
+): InstanceType<DocxModule['Paragraph']>[] {
 	const children: InstanceType<DocxModule['Paragraph']>[] = []
 	for (const block of blocks) {
-		const paragraph = richParagraphOf(docx, block)
+		const paragraph = richParagraphOf(docx, block, hideNumbers)
 		if (paragraph) children.push(paragraph)
 	}
 	return children.length > 0 ? children : [new docx.Paragraph({})]
@@ -137,6 +158,8 @@ export function docxSectionFurniture(
 	furniture: PageFurniture | null | undefined,
 	docx: DocxModule,
 	content?: FurnitureContent | null,
+	/** Bagian ini tanpa nomor halaman (`pageNumbering.show === false`). */
+	hideNumbers = false,
 ): SectionFurniture {
 	const richHeader = content?.header ?? {}
 	const richFooter = content?.footer ?? {}
@@ -145,18 +168,22 @@ export function docxSectionFurniture(
 	for (const variant of ['default', 'first', 'even'] as const) {
 		const blocks = richHeader[variant]
 		if (blocks && blocks.length > 0)
-			headers[variant] = new docx.Header({ children: childrenOfBlocks(docx, blocks) })
+			headers[variant] = new docx.Header({ children: childrenOfBlocks(docx, blocks, hideNumbers) })
 		else if (furniture?.header?.[variant])
-			headers[variant] = new docx.Header({ children: childrenOf(docx, furniture.header[variant]) })
+			headers[variant] = new docx.Header({
+				children: childrenOf(docx, furniture.header[variant], hideNumbers),
+			})
 	}
 
 	const footers: Record<string, InstanceType<DocxModule['Footer']>> = {}
 	for (const variant of ['default', 'first', 'even'] as const) {
 		const blocks = richFooter[variant]
 		if (blocks && blocks.length > 0)
-			footers[variant] = new docx.Footer({ children: childrenOfBlocks(docx, blocks) })
+			footers[variant] = new docx.Footer({ children: childrenOfBlocks(docx, blocks, hideNumbers) })
 		else if (furniture?.footer?.[variant])
-			footers[variant] = new docx.Footer({ children: childrenOf(docx, furniture.footer[variant]) })
+			footers[variant] = new docx.Footer({
+				children: childrenOf(docx, furniture.footer[variant], hideNumbers),
+			})
 	}
 
 	const hasFirst = Boolean(headers.first || footers.first)

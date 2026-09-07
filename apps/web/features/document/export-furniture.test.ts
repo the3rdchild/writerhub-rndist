@@ -6,16 +6,18 @@ import { exportDocx } from './export-docx'
 
 async function xmlOf(options: {
 	furniture?: Parameters<typeof exportDocx>[1]['furniture']
+	setup?: Parameters<typeof exportDocx>[1]['setup']
 	part: 'word/document.xml' | string
 }): Promise<string> {
+	const setup = options.setup ?? DEFAULT_PAGE_SETUP
 	const doc = buildSchema().nodeFromJSON({
 		type: 'doc',
 		content: [{ type: 'paragraph', content: [{ type: 'text', text: 'isi' }] }],
 	})
 	const blob = await exportDocx(doc, {
 		title: 'uji',
-		geometry: pageGeometry(DEFAULT_PAGE_SETUP),
-		setup: DEFAULT_PAGE_SETUP,
+		geometry: pageGeometry(setup),
+		setup,
 		...(options.furniture !== undefined ? { furniture: options.furniture } : {}),
 	})
 	const bytes = unzipSync(new Uint8Array(await blob.arrayBuffer()))[options.part]
@@ -32,6 +34,23 @@ describe('ekspor perabot halaman', () => {
 		expect(footer).toContain('halo')
 		expect(footer).toMatch(/PAGE/)
 		expect(footer).toContain('<w:jc w:val="center"/>')
+	})
+
+	test('bagian dengan show: false mengekspor footer tanpa field PAGE', async () => {
+		/* Word tidak punya bendera "sembunyikan nomor"; caranya justru tidak
+		 * menulis field-nya. Tanpa ini, penomoran yang dibersihkan di layar
+		 * hidup kembali begitu dokumennya diekspor. */
+		const footer = await xmlOf({
+			furniture: { footer: { default: { text: 'halo {page}', align: 'center' } } },
+			setup: {
+				...DEFAULT_PAGE_SETUP,
+				pageNumbering: { format: 'decimal', restart: 'continue', show: false },
+			},
+			part: 'word/footer1.xml',
+		})
+
+		expect(footer).toContain('halo')
+		expect(footer).not.toMatch(/PAGE/)
 	})
 
 	test('varian first menyalakan titlePage dan footerReference first', async () => {
