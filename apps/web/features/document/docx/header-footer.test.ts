@@ -1,8 +1,23 @@
 import { describe, expect, test } from 'bun:test'
 import { strToU8, zipSync } from 'fflate'
+import { createParseState, type ParseContext } from './context'
 import { readFurniture } from './header-footer'
 import { createXmlParser } from './xml'
 import { openDocx } from './zip'
+
+function createTestContext(): ParseContext {
+	return {
+		styles: { paragraphs: new Map(), characters: new Map() },
+		theme: {},
+		numberer: { of: () => null } as ParseContext['numberer'],
+		relationships: new Map(),
+		archive: { text: () => null, bytes: () => null } as ParseContext['archive'],
+		mainPart: 'word/document.xml',
+		footnotes: new Map(),
+		commentMeta: new Map(),
+		state: createParseState(),
+	}
+}
 
 const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
 const R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
@@ -46,7 +61,8 @@ const FOOTER_REL = `<Relationship Id="rIdF" Type="${REL_NS}/footer" Target="foot
 const HEADER_REL = `<Relationship Id="rIdH" Type="${REL_NS}/header" Target="header1.xml"/>`
 
 async function furnitureOf(bytes: Uint8Array) {
-	return readFurniture(openDocx(bytes), await createXmlParser(), 'word/document.xml')
+	const result = await readFurniture(openDocx(bytes), await createXmlParser(), 'word/document.xml')
+	return result.furniture
 }
 
 describe('impor header/footer', () => {
@@ -78,6 +94,27 @@ describe('impor header/footer', () => {
 		expect(await furnitureOf(bytes)).toEqual({
 			footer: { default: { text: '{page}', align: 'left' } },
 		})
+	})
+
+	test('dengan context, paragraf kaya ikut terbaca dengan token field', async () => {
+		const bytes = docxWith({
+			body: `<w:sectPr><w:footerReference r:id="rIdF"/></w:sectPr>`,
+			footer: `<w:p><w:pPr><w:jc w:val="center"/></w:pPr>
+				<w:r><w:t>Halaman </w:t></w:r>
+				<w:r><w:fldChar w:fldCharType="begin"/></w:r>
+				<w:r><w:instrText> NUMPAGES </w:instrText></w:r>
+				<w:r><w:fldChar w:fldCharType="end"/></w:r>
+			</w:p>`,
+			footerRels: FOOTER_REL,
+		})
+
+		const parse = await createXmlParser()
+		const archive = openDocx(bytes)
+		const { content } = await readFurniture(archive, parse, 'word/document.xml', createTestContext())
+		const paragraph = content?.footer?.default?.[0]
+		expect(paragraph?.type).toBe('paragraph')
+		expect(paragraph?.attrs?.textAlign).toBe('center')
+		expect(JSON.stringify(paragraph?.content)).toContain('{pages}')
 	})
 
 	test('perataan tengah diikuti, run terpecah digabung', async () => {

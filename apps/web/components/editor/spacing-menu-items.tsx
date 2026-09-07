@@ -2,10 +2,10 @@
 
 import type { Editor } from '@tiptap/react'
 import { useEditorState } from '@tiptap/react'
-import { Check } from 'lucide-react'
 import { cssLineHeight } from '@writer-hub/shared'
+import { Check } from 'lucide-react'
 import { DropdownItem, DropdownSeparator } from '@/components/ui/dropdown'
-import { blockKeepAt, type BlockKeepValues } from '@/features/editor/block-keep'
+import { type BlockKeepValues, blockKeepAt } from '@/features/editor/block-keep'
 import { blockSpacingAt } from '@/features/editor/block-spacing-at'
 import {
 	ADD_SPACE_PT,

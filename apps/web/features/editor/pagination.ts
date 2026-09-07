@@ -3,6 +3,7 @@ import { DOMSerializer, type Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { TableMap } from '@tiptap/pm/tables'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
+import type { PageNumbering } from '@writer-hub/shared'
 import { PAGE_BREAK_NODE } from './page-break'
 import {
 	PAGE_GAP,
@@ -329,6 +330,10 @@ export interface SectionGeometry {
 	pos: number
 	geometry: PageGeometry
 	continuous?: boolean
+	/** Indeks section (span) pembuka; 0 tidak pernah muncul di daftar ini. */
+	index: number
+	/** Aturan penomoran halaman section ini (dari setup yang sudah digabung). */
+	pageNumbering?: PageNumbering | null
 }
 
 export interface BlockPage {
@@ -360,6 +365,7 @@ export function computeSpacers(
 	blocks: readonly Measurement[],
 	geometry: PageGeometry,
 	sections: readonly SectionGeometry[] = [],
+	baseNumbering?: PageNumbering | null,
 ): { spacers: Spacer[]; pageCount: number; sheets: SheetGeometry[]; blockPages: BlockPage[] } {
 	const spacers: Spacer[] = []
 	const blockPages: BlockPage[] = []
@@ -367,9 +373,15 @@ export function computeSpacers(
 	let pageStart = 0
 	let forceNext = false
 	let pendingGeometry: PageGeometry | null = null
+	/* Penomoran section tidak diwarisi antar-lembar lewat merges di sini;
+	 * keduanya menempel pada section dan diteruskan ke lembar yang dibuka
+	 * break-nya. `pendingSection === undefined` berarti warisi lembar sebelumnya. */
+	let pendingSection: { index: number; pageNumbering: PageNumbering | null } | undefined
 
 	const baseMargins = geometry.margins
-	const sheets: SheetGeometry[] = [{ ...geometry, index: 0, top: 0 }]
+	const sheets: SheetGeometry[] = [
+		{ ...geometry, index: 0, top: 0, sectionIndex: 0, pageNumbering: baseNumbering ?? null },
+	]
 	const contentTop = (sheet: SheetGeometry) => sheet.top + sheet.margins.top - baseMargins.top
 	const pushSheet = (): SheetGeometry => {
 		const last = sheets[sheets.length - 1]
@@ -377,9 +389,12 @@ export function computeSpacers(
 			...(pendingGeometry ?? last),
 			index: sheets.length,
 			top: last.top + last.height + PAGE_GAP,
+			sectionIndex: pendingSection?.index ?? last.sectionIndex ?? 0,
+			pageNumbering: pendingSection ? pendingSection.pageNumbering : (last.pageNumbering ?? null),
 		}
 		sheets.push(next)
 		pendingGeometry = null
+		pendingSection = undefined
 		return next
 	}
 
@@ -387,6 +402,19 @@ export function computeSpacers(
 		if (block.isSectionBreak) {
 			blockPages.push({ pos: block.pos, page: sheets.length - 1 })
 			const section = sections.find((section) => section.pos === block.pos)
+			if (section) {
+				const rule = { index: section.index, pageNumbering: section.pageNumbering ?? null }
+				if (section.continuous) {
+					/* Section menerus tidak membuka lembar; aturannya berlaku pada
+					 * lembar yang sedang berjalan (satu nomor per lembar, seperti Word
+					 * yang hanya punya satu nomor per halaman). */
+					const current = sheets[sheets.length - 1]
+					current.sectionIndex = rule.index
+					current.pageNumbering = rule.pageNumbering
+				} else {
+					pendingSection = rule
+				}
+			}
 			if (!section?.continuous) {
 				forceNext = true
 				pendingGeometry = section?.geometry ?? null
@@ -540,7 +568,14 @@ function sameSheets(a: readonly SheetGeometry[], b: readonly SheetGeometry[]): b
 		a.length === b.length &&
 		a.every((sheet, index) => {
 			const other = b[index]
-			return sheet.top === other.top && sheet.width === other.width && sheet.height === other.height
+			return (
+				sheet.top === other.top &&
+				sheet.width === other.width &&
+				sheet.height === other.height &&
+				sheet.sectionIndex === other.sectionIndex &&
+				(sheet.pageNumbering?.format ?? null) === (other.pageNumbering?.format ?? null) &&
+				(sheet.pageNumbering?.restart ?? null) === (other.pageNumbering?.restart ?? null)
+			)
 		})
 	)
 }
@@ -866,11 +901,14 @@ export const Pagination = Extension.create<PaginationOptions>({
 							pos: span.pos,
 							geometry: pageGeometry(span.setup),
 							continuous: continuous[index + 1],
+							index: index + 1,
+							pageNumbering: span.setup.pageNumbering ?? null,
 						}))
 						const { spacers, pageCount, sheets, blockPages } = computeSpacers(
 							blocks,
 							state.geometry,
 							sections,
+							state.setup?.pageNumbering ?? null,
 						)
 						/*
 						 * Dekorasi lebar section dan label section ditempelkan ke blok

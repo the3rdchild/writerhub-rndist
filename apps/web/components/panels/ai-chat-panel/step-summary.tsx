@@ -3,7 +3,7 @@
 import type { ChatUsage } from '@writer-hub/shared'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
-import { type ChatStep } from '@/features/chat/chat-context'
+import type { ChatStep } from '@/features/chat/chat-context'
 import { StepTimeline } from './step-timeline'
 
 export function StepSummary({ steps, usage }: { steps: ChatStep[]; usage?: ChatUsage }) {

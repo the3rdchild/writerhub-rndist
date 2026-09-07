@@ -8,6 +8,7 @@ import { exportDocx } from '@/features/document/export-docx'
 import { useDocumentImport } from '@/features/document/import-context'
 import { prepareForExport } from '@/features/document/prepare-export'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import { readFurnitureContentJson } from '@/features/editor/page-furniture/page-furniture-ydoc'
 import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
 import { pageGeometry } from '@/features/editor/page-geometry'
 import { usePageSetup } from '@/features/editor/use-page-setup'
@@ -21,7 +22,7 @@ export function FileMenu() {
 	const { editor } = useEditorInstance()
 	const { state } = useDocument()
 	const { setExportOpen, setDocxExportOpen, setPageSetupOpen } = useSettings()
-	const { newSession, deleteSession, activeId, sessions } = useSessions()
+	const { newSession, deleteSession, activeId, sessions, doc } = useSessions()
 	const { setup: activeSetup } = usePageSetup()
 	const { furniture } = usePageFurniture()
 	const { typography } = useTypography()
@@ -49,6 +50,7 @@ export function FileMenu() {
 					geometry,
 					setup: activeSetup,
 					furniture,
+					furnitureContent: activeId ? readFurnitureContentJson(doc, activeId) : null,
 					typography,
 				}),
 				safeFilename(state.title, 'docx'),

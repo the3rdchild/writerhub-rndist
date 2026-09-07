@@ -1,7 +1,7 @@
 'use client'
 import { Ban, Check, Loader2, TriangleAlert } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { type ChatStep } from '@/features/chat/chat-context'
+import type { ChatStep } from '@/features/chat/chat-context'
 import { cn } from '@/lib/utils'
 import { ResearchSourcesCard } from '../research-sources-card'
 

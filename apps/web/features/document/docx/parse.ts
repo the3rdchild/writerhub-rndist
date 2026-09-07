@@ -517,7 +517,7 @@ export function bodyBlocks(
 
 				blocks.push(...paragraphBlocks(node, context, true))
 				const sectPr = descend(node, 'pPr', 'sectPr')
-				if (sectPr) onSection?.(readSectPr(sectPr, context), blocks.length)
+				if (sectPr) onSection?.(readSectPr(sectPr), blocks.length)
 				break
 			}
 
@@ -531,7 +531,7 @@ export function bodyBlocks(
 				break
 			}
 			case 'sectPr':
-				onSection?.(readSectPr(node, context), blocks.length)
+				onSection?.(readSectPr(node), blocks.length)
 				break
 
 			case 'bookmarkStart':

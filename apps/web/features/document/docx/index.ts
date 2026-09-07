@@ -2,7 +2,7 @@ import type { JSONContent } from '@tiptap/core'
 import type { PageFurniture } from '@/features/editor/page-furniture/model'
 import type { CommentThread } from '@/features/sessions/types'
 import { createParseState, type ParseContext, readRelationships, readTheme } from './context'
-import { readFurniture } from './header-footer'
+import { type FurnitureContent, readFurniture } from './header-footer'
 import { createNumberer, readNumbering } from './numbering'
 import { bodyOf, readBody } from './parse'
 import { readStyles } from './properties'
@@ -20,6 +20,8 @@ export interface DocxImport {
 	content: JSONContent
 	pageSetup?: PageSetupPatch
 	furniture?: PageFurniture
+	/** Paragraf lengkap header/footer (T6) — jadi fragmen ydoc saat impor. */
+	furnitureContent?: FurnitureContent
 	comments: CommentThread[]
 	warnings: ImportWarning[]
 }
@@ -79,7 +81,6 @@ const SKIPPED_LABELS: Record<string, string> = {
 	'jarak-huruf': 'perenggangan huruf',
 	'posisi-teks': 'posisi teks vertikal',
 	'garis-paragraf': 'garis batas paragraf',
-	'penomoran-halaman': 'penomoran halaman khusus (romawi/titik mulai)',
 	'teks-tersembunyi': 'teks tersembunyi (hidden text)',
 }
 
@@ -238,7 +239,7 @@ export async function readDocx(data: Uint8Array): Promise<DocxImport> {
 	}
 
 	const { blocks, pageSetup } = readBody(body, context)
-	const furniture = readFurniture(archive, parse, mainPart)
+	const { furniture, content } = readFurniture(archive, parse, mainPart, context)
 
 	// Komentar Word masuk dengan nama penulis aslinya — identitas di comments.xml.
 	const comments: CommentThread[] = []
@@ -269,6 +270,7 @@ export async function readDocx(data: Uint8Array): Promise<DocxImport> {
 		content: { type: 'doc', content: blocks.length > 0 ? blocks : [{ type: 'paragraph' }] },
 		pageSetup,
 		...(furniture ? { furniture } : {}),
+		...(content ? { furnitureContent: content } : {}),
 		comments,
 		warnings: warningsFor(context.state.skipped, archive, furniture),
 	}

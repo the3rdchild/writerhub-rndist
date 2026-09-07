@@ -93,6 +93,8 @@ interface SettingsContextValue {
 	setDocxExportOpen: (open: boolean) => void
 	pageSetupOpen: boolean
 	setPageSetupOpen: (open: boolean) => void
+	headersFootersOpen: boolean
+	setHeadersFootersOpen: (open: boolean) => void
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null)
@@ -104,6 +106,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 	const [exportOpen, setExportOpen] = useState(false)
 	const [docxExportOpen, setDocxExportOpen] = useState(false)
 	const [pageSetupOpen, setPageSetupOpen] = useState(false)
+	const [headersFootersOpen, setHeadersFootersOpen] = useState(false)
 	useEffect(
 		function applyThemeOnChange() {
 			applyTheme(settings.theme)
@@ -153,8 +156,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 			setDocxExportOpen,
 			pageSetupOpen,
 			setPageSetupOpen,
+			headersFootersOpen,
+			setHeadersFootersOpen,
 		}),
-		[settings, setSettings, settingsOpen, shortcutsOpen, exportOpen, docxExportOpen, pageSetupOpen],
+		[
+			settings,
+			setSettings,
+			settingsOpen,
+			shortcutsOpen,
+			exportOpen,
+			docxExportOpen,
+			pageSetupOpen,
+			headersFootersOpen,
+		],
 	)
 
 	return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>

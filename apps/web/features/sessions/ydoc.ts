@@ -1,6 +1,6 @@
 'use client'
 
-import type { DocumentTypography } from '@writer-hub/shared'
+import type { DocumentTypography, PageNumberFormat, PageNumbering } from '@writer-hub/shared'
 import * as Y from 'yjs'
 import type { PageSetup } from '@/features/editor/page-geometry'
 import { DEFAULT_PAGE_SETUP } from '@/features/editor/page-geometry'
@@ -131,6 +131,18 @@ function readDocMeta(meta: Y.Map<Y.Map<unknown>>, id: string): DocMeta {
 	}
 }
 
+function normalizeNumbering(raw: unknown): PageNumbering | undefined {
+	if (!raw || typeof raw !== 'object') return undefined
+	const { format, restart } = raw as { format?: unknown; restart?: unknown }
+	const FORMATS: PageNumberFormat[] = ['decimal', 'lower-roman', 'upper-roman', 'lower-alpha', 'upper-alpha']
+	if (typeof format !== 'string' || !FORMATS.includes(format as PageNumberFormat)) return undefined
+	return {
+		format: format as PageNumberFormat,
+		restart:
+			typeof restart === 'number' && Number.isFinite(restart) ? Math.max(0, Math.floor(restart)) : 'continue',
+	}
+}
+
 function readPageSetup(entry: Y.Map<unknown> | undefined): PageSetup | null {
 	if (!entry) return null
 	const raw = entry.get('pageSetup')
@@ -143,6 +155,11 @@ function readPageSetup(entry: Y.Map<unknown> | undefined): PageSetup | null {
 		pageColor: value.pageColor ?? null,
 		pageless: value.pageless ?? false,
 		...(value.size === 'custom' ? { customWidth: value.customWidth, customHeight: value.customHeight } : {}),
+		...(typeof value.headerMargin === 'number' ? { headerMargin: value.headerMargin } : {}),
+		...(typeof value.footerMargin === 'number' ? { footerMargin: value.footerMargin } : {}),
+		...(normalizeNumbering(value.pageNumbering)
+			? { pageNumbering: normalizeNumbering(value.pageNumbering) }
+			: {}),
 	}
 }
 

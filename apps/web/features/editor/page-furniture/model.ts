@@ -23,6 +23,32 @@ export interface PageFurniture {
 /** Token yang diganti nomor halaman (indeks 0 → halaman 1). */
 export const PAGE_TOKEN = '{page}'
 
+/** Token yang diganti total halaman dokumen — padanan NUMPAGES Word. */
+export const PAGES_TOKEN = '{pages}'
+
+/** Ganti kedua token dalam satu teks (html maupun teks polos). */
+export function replacePageTokens(text: string, page: string, pages: string): string {
+	return text.split(PAGE_TOKEN).join(page).split(PAGES_TOKEN).join(pages)
+}
+
+/** Varian (default/first/even) yang berlaku untuk sebuah halaman, menurut
+ * predikat kehadiran varian (baris lama, fragmen kaya, atau keduanya). */
+export function variantFor(pageIndex: number, has: (variant: FurnitureVariant) => boolean): FurnitureVariant {
+	if (pageIndex === 0 && has('first')) return 'first'
+	if (pageIndex % 2 === 1 && has('even')) return 'even'
+	return 'default'
+}
+
+/** Varian (default/first/even) yang berlaku untuk sebuah halaman. */
+export function furnitureVariantFor(
+	furniture: PageFurniture | null | undefined,
+	slot: FurnitureSlot,
+	pageIndex: number,
+): FurnitureVariant {
+	const variants = furniture?.[slot]
+	return variantFor(pageIndex, (variant) => Boolean(variants?.[variant]))
+}
+
 /**
  * Varian yang berlaku untuk sebuah halaman, meniru aturan Word:
  * halaman pertama pakai `first`, halaman genap pakai `even`, sisanya `default`.
@@ -36,9 +62,7 @@ export function furnitureLineFor(
 	const variants = furniture[slot]
 	if (!variants) return null
 
-	if (pageIndex === 0 && variants.first) return variants.first
-	if (pageIndex % 2 === 1 && variants.even) return variants.even
-	return variants.default ?? null
+	return variants[furnitureVariantFor(furniture, slot, pageIndex)] ?? null
 }
 
 export function hasFurniture(furniture: PageFurniture | null | undefined): boolean {

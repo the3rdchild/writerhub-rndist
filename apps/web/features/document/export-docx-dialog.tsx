@@ -6,6 +6,7 @@ import { download, safeFilename } from '@/features/document/download'
 import { exportDocx, mergeTabContents } from '@/features/document/export-docx'
 import { prepareForExport } from '@/features/document/prepare-export'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import { readFurnitureContentJson } from '@/features/editor/page-furniture/page-furniture-ydoc'
 import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
 import { pageGeometry } from '@/features/editor/page-geometry'
 import { usePageSetup } from '@/features/editor/use-page-setup'
@@ -81,6 +82,7 @@ export function ExportDocxDialog() {
 				geometry: pageGeometry(setup),
 				setup,
 				furniture,
+				furnitureContent: activeId ? readFurnitureContentJson(doc, activeId) : null,
 				typography,
 			})
 			download(blob, safeFilename(title, 'docx'))

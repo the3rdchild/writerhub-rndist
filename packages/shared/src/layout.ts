@@ -58,6 +58,77 @@ export interface PageSetup {
 	margins: PageMargins
 	pageColor: string | null
 	pageless: boolean
+	/** Jarak tepi atas kertas ke baris pertama header (px CSS 96 DPI). */
+	headerMargin?: number
+	/** Jarak tepi bawah kertas ke baris terakhir footer (px CSS 96 DPI). */
+	footerMargin?: number
+	/** Penomoran halaman bagian pertama; bagian lain membawanya lewat atribut
+	 * node `sectionBreak`. Tanpa ini: desimal, lanjut mengalir. */
+	pageNumbering?: PageNumbering
+}
+
+export type PageNumberFormat = 'decimal' | 'lower-roman' | 'upper-roman' | 'lower-alpha' | 'upper-alpha'
+
+export interface PageNumbering {
+	format: PageNumberFormat
+	/** Lanjut mengalir dari bagian sebelumnya, atau mulai ulang dari N. */
+	restart: 'continue' | number
+}
+
+const ROMAN_PAIRS: [number, string][] = [
+	[1000, 'M'],
+	[900, 'CM'],
+	[500, 'D'],
+	[400, 'CD'],
+	[100, 'C'],
+	[90, 'XC'],
+	[50, 'L'],
+	[40, 'XL'],
+	[10, 'X'],
+	[9, 'IX'],
+	[5, 'V'],
+	[4, 'IV'],
+	[1, 'I'],
+]
+
+function toRoman(value: number): string {
+	let rest = value
+	let out = ''
+	for (const [amount, glyph] of ROMAN_PAIRS) {
+		while (rest >= amount) {
+			out += glyph
+			rest -= amount
+		}
+	}
+	return out
+}
+
+/** A..Z lalu AA..ZZ (basis-26 bijektif, seperti penomoran Word). */
+function toAlpha(value: number): string {
+	let rest = value
+	let out = ''
+	do {
+		rest -= 1
+		out = String.fromCharCode(65 + (rest % 26)) + out
+		rest = Math.floor(rest / 26)
+	} while (rest > 0)
+	return out
+}
+
+export function formatPageNumber(value: number, format: PageNumberFormat): string {
+	const safe = Math.max(0, Math.floor(value))
+	switch (format) {
+		case 'lower-roman':
+			return safe === 0 ? '0' : toRoman(safe).toLowerCase()
+		case 'upper-roman':
+			return safe === 0 ? '0' : toRoman(safe)
+		case 'lower-alpha':
+			return safe === 0 ? '0' : toAlpha(safe).toLowerCase()
+		case 'upper-alpha':
+			return safe === 0 ? '0' : toAlpha(safe)
+		default:
+			return String(safe)
+	}
 }
 
 export type FurnitureSlot = 'header' | 'footer'

@@ -118,6 +118,13 @@ Akibatnya berantai:
 kertas memakai pengganjal kanvas, atau membuat kanvas meniru aturan penggalan peramban?
 Pilihan ini menentukan bentuk V2 dan V4.
 
+> **Pembaruan 6 September 2026 — arahnya sudah terkunci secara teknis.** Header/footer
+> bernomor mensyaratkan perender tahu ia sedang menggambar halaman ke berapa, dan peramban
+> tidak menyediakannya (`@page` *margin box* dan `counter(page)` tidak didukung Chromium;
+> `position: fixed` berulang tapi isinya sama di semua halaman). Jadi **kertas harus ikut
+> kanvas**, dan prasyaratnya paginator kanvas dibereskan dulu dari 47 ke ~35. Uraiannya di
+> [HEADER-FOOTER-PLAN.md §2](HEADER-FOOTER-PLAN.md#2-mengapa-fitur-ini-mengunci-arah-v1).
+
 ### V2. Nomor halaman daftar tidak pernah benar — **M**
 
 Diukur pada berkas ini, untuk satu judul yang sama, "BAB 1 PENDAHULUAN":

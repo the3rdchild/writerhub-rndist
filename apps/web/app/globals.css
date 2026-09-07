@@ -213,6 +213,132 @@ a {
   pointer-events: none;
 }
 
+/* ── perabot halaman (header/footer) ───────────────────────────────────── */
+
+/* Area klik-ganda untuk masuk mode sunting; menempati pita margin atas/bawah
+   lembar. Garis putus-putus muncul saat disorot supaya areanya ketahuan. */
+.furniture-hitbox {
+  position: absolute;
+  left: 0;
+  right: 0;
+  cursor: text;
+}
+.furniture-hitbox--header {
+  top: 0;
+}
+.furniture-hitbox--footer {
+  bottom: 0;
+}
+.furniture-hitbox::after {
+  content: '';
+  position: absolute;
+  inset: 0 8px;
+  border: 1px dashed transparent;
+  border-radius: 2px;
+  pointer-events: none;
+  transition: border-color 0.12s ease;
+}
+.furniture-hitbox:hover::after {
+  border-color: var(--border-subtle);
+}
+
+/* Isi statis di lembar lain: paragraf rapat, gambar tidak meluber. */
+.furniture-box p {
+  margin: 0;
+  min-height: 1em;
+}
+.furniture-box img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Badan naskah meredup saat header/footer sedang disunting (ala Word). */
+.document-page-padding {
+  transition: opacity 0.15s ease;
+}
+.furniture-dimming {
+  opacity: 0.55;
+}
+
+/* Kotak sunting di tempat + pil perkakasnya. */
+.furniture-edit-box {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 20;
+}
+.furniture-body {
+  color: var(--foreground);
+  font-size: 11px;
+  line-height: 1.45;
+  min-height: 1.45em;
+}
+.furniture-body p {
+  margin: 0;
+}
+.furniture-body img {
+  max-width: 100%;
+  height: auto;
+}
+.furniture-body p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--foreground-muted);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.furniture-edit-pill {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
+  box-shadow: var(--page-shadow);
+  white-space: nowrap;
+}
+.furniture-edit-label {
+  font-size: 11px;
+  color: var(--foreground-muted);
+  padding: 0 6px;
+}
+.furniture-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--foreground-muted);
+  font-size: 11px;
+  padding: 3px 6px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.furniture-edit-btn:hover {
+  background: var(--overlay-hover);
+  color: var(--foreground);
+}
+.furniture-edit-btn--done {
+  color: var(--accent);
+}
+
+@media print {
+  .furniture-hitbox,
+  .furniture-edit-box {
+    display: none !important;
+  }
+  .furniture-dimming {
+    opacity: 1;
+  }
+}
+
 /* ── penggaris ─────────────────────────────────────────────────────────── */
 
 /*

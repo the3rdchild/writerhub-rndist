@@ -1,8 +1,8 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import { useEffect, useRef, useState } from 'react'
 import { cssLineHeight, documentLineSpacing } from '@writer-hub/shared'
+import { useEffect, useRef, useState } from 'react'
 import { blockSpacingAt } from '@/features/editor/block-spacing-at'
 import { DEFAULT_LINE_SPACING } from '@/features/editor/spacing-options'
 import { ptToPx, pxToPt } from '@/features/editor/spacing-units'

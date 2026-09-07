@@ -4,6 +4,9 @@ import type { Editor } from '@tiptap/react'
 import { headingBreakLevels } from '@writer-hub/shared'
 import { useMemo, useState } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import { useFurnitureEdit } from '@/features/editor/page-furniture/furniture-edit-context'
+import { variantFor } from '@/features/editor/page-furniture/model'
+import { useFurnitureContent } from '@/features/editor/page-furniture/use-furniture-content'
 import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
 import {
 	type PageMargins,
@@ -31,6 +34,8 @@ export function DocumentCanvas({
 	const { settings } = useSettings()
 	const { setup, setPageSetup } = usePageSetup()
 	const { furniture } = usePageFurniture()
+	const { htmlOf, hasVariant } = useFurnitureContent()
+	const { edit, begin, end } = useFurnitureEdit()
 	const { typography } = useTypography()
 	const { editor } = useEditorInstance()
 	const { activeId } = useSessions()
@@ -48,6 +53,17 @@ export function DocumentCanvas({
 	const { width: canvasWidth, height: totalHeight } = paperSize(geometry, sheets, pageCount)
 	const zoom = settings.zoom
 	const leftRulerRoom = settings.showRuler && !setup.pageless ? LEFT_RULER_WIDTH + LEFT_RULER_GAP : 0
+
+	/* Mode sunting perabot: lembar target dari klik ganda, atau lembar pertama
+	 * yang benar-benar merender varian default (halaman 1 bila first aktif). */
+	const furnitureEdit = useMemo(() => {
+		if (!edit || !activeId) return null
+		const sheetIndex = edit.sheetIndex ?? (hasVariant(edit.slot, 'first') && sheets.length > 1 ? 1 : 0)
+		const variant = variantFor(sheetIndex, (candidate) =>
+			Boolean(furniture?.[edit.slot]?.[candidate] || hasVariant(edit.slot, candidate)),
+		)
+		return { slot: edit.slot, variant, sheetIndex }
+	}, [edit, activeId, furniture, hasVariant, sheets.length])
 
 	return (
 		<div className={cn('document-canvas flex-1 overflow-auto px-6 pb-8', !settings.showRuler && 'pt-8')}>
@@ -111,6 +127,11 @@ export function DocumentCanvas({
 								setup={setup}
 								typography={typography}
 								furniture={furniture}
+								furnitureContent={htmlOf}
+								furnitureHasVariant={hasVariant}
+								furnitureEdit={furnitureEdit}
+								onFurnitureActivate={(slot, sheetIndex) => begin({ slot, sheetIndex })}
+								onFurnitureDeactivate={end}
 								sheets={sheets}
 								pageCount={pageCount}
 								sections={sectionSetups}

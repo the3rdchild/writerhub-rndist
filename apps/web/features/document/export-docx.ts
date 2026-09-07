@@ -16,7 +16,7 @@ import {
 } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE, type SectionSpan, sectionSpans } from '@/features/editor/section-break'
 import { DOCX_ALIGNMENT, docxTypographyStyles } from './docx/typography-styles'
-import { docxSectionFurniture } from './export-furniture'
+import { docxSectionFurniture, type FurnitureContent } from './export-furniture'
 
 const TWIPS_PER_PX = 15
 
@@ -212,13 +212,16 @@ export async function exportDocx(
 		geometry,
 		setup,
 		furniture,
+		furnitureContent,
 		typography,
 	}: {
 		title: string
 		geometry: PageGeometry
 		setup?: PageSetup
-		/** Header/footer dokumen; null berarti tanpa perabot halaman. */
+		/** Header/footer dokumen (baris lama); null berarti tanpa perabot halaman. */
 		furniture?: PageFurniture | null
+		/** Isi kaya per slot+varian — menang atas baris lama. */
+		furnitureContent?: FurnitureContent | null
 		/**
 		 * Rupa huruf dokumen. Tanpa ini Word memakai gaya judul bawaannya, dan
 		 * berkas hasil ekspor tidak lagi serupa dengan yang tampil di kanvas.
@@ -624,6 +627,20 @@ export async function exportDocx(
 		const upright = span
 			? resolvePageSize({ ...span.setup, orientation: 'portrait' })
 			: { width: geometry.width, height: geometry.height }
+		const numbering = span?.setup.pageNumbering
+		const numberFormat = numbering
+			? {
+					decimal: undefined,
+					'lower-roman': docx.NumberFormat.LOWER_ROMAN,
+					'upper-roman': docx.NumberFormat.UPPER_ROMAN,
+					'lower-alpha': docx.NumberFormat.LOWER_LETTER,
+					'upper-alpha': docx.NumberFormat.UPPER_LETTER,
+				}[numbering.format]
+			: undefined
+		const startAt =
+			numbering && typeof numbering.restart === 'number' && numbering.restart !== 1
+				? numbering.restart
+				: undefined
 
 		return {
 			page: {
@@ -632,12 +649,23 @@ export async function exportDocx(
 					right: px(geo.margins.right),
 					bottom: px(geo.margins.bottom),
 					left: px(geo.margins.left),
+					...(span && span.setup.headerMargin !== undefined ? { header: px(span.setup.headerMargin) } : {}),
+					...(span && span.setup.footerMargin !== undefined ? { footer: px(span.setup.footerMargin) } : {}),
 				},
 				size: {
 					width: px(upright.width),
 					height: px(upright.height),
 					...(span ? { orientation: span.setup.orientation } : {}),
 				},
+				/* w:pgNumType — format & mulai penomoran per bagian (T4/T6). */
+				...(numberFormat || startAt !== undefined
+					? {
+							pageNumbers: {
+								...(numberFormat ? { formatType: numberFormat } : {}),
+								...(startAt !== undefined ? { start: startAt } : {}),
+							},
+						}
+					: {}),
 			},
 			...(columns && columns.count > 1
 				? {
@@ -695,7 +723,7 @@ export async function exportDocx(
 
 	// Perabot halaman dipasang di section pertama; section berikutnya mewarisi
 	// referensinya di Word, meniru perilaku dokumen asal.
-	const furnitureExtras = docxSectionFurniture(furniture, docx)
+	const furnitureExtras = docxSectionFurniture(furniture, docx, furnitureContent)
 
 	const document = new Document({
 		title,

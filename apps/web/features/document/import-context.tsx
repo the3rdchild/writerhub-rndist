@@ -2,8 +2,12 @@
 
 import type { JSONContent } from '@tiptap/core'
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
+import type { FurnitureContent } from '@/features/document/docx/header-footer'
 import type { PageFurniture } from '@/features/editor/page-furniture/model'
-import { setPageFurnitureForTab } from '@/features/editor/page-furniture/page-furniture-ydoc'
+import {
+	setFurnitureFragment,
+	setPageFurnitureForTab,
+} from '@/features/editor/page-furniture/page-furniture-ydoc'
 import { DEFAULT_MARGINS, DEFAULT_PAGE_SETUP, type PageSetup } from '@/features/editor/page-geometry'
 import { MAX_DOCUMENTS, MAX_SESSIONS, useSessions } from '@/features/sessions/session-context'
 import {
@@ -86,6 +90,7 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 			pageSetup?: DocxImport['pageSetup'],
 			furniture?: PageFurniture | null,
 			comments?: DocxImport['comments'],
+			furnitureContent?: FurnitureContent | null,
 		) => {
 			if (!activeDocId) return
 			const tabId = createTab(doc, activeDocId, title)
@@ -93,6 +98,22 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 				jsonToFragment(doc, tabId, content)
 				if (pageSetup) setPageSetupForTab(doc, tabId, resolveImportedSetup(pageSetup))
 				if (furniture) setPageFurnitureForTab(doc, tabId, furniture)
+				/* Isi kaya header/footer jadi fragmen ydoc; migrasi ensureFurnitureFragment
+				 * nanti memakai baris lama di atas bila fragmen tidak ada. */
+				for (const [slot, variants] of Object.entries(furnitureContent ?? {})) {
+					for (const [variant, blocks] of Object.entries(variants ?? {})) {
+						if (!Array.isArray(blocks) || blocks.length === 0) continue
+						setFurnitureFragment(
+							doc,
+							tabId,
+							{ slot: slot as 'header' | 'footer', variant: variant as 'default' | 'first' | 'even' },
+							{
+								type: 'doc',
+								content: blocks,
+							},
+						)
+					}
+				}
 				if (comments && comments.length > 0) updateTab(doc, tabId, { comments })
 			}, LOCAL_ORIGIN)
 			selectSession(tabId)
@@ -112,6 +133,7 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 					result.pageSetup,
 					result.furniture,
 					result.comments,
+					result.furnitureContent,
 				)
 				setWarnings(result.warnings.map((warning) => warning.message))
 			} catch (cause) {

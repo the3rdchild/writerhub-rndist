@@ -1,11 +1,25 @@
-import { INCH, PAGE_SIZES, type PageOrientation, type PageSizeId } from '@writer-hub/shared'
+import {
+	INCH,
+	PAGE_SIZES,
+	type PageNumbering,
+	type PageOrientation,
+	type PageSizeId,
+} from '@writer-hub/shared'
 
 /*
  * Tabel ukuran kertas hidup di `@writer-hub/shared`: API draf memerlukannya
  * juga - ia harus memberi tahu model kanvas yang sedang dirancangnya - dan dua
  * salinan angka kertas adalah dua salinan yang akan berselisih.
  */
-export { INCH, PAGE_SIZES, type PageOrientation, type PageSizeId } from '@writer-hub/shared'
+export {
+	formatPageNumber,
+	INCH,
+	PAGE_SIZES,
+	type PageNumberFormat,
+	type PageNumbering,
+	type PageOrientation,
+	type PageSizeId,
+} from '@writer-hub/shared'
 
 export const DEFAULT_PAGE_SIZE: PageSizeId = 'a4'
 export const MIN_CUSTOM_SIDE = 3 * INCH
@@ -22,6 +36,20 @@ export interface PageMargins {
 
 export const DEFAULT_MARGINS: PageMargins = { top: INCH, right: INCH, bottom: INCH, left: INCH }
 
+/** Padanan bawaan Word: header/footer 0,5" dari tepi kertas. */
+export const DEFAULT_HEADER_MARGIN = INCH / 2
+export const DEFAULT_FOOTER_MARGIN = INCH / 2
+
+export function headerMarginOf(setup: PageSetup): number {
+	const value = setup.headerMargin ?? DEFAULT_HEADER_MARGIN
+	return Math.max(0, Math.min(value, setup.margins.top))
+}
+
+export function footerMarginOf(setup: PageSetup): number {
+	const value = setup.footerMargin ?? DEFAULT_FOOTER_MARGIN
+	return Math.max(0, Math.min(value, setup.margins.bottom))
+}
+
 export interface PageSetup {
 	size: PageSizeId
 	customWidth?: number
@@ -30,6 +58,12 @@ export interface PageSetup {
 	margins: PageMargins
 	pageColor: string | null
 	pageless: boolean
+	/** Jarak tepi atas kertas ke baris pertama header (px). */
+	headerMargin?: number
+	/** Jarak tepi bawah kertas ke baris terakhir footer (px). */
+	footerMargin?: number
+	/** Penomoran halaman bagian pertama; bagian lain lewat atribut sectionBreak. */
+	pageNumbering?: PageNumbering
 }
 
 export const DEFAULT_PAGE_SETUP: PageSetup = {
@@ -38,6 +72,8 @@ export const DEFAULT_PAGE_SETUP: PageSetup = {
 	margins: DEFAULT_MARGINS,
 	pageColor: null,
 	pageless: false,
+	headerMargin: DEFAULT_HEADER_MARGIN,
+	footerMargin: DEFAULT_FOOTER_MARGIN,
 }
 
 export function sameSheetGeometry(a: PageSetup, b: PageSetup): boolean {
@@ -89,6 +125,10 @@ export interface PageGeometry {
 export interface SheetGeometry extends PageGeometry {
 	index: number
 	top: number
+	/** Indeks section (span) tempat lembar ini berada; 0 = sebelum break mana pun. */
+	sectionIndex?: number
+	/** Aturan penomoran yang berlaku untuk lembar ini (sudah dievaluasi per section). */
+	pageNumbering?: PageNumbering | null
 }
 
 export function clampMargins(

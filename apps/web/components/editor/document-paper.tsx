@@ -3,15 +3,20 @@
 import type { DocumentTypography } from '@writer-hub/shared'
 import type { ReactNode } from 'react'
 import { useMemo } from 'react'
-import type { PageFurniture } from '@/features/editor/page-furniture/model'
+import { FurnitureEditor } from '@/features/editor/page-furniture/furniture-editor'
+import type { FurnitureSlot, FurnitureVariant, PageFurniture } from '@/features/editor/page-furniture/model'
+import { formatSheetNumbers } from '@/features/editor/page-furniture/numbering'
 import { SheetFurniture } from '@/features/editor/page-furniture/sheet-furniture'
 import {
+	footerMarginOf,
+	headerMarginOf,
 	type PageGeometry,
 	type PageSetup,
 	pageGeometry,
 	type SheetGeometry,
 } from '@/features/editor/page-geometry'
 import { typographyRules } from '@/features/editor/typography-css'
+import { cn } from '@/lib/utils'
 
 /**
  * Kertasnya - dan hanya kertasnya.
@@ -107,6 +112,16 @@ export interface DocumentPaperProps {
 	typography: DocumentTypography
 	/** Header/footer dokumen; null berarti tanpa perabot halaman. */
 	furniture?: PageFurniture | null
+	/** HTML isi kaya per slot+varian (hanya kanvas yang menyuplainya). */
+	furnitureContent?: (slot: FurnitureSlot, variant: FurnitureVariant) => string | null
+	/** Kehadiran fragmen per slot+varian, termasuk yang masih kosong. */
+	furnitureHasVariant?: (slot: FurnitureSlot, variant: FurnitureVariant) => boolean
+	/** Mode sunting di tempat; editor kecil dirender pada lembar targetnya. */
+	furnitureEdit?: { slot: FurnitureSlot; variant: FurnitureVariant; sheetIndex: number } | null
+	/** Dipanggil saat area margin lembar diklik ganda (khusus kanvas). */
+	onFurnitureActivate?: (slot: FurnitureSlot, sheetIndex: number) => void
+	/** Keluar dari mode sunting (tombol Selesai / Esc / klik ganda badan). */
+	onFurnitureDeactivate?: () => void
 	/** Lembar hasil paginasi; kosong berarti jatuh ke `pageCount` lembar seragam. */
 	sheets?: readonly SheetGeometry[]
 	pageCount?: number
@@ -123,6 +138,11 @@ export function DocumentPaper({
 	setup,
 	typography,
 	furniture = null,
+	furnitureContent,
+	furnitureHasVariant,
+	furnitureEdit = null,
+	onFurnitureActivate,
+	onFurnitureDeactivate,
 	sheets = [],
 	pageCount = 1,
 	sections = [],
@@ -133,6 +153,12 @@ export function DocumentPaper({
 	const typeRules = useMemo(() => typographyRules(typography), [typography])
 	const { width: canvasWidth, height: totalHeight } = paperSize(geometry, sheets, pageCount)
 	const { width, height, margins, pageStride, contentHeight } = geometry
+	const headerMargin = headerMarginOf(setup)
+	const footerMargin = footerMarginOf(setup)
+	/* Nomor per lembar mengikuti penomoran section (T4); token {pages} selalu
+	 * desimal seperti NUMPAGES Word. */
+	const sheetNumbers = useMemo(() => formatSheetNumbers(sheets, pageCount), [sheets, pageCount])
+	const totalPages = String(sheets.length > 0 ? sheets.length : pageCount)
 
 	/*
 	 * Batas tinggi blok kode, dihitung dari lembar yang sedang dipakai. Tanpa
@@ -194,31 +220,84 @@ export function DocumentPaper({
 				style={{ width: canvasWidth, minHeight: totalHeight }}
 			>
 				<div aria-hidden="true">
-					{sheetList.map((sheet) => (
-						<div
-							key={sheet.key}
-							className="document-sheet absolute"
-							style={{
-								top: sheet.top,
-								left: sheet.left,
-								width: sheet.width,
-								height: sheet.height,
-								...(setup.pageColor ? { background: setup.pageColor } : {}),
-							}}
-						>
-							{!setup.pageless && (
-								<SheetFurniture furniture={furniture} pageIndex={sheet.index} margins={sheet.margins} />
-							)}
-							{showPageNumbers && !setup.pageless && (
-								<span
-									className="absolute text-[11px] text-faint"
-									style={{ bottom: sheet.margins.bottom / 3, right: sheet.margins.right }}
-								>
-									{sheet.index + 1}
-								</span>
-							)}
-						</div>
-					))}
+					{sheetList.map((sheet) => {
+						return (
+							<div
+								key={sheet.key}
+								className="document-sheet absolute"
+								style={{
+									top: sheet.top,
+									left: sheet.left,
+									width: sheet.width,
+									height: sheet.height,
+									...(setup.pageColor ? { background: setup.pageColor } : {}),
+								}}
+							>
+								{!setup.pageless && (
+									<SheetFurniture
+										furniture={furniture}
+										contentOf={furnitureContent}
+										hasVariant={furnitureHasVariant}
+										pageIndex={sheet.index}
+										margins={sheet.margins}
+										headerMargin={headerMargin}
+										footerMargin={footerMargin}
+										pageNumber={sheetNumbers[sheet.index] ?? String(sheet.index + 1)}
+										totalPages={totalPages}
+									/>
+								)}
+								{/* Area sunting di tempat (T5): klik ganda margin atas/bawah
+								 * masuk mode sunting slot itu — hanya di kanvas. */}
+								{!setup.pageless && onFurnitureActivate && (
+									<>
+										{/* biome-ignore lint/a11y/noStaticElementInteractions: pintasan tetikus
+										 * murni, disembunyikan dari teknologi bantu. Jalur papan tiknya ada di
+										 * menu Format → Header & footer, bukan di overlay setinggi margin ini —
+										 * menjadikannya tombol justru menyisipkan sasaran tab di tiap lembar. */}
+										<div
+											aria-hidden="true"
+											className="furniture-hitbox furniture-hitbox--header"
+											style={{ height: sheet.margins.top }}
+											onDoubleClick={() => onFurnitureActivate('header', sheet.index)}
+											title="Double-click to edit header"
+										/>
+										{/* biome-ignore lint/a11y/noStaticElementInteractions: pintasan tetikus
+										 * murni, disembunyikan dari teknologi bantu. Jalur papan tiknya ada di
+										 * menu Format → Header & footer, bukan di overlay setinggi margin ini —
+										 * menjadikannya tombol justru menyisipkan sasaran tab di tiap lembar. */}
+										<div
+											aria-hidden="true"
+											className="furniture-hitbox furniture-hitbox--footer"
+											style={{ height: sheet.margins.bottom }}
+											onDoubleClick={() => onFurnitureActivate('footer', sheet.index)}
+											title="Double-click to edit footer"
+										/>
+									</>
+								)}
+								{!setup.pageless && furnitureEdit !== null && furnitureEdit.sheetIndex === sheet.index && (
+									<FurnitureEditor
+										slot={furnitureEdit.slot}
+										variant={furnitureEdit.variant}
+										edge={furnitureEdit.slot === 'header' ? 'top' : 'bottom'}
+										offset={furnitureEdit.slot === 'header' ? headerMargin : footerMargin}
+										margins={sheet.margins}
+										onExit={onFurnitureDeactivate ?? (() => {})}
+									/>
+								)}
+								{showPageNumbers && !setup.pageless && (
+									<span
+										className="absolute text-[11px] text-faint"
+										style={{ bottom: sheet.margins.bottom / 3, right: sheet.margins.right }}
+									>
+										{/* Ikut penomoran dokumen: kalau bagian ini memakai romawi,
+										 * lencana sudut pun harus membaca "iii", bukan "3" - dua sistem
+										 * angka di satu lembar hanya membingungkan. */}
+										{sheetNumbers[sheet.index] ?? String(sheet.index + 1)}
+									</span>
+								)}
+							</div>
+						)
+					})}
 				</div>
 
 				{/*
@@ -231,8 +310,13 @@ export function DocumentPaper({
 				 * (lihat `toc-block-view.tsx`); itulah satu-satunya cara blok HTML
 				 * mode satu halaman tahu setinggi apa kertasnya.
 				 */}
+				{/* biome-ignore lint/a11y/noStaticElementInteractions: klik ganda di badan
+				 * naskah hanya jalan keluar tambahan dari mode sunting perabot; padanan
+				 * papan tiknya Escape (lihat furniture-editor.tsx) dan tombol "Done".
+				 * `aria-hidden` tidak dipakai di sini - ini pembungkus seluruh naskah. */}
 				<div
-					className="document-page-padding relative z-10"
+					className={cn('document-page-padding relative z-10', furnitureEdit && 'furniture-dimming')}
+					onDoubleClick={furnitureEdit ? onFurnitureDeactivate : undefined}
 					style={
 						{
 							paddingTop: margins.top,

@@ -6,6 +6,7 @@
  * `parse.ts`; di sini hanya pembacaan satu `sectPr` dan bentuk hasilnya.
  */
 import type { JSONContent } from '@tiptap/core'
+import type { PageNumberFormat, PageNumbering } from '@writer-hub/shared'
 import {
 	PAGE_SIZES,
 	type PageMargins,
@@ -13,7 +14,6 @@ import {
 	type PageSizeId,
 } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
-import { type ParseContext, skip } from './context'
 import { twipsToPx } from './units'
 import { attr, child, val } from './xml'
 
@@ -23,6 +23,27 @@ export interface SectionProps {
 	pageSetup: PageSetupPatch
 	columns: { count: number; gap?: number } | null
 	continuous?: boolean
+}
+
+/** w:pgNumType/w:fmt → format penomoran Writer Hub. */
+const PGNUM_FORMATS: Record<string, PageNumberFormat> = {
+	decimal: 'decimal',
+	lowerRoman: 'lower-roman',
+	upperRoman: 'upper-roman',
+	lowerLetter: 'lower-alpha',
+	upperLetter: 'upper-alpha',
+	numberInDash: 'decimal',
+}
+
+function numberingOf(sectPr: Element): PageNumbering | undefined {
+	const pgNumType = child(sectPr, 'pgNumType')
+	if (!pgNumType) return undefined
+
+	const format = PGNUM_FORMATS[attr(pgNumType, 'fmt') ?? '']
+	const start = Number.parseInt(attr(pgNumType, 'start') ?? '', 10)
+	/* Word: tanpa start, penomoran melanjutkan section sebelumnya. */
+	const restart: PageNumbering['restart'] = Number.isFinite(start) && start >= 0 ? start : 'continue'
+	return { format: format ?? 'decimal', restart }
 }
 
 function matchPageSize(width: number, height: number): PageSizeId | null {
@@ -35,10 +56,11 @@ function matchPageSize(width: number, height: number): PageSizeId | null {
 	return null
 }
 
-export function readSectPr(sectPr: Element, context: ParseContext): SectionProps {
+export function readSectPr(sectPr: Element): SectionProps {
 	const pageSetup: PageSetupPatch = {}
 
-	if (child(sectPr, 'pgNumType')) skip(context, 'penomoran-halaman')
+	const numbering = numberingOf(sectPr)
+	if (numbering) pageSetup.pageNumbering = numbering
 
 	const pgSz = child(sectPr, 'pgSz')
 	const width = twipsToPx(Number.parseInt(attr(pgSz, 'w') ?? '', 10))
@@ -65,6 +87,15 @@ export function readSectPr(sectPr: Element, context: ParseContext): SectionProps
 			if (Number.isFinite(twips)) margins[side] = Math.max(0, twipsToPx(twips))
 		}
 		if (Object.keys(margins).length > 0) pageSetup.margins = margins
+
+		/* Jarak header/footer dari tepi kertas (w:header/w:footer, twips). */
+		for (const [distanceAttr, field] of [
+			['header', 'headerMargin'],
+			['footer', 'footerMargin'],
+		] as const) {
+			const twips = Number.parseInt(attr(pgMar, distanceAttr) ?? '', 10)
+			if (Number.isFinite(twips) && twips >= 0) pageSetup[field] = Math.max(0, twipsToPx(twips))
+		}
 	}
 
 	let columns: SectionProps['columns'] = null
