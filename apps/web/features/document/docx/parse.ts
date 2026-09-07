@@ -415,7 +415,25 @@ export function paragraphBlocks(paragraph: Element, context: ParseContext, heuri
 			...(builder.inline.length > 0 ? { content: builder.inline } : {}),
 		})
 	}
-	for (const extra of builder.after) builder.blocks.push(extra)
+	/*
+	 * Gambar mewarisi perataan paragraf jangkarnya.
+	 *
+	 * Di Word gambar sebaris tidak punya perataan sendiri: yang memusatkannya
+	 * adalah `w:jc` milik paragraf tempat ia duduk. Di sini gambar keluar sebagai
+	 * blok tersendiri sesudah paragraf itu, jadi tanpa langkah ini `w:jc`-nya
+	 * hilang dan semua gambar menempel rata kiri - keempat berkas uji memusatkan
+	 * gambarnya, jadi gejalanya menyeluruh, bukan kasus tepi.
+	 *
+	 * `justify` tidak ikut dipetakan: pada gambar Word pun merapatkannya ke kiri.
+	 */
+	const paragraphAlign = attrs.textAlign
+	const mediaAlign = paragraphAlign === 'center' || paragraphAlign === 'right' ? paragraphAlign : undefined
+	for (const extra of builder.after) {
+		if (mediaAlign !== undefined && extra.type === 'image' && extra.attrs?.align === undefined) {
+			extra.attrs = { ...extra.attrs, align: mediaAlign }
+		}
+		builder.blocks.push(extra)
+	}
 	if (paragraphProps.pageBreakBefore) builder.blocks.unshift({ type: PAGE_BREAK_NODE })
 
 	return builder.blocks

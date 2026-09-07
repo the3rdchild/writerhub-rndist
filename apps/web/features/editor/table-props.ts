@@ -161,6 +161,18 @@ export const TableNodeProps = Table.extend({
 					}
 				},
 			},
+			/*
+			 * Ketiga atribut garis diterbitkan sebagai *custom property*, bukan
+			 * properti `border-*` sungguhan.
+			 *
+			 * Cincin di elemen <table> ikut tergambar melintasi baris pengganjal
+			 * yang memenggal tabel antar halaman - dua garis tegak menyambung
+			 * potongan atas dan bawah menembus celah antar lembar. Variabelnya
+			 * diwariskan ke sel (lihat `.document-body td` di globals.css),
+			 * sehingga tiap potongan menutup tepinya sendiri seperti di Word.
+			 *
+			 * `data-border-*` tetap diterbitkan: itulah yang dibaca `parseHTML`.
+			 */
 			borderColor: {
 				default: null,
 				parseHTML: (element: HTMLElement) => element.getAttribute('data-border-color'),
@@ -168,7 +180,7 @@ export const TableNodeProps = Table.extend({
 					if (!attributes.borderColor) return {}
 					return {
 						'data-border-color': attributes.borderColor,
-						style: `border-color: ${attributes.borderColor}`,
+						style: `--table-border-color: ${attributes.borderColor}`,
 					}
 				},
 			},
@@ -176,12 +188,13 @@ export const TableNodeProps = Table.extend({
 				default: null,
 				parseHTML: (element: HTMLElement) =>
 					readPx(element.getAttribute('data-border-width')) ?? readPx(element.style.borderWidth),
-				renderHTML: (attributes: { borderWidth?: number | null }) => {
+				renderHTML: (attributes: { borderWidth?: number | null; borderColor?: string | null }) => {
 					if (!attributes.borderWidth) return {}
-					return {
-						'data-border-width': String(attributes.borderWidth),
-						style: `border-width: ${attributes.borderWidth}px`,
-					}
+					const style = [`--table-border-width: ${attributes.borderWidth}px`]
+					// Garis tanpa warna harus tetap terlihat: hitam bila borderColor kosong,
+					// sama seperti sebelum garisnya pindah ke sel.
+					if (!attributes.borderColor) style.push('--table-border-color: #000000')
+					return { 'data-border-width': String(attributes.borderWidth), style: style.join('; ') }
 				},
 			},
 			borderStyle: {
@@ -192,7 +205,7 @@ export const TableNodeProps = Table.extend({
 					if (!attributes.borderStyle) return {}
 					return {
 						'data-border-style': attributes.borderStyle,
-						style: `border-style: ${attributes.borderStyle}`,
+						style: `--table-border-style: ${attributes.borderStyle}`,
 					}
 				},
 			},
@@ -240,17 +253,23 @@ function borderDecorations(doc: PMNode): DecorationSet {
 		}
 		const style: string[] = []
 		const attrs: Record<string, string> = {}
+		/*
+		 * Sama seperti `renderHTML`: yang dipasang variabel, bukan `border-*`
+		 * sungguhan, supaya cincinnya digambar oleh sel dan tidak menembus celah
+		 * antar halaman pada tabel yang terpenggal.
+		 */
 		if (borderColor) {
 			attrs['data-border-color'] = borderColor
-			style.push(`border-color: ${borderColor}`)
+			style.push(`--table-border-color: ${borderColor}`)
 		}
 		if (borderWidth) {
 			attrs['data-border-width'] = String(borderWidth)
-			style.push(`border-width: ${borderWidth}px`)
+			style.push(`--table-border-width: ${borderWidth}px`)
+			if (!borderColor) style.push('--table-border-color: #000000')
 		}
 		if (borderStyle) {
 			attrs['data-border-style'] = borderStyle
-			style.push(`border-style: ${borderStyle}`)
+			style.push(`--table-border-style: ${borderStyle}`)
 		}
 		if (style.length > 0) attrs.style = style.join('; ')
 		if (Object.keys(attrs).length === 0) return

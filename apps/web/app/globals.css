@@ -862,7 +862,17 @@ a {
 .document-body td {
   /* Sel jadi patokan posisi sorotan .selectedCell yang menutupinya. */
   position: relative;
-  border: 1px solid var(--border-strong);
+  /*
+   * Garis tabel hasil impor digambar di SEL, bukan di elemen <table>.
+   *
+   * Kalau cincinnya dipasang pada <table> (border-collapse: collapse), ia
+   * tergambar sepanjang kotak tabel - termasuk melintasi baris pengganjal yang
+   * memenggal tabel antar halaman. Hasilnya dua garis tegak menyambung
+   * potongan atas dan bawah, menembus celah antar lembar. Lewat variabel yang
+   * diwariskan <table>, setiap potongan menutup tepinya sendiri seperti di Word.
+   */
+  border: var(--table-border-width, 1px) var(--table-border-style, solid)
+    var(--table-border-color, var(--border-strong));
   padding: 0.4em 0.6em;
   vertical-align: top;
 }
@@ -1428,7 +1438,8 @@ a {
 }
 
 .document-body .table-header-repeat th {
-  border: 1px solid var(--border-strong);
+  border: var(--table-border-width, 1px) var(--table-border-style, solid)
+    var(--table-border-color, var(--border-strong));
   padding: 0.4em 0.6em;
   background: var(--overlay-hover);
   font-weight: 600;

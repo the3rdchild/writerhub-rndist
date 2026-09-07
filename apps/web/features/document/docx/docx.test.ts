@@ -866,6 +866,26 @@ describe('gambar', () => {
 
 		expect(blocks(result.content).map((block) => block.type)).toEqual(['image'])
 	})
+
+	test('gambar mewarisi perataan paragraf jangkarnya', async () => {
+		const rels = `<Relationship Id="rIdImg" Type="${REL_NS}/image" Target="media/gambar1.png"/>`
+		const run = `<w:r>${drawing('rIdImg')}</w:r>`
+		const body = p(run, '<w:jc w:val="center"/>')
+		const result = await readDocx(docx({ body, rels, media: { 'media/gambar1.png': PNG_1x1 } }))
+
+		const block = blocks(result.content).find((item) => item.type === 'image')
+		expect(block?.attrs?.align).toBe('center')
+	})
+
+	test('perataan justify tidak diteruskan ke gambar', async () => {
+		const rels = `<Relationship Id="rIdImg" Type="${REL_NS}/image" Target="media/gambar1.png"/>`
+		const run = `<w:r>${drawing('rIdImg')}</w:r>`
+		const body = p(run, '<w:jc w:val="both"/>')
+		const result = await readDocx(docx({ body, rels, media: { 'media/gambar1.png': PNG_1x1 } }))
+
+		const block = blocks(result.content).find((item) => item.type === 'image')
+		expect(block?.attrs?.align).toBeUndefined()
+	})
 	test('gambar tanpa media ditangani tanpa gagal', async () => {
 		const run = `<w:r>${drawing('rIdHilang')}</w:r>`
 		const result = await readDocx(docx({ body: p(r('teks') + run) }))
