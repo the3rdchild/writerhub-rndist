@@ -7,6 +7,7 @@ import {
 	CheckSquare,
 	Columns2,
 	Eraser,
+	Hash,
 	Indent,
 	List,
 	ListOrdered,
@@ -35,7 +36,7 @@ export function FormatMenu() {
 	const { editor } = useEditorInstance()
 	const { state } = useDocument()
 	const { setup: activeSetup } = usePageSetup()
-	const { setHeadersFootersOpen } = useSettings()
+	const { setHeadersFootersOpen, setPageNumbersOpen } = useSettings()
 	const hasSelection = () => Boolean(editor && !editor.state.selection.empty)
 	const [spacingDialogOpen, setSpacingDialogOpen] = useState(false)
 
@@ -223,6 +224,12 @@ export function FormatMenu() {
 							onSelect={() => run(close, () => setHeadersFootersOpen(true))}
 						>
 							Headers &amp; footers…
+						</Item>
+						<Item
+							icon={<Hash className="h-4 w-4" />}
+							onSelect={() => run(close, () => setPageNumbersOpen(true))}
+						>
+							Page numbers…
 						</Item>
 						{/* ── Rumus ── */}
 						<Submenu label="Formula" icon={<Sigma className="h-4 w-4" />}>

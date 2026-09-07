@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import { ExportPdfDialog } from '@/components/settings/export-pdf-dialog'
 import { HeadersFootersDialog } from '@/components/settings/headers-footers-dialog'
+import { PageNumbersDialog } from '@/components/settings/page-numbers-dialog'
 import { PageSetupDialog } from '@/components/settings/page-setup-dialog'
 import { SettingsDialog } from '@/components/settings/settings-dialog'
 import { ShortcutsDialog } from '@/components/settings/shortcuts-dialog'
@@ -25,6 +26,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 				<ExportPdfDialog />
 				<PageSetupDialog />
 				<HeadersFootersDialog />
+				<PageNumbersDialog />
 				<ExportDocxDialog />
 				<ShareDialog />
 			</div>

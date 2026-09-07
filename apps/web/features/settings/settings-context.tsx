@@ -95,6 +95,8 @@ interface SettingsContextValue {
 	setPageSetupOpen: (open: boolean) => void
 	headersFootersOpen: boolean
 	setHeadersFootersOpen: (open: boolean) => void
+	pageNumbersOpen: boolean
+	setPageNumbersOpen: (open: boolean) => void
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null)
@@ -107,6 +109,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 	const [docxExportOpen, setDocxExportOpen] = useState(false)
 	const [pageSetupOpen, setPageSetupOpen] = useState(false)
 	const [headersFootersOpen, setHeadersFootersOpen] = useState(false)
+	const [pageNumbersOpen, setPageNumbersOpen] = useState(false)
 	useEffect(
 		function applyThemeOnChange() {
 			applyTheme(settings.theme)
@@ -158,6 +161,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 			setPageSetupOpen,
 			headersFootersOpen,
 			setHeadersFootersOpen,
+			pageNumbersOpen,
+			setPageNumbersOpen,
 		}),
 		[
 			settings,
@@ -168,6 +173,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 			docxExportOpen,
 			pageSetupOpen,
 			headersFootersOpen,
+			pageNumbersOpen,
 		],
 	)
 
