@@ -29,11 +29,18 @@ export function ViewMenu() {
 					>
 						Tab dokumen
 					</Item>
+					{/*
+					 * Namanya menyebut "otomatis" dengan sengaja: sejak nomor halaman
+					 * digambar oleh header/footer, saklar ini hanya mengatur nomor
+					 * cadangan yang muncul pada dokumen yang BELUM punya perabot.
+					 * Dokumen yang sudah punya footer bernomor tidak terpengaruh -
+					 * penomorannya diatur di Format → Page numbers.
+					 */}
 					<Item
 						active={settings.showPageNumbers}
 						onSelect={() => run(close, () => update({ showPageNumbers: !settings.showPageNumbers }))}
 					>
-						Nomor halaman
+						Nomor halaman otomatis
 					</Item>
 					<Item
 						active={settings.showWordCount}
