@@ -1,7 +1,16 @@
 'use client'
 
 import type { JSONContent } from '@tiptap/core'
-import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
+import {
+	createContext,
+	type ReactNode,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react'
 import type { FurnitureContent } from '@/features/document/docx/header-footer'
 import type { PageFurniture } from '@/features/editor/page-furniture/model'
 import {
@@ -13,6 +22,7 @@ import { MAX_DOCUMENTS, MAX_SESSIONS, useSessions } from '@/features/sessions/se
 import {
 	createDocument,
 	createTab,
+	findTabDoc,
 	LOCAL_ORIGIN,
 	readDocs,
 	readTabs,
@@ -71,11 +81,39 @@ function resolveImportedSetup(patch: NonNullable<DocxImport['pageSetup']>): Page
 
 export function DocumentImportProvider({ children }: { children: ReactNode }) {
 	const { dispatch } = useDocument()
-	const { doc, activeDocId, selectSession } = useSessions()
+	const { doc, activeDocId, selectSession, sessions, documents, activeId } = useSessions()
 
 	const inputRef = useRef<HTMLInputElement>(null)
 	const [importing, setImporting] = useState(false)
 	const [warnings, setWarnings] = useState<string[]>([])
+	/** Tab hasil impor yang menunggu dijadikan aktif; lihat efek di bawah. */
+	const pendingSelect = useRef<string | null>(null)
+
+	/*
+	 * Pilihan tab ditegaskan ULANG begitu tabnya benar-benar muncul di daftar.
+	 *
+	 * `selectSession` menyimpan id-nya seketika, tapi tab aktif diturunkan dari
+	 * `documents` — dan selama daftar itu belum memuat tab baru tadi, turunannya
+	 * jatuh kembali ke tab pertama. Akibatnya impor mendarat di tab kedua
+	 * sementara layar tetap memperlihatkan tab pertama: pengguna mengira
+	 * impornya gagal, padahal isinya sudah ada di sebelah.
+	 */
+	useEffect(
+		function selectImportedTabOnceItAppears() {
+			const target = pendingSelect.current
+			if (!target) return
+			if (activeId === target) {
+				pendingSelect.current = null
+				return
+			}
+			/* Ydoc selalu mutakhir; daftar turunan React yang tertinggal. Selama
+			 * tabnya sudah ada di sana, pilihannya ditegaskan lagi tiap kali
+			 * daftar tab atau daftar dokumen menyusul. */
+			if (!findTabDoc(doc, target)) return
+			selectSession(target)
+		},
+		[doc, documents, sessions, activeId, selectSession],
+	)
 
 	const openImport = useCallback((kind: ImportKind = 'any') => {
 		const input = inputRef.current
@@ -116,6 +154,7 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 				}
 				if (comments && comments.length > 0) updateTab(doc, tabId, { comments })
 			}, LOCAL_ORIGIN)
+			pendingSelect.current = tabId
 			selectSession(tabId)
 		},
 		[doc, activeDocId, selectSession],

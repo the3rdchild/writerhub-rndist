@@ -26,6 +26,7 @@ import { BlockSpacing } from '@/features/editor/block-spacing'
 import { Callout } from '@/features/editor/callout'
 import { CodeBlock } from '@/features/editor/code-block'
 import { ColumnExtension } from '@/features/editor/columns'
+import { EditShortcuts } from '@/features/editor/edit-shortcuts'
 import { Footnote, FootnoteRef } from '@/features/editor/footnote'
 import { HeadingLevels } from '@/features/editor/heading-extension'
 import { HtmlBlock } from '@/features/editor/html-block'
@@ -102,6 +103,7 @@ export function buildEditorExtensions({
 		}).configure({ openOnClick: false, autolink: true }),
 		TextAlign.configure({ types: ['heading', 'paragraph'] }),
 		TextStyleKit.configure({ lineHeight: false }),
+		EditShortcuts,
 		Highlight.configure({ multicolor: true }),
 		Subscript,
 		Superscript,

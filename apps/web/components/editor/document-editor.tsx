@@ -11,6 +11,7 @@ import { useVisiblePage } from '@/features/editor/use-visible-page'
 import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
 import { useSettings } from '@/features/settings/settings-context'
 import { countWords } from '@/lib/utils'
+import { EditorContextMenu } from './context-menu'
 import { DocumentCanvas } from './document-canvas'
 import { PageIndicator } from './page-indicator'
 import { TableControls } from './table-controls'
@@ -119,6 +120,10 @@ export function DocumentEditor() {
 			    memakan ruang - handle disematkan ke dalam tabel lewat dekorasi
 			    ProseMirror; komponen ini hanya mendaftarkan plugin + merender menu. */}
 			{editor && <TableControls editor={editor} />}
+
+			{/* Menu konteks suntingan (klik kanan) untuk badan dokumen. Sel tabel
+			    tetap memakai menu tabelnya sendiri. */}
+			{editor && <EditorContextMenu editor={editor} />}
 
 			{/* Panel samping opsi tabel (dibuka dari menu "..." sel). */}
 			{editor && <TableOptionsPanel editor={editor} />}

@@ -17,6 +17,7 @@ export type ShortcutId =
 	| 'text.code'
 	| 'text.highlight'
 	| 'text.link'
+	| 'text.clearFormatting'
 	| 'para.heading1'
 	| 'para.heading2'
 	| 'para.heading3'
@@ -41,6 +42,10 @@ export type ShortcutId =
 	| 'doc.undo'
 	| 'doc.redo'
 	| 'doc.selectAll'
+	| 'doc.cut'
+	| 'doc.copy'
+	| 'doc.paste'
+	| 'doc.pastePlain'
 	| 'doc.print'
 	| 'doc.newTab'
 	| 'doc.nextTab'
@@ -67,6 +72,13 @@ export const SHORTCUTS: readonly Shortcut[] = [
 	{ id: 'text.code', keys: 'Mod-e', label: 'Kode sebaris', category: 'Teks', owner: 'tiptap' },
 	{ id: 'text.highlight', keys: 'Mod-Shift-h', label: 'Sorot', category: 'Teks', owner: 'tiptap' },
 	{ id: 'text.link', keys: 'Mod-k', label: 'Tautan', category: 'Teks', owner: 'editor' },
+	{
+		id: 'text.clearFormatting',
+		keys: 'Mod-\\',
+		label: 'Bersihkan format',
+		category: 'Teks',
+		owner: 'editor',
+	},
 
 	{ id: 'para.heading1', keys: 'Mod-Alt-1', label: 'Judul 1', category: 'Paragraf', owner: 'tiptap' },
 	{ id: 'para.heading2', keys: 'Mod-Alt-2', label: 'Judul 2', category: 'Paragraf', owner: 'tiptap' },
@@ -129,6 +141,16 @@ export const SHORTCUTS: readonly Shortcut[] = [
 	{ id: 'doc.undo', keys: 'Mod-z', label: 'Urungkan', category: 'Dokumen', owner: 'tiptap' },
 	{ id: 'doc.redo', keys: 'Mod-Shift-z', label: 'Ulangi', category: 'Dokumen', owner: 'tiptap' },
 	{ id: 'doc.selectAll', keys: 'Mod-a', label: 'Pilih semua', category: 'Dokumen', owner: 'tiptap' },
+	{ id: 'doc.cut', keys: 'Mod-x', label: 'Potong', category: 'Dokumen', owner: 'tiptap' },
+	{ id: 'doc.copy', keys: 'Mod-c', label: 'Salin', category: 'Dokumen', owner: 'tiptap' },
+	{ id: 'doc.paste', keys: 'Mod-v', label: 'Tempel', category: 'Dokumen', owner: 'tiptap' },
+	{
+		id: 'doc.pastePlain',
+		keys: 'Mod-Shift-v',
+		label: 'Tempel tanpa format',
+		category: 'Dokumen',
+		owner: 'editor',
+	},
 	{ id: 'doc.print', keys: 'Mod-p', label: 'Cetak', category: 'Dokumen', owner: 'tiptap' },
 	{ id: 'doc.newTab', keys: 'Mod-Alt-n', label: 'Tab baru', category: 'Dokumen', owner: 'app' },
 	{
