@@ -1,17 +1,9 @@
 'use client'
 
 import type { JSONContent } from '@tiptap/core'
-import {
-	createContext,
-	type ReactNode,
-	useCallback,
-	useContext,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from 'react'
+import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import type { FurnitureContent } from '@/features/document/docx/header-footer'
+import { sanitizeFurnitureBlocks } from '@/features/editor/page-furniture/furniture-schema'
 import type { PageFurniture } from '@/features/editor/page-furniture/model'
 import {
 	setFurnitureFragment,
@@ -22,7 +14,6 @@ import { MAX_DOCUMENTS, MAX_SESSIONS, useSessions } from '@/features/sessions/se
 import {
 	createDocument,
 	createTab,
-	findTabDoc,
 	LOCAL_ORIGIN,
 	readDocs,
 	readTabs,
@@ -81,40 +72,11 @@ function resolveImportedSetup(patch: NonNullable<DocxImport['pageSetup']>): Page
 
 export function DocumentImportProvider({ children }: { children: ReactNode }) {
 	const { dispatch } = useDocument()
-	const { doc, activeDocId, selectSession, sessions, documents, activeId } = useSessions()
+	const { doc, activeDocId, selectSession } = useSessions()
 
 	const inputRef = useRef<HTMLInputElement>(null)
 	const [importing, setImporting] = useState(false)
 	const [warnings, setWarnings] = useState<string[]>([])
-	/** Tab hasil impor yang menunggu dijadikan aktif; lihat efek di bawah. */
-	const pendingSelect = useRef<string | null>(null)
-
-	/*
-	 * Pilihan tab ditegaskan ULANG begitu tabnya benar-benar muncul di daftar.
-	 *
-	 * `selectSession` menyimpan id-nya seketika, tapi tab aktif diturunkan dari
-	 * `documents` — dan selama daftar itu belum memuat tab baru tadi, turunannya
-	 * jatuh kembali ke tab pertama. Akibatnya impor mendarat di tab kedua
-	 * sementara layar tetap memperlihatkan tab pertama: pengguna mengira
-	 * impornya gagal, padahal isinya sudah ada di sebelah.
-	 */
-	useEffect(
-		function selectImportedTabOnceItAppears() {
-			const target = pendingSelect.current
-			if (!target) return
-			if (activeId === target) {
-				pendingSelect.current = null
-				return
-			}
-			/* Ydoc selalu mutakhir; daftar turunan React yang tertinggal. Selama
-			 * tabnya sudah ada di sana, pilihannya ditegaskan lagi tiap kali
-			 * daftar tab atau daftar dokumen menyusul. */
-			if (!findTabDoc(doc, target)) return
-			selectSession(target)
-		},
-		[doc, documents, sessions, activeId, selectSession],
-	)
-
 	const openImport = useCallback((kind: ImportKind = 'any') => {
 		const input = inputRef.current
 		if (!input) return
@@ -132,6 +94,7 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 		) => {
 			if (!activeDocId) return
 			const tabId = createTab(doc, activeDocId, title)
+			const furnitureSkipped: string[] = []
 			doc.transact(() => {
 				jsonToFragment(doc, tabId, content)
 				if (pageSetup) setPageSetupForTab(doc, tabId, resolveImportedSetup(pageSetup))
@@ -141,20 +104,34 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 				for (const [slot, variants] of Object.entries(furnitureContent ?? {})) {
 					for (const [variant, blocks] of Object.entries(variants ?? {})) {
 						if (!Array.isArray(blocks) || blocks.length === 0) continue
-						setFurnitureFragment(
-							doc,
-							tabId,
-							{ slot: slot as 'header' | 'footer', variant: variant as 'default' | 'first' | 'even' },
-							{
-								type: 'doc',
-								content: blocks,
-							},
-						)
+						/*
+						 * Header/footer tidak boleh menjatuhkan seluruh impor.
+						 *
+						 * Isinya disaring dulu terhadap skema perabot yang ringan, dan
+						 * kalaupun masih ada yang ditolak, kegagalannya ditahan di sini:
+						 * sebelumnya satu mark asing membatalkan transaksi impor, dan
+						 * naskah utuh berakhir sebagai tab kosong.
+						 */
+						try {
+							setFurnitureFragment(
+								doc,
+								tabId,
+								{ slot: slot as 'header' | 'footer', variant: variant as 'default' | 'first' | 'even' },
+								{ type: 'doc', content: sanitizeFurnitureBlocks(blocks) },
+							)
+						} catch {
+							furnitureSkipped.push(`${slot}/${variant}`)
+						}
 					}
 				}
 				if (comments && comments.length > 0) updateTab(doc, tabId, { comments })
 			}, LOCAL_ORIGIN)
-			pendingSelect.current = tabId
+			if (furnitureSkipped.length > 0) {
+				setWarnings((current) => [
+					...current,
+					`Isi header/footer tidak terbawa untuk: ${furnitureSkipped.join(', ')}.`,
+				])
+			}
 			selectSession(tabId)
 		},
 		[doc, activeDocId, selectSession],

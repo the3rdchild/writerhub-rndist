@@ -11,6 +11,7 @@
 import { type Extensions, getSchema, type JSONContent } from '@tiptap/core'
 import Placeholder from '@tiptap/extension-placeholder'
 import TextAlign from '@tiptap/extension-text-align'
+import { TextStyleKit } from '@tiptap/extension-text-style'
 import { DOMSerializer, type Schema } from '@tiptap/pm/model'
 import StarterKit from '@tiptap/starter-kit'
 import { yXmlFragmentToProseMirrorRootNode } from 'y-prosemirror'
@@ -35,6 +36,15 @@ export function furnitureExtensions(placeholder?: string): Extensions {
 			gapcursor: false,
 			undoRedo: false,
 		}),
+		/*
+		 * `textStyle` wajib ada: paragraf header/footer hasil impor DOCX membawa
+		 * mark itu (huruf, ukuran, warna). Tanpa dukungannya, menulis fragmen
+		 * melempar "There is no mark type textStyle in this schema" — dan karena
+		 * penulisan itu terjadi di dalam transaksi impor, SELURUH impor batal:
+		 * tabnya terbentuk tapi kosong, dan kegagalannya hanya muncul sebagai
+		 * peringatan yang mudah terlewat.
+		 */
+		TextStyleKit.configure({ lineHeight: false }),
 		TextAlign.configure({ types: ['paragraph'] }),
 		ResizableImage.configure({ inline: false, allowBase64: true } satisfies ResizableImageOptions),
 		...(placeholder ? [Placeholder.configure({ placeholder })] : []),
@@ -61,6 +71,30 @@ export function fragmentToHtml(fragment: Y.XmlFragment): string {
 	const wrap = document.createElement('div')
 	wrap.appendChild(dom)
 	return wrap.innerHTML
+}
+
+/**
+ * Buang mark & node yang tidak dikenal skema perabot.
+ *
+ * Pembaca paragrafnya sama dengan badan naskah, jadi ia bisa saja menghasilkan
+ * `link`, `comment`, atau apa pun yang sengaja tidak dibawa skema ringan ini.
+ * Satu mark asing sudah cukup membuat `nodeFromJSON` melempar dan membatalkan
+ * seluruh impor — jadi isinya disaring dulu, kehilangan format itu jauh lebih
+ * murah daripada kehilangan dokumennya.
+ */
+export function sanitizeFurnitureBlocks(blocks: JSONContent[]): JSONContent[] {
+	const schema = furnitureSchema()
+	const bersih = (node: JSONContent): JSONContent | null => {
+		if (node.type && node.type !== 'text' && !schema.nodes[node.type]) return null
+		const marks = node.marks?.filter((mark) => Boolean(mark.type && schema.marks[mark.type]))
+		const content = node.content?.map(bersih).filter((child): child is JSONContent => child !== null)
+		return {
+			...node,
+			...(node.marks ? { marks } : {}),
+			...(node.content ? { content } : {}),
+		}
+	}
+	return blocks.map(bersih).filter((block): block is JSONContent => block !== null)
 }
 
 /** JSON isi fragmen — untuk ekspor DOCX dan pembacaan di luar React. */
