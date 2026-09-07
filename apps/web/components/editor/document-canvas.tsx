@@ -27,9 +27,12 @@ import { TiptapEditor } from './tiptap-editor'
 export function DocumentCanvas({
 	containerRef,
 	onReady,
+	currentPage,
 }: {
 	containerRef: React.RefObject<HTMLDivElement | null>
 	onReady?: (editor: Editor | null) => void
+	/** Halaman yang sedang dilihat/diketik (1-basis) — penentu lembar sunting perabot. */
+	currentPage?: number
 }) {
 	const { settings } = useSettings()
 	const { setup, setPageSetup } = usePageSetup()
@@ -54,16 +57,25 @@ export function DocumentCanvas({
 	const zoom = settings.zoom
 	const leftRulerRoom = settings.showRuler && !setup.pageless ? LEFT_RULER_WIDTH + LEFT_RULER_GAP : 0
 
-	/* Mode sunting perabot: lembar target dari klik ganda, atau lembar pertama
-	 * yang benar-benar merender varian default (halaman 1 bila first aktif). */
+	/*
+	 * Mode sunting perabot: lembar target dari klik ganda, atau - bila dimulai
+	 * dari dialog - lembar yang sedang dilihat pengguna.
+	 *
+	 * Dulu di sini dipilih "lembar pertama yang merender varian default", dan
+	 * itulah sebabnya menyunting dari halaman 8 melompat ke halaman 3: editornya
+	 * memang dipasang di sana, jadi tiap ketukan tombol menyeret gulir kembali
+	 * ke lembar itu. Variannya diturunkan dari lembar yang dipilih, persis
+	 * seperti Word - menyunting dari halaman pertama menyunting varian `first`.
+	 */
 	const furnitureEdit = useMemo(() => {
 		if (!edit || !activeId) return null
-		const sheetIndex = edit.sheetIndex ?? (hasVariant(edit.slot, 'first') && sheets.length > 1 ? 1 : 0)
+		const viewed = Math.min(Math.max((currentPage ?? 1) - 1, 0), Math.max(sheets.length - 1, 0))
+		const sheetIndex = edit.sheetIndex ?? viewed
 		const variant = variantFor(sheetIndex, (candidate) =>
 			Boolean(furniture?.[edit.slot]?.[candidate] || hasVariant(edit.slot, candidate)),
 		)
 		return { slot: edit.slot, variant, sheetIndex }
-	}, [edit, activeId, furniture, hasVariant, sheets.length])
+	}, [edit, activeId, furniture, hasVariant, sheets.length, currentPage])
 
 	return (
 		<div className={cn('document-canvas flex-1 overflow-auto px-6 pb-8', !settings.showRuler && 'pt-8')}>
