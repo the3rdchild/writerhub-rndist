@@ -217,10 +217,21 @@ a {
 
 /* Area klik-ganda untuk masuk mode sunting; menempati pita margin atas/bawah
    lembar. Garis putus-putus muncul saat disorot supaya areanya ketahuan. */
+/*
+ * Kotak sasaran klik ganda untuk masuk mode sunting header/footer.
+ *
+ * `z-index` bukan hiasan: pembungkus naskah (.document-page-padding) berada di
+ * z-10 dan membentang SELURUH lembar - margin atas/bawah termasuk, karena
+ * marginnya berupa padding di sana. Tanpa z-index yang lebih tinggi, klik di
+ * jalur margin mendarat di pembungkus itu, bukan di sini, dan klik gandanya
+ * tidak pernah sampai. Jalur margin tidak memuat teks, jadi menaikkannya tidak
+ * mengambil apa pun dari pemilihan teks.
+ */
 .furniture-hitbox {
   position: absolute;
   left: 0;
   right: 0;
+  z-index: 20;
   cursor: text;
 }
 .furniture-hitbox--header {

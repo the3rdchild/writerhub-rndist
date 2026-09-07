@@ -1,14 +1,15 @@
 'use client'
 
 import { formatPageNumber, type PageNumberFormat, type PageNumbering } from '@writer-hub/shared'
-import { PanelBottom, PanelTop } from 'lucide-react'
+import { PanelBottom, PanelTop, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { useFurnitureEdit } from '@/features/editor/page-furniture/furniture-edit-context'
-import type { FurnitureVariant, PageFurniture } from '@/features/editor/page-furniture/model'
+import type { FurnitureSlot, FurnitureVariant, PageFurniture } from '@/features/editor/page-furniture/model'
 import {
 	createEmptyFurnitureFragments,
 	FURNITURE_SLOTS,
+	FURNITURE_VARIANTS,
 	readFurnitureFragmentVariants,
 	removeFurnitureFragments,
 } from '@/features/editor/page-furniture/page-furniture-ydoc'
@@ -142,6 +143,28 @@ export function HeadersFootersDialog() {
 		}
 		setFurniture(next)
 	}
+
+	/*
+	 * Hapus satu slot seutuhnya - ketiga variannya sekaligus, fragmen kaya
+	 * berikut baris lawasnya. Membuang fragmen saja tidak cukup: baris lawas
+	 * (`pageFurniture`, dipakai tampilan baca-saja dan ekspor) akan
+	 * menghidupkannya kembali di lembar berikutnya.
+	 */
+	const removeSlot = (slot: FurnitureSlot) => {
+		if (!activeTabId) return
+		removeFurnitureFragments(
+			doc,
+			activeTabId,
+			FURNITURE_VARIANTS.map((variant) => ({ slot, variant })),
+		)
+		const next: PageFurniture = { ...(furniture ?? {}) }
+		delete next[slot]
+		setFurniture(next)
+	}
+
+	const hasSlot = (slot: FurnitureSlot): boolean =>
+		Object.keys(furniture?.[slot] ?? {}).length > 0 ||
+		readFurnitureFragmentVariants(doc, activeTabId ?? '').some((entry) => entry.slot === slot)
 
 	const ok = () => {
 		const numbering: PageNumbering = {
@@ -307,6 +330,19 @@ export function HeadersFootersDialog() {
 							>
 								<PanelBottom className="h-3.5 w-3.5" /> Edit footer on page
 							</button>
+						</div>
+						<div className="flex gap-2">
+							{(['header', 'footer'] as const).map((slot) => (
+								<button
+									key={slot}
+									type="button"
+									disabled={!hasSlot(slot)}
+									onClick={() => removeSlot(slot)}
+									className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs text-muted transition-colors hover:border-red-500 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line disabled:hover:text-muted"
+								>
+									<Trash2 className="h-3.5 w-3.5" /> Remove {slot}
+								</button>
+							))}
 						</div>
 					</div>
 

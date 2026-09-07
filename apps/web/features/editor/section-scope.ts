@@ -15,8 +15,15 @@ export function sectionRange(editor: Editor, scope: SectionScope): { from: numbe
 	const { doc, selection } = editor.state
 
 	if (scope === 'from_here') {
-		const depth = selection.$from.depth === 0 ? 0 : 1
-		return { from: selection.$from.before(depth || undefined) }
+		const { $from } = selection
+		/*
+		 * Node tingkat-teratas yang terpilih utuh - pemenggal halaman "Halaman
+		 * Baru", pemisah bagian, gambar - punya depth 0, dan posisinya SUDAH
+		 * posisi sebelum node itu. Meminta `before(0)` melempar RangeError
+		 * "There is no position before the top-level node": tidak ada apa pun
+		 * sebelum akar dokumen.
+		 */
+		return { from: $from.depth === 0 ? $from.pos : $from.before(1) }
 	}
 
 	const pagination = paginationKey.getState(editor.state)
