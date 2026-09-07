@@ -121,20 +121,32 @@ function plantFieldTokens(root: Element): void {
 		}
 
 		for (const [index, run] of runs.entries()) {
-			const fldChar = child(run, 'fldChar')
-			const instr = child(run, 'instrText')
-			if (fldChar && attr(fldChar, 'fldCharType') === 'begin') {
-				open = index
-				token = null
-				continue
-			}
-			if (instr) {
-				const code = (instr.textContent ?? '').trim().toUpperCase()
-				if (code === 'PAGE' || code === 'NUMPAGES') token = code === 'PAGE' ? '{page}' : '{pages}'
-				continue
-			}
-			if (fldChar && attr(fldChar, 'fldCharType') === 'end') {
-				flush(index)
+			/*
+			 * Bagian field ditelusuri satu per satu DI DALAM run.
+			 *
+			 * Satu `w:r` bisa memuat seluruh field sekaligus - begin, instrText,
+			 * separate, end - dan itulah bentuk yang dikeluarkan Google Docs.
+			 * Membaca hanya `child(run, 'fldChar')` berhenti di `begin`: instrText
+			 * dan end di run yang sama tidak pernah terlihat, fieldnya tidak pernah
+			 * ditutup, dan tokennya tidak pernah ditanam - footer bernomor masuk
+			 * sebagai paragraf kosong, tanpa nomor halaman sama sekali.
+			 */
+			for (const part of children(run)) {
+				const name = tagName(part)
+				if (name === 'fldChar') {
+					const type = attr(part, 'fldCharType')
+					if (type === 'begin') {
+						open = index
+						token = null
+					} else if (type === 'end') {
+						flush(index)
+					}
+					continue
+				}
+				if (name === 'instrText') {
+					const code = (part.textContent ?? '').trim().toUpperCase()
+					if (code === 'PAGE' || code === 'NUMPAGES') token = code === 'PAGE' ? '{page}' : '{pages}'
+				}
 			}
 		}
 	}

@@ -96,6 +96,28 @@ describe('impor header/footer', () => {
 		})
 	})
 
+	test('field PAGE yang seluruhnya di dalam satu run tetap jadi token', async () => {
+		/* Bentuk yang dikeluarkan Google Docs: begin, instrText, separate, dan end
+		 * berada dalam SATU w:r. Dulu hanya `begin` yang terbaca, jadi fieldnya
+		 * tidak pernah ditutup dan footernya masuk sebagai paragraf kosong. */
+		const bytes = docxWith({
+			body: `<w:sectPr><w:footerReference r:id="rIdF"/></w:sectPr>`,
+			footer: `<w:p>
+				<w:r>
+					<w:fldChar w:fldCharType="begin"/>
+					<w:instrText xml:space="preserve">PAGE</w:instrText>
+					<w:fldChar w:fldCharType="separate"/>
+					<w:fldChar w:fldCharType="end"/>
+				</w:r>
+			</w:p>`,
+			footerRels: FOOTER_REL,
+		})
+
+		expect(await furnitureOf(bytes)).toEqual({
+			footer: { default: { text: '{page}', align: 'left' } },
+		})
+	})
+
 	test('dengan context, paragraf kaya ikut terbaca dengan token field', async () => {
 		const bytes = docxWith({
 			body: `<w:sectPr><w:footerReference r:id="rIdF"/></w:sectPr>`,

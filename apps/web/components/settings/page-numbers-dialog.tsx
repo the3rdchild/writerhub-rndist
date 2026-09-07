@@ -3,6 +3,11 @@
 import { formatPageNumber, type PageNumberFormat, type PageNumbering } from '@writer-hub/shared'
 import { useEffect, useRef, useState } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import {
+	readFurnitureFragmentVariants,
+	setFurnitureVariantEnabled,
+} from '@/features/editor/page-furniture/page-furniture-ydoc'
+import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
 import { sectionSpans } from '@/features/editor/section-break'
 import { isSectionScope, sectionRange } from '@/features/editor/section-scope'
 import { usePageSetup } from '@/features/editor/use-page-setup'
@@ -35,7 +40,8 @@ export function PageNumbersDialog() {
 	const { pageNumbersOpen, setPageNumbersOpen } = useSettings()
 	const { setup, setPageSetup } = usePageSetup()
 	const { editor } = useEditorInstance()
-	const { sessions, activeId } = useSessions()
+	const { sessions, activeId, doc, activeTabId } = useSessions()
+	const { furniture } = usePageFurniture()
 	const overlayRef = useRef<HTMLDivElement>(null)
 
 	function numberingAtCursor(): PageNumbering {
@@ -51,6 +57,9 @@ export function PageNumbersDialog() {
 	const [scope, setScope] = useState<Scope>('tab')
 	const [restartAt, setRestartAt] = useState(1)
 	const [error, setError] = useState<string | null>(null)
+	/* Halaman pertama memakai perabotnya sendiri? Kalau ya, nomor dokumen tidak
+	 * ikut tampil di sana - itulah cara Word/Docs menyembunyikan nomor sampul. */
+	const [firstPageSeparate, setFirstPageSeparate] = useState(false)
 
 	/* Draf dibaca ulang HANYA saat dialog dibuka; menyertakan numberingAtCursor
 	 * di deps justru menimpa pilihan pengguna tiap kali kursor bergerak. */
@@ -63,6 +72,10 @@ export function PageNumbersDialog() {
 			setRestartAt(typeof current.restart === 'number' ? current.restart : 1)
 			setScope('tab')
 			setError(null)
+			setFirstPageSeparate(
+				readFurnitureFragmentVariants(doc, activeTabId ?? '').some((entry) => entry.variant === 'first') ||
+					Boolean(furniture?.header?.first || furniture?.footer?.first),
+			)
 		},
 		[pageNumbersOpen],
 	)
@@ -150,6 +163,32 @@ export function PageNumbersDialog() {
 						</span>
 					)}
 				</label>
+
+				<div className="flex flex-col gap-1">
+					<span className="text-xs font-medium text-muted">Position</span>
+					<label className="flex items-center gap-2 text-sm text-foreground">
+						<input
+							type="checkbox"
+							checked={!firstPageSeparate}
+							onChange={(event) => {
+								if (!activeTabId) return
+								/* "Tampil di halaman pertama" = halaman pertama TIDAK punya
+								 * perabot sendiri. Mematikannya membuat varian `first` kosong,
+								 * jadi sampul tampil tanpa nomor - satu-satunya jalan
+								 * menghilangkan nomor di halaman pertama. */
+								const show = event.target.checked
+								setFurnitureVariantEnabled(doc, activeTabId, 'first', !show, furniture)
+								setFirstPageSeparate(!show)
+							}}
+							className="h-4 w-4 accent-[var(--accent)]"
+						/>
+						Show on first page
+					</label>
+					<span className="text-[11px] leading-relaxed text-subtle">
+						Mematikannya memberi halaman pertama header/footer sendiri yang kosong — dipakai untuk sampul
+						tanpa nomor. Menyalakannya kembali membuang isi khusus halaman pertama itu.
+					</span>
+				</div>
 
 				<label className="flex flex-col gap-1">
 					<span className="text-xs font-medium text-muted">Format</span>
