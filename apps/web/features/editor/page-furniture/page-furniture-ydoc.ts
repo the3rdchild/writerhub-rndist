@@ -175,6 +175,36 @@ export function readPageFurniture(doc: Y.Doc, tabId: string): PageFurniture | nu
 	return normalizePageFurniture(entry.get(KEY))
 }
 
+/**
+ * Nyalakan/matikan satu varian (halaman pertama, ganjil-genap) untuk KEDUA slot
+ * sekaligus — itulah arti satu kotak centang "Different first page".
+ *
+ * Mematikannya harus ikut membuang baris lawasnya: `pageFurniture` masih dibaca
+ * tampilan baca-saja dan ekspor, jadi meninggalkannya di sana akan
+ * menghidupkan variannya kembali begitu lembar berikutnya dirender.
+ */
+export function setFurnitureVariantEnabled(
+	doc: Y.Doc,
+	tabId: string,
+	variant: FurnitureVariant,
+	enabled: boolean,
+	furniture: PageFurniture | null,
+): void {
+	const targets = FURNITURE_SLOTS.map((slot) => ({ slot, variant }))
+	if (enabled) {
+		createEmptyFurnitureFragments(doc, tabId, targets)
+		return
+	}
+	removeFurnitureFragments(doc, tabId, targets)
+	const next: PageFurniture = {}
+	for (const slot of FURNITURE_SLOTS) {
+		const lines = { ...(furniture?.[slot] ?? {}) }
+		delete lines[variant]
+		if (Object.keys(lines).length > 0) next[slot] = lines
+	}
+	setPageFurnitureForTab(doc, tabId, next)
+}
+
 export function setPageFurnitureForTab(doc: Y.Doc, tabId: string, furniture: PageFurniture): void {
 	doc.transact(() => {
 		tabsRoot(doc).meta.get(tabId)?.set(KEY, furniture)

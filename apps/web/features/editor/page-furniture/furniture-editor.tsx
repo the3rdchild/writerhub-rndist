@@ -17,7 +17,13 @@ import {
 	PAGES_TOKEN,
 	type PageFurnitureLine,
 } from './model'
-import { ensureFurnitureFragment, PAGE_FURNITURE_KEY, setPageFurnitureForTab } from './page-furniture-ydoc'
+import {
+	ensureFurnitureFragment,
+	PAGE_FURNITURE_KEY,
+	setFurnitureVariantEnabled,
+	setPageFurnitureForTab,
+} from './page-furniture-ydoc'
+import { usePageFurniture } from './use-page-furniture'
 
 const VARIANT_LABEL: Record<FurnitureVariant, string> = {
 	default: 'Header',
@@ -42,6 +48,7 @@ export function FurnitureEditor({
 	edge,
 	offset,
 	margins,
+	sheetIndex,
 	onExit,
 }: {
 	slot: FurnitureSlot
@@ -52,9 +59,12 @@ export function FurnitureEditor({
 	offset: number
 	/** Margin kiri/kanan lembar — editor selebar area naskah. */
 	margins: { left: number; right: number }
+	/** Lembar tempat editor ini menempel — penentu munculnya "Different first page". */
+	sheetIndex: number
 	onExit: () => void
 }) {
 	const { doc, activeTabId } = useSessions()
+	const { furniture } = usePageFurniture()
 	const { setHeadersFootersOpen } = useSettings()
 	const exitRef = useRef(onExit)
 	exitRef.current = onExit
@@ -164,6 +174,25 @@ export function FurnitureEditor({
 					<Hash className="h-3.5 w-3.5" aria-hidden="true" />
 					Pages
 				</button>
+				{/*
+				 * Hanya di lembar pertama, seperti bar header Google Docs: di sanalah
+				 * pilihan ini punya arti, dan `variant` sendiri sudah jawabannya —
+				 * `variantFor(0, …)` mengembalikan 'first' persis ketika variannya ada.
+				 */}
+				{sheetIndex === 0 && (
+					<label className="flex items-center gap-1.5 whitespace-nowrap text-[11px] text-muted">
+						<input
+							type="checkbox"
+							checked={variant === 'first'}
+							onChange={(event) => {
+								if (!activeTabId) return
+								setFurnitureVariantEnabled(doc, activeTabId, 'first', event.target.checked, furniture)
+							}}
+							className="h-3.5 w-3.5 accent-[var(--accent)]"
+						/>
+						Different first page
+					</label>
+				)}
 				<button
 					type="button"
 					className="furniture-edit-btn"

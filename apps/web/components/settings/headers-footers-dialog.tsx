@@ -5,11 +5,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useFurnitureEdit } from '@/features/editor/page-furniture/furniture-edit-context'
 import type { FurnitureSlot, FurnitureVariant, PageFurniture } from '@/features/editor/page-furniture/model'
 import {
-	createEmptyFurnitureFragments,
 	FURNITURE_SLOTS,
 	FURNITURE_VARIANTS,
 	readFurnitureFragmentVariants,
 	removeFurnitureFragments,
+	setFurnitureVariantEnabled,
 } from '@/features/editor/page-furniture/page-furniture-ydoc'
 import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
 import { footerMarginOf, headerMarginOf, INCH } from '@/features/editor/page-geometry'
@@ -98,20 +98,7 @@ export function HeadersFootersDialog() {
 
 	const toggleVariant = (variant: FurnitureVariant, enabled: boolean) => {
 		if (!activeTabId) return
-		const targets = FURNITURE_SLOTS.map((slot) => ({ slot, variant }))
-		if (enabled) {
-			createEmptyFurnitureFragments(doc, activeTabId, targets)
-			return
-		}
-		removeFurnitureFragments(doc, activeTabId, targets)
-		/* Baris lama varian itu ikut dibuang supaya tidak menghidupkannya kembali. */
-		const next: PageFurniture = {}
-		for (const slot of FURNITURE_SLOTS) {
-			const lines = { ...(furniture?.[slot] ?? {}) }
-			delete lines[variant]
-			if (Object.keys(lines).length > 0) next[slot] = lines
-		}
-		setFurniture(next)
+		setFurnitureVariantEnabled(doc, activeTabId, variant, enabled, furniture)
 	}
 
 	/*

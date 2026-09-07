@@ -281,6 +281,7 @@ export function DocumentPaper({
 										edge={furnitureEdit.slot === 'header' ? 'top' : 'bottom'}
 										offset={furnitureEdit.slot === 'header' ? headerMargin : footerMargin}
 										margins={sheet.margins}
+										sheetIndex={sheet.index}
 										onExit={onFurnitureDeactivate ?? (() => {})}
 									/>
 								)}
