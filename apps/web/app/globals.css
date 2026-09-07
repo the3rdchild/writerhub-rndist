@@ -1117,14 +1117,6 @@ a {
   cursor: grabbing;
 }
 
-/* Tombol ••• menumpang di dalam sel, jadi ia perlu latar penuh + bayangan tipis
-   supaya tidak lebur dengan teks di bawahnya. */
-.table-handle-cell {
-  width: 18px;
-  height: 18px;
-  box-shadow: 0 0 0 1px var(--border-subtle);
-}
-
 /* Umpan balik seret: baris/kolom sumber diredupkan, garis tebal menandai batas
    tempat ia akan mendarat. */
 .table-handle-shade {

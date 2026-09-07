@@ -25,8 +25,6 @@ const SVG =
 
 const ICON_PLUS = `${SVG}<path d="M5 12h14"/><path d="M12 5v14"/></svg>`
 const ICON_GRIP = `${SVG}<circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>`
-const ICON_DOTS = `${SVG}<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>`
-const INSET = 5
 const KEEP_ZONE = { left: 64, top: 48, edge: 12 }
 const DRAG_THRESHOLD = 3
 const MIN_HANDLE_SPAN = 44
@@ -54,7 +52,6 @@ class HandleLayer {
 	private root: HTMLElement
 	private rowHandle: HTMLElement
 	private colHandle: HTMLElement
-	private cellButton: HTMLElement
 	private line: HTMLElement
 	private shade: HTMLElement
 
@@ -81,17 +78,10 @@ class HandleLayer {
 			this.makeAdd('col', 'Add column right'),
 		)
 
-		this.cellButton = this.makeButton('table-handle-btn table-handle-cell', ICON_DOTS, 'Cell menu')
-		this.cellButton.addEventListener('click', (e) => {
-			e.preventDefault()
-			if (!this.hover) return
-			this.opts.onMenu({ ...locationOf(this.hover), origin: 'cell', anchor: this.cellButton })
-		})
-
 		this.line = element('div', 'table-handle-line')
 		this.shade = element('div', 'table-handle-shade')
 
-		this.root.append(this.rowHandle, this.colHandle, this.cellButton, this.shade, this.line)
+		this.root.append(this.rowHandle, this.colHandle, this.shade, this.line)
 		this.hideAll()
 		document.body.appendChild(this.root)
 
@@ -202,7 +192,6 @@ class HandleLayer {
 	private hideAll(): void {
 		this.rowHandle.hidden = true
 		this.colHandle.hidden = true
-		this.cellButton.hidden = true
 		this.line.hidden = true
 		this.shade.hidden = true
 	}
@@ -239,9 +228,6 @@ class HandleLayer {
 			tableRect.top - this.colHandle.offsetHeight,
 			colWidth,
 		)
-
-		this.cellButton.hidden = false
-		place(this.cellButton, cellRect.right - INSET - this.cellButton.offsetWidth, cellRect.top + INSET)
 	}
 	private clipRect(): { top: number; bottom: number } | null {
 		const canvas = this.view.dom.closest('.document-canvas')
