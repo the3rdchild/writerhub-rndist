@@ -7,6 +7,8 @@ import { FurnitureEditor } from '@/features/editor/page-furniture/furniture-edit
 import {
 	type FurnitureSlot,
 	type FurnitureVariant,
+	PAGE_TOKEN,
+	PAGES_TOKEN,
 	type PageFurniture,
 	variantFor,
 } from '@/features/editor/page-furniture/model'
@@ -140,6 +142,9 @@ export interface DocumentPaperProps {
 	children: ReactNode
 }
 
+/** Teks perabot ini menggambar nomor halaman sendiri? */
+const carriesNumber = (text: string) => text.includes(PAGE_TOKEN) || text.includes(PAGES_TOKEN)
+
 export function DocumentPaper({
 	setup,
 	typography,
@@ -168,21 +173,30 @@ export function DocumentPaper({
 	/*
 	 * Lencana sudut adalah CADANGAN, bukan penomoran kedua.
 	 *
-	 * Begitu sebuah lembar punya perabot - header atau footer, walau sengaja
-	 * dikosongkan - perabot itulah yang memutuskan ada tidaknya nomor. Tanpa
-	 * aturan ini, dokumen impor yang footernya membawa {page} tampil dengan DUA
-	 * nomor di tiap halaman, dan mematikan "Show on first page" tidak pernah
-	 * benar-benar menghilangkan nomor di halaman pertama: footernya kosong,
-	 * tapi lencananya tetap menggambar.
+	 * Yang menyingkirkannya bukan "ada perabot", melainkan "perabotnya SUDAH
+	 * menggambar nomor". Bedanya penting: perabot yang ada tapi kosong - dan itu
+	 * bentuk paling umum, karena impor lama meninggalkan paragraf kosong -
+	 * membuat aturan "ada perabot" menelan nomornya diam-diam, sehingga Apply di
+	 * dialog tidak menghasilkan apa pun yang terlihat.
+	 *
+	 * Halaman pertama diperlakukan tersendiri: begitu ia punya perabot sendiri,
+	 * itu keputusan sadar pengguna ("Show on first page" dimatikan), jadi
+	 * lencananya pun tidak menerobos masuk.
 	 */
-	const hasFurnitureOn = useCallback(
+	const furnitureShowsNumber = useCallback(
 		(pageIndex: number): boolean =>
 			FURNITURE_SLOTS.some((slot) => {
 				const has = (candidate: FurnitureVariant) =>
 					Boolean(furniture?.[slot]?.[candidate] || furnitureHasVariant?.(slot, candidate))
-				return has(variantFor(pageIndex, has))
+				const variant = variantFor(pageIndex, has)
+				const html = furnitureContent?.(slot, variant)
+				return html ? carriesNumber(html) : carriesNumber(furniture?.[slot]?.[variant]?.text ?? '')
 			}),
-		[furniture, furnitureHasVariant],
+		[furniture, furnitureContent, furnitureHasVariant],
+	)
+
+	const firstPageSeparate = FURNITURE_SLOTS.some((slot) =>
+		Boolean(furniture?.[slot]?.first || furnitureHasVariant?.(slot, 'first')),
 	)
 	const totalPages = String(sheets.length > 0 ? sheets.length : pageCount)
 
@@ -316,7 +330,8 @@ export function DocumentPaper({
 								 * memang disembunyikan - lencananya pun tidak digambar. */}
 								{showPageNumbers &&
 									!setup.pageless &&
-									!hasFurnitureOn(sheet.index) &&
+									!furnitureShowsNumber(sheet.index) &&
+									!(sheet.index === 0 && firstPageSeparate) &&
 									(sheetNumbers[sheet.index] ?? String(sheet.index + 1)) !== '' && (
 										<span
 											className="absolute text-[11px] text-faint"
