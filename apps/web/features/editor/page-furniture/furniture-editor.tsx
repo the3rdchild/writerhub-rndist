@@ -3,8 +3,8 @@
 import { Extension } from '@tiptap/core'
 import Collaboration from '@tiptap/extension-collaboration'
 import { type Editor, EditorContent, useEditor } from '@tiptap/react'
-import { Check, Hash, PanelTop, Settings2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { AlignCenter, AlignLeft, AlignRight, Check, Hash, PanelTop, Settings2 } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSessions } from '@/features/sessions/session-context'
 import { tabsRoot } from '@/features/sessions/ydoc'
 import { useSettings } from '@/features/settings/settings-context'
@@ -69,8 +69,20 @@ export function FurnitureEditor({
 	const exitRef = useRef(onExit)
 	exitRef.current = onExit
 
-	const fragment = useMemo(
-		() => (activeTabId ? ensureFurnitureFragment(doc, activeTabId, { slot, variant }) : null),
+	/*
+	 * Fragmen dibuat di EFEK, bukan saat render.
+	 *
+	 * `ensureFurnitureFragment` menulis ke Y.Doc bila fragmennya belum ada, dan
+	 * tulisan itu membangunkan observer di komponen lain — setState di tengah
+	 * render komponen ini. React menolaknya: "Cannot update a component
+	 * (ChatProvider) while rendering a different component (FurnitureEditor)".
+	 * Render dijaga tetap bersih; editornya menyusul satu frame kemudian.
+	 */
+	const [fragment, setFragment] = useState<ReturnType<typeof ensureFurnitureFragment> | null>(null)
+	useEffect(
+		function ensureFragmentExists() {
+			setFragment(activeTabId ? ensureFurnitureFragment(doc, activeTabId, { slot, variant }) : null)
+		},
 		[doc, activeTabId, slot, variant],
 	)
 
@@ -139,6 +151,24 @@ export function FurnitureEditor({
 
 	const insert = (token: string) => editor?.chain().focus().insertContent(token).run()
 
+	/* Perataan paragraf sudah didukung skema perabot (TextAlign di
+	 * furnitureExtensions); di sinilah pengguna menjangkaunya. `left` dipakai
+	 * sebagai keadaan dasar - paragraf tanpa atribut perataan pun terbaca kiri. */
+	const ALIGNMENTS = [
+		{ id: 'left' as const, label: 'Align left', Icon: AlignLeft },
+		{ id: 'center' as const, label: 'Align center', Icon: AlignCenter },
+		{ id: 'right' as const, label: 'Align right', Icon: AlignRight },
+	]
+	/* Paragraf tanpa atribut perataan terbaca rata kiri, jadi "kiri" aktif juga
+	 * ketika tidak ada perataan yang tersimpan sama sekali. */
+	const alignActive = (id: 'left' | 'center' | 'right'): boolean => {
+		if (!editor) return id === 'left'
+		if (editor.isActive({ textAlign: id })) return true
+		return (
+			id === 'left' && !editor.isActive({ textAlign: 'center' }) && !editor.isActive({ textAlign: 'right' })
+		)
+	}
+
 	return (
 		<div
 			className="furniture-edit-box absolute z-20"
@@ -156,6 +186,18 @@ export function FurnitureEditor({
 			>
 				<PanelTop className="h-3.5 w-3.5 text-subtle" aria-hidden="true" />
 				<span className="furniture-edit-label">{labelOf(slot, variant)}</span>
+				{ALIGNMENTS.map(({ id, label, Icon }) => (
+					<button
+						key={id}
+						type="button"
+						className="furniture-edit-btn"
+						aria-pressed={alignActive(id)}
+						onClick={() => editor?.chain().focus().setTextAlign(id).run()}
+						title={label}
+					>
+						<Icon className="h-3.5 w-3.5" aria-hidden="true" />
+					</button>
+				))}
 				<button
 					type="button"
 					className="furniture-edit-btn"
