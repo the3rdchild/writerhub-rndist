@@ -2089,8 +2089,16 @@ html.light .range-highlight {
   /* Sisipan layar DI DALAM naskah tetap dinyatakan satu per satu: lembar
      latar (kertas menyediakan putihnya) dan spacer paginasi (di kertas
      peramban yang memenggal halaman, jadi sisipan ini hanya membuat halaman
-     kosong berganda). */
+     kosong berganda).
+
+     Pembungkus lapisan lembar ikut disembunyikan UTUH, bukan cuma anaknya:
+     menyembunyikan `.document-sheet` saja menyisakan kotak pembungkus setinggi
+     nol, dan kotak itulah yang mendahului blok `page: flyer` — peramban selalu
+     memaksa penggalan halaman saat nama `@page` berganti, jai flyer-nya
+     terdorong ke lembar kedua dengan lembar pertama kosong
+     (docs/DRAFTS-API-FINDINGS.md T1). */
   .page-break-spacer,
+  .document-sheet-layer,
   .document-sheet {
     display: none !important;
   }

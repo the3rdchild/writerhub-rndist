@@ -32,3 +32,15 @@ export const EXPORT_READY_ATTRIBUTE = 'data-export-ready'
  * besar **sebelum** membayar biaya mencetaknya (`RENDER_MAX_PAGES`).
  */
 export const EXPORT_PAGES_ATTRIBUTE = 'data-export-pages'
+
+/**
+ * Jumlah blok rancangan yang isinya terpotong di tepi lembar, dipasang
+ * bersebelahan dengan penanda siap.
+ *
+ * Editor menampilkan potongan itu sebagai lencana "Isi terpotong Npx", tapi
+ * pemanggil API tidak pernah melihat layar - tanpa angka ini ia menerima
+ * `renderErrors: []` untuk flyer yang sepertiga isinya terbuang
+ * (docs/DRAFTS-API-FINDINGS.md T4). Pengukurannya butuh DOM, jadi hanya bisa
+ * datang dari halaman ini.
+ */
+export const EXPORT_CLIPPED_ATTRIBUTE = 'data-export-clipped'

@@ -259,7 +259,9 @@ export function DocumentPaper({
 				className="document-paper document-print-root"
 				style={{ width: canvasWidth, minHeight: totalHeight }}
 			>
-				<div aria-hidden="true">
+				{/* Lapisan latar lembar; disembunyikan utuh saat mencetak lewat
+				 * kelas `document-sheet-layer` — lihat globals.css. */}
+				<div aria-hidden="true" className="document-sheet-layer">
 					{sheetList.map((sheet) => {
 						return (
 							<div

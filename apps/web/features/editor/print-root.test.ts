@@ -23,6 +23,11 @@ const fileMenu = readFileSync(
 	new URL('../../components/layout/menu-bar/file-menu.tsx', import.meta.url),
 	'utf8',
 )
+const exportView = readFileSync(
+	new URL('../../components/export/export-document-view.tsx', import.meta.url),
+	'utf8',
+)
+const extensions = readFileSync(new URL('./extensions.ts', import.meta.url), 'utf8')
 
 describe('document-print-root (E1)', () => {
 	/*
@@ -75,6 +80,37 @@ describe('flyer satu halaman di kertas', () => {
 
 	test('blok mode halaman memakai lembar itu', () => {
 		expect(css).toContain('page: flyer;')
+	})
+
+	/*
+	 * Bingkai rancangan wajib berposisi mutlak: sebagai elemen inline ia duduk
+	 * di atas baseline teks, dan descent itu meluberkannya beberapa piksel ke
+	 * lembar berikutnya. Salinannya dipakai fixture uji cetak
+	 * (`print-pages.test.ts`) - dua salinan harus tetap menunjuk aturan yang sama.
+	 */
+	test('bingkai rancangan berposisi mutlak di layar', () => {
+		expect(css).toContain('.html-block-page .html-block-frame {')
+		expect(css).toMatch(/\.html-block-page \.html-block-frame \{\s*position: absolute;/)
+		expect(css).toContain('top: calc(-1 * var(--page-margin-top, 0px));')
+	})
+})
+
+/*
+ * T1 (docs/DRAFTS-API-FINDINGS.md): dua halaman kosong mengapit rancangan di
+ * PDF. Perbaikannya dua lapis - CSS menyembunyikan lapisan lembar UTUH, dan
+ * halaman ekspor berhenti memuat paragraf penutup. Yang dijaga di sini
+ * kontraknya; jumlah lembar yang benar-benar keluar dijaga uji cetak
+ * `components/export/print-pages.test.ts`.
+ */
+describe('lembar kosong di sekitar rancangan (T1)', () => {
+	test('lapisan lembar punya kelasnya sendiri dan disembunyikan utuh saat cetak', () => {
+		expect(paper).toContain('document-sheet-layer')
+		expect(css).toContain('.document-sheet-layer')
+	})
+
+	test('halaman ekspor tidak memuat paragraf penutup', () => {
+		expect(extensions).toContain('trailingParagraph')
+		expect(exportView).toContain('trailingParagraph: false')
 	})
 })
 

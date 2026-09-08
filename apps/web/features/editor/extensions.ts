@@ -46,7 +46,7 @@ import { ResizableImage, type ResizableImageOptions } from '@/features/editor/re
 import { SearchAndReplace } from '@/features/editor/search-replace'
 import { SectionBreak } from '@/features/editor/section-break'
 import { SelectionHighlight } from '@/features/editor/selection-highlight'
-import type { SlashCommandOptions, SlashCommandState } from '@/features/editor/slash-command'
+import type { SlashCommandOptions } from '@/features/editor/slash-command'
 import { SlashCommand } from '@/features/editor/slash-command'
 import { TableHeaderRepeat } from '@/features/editor/table-header-repeat'
 import { TableIndent } from '@/features/editor/table-indent'
@@ -72,6 +72,7 @@ export function buildEditorExtensions({
 	breakBeforeLevels,
 	collaboration,
 	slashCommand,
+	trailingParagraph = true,
 }: {
 	geometry?: PageGeometry
 	setup?: PageSetup
@@ -82,6 +83,14 @@ export function buildEditorExtensions({
 	breakBeforeLevels?: number[]
 	collaboration?: { document: Y.Doc; field: string } | null
 	slashCommand?: Pick<SlashCommandOptions, 'onOpen' | 'onUpdate' | 'onClose'>
+	/**
+	 * Paragraf kosong di ujung dokumen adalah kenyamanan MENYUNTING, bukan isi.
+	 * Halaman ekspor mematikannya: editor di sana tidak bisa disunting, dan
+	 * paragraf itu kembali ke `@page` bawaan sehingga peramban menambah satu
+	 * lembar kosong setelah rancangan `page: flyer`
+	 * (docs/DRAFTS-API-FINDINGS.md T1).
+	 */
+	trailingParagraph?: boolean
 } = {}): Extensions {
 	return [
 		StarterKit.configure({
@@ -142,7 +151,9 @@ export function buildEditorExtensions({
 		MathBlock,
 		PasteMarkdown,
 		SearchAndReplace,
-		TrailingParagraph,
+		// Paragraf penutup hanya untuk kanvas menyunting; halaman ekspor
+		// mematikannya (`trailingParagraph: false`).
+		...(trailingParagraph ? [TrailingParagraph] : []),
 		TocBlock.extend({ addNodeView: () => TocBlockNodeView }),
 		HtmlBlock.extend({ addNodeView: () => HtmlBlockNodeView }),
 		Pagination.configure({
