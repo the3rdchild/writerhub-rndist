@@ -27,6 +27,7 @@ import {
 	storedActiveTabId,
 	tabView,
 } from './local-view'
+import { watchPersistence } from './local-persistence'
 import { migrateLegacySessions } from './migrate-legacy'
 import { migrateTabsToDocs } from './migrate-to-docs'
 import type { CommentReply, CommentThread } from './types'
@@ -77,6 +78,8 @@ interface SessionContextValue {
 	sessions: Session[]
 	activeId: string | null
 	hydrated: boolean
+	/** Simpanan lokal tidak bisa dipakai: suntingan hanya hidup di tab ini. */
+	persistenceFailed: boolean
 	newSession: () => void
 	newDocument: () => void
 	selectSession: (id: string) => void
@@ -111,6 +114,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	const [documents, setDocuments] = useState<DocMeta[]>([])
 	const [tabs, setTabs] = useState<Array<TabMeta & { preview: string }>>([])
 	const [loaded, setLoaded] = useState(false)
+	const [persistenceFailed, setPersistenceFailed] = useState(false)
 	const [view, setView, viewHydrated] = usePersistentState<LocalView>(
 		LOCAL_VIEW_STORAGE_KEY,
 		EMPTY_LOCAL_VIEW,
@@ -122,7 +126,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		function hydrateFromIndexeddb() {
 			const provider = new IndexeddbPersistence(YDOC_NAME, doc)
 
-			const onSynced = () => {
+			/*
+			 * Jalur bootnya sama persis, entah simpanannya terbaca atau tidak: yang
+			 * membedakan hanya ada-tidaknya isi yang lebih dulu dituang ke `doc`.
+			 * Dokumen kosong dibuat di sini, jadi ia HANYA boleh dipanggil setelah
+			 * provider dipastikan tidak akan menempel lagi belakangan.
+			 */
+			const boot = () => {
 				const migrated = migrateLegacySessions(doc)
 				migrateTabsToDocs(doc)
 				if (readDocs(doc).length === 0) createDocument(doc)
@@ -141,10 +151,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 				setLoaded(true)
 			}
 
-			provider.on('synced', onSynced)
+			const stopWatching = watchPersistence(provider, {
+				onReady: () => {
+					setPersistenceFailed(false)
+					boot()
+				},
+				/* Peramban yang menolak IndexedDB tetap dapat editor yang jalan -
+				 * hanya tanpa simpanan, dan pengguna diberi tahu lewat spanduknya. */
+				onUnavailable: () => {
+					setPersistenceFailed(true)
+					boot()
+				},
+			})
+
 			return () => {
-				provider.off('synced', onSynced)
-				provider.destroy()
+				stopWatching()
+				/* Penolakannya ditelan: `destroy()` meneruskan promise pembukaan DB
+				 * yang gagal, dan itu bukan kabar baru di titik ini. */
+				Promise.resolve(provider.destroy()).catch(() => {})
 			}
 		},
 		[doc, setView],
@@ -468,6 +492,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			sessions,
 			activeId,
 			hydrated: loaded && viewHydrated,
+			persistenceFailed,
 			newSession,
 			newDocument,
 			selectSession,
@@ -499,6 +524,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			activeId,
 			loaded,
 			viewHydrated,
+			persistenceFailed,
 			active,
 			newSession,
 			newDocument,
