@@ -4,6 +4,7 @@ import type { Editor } from '@tiptap/react'
 import { CaseSensitive } from 'lucide-react'
 import { Dropdown, DropdownItem } from '@/components/ui/dropdown'
 import { applyCapitalization } from '@/features/editor/capitalization'
+import { NO_FORM_RESTORE } from '@/lib/no-form-restore'
 import { cn } from '@/lib/utils'
 
 export function CapitalizationControl({ editor, disabled }: { editor: Editor | null; disabled?: boolean }) {
@@ -20,6 +21,7 @@ export function CapitalizationControl({ editor, disabled }: { editor: Editor | n
 					type="button"
 					onClick={toggle}
 					disabled={disabled}
+					{...NO_FORM_RESTORE}
 					aria-label="Kapitalisasi"
 					title="Kapitalisasi"
 					aria-haspopup="menu"

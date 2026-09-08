@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { CustomSpacingDialog } from '@/components/editor/custom-spacing-dialog'
 import { SpacingMenuItems } from '@/components/editor/spacing-menu-items'
 import { Dropdown } from '@/components/ui/dropdown'
+import { NO_FORM_RESTORE } from '@/lib/no-form-restore'
 import { cn } from '@/lib/utils'
 
 /** Dropdown "Spasi baris & paragraf" di toolbar, ala Google Docs. */
@@ -20,6 +21,7 @@ export function LineSpacingControl({ editor, disabled }: { editor: Editor | null
 						type="button"
 						onClick={toggle}
 						disabled={disabled}
+						{...NO_FORM_RESTORE}
 						aria-label="Spasi baris & paragraf"
 						title="Spasi baris & paragraf"
 						aria-haspopup="menu"

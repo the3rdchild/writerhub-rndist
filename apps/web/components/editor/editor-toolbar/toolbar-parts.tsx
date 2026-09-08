@@ -1,5 +1,6 @@
 'use client'
 import type { LucideIcon } from 'lucide-react'
+import { NO_FORM_RESTORE } from '@/lib/no-form-restore'
 import { cn } from '@/lib/utils'
 
 export function IconButton({
@@ -22,6 +23,7 @@ export function IconButton({
 			aria-label={label}
 			aria-pressed={active}
 			disabled={disabled}
+			{...NO_FORM_RESTORE}
 			onClick={onClick}
 			className={cn(
 				'flex h-7 w-7 items-center justify-center rounded-md transition-colors',

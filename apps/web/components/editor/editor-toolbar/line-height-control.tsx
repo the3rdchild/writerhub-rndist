@@ -4,6 +4,7 @@ import type { Editor } from '@tiptap/react'
 import { TextQuote } from 'lucide-react'
 import { Dropdown, DropdownItem } from '@/components/ui/dropdown'
 import { LINE_HEIGHTS } from '@/features/editor/text-styles'
+import { NO_FORM_RESTORE } from '@/lib/no-form-restore'
 import { cn } from '@/lib/utils'
 
 export function LineHeightControl({ editor, disabled }: { editor: Editor | null; disabled?: boolean }) {
@@ -14,6 +15,7 @@ export function LineHeightControl({ editor, disabled }: { editor: Editor | null;
 					type="button"
 					onClick={toggle}
 					disabled={disabled}
+					{...NO_FORM_RESTORE}
 					aria-label="Spasi baris"
 					title="Spasi baris"
 					aria-haspopup="menu"

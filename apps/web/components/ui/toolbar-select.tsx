@@ -2,6 +2,7 @@
 
 import { Check, ChevronDown } from 'lucide-react'
 import { Fragment, type ReactNode } from 'react'
+import { NO_FORM_RESTORE } from '@/lib/no-form-restore'
 import { cn } from '@/lib/utils'
 import { Dropdown, DropdownItem, DropdownLabel } from './dropdown'
 
@@ -50,6 +51,7 @@ export function ToolbarSelect<T extends string | number>({
 					type="button"
 					onClick={toggle}
 					disabled={disabled}
+					{...NO_FORM_RESTORE}
 					aria-label={label}
 					aria-haspopup="menu"
 					aria-expanded={open}
