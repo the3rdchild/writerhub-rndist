@@ -185,6 +185,59 @@ describe('section DOCX (§P8&P9)', () => {
 		expect(xml).not.toContain('w:num="2"')
 		expect(xml).toContain('isi di dalam blok kolom')
 	})
+
+	/*
+	 * Pewarisan perabot antar-section: Word mewarisi milik section sebelumnya,
+	 * jadi pergantian visibilitas nomor wajib menulis perabotnya sendiri.
+	 * Tanpa ini ada dua celah sekaligus: nomor yang dinyalakan lagi setelah
+	 * section pembuka yang menyembunyikannya tidak pernah balik, dan dokumen
+	 * tanpa perabot kehilangan nomor di section yang menyembunyikannya.
+	 */
+	async function footerPartsOf(
+		content: JSONContent[],
+		furniture?: Parameters<typeof exportDocx>[1]['furniture'],
+	): Promise<string[]> {
+		const blob = await exportDocx(buildSchema().nodeFromJSON({ type: 'doc', content }), {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+			setup: DEFAULT_PAGE_SETUP,
+			...(furniture !== undefined ? { furniture } : {}),
+		})
+		const files = unzipSync(new Uint8Array(await blob.arrayBuffer()))
+		return Object.keys(files)
+			.filter((name) => /^word\/footer\d+\.xml$/.test(name))
+			.sort()
+			.map((name) => strFromU8(files[name]))
+	}
+
+	test('sampul tanpa nomor tidak menelan nomor isi yang menyala lagi', async () => {
+		const footers = await footerPartsOf([
+			paragraph('sampul'),
+			sectionBreak({ pageSetup: { pageNumbering: { format: 'decimal', restart: 'continue', show: false } } }),
+			paragraph('isi'),
+		])
+
+		expect(footers).toHaveLength(2)
+		expect(footers.filter((xml) => /PAGE/.test(xml))).toHaveLength(1)
+		expect(footers.filter((xml) => !/PAGE/.test(xml))).toHaveLength(1)
+	})
+
+	test('dokumen berperabot: sampul tanpa nomor, isi bernomor kembali', async () => {
+		const footers = await footerPartsOf(
+			[
+				paragraph('sampul'),
+				sectionBreak({
+					pageSetup: { pageNumbering: { format: 'decimal', restart: 'continue', show: false } },
+				}),
+				paragraph('isi'),
+			],
+			{ footer: { default: { text: '{page}', align: 'center' } } },
+		)
+
+		expect(footers).toHaveLength(2)
+		expect(footers.filter((xml) => /PAGE/.test(xml))).toHaveLength(1)
+		expect(footers.filter((xml) => !/PAGE/.test(xml))).toHaveLength(1)
+	})
 })
 
 describe('lebar kolom tabel di DOCX', () => {

@@ -17,7 +17,7 @@ import { buildSchema, fragmentToJSON } from '@/features/sync/serialize'
 import { cn } from '@/lib/utils'
 
 export function ExportDocxDialog() {
-	const { docxExportOpen, setDocxExportOpen } = useSettings()
+	const { docxExportOpen, setDocxExportOpen, settings } = useSettings()
 	const { setup } = usePageSetup()
 	const { furniture } = usePageFurniture()
 	const { typography } = useTypography()
@@ -84,6 +84,7 @@ export function ExportDocxDialog() {
 				furniture,
 				furnitureContent: activeId ? readFurnitureContentJson(doc, activeId) : null,
 				typography,
+				showPageNumbers: settings.showPageNumbers,
 			})
 			download(blob, safeFilename(title, 'docx'))
 			setDocxExportOpen(false)

@@ -26,6 +26,7 @@ kita lakukan sebelumnya mengukur kanvas — bukan yang benar-benar tercetak.
 | **V4** | Gambar tinggi terpenggal di batas halaman kertas | cetak | **S** |
 | **V5** | "Daftar Gambar berisi daftar bab" — cacat dokumen, bukan importer | — | catatan |
 | **V6** | Garis & jarak tabel bawaan editor menimpa sumber | render | keputusan produk |
+| **V8** | Mark di luar skema perabot membatalkan seluruh impor ([§10](#10-putaran-ketiga--impor-batal-karena-satu-mark-asing)) | impor | **L — selesai** |
 
 ---
 
@@ -418,6 +419,75 @@ saat tata letak cetak).
 
 ---
 
+## 10. Putaran ketiga — impor batal karena satu mark asing
+
+Ditemukan saat mengejar gejala yang tampak sepele: **impor mendarat di tab kedua, tapi layar
+bertahan di tab pertama.** Yang tampak seperti bug fokus ternyata gejala paling akhir dari
+rantai yang jauh lebih dalam.
+
+### V8. Mark di luar skema perabot membatalkan SELURUH impor — **L**
+
+Paragraf header/footer hasil impor membawa mark `textStyle` (huruf, ukuran, warna), sementara
+skema perabot yang ringan tidak memuatnya:
+
+```
+RangeError: There is no mark type textStyle in this schema
+  at Mark.fromJSON ← Schema.markFromJSON
+```
+
+Penulisan fragmen itu terjadi **di dalam transaksi impor**. Satu mark asing membatalkan
+transaksinya, jadi rantainya:
+
+1. `createTab` sudah berjalan → tab muncul di daftar,
+2. transaksi melempar → isi naskah tidak pernah ditulis,
+3. `selectSession` tidak pernah tercapai → tab lama tetap aktif,
+4. `loadDocx` menangkapnya dan mengubahnya jadi satu baris peringatan yang mudah terlewat.
+
+Yang terlihat pengguna: tab baru muncul, kosong, dan layar tidak berpindah. Tidak ada satu pun
+galat di konsol.
+
+**Perbaikan dua lapis.** `TextStyleKit` masuk ke `furnitureExtensions` supaya format hurufnya
+memang terbawa; dan isi perabot disaring lebih dulu terhadap skemanya
+(`sanitizeFurnitureBlocks`) dengan penahan galat per fragmen — pembaca paragrafnya sama dengan
+badan naskah, jadi ia bisa saja menghasilkan `link` atau `comment` yang sengaja tidak dibawa
+skema ringan ini. Kehilangan format satu header jauh lebih murah daripada kehilangan
+dokumennya, dan slot yang gagal dilaporkan sebagai peringatan bernama.
+
+**Sesudah:** 39 lembar, footer halaman 1 berbunyi "1", tanpa galat — dan fokusnya berpindah
+sendiri. Jaring pengaman "pilih ulang tab setelah muncul" yang sempat ditambahkan **dicabut**:
+setelah akar masalahnya beres, impor tetap fokus tanpanya.
+
+### Penanda kesiapan editor — `data-editor-ready`
+
+Diagnosis di atas sempat tertahan berjam-jam oleh alat ukurnya sendiri: input impor ada di HTML
+SSR, `set_input_files` memasang berkas sebelum React hidrasi, event `change` hilang, dan
+gagalnya diam-diam. Beberapa run lebih awal "berhasil" hanya karena kebetulan mendarat sesudah
+hidrasi — itulah yang membuat gejalanya tampak berubah-ubah.
+
+`<body data-editor-ready="true">` kini dipasang setelah React hidrasi **dan** penyimpanan
+dokumen selesai dimuat ([`app-shell.tsx`](../apps/web/components/layout/app-shell.tsx)),
+mengikuti pola `data-export-ready` yang sudah dipakai `render_service.py`. Ia memberi harness
+sinyal "aman disentuh" yang resmi, bukan menunggu-butir-DOM yang tidak resmi.
+
+> **Worker render sengaja TIDAK memakainya.** Halaman ekspor tidak melewati `AppShell` —
+> `ExportDocumentView` berdiri sendiri tanpa header maupun panel — jadi `data-editor-ready`
+> tidak pernah terpasang di `/export/[id]`; mengganti `READY_SELECTOR` akan membuat setiap job
+> menunggu sampai timeout lalu gagal, diam-diam. Lagipula worker hanya membuka halaman dan
+> memotret; ia tidak mengemudikan UI, dan yang ia butuhkan justru lebih ketat daripada "hidrasi
+> selesai" — paginasinya harus tenang lebih dulu, dan itulah yang dijanjikan
+> `data-export-ready`. Kalau kelak ada job yang benar-benar menyentuh editor (tangkapan layar
+> kanvas, otomasi), penanda ini dipakai sebagai pemilih **tambahan** untuk job jenis itu,
+> bukan pengganti.
+
+### Retraksi
+
+| Klaim | Status | Sebab |
+|---|---|---|
+| "Impor tidak pernah berjalan di harness" | **salah** | run yang gagal belum terhidrasi; dengan penanda kesiapan, impor berjalan setiap kali |
+| "Bug fokus tab berdiri sendiri" | **salah** | gejala dari V8 — `selectSession` tidak pernah tercapai karena transaksinya batal |
+
+---
+
 ## Lampiran — cara reproduksi
 
 > Reseps tambahan dari putaran perbaikan: untuk mengukur **kertas** lewat Playwright, pakai
@@ -439,18 +509,31 @@ print('fldSimple:', len(re.findall(r'<w:fldSimple', d)), '| ADDIN:', len(re.find
 PY
 ```
 
-**Jumlah lembar kanvas & nomor halaman daftar** (Playwright di kontainer `worker`; salin dulu
-berkasnya dengan `docker compose cp <berkas> worker:/tmp/citasi.docx`):
+**Impor sebuah berkas** (Playwright di kontainer `worker`; salin dulu berkasnya dengan
+`docker compose cp <berkas> worker:/tmp/citasi.docx`):
 
 ```python
+ctx = browser.new_context()          # konteks segar: IndexedDB & localStorage kosong
+p = ctx.new_page()
+p.goto("http://web:3000/", wait_until="domcontentloaded")
+p.wait_for_selector('body[data-editor-ready="true"]', timeout=60_000)   # WAJIB
+assert p.evaluate("() => document.querySelectorAll('input[type=file]').length") == 1
 p.set_input_files("input[type=file]", "/tmp/citasi.docx")
-p.wait_for_timeout(30000)
+p.wait_for_timeout(40_000)
 p.evaluate("""() => ({
   lembarKanvas: document.querySelectorAll('.document-sheet').length,
   pengganjal:   document.querySelectorAll('.page-break-spacer').length,
   gambar:       document.querySelectorAll('.document-body img').length,
 })""")
 ```
+
+> ⚠️ **Jangan memasang berkas tepat setelah `goto`.** Input impor ikut terkirim di HTML SSR,
+> jadi ia sudah *attached* sejak byte pertama — jauh sebelum React memasang penangannya.
+> `set_input_files` hanya menunggu elemennya ada, sehingga event `change`-nya menghilang tanpa
+> jejak: tidak ada galat, hanya tidak terjadi apa-apa. Resep versi lama dokumen ini memakai
+> pola itu, dan run yang "berhasil" cuma kebetulan mendarat sesudah hidrasi. Penanda
+> `body[data-editor-ready="true"]` ([`editor-ready.ts`](../apps/web/features/editor/editor-ready.ts))
+> adalah sinyal resminya — saudara kandung `data-export-ready` milik worker render.
 
 **Jarak nyata di atas tabel** (bukan margin pembungkusnya):
 

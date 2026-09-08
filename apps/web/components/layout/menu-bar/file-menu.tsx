@@ -21,7 +21,7 @@ import { Item, Menu, run } from './menu-shell'
 export function FileMenu() {
 	const { editor } = useEditorInstance()
 	const { state } = useDocument()
-	const { setExportOpen, setDocxExportOpen, setPageSetupOpen } = useSettings()
+	const { setExportOpen, setDocxExportOpen, setPageSetupOpen, settings } = useSettings()
 	const { newSession, deleteSession, activeId, sessions, doc } = useSessions()
 	const { setup: activeSetup } = usePageSetup()
 	const { furniture } = usePageFurniture()
@@ -52,6 +52,7 @@ export function FileMenu() {
 					furniture,
 					furnitureContent: activeId ? readFurnitureContentJson(doc, activeId) : null,
 					typography,
+					showPageNumbers: settings.showPageNumbers,
 				}),
 				safeFilename(state.title, 'docx'),
 			)

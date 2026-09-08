@@ -1,6 +1,6 @@
 # WritingHub — Rencana: Header/Footer & Penomoran Halaman per Bagian
 
-Status: **rancangan, belum ada yang dikerjakan** · 6 September 2026 · baseline `e38ef09` (branch `main`)
+Status: **T3–T6 dan celah ekspor sudah mendarat; tersisa T1–T2 (paginasi)** · diperbarui 8 September 2026
 Terkait: [DOCX-IMPORT-GAP-V2.md](DOCX-IMPORT-GAP-V2.md) (V1 — dua mesin paginasi) ·
 [DOCX-IMPORT-GAP.md](DOCX-IMPORT-GAP.md) (D8 — isi header/footer) ·
 [RENDER-WORKER-PLAN.md](RENDER-WORKER-PLAN.md) (jalur PDF sisi peladen)
@@ -257,6 +257,62 @@ penomorannya), dan tabel di dalam header.
   area isi berkurang — paginator harus ikut menghitungnya, kalau tidak isinya meluber.
 - **Editor kecil di dalam kanvas** menambah instans TipTap; perlu dijaga agar tidak ikut
   menerima ekstensi berat (paginasi, TOC, kolom).
+
+---
+
+## 8. Yang sudah mendarat
+
+Ditulis belakangan, setelah T3–T6 dikerjakan. Urutannya menyimpang dari [§5](#5-tahapan):
+T1–T2 (paginasi) **belum** dikerjakan, dan fitur-fitur di bawah tetap berguna tanpanya karena
+semuanya hidup di kanvas.
+
+| | Keadaan |
+|---|---|
+| Dialog **Header & footer** | margin (cm), varian halaman pertama/ganjil-genap, sunting di halaman, **hapus per slot** |
+| Dialog **Page numbers** terpisah | format, mulai ulang, cakupan (tab / dari sini / halaman ini), **Show page numbers**, **Show on first page** |
+| Sunting di tempat | klik ganda margin, pil berisi **perataan kiri/tengah/kanan**, sisip `{page}`/`{pages}`, "Different first page" di lembar pertama |
+| Penomoran per bagian | `PageNumbering.show` opsional — inilah alur membersihkan penomoran |
+| Impor DOCX | field `PAGE`/`NUMPAGES` → token; isi kaya header/footer; `w:pgNumType` |
+| Ekspor DOCX | `w:hdr`/`w:ftr` kaya; bagian ber-`show: false` ditulis **tanpa** field PAGE; footer sintesis bila nomor menyala tanpa perabot pembawa |
+
+### Lima jebakan yang ditemukan sambil jalan
+
+**Nomor ganda.** Begitu field `PAGE` benar-benar terbawa, footer *dan* lencana sudut sama-sama
+menggambar nomor. Aturannya sekarang: lencana adalah **cadangan** — ia menyingkir hanya kalau
+perabotnya benar-benar membawa token nomor, bukan sekadar ada. Bedanya penting: perabot yang
+ada tapi kosong (bentuk paling umum dari impor lama) sempat menelan nomornya diam-diam,
+sehingga Apply di dialog tidak menghasilkan apa pun yang terlihat.
+
+**Field ada di satu run.** Ekspor Google Docs menaruh `begin`, `instrText`, `separate`, dan
+`end` dalam **satu** `w:r`. Membaca `child(run, 'fldChar')` berhenti di `begin`, fieldnya tidak
+pernah ditutup, dan footer bernomor masuk sebagai paragraf kosong — satu keluarga dengan bug
+TOC `\h` di dokumen v1.
+
+**Efek samping saat render.** `ensureFurnitureFragment` dipanggil di `useMemo` dan menulis ke
+Y.Doc; tulisan itu membangunkan observer komponen lain, jadi React menolak dengan *"Cannot
+update a component while rendering a different component"*. Pembuatan fragmen dipindah ke efek.
+
+**Mark asing membatalkan impor.** Diuraikan di
+[DOCX-IMPORT-GAP-V2 §10](DOCX-IMPORT-GAP-V2.md#10-putaran-ketiga--impor-batal-karena-satu-mark-asing).
+
+**Bundel perabot sekali pakai.** `furnitureExtras` dulu dibangun memakai keadaan section
+pertama sebagai `hideNumbers`, jadi dokumen yang nomornya disembunyikan di sampul lalu
+dinyalakan lagi di isi tidak pernah mendapat tokennya kembali — bagian isi mewarisi footer
+bersih section pembuka. Kini bundelnya dua yang tetap (bernomor / tanpa nomor, termasuk
+footer sintesisnya); section pertama tinggal memilih, dan tiap pergantian visibilitas
+ganti bundel. Ditemukan sambil menutup celah ekspor.
+
+### Yang masih terbuka
+
+- **T1–T2** — akurasi paginator lalu cetak digerakkan olehnya. Tanpa ini header/footer tetap
+  tidak pernah sampai ke kertas.
+- **`settings.showPageNumbers`** mengatur lencana cadangan **dan** footer sintesis ekspor.
+  Labelnya sudah diperjelas jadi "Nomor halaman otomatis"; nama fieldnya sengaja **tidak**
+  diubah supaya preferensi pengguna yang sudah tersimpan tidak hangus.
+- **Sisa yang jujur dari celah ekspor** — footer berisi teks/gambar statis tanpa token tidak
+  ditempeli field `PAGE`: menempelkan nomor ke konten pengguna adalah keputusan produk
+  tersendiri. Dokumen begini tetap keluar tanpa nomor di DOCX selama di layar lencanalah
+  yang menggantikan.
 
 ---
 

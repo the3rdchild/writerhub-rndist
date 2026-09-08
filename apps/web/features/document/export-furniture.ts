@@ -41,6 +41,33 @@ function alignOf(docx: DocxModule, align: PageFurnitureLine['align']) {
 	return docx.AlignmentType.LEFT
 }
 
+/** Teks membawa token nomor ({page}/{pages})? */
+const carriesToken = (text: string) => text.includes(PAGE_TOKEN) || text.includes(PAGES_TOKEN)
+
+/** Seluruh teks blok fragmen, diratakan jadi satu — token bisa terpencar ke
+ * node teks yang bersebelahan dan harus dibaca utuh, bukan per-node. */
+function blocksTextOf(blocks: JSONContent[]): string {
+	const parts: string[] = []
+	const walk = (nodes: JSONContent[]) => {
+		for (const node of nodes) {
+			if (node.type === 'text' && node.text) parts.push(node.text)
+			if (node.content) walk(node.content)
+		}
+	}
+	walk(blocks)
+	return parts.join('')
+}
+
+const blocksCarryNumber = (blocks: JSONContent[]) => carriesToken(blocksTextOf(blocks))
+
+/** Fragmen kosong: tanpa teks tak-sekspasi dan tanpa gambar. Paragraf kosong
+ * inilah bentuk footer paling umum peninggalan impor lama. */
+function blocksAreEmpty(blocks: JSONContent[]): boolean {
+	const hasImage = (nodes: JSONContent[]): boolean =>
+		nodes.some((node) => node.type === 'image' || hasImage(node.content ?? []))
+	return !hasImage(blocks) && blocksTextOf(blocks).trim() === ''
+}
+
 const MARKS: Record<string, () => Record<string, unknown>> = {
 	bold: () => ({ bold: true }),
 	italic: () => ({ italics: true }),
@@ -153,6 +180,24 @@ function childrenOfBlocks(
 	return children.length > 0 ? children : [new docx.Paragraph({})]
 }
 
+/**
+ * Footer sintesis penutup celah ekspor: satu paragraf tengah berisi field
+ * PAGE — padanan gaya "Plain Number 2" Word untuk lencana cadangan layar.
+ * Saat nomor disembunyikan ia tetap dibuat, tapi kosong: section yang nomornya
+ * dibersihkan mewarisi perabot section sebelumnya di Word, jadi tanpa part
+ * sendiri field PAGE yang sudah dibersihkan akan hidup kembali di bawahnya.
+ */
+function synthesizedFooterOf(docx: DocxModule, hideNumbers: boolean): InstanceType<DocxModule['Footer']> {
+	return new docx.Footer({
+		children: [
+			new docx.Paragraph({
+				alignment: docx.AlignmentType.CENTER,
+				...(hideNumbers ? {} : { children: [new docx.TextRun({ children: [docx.PageNumber.CURRENT] })] }),
+			}),
+		],
+	})
+}
+
 /** Properti perabot untuk new Document; kosong bila tak ada perabot. */
 export function docxSectionFurniture(
 	furniture: PageFurniture | null | undefined,
@@ -160,6 +205,9 @@ export function docxSectionFurniture(
 	content?: FurnitureContent | null,
 	/** Bagian ini tanpa nomor halaman (`pageNumbering.show === false`). */
 	hideNumbers = false,
+	/** Jaminan footer pembawa nomor untuk dokumen bernomor yang perabotnya
+	 * tidak membawanya (penutup celah ekspor, opsi A rencana header/footer). */
+	ensureNumberFooter = false,
 ): SectionFurniture {
 	const richHeader = content?.header ?? {}
 	const richFooter = content?.footer ?? {}
@@ -188,6 +236,40 @@ export function docxSectionFurniture(
 
 	const hasFirst = Boolean(headers.first || footers.first)
 	const hasEven = Boolean(headers.even || footers.even)
+
+	/*
+	 * Penutup celah ekspor: dokumen tanpa perabot bernomor di layar lewat
+	 * lencana cadangan, tapi DOCX-nya keluar tanpa nomor karena tidak ada
+	 * footer pembawanya. Bila diminta, footer disintesis bila tidak ada atau
+	 * kosong — dengan aturan yang sama dengan lencana: yang menghentikan
+	 * sintesis bukan "ada perabot", melainkan perabot yang SUDAH membawa nomor,
+	 * di footer ataupun header (supaya nomornya tidak digambar dua kali).
+	 * Footer berisi teks statis tidak disentuh — menempel field ke konten
+	 * pengguna adalah sisa yang dicatat di rencana. Varian first tidak pernah
+	 * disintesis: footer first yang kosong adalah keputusan sadar ("Show on
+	 * first page" dimatikan), bukan kekosongan. Varian even hanya disintesis
+	 * bila evenAndOdd memang menyala; tanpa itu halaman genap memakai default.
+	 */
+	if (ensureNumberFooter) {
+		const carries = (slot: 'header' | 'footer', variant: 'default' | 'even') => {
+			const blocks = content?.[slot]?.[variant]
+			return blocks && blocks.length > 0
+				? blocksCarryNumber(blocks)
+				: carriesToken(furniture?.[slot]?.[variant]?.text ?? '')
+		}
+		const missingOrEmpty = (variant: 'default' | 'even') => {
+			const blocks = content?.footer?.[variant]
+			if (blocks && blocks.length > 0) return blocksAreEmpty(blocks)
+			const line = furniture?.footer?.[variant]
+			return line ? (line.text ?? '').trim() === '' : true
+		}
+		for (const variant of hasEven ? (['default', 'even'] as const) : (['default'] as const)) {
+			if (carries('footer', variant) || carries('header', variant)) continue
+			if (!missingOrEmpty(variant)) continue
+			footers[variant] = synthesizedFooterOf(docx, hideNumbers)
+		}
+	}
+
 	return {
 		...(Object.keys(headers).length > 0 ? { headers } : {}),
 		...(Object.keys(footers).length > 0 ? { footers } : {}),

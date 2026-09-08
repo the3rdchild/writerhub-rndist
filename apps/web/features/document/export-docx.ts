@@ -214,6 +214,7 @@ export async function exportDocx(
 		furniture,
 		furnitureContent,
 		typography,
+		showPageNumbers = true,
 	}: {
 		title: string
 		geometry: PageGeometry
@@ -227,6 +228,13 @@ export async function exportDocx(
 		 * berkas hasil ekspor tidak lagi serupa dengan yang tampil di kanvas.
 		 */
 		typography?: DocumentTypography | null
+		/**
+		 * Nomor halaman otomatis (lencana layar) menyala? Bila ya dan tak ada
+		 * perabot yang membawa nomor, ekspor menyintesis footer berisi field
+		 * PAGE — menutup celah "bernomor di layar, tanpa nomor di DOCX". Dokumen
+		 * pageless tidak bernomor di layar, jadi tidak disintesis.
+		 */
+		showPageNumbers?: boolean
 	},
 ): Promise<Blob> {
 	const docx = await import('docx')
@@ -737,15 +745,22 @@ export async function exportDocx(
 	// referensinya di Word, meniru perilaku dokumen asal.
 	const hiddenOf = (span: SectionSpan | null) => span?.setup.pageNumbering?.show === false
 	const baseHidden = hiddenOf(sections[0]?.span ?? null)
-	const furnitureExtras = docxSectionFurniture(furniture, docx, furnitureContent, baseHidden)
+	/* Nomor otomatis mengikuti lencana layar: tanpa nomor bila pengguna
+	 * mematikannya atau dokumennya pageless. */
+	const autoNumbers = showPageNumbers && setup?.pageless !== true
 	/*
-	 * Bagian yang nomornya dibersihkan memerlukan perabotnya SENDIRI - tanpa
-	 * field PAGE - karena di Word section berikutnya mewarisi milik section
-	 * sebelumnya. Yang ditulis ulang hanya section yang visibilitasnya berbeda
-	 * dari section sebelum-sebelumnya, jadi dokumen yang tidak menyembunyikan
-	 * apa pun keluar persis seperti sebelumnya.
+	 * Dua bundel perabot yang isinya berbeda hanya di tokennya: bernomor dan
+	 * tanpa nomor — termasuk footer sintesisnya. Section pertama memakai bundel
+	 * sesuai keadaannya sendiri; section yang visibilitas nomornya BERBEDA dari
+	 * section sebelumnya menulis referensi perabotnya sendiri, karena Word
+	 * mewarisi milik section sebelumnya. Tanpa itu field PAGE yang sudah
+	 * dibersihkan hidup kembali — dan sebaliknya: nomor yang dinyalakan lagi
+	 * setelah section pembuka yang menyembunyikannya tidak pernah balik, karena
+	 * dulu `furnitureExtras` dibangun memakai keadaan section pertama.
 	 */
-	const furnitureHidden = docxSectionFurniture(furniture, docx, furnitureContent, true)
+	const furnitureExtras = docxSectionFurniture(furniture, docx, furnitureContent, false, autoNumbers)
+	const furnitureHidden = docxSectionFurniture(furniture, docx, furnitureContent, true, autoNumbers)
+	const furnitureBase = baseHidden ? furnitureHidden : furnitureExtras
 	const overrides: (typeof furnitureExtras | null)[] = sections.map(() => null)
 	let effectiveHidden = baseHidden
 	for (const [index, section] of sections.entries()) {
@@ -765,16 +780,16 @@ export async function exportDocx(
 		},
 		sections: sections.map((section, index) => ({
 			properties:
-				index === 0 && furnitureExtras.titlePage
+				index === 0 && furnitureBase.titlePage
 					? { ...section.properties, titlePage: true }
 					: section.properties,
-			...(index === 0 && furnitureExtras.headers
-				? { headers: furnitureExtras.headers }
+			...(index === 0 && furnitureBase.headers
+				? { headers: furnitureBase.headers }
 				: overrides[index]?.headers
 					? { headers: overrides[index]?.headers }
 					: {}),
-			...(index === 0 && furnitureExtras.footers
-				? { footers: furnitureExtras.footers }
+			...(index === 0 && furnitureBase.footers
+				? { footers: furnitureBase.footers }
 				: overrides[index]?.footers
 					? { footers: overrides[index]?.footers }
 					: {}),
