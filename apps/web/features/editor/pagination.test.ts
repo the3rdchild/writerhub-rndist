@@ -1,6 +1,15 @@
 import { describe, expect, test } from 'bun:test'
+import type { PageNumbering } from '@writer-hub/shared'
 import { DEFAULT_PAGE_SETUP, pageGeometry, sameSheetGeometry } from './page-geometry'
-import { blockSections, computeSpacers, type Measurement, pageBlockRange, pageOfPos } from './pagination'
+import {
+	blockSections,
+	computeSpacers,
+	type Measurement,
+	pageBlockRange,
+	pageOfPos,
+	type SheetGeometry,
+	sameSheets,
+} from './pagination'
 
 const geometry = pageGeometry() // A4, margin 1 inci
 const { contentHeight, pageStride } = geometry
@@ -26,6 +35,44 @@ describe('sameSheetGeometry - syarat pembatas menerus (E5)', () => {
 
 	test('warna halaman sengaja tidak dibandingkan - ia bukan geometri lembar', () => {
 		expect(sameSheetGeometry(DEFAULT_PAGE_SETUP, { ...DEFAULT_PAGE_SETUP, pageColor: '#fef3c7' })).toBe(true)
+	})
+})
+
+describe('sameSheets - visibilitas nomor harus terdengar (regresi dialog Page numbers)', () => {
+	/*
+	 * Kotak centang "Show page numbers" hanya mengubah `pageNumbering.show` —
+	 * tidak ada geometri yang bergeser. `sameSheets` dulu membandingkan format
+	 * dan restart saja, jadi lembar barunya dianggap sama dengan yang lama,
+	 * `onSheetsChange` tidak pernah menyala, dan lencana sudut di UI terus
+	 * menggambar nomor lamanya: un-check tidak mematikan apa pun.
+	 */
+	const sheetOf = (pageNumbering: PageNumbering | null): SheetGeometry => ({
+		...geometry,
+		index: 0,
+		top: 0,
+		sectionIndex: 0,
+		pageNumbering,
+	})
+	const SHOWN: PageNumbering = { format: 'decimal', restart: 'continue' }
+	const HIDDEN: PageNumbering = { format: 'decimal', restart: 'continue', show: false }
+
+	test('lembar yang identik dianggap sama', () => {
+		expect(sameSheets([sheetOf(SHOWN)], [sheetOf(SHOWN)])).toBe(true)
+		expect(sameSheets([sheetOf(null)], [sheetOf(null)])).toBe(true)
+	})
+
+	test('show berubah tampil ↔ disembunyikan: lembar dianggap berubah, dua arah', () => {
+		expect(sameSheets([sheetOf(SHOWN)], [sheetOf(HIDDEN)])).toBe(false)
+		expect(sameSheets([sheetOf(HIDDEN)], [sheetOf(SHOWN)])).toBe(false)
+	})
+
+	test('show: true dan kosong sama-sama berarti tampil - tidak memicu pemancaran semu', () => {
+		const explicit: PageNumbering = { format: 'decimal', restart: 'continue', show: true }
+		expect(sameSheets([sheetOf(SHOWN)], [sheetOf(explicit)])).toBe(true)
+	})
+
+	test('jumlah lembar yang berbeda tetap terdengar', () => {
+		expect(sameSheets([sheetOf(SHOWN)], [sheetOf(SHOWN), sheetOf(SHOWN)])).toBe(false)
 	})
 })
 

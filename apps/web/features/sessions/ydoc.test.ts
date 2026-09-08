@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import * as Y from 'yjs'
+import { DEFAULT_PAGE_SETUP, type PageSetup } from '@/features/editor/page-geometry'
 import {
 	createDocument,
 	createTab,
@@ -12,9 +13,12 @@ import {
 	moveTab,
 	readDocs,
 	readTabs,
+	resolvePageSetup,
 	renameDocument,
 	tabFragment,
 	tabPreview,
+	setPageSetupForDoc,
+	setPageSetupForTab,
 	tabsRoot,
 	updateTab,
 } from './ydoc'
@@ -241,5 +245,67 @@ describe('pratinjau naskah', () => {
 		writeParagraph(doc, id, 'satu dua tiga empat lima enam tujuh delapan')
 
 		expect(tabPreview(doc, id, 8).length).toBeLessThanOrEqual(8)
+	})
+})
+
+describe('penomoran halaman pulang-pergi lewat ydoc (regresi "Show page numbers")', () => {
+	/*
+	 * Mematikan kotak "Show page numbers" hanya mengubah satu medan: `show`.
+	 * Pembacaan kembali dulu membuangnya, jadi setelan tersimpan utuh tapi
+	 * tiap kali dibaca ulang ia kembali "tampil" - dialognya centang lagi dan
+	 * lencana nomornya hidup lagi begitu dialog dibuka.
+	 */
+	const setupWith = (pageNumbering: PageSetup['pageNumbering']): PageSetup => ({
+		...DEFAULT_PAGE_SETUP,
+		...(pageNumbering ? { pageNumbering } : {}),
+	})
+
+	test('show: false yang ditulis per tab terbaca kembali sebagai false', () => {
+		const doc = new Y.Doc()
+		const tabId = readTabs(doc, createDocument(doc))[0].id
+
+		setPageSetupForTab(doc, tabId, setupWith({ format: 'decimal', restart: 'continue', show: false }))
+
+		expect(resolvePageSetup(doc, tabId).pageNumbering).toEqual({
+			format: 'decimal',
+			restart: 'continue',
+			show: false,
+		})
+	})
+
+	test('show: false di tingkat dokumen ikut terwarisi tab yang belum punya setelan', () => {
+		const doc = new Y.Doc()
+		const docId = createDocument(doc)
+		const tabId = readTabs(doc, docId)[0].id
+
+		setPageSetupForDoc(doc, docId, setupWith({ format: 'lower-roman', restart: 3, show: false }))
+
+		expect(resolvePageSetup(doc, tabId).pageNumbering).toEqual({
+			format: 'lower-roman',
+			restart: 3,
+			show: false,
+		})
+	})
+
+	test('menyalakannya kembali membuang `show` - kosong dan true sama-sama berarti tampil', () => {
+		const doc = new Y.Doc()
+		const tabId = readTabs(doc, createDocument(doc))[0].id
+
+		setPageSetupForTab(doc, tabId, setupWith({ format: 'decimal', restart: 'continue', show: false }))
+		setPageSetupForTab(doc, tabId, setupWith({ format: 'decimal', restart: 'continue', show: true }))
+
+		expect(resolvePageSetup(doc, tabId).pageNumbering).toEqual({ format: 'decimal', restart: 'continue' })
+	})
+
+	test('medan asing tetap dibuang: show sendirian tanpa format bukan aturan yang sah', () => {
+		const doc = new Y.Doc()
+		const tabId = readTabs(doc, createDocument(doc))[0].id
+
+		tabsRoot(doc).meta.get(tabId)?.set('pageSetup', {
+			...DEFAULT_PAGE_SETUP,
+			pageNumbering: { show: false } as unknown as PageSetup['pageNumbering'],
+		})
+
+		expect(resolvePageSetup(doc, tabId).pageNumbering).toBeUndefined()
 	})
 })

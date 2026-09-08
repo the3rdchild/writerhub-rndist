@@ -133,13 +133,22 @@ function readDocMeta(meta: Y.Map<Y.Map<unknown>>, id: string): DocMeta {
 
 function normalizeNumbering(raw: unknown): PageNumbering | undefined {
 	if (!raw || typeof raw !== 'object') return undefined
-	const { format, restart } = raw as { format?: unknown; restart?: unknown }
+	const { format, restart, show } = raw as { format?: unknown; restart?: unknown; show?: unknown }
 	const FORMATS: PageNumberFormat[] = ['decimal', 'lower-roman', 'upper-roman', 'lower-alpha', 'upper-alpha']
 	if (typeof format !== 'string' || !FORMATS.includes(format as PageNumberFormat)) return undefined
 	return {
 		format: format as PageNumberFormat,
 		restart:
 			typeof restart === 'number' && Number.isFinite(restart) ? Math.max(0, Math.floor(restart)) : 'continue',
+		/*
+		 * `show` ikut disimpan dan dibaca kembali: dialah satu-satunya cara
+		 * pengguna membersihkan penomoran. Dulu ia dibuang di sini, jadi
+		 * un-check "Show page numbers" tersimpan tapi tak pernah terbaca lagi -
+		 * dialognya centang kembali dan nomornya hidup lagi begitu dibuka.
+		 * Hanya `false` eksplisit yang ditulis: `true` dan kosong sama-sama
+		 * berarti tampil, dan menuliskannya hanya menambah kebisingan.
+		 */
+		...(show === false ? { show: false } : {}),
 	}
 }
 

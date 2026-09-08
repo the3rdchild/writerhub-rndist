@@ -563,7 +563,12 @@ function sameSpacers(a: readonly Spacer[], b: readonly Spacer[]): boolean {
 	)
 }
 
-function sameSheets(a: readonly SheetGeometry[], b: readonly SheetGeometry[]): boolean {
+/*
+ * Diekspor untuk uji: kegagalannya pernah buta terhadap `show` — kotak centang
+ * "Show page numbers" di dialog Page numbers tidak pernah terlihat di UI
+ * karena lembar baru dianggap sama dengan yang lama.
+ */
+export function sameSheets(a: readonly SheetGeometry[], b: readonly SheetGeometry[]): boolean {
 	return (
 		a.length === b.length &&
 		a.every((sheet, index) => {
@@ -574,7 +579,16 @@ function sameSheets(a: readonly SheetGeometry[], b: readonly SheetGeometry[]): b
 				sheet.height === other.height &&
 				sheet.sectionIndex === other.sectionIndex &&
 				(sheet.pageNumbering?.format ?? null) === (other.pageNumbering?.format ?? null) &&
-				(sheet.pageNumbering?.restart ?? null) === (other.pageNumbering?.restart ?? null)
+				(sheet.pageNumbering?.restart ?? null) === (other.pageNumbering?.restart ?? null) &&
+				/*
+				 * Visibilitas (`show`) juga bagian dari lembar: mematikannya tidak
+				 * menggeser apa pun secara geometri, jadi tanpa pembanding ini
+				 * `onSheetsChange` tidak pernah menyala dan lencana sudut terus
+				 * memakai nomor lamanya. Yang dibandingkan hanya "eksplisit
+				 * disembunyikan" — `true` dan kosong sama-sama berarti tampil, supaya
+				 * dokumen lama tanpa medan `show` tidak memicu pemancaran semu.
+				 */
+				(sheet.pageNumbering?.show === false) === (other.pageNumbering?.show === false)
 			)
 		})
 	)
