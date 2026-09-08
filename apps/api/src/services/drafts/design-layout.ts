@@ -37,6 +37,41 @@ const SIZE_KEYWORDS: ReadonlyArray<readonly [PageSizeId, RegExp]> = [
 const LANDSCAPE = /\b(landscape|lanskap|mendatar|horizontal|melebar)\b/i
 const PORTRAIT = /\b(portrait|potret|tegak|vertikal|vertical)\b/i
 
+/**
+ * Batas atas halaman rancangan yang masuk akal untuk satu permintaan.
+ *
+ * Angka di atas ini hampir pasti bukan permintaan serius - dan setiap halaman
+ * adalah satu pagar ```html yang harus dijalani model tanpa kehilangan mutu,
+ * lalu satu lembar penuh yang dirender peramban. Dipingit di sini, bukan di
+ * prompt, supaya model tidak pernah diminta yang tidak akan dituruti.
+ */
+export const DESIGN_MAX_PAGES = 8
+
+/**
+ * Jumlah halaman yang diminta, dibaca dari kalimatnya.
+ *
+ * "3 halaman" / "3 pages" / "3-page" sebelum ini tidak punya pembaca sama
+ * sekali - permintaannya dijawab satu lembar dengan sisa isi terpotong, tanpa
+ * satu pun sinyal (docs/DRAFTS-API-FINDINGS.md T2). Dibaca dari kata kunci
+ * seperti ukuran kertas: deterministik, bisa diuji, dan bukan satu keluaran
+ * terstruktur lagi yang bisa digagalkan model.
+ *
+ * Angka di belakang kata saja - "halaman 3" (nomor halaman, bukan jumlah)
+ * tidak cocok. Tanpa cocok: null, artinya model menentukan sendiri (jawaban
+ * satu pagar tetap sah untuk permintaan tanpa angka).
+ */
+const PAGE_COUNT = /\b(\d{1,2})\s*[-\s]?\s*(?:halaman|lembar|pages?)\b/i
+
+export function designPageCount(prompt: string | undefined): number | null {
+	if (!prompt) return null
+	const match = PAGE_COUNT.exec(prompt)
+	if (!match) return null
+
+	const asked = Number.parseInt(match[1], 10)
+	if (!Number.isFinite(asked)) return null
+	return Math.min(Math.max(asked, 1), DESIGN_MAX_PAGES)
+}
+
 export function designPageSize(prompt: string | undefined): PageSizeId {
 	if (!prompt) return 'a4'
 	return SIZE_KEYWORDS.find(([, pattern]) => pattern.test(prompt))?.[0] ?? 'a4'

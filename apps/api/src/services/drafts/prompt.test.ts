@@ -150,6 +150,41 @@ describe('bentuk naskah yang diminta', () => {
 	})
 })
 
+describe('permintaan ber-angka halaman (T2)', () => {
+	/*
+	 * "Flyer 3 halaman" dulu tidak punya pembaca sama sekali - model diminta
+	 * satu pagar, pengurainya menolak dua, dan hasilnya satu lembar terpotong.
+	 * Angkanya kini sampai ke prompt DAN ke penguraian.
+	 */
+	test('kind flyer meminta tepat N pagar', () => {
+		const system = systemOf({ prompt: 'flyer 3 halaman bahaya abu', kind: 'flyer' }, null)
+
+		expect(system).toContain('EXACTLY 3 fenced')
+		expect(system).not.toContain('ONE fenced')
+	})
+
+	test('auto meminta N pagar di klausa pengecualiannya', () => {
+		const system = systemOf({ prompt: 'poster 3 pages about safety' }, null)
+
+		expect(system).toContain('EXCEPTION')
+		expect(system).toContain('EXACTLY 3 fenced')
+	})
+
+	test('tanpa angka, bentuk satu pagar tetap diminta', () => {
+		const system = systemOf({ prompt: 'flyer aksi', kind: 'flyer' }, null)
+
+		expect(system).toContain('ONE fenced')
+		expect(system).not.toContain('EXACTLY')
+	})
+
+	test('permintaan prosa ber-angka tidak melihat angka rancangan', () => {
+		const system = systemOf({ prompt: 'makalah 10 halaman tentang ikan', kind: 'document' }, null)
+
+		expect(system).not.toContain('EXCEPTION')
+		expect(system).not.toContain('EXACTLY')
+	})
+})
+
 describe('kanvas yang diberitahukan ke model', () => {
 	/*
 	 * Kegagalan yang melahirkan tes ini: versi pertama menyebut "the sheet is

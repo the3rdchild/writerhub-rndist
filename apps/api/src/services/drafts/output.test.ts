@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { draftRequestSchema } from './dto'
+import { draftRequestSchema, ignoredRequestFields } from './dto'
 import { outputsInPrompt, pendingRenderErrors, resolveOutputs } from './output'
 
 describe('outputsInPrompt', () => {
@@ -103,6 +103,52 @@ describe('skema permintaan', () => {
 		const parsed = draftRequestSchema.safeParse({ prompt: 'x' })
 
 		expect(parsed.success && parsed.data.output).toBeUndefined()
+	})
+})
+
+describe('medan permintaan yang diabaikan (T5)', () => {
+	/*
+	 * `z.object` tanpa `.strict()` membuang medan tak dikenal tanpa bersuara -
+	 * `"Model"` dengan M besar lenyap begitu saja dan drafnya ditulis model
+	 * bawaan. Salah ketik yang terlihat berhasil adalah kelas bug yang paling
+	 * mahal bagi pemanggil eksternal, jadi yang tidak dikenal dibalas
+	 * daftarnya, bukan ditolak.
+	 */
+	test('salah kaprah nama medan terbaca sebagai medan yang diabaikan', () => {
+		expect(ignoredRequestFields({ prompt: 'x', Model: 'anthropic/claude-sonnet-5' })).toEqual(['Model'])
+	})
+
+	test('badan yang bersih tidak melaporkan apa pun', () => {
+		expect(ignoredRequestFields({ prompt: 'x', kind: 'flyer' })).toEqual([])
+	})
+
+	test('badan yang bukan objek tidak dihitung', () => {
+		expect(ignoredRequestFields(null)).toEqual([])
+		expect(ignoredRequestFields('prompt')).toEqual([])
+		expect(ignoredRequestFields(['prompt'])).toEqual([])
+	})
+})
+
+describe('medan permintaan yang diabaikan (T5)', () => {
+	/*
+	 * `z.object` tanpa `.strict()` membuang medan tak dikenal tanpa bersuara -
+	 * `"Model"` dengan M besar lenyap begitu saja dan drafnya ditulis model
+	 * bawaan. Salah ketik yang terlihat berhasil adalah kelas bug yang paling
+	 * mahal bagi pemanggil eksternal, jadi yang tidak dikenal dibalas
+	 * daftarnya, bukan ditolak.
+	 */
+	test('salah kaprah nama medan terbaca sebagai medan yang diabaikan', () => {
+		expect(ignoredRequestFields({ prompt: 'x', Model: 'anthropic/claude-sonnet-5' })).toEqual(['Model'])
+	})
+
+	test('badan yang bersih tidak melaporkan apa pun', () => {
+		expect(ignoredRequestFields({ prompt: 'x', kind: 'flyer' })).toEqual([])
+	})
+
+	test('badan yang bukan objek tidak dihitung', () => {
+		expect(ignoredRequestFields(null)).toEqual([])
+		expect(ignoredRequestFields('prompt')).toEqual([])
+		expect(ignoredRequestFields(['prompt'])).toEqual([])
 	})
 })
 

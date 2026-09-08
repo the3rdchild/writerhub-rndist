@@ -18,6 +18,16 @@ import type { DraftPhase } from '@writer-hub/shared'
 /** Panjang bawaan saat pemanggil tidak meminta panjang tertentu. */
 export const DEFAULT_TARGET_WORDS = 600
 
+/**
+ * Karakter per halaman rancangan (T8).
+ *
+ * HTML rancangan yang layak biasanya 6.000–15.000 karakter - jauh di atas
+ * target prosa bawaan (600 kata ≈ 3.600 karakter). Tanpa angka sendiri, bar
+ * kemajuan rancangan menyentuh batas atas 95% saat baru setengah jadi lalu
+ * diam - persis kebohongan yang dicegah kepala berkas ini.
+ */
+export const DESIGN_CHARS_PER_PAGE = 8_000
+
 /** Rerata kasar panjang kata plus spasinya untuk teks Indonesia maupun Inggris. */
 const CHARS_PER_WORD = 6
 
@@ -32,6 +42,11 @@ export const MAX_WRITING_PERCENT = 95
 
 export function targetCharacters(words: number | undefined): number {
 	return Math.max(1, Math.round((words ?? DEFAULT_TARGET_WORDS) * CHARS_PER_WORD))
+}
+
+/** Target untuk rancangan: per halaman yang diminta (null berarti satu). */
+export function designTargetCharacters(pages: number | null): number {
+	return Math.max(1, DESIGN_CHARS_PER_PAGE * Math.max(1, pages ?? 1))
 }
 
 export function draftPercent(phase: DraftPhase, characters: number, target: number): number {

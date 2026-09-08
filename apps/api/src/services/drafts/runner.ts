@@ -6,10 +6,11 @@ import { snapshotIntervalTab } from '@/services/tabs/service'
 import type { SectionColumns } from '@/services/templates/section-columns'
 import { withColumnsAfterTitle } from '@/services/templates/section-columns'
 import type { DesignCanvas } from './design-repair'
+import type { DraftRequest } from './dto'
 import { toDraftFailure } from './failure'
 import { generateDraftMarkdown, type ProviderConfig } from './generation'
-import { headingTitle, markdownToDoc } from './markdown-doc'
-import { targetCharacters } from './progress'
+import { headingTitle, isDesignDoc, markdownToDoc } from './markdown-doc'
+import { designTargetCharacters, targetCharacters } from './progress'
 import { enqueueDraftRender } from './render'
 import { markFailed, markGenerating, markReady } from './status'
 
@@ -60,11 +61,19 @@ export interface DraftGeneration {
 	/** Panjang yang diminta pemanggil; dasar taksiran kemajuan. */
 	words?: number
 	/**
-	 * Izin menjadikan jawaban satu-pagar-html sebagai blok rancangan. Ikut ke
+	 * Izin menjadikan jawaban berpagar-html sebagai blok rancangan. Ikut ke
 	 * sini dan tidak disimpulkan ulang dari prompt: yang menentukan bentuk
 	 * naskah adalah permintaannya, dan permintaan itu hanya ada di service.
 	 */
 	allowHtmlBlock?: boolean
+	/** Bentuk yang diminta pemanggil - ikut menentukan target kemajuan. */
+	kind?: DraftRequest['kind']
+	/**
+	 * Jumlah halaman rancangan yang diminta pemanggil (dibaca dari kalimatnya,
+	 * `designPageCount`). Dipakai untuk target kemajuan (T8) dan peringatan
+	 * kalau jawabannya tidak sesuai jumlahnya (T2).
+	 */
+	designPages?: number | null
 	/**
 	 * Lembar untuk rancangan satu halaman, dibaca dari permintaannya
 	 * (`design-layout.ts`). Dipakai HANYA kalau jawaban model ternyata benar
@@ -91,7 +100,19 @@ export interface DraftGeneration {
  */
 export async function startDraftGeneration(input: DraftGeneration): Promise<void> {
 	const deadline = Date.now() + DRAFT_DEADLINE_MS
-	const target = targetCharacters(input.words)
+	/*
+	 * Target kemajuan mengikuti bentuk yang diperkirakan (T8): rancangan dihitung
+	 * per halaman (± 8.000 karakter HTML), prosa dari kata yang diminta. Pada
+	 * `kind: 'auto'` tebakannya dari angka halamannya - kalau tebakannya meleset
+	 * (permintaan ber-angka ternyata prosa), barnya jujur kurang jauh lalu melompat
+	 * ke 97 saat menyimpan; kebalikannya (tanpa angka ternyata rancangan) lebih
+	 * baik daripada bar yang mentok di 95% sejak awal.
+	 */
+	const designExpected =
+		Boolean(input.allowHtmlBlock) && (input.kind === 'flyer' || (input.designPages ?? 0) > 0)
+	const target = designExpected
+		? designTargetCharacters(input.designPages ?? 1)
+		: targetCharacters(input.words)
 
 	await markGenerating(input.documentId, {
 		phase: 'preparing',
@@ -116,6 +137,7 @@ async function writeDraft(
 		titleFromHeading,
 		columns,
 		allowHtmlBlock,
+		designPages,
 		designLayout,
 		canvas,
 		outputs,
@@ -140,13 +162,33 @@ async function writeDraft(
 		await progress('saving', markdown.length)
 
 		const generated = markdownToDoc(markdown, { allowHtmlBlock, canvas })
+		const design = isDesignDoc(generated)
 		/*
-		 * Rancangan satu halaman tidak punya badan naskah untuk dikolomkan - ia
-		 * satu blok yang mengisi seluruh lembar. Memasang pembatas section di
-		 * atasnya hanya mendorongnya ke halaman kedua.
+		 * Peringatan yang tidak menggagalkan apa pun, dibalas ke pemanggil lewat
+		 * `warnings` (T3/T2): jawaban yang memuat pagar ```html tapi tidak terdeteksi
+		 * sebagai rancangan hampir pasti maksudnya rancangan - dulu kegagalan itu
+		 * tidak meninggalkan jejak di mana pun; dan jawaban rancangan yang jumlah
+		 * halamannya tidak sesuai permintaannya berhak diketahui pemanggilnya.
 		 */
-		const isDesign = generated.content.length === 1 && generated.content[0].type === 'htmlBlock'
-		const content = columns && !isDesign ? withColumnsAfterTitle(generated, columns) : generated
+		const warnings: string[] = []
+		if (allowHtmlBlock && !design && /```\s*html/i.test(markdown)) {
+			warnings.push(
+				'Jawaban modelnya memuat pagar ```html tapi tidak terbaca sebagai rancangan; disimpan sebagai dokumen biasa.',
+			)
+			log.warn(
+				{ documentId, characters: markdown.length },
+				'Draf: jawaban berpagar html tidak terdeteksi sebagai rancangan',
+			)
+		}
+		if (design && designPages && generated.content.length !== designPages) {
+			warnings.push(`Diminta ${designPages} halaman rancangan, yang jadi ${generated.content.length}.`)
+		}
+		/*
+		 * Rancangan tidak punya badan naskah untuk dikolomkan - tiap halamannya
+		 * satu blok yang mengisi lembarnya sendiri. Memasang pembatas section di
+		 * atasnya hanya mendorong halaman pertamanya ke lembar kedua.
+		 */
+		const content = columns && !design ? withColumnsAfterTitle(generated, columns) : generated
 		const title = titleFromHeading ? headingTitle(markdown) : null
 
 		await updateTab(tabId, { content, ...(title ? { title } : {}) })
@@ -157,7 +199,7 @@ async function writeDraft(
 		 */
 		const patch = {
 			...(title ? { title } : {}),
-			...(isDesign && designLayout ? { layout: designLayout } : {}),
+			...(design && designLayout ? { layout: designLayout } : {}),
 		}
 		if (Object.keys(patch).length > 0) await updateDocument(documentId, ownerId, patch)
 		else await touchDocument(documentId)
@@ -173,7 +215,7 @@ async function writeDraft(
 		 */
 		if (outputs?.length) await enqueueDraftRender(documentId, outputs)
 
-		await markReady(documentId)
+		await markReady(documentId, warnings)
 	} catch (error) {
 		log.error({ err: error, documentId, tabId }, 'Naskah draf gagal disimpan')
 		await markFailed(documentId, {

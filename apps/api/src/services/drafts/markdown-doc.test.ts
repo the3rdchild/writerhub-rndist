@@ -177,17 +177,40 @@ describe('rancangan satu halaman', () => {
 	/*
 	 * Batas yang paling penting: artikel yang MEMBICARAKAN HTML adalah dokumen,
 	 * dan potongannya harus tetap jadi blok kode. Menebak lebih agresif berarti
-	 * sesekali menelan naskah pengguna ke dalam bingkai terkurung.
+	 * sesekali menelan naskah pengguna ke dalam bingkai terkurung. Prosa SEBELUM
+	 * pagar tetap membatalkan seluruhnya - pengantar adalah wajah artikel.
 	 */
-	test('prosa di sekitar pagar membatalkannya', () => {
-		const before = markdownToDoc(`Contohnya begini:\n\n${FLYER}`, { allowHtmlBlock: true })
-		expect(before.content.some((node) => node.type === 'htmlBlock')).toBe(false)
-
-		const after = markdownToDoc(`${FLYER}\n\nBegitulah cara kerjanya.`, { allowHtmlBlock: true })
-		expect(after.content.some((node) => node.type === 'htmlBlock')).toBe(false)
+	test('prosa sebelum pagar membatalkannya', () => {
+		const doc = markdownToDoc(`Contohnya begini:\n\n${FLYER}`, { allowHtmlBlock: true })
+		expect(doc.content.some((node) => node.type === 'htmlBlock')).toBe(false)
 	})
 
-	test('dua pagar bukan satu rancangan', () => {
+	/*
+	 * T3 (docs/DRAFTS-API-FINDINGS.md): dulu SATU kalimat penutup dari model
+	 * menjatuhkan seluruh rancangan jadi dokumen penuh blok kode. Basa-basi
+	 * pendek antar/setelah pagar kini ditoleransi - strukturnya (heading,
+	 * tabel, daftar) dan total yang melewati batas tetap membatalkan.
+	 */
+	test('basa-basi pendek setelah pagar ditoleransi', () => {
+		const doc = markdownToDoc(`${FLYER}\n\nSemoga membantu!`, { allowHtmlBlock: true })
+		expect(doc.content).toHaveLength(1)
+		expect(doc.content[0].type).toBe('htmlBlock')
+	})
+
+	test('penutup yang terstruktur tetap membatalkan', () => {
+		const doc = markdownToDoc(`${FLYER}\n\n## Catatan\n\nBegitulah cara kerjanya.`, {
+			allowHtmlBlock: true,
+		})
+		expect(doc.content.some((node) => node.type === 'htmlBlock')).toBe(false)
+	})
+
+	test('penutup panjang tetap membatalkan', () => {
+		const longClosing = 'Begitulah cara kerjanya. '.repeat(10)
+		const doc = markdownToDoc(`${FLYER}\n\n${longClosing}`, { allowHtmlBlock: true })
+		expect(doc.content.some((node) => node.type === 'htmlBlock')).toBe(false)
+	})
+
+	test('dua pagar bukan SATU rancangan - tapi dua halaman satu rancangan', () => {
 		expect(singleHtmlBlock(`${FLYER}\n\n${FLYER}`)).toBeNull()
 	})
 
@@ -201,6 +224,44 @@ describe('rancangan satu halaman', () => {
 
 	test('pagar html kosong ditolak', () => {
 		expect(singleHtmlBlock('```html\n\n```')).toBeNull()
+	})
+})
+
+describe('rancangan banyak halaman (T2)', () => {
+	/*
+	 * "Flyer 3 halaman" dulu dijawab satu lembar dengan sisa isi terpotong -
+	 * angkanya tidak punya pembaca sama sekali. Kini tiap pagar ```html jadi
+	 * satu blok mode halaman berurutan.
+	 */
+	test('tiga pagar menjadi tiga blok mode halaman berurutan', () => {
+		const source = ['# Aksi Tiga Lembar', '', FLYER, '', FLYER, '', FLYER].join('\n')
+		const doc = markdownToDoc(source, { allowHtmlBlock: true })
+
+		expect(doc.content).toHaveLength(3)
+		expect(doc.content.every((node) => node.type === 'htmlBlock')).toBe(true)
+		expect(doc.content.every((node) => node.attrs?.fit === 'page')).toBe(true)
+	})
+
+	test('halaman kosong di tengah dilewati, bukan membatalkan', () => {
+		const empty = ['```html', '', '```'].join('\n')
+		const doc = markdownToDoc(`${FLYER}\n\n${empty}\n\n${FLYER}`, { allowHtmlBlock: true })
+
+		expect(doc.content).toHaveLength(2)
+	})
+
+	test('pagar bahasa lain di antara halaman membatalkan - itu artikel', () => {
+		const js = ['```js', 'alert(1)', '```'].join('\n')
+		const doc = markdownToDoc(`${FLYER}\n\n${js}\n\n${FLYER}`, { allowHtmlBlock: true })
+
+		expect(doc.content.some((node) => node.type === 'htmlBlock')).toBe(false)
+	})
+
+	test('judul tetap dipungut sebagai judul dokumen', () => {
+		const source = `# Aksi Tiga Lembar\n\n${FLYER}\n\n${FLYER}`
+		const doc = markdownToDoc(source, { allowHtmlBlock: true })
+
+		expect(doc.content).toHaveLength(2)
+		expect(headingTitle(source)).toBe('Aksi Tiga Lembar')
 	})
 })
 

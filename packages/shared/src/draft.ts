@@ -37,6 +37,12 @@ export interface DraftDownload {
 	 * lewat urutan adalah asumsi yang diam-diam rusak.
 	 */
 	page?: number
+	/**
+	 * Jumlah halaman berkasnya, dihitung dari berkas yang benar-benar keluar -
+	 * bukan dari paginasi layar, yang bisa berselisih dengannya. Hanya PDF
+	 * hari ini; perender lain menyusul.
+	 */
+	pages?: number
 }
 
 /**
@@ -107,6 +113,22 @@ export interface DraftHandoff {
 	downloads?: DraftDownload[]
 	/** Keluaran yang diminta tapi tidak jadi; lihat `DraftRenderError`. */
 	renderErrors?: DraftRenderError[]
+	/**
+	 * Medan permintaan yang diabaikan karena tidak dikenal - mis. `"Model"`
+	 * yang seharusnya `model`. Salah ketik nama medan yang didiamkan adalah
+	 * kegagalan yang terlihat berhasil; daftar ini membuatnya terlihat.
+	 *
+	 * Hanya diisi pada jawaban pembuatan draf (`POST /api/v1/drafts`).
+	 */
+	ignoredFields?: string[]
+	/**
+	 * Catatan penting yang tidak menggagalkan apa pun - mis. isi rancangan yang
+	 * terpotong di tepi lembar, atau jumlah halaman yang tidak sesuai permintaan.
+	 *
+	 * Dibaca pemanggil untuk keputusan tampilan, bukan keputusan retry: status
+	 * tetap `ready` dan unduhannya tetap ada.
+	 */
+	warnings?: string[]
 	/** Posisi dalam antrean, hanya selama `queued`. */
 	queuePosition?: number
 }

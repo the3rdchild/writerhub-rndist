@@ -34,6 +34,12 @@ export interface DraftState {
 	deadline?: number
 	error?: string
 	errorCode?: DraftErrorCode
+	/**
+	 * Catatan penting yang tidak menggagalkan hasil - mis. jawaban model yang
+	 * meleset dari format rancangan yang diminta. Dibalas ke pemanggil lewat
+	 * `warnings` di serah-terima.
+	 */
+	warnings?: string[]
 }
 
 export interface GeneratingState {
@@ -67,8 +73,11 @@ export function markGenerating(documentId: string, progress: GeneratingState): P
 	return write(documentId, { status: 'generating', ...progress })
 }
 
-export function markReady(documentId: string): Promise<void> {
-	return write(documentId, { status: 'ready' })
+export function markReady(documentId: string, warnings: readonly string[] = []): Promise<void> {
+	return write(
+		documentId,
+		warnings.length > 0 ? { status: 'ready', warnings: [...warnings] } : { status: 'ready' },
+	)
 }
 
 export function markFailed(documentId: string, { code, message }: FailedState): Promise<void> {

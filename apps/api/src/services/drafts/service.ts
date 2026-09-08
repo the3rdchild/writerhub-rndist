@@ -9,10 +9,10 @@ import { findTemplateBySlug } from '@/repository/template'
 import JobSubmissionService from '@/services/job-submission.service'
 import { snapshotIntervalTab } from '@/services/tabs/service'
 import { templateDocumentLayout, templateTabLayout } from '@/services/templates/layout'
-import { designCanvas, designLayout } from './design-layout'
-import { type DraftRequest, draftRequestSchema } from './dto'
+import { designCanvas, designLayout, designPageCount } from './design-layout'
+import { type DraftRequest, draftRequestSchema, ignoredRequestFields } from './dto'
 import { type ProviderConfig, providerConfig } from './generation'
-import { headingTitle, markdownToDoc, type ProseMirrorDoc } from './markdown-doc'
+import { headingTitle, isDesignDoc, markdownToDoc, type ProseMirrorDoc } from './markdown-doc'
 import { pendingRenderErrors, resolveOutputs } from './output'
 import { draftPercent, targetCharacters } from './progress'
 import { buildDraftMessages } from './prompt'
@@ -43,34 +43,32 @@ const FALLBACK_TITLE = 'Draf tanpa judul'
  *
  * `document` menutupnya rapat - pemanggil sudah menyatakan ia mau prosa, dan
  * contoh HTML di dalam artikel teknis harus tetap jadi blok kode. Dua nilai
- * lainnya membukanya; deteksinya sendiri sempit (`singleHtmlBlock`), jadi
- * membuka pintu ini tidak berarti setiap pagar HTML berubah bentuk.
+ * lainnya membukanya; deteksinya sendiri menjaga batas artikel
+ * (`markdown-doc.ts`), jadi membuka pintu ini tidak berarti setiap pagar HTML
+ * berubah bentuk.
  */
 function allowsDesign(request: DraftRequest): boolean {
 	return request.kind !== 'document'
 }
 
-/** Naskah yang seluruhnya satu blok rancangan - lihat `markdownToDoc`. */
-function isDesignDoc(content: ProseMirrorDoc): boolean {
-	return content.content.length === 1 && content.content[0].type === 'htmlBlock'
-}
-
 export default class DraftsService extends JobSubmissionService {
 	async create(): Promise<Response> {
 		try {
-			const parsed = draftRequestSchema.safeParse(await this.context.req.json().catch(() => ({})))
+			const raw = await this.context.req.json().catch(() => ({}))
+			const parsed = draftRequestSchema.safeParse(raw)
 			if (!parsed.success) {
 				return this.error({ errors: parsed.error.issues.map((issue) => issue.message) })
 			}
 
 			const body = parsed.data
+			const ignored = ignoredRequestFields(raw)
 			const identityId = await this.identityId()
 			const projectId = await this.resolveProjectId(body.projectId, identityId)
 			const template = body.templateSlug ? await this.requireTemplate(body.templateSlug) : null
 
 			return body.content
-				? await this.parkReadyDraft(body, body.content, projectId, template)
-				: await this.startGeneratedDraft(body, projectId, template)
+				? await this.parkReadyDraft(body, body.content, projectId, template, ignored)
+				: await this.startGeneratedDraft(body, projectId, template, ignored)
 		} catch (error) {
 			return this.failFromError(error)
 		}
@@ -139,6 +137,7 @@ export default class DraftsService extends JobSubmissionService {
 		markdown: string,
 		projectId: string,
 		template: Template | null,
+		ignoredFields: string[] = [],
 	): Promise<Response> {
 		const title = body.title ?? headingTitle(markdown) ?? this.promptTitle(body.prompt) ?? FALLBACK_TITLE
 		const content = markdownToDoc(markdown, {
@@ -158,7 +157,7 @@ export default class DraftsService extends JobSubmissionService {
 		if (outputs.length) await enqueueDraftRender(document.id, outputs)
 
 		return this.success({
-			data: await this.toHandoff(document, tab.id, { status: 'ready' }, outputs),
+			data: await this.toHandoff(document, tab.id, { status: 'ready' }, outputs, { ignoredFields }),
 			status: 201,
 		})
 	}
@@ -172,6 +171,7 @@ export default class DraftsService extends JobSubmissionService {
 		body: DraftRequest,
 		projectId: string,
 		template: Template | null,
+		ignoredFields: string[] = [],
 	): Promise<Response> {
 		const config = await this.resolveGenerationProvider(body.model)
 		if (!config) return this.providerUnavailable()
@@ -183,7 +183,9 @@ export default class DraftsService extends JobSubmissionService {
 		await this.beginGeneration(document.id, tab.id, body, config)
 
 		return this.success({
-			data: await this.toHandoff(document, tab.id, await readDraftState(document.id), resolveOutputs(body)),
+			data: await this.toHandoff(document, tab.id, await readDraftState(document.id), resolveOutputs(body), {
+				ignoredFields,
+			}),
 			status: 202,
 		})
 	}
@@ -217,7 +219,9 @@ export default class DraftsService extends JobSubmissionService {
 			// sendiri; judul yang ditentukan pemanggil tidak boleh ditimpa.
 			titleFromHeading: !request.title,
 			words: request.words,
+			kind: request.kind,
 			allowHtmlBlock: allowsDesign(request),
+			designPages: designPageCount(request.prompt),
 			// Dihitung dari permintaan di sini karena hanya service yang
 			// memegangnya; runner memakainya cuma kalau jawabannya ternyata
 			// benar-benar sebuah rancangan.
@@ -347,8 +351,11 @@ export default class DraftsService extends JobSubmissionService {
 		tabId: string,
 		state: DraftState,
 		outputs: readonly DraftOutput[] = [],
+		extras: { ignoredFields?: string[] } = {},
 	): Promise<DraftHandoff> {
 		const render = await this.renderPart(document, state, outputs)
+		/* Peringatan generasi dan render digabung: keduanya catatan, bukan galat. */
+		const warnings = [...(state.warnings ?? []), ...(render.warnings ?? [])]
 
 		return {
 			documentId: document.id,
@@ -362,6 +369,10 @@ export default class DraftsService extends JobSubmissionService {
 			...(state.errorCode ? { errorCode: state.errorCode } : {}),
 			...(render.downloads ? { downloads: render.downloads } : {}),
 			...(render.renderErrors ? { renderErrors: render.renderErrors } : {}),
+			...(warnings.length > 0 ? { warnings } : {}),
+			...(extras.ignoredFields && extras.ignoredFields.length > 0
+				? { ignoredFields: extras.ignoredFields }
+				: {}),
 		}
 	}
 }

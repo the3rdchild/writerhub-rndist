@@ -246,39 +246,102 @@ const BLOCK_READERS: BlockReader[] = [
 ]
 
 /**
- * HTML rancangan satu halaman, kalau jawabannya memang berupa itu.
+ * Jawaban rancangan: satu atau lebih pagar ```html, tiap pagar satu halaman.
  *
- * Deteksinya sengaja sempit: seluruh jawaban harus **hanya** satu pagar
- * ```html, paling banyak didahului satu baris judul. Prosa sebelum atau
- * sesudahnya membatalkannya, dan itu justru maksudnya - artikel yang memuat
- * contoh HTML adalah dokumen, dan potongan itu memang harus tetap jadi blok
- * kode. Menebak lebih agresif berarti sesekali menelan naskah pengguna ke dalam
- * bingkai terkurung, dan itu kesalahan yang jauh lebih mahal daripada
- * kebalikannya.
+ * Deteksinya tetap menjaga batas yang paling penting: artikel yang
+ * MEMBICARAKAN HTML adalah dokumen, dan contoh kodenya memang harus tetap
+ * jadi blok kode. Dua aturan yang menjaganya:
  *
- * Judul di depan dibiarkan lewat karena model sering tetap menuliskannya meski
- * diminta hanya satu pagar - dan judul itu berguna: `headingTitle` memungutnya
- * sebagai judul dokumen, jadi ia tidak hilang, hanya pindah tempat.
+ * 1. Jawaban harus DIBUKA pagar (paling banyak didahului satu baris judul) -
+ *    prosa sebelum pagar membatalkan seluruhnya, karena pengantar panjang
+ *    adalah wajah artikel, bukan wajah rancangan.
+ * 2. Antara dan sesudah pagar, hanya baris kosong dan basa-basi pendek yang
+ *    ditoleransi (model suka menutup dengan "Semoga membantu!" - T3 di
+ *    docs/DRAFTS-API-FINDINGS.md; tanpa toleransi ini satu kalimat penutup
+ *    menjatuhkan seluruh rancangan jadi dokumen penuh blok kode). Struktur
+ *    artikel (heading, tabel, daftar) dan total basa-bisi di atas batas
+ *    tetap membatalkan.
  */
-/** Jawaban yang seluruhnya satu pagar ```html, atau null. */
-function fencedHtml(lines: readonly string[]): string | null {
-	if (lines.length === 0 || !HTML_FENCE.test(lines[0].trim())) return null
+const CHATTER_LIMIT_CHARS = 160
 
-	const body: string[] = []
-	let cursor = 1
-	while (cursor < lines.length && !lines[cursor].trim().startsWith('```')) {
-		body.push(lines[cursor])
+interface ParsedDesign {
+	/** Halaman rancangan, urut; sudah diratakan `bodyMarkup`. */
+	pages: string[]
+}
+
+function parseDesignAnswer(lines: readonly string[]): ParsedDesign | null {
+	let index = 0
+	let headings = 0
+	// Baris judul di depan diperbolehkan sekali - dipungut `headingTitle`, dan
+	// model sering tetap menuliskannya meski diminta hanya pagar.
+	while (index < lines.length) {
+		const line = lines[index].trim()
+		if (!line) {
+			index += 1
+			continue
+		}
+		if (HEADING.test(line) && headings === 0) {
+			headings += 1
+			index += 1
+			continue
+		}
+		break
+	}
+
+	const rest = lines.slice(index)
+	if (rest.length === 0) return null
+
+	// Tidak dibuka pagar: hanya sah sebagai HTML telanjang satu rancangan
+	// (`bareHtml` punya pemeriksaannya sendiri); selain itu ini prosa.
+	if (!HTML_FENCE.test(rest[0].trim())) {
+		const bare = bareHtml(rest.join('\n'))
+		return bare ? { pages: [bodyMarkup(bare)] } : null
+	}
+
+	const pages: string[] = []
+	let chatter = 0
+	let cursor = 0
+	while (cursor < rest.length) {
+		const line = rest[cursor].trim()
+		if (!line) {
+			cursor += 1
+			continue
+		}
+
+		if (HTML_FENCE.test(line)) {
+			const body: string[] = []
+			cursor += 1
+			while (cursor < rest.length && !rest[cursor].trim().startsWith('```')) {
+				body.push(rest[cursor])
+				cursor += 1
+			}
+			// Pagar yang tidak pernah ditutup berarti jawaban terpotong; menyimpannya
+			// sebagai rancangan berarti menyimpan HTML yang separuh.
+			if (cursor >= rest.length) return null
+			cursor += 1
+			const html = body.join('\n').trim()
+			// Halaman kosong dilewati; kalau semuanya kosong, ini bukan rancangan.
+			if (html) pages.push(bodyMarkup(html))
+			continue
+		}
+
+		// Bukan pagar dan bukan baris kosong: harus basa-bisi pendek tanpa
+		// struktur - selain itu jawaban ini adalah artikel.
+		if (
+			HEADING.test(line) ||
+			BULLET_ITEM.test(line) ||
+			ORDERED_ITEM.test(line) ||
+			isTableRow(rest[cursor]) ||
+			line.startsWith('```')
+		) {
+			return null
+		}
+		chatter += line.length
+		if (chatter > CHATTER_LIMIT_CHARS) return null
 		cursor += 1
 	}
-	// Pagar yang tidak pernah ditutup berarti jawabannya terpotong; menyimpannya
-	// sebagai rancangan berarti menyimpan HTML yang separuh.
-	if (cursor >= lines.length) return null
 
-	for (let after = cursor + 1; after < lines.length; after += 1) {
-		if (lines[after].trim()) return null
-	}
-
-	return body.join('\n').trim() || null
+	return pages.length > 0 ? { pages } : null
 }
 
 /**
@@ -324,26 +387,13 @@ function bodyMarkup(html: string): string {
 
 export function singleHtmlBlock(markdown: string): string | null {
 	const lines = markdown.replace(/\r\n/g, '\n').split('\n')
+	const design = parseDesignAnswer(lines)
+	return design && design.pages.length === 1 ? design.pages[0] : null
+}
 
-	let index = 0
-	let headings = 0
-	while (index < lines.length) {
-		const line = lines[index].trim()
-		if (!line) {
-			index += 1
-			continue
-		}
-		if (HEADING.test(line) && headings === 0) {
-			headings += 1
-			index += 1
-			continue
-		}
-		break
-	}
-
-	const rest = lines.slice(index)
-	const html = fencedHtml(rest) ?? bareHtml(rest.join('\n'))
-	return html ? bodyMarkup(html) : null
+/** Dokumen yang seluruhnya blok rancangan - satu maupun beberapa halaman. */
+export function isDesignDoc(content: ProseMirrorDoc): boolean {
+	return content.content.length > 0 && content.content.every((node) => node.type === HTML_BLOCK)
 }
 
 function htmlBlockNode(html: string): DocNode {
@@ -378,10 +428,12 @@ export interface MarkdownDocOptions {
 
 export function markdownToDoc(markdown: string, options: MarkdownDocOptions = {}): ProseMirrorDoc {
 	if (options.allowHtmlBlock) {
-		const html = singleHtmlBlock(markdown)
-		if (html) {
-			const repaired = options.canvas ? repairDesignHtml(html, options.canvas).html : html
-			return { type: 'doc', content: [htmlBlockNode(repaired)] }
+		const design = parseDesignAnswer(markdown.replace(/\r\n/g, '\n').split('\n'))
+		if (design) {
+			// Tiap halaman ditambal sendiri: ukuran tetap milik halaman itu, dan
+			// satu halaman yang buruk tidak menular ke tetangganya.
+			const repair = (html: string) => (options.canvas ? repairDesignHtml(html, options.canvas).html : html)
+			return { type: 'doc', content: design.pages.map((page) => htmlBlockNode(repair(page))) }
 		}
 	}
 

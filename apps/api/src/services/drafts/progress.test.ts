@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { DEFAULT_TARGET_WORDS, draftPercent, MAX_WRITING_PERCENT, targetCharacters } from './progress'
+import {
+	DEFAULT_TARGET_WORDS,
+	DESIGN_CHARS_PER_PAGE,
+	designTargetCharacters,
+	draftPercent,
+	MAX_WRITING_PERCENT,
+	targetCharacters,
+} from './progress'
 
 describe('targetCharacters', () => {
 	test('panjang yang diminta pemanggil dipakai apa adanya', () => {
@@ -12,6 +19,22 @@ describe('targetCharacters', () => {
 
 	test('tidak pernah nol - ia dipakai sebagai pembagi', () => {
 		expect(targetCharacters(0)).toBeGreaterThan(0)
+	})
+})
+
+describe('designTargetCharacters (T8)', () => {
+	/*
+	 * HTML rancangan yang layak 6.000-15.000 karakter - target prosa bawaan
+	 * (3.600) membuat bar mentok di 95% saat rancangan baru setengah jadi.
+	 */
+	test('per halaman, dan jauh di atas target prosa bawaan', () => {
+		expect(designTargetCharacters(null)).toBe(DESIGN_CHARS_PER_PAGE)
+		expect(designTargetCharacters(3)).toBe(DESIGN_CHARS_PER_PAGE * 3)
+		expect(designTargetCharacters(null)).toBeGreaterThan(targetCharacters(undefined))
+	})
+
+	test('tidak pernah nol - ia dipakai sebagai pembagi', () => {
+		expect(designTargetCharacters(0)).toBeGreaterThan(0)
 	})
 })
 

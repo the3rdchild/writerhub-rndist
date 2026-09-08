@@ -31,6 +31,11 @@ export interface RenderDownloadEntry {
 	key: string
 	/** Halaman keberapa yang dipotret; hanya untuk gambar. */
 	page?: number
+	/**
+	 * Jumlah halaman berkasnya, dihitung worker dari berkas yang benar-benar
+	 * keluar - bukan dari paginasi layar (T7 di docs/DRAFTS-API-FINDINGS.md).
+	 */
+	pages?: number
 }
 
 export interface RenderRecord {
@@ -47,6 +52,12 @@ export interface RenderRecord {
 	outputs?: DraftOutput[]
 	downloads?: RenderDownloadEntry[]
 	errors?: Array<{ output: DraftOutput; reason: string }>
+	/**
+	 * Catatan penting yang tidak menggagalkan hasil - mis. isi rancangan yang
+	 * terpotong di tepi lembar, atau halaman PDF yang melebihi batas setelah
+	 * angka layarnya lolos pemeriksaan. Ditulis worker.
+	 */
+	warnings?: string[]
 }
 
 function key(documentId: string): string {

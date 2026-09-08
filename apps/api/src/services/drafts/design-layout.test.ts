@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { designOrientation, designPageSetup, designPageSize } from './design-layout'
+import {
+	DESIGN_MAX_PAGES,
+	designOrientation,
+	designPageCount,
+	designPageSetup,
+	designPageSize,
+} from './design-layout'
 
 describe('lembar rancangan dibaca dari permintaannya', () => {
 	test('ukuran kertas dipungut dari kata kuncinya', () => {
@@ -51,5 +57,27 @@ describe('lembar rancangan dibaca dari permintaannya', () => {
 			pageColor: null,
 			pageless: false,
 		})
+	})
+})
+
+describe('jumlah halaman rancangan (T2)', () => {
+	test('angka di depan kata halaman dibaca, dua bahasa', () => {
+		expect(designPageCount('buatkan flyer 3 halaman bahaya abu')).toBe(3)
+		expect(designPageCount('a 5-page product brochure')).toBe(5)
+	})
+
+	test('tanpa angka: null - model yang menentukan', () => {
+		expect(designPageCount('buatkan flyer aksi')).toBeNull()
+		expect(designPageCount(undefined)).toBeNull()
+	})
+
+	/* "halaman 3" adalah NOMOR halaman, bukan jumlah - jangan tertukar. */
+	test('angka di belakang kata tidak dibaca', () => {
+		expect(designPageCount('lihat halaman 3 untuk detail')).toBeNull()
+	})
+
+	test('angka mustahil dipingit ke batas yang wajar', () => {
+		expect(designPageCount('poster 99 halaman')).toBe(DESIGN_MAX_PAGES)
+		expect(designPageCount('flyer 0 halaman')).toBe(1)
 	})
 })

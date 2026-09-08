@@ -85,6 +85,7 @@ export interface RenderHandoffPart {
 	status?: 'queued' | 'rendering'
 	downloads?: DraftDownload[]
 	renderErrors?: DraftRenderError[]
+	warnings?: string[]
 }
 
 /**
@@ -132,11 +133,16 @@ export async function renderHandoff(
 				url,
 				expiresAt: Math.floor(Date.now() / 1000) + env.EXPORT_URL_TTL_S,
 				...(entry.page !== undefined ? { page: entry.page } : {}),
+				...(entry.pages !== undefined ? { pages: entry.pages } : {}),
 			} satisfies DraftDownload
 		}),
 	)
 
-	return { downloads, renderErrors: renderErrorsOf(record, outputs) }
+	return {
+		downloads,
+		renderErrors: renderErrorsOf(record, outputs),
+		...(record.warnings?.length ? { warnings: record.warnings } : {}),
+	}
 }
 
 /**

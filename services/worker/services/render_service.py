@@ -19,6 +19,7 @@ dengan prefix ``exports/`` - privasi dijaga presigned URL, bukan ACL publik.
 
 import json
 import logging
+import re
 import threading
 import time
 import uuid
@@ -47,6 +48,7 @@ logger = logging.getLogger(__name__)
 
 READY_SELECTOR = 'body[data-export-ready="true"]'
 PAGES_ATTRIBUTE = "data-export-pages"
+CLIPPED_ATTRIBUTE = "data-export-clipped"
 PDF_CONTENT_TYPE = "application/pdf"
 GENERIC_RENDER_ERROR = (
     "Render PDF-nya gagal di server. Dokumennya tetap utuh dan bisa dicetak dari WritingHub."
@@ -81,6 +83,7 @@ def process(data: dict) -> None:
 
     downloads: list[dict] = []
     errors: list[dict] = []
+    warnings: list[str] = []
 
     # Format selain PDF sengaja tidak dicatat alasannya di sini: apps/api
     # sudah menuliskannya untuk tiap keluaran yang diminta tapi tidak ada di
@@ -90,10 +93,17 @@ def process(data: dict) -> None:
     if "pdf" in requested:
         try:
             _reject_stale(payload)
+            pdf, meta = _print_pdf(document_id, payload)
+            warnings = _render_warnings(meta)
             key = f"exports/{uuid.uuid4()}.pdf"
-            _upload(key, _print_pdf(document_id, payload), PDF_CONTENT_TYPE)
-            downloads.append({"output": "pdf", "key": key})
-            logger.info("[render] pdf siap | document_id=%s key=%s", document_id, key)
+            _upload(key, pdf, PDF_CONTENT_TYPE)
+            downloads.append({"output": "pdf", "key": key, "pages": meta["pages"]})
+            logger.info(
+                "[render] pdf siap | document_id=%s key=%s pages=%s",
+                document_id,
+                key,
+                meta["pages"],
+            )
         except RenderFailure as failure:
             errors.append({"output": "pdf", "reason": failure.reason})
         except PlaywrightError as error:
@@ -104,7 +114,12 @@ def process(data: dict) -> None:
             errors.append({"output": "pdf", "reason": GENERIC_RENDER_ERROR})
 
     _write_record(
-        document_id, status="done", outputs=requested, downloads=downloads, errors=errors
+        document_id,
+        status="done",
+        outputs=requested,
+        downloads=downloads,
+        errors=errors,
+        warnings=warnings,
     )
 
 
@@ -125,8 +140,39 @@ def _reject_stale(payload: dict) -> None:
     )
 
 
-def _print_pdf(document_id: str, payload: dict) -> bytes:
-    """Satu kunjungan ke halaman ekspor, satu PDF.
+def _pdf_page_count(pdf: bytes) -> int:
+    """Jumlah halaman berkas PDF itu sendiri, bukan tebakan paginasi layar."""
+    return len(re.findall(rb"/Type\s*/Page[^s]", pdf))
+
+
+def _render_warnings(meta: dict) -> list[str]:
+    """Catatan penting yang tidak menggagalkan hasil - dibaca pemanggil API."""
+    notes: list[str] = []
+
+    # Isi rancangan yang terpotong di tepi lembar (T4): layar menampilkannya
+    # sebagai lencana, pemanggil API tidak pernah melihat layar itu. Yang
+    # terpotong biasanya justru dasar flyer - ajakan bertindaknya.
+    if meta.get("clipped", 0) > 0:
+        notes.append(
+            f"{meta['clipped']} blok rancangan terpotong di tepi halaman - "
+            "bagian itu tidak ikut ke PDF."
+        )
+
+    # Halaman PDF yang melebihi batas setelah lolos pemeriksaan angka layar
+    # (T7): angka layar bisa berselisih dengan kertas. Pekerjaannya sudah
+    # dibayar, jadi hasilnya tetap diserahkan - yang dijaga di sini kejujurannya
+    # bagi pemanggil dan operator, bukan pembalasannya.
+    if meta.get("pages", 0) > RENDER_MAX_PAGES:
+        notes.append(
+            f"PDF-nya {meta['pages']} halaman, melebihi batas render "
+            f"({RENDER_MAX_PAGES})."
+        )
+
+    return notes
+
+
+def _print_pdf(document_id: str, payload: dict) -> tuple[bytes, dict]:
+    """Satu kunjungan ke halaman ekspor, satu PDF beserta ukurannya yang sebenarnya.
 
     Perambannya diluncurkan dan ditutup di dalam satu panggilan ini, bukan
     dihangatkan lintas job. Kolam yang hangat memang menghemat 1-2 detik dari
@@ -170,7 +216,15 @@ def _print_pdf(document_id: str, payload: dict) -> bytes:
             # prefer_css_page_size: ukuran lembar dan marginnya milik @page yang
             # disuntikkan DocumentPaper - flyer A4 dan paper IEEE tidak bisa lahir
             # dari satu pasangan `format`/`margin` di sini.
-            return page.pdf(print_background=True, prefer_css_page_size=True)
+            pdf = page.pdf(print_background=True, prefer_css_page_size=True)
+
+            # Jumlah halaman dihitung dari berkasnya sendiri (T7): paginasi
+            # layar - sumber `data-export-pages` - bisa berselisih dengannya,
+            # dan selama itu mungkin, batas `RENDER_MAX_PAGES` menjaga angka
+            # yang salah untuk pemeriksaan cepatnya.
+            clipped_raw = page.locator("body").get_attribute(CLIPPED_ATTRIBUTE)
+            clipped = int(clipped_raw) if clipped_raw and clipped_raw.isdigit() else 0
+            return pdf, {"pages": _pdf_page_count(pdf), "clipped": clipped}
         finally:
             browser.close()
 
