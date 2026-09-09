@@ -9,6 +9,7 @@ import { CommentsProvider } from '@/features/comments/comments-context'
 import { DocumentProvider } from '@/features/document/document-context'
 import { DocumentImportProvider } from '@/features/document/import-context'
 import { EditorInstanceProvider } from '@/features/editor/editor-context'
+import { SearchProvider } from '@/features/editor/search-context'
 import { SessionProvider } from '@/features/sessions/session-context'
 import { SettingsProvider } from '@/features/settings/settings-context'
 import { ShareProvider } from '@/features/share/share-context'
@@ -54,7 +55,9 @@ export function Providers({ children }: { children: ReactNode }) {
 											<CommentsProvider>
 												<ChatProvider>
 													<DocumentImportProvider>
-														<ShareProvider>{children}</ShareProvider>
+														<ShareProvider>
+															<SearchProvider>{children}</SearchProvider>
+														</ShareProvider>
 													</DocumentImportProvider>
 												</ChatProvider>
 											</CommentsProvider>

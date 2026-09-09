@@ -47,6 +47,8 @@ export type ShortcutId =
 	| 'doc.paste'
 	| 'doc.pastePlain'
 	| 'doc.print'
+	| 'doc.find'
+	| 'doc.findReplace'
 	| 'doc.newTab'
 	| 'doc.nextTab'
 	| 'doc.prevTab'
@@ -152,6 +154,14 @@ export const SHORTCUTS: readonly Shortcut[] = [
 		owner: 'editor',
 	},
 	{ id: 'doc.print', keys: 'Mod-p', label: 'Cetak', category: 'Dokumen', owner: 'tiptap' },
+	{ id: 'doc.find', keys: 'Mod-f', label: 'Cari di dokumen', category: 'Dokumen', owner: 'app' },
+	{
+		id: 'doc.findReplace',
+		keys: 'Mod-h',
+		label: 'Cari dan ganti',
+		category: 'Dokumen',
+		owner: 'app',
+	},
 	{ id: 'doc.newTab', keys: 'Mod-Alt-n', label: 'Tab baru', category: 'Dokumen', owner: 'app' },
 	{
 		id: 'doc.nextTab',

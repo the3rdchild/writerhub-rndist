@@ -3,10 +3,10 @@
 import { Focus, History, PanelLeft, Settings as SettingsIcon, Share2 } from 'lucide-react'
 import { useState } from 'react'
 import { EditorToolbar } from '@/components/editor/editor-toolbar'
-import { SearchBar } from '@/components/editor/search-bar'
 import { TocPanel } from '@/components/editor/toc-panel'
 import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import { useSearch } from '@/features/editor/search-context'
 import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
@@ -22,12 +22,12 @@ export function TopBar() {
 	const { editor } = useEditorInstance()
 	const { settings, update, toggleFocusMode, setSettingsOpen } = useSettings()
 	const { setShareOpen } = useShare()
+	const { openSearch } = useSearch()
 	const { isRunning } = useGrammarCheck()
 	const { linkage } = useSync()
 	const { activeId, sessions } = useSessions()
 	const { versionMode, openVersionMode } = useVersionMode()
 
-	const [searchOpen, setSearchOpen] = useState(false)
 	const [tocOpen, setTocOpen] = useState(false)
 	const serverId = activeId ? linkage[activeId]?.serverId : undefined
 	const activeTabTitle = sessions.find((tab) => tab.id === activeId)?.title ?? state.title
@@ -114,14 +114,9 @@ export function TopBar() {
 						<EditorToolbar
 							editor={editor}
 							disabled={state.file !== null}
-							onOpenSearch={() => setSearchOpen(true)}
+							onOpenSearch={openSearch}
 							onOpenToc={() => setTocOpen((v) => !v)}
 						/>
-						{searchOpen && editor && (
-							<div className="w-full max-w-2xl">
-								<SearchBar editor={editor} onClose={() => setSearchOpen(false)} />
-							</div>
-						)}
 					</div>
 				)}
 

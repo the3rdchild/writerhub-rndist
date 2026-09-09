@@ -1,6 +1,7 @@
 'use client'
 
 import { type ReactNode, useEffect } from 'react'
+import { SearchOverlay } from '@/components/editor/search/search-overlay'
 import { ExportPdfDialog } from '@/components/settings/export-pdf-dialog'
 import { HeadersFootersDialog } from '@/components/settings/headers-footers-dialog'
 import { PageNumbersDialog } from '@/components/settings/page-numbers-dialog'
@@ -59,7 +60,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 			<div className="flex h-dvh flex-col overflow-hidden bg-background">
 				<TopBar />
 				<PersistenceNotice />
-				<main className="flex min-h-0 flex-1">{children}</main>
+				{/* `relative` demi bilah pencarian: ia melayang di pojok kanan atas
+				    naskah, bukan ikut mendorong tata letaknya. */}
+				<main className="relative flex min-h-0 flex-1">
+					{children}
+					<SearchOverlay />
+				</main>
 				<SettingsDialog />
 				<ShortcutsDialog />
 				<ExportPdfDialog />

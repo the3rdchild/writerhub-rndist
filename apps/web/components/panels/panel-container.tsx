@@ -13,6 +13,7 @@ import { GlossaryPanel } from './glossary-panel'
 import { HumanizerPanel } from './humanizer-panel'
 import { PlagiarismPanel } from './plagiarism-panel'
 import { ProofreaderPanel } from './proofreader-panel'
+import { SearchPanelBody } from './search-panel'
 import { TranslatorPanel } from './translator-panel'
 
 const PANEL_TITLES: Record<PanelId, string> = {
@@ -26,6 +27,7 @@ const PANEL_TITLES: Record<PanelId, string> = {
 	translator: 'Translator',
 	glossary: 'Glosarium',
 	assets: 'Aset',
+	search: 'Cari dan ganti',
 }
 
 function PanelBody({ panel }: { panel: PanelId }) {
@@ -50,6 +52,8 @@ function PanelBody({ panel }: { panel: PanelId }) {
 			return <GlossaryPanel />
 		case 'assets':
 			return <AssetsPanel />
+		case 'search':
+			return <SearchPanelBody />
 	}
 }
 

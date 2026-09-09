@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePanels } from '@/features/analysis/panel-context'
 import { ZOOM_LEVELS } from '@/features/editor/page-geometry'
+import { useSearch } from '@/features/editor/search-context'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { formatKeys, isMacPlatform, matchAppShortcut, type ShortcutId, shortcut } from './registry'
@@ -32,6 +33,7 @@ export function useAppShortcuts(): void {
 	const { togglePanel } = usePanels()
 	const { settings, update, toggleFocusMode, setShortcutsOpen } = useSettings()
 	const { sessions, activeId, newSession, selectSession, deleteSession } = useSessions()
+	const { openSearch, openPanelSearch } = useSearch()
 
 	const handlers = useMemo<Partial<Record<ShortcutId, () => void>>>(() => {
 		const stepTab = (direction: 1 | -1) => () => {
@@ -57,6 +59,9 @@ export function useAppShortcuts(): void {
 			'view.zoomReset': () => update({ zoom: 1 }),
 			'view.shortcuts': () => setShortcutsOpen(true),
 
+			'doc.find': openSearch,
+			'doc.findReplace': openPanelSearch,
+
 			'doc.newTab': newSession,
 			'doc.nextTab': stepTab(1),
 			'doc.prevTab': stepTab(-1),
@@ -69,6 +74,8 @@ export function useAppShortcuts(): void {
 		toggleFocusMode,
 		update,
 		setShortcutsOpen,
+		openSearch,
+		openPanelSearch,
 		settings.showRuler,
 		settings.showDocumentTabs,
 		settings.zoom,
