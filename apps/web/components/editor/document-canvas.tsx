@@ -28,11 +28,20 @@ export function DocumentCanvas({
 	containerRef,
 	onReady,
 	currentPage,
+	caretPage,
 }: {
 	containerRef: React.RefObject<HTMLDivElement | null>
 	onReady?: (editor: Editor | null) => void
 	/** Halaman yang sedang dilihat/diketik (1-basis) — penentu lembar sunting perabot. */
 	currentPage?: number
+	/**
+	 * Lembar tempat KURSOR berada (1-basis) — penentu letak penggaris vertikal.
+	 *
+	 * Sengaja bukan `currentPage`: yang itu hibrida yang beralih mengikuti gulir
+	 * begitu pengguna menggulir, jadi penggarisnya akan melompat-lompat sepanjang
+	 * gulungan. Penggaris mengikuti tempat orang menyunting, bukan tempat matanya.
+	 */
+	caretPage?: number
 }) {
 	const { settings } = useSettings()
 	const { setup, setPageSetup } = usePageSetup()
@@ -99,8 +108,10 @@ export function DocumentCanvas({
 						<div className="shrink-0" style={{ width: leftRulerRoom, paddingRight: LEFT_RULER_GAP }}>
 							<DocumentLeftRuler
 								geometry={geometry}
+								sheets={sheets}
+								page={Math.max((caretPage ?? 1) - 1, 0)}
+								trackHeight={totalHeight}
 								zoom={zoom}
-								pageCount={pageCount}
 								unit={settings.measurementUnit}
 								onMarginsChange={onMarginsChange}
 							/>

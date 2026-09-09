@@ -147,7 +147,12 @@ export function DocumentEditor() {
 					</div>
 				</div>
 			) : (
-				<DocumentCanvas containerRef={containerRef} onReady={setEditor} currentPage={currentPage} />
+				<DocumentCanvas
+					containerRef={containerRef}
+					onReady={setEditor}
+					currentPage={currentPage}
+					caretPage={pages.page}
+				/>
 			)}
 
 			{/* Dialog setelan blok TOC; butuh konteks editor, jadi dipasang di sini. */}
