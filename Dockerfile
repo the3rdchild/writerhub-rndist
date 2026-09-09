@@ -151,11 +151,48 @@ RUN pip install --no-cache-dir -r requirements.txt
 # sekali (hanya libgbm dan libdrm), dan mencetak PDF tetap berhasil setelah
 # ketiga paket ini dicabut. Ia hanya dibutuhkan mode berkepala.
 #
-# Emoji ikut karena flyer memakainya dan tanpa fontnya ia tercetak kotak kosong;
-# sisa fontnya disematkan halaman ekspor sebagai `data:` URI, bukan dari sistem
-# (docs/RENDER-WORKER-PLAN.md §9).
+# Font yang dipakai RANCANGAN disematkan halaman ekspor sebagai `data:` URI,
+# bukan dari sistem (docs/RENDER-WORKER-PLAN.md §9) - 45 woff2 di
+# `apps/web/public/fonts/`. Yang dipasang di sini adalah sisanya:
+#
+# - **Emoji**: flyer memakainya dan tanpa fontnya ia tercetak kotak kosong.
+# - **Klon metrik keluarga Microsoft.** Impor DOCX membawa nama font apa adanya,
+#   dan lima keluarga di pemilih font editor pun tidak punya webfont (Arial,
+#   Times New Roman, Courier New, Georgia, Verdana). Keluarga yang tidak ada di
+#   kontainer jatuh ke generiknya, dan lebar glyph yang berbeda menggeser titik
+#   ganti baris: PDF-nya pulang dengan jumlah halaman yang berbeda dari yang
+#   dilihat penulis di layar. Klon berikut memakai advance width yang sama
+#   dengan aslinya, jadi ganti barisnya ikut sama - Debian mengikatnya lewat
+#   `30-metric-aliases.conf`, dan Chromium menghormati ikatan itu:
+#
+#   | paket | menutup |
+#   |---|---|
+#   | fonts-liberation | Arial, Times New Roman, Courier New |
+#   | fonts-crosextra-carlito | Calibri - **bawaan Word sejak 2007** |
+#   | fonts-crosextra-caladea | Cambria |
+#
+#   `fonts-liberation` sebetulnya sudah ikut lewat `playwright install-deps`,
+#   dan justru itu sebabnya ia disebut di sini: selama ia cuma dependensi
+#   transitif, Playwright boleh membuang paket itu kapan saja dan satu-satunya
+#   gejalanya adalah "PDF-nya kok halamannya beda". Menyebutnya eksplisit
+#   mengubah kebetulan menjadi kontrak.
+#
+#   **Georgia, Verdana, dan Tahoma tetap celah yang diakui.** Tidak ada klon
+#   metrik bebasnya: alias Georgia di Debian menunjuk Gelasio, yang tidak
+#   dipaket, dan Verdana/Tahoma tidak disebut sama sekali. `fonts-dejavu-core`
+#   sempat dicoba dan DICABUT lagi - 3 MB tanpa efek terukur. Chromium tidak
+#   memakai tebakan terbaik fontconfig: ia hanya menerima padanan yang terikat
+#   alias, dan alias buatan sendiri ternyata tidak cukup (diuji dua arah
+#   `<accept>`/`<default>`, posisi muat 29/49/99, binding `same`/`strong`, cache
+#   dibersihkan - ketiganya tetap jatuh ke generiknya). Menambal lewat tumpukan
+#   CSS bisa saja, tapi tidak ada dasar untuk mengklaim DejaVu lebih dekat ke
+#   Georgia daripada Liberation Serif tanpa font aslinya sebagai pembanding.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends fonts-noto-color-emoji \
+    && apt-get install -y --no-install-recommends \
+        fonts-noto-color-emoji \
+        fonts-liberation \
+        fonts-crosextra-carlito \
+        fonts-crosextra-caladea \
     && playwright install-deps chromium \
     && apt-get remove -y --purge libgl1-mesa-dri libllvm15 libz3-4 \
     && apt-get autoremove -y \

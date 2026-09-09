@@ -300,6 +300,15 @@ ia mengubah "PDF-nya sama dengan yang saya lihat" dari jaminan menjadi harapan.
 Karena itu daftarnya dikunci: satu himpunan font yang dipasang di image worker,
 sama persis dengan yang ditawarkan editor. Sumber kebenarannya `features/editor/font-catalog.ts`.
 
+> **Koreksi, 9 September 2026 — kalimat di atas tidak jadi dijalankan.** Yang mendarat
+> justru kebalikannya: font TIDAK dipasang di image, melainkan disematkan sebagai
+> `data:` URI (lihat revisi di bawah, dan `font-embed.ts`). Alasannya ada di paragraf
+> "Draf pertama bagian ini keliru": pemotret merender di dokumen terisolasi yang tidak
+> memuat apa pun dari URL, jadi memasangnya di sistem tidak menolong jalur itu.
+>
+> Yang tetap harus dipasang di image adalah **sisanya** — keluarga yang tidak punya
+> webfont sama sekali; lihat §9a.
+
 Tapi mengunci saja tidak cukup, dan di sini ada peluang yang tidak jelas sejak awal:
 **font punya nada.** Permintaan "flyer ceria untuk lomba anak" tidak boleh dijawab
 dengan Times New Roman, dan permintaan "undangan resmi" tidak boleh dijawab dengan
@@ -362,6 +371,61 @@ blok flyer di DOCX yang memakai font sistem meski di layar sudah benar. Kalau me
 penambalnya potret dua kali atau menunggu `document.fonts.ready` di dalam SVG-nya.
 
 ---
+
+---
+
+## 9a. Font sistem yang tersisa — dan yang tidak bisa ditutup
+
+Penyematan `data:` URI menutup 25 dari 30 keluarga di pemilih font: berkas woff2-nya
+ikut di repo (`apps/web/public/fonts/`, 45 berkas, 1,7 MB). Yang **tidak** tertutup
+adalah lima keluarga yang memang tidak punya webfont — Arial, Times New Roman,
+Courier New, Georgia, Verdana — plus apa pun yang dibawa impor DOCX, dan di situ
+Calibri (bawaan Word sejak 2007) dan Cambria yang paling sering muncul.
+
+Untuk keluarga-keluarga itu, hasil render bergantung pada apa yang terpasang di
+kontainer. Diukur di Chromium kontainer, lebar "Halaman Pengesahan Proposal 12345"
+pada 100px:
+
+| Diminta | Sebelum | Sesudah | Metrik |
+|---|---|---|---|
+| Times New Roman | Liberation Serif · 1508 | sama | ✅ sama persis |
+| Arial | Liberation Sans · 1717,9 | sama | ✅ sama persis |
+| Courier New | Liberation Mono · 1980,3 | sama | ✅ sama persis |
+| **Calibri** | Liberation Sans (salah) | **Carlito · 1523,4** | ✅ sama persis |
+| **Cambria** | Liberation Serif (salah) | **Caladea · 1504,3** | ✅ sama persis |
+| Georgia | Liberation Serif | sama | ❌ meleset |
+| Verdana / Tahoma | Liberation Sans | sama | ❌ meleset |
+
+Tiga yang pertama sebetulnya sudah benar sebelum ini — tapi lewat kebetulan:
+`fonts-liberation` datang sebagai dependensi transitif `playwright install-deps`,
+bukan permintaan kita. Sekarang ia disebut eksplisit di Dockerfile, supaya perubahan
+di daftar dependensi Playwright tidak diam-diam mengubah jumlah halaman PDF.
+
+**Georgia, Verdana, dan Tahoma tidak bisa ditutup, dan itu dinyatakan di sini supaya
+tidak dicoba lagi.** Tidak ada klon metriknya yang bebas: alias Georgia di
+`30-metric-aliases.conf` menunjuk Gelasio yang tidak dipaket Debian, dan
+Verdana/Tahoma tidak disebut sama sekali. Yang sudah dicoba dan gagal:
+
+- `fonts-dejavu-core` — dipasang, lalu dicabut lagi. 3 MB tanpa efek terukur:
+  `fc-match` menjawab DejaVu, tapi Chromium tidak memakai tebakan terbaik fontconfig.
+  Ia hanya menerima padanan yang **terikat alias**, dan itulah sebabnya Carlito
+  bekerja sementara DejaVu tidak.
+- Alias fontconfig buatan sendiri — diuji dua arah (`<accept>` dan `<default>`),
+  posisi muat 29/49/99, `binding="same"` dan `"strong"`, cache dibersihkan, bahkan
+  disisipkan langsung ke `30-metric-aliases.conf`. Ketiganya tetap jatuh ke
+  generiknya di Chromium meski `fc-pattern -c` menunjukkan font penggantinya sudah
+  masuk daftar keluarga sebagai entri kuat.
+
+Menambal lewat tumpukan CSS di `font-catalog.ts` dan `toFontStack()` **bisa** dilakukan
+dan terbukti bekerja (`Georgia, "DejaVu Serif", serif` → 1922,1). Yang tidak ada adalah
+dasar untuk memilih: tanpa Georgia dan Verdana asli sebagai pembanding, tidak bisa
+diklaim DejaVu lebih dekat daripada Liberation. Keduanya sama-sama meleset, arahnya saja
+berbeda. Kalau paritas ini suatu saat jadi penting, yang dibutuhkan adalah pengukuran
+terhadap font aslinya — bukan tebakan yang lebih percaya diri.
+
+Yang tetap aman tanpa syarat: seluruh keluarga berwebfont. Perender menunggu
+`document.fonts.ready` sebelum mencetak (`render_service.py`), jadi tidak ada jendela
+di mana potretan terambil sebelum fontnya siap.
 
 ## 10. Batas, dan siapa yang memiliknya
 
