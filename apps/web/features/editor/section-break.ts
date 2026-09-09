@@ -4,16 +4,33 @@ import type { EditorState, Transaction } from '@tiptap/pm/state'
 import { DEFAULT_PAGE_SETUP, type PageSetup } from './page-geometry'
 export const SECTION_BREAK_NODE = 'sectionBreak'
 
+/**
+ * Tata letak kolom sebuah section - bentuk yang sama dengan `w:cols` Word.
+ *
+ * `gap` adalah jarak tunggal untuk semua celah (`w:cols/@w:space`); `gaps`
+ * jarak per celah (`w:col/@w:space`, panjang `count - 1`) dan menang atasnya.
+ * `widths` adalah lebar per kolom dalam px pada saat impor - dipakai sebagai
+ * PROPORSI, bukan ukuran mutlak, karena lebar kolom teks di sini bisa berbeda
+ * dari lebar di berkas asalnya. Ketiganya opsional: tanpa mereka kolomnya
+ * sama lebar, persis perilaku sebelum lebar tak-sama ikut terbawa.
+ */
+export interface SectionColumns {
+	count: number
+	gap?: number
+	widths?: number[]
+	gaps?: number[]
+}
+
 export interface SectionBreakAttrs {
 	pageSetup: Partial<PageSetup> | null
-	columns: { count: number; gap?: number } | null
+	columns: SectionColumns | null
 	continuous?: boolean
 }
 
 export interface SectionSpan {
 	pos: number
 	setup: PageSetup
-	columns: { count: number; gap?: number } | null
+	columns: SectionColumns | null
 }
 
 declare module '@tiptap/core' {

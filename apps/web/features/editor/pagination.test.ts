@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { PageNumbering } from '@writer-hub/shared'
+import { formatSheetNumbers } from './page-furniture/numbering'
 import { DEFAULT_PAGE_SETUP, pageGeometry, sameSheetGeometry } from './page-geometry'
 import {
 	blockSections,
@@ -726,5 +727,110 @@ describe('hentian halaman sebelum blok', () => {
 		expectStartsPage(tops[0], 1)
 		expectStartsPage(tops[1], 2)
 		expect(computeSpacers(blocks, geometry).pageCount).toBe(2)
+	})
+})
+
+/*
+ * Section menerus × mulai-ulang penomoran (W1, DOCX-IMPORT-GAP-V3).
+ *
+ * Templat proposal Indonesia membuka dokumennya dengan section berkolom yang
+ * MENERUS — halaman sampul dua kolom di halaman 32 — jadi pembatas pertamanya
+ * mendarat di lembar yang mulai-ulangnya sudah berlaku. Aturan section itu
+ * sendiri tidak berkata apa-apa soal nomor ("lanjutkan"), dan menimpakannya
+ * mentah-mentah menghapus angka 32 yang baru saja dipasang: dokumen kembali
+ * mulai dari 1 justru karena importer akhirnya jujur menulis "continue".
+ */
+describe('section menerus tidak menghapus mulai-ulang lembar berjalan (W1)', () => {
+	function sectioned(items: Array<number | 'section'>): Measurement[] {
+		let top = 0
+		return items.map((item, index) => {
+			const height = item === 'section' ? 0 : item
+			const block: Measurement = {
+				pos: index,
+				top,
+				bottom: top + height,
+				isBreak: false,
+				isSectionBreak: item === 'section' || undefined,
+				kind: 'block',
+			}
+			top += height
+			return block
+		})
+	}
+	const CONTINUE: PageNumbering = { format: 'decimal', restart: 'continue' }
+	const START_32: PageNumbering = { format: 'decimal', restart: 32 }
+
+	test('pembatas menerus yang berkata "lanjutkan" membiarkan mulai-ulang lembar pertama', () => {
+		const blocks = sectioned(['section', 200])
+		const { sheets } = computeSpacers(
+			blocks,
+			geometry,
+			[{ pos: 0, geometry, continuous: true, index: 1, pageNumbering: CONTINUE }],
+			START_32,
+		)
+
+		expect(formatSheetNumbers(sheets)).toEqual(['32'])
+	})
+
+	test('dua pembatas menerus beruntun pun tidak membakarnya', () => {
+		const blocks = sectioned(['section', 200, 'section', 100])
+		const { sheets } = computeSpacers(
+			blocks,
+			geometry,
+			[
+				{ pos: 0, geometry, continuous: true, index: 1, pageNumbering: CONTINUE },
+				{ pos: 2, geometry, continuous: true, index: 2, pageNumbering: CONTINUE },
+			],
+			START_32,
+		)
+
+		expect(formatSheetNumbers(sheets)).toEqual(['32'])
+	})
+
+	test('pembatas menerus yang benar-benar meminta mulai-ulang tetap didengar', () => {
+		const blocks = sectioned(['section', 200])
+		const { sheets } = computeSpacers(
+			blocks,
+			geometry,
+			[{ pos: 0, geometry, continuous: true, index: 1, pageNumbering: { format: 'decimal', restart: 5 } }],
+			START_32,
+		)
+
+		expect(formatSheetNumbers(sheets)).toEqual(['5'])
+	})
+
+	test('format dan visibilitas section menerus tetap berlaku tanpa mulai-ulang', () => {
+		const blocks = sectioned(['section', 200])
+		const { sheets } = computeSpacers(
+			blocks,
+			geometry,
+			[
+				{
+					pos: 0,
+					geometry,
+					continuous: true,
+					index: 1,
+					pageNumbering: { format: 'lower-roman', restart: 'continue' },
+				},
+			],
+			START_32,
+		)
+
+		expect(formatSheetNumbers(sheets)).toEqual(['xxxii'])
+	})
+
+	test('lembar sesudahnya mengalir, bukan mengulang', () => {
+		const blocks = sectioned(['section', 200, 'section', 100])
+		const { sheets } = computeSpacers(
+			blocks,
+			geometry,
+			[
+				{ pos: 0, geometry, continuous: true, index: 1, pageNumbering: CONTINUE },
+				{ pos: 2, geometry, index: 2, pageNumbering: CONTINUE },
+			],
+			START_32,
+		)
+
+		expect(formatSheetNumbers(sheets)).toEqual(['32', '33'])
 	})
 })

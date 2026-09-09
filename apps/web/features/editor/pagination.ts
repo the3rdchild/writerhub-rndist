@@ -4,6 +4,7 @@ import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { TableMap } from '@tiptap/pm/tables'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import type { PageNumbering } from '@writer-hub/shared'
+import { COLUMN_BREAK_NODE } from './column-break'
 import { PAGE_BREAK_NODE } from './page-break'
 import {
 	PAGE_GAP,
@@ -179,7 +180,10 @@ function measureBlocks(view: EditorView): Measurement[] {
 			pos: offset,
 			top,
 			bottom: top + dom.offsetHeight,
-			isBreak: node.type.name === PAGE_BREAK_NODE,
+			/* Pindah kolom di LUAR wilayah berkolom: Word memenggal halaman.
+			 * Yang di dalam wilayah tidak sampai ke sini - blok wilayah
+			 * diwakili satu pengganjal dan diatur `flowColumns`. */
+			isBreak: node.type.name === PAGE_BREAK_NODE || node.type.name === COLUMN_BREAK_NODE,
 			breakBefore: breaksBefore(node) || undefined,
 			isSectionBreak: node.type.name === SECTION_BREAK_NODE || undefined,
 			kind: 'block',
@@ -405,12 +409,33 @@ export function computeSpacers(
 			if (section) {
 				const rule = { index: section.index, pageNumbering: section.pageNumbering ?? null }
 				if (section.continuous) {
-					/* Section menerus tidak membuka lembar; aturannya berlaku pada
+					/*
+					 * Section menerus tidak membuka lembar; aturannya berlaku pada
 					 * lembar yang sedang berjalan (satu nomor per lembar, seperti Word
-					 * yang hanya punya satu nomor per halaman). */
+					 * yang hanya punya satu nomor per halaman).
+					 *
+					 * Yang TIDAK boleh ikut: mulai-ulang. Section menerus yang cuma
+					 * berkata "lanjutkan" tidak sedang meminta apa-apa soal nomor,
+					 * dan menimpakan aturannya menghapus mulai-ulang yang sudah
+					 * berlaku di lembar ini - dokumen yang mulai di halaman 32
+					 * kembali mulai dari 1 begitu section pertamanya berkolom.
+					 * Identitas sectionnya pun ditahan, karena pergantian section
+					 * itulah yang dibaca `formatSheetNumbers` sebagai penanda
+					 * mulai-ulang; memindahkannya di lembar yang sama berarti
+					 * membakar mulai-ulang yang belum sempat dipakai.
+					 */
 					const current = sheets[sheets.length - 1]
-					current.sectionIndex = rule.index
-					current.pageNumbering = rule.pageNumbering
+					if (rule.pageNumbering && typeof rule.pageNumbering.restart === 'number') {
+						current.sectionIndex = rule.index
+						current.pageNumbering = rule.pageNumbering
+					} else if (rule.pageNumbering) {
+						/* Format dan visibilitas tetap berlaku - keduanya tidak
+						 * memulai ulang apa pun. */
+						current.pageNumbering = {
+							...rule.pageNumbering,
+							restart: current.pageNumbering?.restart ?? 'continue',
+						}
+					}
 				} else {
 					pendingSection = rule
 				}
@@ -906,6 +931,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 
 						const blocks = measureBlocks(view)
 						const spans = state.setup ? sectionSpans(view.state.doc, state.setup) : []
+
 						const continuous = spans.map((span, index) => {
 							if (index === 0) return false
 							const node = view.state.doc.nodeAt(span.pos)

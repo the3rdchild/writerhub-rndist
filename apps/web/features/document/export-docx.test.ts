@@ -626,3 +626,108 @@ describe('daftar isi di berkas DOCX', () => {
 		expect(xml).not.toContain('<w:tabs>')
 	})
 })
+
+/*
+ * Ekspor model section yang lebih tebal (W3/W4, DOCX-IMPORT-GAP-V3).
+ *
+ * Selama bentuknya belum lengkap di kedua ujung, tiap dokumen berkolom yang
+ * masuk lalu diekspor kembali kehilangan lebar kolomnya untuk kedua kalinya.
+ */
+describe('kolom tak-sama dan pindah kolom pulang ke DOCX (W3/W4)', () => {
+	async function documentXml(content: JSONContent[], setup?: PageSetup): Promise<string> {
+		const doc = buildSchema().nodeFromJSON({ type: 'doc', content })
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(setup ?? DEFAULT_PAGE_SETUP),
+			setup: setup ?? DEFAULT_PAGE_SETUP,
+		})
+		const files = unzipSync(new Uint8Array(await blob.arrayBuffer()))
+		return strFromU8(files['word/document.xml'])
+	}
+
+	const paragraph = (text: string): JSONContent => ({
+		type: 'paragraph',
+		content: [{ type: 'text', text }],
+	})
+	const sectionBreak = (attrs: object): JSONContent => ({
+		type: 'sectionBreak',
+		attrs: { pageSetup: null, columns: null, ...attrs },
+	})
+
+	test('W3: node columnBreak jadi w:br w:type="column", bukan paragraf kosong', async () => {
+		const xml = await documentXml([paragraph('kiri'), { type: 'columnBreak' }, paragraph('kanan')])
+
+		expect(xml).toContain('w:type="column"')
+		expect(xml).toContain('kiri')
+		expect(xml).toContain('kanan')
+	})
+
+	test('W4: lebar tak-sama jadi anak w:col dengan equalWidth="0"', async () => {
+		const xml = await documentXml([
+			paragraph('satu kolom'),
+			sectionBreak({ columns: { count: 2, widths: [130, 448], gaps: [36] } }),
+			paragraph('dua kolom'),
+		])
+
+		/* ST_OnOff: pustaka docx menulis "false", yang sah dan sama artinya
+		 * dengan "0" - Word maupun LibreOffice membaca keduanya. */
+		expect(xml).toContain('w:equalWidth="false"')
+		expect(xml).toContain(`w:space="${36 * 15}"`)
+
+		const cols = /<w:cols[^>]*>([\s\S]*?)<\/w:cols>/.exec(xml)
+		expect(cols).not.toBeNull()
+		const widths = [...(cols?.[1] ?? '').matchAll(/<w:col [^>]*w:w="(\d+)"/g)].map((match) =>
+			Number(match[1]),
+		)
+		expect(widths).toHaveLength(2)
+		/* Lebar adalah proporsi: yang ditulis mengisi lebar kolom teks section
+		 * ini, dengan perbandingan yang sama seperti saat diimpor. */
+		expect(widths[0] / widths[1]).toBeCloseTo(130 / 448, 2)
+		const contentWidth = pageGeometry(DEFAULT_PAGE_SETUP).contentWidth * 15
+		expect(widths[0] + widths[1] + 36 * 15).toBeCloseTo(contentWidth, -1)
+	})
+
+	test('W4: kolom sama lebar tetap ditulis equalWidth="1", tanpa anak w:col', async () => {
+		const xml = await documentXml([
+			paragraph('satu kolom'),
+			sectionBreak({ columns: { count: 2, gap: 24 } }),
+			paragraph('dua kolom'),
+		])
+
+		expect(xml).toContain('w:num="2"')
+		expect(xml).toContain('w:equalWidth="true"')
+		expect(xml).not.toContain('<w:col ')
+	})
+
+	test('putar-balik: impor → ekspor → impor mempertahankan perbandingan kolom', async () => {
+		const { readDocx } = await import('./docx')
+
+		const first = await documentXml([
+			paragraph('satu kolom'),
+			sectionBreak({ columns: { count: 2, widths: [130, 448], gaps: [36] } }),
+			paragraph('dua kolom'),
+		])
+		expect(first).toContain('w:equalWidth="false"')
+
+		const doc = buildSchema().nodeFromJSON({
+			type: 'doc',
+			content: [
+				paragraph('satu kolom'),
+				sectionBreak({ columns: { count: 2, widths: [130, 448], gaps: [36] } }),
+				paragraph('dua kolom'),
+			],
+		})
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+			setup: DEFAULT_PAGE_SETUP,
+		})
+		const round = await readDocx(new Uint8Array(await blob.arrayBuffer()))
+		const breakNode = (round.content.content ?? []).find((node) => node.type === 'sectionBreak')
+		const columns = breakNode?.attrs?.columns as { count: number; widths?: number[] }
+
+		expect(columns?.count).toBe(2)
+		expect(columns?.widths).toHaveLength(2)
+		expect((columns.widths as number[])[0] / (columns.widths as number[])[1]).toBeCloseTo(130 / 448, 1)
+	})
+})

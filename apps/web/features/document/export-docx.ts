@@ -3,6 +3,7 @@
 import type { JSONContent } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import type { DocumentTypography } from '@writer-hub/shared'
+import { COLUMN_BREAK_NODE } from '@/features/editor/column-break'
 import { HTML_BLOCK } from '@/features/editor/html-block'
 import { rasterizeSvg } from '@/features/editor/html-raster'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
@@ -203,6 +204,52 @@ export function mergeTabContents(tabs: JSONContent[]): JSONContent {
 	}
 	if (content.length === 0) content.push({ type: 'paragraph' })
 	return { type: 'doc', content }
+}
+
+/**
+ * Lebar tak-sama → anak `w:col`, bentuk yang dipakai Word sendiri.
+ *
+ * Lebar di `SectionColumns` adalah PROPORSI (px pada saat impor), jadi ia
+ * diskalakan ke lebar kolom teks section ini: dokumen yang berganti ukuran
+ * kertas atau margin setelah diimpor tetap pulang dengan perbandingan kolom
+ * yang sama. Word menaruh jarak antar-kolom pada `w:space` milik kolom KIRI
+ * tiap celah, dan kolom terakhir tidak punya celah di kanannya.
+ *
+ * Tanpa lebar - atau bila jumlahnya tidak cocok dengan `count` - hasilnya
+ * `equalWidth: true`, persis perilaku sebelum lebar tak-sama ikut terbawa.
+ */
+function columnWidthsOf(
+	docx: typeof import('docx'),
+	columns: NonNullable<SectionSpan['columns']>,
+	contentWidth: number,
+): { equalWidth: boolean; children?: InstanceType<typeof import('docx').Column>[] } {
+	const widths = columns.widths
+	if (!widths || widths.length !== columns.count || widths.some((width) => !(width > 0))) {
+		return { equalWidth: true }
+	}
+
+	const gaps = columns.gaps
+	const gapAfter = (index: number) =>
+		index >= columns.count - 1
+			? undefined
+			: gaps && gaps.length === columns.count - 1
+				? gaps[index]
+				: (columns.gap ?? DEFAULT_COLUMN_GAP_PX)
+
+	const total = widths.reduce((sum, width) => sum + width, 0)
+	const gapTotal = widths.reduce((sum, _, index) => sum + (gapAfter(index) ?? 0), 0)
+	const usable = Math.max(1, contentWidth - gapTotal)
+
+	return {
+		equalWidth: false,
+		children: widths.map((width, index) => {
+			const space = gapAfter(index)
+			return new docx.Column({
+				width: px((width / total) * usable),
+				...(space === undefined ? {} : { space: px(space) }),
+			})
+		}),
+	}
 }
 
 export async function exportDocx(
@@ -496,6 +543,12 @@ export async function exportDocx(
 			case PAGE_BREAK_NODE:
 				return [new Paragraph({ children: [new TextRun({ break: 1 })], pageBreakBefore: true })]
 
+			/* `w:br w:type="column"` — pindah kolom, bukan pindah halaman.
+			 * Tanpa ini ia pulang sebagai paragraf kosong dan tata letak
+			 * berkolom yang baru saja terbawa masuk hilang lagi saat diekspor. */
+			case COLUMN_BREAK_NODE:
+				return [new Paragraph({ children: [new docx.ColumnBreak()] })]
+
 			case 'horizontalRule':
 				return [
 					new Paragraph({ text: '', border: { bottom: { style: 'single', size: 6, color: 'CCCCCC' } } }),
@@ -680,7 +733,7 @@ export async function exportDocx(
 						column: {
 							count: columns.count,
 							space: px(columns.gap ?? DEFAULT_COLUMN_GAP_PX),
-							equalWidth: true,
+							...columnWidthsOf(docx, columns, geo.contentWidth),
 						},
 					}
 				: {}),

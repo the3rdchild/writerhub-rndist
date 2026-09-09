@@ -89,12 +89,13 @@ const SKIPPED_LABELS: Record<string, string> = {
  * terbawa ke "Bagian yang tidak dikenali dilewati" - dilaporkan dua kali,
  * yang kedua dengan nama tag mentah.
  */
-const BESPOKE_SKIPS = new Set(['revisi', 'daftar-isi-tanpa-penutup'])
+const BESPOKE_SKIPS = new Set(['revisi', 'daftar-isi-tanpa-penutup', 'hiasan-gambar'])
 
 function warningsFor(
 	skipped: Map<string, number>,
 	archive: DocxArchive,
 	furniture: PageFurniture | null,
+	content: FurnitureContent | null,
 ): ImportWarning[] {
 	const warnings: ImportWarning[] = []
 
@@ -120,6 +121,18 @@ function warningsFor(
 		})
 	}
 
+	/*
+	 * Hiasan yang dibuang punya kalimatnya sendiri: "akan menyusul" tidak
+	 * berlaku untuk sesuatu yang memang tidak akan pernah dibawa masuk, dan
+	 * pengguna perlu tahu bahwa yang hilang garis hiasan - bukan gambar isi.
+	 */
+	const decorations = skipped.get('hiasan-gambar') ?? 0
+	if (decorations > 0) {
+		warnings.push({
+			message: `${decorations} garis hiasan yang digambar Word sebagai gambar tidak ikut terbawa; gambar isi tidak terpengaruh.`,
+		})
+	}
+
 	// Daftar isi tanpa penutup: pengaman menghentikan penelanan, tapi yang
 	// terlanjur tertelan tidak kembali - itu kehilangan isi, bukan kosmetik.
 	if ((skipped.get('daftar-isi-tanpa-penutup') ?? 0) > 0) {
@@ -133,11 +146,33 @@ function warningsFor(
 		warnings.push({ message: `Bagian yang tidak dikenali dilewati: ${unknown.sort().join(', ')}.` })
 	}
 
+	/*
+	 * Peringatan perabot dibaca dari DUA jalur, bukan satu.
+	 *
+	 * `furniture` adalah model baris lama; sejak header/footer kaya mendarat,
+	 * isi sungguhannya ada di `content`. Footer yang menaruh field PAGE di
+	 * dalam kotak teks tidak pernah menghasilkan baris - `lineOf` tidak masuk
+	 * ke `w:drawing` - jadi menilai dari `furniture` saja membuat editor
+	 * mengumumkan "footernya tidak terbawa" tepat ketika footernya terbawa,
+	 * lengkap dengan nomor halaman yang sedang tercetak di layar. Peringatan
+	 * yang berbohong lebih merusak kepercayaan daripada celah yang diakui.
+	 *
+	 * Jalur sebaliknya ikut ditutup: baris ada tapi paragraf kayanya gagal
+	 * terbaca berarti yang masuk hanya satu baris teks, dan itu pun kehilangan
+	 * yang pantas disebut.
+	 */
 	const hasHeaderFooter = archive.paths().some((path) => /^word\/(header|footer)\d*\.xml$/.test(path))
-	if (hasHeaderFooter && !furniture) {
+	const hasContent = Object.values(content ?? {}).some((slot) =>
+		Object.values(slot ?? {}).some((blocks) => (blocks?.length ?? 0) > 0),
+	)
+	if (hasHeaderFooter && !furniture && !hasContent) {
 		warnings.push({
 			message:
 				'Header, footer, dan nomor halaman tidak punya padanan di editor ini, jadi tidak ikut terbawa.',
+		})
+	} else if (hasHeaderFooter && !hasContent) {
+		warnings.push({
+			message: 'Header/footer masuk sebagai satu baris teks saja; isi lengkapnya tidak terbaca.',
 		})
 	}
 
@@ -272,6 +307,6 @@ export async function readDocx(data: Uint8Array): Promise<DocxImport> {
 		...(furniture ? { furniture } : {}),
 		...(content ? { furnitureContent: content } : {}),
 		comments,
-		warnings: warningsFor(context.state.skipped, archive, furniture),
+		warnings: warningsFor(context.state.skipped, archive, furniture, content),
 	}
 }

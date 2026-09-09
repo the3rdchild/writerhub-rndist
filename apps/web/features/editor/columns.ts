@@ -2,6 +2,7 @@ import { Extension, mergeAttributes, Node } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { type EditorState, Plugin, PluginKey, type Transaction } from '@tiptap/pm/state'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
+import { COLUMN_BREAK_NODE } from './column-break'
 import { PAGE_BREAK_NODE } from './page-break'
 import { type PageGeometry, pageGeometry } from './page-geometry'
 import {
@@ -189,6 +190,8 @@ export interface ColumnItem {
 	span?: boolean
 	table?: ColumnTable
 	isBreak?: boolean
+	/** Pindah kolom (`w:br w:type="column"`): lanjut di kolom berikutnya. */
+	columnBreak?: boolean
 }
 
 export interface ColumnTable {
@@ -214,29 +217,45 @@ export interface ColumnFrame {
 	sheetOrigin?: number
 }
 
+/**
+ * Lebar & posisi tiap kolom.
+ *
+ * `gaps` adalah jarak PER CELAH (panjang `count - 1`), bentuk yang dipakai Word
+ * lewat `w:col/@w:space`: tiap kolom membawa jarak ke tetangga kanannya
+ * sendiri, dan templat berkolom tak-sama hampir selalu memakainya. Tanpa
+ * `gaps`, `gap` tunggal berlaku untuk semua celah - perilaku lama.
+ */
 export function resolveColumnSlots(
 	width: number,
 	count: number,
 	gap: number,
 	widths: readonly number[] | null,
+	gaps: readonly number[] | null = null,
 ): { left: number; width: number }[] {
-	const natural = width - gap * (count - 1)
+	const usable = gaps && gaps.length === count - 1 && gaps.every((value) => value >= 0) ? gaps : null
+	const gapBefore = (index: number) => (index <= 0 ? 0 : usable ? usable[index - 1] : gap)
+	const total = Array.from({ length: count }, (_, index) => gapBefore(index)).reduce((a, b) => a + b, 0)
+	const natural = width - total
 	if (!(natural > 0) || count < 1) return []
 
 	if (!widths || widths.length !== count || widths.some((value) => !(value > 0))) {
 		const columnWidth = natural / count
-		return Array.from({ length: count }, (_, index) => ({
-			left: index * (columnWidth + gap),
-			width: columnWidth,
-		}))
+		let even = 0
+		return Array.from({ length: count }, (_, index) => {
+			even += gapBefore(index)
+			const slot = { left: even, width: columnWidth }
+			even += columnWidth
+			return slot
+		})
 	}
 
 	const sum = widths.reduce((total, value) => total + value, 0)
 	const scale = sum > 0 ? natural / sum : 1
 	let left = 0
-	return widths.map((value) => {
+	return widths.map((value, index) => {
+		left += gapBefore(index)
 		const slot = { left, width: value * scale }
-		left += slot.width + gap
+		left += slot.width
 		return slot
 	})
 }
@@ -323,6 +342,27 @@ export function flowColumns(
 		if (items[index].span) {
 			placeSpanner(items[index])
 			index += 1
+			continue
+		}
+		if (items[index].columnBreak) {
+			/*
+			 * Pindah kolom menutup kolom berjalan, bukan lembarnya.
+			 *
+			 * Ia tetap mendapat slot bertinggi nol supaya `placements` sejajar
+			 * dengan `items` - pemetaan indeks-ke-indeks yang dipegang seluruh
+			 * pemanggil. Yang TIDAK dilakukannya: memanggil `advance()` sekali
+			 * lagi. Isi sebelum pemenggal sudah memajukan kolom di ujung
+			 * putaran, jadi pemenggal ini mendarat di kolom yang masih kosong -
+			 * memajukannya lagi berarti melompati satu kolom penuh. Kolom yang
+			 * SUDAH terisi (mis. dua pemenggal beruntun) memang harus dilompati,
+			 * dan di sanalah `advance()` dipanggil; di kolom terakhir
+			 * `advance()` sendiri yang berpindah lembar, persis seperti Word.
+			 */
+			const fresh = !slots.some((slot) => slot.page === page && slot.column === column)
+			const base = Math.max(regionTop(page), blockedUntil[column])
+			slots.push({ page, column, top: base, height: 0 })
+			index += 1
+			if (!fresh) advance()
 			continue
 		}
 		if (items[index].isBreak) {
@@ -454,7 +494,7 @@ function packColumn(items: readonly ColumnItem[], from: number, limit: number): 
 	for (let i = from; i < items.length; i++) {
 		const item = items[i]
 		if (item.span) break
-		if (item.isBreak) break
+		if (item.isBreak || item.columnBreak) break
 		const spacing = i === from ? 0 : Math.max(previousBottom, item.marginTop)
 		if (y + spacing + item.height > limit + 0.5) break
 
@@ -656,6 +696,7 @@ function measureColumns(
 								keepWithNext: KEEP_WITH_NEXT.has(node.type.name),
 								span: element.classList.contains('columns-span') || undefined,
 								isBreak: node.type.name === PAGE_BREAK_NODE || undefined,
+								columnBreak: node.type.name === COLUMN_BREAK_NODE || undefined,
 							},
 				)
 				regionItems[regionIndex].sizes.push(node.nodeSize)
@@ -692,6 +733,7 @@ function measureColumns(
 								...blockMargins(element),
 								keepWithNext: KEEP_WITH_NEXT.has(child.type.name),
 								isBreak: child.type.name === PAGE_BREAK_NODE || undefined,
+								columnBreak: child.type.name === COLUMN_BREAK_NODE || undefined,
 								span: element.classList.contains('columns-span') || undefined,
 							},
 				)
@@ -734,6 +776,8 @@ function measureColumns(
 		if (!columns) return
 		const count = Math.max(MIN_COLUMNS, columns.count)
 		const columnGap = typeof columns.gap === 'number' ? columns.gap : FALLBACK_COLUMN_GAP
+		const columnWidths = columns.widths ?? null
+		const columnGaps = columns.gaps ?? null
 		const placeholder = view.dom.querySelector(`[${REGION_SPACE_ATTRIBUTE}="${region.from}"]`)
 		const anchor =
 			placeholder instanceof HTMLElement
@@ -751,7 +795,7 @@ function measureColumns(
 		const parentWidth = parent instanceof HTMLElement ? parent.clientWidth : left + width
 		if (!(width > 0)) return
 
-		const slots = resolveColumnSlots(width, count, columnGap, null)
+		const slots = resolveColumnSlots(width, count, columnGap, columnWidths, columnGaps)
 		if (slots.length === 0) return
 
 		const flow = flowColumns(

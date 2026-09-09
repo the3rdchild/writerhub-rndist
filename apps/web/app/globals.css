@@ -1631,6 +1631,41 @@ a {
   color: var(--accent);
 }
 
+/* Pindah kolom (W3): kembaran page break yang menutup KOLOM, bukan lembar.
+   Garisnya bertitik supaya terbaca lebih ringan dari pemenggal halaman. */
+.document-body .column-break {
+  position: relative;
+  height: 0;
+  margin: 0;
+  user-select: none;
+}
+.document-body .column-break::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  border-top: 1px dotted var(--border-strong);
+}
+.document-body .column-break::after {
+  content: 'Kolom baru';
+  position: absolute;
+  right: 0;
+  top: -0.7em;
+  padding-left: 0.6em;
+  background: var(--surface-raised);
+  font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--foreground-faint);
+}
+.document-body .column-break.ProseMirror-selectednode::before {
+  border-top-color: var(--accent);
+}
+.document-body .column-break.ProseMirror-selectednode::after {
+  color: var(--accent);
+}
+
 /* Pembatas section (§P8&P9): garis ganda - ia memulai lembar baru DAN mengubah
    tata letaknya, jadi harus terbaca lebih berat dari pemenggalan biasa. */
 .document-body .section-break {
@@ -2217,6 +2252,17 @@ html.light .range-highlight {
   }
   .document-body .page-break::before,
   .document-body .page-break::after {
+    display: none;
+  }
+  /* Di kertas pindah kolom juga berhenti jadi gambar dan menjadi perintah. */
+  .document-body .column-break {
+    break-after: column;
+    height: 0;
+    margin: 0;
+    border: 0;
+  }
+  .document-body .column-break::before,
+  .document-body .column-break::after {
     display: none;
   }
   /* Pembatas section selalu memulai halaman baru di kertas - KECUALI yang

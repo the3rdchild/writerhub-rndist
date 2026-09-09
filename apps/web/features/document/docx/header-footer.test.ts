@@ -195,3 +195,61 @@ describe('impor header/footer', () => {
 		})
 	})
 })
+
+/*
+ * Peringatan perabot dibaca dari isi kaya, bukan dari model baris lama (W2,
+ * DOCX-IMPORT-GAP-V3). Footer yang menaruh field PAGE di dalam kotak teks
+ * tidak pernah menghasilkan `PageFurnitureLine` - `lineOf` tidak menuruni
+ * `w:drawing` - jadi menilai dari `furniture` saja membuat editor mengumumkan
+ * "footernya tidak terbawa" tepat ketika nomor halamannya sedang tercetak.
+ */
+describe('peringatan header/footer (W2)', () => {
+	const warningsOf = async (bytes: Uint8Array) => {
+		const { readDocx } = await import('./index')
+		return (await readDocx(bytes)).warnings.map((warning) => warning.message)
+	}
+	const MISSING = 'Header, footer, dan nomor halaman tidak punya padanan'
+
+	test('footer yang fieldnya di dalam kotak teks: isi kaya masuk, peringatan tidak muncul', async () => {
+		const bytes = docxWith({
+			body: `<w:p><w:r><w:t>isi</w:t></w:r></w:p><w:sectPr><w:footerReference r:id="rIdF"/></w:sectPr>`,
+			footer: `<w:p><w:r><w:drawing><w:txbxContent><w:p><w:r><w:t>32</w:t></w:r></w:p></w:txbxContent></w:drawing></w:r></w:p>
+				<w:p><w:r><w:fldChar w:fldCharType="begin"/><w:instrText>PAGE</w:instrText><w:fldChar w:fldCharType="end"/></w:r></w:p>`,
+			footerRels: FOOTER_REL,
+		})
+
+		const { readDocx } = await import('./index')
+		const result = await readDocx(bytes)
+		expect(Object.keys(result.furnitureContent ?? {})).toContain('footer')
+		expect((await warningsOf(bytes)).join('\n')).not.toContain(MISSING)
+	})
+
+	test('berkas punya footer1.xml tapi tak satu pun terbaca: peringatan tetap muncul', async () => {
+		/* Referensinya menunjuk relasi yang tidak ada, jadi baik baris maupun
+		 * isi kayanya kosong - dan di situlah kalimat "tidak ikut terbawa"
+		 * memang benar. */
+		const bytes = docxWith({
+			body: `<w:p><w:r><w:t>isi</w:t></w:r></w:p><w:sectPr><w:footerReference r:id="rIdHilang"/></w:sectPr>`,
+			footer: '<w:p><w:r><w:t>©2026</w:t></w:r></w:p>',
+			footerRels: FOOTER_REL,
+		})
+
+		expect((await warningsOf(bytes)).join('\n')).toContain(MISSING)
+	})
+
+	test('footer biasa: baris dan isi kaya sama-sama masuk, tanpa peringatan perabot', async () => {
+		const bytes = docxWith({
+			body: `<w:p><w:r><w:t>isi</w:t></w:r></w:p><w:sectPr><w:footerReference r:id="rIdF"/></w:sectPr>`,
+			footer: '<w:p><w:r><w:t>©2026</w:t></w:r></w:p>',
+			footerRels: FOOTER_REL,
+		})
+
+		const { readDocx } = await import('./index')
+		const result = await readDocx(bytes)
+		expect(result.furniture?.footer?.default?.text).toBe('©2026')
+		expect((result.furnitureContent?.footer?.default ?? []).length).toBeGreaterThan(0)
+		const messages = result.warnings.map((warning) => warning.message).join('\n')
+		expect(messages).not.toContain(MISSING)
+		expect(messages).not.toContain('satu baris teks saja')
+	})
+})

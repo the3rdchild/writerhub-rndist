@@ -5,6 +5,12 @@ lihat [§8](#8-hasil-setelah-perbaikan) dan [§9](#9-putaran-kedua--v6-63-dan-v1
 V1 tahap 2 (paritas paragraf) dan V7 menunggu pekerjaan lanjutan · baseline `e38ef09` (branch `main`)
 Lanjutan dari [DOCX-IMPORT-GAP.md](DOCX-IMPORT-GAP.md), yang menutup celah di sisi **impor**.
 
+> **Lanjutan:** putaran ketiga memakai berkas uji lain (templat proposal UNPAD) dan menemukan
+> celah di **model *section* Word** — kolom, pindah kolom, dan penomoran halaman per section —
+> berikut satu nomor halaman yang keluarnya salah. Lihat
+> [DOCX-IMPORT-GAP-V3.md](DOCX-IMPORT-GAP-V3.md); kode temuannya di sana berawalan `W`,
+> terpisah dari kode `V` di dokumen ini.
+
 Putaran ini memakai alat ukur yang berbeda: satu berkas `.docx` diekspor ke PDF lewat **dua
 jalur** — Google Docs dan Writer Hub — lalu dibandingkan halaman per halaman. Hasilnya
 menggeser fokus. Impornya sudah bagus; yang belum beres ada di **render dan cetak**.

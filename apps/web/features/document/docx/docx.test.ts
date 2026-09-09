@@ -1922,3 +1922,109 @@ describe('celah impor — komentar Word (D5)', () => {
 		expect(result.comments[0]?.quote).toBe('frasa yang dikomentari')
 	})
 })
+
+/*
+ * Model section Word yang lebih tebal (W1/W3/W4/W8, DOCX-IMPORT-GAP-V3).
+ *
+ * Keempatnya bermuara ke satu bentuk data yang sama: apa yang dinyatakan
+ * `w:sectPr` dan `w:br` harus punya tempat menginap di atribut `sectionBreak`.
+ * Yang tidak punya tempat itu hilang tanpa jejak - atau, pada W1, hilang
+ * dengan cara yang lebih buruk: digantikan angka section pertama.
+ */
+describe('model section Word (W1/W3/W4/W8)', () => {
+	const sectPr = (inner: string) => `<w:sectPr>${inner}</w:sectPr>`
+	const pgSz = () => '<w:pgSz w:w="11906" w:h="16838"/>'
+	const sectionBreaksOf = (document: JSONContent) =>
+		blocks(document).filter((block) => block.type === 'sectionBreak')
+
+	test('W1: section yang diam soal penomoran menulis restart "continue", bukan mewarisi angka mulai', async () => {
+		const body = p(r('sampul'), sectPr(`${pgSz()}<w:pgNumType w:start="32"/>`)) + p(r('isi')) + sectPr(pgSz())
+		const result = await readDocx(docx({ body }))
+
+		expect(result.pageSetup?.pageNumbering).toEqual({ format: 'decimal', restart: 32 })
+		expect(sectionBreaksOf(result.content)[0]?.attrs?.pageSetup?.pageNumbering).toEqual({
+			format: 'decimal',
+			restart: 'continue',
+		})
+	})
+
+	test('W1: format penomoran mewaris ke section berikutnya, tidak jatuh ke desimal', async () => {
+		const body =
+			p(r('sampul'), sectPr(`${pgSz()}<w:pgNumType w:fmt="lowerRoman" w:start="1"/>`)) +
+			p(r('isi')) +
+			sectPr(pgSz())
+		const result = await readDocx(docx({ body }))
+
+		expect(sectionBreaksOf(result.content)[0]?.attrs?.pageSetup?.pageNumbering).toEqual({
+			format: 'lower-roman',
+			restart: 'continue',
+		})
+	})
+
+	test('W3: w:br type="column" jadi node columnBreak, bukan ganti baris', async () => {
+		const body = p(`${r('kiri')}<w:r><w:br w:type="column"/></w:r>${r('kanan')}`)
+		const result = await readDocx(docx({ body }))
+
+		const types = blocks(result.content).map((block) => block.type)
+		expect(types).toEqual(['paragraph', 'columnBreak', 'paragraph'])
+		expect(textOf(blocks(result.content)[0])).toBe('kiri')
+		expect(textOf(blocks(result.content)[2])).toBe('kanan')
+	})
+
+	test('W3: br tanpa tipe dan textWrapping tetap ganti baris', async () => {
+		const body = p(`${r('satu')}<w:r><w:br/></w:r><w:r><w:br w:type="textWrapping"/></w:r>${r('dua')}`)
+		const result = await readDocx(docx({ body }))
+
+		expect(blocks(result.content).map((block) => block.type)).toEqual(['paragraph'])
+		expect(textOf(blocks(result.content)[0])).toBe('satu\n\ndua')
+	})
+
+	test('W4: lebar dan jarak per kolom terbawa dari anak w:col', async () => {
+		const cols = `<w:cols w:num="2" w:equalWidth="0"><w:col w:w="1953" w:space="538"/><w:col w:w="6727"/></w:cols>`
+		const body = p(r('satu'), sectPr(pgSz())) + p(r('dua')) + sectPr(`${pgSz()}${cols}`)
+		const result = await readDocx(docx({ body }))
+
+		expect(sectionBreaksOf(result.content)[0]?.attrs?.columns).toEqual({
+			count: 2,
+			widths: [130, 448],
+			gaps: [36],
+			gap: 36,
+		})
+	})
+
+	test('W4: jumlah w:col yang tidak cocok dengan w:num diabaikan — w:num yang dipercaya', async () => {
+		const cols = `<w:cols w:num="3" w:space="708"><w:col w:w="1953"/><w:col w:w="6727"/></w:cols>`
+		const body = p(r('satu'), sectPr(pgSz())) + p(r('dua')) + sectPr(`${pgSz()}${cols}`)
+		const result = await readDocx(docx({ body }))
+
+		expect(sectionBreaksOf(result.content)[0]?.attrs?.columns).toEqual({ count: 3, gap: 47 })
+	})
+
+	test('W8: gambar sub-piksel di dalam grup dilewati sebagai hiasan, tetangganya tetap masuk', async () => {
+		const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+		const pic = (embedId: string, cx: number, cy: number) =>
+			`<pic:pic><pic:blipFill><a:blip r:embed="${embedId}"/></pic:blipFill>
+			<pic:spPr><a:xfrm><a:ext cx="${cx}" cy="${cy}"/></a:xfrm></pic:spPr></pic:pic>`
+		const group = `<w:drawing xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup">
+			<wp:inline><wp:extent cx="5227320" cy="219456"/><wp:docPr id="1" name="grup"/>
+			<a:graphic><a:graphicData><wpg:wgp>
+			${pic('rIdLine', 9142, 219456)}
+			${pic('rIdReal', 476250, 476250)}
+			</wpg:wgp></a:graphicData></a:graphic></wp:inline></w:drawing>`
+		const rels =
+			`<Relationship Id="rIdLine" Type="${REL_NS}/image" Target="media/garis.png"/>` +
+			`<Relationship Id="rIdReal" Type="${REL_NS}/image" Target="media/isi.png"/>`
+		const result = await readDocx(
+			docx({
+				body: p(`<w:r>${group}</w:r>`),
+				rels,
+				media: { 'media/garis.png': PNG, 'media/isi.png': PNG },
+			}),
+		)
+
+		const images = blocks(result.content).filter((block) => block.type === 'image')
+		expect(images).toHaveLength(1)
+		expect(images[0]?.attrs).toMatchObject({ width: 50, height: 50 })
+		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain('garis hiasan')
+	})
+})

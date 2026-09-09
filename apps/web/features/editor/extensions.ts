@@ -25,6 +25,7 @@ import { BlockKeep } from '@/features/editor/block-keep'
 import { BlockSpacing } from '@/features/editor/block-spacing'
 import { Callout } from '@/features/editor/callout'
 import { CodeBlock } from '@/features/editor/code-block'
+import { ColumnBreak } from '@/features/editor/column-break'
 import { ColumnExtension } from '@/features/editor/columns'
 import { EditShortcuts } from '@/features/editor/edit-shortcuts'
 import { Footnote, FootnoteRef } from '@/features/editor/footnote'
@@ -144,6 +145,7 @@ export function buildEditorExtensions({
 		BlockKeep,
 		TextWeight,
 		PageBreak,
+		ColumnBreak,
 		SectionBreak,
 		TableHeaderRepeat,
 		CommentMark,

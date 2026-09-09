@@ -690,3 +690,94 @@ describe('migrasi blok kolom lama saat dibuka (E5 langkah 4)', () => {
 		expect(migrateLegacyColumns(stateOf([para('biasa')]))).toBeNull()
 	})
 })
+
+/*
+ * Pindah kolom (W3/W4, DOCX-IMPORT-GAP-V3).
+ *
+ * Kembarannya page break, dan bedanya persis satu: yang ini menutup KOLOM,
+ * bukan lembar. Templat proposal Indonesia memakainya untuk pola "label
+ * penanda di kolom kiri yang sempit, isinya di kolom kanan yang lebar" -
+ * tanpa padanan, keduanya menumpuk sebagai dua baris di kolom yang sama.
+ */
+describe('column break di dalam wilayah berkolom (W3)', () => {
+	test('isi sesudahnya pindah ke kolom berikutnya, bukan ke lembar berikutnya', () => {
+		const items = blocks([100, 0, 100])
+		items[1].columnBreak = true
+
+		const boxes = rendered(items)
+
+		expect(boxes[0]).toMatchObject({ column: 0, top: 0 })
+		expect(boxes[2].column).toBe(1)
+		expect(boxes[2].top).toBeLessThan(pageStride)
+	})
+
+	test('dua pemenggal beruntun melompati satu kolom penuh', () => {
+		/* Kolom yang ditinggalkan pemenggal pertama masih kosong, jadi
+		 * pemenggal kedua yang melompatinya - persis seperti Word. */
+		const items = blocks([100, 0, 0, 100])
+		items[1].columnBreak = true
+		items[2].columnBreak = true
+
+		const boxes = rendered(items, 0, 3)
+
+		expect(boxes[0].column).toBe(0)
+		expect(boxes[3].column).toBe(2)
+		expect(boxes[3].top).toBeLessThan(pageStride)
+	})
+
+	test('melompati kolom TERAKHIR berarti pindah lembar', () => {
+		const items = blocks([100, 0, 0, 100])
+		items[1].columnBreak = true
+		items[2].columnBreak = true
+
+		const boxes = rendered(items, 0, 2)
+
+		expect(boxes[3].column).toBe(0)
+		expect(boxes[3].top).toBeGreaterThanOrEqual(pageStride)
+	})
+
+	test('pemenggal tepat sesudah kolom yang baru saja penuh tidak melompat dua kali', () => {
+		/* Isi sebelum pemenggal sudah memajukan kolom sendiri; kalau pemenggal
+		 * ikut memajukan, satu kolom hilang tanpa pernah dipakai. */
+		const items = blocks([100, 0, 100])
+		items[1].columnBreak = true
+
+		const boxes = rendered(items, 0, 3)
+
+		expect(boxes[0].column).toBe(0)
+		expect(boxes[2].column).toBe(1)
+	})
+
+	test('page break dan column break tidak tertukar', () => {
+		const page = blocks([100, 0, 100])
+		page[1].isBreak = true
+		const column = blocks([100, 0, 100])
+		column[1].columnBreak = true
+
+		expect(rendered(page)[2].top).toBe(pageStride)
+		expect(rendered(column)[2].top).toBeLessThan(pageStride)
+	})
+})
+
+describe('resolveColumnSlots dengan jarak per celah (W4)', () => {
+	test('jarak per celah dipakai apa adanya, bukan satu jarak untuk semua', () => {
+		const slots = resolveColumnSlots(600, 3, 24, null, [10, 50])
+
+		expect(slots[0].left).toBe(0)
+		expect(slots[1].left).toBeCloseTo(slots[0].width + 10)
+		expect(slots[2].left).toBeCloseTo(slots[1].left + slots[1].width + 50)
+		expect(slots[0].width).toBeCloseTo((600 - 60) / 3)
+	})
+
+	test('lebar tak-sama dan jarak per celah tetap memenuhi lebar kolom teks', () => {
+		const slots = resolveColumnSlots(614, 2, 24, [130, 448], [36])
+
+		expect(slots[0].width + slots[1].width + 36).toBeCloseTo(614)
+		expect(slots[0].width / slots[1].width).toBeCloseTo(130 / 448)
+		expect(slots[1].left).toBeCloseTo(slots[0].width + 36)
+	})
+
+	test('jarak per celah yang panjangnya salah diabaikan — jatuh ke jarak tunggal', () => {
+		expect(resolveColumnSlots(648, 2, 24, null, [10, 20])).toEqual(resolveColumnSlots(648, 2, 24, null))
+	})
+})

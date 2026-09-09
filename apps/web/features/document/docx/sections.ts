@@ -13,16 +13,22 @@ import {
 	type PageSetup,
 	type PageSizeId,
 } from '@/features/editor/page-geometry'
-import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
+import { SECTION_BREAK_NODE, type SectionColumns } from '@/features/editor/section-break'
 import { twipsToPx } from './units'
-import { attr, child, val } from './xml'
+import { attr, child, children, val } from './xml'
 
 export type PageSetupPatch = Partial<Omit<PageSetup, 'margins'>> & { margins?: Partial<PageMargins> }
 
 export interface SectionProps {
 	pageSetup: PageSetupPatch
-	columns: { count: number; gap?: number } | null
+	columns: SectionColumns | null
 	continuous?: boolean
+	/**
+	 * Format yang benar-benar TERTULIS di `w:pgNumType/@w:fmt` section ini.
+	 * Kosong berarti section ini tidak menyebut format sama sekali - dan di
+	 * Word itu berarti "pakai punya section sebelumnya", bukan "desimal".
+	 */
+	declaredNumberFormat?: PageNumberFormat
 }
 
 /** w:pgNumType/w:fmt → format penomoran Writer Hub. */
@@ -35,7 +41,7 @@ const PGNUM_FORMATS: Record<string, PageNumberFormat> = {
 	numberInDash: 'decimal',
 }
 
-function numberingOf(sectPr: Element): PageNumbering | undefined {
+function numberingOf(sectPr: Element): { numbering: PageNumbering; format?: PageNumberFormat } | undefined {
 	const pgNumType = child(sectPr, 'pgNumType')
 	if (!pgNumType) return undefined
 
@@ -43,7 +49,33 @@ function numberingOf(sectPr: Element): PageNumbering | undefined {
 	const start = Number.parseInt(attr(pgNumType, 'start') ?? '', 10)
 	/* Word: tanpa start, penomoran melanjutkan section sebelumnya. */
 	const restart: PageNumbering['restart'] = Number.isFinite(start) && start >= 0 ? start : 'continue'
-	return { format: format ?? 'decimal', restart }
+	return { numbering: { format: format ?? 'decimal', restart }, ...(format ? { format } : {}) }
+}
+
+/**
+ * Penomoran tiap section dinyatakan EKSPLISIT, termasuk yang diam.
+ *
+ * Di Word `w:pgNumType` yang absen berarti "lanjutkan", tapi atribut section
+ * break di editor ini diwariskan lewat `{ ...previous.setup, ...patch }`: patch
+ * yang diam soal penomoran membiarkan `restart` milik section PERTAMA hidup di
+ * setiap section sesudahnya, dan dokumen yang mulai di halaman 32 mengulang
+ * 32 di tiap section. Menuliskan `restart: 'continue'` apa adanya menutup
+ * jalan itu - importer harus bisa membedakan "tidak disebut" dari "dinyatakan
+ * nihil", dan jawabannya menulis eksplisit.
+ *
+ * Formatnya ikut dirantai di sini karena ia mewaris ke arah yang berlawanan:
+ * section yang tidak menyebut `w:fmt` memakai format section sebelumnya, jadi
+ * 'decimal' bukan nilai jatuhan yang benar untuk dokumen beromawi.
+ */
+export function carryPageNumbering(sections: readonly SectionProps[]): void {
+	let format: PageNumberFormat = 'decimal'
+	for (const props of sections) {
+		format = props.declaredNumberFormat ?? format
+		props.pageSetup.pageNumbering = {
+			format,
+			restart: props.pageSetup.pageNumbering?.restart ?? 'continue',
+		}
+	}
 }
 
 function matchPageSize(width: number, height: number): PageSizeId | null {
@@ -56,11 +88,45 @@ function matchPageSize(width: number, height: number): PageSizeId | null {
 	return null
 }
 
+/**
+ * `w:cols` → tata letak kolom.
+ *
+ * Kolom tak-sama (`w:equalWidth="0"`) menyatakan lebarnya lewat anak `w:col`,
+ * dan jaraknya ikut pindah ke sana: templat semacam itu hampir tidak pernah
+ * memakai `w:cols/@w:space`, jadi membaca atribut tingkat `w:cols` saja
+ * membuang lebar DAN jaraknya sekaligus. Jumlah `w:col` yang tidak cocok
+ * dengan `w:num` diabaikan - `w:num` yang dipercaya, sisanya jatuh ke kolom
+ * sama lebar.
+ */
+function readColumns(cols: Element | null): SectionProps['columns'] {
+	const count = Number.parseInt(attr(cols, 'num') ?? '', 10)
+	if (!cols || !Number.isFinite(count) || count < 2) return null
+
+	const columns: SectionColumns = { count }
+	const space = Number.parseInt(attr(cols, 'space') ?? '', 10)
+	if (Number.isFinite(space)) columns.gap = twipsToPx(space)
+
+	const entries = children(cols, 'col')
+	if (entries.length !== count) return columns
+
+	const widths = entries.map((col) => twipsToPx(Number.parseInt(attr(col, 'w') ?? '', 10)))
+	if (widths.every((width) => width > 0)) columns.widths = widths
+
+	/* `w:space` milik kolom TERAKHIR tidak punya celah di kanannya. */
+	const gaps = entries.slice(0, -1).map((col) => twipsToPx(Number.parseInt(attr(col, 'space') ?? '', 10)))
+	if (gaps.every((gap) => Number.isFinite(gap) && gap >= 0)) {
+		columns.gaps = gaps
+		if (columns.gap === undefined) columns.gap = gaps[0]
+	}
+
+	return columns
+}
+
 export function readSectPr(sectPr: Element): SectionProps {
 	const pageSetup: PageSetupPatch = {}
 
 	const numbering = numberingOf(sectPr)
-	if (numbering) pageSetup.pageNumbering = numbering
+	if (numbering) pageSetup.pageNumbering = numbering.numbering
 
 	const pgSz = child(sectPr, 'pgSz')
 	const width = twipsToPx(Number.parseInt(attr(pgSz, 'w') ?? '', 10))
@@ -98,16 +164,14 @@ export function readSectPr(sectPr: Element): SectionProps {
 		}
 	}
 
-	let columns: SectionProps['columns'] = null
-	const cols = child(sectPr, 'cols')
-	const count = Number.parseInt(attr(cols, 'num') ?? '', 10)
-	if (Number.isFinite(count) && count >= 2) {
-		columns = { count }
-		const space = Number.parseInt(attr(cols, 'space') ?? '', 10)
-		if (Number.isFinite(space)) columns.gap = twipsToPx(space)
-	}
+	const columns = readColumns(child(sectPr, 'cols'))
 
-	return { pageSetup, columns, ...(val(child(sectPr, 'type')) === 'continuous' ? { continuous: true } : {}) }
+	return {
+		pageSetup,
+		columns,
+		...(numbering?.format ? { declaredNumberFormat: numbering.format } : {}),
+		...(val(child(sectPr, 'type')) === 'continuous' ? { continuous: true } : {}),
+	}
 }
 
 export function mergeSetup(base: PageSetup, patch: PageSetupPatch): PageSetup {

@@ -4,6 +4,7 @@ import {
 	CheckSquare,
 	Code,
 	Code2,
+	Columns2,
 	FileText,
 	Highlighter,
 	Image as ImageIcon,
@@ -139,6 +140,14 @@ export function InsertMenu({ onInsertImage }: { onInsertImage: () => void }) {
 						onSelect={() => run(close, () => editor?.chain().focus().setPageBreak().run())}
 					>
 						Halaman baru
+					</Item>
+					{/* Pindah kolom: di dalam wilayah berkolom ia menutup kolom, di luar
+					    itu Word memperlakukannya sebagai pemenggal halaman. */}
+					<Item
+						icon={<Columns2 className="h-4 w-4" />}
+						onSelect={() => run(close, () => editor?.chain().focus().setColumnBreak().run())}
+					>
+						Kolom baru
 					</Item>
 					<Item
 						icon={<TableIcon className="h-4 w-4" />}

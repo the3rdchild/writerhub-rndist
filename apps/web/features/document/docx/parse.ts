@@ -1,4 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
+import { COLUMN_BREAK_NODE } from '@/features/editor/column-break'
 import { MATH_BLOCK, MATH_INLINE } from '@/features/editor/math'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import { DEFAULT_PAGE_SETUP, sameSheetGeometry } from '@/features/editor/page-geometry'
@@ -18,6 +19,7 @@ import {
 	resolveStyle,
 } from './properties'
 import {
+	carryPageNumbering,
 	leadingColumnsBreak,
 	mergeSetup,
 	type PageSetupPatch,
@@ -111,9 +113,10 @@ function paragraphAttrs(props: ParagraphProps): Record<string, unknown> {
 function runText(
 	run: Element,
 	context: ParseContext,
-): { text: string; pageBreak: boolean; footnote?: number } {
+): { text: string; pageBreak: boolean; columnBreak: boolean; footnote?: number } {
 	let text = ''
 	let pageBreak = false
+	let columnBreak = false
 	let footnote: number | undefined
 
 	for (const node of children(run)) {
@@ -126,10 +129,16 @@ function runText(
 				text += '\t'
 				break
 
-			case 'br':
-				if (val(node) === 'page' || attr(node, 'type') === 'page') pageBreak = true
+			case 'br': {
+				/* `w:type` boleh ditulis sebagai atribut maupun `w:val`. Selain
+				 * page dan column, yang tersisa (`textWrapping`, dan tanpa tipe
+				 * sama sekali) memang ganti baris biasa. */
+				const type = val(node) ?? attr(node, 'type')
+				if (type === 'page') pageBreak = true
+				else if (type === 'column') columnBreak = true
 				else text += '\n'
 				break
+			}
 
 			case 'noBreakHyphen':
 				text += '-'
@@ -167,7 +176,7 @@ function runText(
 		}
 	}
 
-	return { text, pageBreak, footnote }
+	return { text, pageBreak, columnBreak, footnote }
 }
 
 function linkTarget(hyperlink: Element, context: ParseContext): string | undefined {
@@ -225,7 +234,7 @@ function walkInline(
 				}
 
 				const props = merge(inherited, readRunProps(rPr))
-				const { text, pageBreak, footnote } = runText(node, context)
+				const { text, pageBreak, columnBreak, footnote } = runText(node, context)
 
 				if (footnote !== undefined && context.footnotes.has(footnote)) {
 					builder.inline.push({ type: 'footnoteRef', attrs: { id: `fn-${footnote}` } })
@@ -244,7 +253,8 @@ function walkInline(
 						}
 					}
 				}
-				if (pageBreak) splitAtPageBreak(builder)
+				if (pageBreak) splitAtBreak(builder, PAGE_BREAK_NODE)
+				if (columnBreak) splitAtBreak(builder, COLUMN_BREAK_NODE)
 				break
 			}
 
@@ -320,7 +330,9 @@ function walkInline(
 }
 
 /**
- * Tutup isi yang sedang berjalan lalu terbitkan pemenggal halaman.
+ * Tutup isi yang sedang berjalan lalu terbitkan pemenggalnya - halaman
+ * (`w:br w:type="page"`) maupun kolom (`type="column"`); keduanya hidup di
+ * dalam paragraf Word yang sama, jadi keduanya memotongnya di tempat yang sama.
  *
  * Pemenggal yang berdiri sendiri di paragrafnya **tidak** didahului paragraf
  * kosong: di Word ia hidup di dalam paragrafnya, bukan sesudah satu baris
@@ -329,7 +341,7 @@ function walkInline(
  * `pagination.ts` lewat, isinya didorong satu lembar penuh, dan lahirlah
  * halaman yang kosong sama sekali.
  */
-function splitAtPageBreak(builder: ParagraphBuilder): void {
+function splitAtBreak(builder: ParagraphBuilder, type: string): void {
 	if (builder.inline.length > 0 || builder.blocks.length > 0) {
 		builder.blocks.push({
 			type: 'paragraph',
@@ -337,7 +349,7 @@ function splitAtPageBreak(builder: ParagraphBuilder): void {
 			...(builder.inline.length > 0 ? { content: builder.inline } : {}),
 		})
 	}
-	builder.blocks.push({ type: PAGE_BREAK_NODE })
+	builder.blocks.push({ type })
 	builder.inline = []
 }
 
@@ -559,6 +571,8 @@ export function readBody(
 	const endings: { at: number; props: SectionProps }[] = []
 	const raw = bodyBlocks(body, context, (props, endedAt) => endings.push({ at: endedAt, props }))
 	const promoted = promoteNumberedHeadings(raw)
+
+	carryPageNumbering(endings.map((ending) => ending.props))
 
 	const last = endings[endings.length - 1]
 	if (!last || (endings.length === 1 && last.at >= promoted.length)) {

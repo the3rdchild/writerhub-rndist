@@ -6,7 +6,8 @@ Audit awal & baseline kode `e81162b` (branch `main`); hasil verifikasi ulang ada
 
 > **Lanjutan:** putaran berikutnya membandingkan ekspor PDF Google Docs lawan Writer Hub dari satu
 > berkas yang sama, dan fokusnya bergeser dari impor ke **render & cetak** —
-> lihat [DOCX-IMPORT-GAP-V2.md](DOCX-IMPORT-GAP-V2.md).
+> lihat [DOCX-IMPORT-GAP-V2.md](DOCX-IMPORT-GAP-V2.md), lalu
+> [DOCX-IMPORT-GAP-V3.md](DOCX-IMPORT-GAP-V3.md) untuk celah model *section* (kolom & penomoran halaman).
 
 Dokumen ini mendata konten DOCX yang **belum** terbawa ke editor, diverifikasi dengan
 menjalankan importer yang sebenarnya (`apps/web/features/document/docx/`) terhadap empat
@@ -340,10 +341,10 @@ terparah yang ditemukan audit ini.
 
 Tiga hal berikut tidak bisa diputuskan dari dalam kode:
 
-1. **Seberapa kaya header/footer? (D8)** Model sekarang, `PageFurnitureLine = { text, align }`,
-   hanya sanggup satu baris teks polos per slot. Menerima logo dan header multi-baris berarti
-   merombak modelnya menjadi konten kaya — pekerjaan tersendiri yang menyentuh renderer
-   halaman, ekspor DOCX, dan ekspor PDF sekaligus, bukan sekadar importer.
+1. ~~**Seberapa kaya header/footer? (D8)**~~ **Sudah diputuskan dan dikerjakan** — modelnya
+   dirombak jadi konten kaya lewat [HEADER-FOOTER-PLAN.md](HEADER-FOOTER-PLAN.md) (`997cfbc`).
+   `PageFurnitureLine = { text, align }` masih ada sebagai jalur warisan, dan satu syarat
+   peringatan belum ikut pindah — [W2 di v3](DOCX-IMPORT-GAP-V3.md#w2-peringatan-headerfooter-berbohong--s).
 2. **Komentar Word masuk atas nama siapa? (D5)** Milik pengimpor, atau membawa nama penulis
    aslinya dari `comments.xml`?
 3. **Metadata sitasi disimpan atau tidak? (S8)** Menyimpan muatan CSL dari field `ADDIN`
@@ -372,7 +373,7 @@ Implementasi 5 September 2026 di `apps/web/features/document/docx/` (+ wiring ko
 | D5 komentar | ✅ | `comments.xml` + rentang `commentRangeStart/End` → mark `comment` + `CommentThread` per tab (via `updateTab`). **Keputusan D5 diambil: komentar masuk atas nama penulis aslinya** (`w:author`), `authorId = word-<slug>`. |
 | D6 tabel bersarang | ✅ | Diratakan jadi paragraf per baris di sel induk — teks selamat. |
 | D7 revisi terlacak | ✅ | `w:ins`/`w:del` dihitung; peringatan "N revisi terlacak diterima otomatis". |
-| D8 header/footer kaya | ⏳ | Menunggu keputusan produk (§7). |
+| D8 header/footer kaya | ✅ | **Selesai `997cfbc`** ([HEADER-FOOTER-PLAN.md](HEADER-FOOTER-PLAN.md) T3–T6): `FurnitureContent` membawa paragraf lengkap berikut token `{page}`/`{pages}`, ekspor menulis `w:hdr`/`w:ftr` + `w:pgNumType`. Sisa model baris lama: [W2 di v3](DOCX-IMPORT-GAP-V3.md#w2-peringatan-headerfooter-berbohong--s). |
 | S1 heading style kustom | ✅ | (a) `outlineLvl` warisan rantai `basedOn` (sudah lewat merge props); (b) nama terlokalisasi (`제목N`, `Judul N`, dll); (c) **heuristik nomor** `^\d+(\.\d+)*\.?\s` yang hanya aktif bila dokumen tak punya satu pun heading dan kandidatnya ≥ 2 — kalibrasi: IJMT 10/10 presisi, UNPAD/IEEE 0 false-positive, kandidat Naufal adalah entri TOC yang sudah ditelan S3. IJMT 0→11 heading. |
 | S2 heading 7–9 | ✅ | `Math.min(6,…)` dihapus; simetris dengan ekspor (7–9 = Heading 6 + outline). |
 | S3 field TOC | ✅ | State machine lintas paragraf di `bodyBlocks`: begin+instr `TOC` … penutup ditelan → satu `TocBlock` (listKind dari `\c`, maxLevel dari `\o`/`\t`). Penutupnya ditentukan **kedalaman** field, bukan `fldChar end` mana pun: TOC bawaan Word memakai switch `\h` sehingga tiap entri adalah field `PAGEREF`-nya sendiri, dan versi pertama berhenti di entri pertama — sisanya bocor lalu tertangkap `replaceManualToc` menjadi daftar isi kedua. Pengaman 500 node kini ikut diperingatkan bila tercapai. Naufal: 3 field → 3 `tocBlock`. |
