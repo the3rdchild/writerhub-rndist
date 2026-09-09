@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
+import { inflateSync } from 'node:zlib'
 import { type Browser, chromium, type Page } from 'playwright'
 import { printPageRules } from '@/components/editor/document-paper'
 import { DEFAULT_PAGE_SETUP, type PageSetup, pageGeometry } from '@/features/editor/page-geometry'
@@ -74,6 +75,7 @@ body { margin: 0; background: #fff }
 .document-page-padding { position: relative; z-index: 10 }
 .document-body > * + * { margin-top: 0.75em }
 p { margin: 0 }
+.document-watermark-item { position: absolute }
 .html-block-page .html-block-stage { position: relative; height: var(--page-content-height, 640px) }
 .html-block-page .html-block-frame { position: absolute; top: calc(-1 * var(--page-margin-top, 0px)); left: calc(-1 * var(--page-margin-left, 0px)); width: var(--page-width, 100%); height: var(--page-height, 100%); border: 0; border-radius: 0 }
 `
@@ -95,16 +97,24 @@ function flyerBlock(label: string): string {
 }
 
 /** Lapisan latar lembar persis seperti `document-paper.tsx` merendernya. */
-function sheetLayer(setup: PageSetup): string {
+function sheetLayer(setup: PageSetup, inSheet = ''): string {
 	const { width, height } = pageGeometry(setup)
 	return (
 		'<div class="document-sheet-layer" aria-hidden="true">' +
-		`<div class="document-sheet absolute" style="top:0;left:0;width:${width}px;height:${height}px"></div>` +
+		`<div class="document-sheet absolute" style="top:0;left:0;width:${width}px;height:${height}px">` +
+		`${inSheet}</div>` +
 		'</div>'
 	)
 }
 
-function fixture(inner: string, setup: PageSetup = DESIGN_SETUP): string {
+interface Slots {
+	/** Saudara lapisan lembar, di dalam print root - tempat watermark cetak tinggal. */
+	printRoot?: string
+	/** Di dalam `.document-sheet` - tempat salinan layarnya tinggal. */
+	inSheet?: string
+}
+
+function fixture(inner: string, setup: PageSetup = DESIGN_SETUP, slots: Slots = {}): string {
 	const geometry = pageGeometry(setup)
 	const vars = [
 		`--page-content-height:${geometry.contentHeight}px`,
@@ -122,7 +132,8 @@ function fixture(inner: string, setup: PageSetup = DESIGN_SETUP): string {
 		'</head><body>',
 		'<div class="document-canvas">',
 		'<div class="document-paper document-print-root">',
-		sheetLayer(setup),
+		sheetLayer(setup, slots.inSheet ?? ''),
+		slots.printRoot ?? '',
 		`<div class="document-page-padding" style="padding:0;${vars}">`,
 		`<div class="document-body">${inner}</div>`,
 		'</div></div></div></body></html>',
@@ -177,10 +188,54 @@ afterAll(async () => {
 	await browser?.close()
 })
 
-async function printedPagesOf(page: Page, html: string): Promise<number> {
+async function printedPdfOf(page: Page, html: string): Promise<Buffer> {
 	await page.setContent(html, { waitUntil: 'load' })
-	const pdf = await page.pdf({ printBackground: true, preferCSSPageSize: true })
-	return pageCount(pdf)
+	return page.pdf({ printBackground: true, preferCSSPageSize: true })
+}
+
+async function printedPagesOf(page: Page, html: string): Promise<number> {
+	return pageCount(await printedPdfOf(page, html))
+}
+
+/**
+ * Berapa kali sebuah XObject dipanggil di seluruh PDF.
+ *
+ * Kenapa bukan "berapa halaman memuat gambar": Chrome menaruh dua aliran
+ * ber-`Do` untuk tiap halaman, jadi angka mutlaknya membawa faktor tetap yang
+ * bisa berubah antarversi. Yang bermakna adalah RASIONYA terhadap jumlah
+ * halaman - faktor tetap itu habis dibagi, dan yang tersisa persis pertanyaan
+ * yang ingin dijawab: apakah gambarnya berulang di tiap halaman.
+ *
+ * Aliran isi terkompresi Flate, jadi tidak ada gunanya mencari teks di byte
+ * mentah; tiap aliran dikempis dulu. Fixture-nya tidak memuat gambar lain, jadi
+ * satu-satunya XObject yang mungkin adalah watermarknya.
+ */
+function xobjectInvocations(pdf: Buffer): number {
+	const bytes = pdf.toString('latin1')
+	let count = 0
+	let at = 0
+
+	for (;;) {
+		const start = bytes.indexOf('stream', at)
+		if (start === -1) break
+		let from = start + 'stream'.length
+		if (bytes[from] === '\r') from += 1
+		if (bytes[from] === '\n') from += 1
+		const end = bytes.indexOf('endstream', from)
+		if (end === -1) break
+
+		const raw = pdf.subarray(from, end)
+		let content: string
+		try {
+			content = inflateSync(raw).toString('latin1')
+		} catch {
+			content = raw.toString('latin1')
+		}
+		count += (content.match(/\/\w+\s+Do\b/g) ?? []).length
+		at = end + 'endstream'.length
+	}
+
+	return count
 }
 
 describe('uji cetak T1 - lembar kosong di sekitar rancangan', () => {
@@ -248,6 +303,108 @@ describe('uji cetak T1 - lembar kosong di sekitar rancangan', () => {
 		try {
 			const html = fixture(`${flyerBlock('SATU')}<p>Paragraf biasa setelahnya.</p>`)
 			expect(await printedPagesOf(page, html)).toBe(2)
+		} finally {
+			await page.close()
+		}
+	})
+})
+
+/*
+ * PNG 2x2; satu-satunya gambar di fixture watermark, jadi tiap invokasi XObject
+ * yang terhitung pasti miliknya.
+ */
+const WATERMARK_PNG =
+	'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGP8' +
+	'z8Dwn4GBgYEJRIAAADPuAgE1c1kaAAAAAElFTkSuQmCC'
+
+const WATERMARK_ITEM =
+	`<img class="document-watermark-item" src="${WATERMARK_PNG}" alt="" ` +
+	'style="left:50%;top:50%;width:60%;transform:translate(-50%,-50%)">'
+
+/** Prosa secukupnya untuk memaksa berapa pun halaman yang dibutuhkan uji. */
+function prose(paragraphs: number): string {
+	const sentence =
+		'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor ' +
+		'incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud.'
+	return Array.from({ length: paragraphs }, (_, i) => `<p>${i + 1}. ${sentence} ${sentence}</p>`).join('')
+}
+
+/** Naskah biasa (A4 bermargin) dengan watermark di salah satu dari dua letak. */
+function watermarkFixture(paragraphs: number, where: 'print-root' | 'sheet-layer' | 'none'): string {
+	const slots =
+		where === 'print-root'
+			? { printRoot: `<div class="document-watermark-print" aria-hidden="true">${WATERMARK_ITEM}</div>` }
+			: where === 'sheet-layer'
+				? { inSheet: `<div class="document-watermark" aria-hidden="true">${WATERMARK_ITEM}</div>` }
+				: {}
+	return fixture(prose(paragraphs), DEFAULT_PAGE_SETUP, slots)
+}
+
+/**
+ * Watermark adalah satu-satunya isi yang sengaja diulang di tiap halaman cetak,
+ * dan kegagalannya SENYAP: kalau lapisannya berhenti berulang - misalnya karena
+ * ada `transform`, `filter`, atau `contain` baru di jalur leluhur saat mencetak -
+ * tidak ada error, tidak ada peringatan, hanya PDF yang watermarknya cuma di
+ * halaman pertama. Tidak ada uji CSS tekstual yang bisa menangkap itu.
+ *
+ * Lihat docs/WATERMARK-PLAN.md §1 untuk pengukuran yang melahirkan dua aturan
+ * yang dijaga di sini.
+ */
+describe('uji cetak watermark - lapisan yang berulang per halaman', () => {
+	test('watermark di dalam print root berulang di TIAP halaman', async () => {
+		if (!browser) return
+		const page = await browser.newPage()
+		try {
+			const short = await printedPdfOf(page, watermarkFixture(2, 'print-root'))
+			const long = await printedPdfOf(page, watermarkFixture(24, 'print-root'))
+
+			const shortPages = pageCount(short)
+			const longPages = pageCount(long)
+			expect(shortPages).toBe(1)
+			expect(longPages).toBeGreaterThan(1)
+
+			/* Faktor tetap per halaman habis dibagi; yang tersisa adalah buktinya. */
+			const perPage = xobjectInvocations(short) / shortPages
+			expect(perPage).toBeGreaterThan(0)
+			expect(xobjectInvocations(long)).toBe(perPage * longPages)
+		} finally {
+			await page.close()
+		}
+	})
+
+	test('watermark di dalam lapisan lembar tidak tercetak sama sekali', async () => {
+		if (!browser) return
+		const page = await browser.newPage()
+		try {
+			/* Aturan (b): lapisan lembar disembunyikan utuh saat mencetak - itulah
+			 * sebabnya header/footer tidak pernah tercetak. Uji ini yang menahan
+			 * watermark supaya tidak ikut pindah ke sana "karena rapi". */
+			const pdf = await printedPdfOf(page, watermarkFixture(24, 'sheet-layer'))
+			expect(pageCount(pdf)).toBeGreaterThan(1)
+			expect(xobjectInvocations(pdf)).toBe(0)
+		} finally {
+			await page.close()
+		}
+	})
+
+	test('tanpa watermark: tidak ada XObject sama sekali - penghitungnya jujur', async () => {
+		if (!browser) return
+		const page = await browser.newPage()
+		try {
+			const pdf = await printedPdfOf(page, watermarkFixture(24, 'none'))
+			expect(xobjectInvocations(pdf)).toBe(0)
+		} finally {
+			await page.close()
+		}
+	})
+
+	test('watermark tidak menambah atau mengurangi halaman', async () => {
+		if (!browser) return
+		const page = await browser.newPage()
+		try {
+			const withWatermark = await printedPdfOf(page, watermarkFixture(24, 'print-root'))
+			const without = await printedPdfOf(page, watermarkFixture(24, 'none'))
+			expect(pageCount(withWatermark)).toBe(pageCount(without))
 		} finally {
 			await page.close()
 		}

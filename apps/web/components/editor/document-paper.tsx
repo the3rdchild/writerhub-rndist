@@ -25,6 +25,7 @@ import {
 } from '@/features/editor/page-geometry'
 import { typographyRules } from '@/features/editor/typography-css'
 import { cn } from '@/lib/utils'
+import { useWatermarkSrc, WatermarkLayer, WatermarkPrintLayer } from './watermark-layer'
 
 /**
  * Kertasnya - dan hanya kertasnya.
@@ -200,6 +201,12 @@ export function DocumentPaper({
 	)
 	const totalPages = String(sheets.length > 0 ? sheets.length : pageCount)
 
+	/* Watermark dibaca sekali di sini, bukan per lembar: satu aset, satu URL
+	 * bertanda tangan - menjemputnya per lembar berarti puluhan permintaan
+	 * yang sama untuk gambar yang sama. */
+	const watermark = setup.watermark
+	const watermarkSrc = useWatermarkSrc(watermark)
+
 	/*
 	 * Batas tinggi blok kode, dihitung dari lembar yang sedang dipakai. Tanpa
 	 * ini blok kode panjang mengalir menembus batas halaman dan terbaca
@@ -276,6 +283,13 @@ export function DocumentPaper({
 								}}
 							>
 								{!setup.pageless && (
+									<WatermarkLayer
+										watermark={watermark}
+										geometry={{ ...geometry, margins: sheet.margins }}
+										src={watermarkSrc}
+									/>
+								)}
+								{!setup.pageless && (
 									<SheetFurniture
 										furniture={furniture}
 										contentOf={furnitureContent}
@@ -346,6 +360,18 @@ export function DocumentPaper({
 						)
 					})}
 				</div>
+
+				{/*
+				 * Penyaji CETAK watermark - satu lapisan, digandakan peramban ke tiap
+				 * halaman. Letaknya di sini bukan kebetulan: di dalam print root
+				 * (CSS cetak menyatakan yang boleh dicetak secara positif, di luar itu
+				 * lenyap) dan DI LUAR lapisan lembar di atas (lapisan itu disembunyikan
+				 * utuh saat mencetak - itulah sebabnya header/footer tidak pernah
+				 * tercetak). Di layar ia tidak tampil sama sekali.
+				 */}
+				{!setup.pageless && (
+					<WatermarkPrintLayer watermark={watermark} geometry={geometry} src={watermarkSrc} />
+				)}
 
 				{/*
 				 * Pembungkus inilah kontraknya. Ia berposisi, jadi ia yang menjadi

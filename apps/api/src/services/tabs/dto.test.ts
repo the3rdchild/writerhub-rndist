@@ -51,3 +51,56 @@ describe('tabLayoutOverrideSchema', () => {
 		expect(parsed.success).toBe(false)
 	})
 })
+
+/*
+ * `z.object` membuang kunci yang tidak dikenalnya. Bidang `pageSetup` yang lupa
+ * didaftarkan di skema akan tersimpan di peramban lalu lenyap begitu tab
+ * disinkron - dan karena muatan ekspor dibangun dari baris peladen, hilangnya
+ * baru ketahuan sebagai "kenapa PDF-nya tidak ada watermarknya".
+ */
+describe('watermark selamat melewati skema', () => {
+	const WATERMARK = {
+		kind: 'text' as const,
+		text: 'RAHASIA',
+		anchor: 'center' as const,
+		offsetX: 0,
+		offsetY: 0,
+		scale: 0.6,
+		opacity: 0.15,
+		rotation: -45,
+	}
+
+	test('watermark teks tidak dibuang saat parsing', () => {
+		const parsed = tabLayoutOverrideSchema.safeParse({
+			pageSetup: { ...VALID_SETUP, watermark: WATERMARK },
+		})
+		expect(parsed.success).toBe(true)
+		expect(parsed.data?.pageSetup?.watermark).toEqual(WATERMARK)
+	})
+
+	test('watermark gambar membawa assetId-nya', () => {
+		const watermark = {
+			...WATERMARK,
+			kind: 'image' as const,
+			text: undefined,
+			assetId: 'a1',
+			anchor: 'tile' as const,
+		}
+		const parsed = tabLayoutSchema.safeParse({
+			pageSetup: { ...VALID_SETUP, watermark },
+		})
+		expect(parsed.success).toBe(true)
+		expect(parsed.data?.pageSetup.watermark?.assetId).toBe('a1')
+	})
+
+	test('pageSetup tanpa watermark tetap sah - ia opsional', () => {
+		expect(tabLayoutOverrideSchema.safeParse({ pageSetup: VALID_SETUP }).success).toBe(true)
+	})
+
+	test('jangkar di luar daftar ditolak, bukan diam-diam dibetulkan', () => {
+		const parsed = tabLayoutOverrideSchema.safeParse({
+			pageSetup: { ...VALID_SETUP, watermark: { ...WATERMARK, anchor: 'entah' } },
+		})
+		expect(parsed.success).toBe(false)
+	})
+})

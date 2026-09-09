@@ -13,12 +13,12 @@ import {
 	moveTab,
 	readDocs,
 	readTabs,
-	resolvePageSetup,
 	renameDocument,
-	tabFragment,
-	tabPreview,
+	resolvePageSetup,
 	setPageSetupForDoc,
 	setPageSetupForTab,
+	tabFragment,
+	tabPreview,
 	tabsRoot,
 	updateTab,
 } from './ydoc'
@@ -301,11 +301,111 @@ describe('penomoran halaman pulang-pergi lewat ydoc (regresi "Show page numbers"
 		const doc = new Y.Doc()
 		const tabId = readTabs(doc, createDocument(doc))[0].id
 
-		tabsRoot(doc).meta.get(tabId)?.set('pageSetup', {
-			...DEFAULT_PAGE_SETUP,
-			pageNumbering: { show: false } as unknown as PageSetup['pageNumbering'],
-		})
+		tabsRoot(doc)
+			.meta.get(tabId)
+			?.set('pageSetup', {
+				...DEFAULT_PAGE_SETUP,
+				pageNumbering: { show: false } as unknown as PageSetup['pageNumbering'],
+			})
 
 		expect(resolvePageSetup(doc, tabId).pageNumbering).toBeUndefined()
+	})
+})
+
+/*
+ * `readPageSetup` menyusun ulang objeknya bidang demi bidang - ia daftar putih.
+ * Bidang baru yang lupa didaftarkan akan tersimpan ke Y.Doc lalu dibuang di
+ * setiap pembacaan: setelan yang "tidak melakukan apa-apa" tanpa satu pun pesan
+ * salah. Watermark pernah kena persis begitu - panelnya benar, halamannya
+ * kosong - dan uji ini yang menahannya supaya tidak terulang.
+ */
+describe('watermark bertahan melewati readPageSetup', () => {
+	const watermark: NonNullable<PageSetup['watermark']> = {
+		kind: 'text',
+		text: 'RAHASIA',
+		anchor: 'center',
+		offsetX: 0.1,
+		offsetY: -0.2,
+		scale: 0.6,
+		opacity: 0.15,
+		rotation: -45,
+	}
+
+	test('yang ditulis per tab terbaca kembali utuh', () => {
+		const doc = new Y.Doc()
+		const tabId = readTabs(doc, createDocument(doc))[0].id
+
+		setPageSetupForTab(doc, tabId, { ...DEFAULT_PAGE_SETUP, watermark })
+
+		expect(resolvePageSetup(doc, tabId).watermark).toEqual(watermark)
+	})
+
+	test('watermark dokumen diwarisi tab yang belum punya setelan sendiri', () => {
+		const doc = new Y.Doc()
+		const docId = createDocument(doc)
+		const tabId = readTabs(doc, docId)[0].id
+
+		setPageSetupForDoc(doc, docId, { ...DEFAULT_PAGE_SETUP, watermark })
+
+		expect(resolvePageSetup(doc, tabId).watermark).toEqual(watermark)
+	})
+
+	test('teks kosong tidak disimpan sebagai setelan hantu', () => {
+		const doc = new Y.Doc()
+		const tabId = readTabs(doc, createDocument(doc))[0].id
+
+		setPageSetupForTab(doc, tabId, { ...DEFAULT_PAGE_SETUP, watermark: { ...watermark, text: '  ' } })
+
+		expect(resolvePageSetup(doc, tabId).watermark).toBeUndefined()
+	})
+
+	test('gambar tanpa aset juga bukan watermark yang sah', () => {
+		const doc = new Y.Doc()
+		const tabId = readTabs(doc, createDocument(doc))[0].id
+
+		setPageSetupForTab(doc, tabId, {
+			...DEFAULT_PAGE_SETUP,
+			watermark: { ...watermark, kind: 'image', text: undefined },
+		})
+
+		expect(resolvePageSetup(doc, tabId).watermark).toBeUndefined()
+	})
+
+	test('gambar tersemat tidak pernah ikut tersimpan - ia hanya milik muatan ekspor', () => {
+		const doc = new Y.Doc()
+		const tabId = readTabs(doc, createDocument(doc))[0].id
+
+		tabsRoot(doc)
+			.meta.get(tabId)
+			?.set('pageSetup', {
+				...DEFAULT_PAGE_SETUP,
+				watermark: {
+					...watermark,
+					kind: 'image',
+					assetId: 'a1',
+					imageDataUrl: 'data:image/png;base64,AA',
+				},
+			})
+
+		const stored = resolvePageSetup(doc, tabId).watermark
+		expect(stored?.assetId).toBe('a1')
+		expect(stored?.imageDataUrl).toBeUndefined()
+	})
+
+	test('angka di luar batas dijepit, jangkar asing kembali ke tengah', () => {
+		const doc = new Y.Doc()
+		const tabId = readTabs(doc, createDocument(doc))[0].id
+
+		tabsRoot(doc)
+			.meta.get(tabId)
+			?.set('pageSetup', {
+				...DEFAULT_PAGE_SETUP,
+				watermark: { ...watermark, opacity: 9, scale: -3, anchor: 'entah' },
+			})
+
+		const stored = resolvePageSetup(doc, tabId).watermark
+		expect(stored?.opacity).toBe(1)
+		expect(stored?.scale).toBe(0.01)
+		expect(stored?.anchor).toBe('center')
 	})
 })

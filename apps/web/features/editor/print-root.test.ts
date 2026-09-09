@@ -170,3 +170,53 @@ describe('penyegaran sebelum ekspor', () => {
 		expect(prepare).toContain('refreshMermaidBlocks')
 	})
 })
+
+/*
+ * Watermark: satu-satunya isi yang sengaja diulang di tiap halaman cetak.
+ *
+ * Uji cetak sungguhannya (print-pages.test.ts) butuh Chromium dan melewati diri
+ * sendiri kalau tidak ada. Dua aturan letaknya bisa dijaga tanpa mencetak apa
+ * pun, dan justru itu yang paling gampang terlanggar saat merapikan JSX -
+ * lihat docs/WATERMARK-PLAN.md §1.3.
+ */
+describe('letak lapisan watermark', () => {
+	/* Yang dicari pemasangannya di JSX, bukan penyebutan namanya di komentar. */
+	const sheetLayer = paper.indexOf('className="document-sheet-layer"')
+	const pagePadding = paper.indexOf("cn('document-page-padding")
+	const printLayer = paper.indexOf('<WatermarkPrintLayer')
+	const screenLayer = paper.indexOf('<WatermarkLayer')
+
+	test('kedua penyaji terpasang di kertas', () => {
+		expect(printLayer).toBeGreaterThan(-1)
+		expect(screenLayer).toBeGreaterThan(-1)
+	})
+
+	test('lapisan cetak: sesudah lapisan lembar, sebelum pembungkus naskah', () => {
+		/* Di luar print root ia lenyap - CSS cetak menyatakan yang boleh dicetak
+		 * secara positif. Di DALAM lapisan lembar ia juga lenyap, karena lapisan
+		 * itu disembunyikan utuh: sumbatan yang sama yang menahan header/footer. */
+		expect(sheetLayer).toBeLessThan(printLayer)
+		expect(printLayer).toBeLessThan(pagePadding)
+	})
+
+	test('salinan layar dirender di dalam lembarnya, bukan di samping lapisan lembar', () => {
+		expect(screenLayer).toBeGreaterThan(sheetLayer)
+		expect(screenLayer).toBeLessThan(printLayer)
+	})
+
+	function ruleBody(source: string, at: number): string {
+		const open = source.indexOf('{', at)
+		return source.slice(open, source.indexOf('}', open))
+	}
+
+	test('di layar lapisan cetak itu tidak pernah tampil', () => {
+		expect(ruleBody(css, css.indexOf('.document-watermark-print'))).toContain('display: none')
+	})
+
+	test('CSS cetak menghidupkannya dengan position: fixed', () => {
+		/* Aturan terakhir yang menyebut kelas itu adalah yang di dalam @media print;
+		   globals.css punya beberapa blok cetak, jadi memotong di blok pertama
+		   akan melewatkannya. */
+		expect(ruleBody(css, css.lastIndexOf('.document-watermark-print'))).toContain('position: fixed')
+	})
+})

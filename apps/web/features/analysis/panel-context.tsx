@@ -2,7 +2,14 @@
 
 import type { AnalysisFeature, RewriterTone } from '@writer-hub/shared'
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from 'react'
-export type PanelId = 'proofreader' | 'ai_chat' | 'comments' | 'assets' | 'search' | AnalysisFeature
+export type PanelId =
+	| 'proofreader'
+	| 'ai_chat'
+	| 'comments'
+	| 'assets'
+	| 'search'
+	| 'watermark'
+	| AnalysisFeature
 
 export interface AnalysisRun {
 	text: string

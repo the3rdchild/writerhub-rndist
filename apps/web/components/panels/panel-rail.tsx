@@ -10,9 +10,11 @@ import {
 	RefreshCw,
 	Search,
 	SpellCheck,
+	Stamp,
 	TextSearch,
 	UserCheck,
 } from 'lucide-react'
+import { usePanels } from '@/features/analysis/panel-context'
 import { useSearch } from '@/features/editor/search-context'
 import { RailIsland, type RailItem } from './rail-island'
 
@@ -48,13 +50,26 @@ export const SOURCE_PANELS: readonly RailItem[] = [{ id: 'assets', icon: Images,
 /* `Search` sudah dipakai Plagiarism, jadi pencarian naskah memakai ikon lain -
  * dua ikon kaca pembesar di rail yang sama berarti tidak ada yang menandakan
  * apa pun. */
-export const CONTEXT_PANELS: readonly RailItem[] = [{ id: 'search', icon: TextSearch, label: 'Cari & ganti' }]
+export const SEARCH_PANEL: RailItem = { id: 'search', icon: TextSearch, label: 'Cari & ganti' }
+
+/* Watermark tidak ikut ke menu Tools: jalan masuknya menu Sisip, karena dari
+ * sudut pandang penulis ia sesuatu yang ditaruh di halaman, bukan perkakas yang
+ * memeriksa naskah. */
+export const WATERMARK_PANEL: RailItem = { id: 'watermark', icon: Stamp, label: 'Watermark' }
 
 /** Daftar rata untuk pemakai yang tidak peduli pengelompokannya (menu Tools). */
-export const PANELS: readonly RailItem[] = [...ANALYSIS_PANELS, ...SOURCE_PANELS, ...CONTEXT_PANELS]
+export const PANELS: readonly RailItem[] = [...ANALYSIS_PANELS, ...SOURCE_PANELS, SEARCH_PANEL]
 
 export function PanelRail() {
-	const { live } = useSearch()
+	const { live: searchLive } = useSearch()
+	const { activePanel } = usePanels()
+
+	/* Tiap penghuni pulau ini hidup sendiri-sendiri: yang muncul hanya perkakas
+	 * yang sedang berlaku. Pulaunya sendiri lenyap saat tidak ada satu pun. */
+	const contextual: RailItem[] = [
+		...(searchLive ? [SEARCH_PANEL] : []),
+		...(activePanel === 'watermark' ? [WATERMARK_PANEL] : []),
+	]
 
 	/*
 	 * Dua pulau tetapnya hidup di SATU kolom flex yang di-center, bukan dua
@@ -74,9 +89,9 @@ export function PanelRail() {
 			    salah satunya. `top-full` tidak menebak tinggi apa pun - ia persis
 			    tepi bawah kolom - jadi keberatan yang sama tentang pulau absolut
 			    tidak berlaku di sini. */}
-			{live && (
+			{contextual.length > 0 && (
 				<div className="absolute top-full right-0 pt-2">
-					<RailIsland items={CONTEXT_PANELS} />
+					<RailIsland items={contextual} />
 				</div>
 			)}
 		</div>

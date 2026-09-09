@@ -65,6 +65,54 @@ export interface PageSetup {
 	/** Penomoran halaman bagian pertama; bagian lain membawanya lewat atribut
 	 * node `sectionBreak`. Tanpa ini: desimal, lanjut mengalir. */
 	pageNumbering?: PageNumbering
+	/** Watermark di bawah teks, sama di semua halaman tab ini. */
+	watermark?: Watermark
+}
+
+/**
+ * Jangkar watermark di dalam **kotak isi** halaman (area di dalam margin),
+ * bukan di dalam kertas utuh.
+ *
+ * Bukan pilihan gaya: saat mencetak, seluruh isi halaman di-clip ke kotak
+ * margin `@page` - diukur langsung dari matriks PDF-nya. Watermark yang
+ * dirancang melebar sampai tepi kertas akan terpotong tanpa peringatan, jadi
+ * kotak acuannya dinyatakan apa adanya di sini dan penyaji layar memakai kotak
+ * yang sama supaya layar tidak menjanjikan yang tidak bisa ditepati kertas.
+ */
+export type WatermarkAnchor =
+	| 'center'
+	| 'top-left'
+	| 'top'
+	| 'top-right'
+	| 'left'
+	| 'right'
+	| 'bottom-left'
+	| 'bottom'
+	| 'bottom-right'
+	| 'tile'
+
+export interface Watermark {
+	kind: 'text' | 'image'
+	/** `kind: 'text'` - teks polos, tanpa token. */
+	text?: string
+	/** `kind: 'image'` - aset milik proyek, bukan berkas yang menempel di dokumen. */
+	assetId?: string
+	/**
+	 * Gambar yang sudah disematkan sebagai data URI. HANYA diisi saat muatan
+	 * ekspor dibangun dan TIDAK PERNAH disimpan: perender PDF berjalan di
+	 * peladen dan tidak bisa diandalkan menjemput URL bertanda tangan yang
+	 * berumur pendek.
+	 */
+	imageDataUrl?: string
+	anchor: WatermarkAnchor
+	/** Geseran dari jangkar, sebagai fraksi lebar/tinggi kotak isi. */
+	offsetX: number
+	offsetY: number
+	/** Lebar watermark sebagai fraksi lebar kotak isi. */
+	scale: number
+	opacity: number
+	/** Derajat, searah jarum jam. */
+	rotation: number
 }
 
 export type PageNumberFormat = 'decimal' | 'lower-roman' | 'upper-roman' | 'lower-alpha' | 'upper-alpha'

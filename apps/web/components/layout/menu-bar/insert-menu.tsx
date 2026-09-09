@@ -14,9 +14,11 @@ import {
 	Quote,
 	Sigma,
 	SquarePlus,
+	Stamp,
 	Table as TableIcon,
 } from 'lucide-react'
 import { DropdownLabel, DropdownSeparator } from '@/components/ui/dropdown'
+import { usePanels } from '@/features/analysis/panel-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { promptForLink } from '@/features/editor/link'
 import { isInsideTable, tableRepeatsHeader } from '@/features/editor/table-header-repeat'
@@ -27,6 +29,7 @@ import { Item, Menu, run } from './menu-shell'
 export function InsertMenu({ onInsertImage }: { onInsertImage: () => void }) {
 	const { editor } = useEditorInstance()
 	const { activeId } = useSessions()
+	const { setActivePanel } = usePanels()
 	const keys = useShortcutLabel()
 
 	return (
@@ -35,6 +38,16 @@ export function InsertMenu({ onInsertImage }: { onInsertImage: () => void }) {
 				<>
 					<Item icon={<ImageIcon className="h-4 w-4" />} onSelect={() => run(close, () => onInsertImage())}>
 						Gambar…
+					</Item>
+					{/* Watermark bukan isi naskah melainkan perabot halaman - ia dibuka
+					    sebagai panel, bukan disisipkan ke posisi kursor. Tempatnya tetap
+					    di sini karena dari sudut pandang penulis, inilah "menyisipkan
+					    sesuatu ke halaman". */}
+					<Item
+						icon={<Stamp className="h-4 w-4" />}
+						onSelect={() => run(close, () => setActivePanel('watermark'))}
+					>
+						Watermark…
 					</Item>
 					<Item
 						icon={<Link2 className="h-4 w-4" />}

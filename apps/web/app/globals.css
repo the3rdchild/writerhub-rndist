@@ -1036,6 +1036,48 @@ a {
   pointer-events: none;
 }
 
+/* ── watermark halaman ─────────────────────────────────────────────────── */
+
+/*
+ * Dua penyaji, satu model - dan bukan duplikasi yang bisa dihindari.
+ *
+ * Di layar, lembar adalah kotak nyata: watermark digambar satu kali PER lembar,
+ * di dalam kotak isinya. Saat mencetak, yang menggandakan adalah peramban:
+ * SATU lapisan `fixed` muncul kembali di tiap halaman - itulah satu-satunya
+ * mekanisme yang bisa mengulang isi yang sama di semua halaman tanpa paginator
+ * kita sendiri (docs/WATERMARK-PLAN.md §1).
+ *
+ * Keduanya memakai kotak acuan yang sama, yaitu kotak ISI halaman: isi halaman
+ * di-clip ke kotak margin `@page` saat mencetak, jadi kertas utuh bukan bidang
+ * yang benar-benar tersedia.
+ */
+.document-watermark {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Penyaji cetak tidak pernah tampil di layar; lawannya ada di blok @media print. */
+.document-watermark-print {
+  display: none;
+}
+
+.document-watermark-item {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+}
+
+.document-watermark-text {
+  white-space: nowrap;
+  font-family: system-ui, sans-serif;
+  font-weight: 700;
+  line-height: 1;
+  /* Tinta tetap, bukan warna tema: kertas selalu putih, juga di tema gelap. */
+  color: #111827;
+}
+
 /* ── lapisan handle tabel ──────────────────────────────────────────────── */
 
 /*
@@ -2114,6 +2156,29 @@ html.light .range-highlight {
     *:not(:has(.document-print-root)):not(.document-print-root):not(.document-print-root *) {
     display: none !important;
   }
+
+  /*
+   * Watermark: satu-satunya isi yang sengaja DIULANG di tiap halaman.
+   *
+   * `position: fixed` adalah mekanismenya - peramban menggambar ulang elemen
+   * ini di setiap halaman cetak. Ia tidak bisa dipakai untuk header/footer
+   * karena isinya harus berubah (nomor halaman), tapi watermark memang sama
+   * persis di semua halaman, dan justru itu syaratnya.
+   *
+   * Kotaknya menyusut ke kotak margin `@page`, dan isi di luar kotak itu
+   * di-clip - keduanya diukur langsung dari matriks PDF-nya, bukan diduga.
+   */
+  .document-watermark-print {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  /* Salinan layar (satu per lembar) ikut lenyap bersama lapisan lembarnya,
+     jadi tidak ada watermark yang tergambar dua kali. */
 
   html,
   body {

@@ -4,6 +4,7 @@ import {
 	type PageNumbering,
 	type PageOrientation,
 	type PageSizeId,
+	type Watermark,
 } from '@writer-hub/shared'
 
 /*
@@ -19,6 +20,8 @@ export {
 	type PageNumbering,
 	type PageOrientation,
 	type PageSizeId,
+	type Watermark,
+	type WatermarkAnchor,
 } from '@writer-hub/shared'
 
 export const DEFAULT_PAGE_SIZE: PageSizeId = 'a4'
@@ -64,6 +67,8 @@ export interface PageSetup {
 	footerMargin?: number
 	/** Penomoran halaman bagian pertama; bagian lain lewat atribut sectionBreak. */
 	pageNumbering?: PageNumbering
+	/** Watermark di bawah teks, sama di semua halaman tab ini. */
+	watermark?: Watermark
 }
 
 export const DEFAULT_PAGE_SETUP: PageSetup = {

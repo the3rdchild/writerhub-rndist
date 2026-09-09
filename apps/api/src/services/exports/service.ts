@@ -1,10 +1,48 @@
+import type { TabLayout, TabLayoutOverride } from '@writer-hub/shared'
 import { env } from '@/config/env'
+import { getAsset } from '@/lib/asset-storage'
 import { AppError } from '@/lib/error'
 import { signRender, verifyRender } from '@/lib/signed-url'
+import { findAssetById } from '@/repository/asset'
 import { findDocumentById, findDocumentUnscoped } from '@/repository/document'
 import { findTabsByDocument } from '@/repository/document-tab'
 import BaseService from '@/services/base.service'
 import type { ExportDocumentResponse, ExportLinkResponse } from './dto'
+
+/**
+ * Menyematkan gambar watermark ke dalam muatan sebagai `data:` URI.
+ *
+ * Perender berkas adalah peramban tak berkepala yang hanya memegang tanda
+ * tangan satu dokumen - ia tidak punya sesi dan tidak boleh diberi satu, jadi
+ * URL aset bertanda tangan tidak bisa diandalkan dari sana. Aturan yang sama
+ * sudah berlaku untuk gambar di dalam naskah (lihat `lib/asset-storage.ts`):
+ * berkas hasil ekspor wajib utuh tanpa jaringan.
+ *
+ * Aset dari proyek lain ditolak diam-diam. Yang bisa meminta ekspor memang
+ * pemilik dokumennya, tapi `assetId` datang dari tata letak yang ia tulis
+ * sendiri - tanpa pemeriksaan ini, endpoint yang izinnya "satu dokumen" berubah
+ * menjadi pembaca aset proyek mana pun yang UUID-nya tertebak.
+ */
+async function embedWatermark<T extends TabLayout | TabLayoutOverride>(
+	layout: T | null,
+	projectId: string,
+): Promise<T | null> {
+	const watermark = layout?.pageSetup?.watermark
+	if (!layout || !watermark?.assetId) return layout
+
+	const asset = await findAssetById(watermark.assetId)
+	if (!asset || asset.project_id !== projectId) return layout
+
+	const bytes = await getAsset(asset.key)
+	const base64 = Buffer.from(bytes).toString('base64')
+	return {
+		...layout,
+		pageSetup: {
+			...layout.pageSetup,
+			watermark: { ...watermark, imageDataUrl: `data:${asset.mime};base64,${base64}` },
+		},
+	} as T
+}
 
 /**
  * Isi dokumen untuk perender berkas.
@@ -52,13 +90,15 @@ export default class ExportsService extends BaseService {
 			const response: ExportDocumentResponse = {
 				documentId,
 				title: document.title,
-				layout: document.layout ?? null,
-				tabs: tabs.map((tab) => ({
-					id: tab.id,
-					title: tab.title,
-					content: tab.content,
-					layout: tab.layout ?? null,
-				})),
+				layout: await embedWatermark(document.layout ?? null, document.project_id),
+				tabs: await Promise.all(
+					tabs.map(async (tab) => ({
+						id: tab.id,
+						title: tab.title,
+						content: tab.content,
+						layout: await embedWatermark(tab.layout ?? null, document.project_id),
+					})),
+				),
 			}
 
 			return this.success({ data: response })

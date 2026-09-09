@@ -1,6 +1,12 @@
 'use client'
 
-import type { DocumentTypography, PageNumberFormat, PageNumbering } from '@writer-hub/shared'
+import type {
+	DocumentTypography,
+	PageNumberFormat,
+	PageNumbering,
+	Watermark,
+	WatermarkAnchor,
+} from '@writer-hub/shared'
 import * as Y from 'yjs'
 import type { PageSetup } from '@/features/editor/page-geometry'
 import { DEFAULT_PAGE_SETUP } from '@/features/editor/page-geometry'
@@ -152,6 +158,56 @@ function normalizeNumbering(raw: unknown): PageNumbering | undefined {
 	}
 }
 
+const WATERMARK_ANCHORS: WatermarkAnchor[] = [
+	'center',
+	'top-left',
+	'top',
+	'top-right',
+	'left',
+	'right',
+	'bottom-left',
+	'bottom',
+	'bottom-right',
+	'tile',
+]
+
+const clampNumber = (raw: unknown, low: number, high: number, fallback: number): number =>
+	typeof raw === 'number' && Number.isFinite(raw) ? Math.min(high, Math.max(low, raw)) : fallback
+
+/**
+ * Watermark yang tersimpan, dibaca ulang dengan curiga.
+ *
+ * `imageDataUrl` sengaja TIDAK ikut dibaca maupun ditulis: ia hanya hidup di
+ * muatan ekspor, dan gambar yang tersemat di sana bisa berukuran megabyte -
+ * menyimpannya di Y.Doc berarti mengirimkannya ke setiap klien pada setiap
+ * sinkronisasi. Membuangnya di sini membuatnya mustahil ikut tersimpan walau
+ * ada jalur yang keliru menuliskannya.
+ */
+function normalizeWatermark(raw: unknown): Watermark | undefined {
+	if (!raw || typeof raw !== 'object') return undefined
+	const value = raw as Partial<Watermark>
+	const kind = value.kind === 'image' ? 'image' : 'text'
+	const anchor = value.anchor && WATERMARK_ANCHORS.includes(value.anchor) ? value.anchor : 'center'
+
+	const watermark: Watermark = {
+		kind,
+		anchor,
+		offsetX: clampNumber(value.offsetX, -1, 1, 0),
+		offsetY: clampNumber(value.offsetY, -1, 1, 0),
+		scale: clampNumber(value.scale, 0.01, 1, 0.6),
+		opacity: clampNumber(value.opacity, 0, 1, 0.15),
+		rotation: clampNumber(value.rotation, -360, 360, 0),
+		...(kind === 'text' && typeof value.text === 'string' ? { text: value.text } : {}),
+		...(kind === 'image' && typeof value.assetId === 'string' ? { assetId: value.assetId } : {}),
+	}
+
+	/* Tanpa isi ia tidak menggambar apa pun; menyimpannya hanya menyisakan
+	 * setelan hantu yang membingungkan saat dialog dibuka lagi. */
+	if (kind === 'text' && !watermark.text?.trim()) return undefined
+	if (kind === 'image' && !watermark.assetId) return undefined
+	return watermark
+}
+
 function readPageSetup(entry: Y.Map<unknown> | undefined): PageSetup | null {
 	if (!entry) return null
 	const raw = entry.get('pageSetup')
@@ -169,6 +225,7 @@ function readPageSetup(entry: Y.Map<unknown> | undefined): PageSetup | null {
 		...(normalizeNumbering(value.pageNumbering)
 			? { pageNumbering: normalizeNumbering(value.pageNumbering) }
 			: {}),
+		...(normalizeWatermark(value.watermark) ? { watermark: normalizeWatermark(value.watermark) } : {}),
 	}
 }
 

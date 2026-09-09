@@ -8,6 +8,36 @@ const pageMarginsSchema = z.object({
 	left: z.number(),
 })
 
+/*
+ * Watermark ikut divalidasi di sini, dan itu WAJIB: `z.object` membuang kunci
+ * yang tidak dikenalnya, jadi bidang yang tidak disebut akan hilang diam-diam
+ * saat tab disinkron - tersimpan di peramban, lenyap di peladen, dan karena
+ * muatan ekspor dibangun dari baris peladen, watermarknya tidak akan pernah
+ * sampai ke PDF.
+ */
+const watermarkSchema = z.object({
+	kind: z.enum(['text', 'image']),
+	text: z.string().optional(),
+	assetId: z.string().optional(),
+	anchor: z.enum([
+		'center',
+		'top-left',
+		'top',
+		'top-right',
+		'left',
+		'right',
+		'bottom-left',
+		'bottom',
+		'bottom-right',
+		'tile',
+	]),
+	offsetX: z.number(),
+	offsetY: z.number(),
+	scale: z.number(),
+	opacity: z.number(),
+	rotation: z.number(),
+})
+
 const pageSetupSchema = z.object({
 	size: z.enum([
 		'letter',
@@ -29,6 +59,7 @@ const pageSetupSchema = z.object({
 	margins: pageMarginsSchema,
 	pageColor: z.string().nullable(),
 	pageless: z.boolean(),
+	watermark: watermarkSchema.optional(),
 })
 
 const furnitureLineSchema = z.object({
