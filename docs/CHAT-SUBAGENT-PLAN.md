@@ -1,6 +1,6 @@
 # Rencana Implementasi — Sub-agent di AI Chat
 
-Status: **rancangan, belum dikerjakan** · Disusun 10 September 2026 · Baseline kode
+Status: **selesai** (server `7c2dfce`, klien `HEAD`) · Disusun 10 September 2026 · Baseline kode
 `72c495f` (branch `feat/agent-skills`)
 
 Prasyarat: `docs/CHAT-TRANSCRIPT-PLAN.md` T2 (§4 di bawah menjelaskan kenapa).
@@ -166,6 +166,31 @@ supaya model utama bisa mengoreksi tanpa melihat hasilnya.
 
 Karena itu: buktikan dengan satu sub-agent lebih dulu — diagram — sampai ke
 kertas, baru tambah yang lain.
+
+---
+
+## 7.1 Bukti empiris, dari jalur nyata
+
+Rancangan ini dibela dengan argumen token. Satu sesi uji memberi angkanya.
+
+Penulis meminta perbaikan satu atribut pada diagram yang sudah ada — kanvasnya
+kurang tinggi. Tanpa `redraw_diagram`, model utama harus membaca markup-nya
+sendiri:
+
+- dua belas putaran alat, seluruh anggaran penelusuran habis;
+- giliran pertama mati di batas anggaran tanpa menyunting apa pun, 127 token
+  keluaran;
+- penulis harus mengetik "bisa dilanjutkan?";
+- total tiga giliran, ±45 ribu token masukan, untuk mengubah satu angka.
+
+Dengan `redraw_diagram`, markup berjalan dari dokumen langsung ke sub-agent.
+Model utama tidak membacanya, tidak menghabiskan anggaran, dan tidak mati di
+tengah. Satu panggilan.
+
+(Sebagian dari kekacauan itu juga bug tersendiri — dokumen tanpa heading tidak
+bisa dibaca alat mana pun, diperbaiki di `d756ae7` — tapi bahkan dengan alat baca
+yang benar, membaca balik empat ratus baris koordinat tetap membayar ongkos yang
+seluruh rancangan ini hindari.)
 
 ---
 

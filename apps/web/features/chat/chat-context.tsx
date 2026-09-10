@@ -48,13 +48,17 @@ import { snapshotLocalVersion } from '@/features/versions/local-snapshot'
 import { useInvalidateVersions } from '@/features/versions/use-versions'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import { parseFallbackCalls, streamChat, stripFallbackCalls } from './api'
+import { diagramReceipt, drawDiagram } from './diagram-api'
+import { diagramBlocks, diagramTypeOf, findDiagramBlock, isDrawTool } from './diagram-target'
 import { chatFailureHint, toChatTurnError } from './failure'
 import { isRemoteReadTool, remoteToolLabel, runRemoteReadTool } from './remote-tools'
 import {
 	applyWriteTool,
+	insertDiagramBlock,
 	pageSummary,
 	type ReadToolContext,
 	readToolLabel,
+	replaceDiagramBlock,
 	runReadTool,
 	summarizeToolResult,
 	type ToolOutcome,
@@ -216,7 +220,7 @@ interface ChatContextValue {
 	reset: () => void
 	startNewTopic: () => void
 	currentTaskId: string | undefined
-	applyAction: (call: ToolCall) => ToolOutcome
+	applyAction: (call: ToolCall) => Promise<ToolOutcome>
 	applyActions: (calls: ToolCall[]) => void
 	/** Besaran perubahan satu aksi, kalau ia memang menyentuh naskah. */
 	actionWords: (id: string) => WordDelta | undefined
@@ -424,6 +428,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 	const appendText = (delta: string) => {
 		setPartsBoth(appendTextTo(partsRef.current, delta))
+	}
+
+	/**
+	 * Langkah yang berjalan sendiri, di samping pekerjaan model.
+	 *
+	 * Tidak menutup apa pun dan tidak ikut ditutup, jadi beberapa gambar bisa
+	 * berputar sekaligus di dalam satu kelompok. Labelnya menyebut pekerjaannya,
+	 * bukan mekanismenya: penulis tidak peduli ada sub-agent, ia peduli mana
+	 * dari dua gambar yang belum selesai.
+	 */
+	const startBackgroundStep = (label: string): string => {
+		const now = Date.now()
+		const id = `bg_${now.toString(36)}_${flatSteps(partsRef.current).length}`
+		setPartsBoth(
+			appendStep(partsRef.current, { id, label, status: 'running', startedAt: now, background: true }),
+		)
+		return id
+	}
+
+	const finishStep = (id: string, patch: Partial<ChatStep>) => {
+		setPartsBoth(patchStep(partsRef.current, id, { endedAt: Date.now(), ...patch }))
 	}
 
 	const patchRunningStep = (patch: Partial<ChatStep>) => {
@@ -997,19 +1022,89 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		[commit, currentTaskId, startTurn, snapshotAiResult],
 	)
 
+	/**
+	 * Aksi menggambar, satu-satunya yang tidak selesai seketika.
+	 *
+	 * Alat tulis lain menyentuh dokumen dan berakhir di baris yang sama. Yang
+	 * ini menunggu sub-agent, jadi ia mendapat langkah latarnya sendiri - dan
+	 * yang kembali ke model bukan gambarnya melainkan tanda terima. Di situlah
+	 * seluruh penghematannya: markup-nya berjalan dari server langsung ke
+	 * dokumen, tanpa singgah di percakapan yang harus dibayar ulang tiap giliran.
+	 */
+	const runDrawTool = useCallback(async (call: ToolCall): Promise<ToolOutcome> => {
+		const editor = editorRef.current
+		if (!editor) return { ok: false, message: 'Editor belum siap.' }
+
+		const redraw = call.name === 'redraw_diagram'
+		let target: { pos: number; source: string; title: string } | null = null
+
+		if (redraw) {
+			const asked = String(call.arguments.title ?? '').trim()
+			target = findDiagramBlock(diagramBlocks(editor.state.doc), asked || undefined)
+			if (!target) {
+				return {
+					ok: false,
+					message: asked
+						? `No diagram titled "${asked}" in the document. List what is there before trying again.`
+						: 'The document holds more than one diagram, or none. Name the one to change with "title".',
+				}
+			}
+		}
+
+		const label = redraw
+			? `Menggambar ulang "${target?.title || 'diagram'}"`
+			: `Menggambar diagram ${String(call.arguments.type ?? '')}`.trim()
+		const stepId = startBackgroundStep(label)
+
+		const drawn = await drawDiagram({
+			type: redraw ? diagramTypeOf(target?.source ?? '') : String(call.arguments.type ?? ''),
+			spec: String((redraw ? call.arguments.change : call.arguments.spec) ?? ''),
+			dark: call.arguments.dark === true,
+			...(redraw && target ? { previous: target.source } : {}),
+			model: modelRef.current,
+		})
+
+		if ('error' in drawn) {
+			finishStep(stepId, { status: 'failed', detail: drawn.error })
+			return { ok: false, message: `The drawing sub-agent failed: ${drawn.error}` }
+		}
+
+		if (redraw && target) replaceDiagramBlock(editor, target.pos, drawn.svg)
+		else insertDiagramBlock(editor, drawn.svg)
+
+		finishStep(stepId, {
+			status: 'done',
+			detail: `${drawn.title}${drawn.size ? ` · ${drawn.size.width}x${drawn.size.height}` : ''}`,
+		})
+		return { ok: true, message: diagramReceipt(drawn, redraw) }
+	}, [])
+
 	const applyAction = useCallback(
-		(call: ToolCall): ToolOutcome => {
-			const outcome = runWriteTool(call)
+		async (call: ToolCall): Promise<ToolOutcome> => {
+			const outcome = isDrawTool(call.name) ? await runDrawTool(call) : runWriteTool(call)
 			settleActions([{ call, content: outcome.message }])
 			return outcome
 		},
-		[runWriteTool, settleActions],
+		[runDrawTool, runWriteTool, settleActions],
 	)
+
 	const applyActions = useCallback(
 		(calls: ToolCall[]) => {
-			settleActions(calls.map((call) => ({ call, content: runWriteTool(call).message })))
+			/*
+			 * Berurutan, bukan berbarengan. Aksi menggambar menyisipkan blok ke
+			 * dokumen yang sama, dan dua penyisipan yang berlomba menghitung
+			 * posisinya dari keadaan yang sudah berubah.
+			 */
+			void (async () => {
+				const entries: { call: ToolCall; content: string }[] = []
+				for (const call of calls) {
+					const outcome = isDrawTool(call.name) ? await runDrawTool(call) : runWriteTool(call)
+					entries.push({ call, content: outcome.message })
+				}
+				settleActions(entries)
+			})()
 		},
-		[runWriteTool, settleActions],
+		[runDrawTool, runWriteTool, settleActions],
 	)
 	applyActionsRef.current = applyActions
 

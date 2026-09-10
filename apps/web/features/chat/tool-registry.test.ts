@@ -10,6 +10,7 @@ import {
 	skillFilePath,
 	toProviderTools,
 } from '@writer-hub/shared'
+import { isDrawTool } from './diagram-target'
 
 const executor = readFileSync(new URL('./tools.ts', import.meta.url), 'utf8')
 
@@ -392,5 +393,40 @@ describe('read_section tanpa indeks heading', () => {
 	test('deskripsinya menyebut kapan indeksnya dilewati', () => {
 		const tool = ALL_TOOLS.find((entry) => entry.name === 'read_section')
 		expect(tool?.description).toContain('no headings')
+	})
+})
+
+describe('alat menggambar', () => {
+	/*
+	 * Keduanya berjenis tulis supaya ikut kartu aksi dan auto-apply seperti alat
+	 * tulis lain - tapi keduanya TIDAK ditangani `applyWriteTool`, melainkan
+	 * dicegat lebih dulu oleh `isDrawTool` karena harus menunggu jaringan.
+	 * Kalau nama di kedua tempat berpisah, aksinya akan dijalankan sebagai alat
+	 * tulis biasa dan jatuh ke cabang "Unknown tool" tanpa satu pun galat tipe.
+	 */
+	test('dikenali sebagai alat menggambar', () => {
+		expect(isDrawTool('draw_diagram')).toBe(true)
+		expect(isDrawTool('redraw_diagram')).toBe(true)
+	})
+
+	test('alat tulis lain tidak ikut tercegat', () => {
+		expect(isDrawTool('insert_diagram')).toBe(false)
+		expect(isDrawTool('insert_mermaid')).toBe(false)
+	})
+
+	test('keduanya ada di katalog sebagai alat tulis', () => {
+		for (const name of ['draw_diagram', 'redraw_diagram']) {
+			const tool = EDITOR_TOOLS.find((entry) => entry.name === name)
+			expect(tool?.kind).toBe('write')
+		}
+	})
+
+	/*
+	 * Kalimat ini yang menahan biaya seluruh rancangan sub-agent: model yang
+	 * membaca balik markup-nya membatalkan penghematannya.
+	 */
+	test('redraw_diagram melarang membaca balik markup-nya', () => {
+		const tool = EDITOR_TOOLS.find((entry) => entry.name === 'redraw_diagram')
+		expect(tool?.description).toContain('NEVER read the diagram')
 	})
 })

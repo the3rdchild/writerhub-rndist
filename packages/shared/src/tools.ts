@@ -405,6 +405,54 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		},
 	},
 	{
+		name: 'draw_diagram',
+		kind: 'write',
+		description:
+			'Hand a diagram to the drawing sub-agent instead of drawing it yourself. Prefer this over insert_diagram whenever the diagram fits one of the listed types: the sub-agent already carries the full layout grammar, so you do not spend your own turn writing several hundred lines of coordinates, and the finished drawing never passes through this conversation. You get back a short receipt naming what it actually drew - read it, because it is the only way you will notice the sub-agent misunderstood you. Describe the diagram in plain language: the nodes, what connects to what, which one is the focal point. The sub-agent never sees the document, so anything it needs must be in your description.',
+		parameters: {
+			type: 'object',
+			properties: {
+				type: {
+					type: 'string',
+					enum: ['architecture', 'flowchart', 'timeline', 'swimlane', 'layers', 'tree'],
+					description: 'Which layout grammar fits the relationship you are showing.',
+				},
+				spec: {
+					type: 'string',
+					description:
+						"What to draw, in plain language: the nodes, the connections, the focal point, the labels. This is the sub-agent's only source.",
+				},
+				dark: {
+					type: 'boolean',
+					description:
+						'Draw in the dark palette. Only when the writer asked, or the diagram goes into a dark design.',
+				},
+			},
+			required: ['type', 'spec'],
+		},
+	},
+	{
+		name: 'redraw_diagram',
+		kind: 'write',
+		description:
+			'Change a diagram that is already in the document. NEVER read the diagram and re-send it through draw_diagram or insert_diagram: the markup goes straight from the document to the sub-agent without passing through this conversation, so a colour change costs you nothing, while reading several hundred lines of coordinates costs you the rest of your turn. Say only what should change; everything else is kept as it is.',
+		parameters: {
+			type: 'object',
+			properties: {
+				change: {
+					type: 'string',
+					description: 'What should be different, in plain language. Only the change, not the whole diagram.',
+				},
+				title: {
+					type: 'string',
+					description:
+						'Title of the diagram to change, as it appears in its receipt. Omit when the document holds only one diagram.',
+				},
+			},
+			required: ['change'],
+		},
+	},
+	{
 		name: 'apply_template_format',
 		kind: 'write',
 		description:

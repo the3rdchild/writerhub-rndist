@@ -45,12 +45,22 @@ export function ActionCard({ call, expired }: { call: ToolCall; expired?: boolea
 	const [outcome, setOutcome] = useState<{ ok: boolean; message: string } | null>(null)
 	const [confirming, setConfirming] = useState(false)
 
+	/*
+	 * Menggambar tidak selesai seketika - ia menunggu sub-agent. Selama itu
+	 * tombolnya dikunci, karena aksi yang sama yang diterapkan dua kali
+	 * menghasilkan dua diagram.
+	 */
+	const [running, setRunning] = useState(false)
+
 	const onClick = () => {
 		if (expired && !confirming && !applied) {
 			setConfirming(true)
 			return
 		}
-		setOutcome(applyAction(call))
+		setRunning(true)
+		applyAction(call)
+			.then(setOutcome)
+			.finally(() => setRunning(false))
 	}
 
 	return (
@@ -79,6 +89,7 @@ export function ActionCard({ call, expired }: { call: ToolCall; expired?: boolea
 					<button
 						type="button"
 						onClick={onClick}
+						disabled={running}
 						className={cn(
 							'flex flex-1 items-center justify-center gap-1 rounded-lg py-1.5 text-xs transition-colors',
 							expired
@@ -87,7 +98,7 @@ export function ActionCard({ call, expired }: { call: ToolCall; expired?: boolea
 						)}
 					>
 						<Check className="h-3.5 w-3.5" />
-						{expired ? (confirming ? 'Confirm?' : 'Apply') : 'Apply'}
+						{running ? 'Menggambar…' : expired ? (confirming ? 'Confirm?' : 'Apply') : 'Apply'}
 					</button>
 					<button
 						type="button"

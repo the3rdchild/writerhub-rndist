@@ -305,6 +305,48 @@ export function readToolLabel(editor: Editor, call: ToolCall): string {
 	}
 }
 
+/**
+ * Menaruh gambar dari sub-agent ke dalam dokumen.
+ *
+ * Dipisahkan dari `applyWriteTool` karena jalurnya memang berbeda: alat tulis
+ * lain selesai seketika, yang ini baru punya isi sesudah satu panggilan
+ * jaringan. Yang disimpan tetap sumbernya - blok kode berbahasa `diagram` -
+ * jadi penulis bisa menyuntingnya persis seperti diagram yang ditulis model
+ * sendiri.
+ */
+export function insertDiagramBlock(editor: Editor, svg: string): void {
+	insertChain(editor)
+		.insertContent({
+			type: 'codeBlock',
+			attrs: { language: 'diagram' },
+			content: [{ type: 'text', text: svg }],
+		})
+		.run()
+}
+
+/**
+ * Menimpa isi satu blok diagram di tempatnya.
+ *
+ * Menimpa, bukan menyisipkan yang baru: penulis yang minta satu warna diubah
+ * mengharapkan diagramnya berubah, bukan mendapat dua diagram yang hampir sama
+ * dan harus menghapus salah satunya sendiri.
+ */
+export function replaceDiagramBlock(editor: Editor, pos: number, svg: string): boolean {
+	const node = editor.state.doc.nodeAt(pos)
+	if (!node || node.type.name !== 'codeBlock') return false
+
+	const from = pos + 1
+	const to = pos + node.nodeSize - 1
+	return editor
+		.chain()
+		.focus()
+		.command(({ tr }) => {
+			tr.replaceWith(from, to, editor.schema.text(svg))
+			return true
+		})
+		.run()
+}
+
 export function summarizeToolResult(result: string): string {
 	const lines = result.split('\n')
 	const first = lines[0].slice(0, 100)
@@ -487,6 +529,10 @@ export function describeToolCall(call: ToolCall): string {
 			return 'Insert Mermaid diagram'
 		case 'insert_diagram':
 			return 'Insert editorial diagram'
+		case 'draw_diagram':
+			return `Draw ${String(call.arguments.type ?? 'diagram')} diagram`
+		case 'redraw_diagram':
+			return `Redraw diagram: ${String(call.arguments.change ?? '').slice(0, 60)}`
 		case 'insert_html_block':
 			return 'Insert HTML design block'
 		case 'convert_to_html_block':
