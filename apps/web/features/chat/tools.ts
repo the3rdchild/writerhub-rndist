@@ -1,7 +1,14 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import type { AnalysisFeature, DocumentTypography, TemplateSpec, ToolCall } from '@writer-hub/shared'
+import type {
+	AnalysisFeature,
+	DocumentTypography,
+	PageNumberFormat,
+	PageNumbering,
+	TemplateSpec,
+	ToolCall,
+} from '@writer-hub/shared'
 import type { PanelId } from '@/features/analysis/panel-context'
 import { COMMENT_MARK } from '@/features/comments/comment-mark'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
@@ -10,6 +17,12 @@ import { DEFAULT_HTML_BLOCK_ATTRS, HTML_BLOCK } from '@/features/editor/html-blo
 import { escapeNodeSelection } from '@/features/editor/insert-point'
 import { toEditorContent } from '@/features/editor/markdown'
 import { MATH_BLOCK, MATH_INLINE, stripDelimiters } from '@/features/editor/math'
+import type {
+	FurnitureSlot,
+	FurnitureVariant,
+	PageFurniture,
+	PageFurnitureLine,
+} from '@/features/editor/page-furniture/model'
 import { clampMargins, INCH, PAGE_SIZES, type PageSetup, pageGeometry } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
 import { isSectionScope, sectionRange } from '@/features/editor/section-scope'
@@ -82,6 +95,8 @@ export interface ReadToolContext {
 	comments: CommentThread[]
 	/** Template asal dokumen aktif; null untuk dokumen kosong. */
 	template: { name: string; slug: string; spec: TemplateSpec } | null
+	/** Header/footer tab aktif sebagai baris teks; null bila tab tanpa perabot. */
+	furniture: PageFurniture | null
 }
 
 export function runReadTool(context: ReadToolContext, call: ToolCall): string {
@@ -179,6 +194,8 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 				`Margins (cm): top ${cm(setup.margins.top)}, bottom ${cm(setup.margins.bottom)}, left ${cm(setup.margins.left)}, right ${cm(setup.margins.right)}`,
 				'insert_html_block with fit "page" fills the whole sheet, bleeding past the margins.',
 				`Page color: ${setup.pageColor ?? 'theme default'}`,
+				furnitureSummary(context.furniture),
+				numberingSummary(setup.pageNumbering),
 			].join('\n')
 		}
 
@@ -296,6 +313,40 @@ export function pageSummary(setup: PageSetup): string {
 	return `${label} ${setup.orientation}; sheet ${sheet}, content box ${content} (96dpi)`
 }
 
+const FURNITURE_VARIANT_LABEL: Record<FurnitureVariant, string> = {
+	default: 'every other page',
+	first: 'first page',
+	even: 'even pages',
+}
+
+/**
+ * Header/footer tab aktif dalam beberapa baris, untuk model.
+ *
+ * Hanya baris teksnya - isi kaya (gambar, format) diringkas jadi teksnya juga
+ * lewat `pageFurniture`, yang memang dijaga tetap sinkron oleh penyuntingnya.
+ */
+function furnitureSummary(furniture: PageFurniture | null): string {
+	const lines: string[] = []
+	for (const slot of ['header', 'footer'] as FurnitureSlot[]) {
+		for (const variant of ['default', 'first', 'even'] as FurnitureVariant[]) {
+			const line = furniture?.[slot]?.[variant]
+			if (!line) continue
+			lines.push(`${slot} (${FURNITURE_VARIANT_LABEL[variant]}, ${line.align}): ${line.text}`)
+		}
+	}
+	return lines.length === 0
+		? 'Header/footer: none - set_header_footer writes one, with {page} for the page number.'
+		: `Header/footer:\n${lines.map((line) => `- ${line}`).join('\n')}`
+}
+
+function numberingSummary(numbering: PageNumbering | undefined): string {
+	const rule = numbering ?? { format: 'decimal' as PageNumberFormat, restart: 'continue' as const }
+	const restart =
+		typeof rule.restart === 'number' ? `starts at ${rule.restart}` : 'continues from the section before'
+	const shown = rule.show === false ? 'hidden' : 'shown where a {page} token appears'
+	return `Page numbering (first section): ${rule.format}, ${restart}, ${shown}. Later sections may differ; set_page_numbering changes it.`
+}
+
 export interface WriteToolContext {
 	editor: Editor
 	addComment: (thread: CommentThread) => void
@@ -318,6 +369,19 @@ export interface WriteToolContext {
 	renameDocument: (title: string) => ToolOutcome
 	/** Mengganti label satu tab; `tabId` kosong berarti tab yang sedang dibuka. */
 	renameTab: (tabId: string | undefined, title: string) => ToolOutcome
+	/**
+	 * Menulis satu baris header/footer tab aktif; `line` null menghapusnya.
+	 *
+	 * Isinya hidup di ydoc, bukan di dokumen editor - itulah kenapa ia lewat
+	 * konteks alih-alih lewat `editor` seperti alat tulis lainnya.
+	 */
+	setFurnitureLine: (
+		slot: FurnitureSlot,
+		variant: FurnitureVariant,
+		line: PageFurnitureLine | null,
+	) => ToolOutcome
+	/** Halaman pertama memakai perabotnya sendiri (kosong) - sampul tanpa nomor. */
+	setFirstPageSeparate: (separate: boolean) => ToolOutcome
 }
 
 export interface ToolOutcome {
@@ -356,6 +420,28 @@ export function describeToolCall(call: ToolCall): string {
 						? ' from here on'
 						: ''
 			return `Set page layout${where}${parts.length > 0 ? ` - ${parts.join(', ')}` : ''}`
+		}
+		case 'set_header_footer': {
+			const slot = call.arguments.slot === 'footer' ? 'footer' : 'header'
+			const text = String(call.arguments.text ?? '').trim()
+			const variant = String(call.arguments.variant ?? 'default')
+			const where = variant === 'first' ? ' (first page)' : variant === 'even' ? ' (even pages)' : ''
+			return text ? `Set ${slot}${where} - “${text.slice(0, 40)}”` : `Clear the ${slot}${where}`
+		}
+		case 'set_page_numbering': {
+			const parts = [
+				call.arguments.format ? String(call.arguments.format) : null,
+				typeof call.arguments.start_at === 'number' ? `start at ${call.arguments.start_at}` : null,
+				call.arguments.show === false ? 'hidden' : null,
+				call.arguments.show_on_first_page === false ? 'not on the first page' : null,
+			].filter(Boolean)
+			const where =
+				call.arguments.scope === 'this_page'
+					? ' for this page'
+					: call.arguments.scope === 'from_here'
+						? ' from here on'
+						: ''
+			return `Set page numbering${where}${parts.length > 0 ? ` - ${parts.join(', ')}` : ''}`
 		}
 		case 'insert_section_break': {
 			const parts = [
@@ -517,6 +603,14 @@ function columnsFromArgs(count: number, gapCm: unknown): { count: number; gap?: 
 	return Number.isFinite(gap) && gap > 0 ? { count, gap: cmToPx(gap) } : { count }
 }
 
+const PAGE_NUMBER_FORMATS: readonly string[] = [
+	'decimal',
+	'lower-roman',
+	'upper-roman',
+	'lower-alpha',
+	'upper-alpha',
+]
+
 const ANALYSIS_MODULES: readonly string[] = ['ai_detector', 'ai_rewriter', 'humanizer', 'plagiarism']
 
 const SELECTION_NEUTRAL_TOOLS: readonly string[] = [
@@ -645,6 +739,74 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const scope = args.scope === 'tab' ? 'tab' : 'document'
 			context.setPageSetup(next, scope)
 			return { ok: true, message: scope === 'tab' ? 'Tab layout updated.' : 'Document layout updated.' }
+		}
+
+		case 'set_header_footer': {
+			const args = call.arguments
+			if (args.slot !== 'header' && args.slot !== 'footer') {
+				return { ok: false, message: 'slot must be "header" or "footer".' }
+			}
+			const slot: FurnitureSlot = args.slot
+			const variant: FurnitureVariant =
+				args.variant === 'first' || args.variant === 'even' ? args.variant : 'default'
+			const align: PageFurnitureLine['align'] =
+				args.align === 'center' || args.align === 'right' ? args.align : 'left'
+			const text = String(args.text ?? '').trim()
+
+			return context.setFurnitureLine(slot, variant, text ? { text, align } : null)
+		}
+
+		case 'set_page_numbering': {
+			const args = call.arguments
+
+			/* Sampul tanpa nomor adalah sumbunya sendiri: ia berlaku untuk tab utuh
+			 * dan tidak menyentuh deret angkanya, jadi diterapkan lebih dulu dan
+			 * boleh berdiri sendiri tanpa argumen penomoran lain. */
+			let firstPage = ''
+			if (typeof args.show_on_first_page === 'boolean') {
+				const outcome = context.setFirstPageSeparate(args.show_on_first_page === false)
+				if (!outcome.ok) return outcome
+				firstPage =
+					args.show_on_first_page === false
+						? ' The first page now has its own empty header/footer, so it carries no number.'
+						: ' The first page follows the same header/footer as the rest.'
+			}
+
+			const base = context.setup.pageNumbering ?? {
+				format: 'decimal' as PageNumberFormat,
+				restart: 'continue',
+			}
+			const startAt = Number(args.start_at)
+			const next: PageNumbering = {
+				format: PAGE_NUMBER_FORMATS.includes(String(args.format))
+					? (args.format as PageNumberFormat)
+					: base.format,
+				restart:
+					args.continue_numbering === true
+						? 'continue'
+						: Number.isFinite(startAt) && args.start_at !== undefined
+							? Math.max(0, Math.floor(startAt))
+							: base.restart,
+				show: typeof args.show === 'boolean' ? args.show : base.show !== false,
+			}
+
+			if (isSectionScope(args.scope)) {
+				const range = sectionRange(editor, args.scope)
+				if (!range) {
+					return { ok: false, message: 'Could not tell which page that is; the document has no pages yet.' }
+				}
+				editor.chain().focus().applySectionSetup({ pageNumbering: next }, range, context.setup).run()
+				return {
+					ok: true,
+					message:
+						(args.scope === 'this_page'
+							? 'Page numbering changed for this page only.'
+							: 'Page numbering changed from here onwards.') + firstPage,
+				}
+			}
+
+			context.setPageSetup({ ...context.setup, pageNumbering: next }, 'tab')
+			return { ok: true, message: `Page numbering updated for this tab.${firstPage}` }
 		}
 
 		case 'insert_section_break': {

@@ -20,6 +20,20 @@ import { useDocumentLanguage } from '@/features/document/use-language'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { buildEditorExtensions } from '@/features/editor/extensions'
 import { toEditorContent } from '@/features/editor/markdown'
+import { lineToJSON } from '@/features/editor/page-furniture/furniture-schema'
+import type {
+	FurnitureSlot,
+	FurnitureVariant,
+	PageFurnitureLine,
+} from '@/features/editor/page-furniture/model'
+import {
+	readPageFurniture,
+	removeFurnitureFragments,
+	setFurnitureFragment,
+	setFurnitureVariantEnabled,
+	setPageFurnitureForTab,
+} from '@/features/editor/page-furniture/page-furniture-ydoc'
+import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
 import { paginationKey } from '@/features/editor/pagination'
 import { editorPlainText } from '@/features/editor/text-content'
 import { usePageSetup } from '@/features/editor/use-page-setup'
@@ -215,6 +229,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const { doc, activeDocId, activeId, sessions, comments, addComment, renameDocument, renameSession } =
 		useSessions()
 	const { setup, setPageSetup } = usePageSetup()
+	const { furniture } = usePageFurniture()
 	const language = useDocumentLanguage()
 	const [messages, setMessages] = useState<ChatTurn[]>([])
 	const [streaming, setStreaming] = useState<string | null>(null)
@@ -277,6 +292,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		setup,
 		setPageSetup,
 		setTypography,
+		furniture,
 		doc,
 		activeDocId,
 		activeId,
@@ -289,6 +305,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		setup,
 		setPageSetup,
 		setTypography,
+		furniture,
 		doc,
 		activeDocId,
 		activeId,
@@ -456,6 +473,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			},
 			comments: app.comments,
 			template: template ? { name: template.name, slug: template.slug, spec: template.spec } : null,
+			furniture: app.furniture,
 		}
 	}
 	const createTabWithContent = (title: string | undefined, markdown: string | undefined) => {
@@ -489,6 +507,48 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		app.renameSession(target, title)
 		return { ok: true, message: `Tab renamed to "${title}".` }
 	}
+	/*
+	 * Header/footer hidup di meta ydoc tab, bukan di dokumen editor - jadi
+	 * penulisannya lewat konteks alat, bukan lewat `editor`. Fragmen kaya
+	 * ditulis SEKALIGUS dengan baris lawasnya, persis seperti penyunting
+	 * perabot: fragmen yang menang di layar, baris yang dibaca ekspor lawas
+	 * dan sinkronisasi API.
+	 */
+	const setFurnitureLine = (
+		slot: FurnitureSlot,
+		variant: FurnitureVariant,
+		line: PageFurnitureLine | null,
+	): ToolOutcome => {
+		const app = appRef.current
+		const tabId = app.activeId
+		if (!tabId) return { ok: false, message: 'No tab is open.' }
+
+		if (line) {
+			setFurnitureFragment(app.doc, tabId, { slot, variant }, { type: 'doc', content: [lineToJSON(line)] })
+		} else {
+			removeFurnitureFragments(app.doc, tabId, [{ slot, variant }])
+		}
+
+		const raw = readPageFurniture(app.doc, tabId)
+		const slotLines = { ...(raw?.[slot] ?? {}) }
+		if (line) slotLines[variant] = line
+		else delete slotLines[variant]
+		setPageFurnitureForTab(app.doc, tabId, { ...(raw ?? {}), [slot]: slotLines })
+
+		const where = variant === 'first' ? ' for the first page' : variant === 'even' ? ' for even pages' : ''
+		return line
+			? { ok: true, message: `${slot === 'header' ? 'Header' : 'Footer'} set${where}.` }
+			: { ok: true, message: `${slot === 'header' ? 'Header' : 'Footer'} cleared${where}.` }
+	}
+
+	const setFirstPageSeparate = (separate: boolean): ToolOutcome => {
+		const app = appRef.current
+		const tabId = app.activeId
+		if (!tabId) return { ok: false, message: 'No tab is open.' }
+		setFurnitureVariantEnabled(app.doc, tabId, 'first', separate, app.furniture)
+		return { ok: true, message: 'First page updated.' }
+	}
+
 	const runTurn = useCallback(
 		async (
 			history: ChatTurn[],
@@ -783,6 +843,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					createTab: createTabWithContent,
 					renameDocument: renameActiveDocument,
 					renameTab: renameTabById,
+					setFurnitureLine,
+					setFirstPageSeparate,
 				},
 				call,
 			)

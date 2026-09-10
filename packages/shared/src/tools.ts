@@ -68,7 +68,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'get_page_setup',
 		kind: 'read',
 		description:
-			'Get the page layout in effect: paper size, orientation, margins, page color and pageless mode.',
+			'Get the page layout in effect: paper size, orientation, margins, page color and pageless mode, plus the header/footer lines of the active tab and how its pages are numbered.',
 		parameters: { type: 'object', properties: {} },
 	},
 	{
@@ -264,6 +264,70 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 					enum: ['document', 'tab', 'from_here', 'this_page'],
 					description:
 						'Defaults to document. "from_here" applies from the cursor to the end; "this_page" only to the page the cursor is on, restoring the previous layout afterwards.',
+				},
+			},
+		},
+	},
+	{
+		name: 'set_header_footer',
+		kind: 'write',
+		description:
+			'Write the header or footer of the active tab - the line that repeats in the top or bottom margin of every sheet. This is ALSO how page numbers are placed: put the token {page} where the number belongs, and {pages} for the total, e.g. "Page {page} of {pages}". The tokens become the real, section-aware numbers on every sheet, so NEVER type a page number into the body of the document and never answer that headers, footers or page numbering are outside your tools. Set the digits\' format or starting number with set_page_numbering. variant "first" is the header/footer of the first page only (a cover), "even" the one for even-numbered pages (mirrored book layouts); leave it out for the ordinary one. Passing no text - or an empty one - clears that header/footer.',
+		parameters: {
+			type: 'object',
+			properties: {
+				slot: { type: 'string', enum: ['header', 'footer'] },
+				text: {
+					type: 'string',
+					description:
+						'Plain text of the line. Use {page} for the page number and {pages} for the total. Empty clears it.',
+				},
+				align: { type: 'string', enum: ['left', 'center', 'right'], description: 'Defaults to left.' },
+				variant: {
+					type: 'string',
+					enum: ['default', 'first', 'even'],
+					description:
+						'Which sheets this line belongs to. Defaults to "default" - every sheet without a more specific variant.',
+				},
+			},
+			required: ['slot'],
+		},
+	},
+	{
+		name: 'set_page_numbering',
+		kind: 'write',
+		description:
+			'Change how page numbers are counted and drawn: their format (1/i/I/a/A), where the count restarts, and whether they are shown at all. It only rules the digits - the number appears on the sheet through the {page} token of a header or footer, so call set_header_footer too when the document has none yet. Scope "tab" rules the whole tab; "from_here" and "this_page" insert section breaks so one part can run i, ii, iii while the rest runs 1, 2, 3 - that is how Indonesian academic front matter is numbered. To leave the cover unnumbered use show_on_first_page false, which gives the first page its own empty header/footer.',
+		parameters: {
+			type: 'object',
+			properties: {
+				format: {
+					type: 'string',
+					enum: ['decimal', 'lower-roman', 'upper-roman', 'lower-alpha', 'upper-alpha'],
+				},
+				start_at: {
+					type: 'number',
+					description: 'Restart the count at this number in this scope. Omit to keep counting from before.',
+				},
+				continue_numbering: {
+					type: 'boolean',
+					description: 'True to continue from the previous section instead of restarting.',
+				},
+				show: {
+					type: 'boolean',
+					description:
+						'False hides the numbers in this scope. The pages are still counted, exactly like Word.',
+				},
+				show_on_first_page: {
+					type: 'boolean',
+					description:
+						'False gives the first page its own empty header/footer, so a cover carries no number. Always applies to the whole tab.',
+				},
+				scope: {
+					type: 'string',
+					enum: ['tab', 'from_here', 'this_page'],
+					description:
+						'Defaults to tab. "from_here" applies from the cursor to the end; "this_page" only to the page the cursor is on.',
 				},
 			},
 		},

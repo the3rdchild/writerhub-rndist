@@ -237,6 +237,53 @@ describe('insert_html_block', () => {
 	})
 })
 
+describe('alat header/footer & penomoran halaman', () => {
+	/*
+	 * Alasan alat ini ada: tanpanya model menjawab bahwa header, footer dan
+	 * nomor halaman "tidak tercakup alat yang tersedia" - padahal fiturnya ada
+	 * di editor, tinggal tidak terjangkau dari chat. Deskripsi inilah
+	 * satu-satunya yang dibaca model, jadi jalan yang benar harus tertulis di
+	 * sana: token {page} di dalam header/footer, bukan angka yang diketik.
+	 */
+	const furniture = EDITOR_TOOLS.find((item) => item.name === 'set_header_footer')
+	const numbering = EDITOR_TOOLS.find((item) => item.name === 'set_page_numbering')
+
+	test('keduanya alat tulis', () => {
+		expect(furniture?.kind).toBe('write')
+		expect(numbering?.kind).toBe('write')
+		expect(isReadTool('set_header_footer')).toBe(false)
+		expect(isReadTool('set_page_numbering')).toBe(false)
+	})
+
+	test('set_header_footer menutup jawaban "tidak bisa"', () => {
+		expect(furniture?.description).toContain('{page}')
+		expect(furniture?.description).toContain('{pages}')
+		expect(furniture?.description).toContain('NEVER type a page number')
+		expect(furniture?.parameters.required).toEqual(['slot'])
+	})
+
+	test('varian halaman pertama & genap tersedia', () => {
+		const variant = furniture?.parameters.properties.variant as { enum?: string[] } | undefined
+		expect(variant?.enum).toEqual(expect.arrayContaining(['default', 'first', 'even']))
+	})
+
+	test('penomoran memakai kosakata cakupan yang sama dengan alat tata letak', () => {
+		const scope = numbering?.parameters.properties.scope as { enum?: string[] } | undefined
+		expect(scope?.enum).toEqual(expect.arrayContaining(['tab', 'from_here', 'this_page']))
+	})
+
+	test('penomoran menyebut pasangannya - angka tanpa wadah tidak tampil', () => {
+		expect(numbering?.description).toContain('set_header_footer')
+		expect(numbering?.parameters.required ?? []).toHaveLength(0)
+	})
+
+	test('get_page_setup melaporkan perabot dan penomorannya', () => {
+		const read = EDITOR_TOOLS.find((item) => item.name === 'get_page_setup')
+		expect(read?.description).toContain('header/footer')
+		expect(read?.description).toContain('numbered')
+	})
+})
+
 /*
  * Alat yang dideklarasikan tapi tidak punya cabang pelaksana gagal diam-diam:
  * model memanggilnya, `switch` jatuh ke default, dan yang terlihat pengguna
