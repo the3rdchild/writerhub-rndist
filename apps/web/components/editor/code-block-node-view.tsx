@@ -216,7 +216,11 @@ export function CodeBlockNodeView({ node, updateAttributes, selected, editor, de
 			</div>
 
 			{showPreview ? (
-				<div className="code-block-visual-preview" contentEditable={false}>
+				<div
+					className="code-block-visual-preview"
+					data-visual={isDiagram ? 'diagram' : 'mermaid'}
+					contentEditable={false}
+				>
 					{visualError ? (
 						<pre className="code-block-visual-error">{visualError}</pre>
 					) : visualSvg ? (
@@ -251,7 +255,12 @@ export function CodeBlockNodeView({ node, updateAttributes, selected, editor, de
 			 * ke DOM, tidak ada yang bisa dimunculkan `@media print`.
 			 */}
 			{isVisual && !showPreview && visualSvg && (
-				<div className="code-block-visual-print" contentEditable={false} aria-hidden="true">
+				<div
+					className="code-block-visual-print"
+					data-visual={isDiagram ? 'diagram' : 'mermaid'}
+					contentEditable={false}
+					aria-hidden="true"
+				>
 					{/* biome-ignore lint/security/noDangerouslySetInnerHtml: Mermaid securityLevel 'strict', atau sudah lewat sanitizeDiagramSvg */}
 					<div dangerouslySetInnerHTML={{ __html: visualSvg }} />
 				</div>

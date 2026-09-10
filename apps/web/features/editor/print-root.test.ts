@@ -125,6 +125,16 @@ describe('blok kode di kertas', () => {
 		expect(css).toContain('.document-body .code-block-toolbar,')
 	})
 
+	/*
+	 * Diagram editorial dilucuti ukurannya oleh `diagram-svg.ts`, jadi kalau
+	 * aturan ini hilang ia menyusut ke ukuran cadangan SVG - kecil di layar,
+	 * dan kecil di kertas, tanpa satu pun pesan yang menjelaskan kenapa.
+	 */
+	test('diagram editorial mendapat lebarnya dari CSS, bukan dari atribut', () => {
+		expect(css).toContain(".code-block-visual-preview[data-visual='diagram'] svg")
+		expect(css).toContain(".code-block-visual-print[data-visual='diagram'] svg")
+	})
+
 	test('diagram tercetak sebagai gambar, bukan sumbernya', () => {
 		expect(css).toContain('.code-block:has(.code-block-visual-print) .code-block-pre')
 		expect(css).toContain('.document-body .code-block-visual-print {\n    display: block !important;')

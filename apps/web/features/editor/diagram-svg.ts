@@ -66,6 +66,24 @@ export function sanitizeDiagramSvg(source: string): DiagramSanitizeResult {
 	if (!root.getAttribute('viewBox')) return { error: MISSING_VIEWBOX }
 
 	stripDisallowed(root)
+
+	/*
+	 * Ukuran akar dilucuti, `viewBox` dibiarkan.
+	 *
+	 * Model gemar menulis `width="100%"` di elemen akar. Digabung dengan
+	 * `max-width` di CSS pratinjau, lebar persen di dalam wadah yang menyusut
+	 * ke isinya jadi melingkar dan gambarnya runtuh ke nol piksel - petak
+	 * kosong yang tidak memberi satu pun petunjuk bahwa SVG-nya sebenarnya
+	 * baik-baik saja. Kegagalan yang sama sudah dicatat untuk Mermaid di
+	 * `html-raster.ts`; ini menariknya ke jalur layar.
+	 *
+	 * Sesudah dilucuti, ukurannya sepenuhnya ditentukan CSS di satu tempat -
+	 * dan `viewBox` tetap jadi satu-satunya sumber rasio, persis seperti yang
+	 * dibaca `svgSize` saat mengekspor. Anak-anaknya tidak disentuh: `width`
+	 * pada `<rect>` memang bagian dari gambarnya.
+	 */
+	root.removeAttribute('width')
+	root.removeAttribute('height')
 	if (!root.getAttribute('xmlns')) root.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
 
 	return { svg: new XMLSerializer().serializeToString(root) }

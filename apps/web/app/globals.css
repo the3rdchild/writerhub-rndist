@@ -1407,6 +1407,13 @@ a {
   max-width: 100%;
   height: auto;
 }
+/* Diagram editorial tidak membawa ukuran sendiri (`diagram-svg.ts` melucutinya),
+   jadi lebarnya ditentukan di sini dan tingginya menyusul dari viewBox. Mermaid
+   sengaja tidak ikut: ia menulis max-width sebarisnya sendiri. */
+.document-body .code-block-visual-preview[data-visual='diagram'] svg,
+.document-body .code-block-visual-print[data-visual='diagram'] svg {
+  width: 100%;
+}
 .document-body .code-block-visual-error {
   color: #ef4444;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
