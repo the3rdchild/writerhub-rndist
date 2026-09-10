@@ -10,6 +10,7 @@ const lowlightInstance = createLowlight(common)
 export const CODE_LANGUAGES: Array<{ value: string; label: string }> = [
 	{ value: 'plaintext', label: 'Teks polos' },
 	{ value: 'mermaid', label: 'Diagram Mermaid' },
+	{ value: 'diagram', label: 'Diagram Editorial' },
 	{ value: 'javascript', label: 'JavaScript' },
 	{ value: 'typescript', label: 'TypeScript' },
 	{ value: 'python', label: 'Python' },

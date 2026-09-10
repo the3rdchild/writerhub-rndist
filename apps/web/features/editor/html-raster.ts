@@ -128,12 +128,26 @@ export function svgSize(svg: string): { width: number; height: number } | null {
 }
 
 /**
- * Memotret SVG yang sudah jadi - keluaran Mermaid - menjadi PNG.
+ * Memotret SVG yang sudah jadi - keluaran Mermaid atau diagram editorial -
+ * menjadi PNG.
  *
  * Ukurannya dipaksa ke atribut piksel dulu. `<img>` menggambar SVG memakai
  * ukuran hakikinya, dan Mermaid justru menuliskan `width="100%"` plus
  * `max-width` sebaris: dibiarkan apa adanya, diagramnya mendarat di kanvas
  * dengan ukuran cadangan 300x150 dan hasilnya pecah.
+ *
+ * ## Kenapa fontnya disematkan di sini
+ *
+ * Dokumen SVG yang dimuat lewat `data:` ke dalam `<img>` **tidak memuat apa pun
+ * dari URL**, termasuk font - persis seperti pemotret HTML di atas. Tanpa
+ * penyematan ini, `font-family` di dalam SVG jatuh ke font sistem, dan
+ * diagramnya benar di layar tetapi salah di PNG, DOCX, dan PDF. Kegagalannya
+ * tidak meninggalkan jejak selain "fontnya kok beda".
+ *
+ * `<style>` yang disisipkan aman di sini walau dilarang di
+ * `diagram-svg.ts`: yang di sana hidup di aliran dokumen dan aturannya bocor ke
+ * seluruh halaman, sedangkan yang ini hidup di dokumen SVG tersendiri yang
+ * hanya berumur satu potretan.
  */
 export async function rasterizeSvg(
 	svg: string,
@@ -148,6 +162,13 @@ export async function rasterizeSvg(
 	root.setAttribute('height', String(size.height))
 	root.setAttribute('style', `width:${size.width}px;height:${size.height}px`)
 	if (!root.getAttribute('xmlns')) root.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+
+	const fontCss = await fontFaceCss(svg)
+	if (fontCss) {
+		const style = root.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'style')
+		style.textContent = fontCss
+		root.insertBefore(style, root.firstChild)
+	}
 
 	const png = await pngFromSvg(new XMLSerializer().serializeToString(root), size.width, size.height)
 	return png ? { png, ...size } : null

@@ -125,9 +125,9 @@ describe('blok kode di kertas', () => {
 		expect(css).toContain('.document-body .code-block-toolbar,')
 	})
 
-	test('Mermaid tercetak sebagai diagram, bukan sumbernya', () => {
-		expect(css).toContain('.code-block:has(.code-block-mermaid-print) .code-block-pre')
-		expect(css).toContain('.document-body .code-block-mermaid-print {\n    display: block !important;')
+	test('diagram tercetak sebagai gambar, bukan sumbernya', () => {
+		expect(css).toContain('.code-block:has(.code-block-visual-print) .code-block-pre')
+		expect(css).toContain('.document-body .code-block-visual-print {\n    display: block !important;')
 	})
 })
 
