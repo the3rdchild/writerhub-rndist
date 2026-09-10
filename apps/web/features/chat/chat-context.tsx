@@ -77,10 +77,57 @@ export interface ChatStep {
 	sources?: ResearchSource[]
 }
 
+/**
+ * Satu giliran sebagai **aliran terurut**, bukan dua tumpukan terpisah.
+ *
+ * Sebelumnya giliran disimpan sebagai satu blob teks plus satu daftar langkah,
+ * dan panel selalu menggambar daftarnya di atas teksnya. Model yang bicara lalu
+ * memakai alat lalu bicara lagi tidak punya tempat untuk ucapan pertamanya:
+ * kedua ucapan disambung jadi satu, dan seluruh langkah menumpuk di bawahnya.
+ * Yang penulis lihat adalah pesannya "berpindah" - padahal ia memang tidak
+ * pernah punya posisi.
+ *
+ * Aturan pembentuknya satu kalimat: **teks memisahkan kelompok.** Model bicara,
+ * kelompok langkah ditutup; ia bekerja lagi, kelompok baru dibuka.
+ */
+export type TurnPart = { kind: 'text'; text: string } | { kind: 'steps'; steps: ChatStep[] }
+
+/** Semua langkah giliran ini, tanpa peduli di kelompok mana ia jatuh. */
+export function flatSteps(parts: TurnPart[]): ChatStep[] {
+	return parts.flatMap((part) => (part.kind === 'steps' ? part.steps : []))
+}
+
+function mapSteps(parts: TurnPart[], fn: (step: ChatStep) => ChatStep): TurnPart[] {
+	return parts.map((part) => (part.kind === 'steps' ? { kind: 'steps', steps: part.steps.map(fn) } : part))
+}
+
+/**
+ * Membersihkan bagian teks sebelum giliran disimpan.
+ *
+ * Selama mengalir, teksnya ditampilkan mentah - termasuk panggilan alat
+ * cadangan yang ditulis model sebagai teks biasa. Yang tersimpan tidak boleh
+ * begitu, dan bagian teks yang habis dibersihkan tidak boleh menyisakan
+ * gelembung kosong di antara dua kelompok langkah.
+ */
+function visibleParts(parts: TurnPart[] | undefined): TurnPart[] | undefined {
+	if (!parts) return undefined
+	const cleaned = parts
+		.map((part) =>
+			part.kind === 'text' ? { kind: 'text' as const, text: stripFallbackCalls(part.text) } : part,
+		)
+		.filter((part) => part.kind !== 'text' || part.text.trim().length > 0)
+	return cleaned.length > 0 ? cleaned : undefined
+}
+
 export interface ChatTurn extends ChatMessage {
 	actions?: ToolCall[]
 	taskId?: string
-	steps?: ChatStep[]
+	/**
+	 * Bagian giliran ini sesuai urutan datangnya. `content` tetap ada dan tetap
+	 * memuat seluruh teksnya - ia yang dikirim ke provider; `parts` hanya
+	 * mengatur bagaimana giliran itu digambar.
+	 */
+	parts?: TurnPart[]
 	usage?: ChatUsage
 	intermediate?: boolean
 }
@@ -117,7 +164,7 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 			const {
 				actions: _actions,
 				taskId: _taskId,
-				steps: _steps,
+				parts: _parts,
 				usage: _usage,
 				intermediate: _intermediate,
 				...message
@@ -187,7 +234,7 @@ export interface ChatError {
 interface ChatContextValue {
 	messages: ChatTurn[]
 	streaming: string | null
-	steps: ChatStep[]
+	parts: TurnPart[]
 	isRunning: boolean
 	error: ChatError | null
 	/** Melanjutkan giliran terakhir dari langkah yang sudah tersimpan. */
@@ -268,8 +315,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		taskId: undefined,
 		count: 0,
 	})
-	const [steps, setSteps] = useState<ChatStep[]>([])
-	const stepsRef = useRef<ChatStep[]>([])
+	const [parts, setParts] = useState<TurnPart[]>([])
+	const partsRef = useRef<TurnPart[]>([])
 
 	const abortRef = useRef<AbortController | null>(null)
 	const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -386,40 +433,64 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		setStreaming(null)
 	}, [])
 
-	const setStepsBoth = (next: ChatStep[]) => {
-		stepsRef.current = next
-		setSteps(next)
+	const setPartsBoth = (next: TurnPart[]) => {
+		partsRef.current = next
+		setParts(next)
 	}
 
-	const closeRunning = (status: 'done' | 'failed' | 'cancelled', list: ChatStep[]): ChatStep[] =>
-		list.map((step) => (step.status === 'running' ? { ...step, status, endedAt: Date.now() } : step))
+	const closeRunning = (status: 'done' | 'failed' | 'cancelled', parts: TurnPart[]): TurnPart[] =>
+		mapSteps(parts, (step) => (step.status === 'running' ? { ...step, status, endedAt: Date.now() } : step))
+
+	/**
+	 * Membuka kelompok baru kalau bagian terakhir adalah teks, menyambung kalau
+	 * bukan. Satu-satunya tempat aturan "teks memisahkan kelompok" itu hidup.
+	 */
 	const pushStep = (label: string, detail?: string): string => {
 		const now = Date.now()
-		const id = `step_${now.toString(36)}_${stepsRef.current.length}`
-		setStepsBoth([
-			...closeRunning('done', stepsRef.current),
-			{ id, label, status: 'running', startedAt: now, detail },
-		])
+		const closed = closeRunning('done', partsRef.current)
+		const id = `step_${now.toString(36)}_${flatSteps(closed).length}`
+		const step: ChatStep = { id, label, status: 'running', startedAt: now, detail }
+		const last = closed[closed.length - 1]
+		setPartsBoth(
+			last?.kind === 'steps'
+				? [...closed.slice(0, -1), { kind: 'steps', steps: [...last.steps, step] }]
+				: [...closed, { kind: 'steps', steps: [step] }],
+		)
 		return id
 	}
-	const patchRunningStep = (patch: Partial<ChatStep>) => {
-		setStepsBoth(
-			stepsRef.current.map((step, index) =>
-				index === stepsRef.current.length - 1 && step.status === 'running' ? { ...step, ...patch } : step,
-			),
+
+	/**
+	 * Teks yang datang disambung ke bagian teks terakhir, atau membuka bagian
+	 * teks baru kalau sebelumnya kelompok langkah. Itu yang menutup kelompok.
+	 */
+	const appendText = (delta: string) => {
+		const parts = partsRef.current
+		const last = parts[parts.length - 1]
+		setPartsBoth(
+			last?.kind === 'text'
+				? [...parts.slice(0, -1), { kind: 'text', text: last.text + delta }]
+				: [...parts, { kind: 'text', text: delta }],
 		)
 	}
-	const finishSteps = (): ChatStep[] | undefined => {
-		const closed = closeRunning('done', stepsRef.current)
-		setStepsBoth(closed)
+
+	const patchRunningStep = (patch: Partial<ChatStep>) => {
+		const all = flatSteps(partsRef.current)
+		const last = all[all.length - 1]
+		if (last?.status !== 'running') return
+		setPartsBoth(mapSteps(partsRef.current, (step) => (step.id === last.id ? { ...step, ...patch } : step)))
+	}
+
+	const finishParts = (): TurnPart[] | undefined => {
+		const closed = closeRunning('done', partsRef.current)
+		setPartsBoth(closed)
 		return closed.length > 0 ? closed : undefined
 	}
 	const planRef = useRef<{ stepId: string; next: number } | null>(null)
 
 	const recordPlan = (items: string[]) => {
 		const stepId = pushStep(`Rencana ${items.length} langkah`)
-		setStepsBoth(
-			stepsRef.current.map((step) =>
+		setPartsBoth(
+			mapSteps(partsRef.current, (step) =>
 				step.id === stepId
 					? {
 							...step,
@@ -436,8 +507,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const advancePlan = () => {
 		const plan = planRef.current
 		if (!plan) return
-		setStepsBoth(
-			stepsRef.current.map((step) =>
+		setPartsBoth(
+			mapSteps(partsRef.current, (step) =>
 				step.id === plan.stepId && step.checklist
 					? {
 							...step,
@@ -578,6 +649,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						onDelta: (delta) => {
 							answer += delta
 							setStreaming(answer)
+							appendText(delta)
 						},
 						onToolCall: (call) => calls.push(call),
 						onToolsUnsupported: () => {
@@ -596,8 +668,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				)
 			} catch (cause) {
 				if (controller.signal.aborted) {
-					const cancelled = closeRunning('cancelled', stepsRef.current)
-					setStepsBoth(cancelled)
+					const cancelled = closeRunning('cancelled', partsRef.current)
+					setPartsBoth(cancelled)
 					const partial = stripFallbackCalls(answer)
 					if (partial || cancelled.length > 0) {
 						commit([
@@ -606,13 +678,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 								role: 'assistant',
 								content: partial,
 								taskId,
-								steps: cancelled.length > 0 ? cancelled : undefined,
+								parts: cancelled.length > 0 ? visibleParts(cancelled) : undefined,
 								usage,
 							},
 						])
 					}
 				} else {
-					setStepsBoth(closeRunning('failed', stepsRef.current))
+					setPartsBoth(closeRunning('failed', partsRef.current))
 				}
 				throw cause
 			}
@@ -651,7 +723,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						detail: 'Model masih meminta bacaan setelah anggaran habis; permintaannya tidak dijalankan.',
 					})
 				}
-				const finalTurn: ChatTurn = { ...assistant, steps: finishSteps(), usage }
+				const finalTurn: ChatTurn = { ...assistant, parts: visibleParts(finishParts()), usage }
 				commit([...history, finalTurn])
 				if (writes.length > 0 && autoApplyRef.current) pendingAutoApplyRef.current = writes
 				return
@@ -727,8 +799,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					detail: `${round} putaran · ${readsUsed + reads.length} alat baca. Model diminta menjawab dengan bahan yang ada.`,
 				})
 			}
-			const step: ChatTurn = { ...assistant, intermediate: !visible && writes.length === 0 }
+			/*
+			 * Langkah putaran ini ikut ke giliran putaran ini, bukan menumpuk ke
+			 * satu daftar milik giliran terakhir. Justru inilah yang membuat
+			 * urutannya benar: `messages` sudah terurut, jadi begitu tiap putaran
+			 * membawa langkahnya sendiri, teks dan kerja terbaca bergantian.
+			 */
+			const roundParts = visibleParts(finishParts())
+			const step: ChatTurn = {
+				...assistant,
+				parts: roundParts,
+				intermediate: !visible && writes.length === 0 && roundParts === undefined,
+			}
 			commit([...history, step, ...results])
+			setPartsBoth([])
 			setStreaming('')
 			await runTurn(
 				[...history, step, ...results],
@@ -814,7 +898,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			setCurrentTaskId(taskId)
 			setStreaming('')
 			setError(null)
-			setStepsBoth([])
+			setPartsBoth([])
 			planRef.current = null
 			writeWavesRef.current = { taskId, count: 0 }
 
@@ -888,7 +972,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			writeWavesRef.current = { taskId, count }
 
 			setStreaming('')
-			setStepsBoth([])
+			setPartsBoth([])
 			startTurn(next, taskId)
 		},
 		[commit, currentTaskId, startTurn],
@@ -930,7 +1014,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		setAttachment(null)
 		setAppliedActionIds(new Set())
 		setCurrentTaskId(undefined)
-		setStepsBoth([])
+		setPartsBoth([])
 		writeWavesRef.current = { taskId: undefined, count: 0 }
 	}, [stop, commit])
 	const settledActionIds = useMemo(
@@ -947,7 +1031,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		() => ({
 			messages,
 			streaming,
-			steps,
+			parts,
 			isRunning: streaming !== null,
 			error,
 			retry,
@@ -976,7 +1060,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		[
 			messages,
 			streaming,
-			steps,
+			parts,
 			error,
 			retry,
 			attachment,
