@@ -1,6 +1,6 @@
 # Rencana Implementasi — Diagram Editorial (diagram-design)
 
-Status: **rancangan, belum dikerjakan** · Disusun 10 September 2026 · Baseline kode
+Status: **fase 1 selesai** (`eb9ebcb`, `9a403ff`) · fase 2-5 belum · Disusun 10 September 2026 · Baseline kode
 `72c495f` (branch `feat/agent-skills`)
 
 **Sumber luar:** [cathrynlavery/diagram-design](https://github.com/cathrynlavery/diagram-design)
@@ -276,16 +276,52 @@ dipaksakan mesin, bukan sekadar disepakati. MIT → tambahkan atribusi di `NOTIC
 
 ## 12. Urutan pengerjaan
 
-| Fase | Isi | Kenapa di urutan ini |
+| Fase | Isi | Status |
 |---|---|---|
-| 0 | `docs/CHAT-TRANSCRIPT-PLAN.md` T2 | Prasyarat sub-agent |
-| 1 | Slot: bahasa code block, sanitizer, font di `rasterizeSvg`, 6-8 tipe struktural | Cetak satu skripsi contoh, lihat hasilnya **di kertas** sebelum melanjutkan |
-| 2 | Sub-agent (`docs/CHAT-SUBAGENT-PLAN.md`) + `redraw_diagram` | Diagram jadi pemakai pertamanya |
-| 3 | `reskinSvg` + diagram di dalam pamflet | Butuh fase 2 |
-| 4 | Sisa tipe struktural | — |
-| 5 | Chart dengan penjagaan angka (§10) | Paling berisiko, paling akhir |
+| 0 | `docs/CHAT-TRANSCRIPT-PLAN.md` T2 | selesai |
+| 1 | Slot: bahasa code block, sanitizer, font di `rasterizeSvg`, 6 tipe struktural | selesai — **belum dilihat di kertas** |
+| 2 | Sub-agent (`docs/CHAT-SUBAGENT-PLAN.md`) + `redraw_diagram` | belum |
+| 3 | `reskinSvg` + diagram di dalam pamflet | belum |
+| 4 | Sisa tipe struktural | belum |
+| 5 | Chart dengan penjagaan angka (§10) | belum |
 
-Tipe untuk fase 1: architecture, flowchart, timeline, process, layers, tree.
+### 12.1 Yang mendarat di fase 1
+
+- `diagram-allowlist.ts` + `diagram-svg.ts` — daftar putih dan penelusurnya,
+  dipisah supaya keputusannya bisa diuji tanpa DOM (18 tes).
+- Bahasa code block `diagram` berlabel **Diagram Editorial**, memakai petak
+  pratinjau, cetak, dan raster yang sama dengan Mermaid. Kelas CSS `mermaid-*`
+  dinamai ulang jadi `visual-*` karena kini melayani dua produsen.
+- `rasterizeSvg` menyematkan font. Ini sekaligus memperbaiki Mermaid, yang
+  selama ini ikut kehilangan fontnya di DOCX tanpa ada yang menyadarinya.
+- Ekspor DOCX menyaring diagram dengan penyaring yang sama dengan layar.
+- `insert_diagram` + skill overlay dengan enam tipe.
+
+**Tipenya enam, dan satu ditukar.** Rencana awal menyebut `process`; tipe itu di
+upstream bersifat parametrik — kontrak input YAML yang menurunkan tiap koordinat
+lewat rumus — dan jauh melewati plafon 4K token per berkas. `swimlane` menjawab
+pertanyaan yang sama, siapa mengerjakan apa dalam urutan apa, dengan tata bahasa
+yang muat. Kalau `process` memang dibutuhkan nanti, ia perlu berkasnya sendiri
+dan mungkin lebih dari satu.
+
+### 12.2 Yang belum terverifikasi
+
+**Tidak ada satu diagram pun yang pernah dilihat di kertas.** Mesin pengembangan
+tidak punya Chromium yang bisa dijalankan, jadi `print-pages.test.ts` — termasuk
+dua kasus diagram yang baru ditambahkan — **dilewati diam-diam dan dilaporkan
+sebagai lulus**. Jalankan dengan `PRINT_TEST_BROWSER` menunjuk ke chromium sistem
+sebelum mempercayai bagian mana pun dari perilaku cetaknya.
+
+Yang sudah dijamin: typecheck dua aplikasi, biome tanpa temuan baru, dan 1.265
+tes unit (285 API + 980 web).
+
+Yang khususnya belum pernah dijalankan sekali pun:
+
+1. Apakah SVG hasil model benar-benar lolos daftar putih tanpa kehilangan yang
+   penting — daftar itu diturunkan dari inventaris upstream, bukan dari keluaran
+   model kita sendiri.
+2. Apakah `break-inside: avoid` benar-benar memindahkan diagram utuh.
+3. Apakah font yang disematkan benar-benar muncul di PNG DOCX.
 
 ---
 
