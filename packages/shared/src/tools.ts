@@ -391,7 +391,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'insert_diagram',
 		kind: 'write',
 		description:
-			'Insert an editorial diagram as a single self-contained inline <svg> element. Use it when a reader would learn more from a drawing than from a paragraph, a table or a list - an architecture, a flow, a timeline, a process, a layer stack, a tree. Load the diagram-design skill FIRST: it carries the layout grammar for each type and the style tokens, and a diagram drawn without it will not match the rest of the document. Pass only the <svg> element, nothing around it. Everything is styled with presentation attributes on each element (fill=, stroke=, font-family=) - a <style> element is rejected, because CSS inside an SVG is not scoped and would leak into the whole page. Also rejected: <foreignObject>, <image>, <script>, animation elements, on* handlers, and any reference that points outside this file. A viewBox is required, it must contain the whole drawing, and it may be at most 1.5 times taller than it is wide. Never shrink the viewBox to satisfy that ratio: content past the viewBox edge is cut off silently - it still parses and still renders, and the missing part leaves no trace. When the drawing does not fit, remove nodes or change the layout instead. The title and caption belong in the document as ordinary text, NOT inside the drawing. This tool does NOT yet draw charts - no bar, line, scatter or pie. A chart drawn by guessing coordinates is not a rough chart, it is wrong data, so when the writer asks for one, present the figures as a table and say plainly that charts are not available yet.',
+			'Insert an editorial diagram as a single self-contained inline <svg> element. Use it when a reader would learn more from a drawing than from a paragraph, a table or a list - an architecture, a flow, a timeline, a process, a layer stack, a tree. Load the diagram-design skill FIRST: it carries the layout grammar for each type and the style tokens, and a diagram drawn without it will not match the rest of the document. Pass only the <svg> element, nothing around it. Everything is styled with presentation attributes on each element (fill=, stroke=, font-family=) - a <style> element is rejected, because CSS inside an SVG is not scoped and would leak into the whole page. Also rejected: <foreignObject>, <image>, <script>, animation elements, on* handlers, and any reference that points outside this file. A viewBox is required, it must contain the whole drawing, and it may be at most 1.5 times taller than it is wide. Never shrink the viewBox to satisfy that ratio: content past the viewBox edge is cut off silently - it still parses and still renders, and the missing part leaves no trace. When the drawing does not fit, remove nodes or change the layout instead. The title and caption belong in the document as ordinary text, NOT inside the drawing. This tool does NOT draw charts - no bar, line, scatter or pie. Charts go through draw_diagram instead, where the drawing is checked against the numbers you give; a chart you draw here by guessing coordinates is not a rough chart, it is wrong data with a convincing face.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -414,8 +414,19 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 			properties: {
 				type: {
 					type: 'string',
-					enum: ['architecture', 'flowchart', 'timeline', 'swimlane', 'layers', 'tree'],
-					description: 'Which layout grammar fits the relationship you are showing.',
+					enum: [
+						'architecture',
+						'flowchart',
+						'timeline',
+						'swimlane',
+						'layers',
+						'tree',
+						'bar',
+						'line',
+						'scatter',
+					],
+					description:
+						'Which layout grammar fits the relationship you are showing. The three chart types are only available here: a chart drawn by hand has nothing checking that its bars match its numbers, while a chart drawn here is verified against the values you give.',
 				},
 				spec: {
 					type: 'string',
@@ -501,7 +512,17 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 							id: { type: 'string', description: 'Matches the placeholder comment, e.g. "tren".' },
 							type: {
 								type: 'string',
-								enum: ['architecture', 'flowchart', 'timeline', 'swimlane', 'layers', 'tree'],
+								enum: [
+									'architecture',
+									'flowchart',
+									'timeline',
+									'swimlane',
+									'layers',
+									'tree',
+									'bar',
+									'line',
+									'scatter',
+								],
 							},
 							spec: {
 								type: 'string',

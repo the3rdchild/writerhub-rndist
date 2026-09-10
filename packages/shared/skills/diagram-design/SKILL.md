@@ -124,7 +124,25 @@ it, so the line does not run through the letters.
 | Who does what, in what order | Swimlane | `swimlane` |
 | Stacked levels of abstraction | Layer stack | `layers` |
 | What contains or descends from what | Tree | `tree` |
+| One number per category, side by side | Bar chart | `bar` |
+| A trend over time or a sequence | Line chart | `line` |
+| Two variables against each other | Scatter plot | `scatter` |
 
 Read the matching file with `read_skill('diagram-design', '<name>')` before drawing. Each one
 carries the layout grammar and the mistakes specific to that shape. Do not improvise a type
 that is not listed: a shape the reader has to decode is worse than a table.
+
+## Charts carry a second obligation
+
+The three chart types are held to something the structural types are not: **every mark must
+carry `data-value` with its real number, and every mark must be computed from one scale
+factor.** The drawing is then checked against those numbers, and a mismatch is refused.
+
+The reason is asymmetric failure. A structural diagram drawn wrong looks wrong — nodes
+overlap, arrows tangle, and the writer sees it at a glance. A chart drawn wrong looks
+perfectly fine: tidy bars, straight axis, correct labels. Only the heights are false, and
+what reaches the reader is wrong data wearing a convincing face.
+
+So when a figure is missing, do not estimate it. Name the gap and stop. And put the figures
+in `<desc>` as `label: value` pairs, so the picture can always be checked against the data
+without you.

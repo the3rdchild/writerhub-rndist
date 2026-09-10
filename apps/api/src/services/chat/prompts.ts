@@ -324,11 +324,28 @@ export function dashRulePrompt(allowDashes: boolean | undefined): string {
  * kalau model memang memerlukannya. Menyuntikkan isinya sekaligus akan
  * mengembalikan persis masalah yang mau dihindari.
  */
+/**
+ * Sesudah sekian berkas, mendaftarnya satu per satu mengkhianati tujuan indeks.
+ *
+ * Skill berisi beberapa berkas dalam cukup dijelaskan barisnya; skill yang
+ * berisi puluhan - satu per tipe diagram - akan menambah ratusan token ke
+ * **setiap** permintaan, untuk setiap penulis, termasuk yang tidak pernah
+ * menggambar apa pun. Di atas ambang ini yang disebut hanya namanya, dan badan
+ * skill-nya yang menerangkan kapan masing-masing dipakai - persis pekerjaan
+ * yang memang sudah dilakukan tabel pemilihan di sana.
+ */
+const FILES_DESCRIBED = 3
+
 export function skillIndexPrompt(): string {
 	if (ACTIVE_SKILLS.length === 0) return ''
 
 	const lines = ACTIVE_SKILLS.map((skill) => {
-		const deeper = skill.files.map((file) => `    - ${file.name}: ${file.summary}`)
+		const deeper =
+			skill.files.length > FILES_DESCRIBED
+				? [
+						`    deeper files (read the skill body first, it says which fits): ${skill.files.map((file) => file.name).join(', ')}`,
+					]
+				: skill.files.map((file) => `    - ${file.name}: ${file.summary}`)
 		return [`- ${skill.name}: ${skill.description}`, ...deeper].join('\n')
 	})
 

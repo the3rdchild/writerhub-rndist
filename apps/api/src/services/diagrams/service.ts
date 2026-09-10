@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { skillFilePath } from '@writer-hub/shared'
 import { type ProviderConfig, providerConfig } from '@/services/drafts/generation'
 import JobSubmissionService from '@/services/job-submission.service'
+import { chartProblems } from './chart-check'
 import { type DiagramDrawBody, diagramDrawSchema } from './dto'
 import { buildDiagramMessages, repairMessage } from './prompt'
 import { extractSvg, structuralProblems, svgReceipt } from './svg-output'
@@ -92,7 +93,7 @@ export default class DiagramsService extends JobSubmissionService {
 		const first = extractSvg(await this.callProvider(config, messages))
 		if (!first) return null
 
-		const problems = structuralProblems(first)
+		const problems = [...structuralProblems(first), ...chartProblems(first, body.type)]
 		if (problems.length === 0) return first
 
 		const repaired = extractSvg(
@@ -111,7 +112,18 @@ export default class DiagramsService extends JobSubmissionService {
 		 * gambar sama sekali. Yang tidak bisa ditolong penyaring adalah viewBox -
 		 * tanpa itu gambarnya tidak bisa diukur, jadi ia ditolak di sini.
 		 */
-		return structuralProblems(repaired).some((problem) => problem.includes('viewBox')) ? null : repaired
+		/*
+		 * Cacat sisa yang bisa ditolong penyaring di klien tetap lolos - gambar
+		 * yang kehilangan satu ikon masih berguna. Dua yang tidak bisa ditolong
+		 * siapa pun ditolak di sini: viewBox yang tidak terbaca membuat gambarnya
+		 * tidak bisa diukur, dan chart yang skalanya salah adalah data yang salah
+		 * dengan tampilan yang meyakinkan. Lebih baik tidak ada gambar.
+		 */
+		const remaining = [...structuralProblems(repaired), ...chartProblems(repaired, body.type)]
+		return remaining.some((problem) => problem.includes('viewBox') || problem.includes('scale')) ||
+			chartProblems(repaired, body.type).length > 0
+			? null
+			: repaired
 	}
 
 	private async callProvider(

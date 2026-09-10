@@ -121,6 +121,18 @@ export const SKILLS: readonly SkillDefinition[] = [
 				name: 'tree',
 				summary: 'Containment or descent where every node has exactly one parent.',
 			},
+			{
+				name: 'bar',
+				summary: 'One number per category, compared side by side.',
+			},
+			{
+				name: 'line',
+				summary: 'A trend over time or a sequence, where the direction of change is the message.',
+			},
+			{
+				name: 'scatter',
+				summary: 'Two continuous variables against each other: correlation, clusters, outliers.',
+			},
 		],
 	},
 	{
