@@ -85,12 +85,18 @@ describe('buildOutboundMessages - pemadatan batas tugas', () => {
 		expect(outbound.every((m) => !('actions' in m))).toBe(true)
 	})
 
-	test('lini masa (steps) dan usage tidak pernah dikirim ke provider', () => {
+	test('lini masa (parts) dan usage tidak pernah dikirim ke provider', () => {
 		const history: ChatTurn[] = [
 			user('ringkas bab 1', TASK_A),
 			{
 				...assistant('Ini ringkasannya.', TASK_A),
-				steps: [{ id: 's1', label: 'Berpikir…', status: 'done', startedAt: 1, endedAt: 2 }],
+				parts: [
+					{
+						kind: 'steps',
+						steps: [{ id: 's1', label: 'Berpikir…', status: 'done', startedAt: 1, endedAt: 2 }],
+					},
+					{ kind: 'text', text: 'Ini ringkasannya.' },
+				],
 				usage: { promptTokens: 100, completionTokens: 50 },
 			},
 		]

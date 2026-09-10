@@ -118,9 +118,27 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 
 		case 'read_section': {
 			const list = headings(editor)
-			const at = Number(call.arguments.heading_index)
+			const asked = call.arguments.heading_index
+
+			/*
+			 * Tanpa indeks berarti "dari awal dokumen", dan itu bukan kemudahan.
+			 *
+			 * Dokumen yang isinya satu rancangan, satu diagram, atau satu tabel
+			 * tidak punya heading sama sekali - dan dulu itu berarti **tidak ada
+			 * satu pun alat yang bisa membacanya**. `read_section` menuntut
+			 * indeks yang tidak ada, `find_text` hanya mengembalikan cuplikan
+			 * berjari-jari tetap. Model yang diminta memperbaiki diagram
+			 * menghabiskan seluruh anggaran penelusurannya untuk menemukan itu,
+			 * lalu gilirannya mati tanpa menyunting apa pun.
+			 */
+			if (asked === undefined || asked === null) {
+				const whole = editor.state.doc.textBetween(0, editor.state.doc.content.size, '\n', ' ')
+				return whole.length > MAX_SECTION_CHARS ? `${whole.slice(0, MAX_SECTION_CHARS)}\n…(truncated)` : whole
+			}
+
+			const at = Number(asked)
 			if (!Number.isInteger(at) || at < 0 || at >= list.length) {
-				return `No heading with index ${call.arguments.heading_index}. Call get_outline first.`
+				return `No heading with index ${call.arguments.heading_index}. Call get_outline first, or omit heading_index to read from the top.`
 			}
 
 			const text = editor.state.doc.textBetween(list[at].pos, sectionEnd(editor, list, at), '\n', ' ')
@@ -258,7 +276,9 @@ export function readToolLabel(editor: Editor, call: ToolCall): string {
 		case 'get_outline':
 			return 'Membaca kerangka dokumen'
 		case 'read_section': {
-			const at = Number(call.arguments.heading_index)
+			const asked = call.arguments.heading_index
+			if (asked === undefined || asked === null) return 'Membaca naskah dari awal'
+			const at = Number(asked)
 			const heading = Number.isInteger(at) ? headings(editor)[at] : undefined
 			return heading ? `Membaca bagian "${heading.text.slice(0, 48)}"` : 'Membaca bagian naskah'
 		}
@@ -283,6 +303,48 @@ export function readToolLabel(editor: Editor, call: ToolCall): string {
 		default:
 			return `Menjalankan ${call.name}`
 	}
+}
+
+/**
+ * Menaruh gambar dari sub-agent ke dalam dokumen.
+ *
+ * Dipisahkan dari `applyWriteTool` karena jalurnya memang berbeda: alat tulis
+ * lain selesai seketika, yang ini baru punya isi sesudah satu panggilan
+ * jaringan. Yang disimpan tetap sumbernya - blok kode berbahasa `diagram` -
+ * jadi penulis bisa menyuntingnya persis seperti diagram yang ditulis model
+ * sendiri.
+ */
+export function insertDiagramBlock(editor: Editor, svg: string): void {
+	insertChain(editor)
+		.insertContent({
+			type: 'codeBlock',
+			attrs: { language: 'diagram' },
+			content: [{ type: 'text', text: svg }],
+		})
+		.run()
+}
+
+/**
+ * Menimpa isi satu blok diagram di tempatnya.
+ *
+ * Menimpa, bukan menyisipkan yang baru: penulis yang minta satu warna diubah
+ * mengharapkan diagramnya berubah, bukan mendapat dua diagram yang hampir sama
+ * dan harus menghapus salah satunya sendiri.
+ */
+export function replaceDiagramBlock(editor: Editor, pos: number, svg: string): boolean {
+	const node = editor.state.doc.nodeAt(pos)
+	if (!node || node.type.name !== 'codeBlock') return false
+
+	const from = pos + 1
+	const to = pos + node.nodeSize - 1
+	return editor
+		.chain()
+		.focus()
+		.command(({ tr }) => {
+			tr.replaceWith(from, to, editor.schema.text(svg))
+			return true
+		})
+		.run()
 }
 
 export function summarizeToolResult(result: string): string {
@@ -465,6 +527,12 @@ export function describeToolCall(call: ToolCall): string {
 			return `Apply document format: ${call.arguments.template ?? '?'}`
 		case 'insert_mermaid':
 			return 'Insert Mermaid diagram'
+		case 'insert_diagram':
+			return 'Insert editorial diagram'
+		case 'draw_diagram':
+			return `Draw ${String(call.arguments.type ?? 'diagram')} diagram`
+		case 'redraw_diagram':
+			return `Redraw diagram: ${String(call.arguments.change ?? '').slice(0, 60)}`
 		case 'insert_html_block':
 			return 'Insert HTML design block'
 		case 'convert_to_html_block':
@@ -946,6 +1014,28 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 				.insertContent({
 					type: 'codeBlock',
 					attrs: { language: 'mermaid' },
+					content: [{ type: 'text', text: source }],
+				})
+				.run()
+			return { ok: true, message: 'Diagram inserted.' }
+		}
+
+		/*
+		 * Disisipkan mentah, tanpa disaring lebih dulu.
+		 *
+		 * Penyaringnya berjalan saat blok itu digambar (`diagram-svg.ts`), dan di
+		 * situlah tempatnya: sumber yang tersimpan harus tetap sama dengan yang
+		 * ditulis, supaya penulis melihat - dan bisa memperbaiki - apa yang
+		 * sebenarnya ditolak. Menyaring di sini justru membuat penolakan itu
+		 * lenyap tanpa jejak sebelum siapa pun sempat membacanya.
+		 */
+		case 'insert_diagram': {
+			const source = String(call.arguments.source ?? '').trim()
+			if (!source) return { ok: false, message: 'Nothing to insert.' }
+			insertChain(editor)
+				.insertContent({
+					type: 'codeBlock',
+					attrs: { language: 'diagram' },
 					content: [{ type: 'text', text: source }],
 				})
 				.run()

@@ -3,12 +3,13 @@
 import type { ChatUsage, ToolCall } from '@writer-hub/shared'
 import { Check } from 'lucide-react'
 import { useState } from 'react'
-import { type ChatStep, extractProposals, stripProposals, useChat } from '@/features/chat/chat-context'
+import { extractProposals, stripProposals, type TurnPart, useChat } from '@/features/chat/chat-context'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { looksLikeMarkdown, markdownToHtml, toEditorContent } from '@/features/editor/markdown'
 import { cn } from '@/lib/utils'
 import { StepSummary } from './step-summary'
+import { StepTimeline } from './step-timeline'
 import { ActionGroup } from './tool-actions'
 
 export function MessageBubble({
@@ -16,7 +17,7 @@ export function MessageBubble({
 	content,
 	pending,
 	actions,
-	steps,
+	parts,
 	usage,
 	expired,
 }: {
@@ -24,12 +25,32 @@ export function MessageBubble({
 	content: string
 	pending?: boolean
 	actions?: ToolCall[]
-	steps?: ChatStep[]
+	parts?: TurnPart[]
 	usage?: ChatUsage
 	expired?: boolean
 }) {
 	const proposals = role === 'assistant' ? extractProposals(content) : []
 	const prose = role === 'assistant' ? stripProposals(content) : content
+
+	/*
+	 * Giliran yang masih mengalir tidak boleh diciutkan: kelompok terakhirnya
+	 * adalah pekerjaan yang sedang berlangsung, dan justru itu yang ingin
+	 * dilihat penulis. Yang sudah lewat menciut jadi satu baris.
+	 */
+	const lastGroup = parts ? parts.map((part) => part.kind).lastIndexOf('steps') : -1
+
+	/*
+	 * Kunci yang tidak memakai indeks, karena bagian teks bisa bertambah panjang
+	 * sesudah dipasang. Bagian selalu berselang-seling - teks hanya bisa berdiri
+	 * di awal atau sesudah satu kelompok - jadi id langkah terakhir sebelum ia
+	 * sudah cukup membedakannya.
+	 */
+	const keys: string[] = []
+	let after = 'head'
+	for (const part of parts ?? []) {
+		if (part.kind === 'steps') after = part.steps[0]?.id ?? after
+		keys.push(`${part.kind}-${after}`)
+	}
 
 	if (role === 'user') {
 		return (
@@ -38,25 +59,45 @@ export function MessageBubble({
 			</div>
 		)
 	}
-	const emptyMarker = !pending && !prose && proposals.length === 0 && !(actions && actions.length > 0)
+	/*
+	 * Putaran yang isinya cuma kerja - model membaca dokumen lalu lanjut ke
+	 * putaran berikutnya tanpa berkata apa-apa - sekarang punya gelembungnya
+	 * sendiri. Tanpa syarat terakhir ini, tiap putaran seperti itu dibubuhi
+	 * "No response.", padahal kelompok langkahnya justru sedang ditampilkan.
+	 */
+	const emptyMarker =
+		!pending &&
+		!prose &&
+		proposals.length === 0 &&
+		!(actions && actions.length > 0) &&
+		!(parts && parts.length > 0)
 
 	return (
 		<div className="flex flex-col gap-2">
-			{/* Giliran selesai: lini masa menciut jadi ringkasan satu baris (§B1.3). */}
-			{steps && steps.length > 0 && <StepSummary steps={steps} usage={usage} />}
-
-			{prose &&
-				(looksLikeMarkdown(prose) ? (
-					<div className="chat-md text-sm leading-relaxed text-foreground">
-						<div dangerouslySetInnerHTML={{ __html: markdownToHtml(prose) }} />
-						{pending && <span className="animate-pulse text-accent">▍</span>}
-					</div>
-				) : (
-					<p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
-						{prose}
-						{pending && <span className="ml-0.5 animate-pulse text-accent">▍</span>}
-					</p>
-				))}
+			{/*
+			 * Bagian-bagiannya digambar sesuai urutan datangnya - teks, kelompok
+			 * langkah, teks lagi. Tanpa `parts` (mis. gelembung penulis) jatuh
+			 * kembali ke satu blok prosa seperti sebelumnya.
+			 */}
+			{parts
+				? parts.map((part, index) =>
+						part.kind === 'text' ? (
+							<Prose
+								key={keys[index]}
+								text={stripProposals(part.text)}
+								pending={pending && index === parts.length - 1}
+							/>
+						) : pending && index === lastGroup ? (
+							<StepTimeline key={keys[index]} steps={part.steps} live />
+						) : (
+							<StepSummary
+								key={keys[index]}
+								steps={part.steps}
+								usage={index === lastGroup ? usage : undefined}
+							/>
+						),
+					)
+				: prose && <Prose text={prose} pending={pending} />}
 
 			{emptyMarker && <p className="text-xs italic text-subtle">No response.</p>}
 
@@ -69,6 +110,22 @@ export function MessageBubble({
 
 			{actions && actions.length > 0 && <ActionGroup actions={actions} expired={expired} />}
 		</div>
+	)
+}
+
+function Prose({ text, pending }: { text: string; pending?: boolean }) {
+	if (!text) return null
+
+	return looksLikeMarkdown(text) ? (
+		<div className="chat-md text-sm leading-relaxed text-foreground">
+			<div dangerouslySetInnerHTML={{ __html: markdownToHtml(text) }} />
+			{pending && <span className="animate-pulse text-accent">▍</span>}
+		</div>
+	) : (
+		<p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+			{text}
+			{pending && <span className="ml-0.5 animate-pulse text-accent">▍</span>}
+		</p>
 	)
 }
 

@@ -1,5 +1,6 @@
 import { fontChoicePrompt } from './fonts'
 import { RESEARCH_TOOLS } from './research-tools'
+import { SKILL_TOOLS } from './skills'
 
 export type ToolKind = 'read' | 'write'
 
@@ -26,16 +27,16 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'read_section',
 		kind: 'read',
 		description:
-			'Read the text under one heading, up to the next heading of the same or higher level. Prefer this over asking for the whole document.',
+			'Read the text under one heading, up to the next heading of the same or higher level. Prefer this over asking for the whole document. Omit heading_index to read the document from the top instead - that is the right call when get_outline reports no headings at all, which happens whenever the document is one design, one diagram or one table rather than prose.',
 		parameters: {
 			type: 'object',
 			properties: {
 				heading_index: {
 					type: 'number',
-					description: 'Index of the heading as returned by get_outline.',
+					description:
+						'Index of the heading as returned by get_outline. Omit it to read from the start of the document.',
 				},
 			},
-			required: ['heading_index'],
 		},
 	},
 	{
@@ -387,6 +388,90 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		},
 	},
 	{
+		name: 'insert_diagram',
+		kind: 'write',
+		description:
+			'Insert an editorial diagram as a single self-contained inline <svg> element. Use it when a reader would learn more from a drawing than from a paragraph, a table or a list - an architecture, a flow, a timeline, a process, a layer stack, a tree. Load the diagram-design skill FIRST: it carries the layout grammar for each type and the style tokens, and a diagram drawn without it will not match the rest of the document. Pass only the <svg> element, nothing around it. Everything is styled with presentation attributes on each element (fill=, stroke=, font-family=) - a <style> element is rejected, because CSS inside an SVG is not scoped and would leak into the whole page. Also rejected: <foreignObject>, <image>, <script>, animation elements, on* handlers, and any reference that points outside this file. A viewBox is required, it must contain the whole drawing, and it may be at most 1.5 times taller than it is wide. Never shrink the viewBox to satisfy that ratio: content past the viewBox edge is cut off silently - it still parses and still renders, and the missing part leaves no trace. When the drawing does not fit, remove nodes or change the layout instead. The title and caption belong in the document as ordinary text, NOT inside the drawing. This tool does NOT draw charts - no bar, line, scatter or pie. Charts go through draw_diagram instead, where the drawing is checked against the numbers you give; a chart you draw here by guessing coordinates is not a rough chart, it is wrong data with a convincing face.',
+		parameters: {
+			type: 'object',
+			properties: {
+				source: {
+					type: 'string',
+					description:
+						'The complete <svg> element, including viewBox, <title> and <desc>. No HTML wrapper, no <style>, no remote resources.',
+				},
+			},
+			required: ['source'],
+		},
+	},
+	{
+		name: 'draw_diagram',
+		kind: 'write',
+		description:
+			'Hand a diagram to the drawing sub-agent instead of drawing it yourself. Prefer this over insert_diagram whenever the diagram fits one of the listed types: the sub-agent already carries the full layout grammar, so you do not spend your own turn writing several hundred lines of coordinates, and the finished drawing never passes through this conversation. You get back a short receipt naming what it actually drew - read it, because it is the only way you will notice the sub-agent misunderstood you. Describe the diagram in plain language: the nodes, what connects to what, which one is the focal point. The sub-agent never sees the document, so anything it needs must be in your description.',
+		parameters: {
+			type: 'object',
+			properties: {
+				type: {
+					type: 'string',
+					enum: [
+						'architecture',
+						'flowchart',
+						'timeline',
+						'swimlane',
+						'layers',
+						'tree',
+						'bar',
+						'line',
+						'scatter',
+						'er',
+						'sequence',
+						'fishbone',
+						'gantt',
+						'pyramid',
+						'quadrant',
+						'org-chart',
+						'venn',
+					],
+					description:
+						'Which layout grammar fits the relationship you are showing. The three chart types are only available here: a chart drawn by hand has nothing checking that its bars match its numbers, while a chart drawn here is verified against the values you give.',
+				},
+				spec: {
+					type: 'string',
+					description:
+						"What to draw, in plain language: the nodes, the connections, the focal point, the labels. This is the sub-agent's only source.",
+				},
+				dark: {
+					type: 'boolean',
+					description:
+						'Draw in the dark palette. Only when the writer asked, or the diagram goes into a dark design.',
+				},
+			},
+			required: ['type', 'spec'],
+		},
+	},
+	{
+		name: 'redraw_diagram',
+		kind: 'write',
+		description:
+			'Change a diagram that is already in the document. NEVER read the diagram and re-send it through draw_diagram or insert_diagram: the markup goes straight from the document to the sub-agent without passing through this conversation, so a colour change costs you nothing, while reading several hundred lines of coordinates costs you the rest of your turn. Say only what should change; everything else is kept as it is.',
+		parameters: {
+			type: 'object',
+			properties: {
+				change: {
+					type: 'string',
+					description: 'What should be different, in plain language. Only the change, not the whole diagram.',
+				},
+				title: {
+					type: 'string',
+					description:
+						'Title of the diagram to change, as it appears in its receipt. Omit when the document holds only one diagram.',
+				},
+			},
+			required: ['change'],
+		},
+	},
+	{
 		name: 'apply_template_format',
 		kind: 'write',
 		description:
@@ -406,7 +491,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 	{
 		name: 'insert_html_block',
 		kind: 'write',
-		description: `Insert a self-contained HTML design block - use it for flyers, pamphlets, posters, banners and other colourful print pieces whose layout cannot be expressed as paragraphs and headings (gradients, absolute positioning, overlapping elements). It is also the right tool for the pictorial pages of a book: the front cover, a chapter title page, an illustration for a scene, the back cover with its blurb. Do NOT use it for ordinary prose - including the narrative itself: the block is flattened to an image on DOCX export, so text inside it is not searchable or editable in Word. The HTML is rendered in a locked-down frame: your scripts never run and NOTHING loads from a URL - no icon library, no remote image, no font file - and all CSS must be inline or in a <style> tag. Draw icons, logos, badges, dividers and decorative shapes as inline <svg> elements: markup is not a network request, so they render on screen, stay vector in the printed PDF, and survive the DOCX flattening. Write the path data yourself instead of reaching for an icon set, and do not settle for emoji standing in for icons. Prefer inline <svg> over <img src="data:image/svg+xml,...">, which shows on screen but is unreliable in the DOCX export path. Raster images must still be data: URIs. Design these pieces ambitiously - real typographic hierarchy, layered shapes, gradients and custom SVG iconography all work here. Pass only the markup that belongs inside <body>. Call get_page_setup first to learn the exact pixel canvas you are designing into. ${fontChoicePrompt()}`,
+		description: `Insert a self-contained HTML design block - use it for flyers, pamphlets, posters, banners and other colourful print pieces whose layout cannot be expressed as paragraphs and headings (gradients, absolute positioning, overlapping elements). It is also the right tool for the pictorial pages of a book: the front cover, a chapter title page, an illustration for a scene, the back cover with its blurb. Do NOT use it for ordinary prose - including the narrative itself: the block is flattened to an image on DOCX export, so text inside it is not searchable or editable in Word. The HTML is rendered in a locked-down frame: your scripts never run and NOTHING loads from a URL - no icon library, no remote image, no font file - and all CSS must be inline or in a <style> tag. Draw icons, logos, badges, dividers and decorative shapes as inline <svg> elements: markup is not a network request, so they render on screen, stay vector in the printed PDF, and survive the DOCX flattening. Write the path data yourself instead of reaching for an icon set, and do not settle for emoji standing in for icons. Prefer inline <svg> over <img src="data:image/svg+xml,...">, which shows on screen but is unreliable in the DOCX export path. Raster images must still be data: URIs. Design these pieces ambitiously - real typographic hierarchy, layered shapes, gradients and custom SVG iconography all work here. If the design contains a diagram - an architecture, a flow, a timeline, a swimlane, a layer stack, a tree - do NOT draw it yourself. Put a placeholder comment where it belongs, "<!--diagram:tren-->" with an id of your choosing, and describe it in the "diagrams" argument. The drawing sub-agent fills it in before the block is inserted, so the markup never has to carry hundreds of lines of coordinates. It applies to the diagram only: the rest of the piece stays as ambitious as it needs to be. Do NOT hand-draw a chart with bars or plotted points here: their geometry has nothing checking it, and a chart whose bars do not match its numbers is wrong data rather than a rough draft - use a table instead. Pass only the markup that belongs inside <body>. Call get_page_setup first to learn the exact pixel canvas you are designing into. ${fontChoicePrompt()}`,
 		parameters: {
 			type: 'object',
 			properties: {
@@ -424,6 +509,58 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 					type: 'number',
 					description:
 						'Block height in pixels at 96 dpi. Only used when fit is "embed"; ignored for "page". Defaults to 320, and is capped at the height of one page.',
+				},
+				diagrams: {
+					type: 'array',
+					description:
+						'Diagrams to draw and drop into the placeholders. Each id must match a "<!--diagram:id-->" comment in the html. Omit when the design has no diagram.',
+					items: {
+						type: 'object',
+						properties: {
+							id: { type: 'string', description: 'Matches the placeholder comment, e.g. "tren".' },
+							type: {
+								type: 'string',
+								enum: [
+									'architecture',
+									'flowchart',
+									'timeline',
+									'swimlane',
+									'layers',
+									'tree',
+									'bar',
+									'line',
+									'scatter',
+									'er',
+									'sequence',
+									'fishbone',
+									'gantt',
+									'pyramid',
+									'quadrant',
+									'org-chart',
+									'venn',
+								],
+							},
+							spec: {
+								type: 'string',
+								description: 'What to draw, in plain language. The sub-agent sees nothing else.',
+							},
+							palette: {
+								type: 'object',
+								description:
+									"This design's own colours, so the diagram belongs to the piece instead of sitting on it. Give all seven, as hex.",
+								properties: {
+									paper: { type: 'string' },
+									paper2: { type: 'string' },
+									ink: { type: 'string' },
+									muted: { type: 'string' },
+									soft: { type: 'string' },
+									accent: { type: 'string' },
+									link: { type: 'string' },
+								},
+							},
+						},
+						required: ['id', 'type', 'spec'],
+					},
 				},
 			},
 			required: ['html'],
@@ -723,7 +860,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 ]
 
 /** Semua alat yang bisa dipanggil model, apa pun modenya. */
-export const ALL_TOOLS: readonly ToolDefinition[] = [...EDITOR_TOOLS, ...RESEARCH_TOOLS]
+export const ALL_TOOLS: readonly ToolDefinition[] = [...EDITOR_TOOLS, ...SKILL_TOOLS, ...RESEARCH_TOOLS]
 
 const BY_NAME = new Map(ALL_TOOLS.map((tool) => [tool.name, tool]))
 
@@ -752,8 +889,12 @@ export interface ToolScope {
 	research?: boolean
 }
 
+/**
+ * `read_skill` selalu ikut, tidak seperti alat riset: ia tidak memanggil
+ * layanan berbayar dan tidak butuh mode apa pun - isinya ada di repo ini.
+ */
 function toolsInScope(scope: ToolScope | undefined): readonly ToolDefinition[] {
-	return scope?.research ? ALL_TOOLS : EDITOR_TOOLS
+	return scope?.research ? ALL_TOOLS : [...EDITOR_TOOLS, ...SKILL_TOOLS]
 }
 
 export function toProviderTools(scope?: ToolScope): unknown[] {

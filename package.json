@@ -24,7 +24,8 @@
     "db:studio": "bun run --filter @writer-hub/api db:studio",
     "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
-    "docker:reset": "docker compose down -v && docker compose up --build"
+    "docker:reset": "docker compose down -v && docker compose up --build",
+    "skills:sync": "bun run scripts/skills-sync.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.10",

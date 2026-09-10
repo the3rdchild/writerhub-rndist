@@ -14,7 +14,7 @@ export function getVersion(tabId: string, versionId: string): Promise<VersionDet
 export function createVersion(
 	tabId: string,
 	label?: string,
-	trigger?: 'manual' | 'pre_translate',
+	trigger?: 'manual' | 'pre_translate' | 'ai_result',
 ): Promise<VersionSummary> {
 	return apiFetch<VersionSummary>(`/tabs/${encodeURIComponent(tabId)}/versions`, {
 		method: 'POST',

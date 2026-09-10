@@ -4,6 +4,7 @@ import type { JSONContent } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import type { DocumentTypography } from '@writer-hub/shared'
 import { COLUMN_BREAK_NODE } from '@/features/editor/column-break'
+import { sanitizeDiagramSvg } from '@/features/editor/diagram-svg'
 import { HTML_BLOCK } from '@/features/editor/html-block'
 import { rasterizeSvg } from '@/features/editor/html-raster'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
@@ -185,13 +186,30 @@ function pngFromDataUrl(value: string): Uint8Array | null {
 /** Huruf lebar-tetap untuk blok kode di Word; ada di Windows maupun Office Mac. */
 const CODE_FONT = 'Consolas'
 
-/** SVG Mermaid yang tersimpan di dokumen, tanpa kembar. */
-function collectMermaidSvgs(root: PMNode): Set<string> {
+/**
+ * SVG diagram di dokumen, tanpa kembar - dari kedua produsennya.
+ *
+ * Mermaid menyimpan hasil rendernya di atribut node, jadi ekspor menemukannya
+ * sudah jadi. Diagram editorial tidak menyimpan apa pun: sumbernya **sudah**
+ * SVG, dan yang perlu dilakukan di sini cuma menyaringnya - dengan penyaring
+ * yang sama persis dengan yang dipakai layar, supaya yang tercetak tidak pernah
+ * berbeda dari yang dilihat penulis.
+ */
+function collectDiagramSvgs(root: PMNode): Set<string> {
 	const found = new Set<string>()
 	root.descendants((node) => {
-		if (node.type.name !== 'codeBlock' || node.attrs.language !== 'mermaid') return
-		const svg = String(node.attrs.mermaidSvg ?? '')
-		if (svg) found.add(svg)
+		if (node.type.name !== 'codeBlock') return
+
+		if (node.attrs.language === 'mermaid') {
+			const svg = String(node.attrs.mermaidSvg ?? '')
+			if (svg) found.add(svg)
+			return
+		}
+
+		if (node.attrs.language === 'diagram') {
+			const { svg } = sanitizeDiagramSvg(node.textContent)
+			if (svg) found.add(svg)
+		}
 	})
 	return found
 }
@@ -631,8 +649,15 @@ export async function exportDocx(
 			 * lagi lurus.
 			 */
 			case 'codeBlock': {
-				if (node.attrs.language === 'mermaid') {
-					const image = mermaidImages.get(String(node.attrs.mermaidSvg ?? ''))
+				const diagramSvg =
+					node.attrs.language === 'mermaid'
+						? String(node.attrs.mermaidSvg ?? '')
+						: node.attrs.language === 'diagram'
+							? (sanitizeDiagramSvg(node.textContent).svg ?? '')
+							: ''
+
+				if (diagramSvg) {
+					const image = mermaidImages.get(diagramSvg)
 					if (image) {
 						const scale = Math.min(1, sectionContentWidth / image.width)
 						return [
@@ -766,7 +791,7 @@ export async function exportDocx(
 
 	// Semua diagram diratakan sekaligus, sebelum satu pun blok dibangun.
 	await Promise.all(
-		[...collectMermaidSvgs(root)].map(async (svg) => {
+		[...collectDiagramSvgs(root)].map(async (svg) => {
 			const raster = await rasterizeSvg(svg)
 			if (!raster) return
 			const png = pngFromDataUrl(raster.png)

@@ -2,8 +2,9 @@
 
 import { NodeViewContent, type NodeViewProps, NodeViewWrapper } from '@tiptap/react'
 import { Check, Code2, Copy, Eye } from 'lucide-react'
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { CODE_LANGUAGES } from '@/features/editor/code-block'
+import { sanitizeDiagramSvg } from '@/features/editor/diagram-svg'
 import { getMermaid } from '@/features/editor/lazy-mermaid'
 
 export const MERMAID_REFRESH_EVENT = 'writerhub:mermaid-refresh'
@@ -37,6 +38,17 @@ const RENDER_DELAY_MS = 300
 export function CodeBlockNodeView({ node, updateAttributes, selected, editor, deleteNode }: NodeViewProps) {
 	const language = (node.attrs.language as string) || 'plaintext'
 	const isMermaid = language === 'mermaid'
+	/*
+	 * Dua produsen, satu petak.
+	 *
+	 * Mermaid punya sumber yang harus dirender lebih dulu, dan hasilnya
+	 * disimpan di atribut node. Diagram editorial **sudah** berupa SVG: yang
+	 * dibutuhkan bukan perender melainkan penyaring, dan hasilnya tidak perlu
+	 * disimpan karena ia turunan mururni dari teks blok yang memang sudah ada
+	 * di dokumen.
+	 */
+	const isDiagram = language === 'diagram'
+	const isVisual = isMermaid || isDiagram
 	const languageLabel = CODE_LANGUAGES.find((l) => l.value === language)?.label ?? language
 	const [copied, setCopied] = useState(false)
 
@@ -49,6 +61,11 @@ export function CodeBlockNodeView({ node, updateAttributes, selected, editor, de
 	 */
 	const mermaidSvg = (node.attrs.mermaidSvg as string) || ''
 	const isStale = (node.attrs.mermaidSource as string) !== code
+
+	const diagram = useMemo(
+		() => (isDiagram ? sanitizeDiagramSvg(code) : { svg: '' as string | undefined, error: undefined }),
+		[isDiagram, code],
+	)
 
 	const [mermaidView, setMermaidView] = useState<MermaidView>('source')
 	const [mermaidError, setMermaidError] = useState<string | null>(null)
@@ -141,7 +158,10 @@ export function CodeBlockNodeView({ node, updateAttributes, selected, editor, de
 		setMermaidView((v) => (v === 'source' ? 'preview' : 'source'))
 	}
 
-	const showPreview = isMermaid && mermaidView === 'preview'
+	const showPreview = isVisual && mermaidView === 'preview'
+	/** Yang digambar petak pratinjau, dari produsen mana pun ia datang. */
+	const visualSvg = isMermaid ? mermaidSvg : (diagram.svg ?? '')
+	const visualError = isMermaid ? mermaidError : (diagram.error ?? null)
 
 	return (
 		<NodeViewWrapper className="code-block" data-selected={selected || undefined}>
@@ -161,7 +181,7 @@ export function CodeBlockNodeView({ node, updateAttributes, selected, editor, de
 				<span className="code-block-label">{languageLabel}</span>
 
 				<div className="code-block-actions">
-					{isMermaid && (
+					{isVisual && (
 						<button
 							type="button"
 							onClick={toggleMermaidView}
@@ -196,19 +216,25 @@ export function CodeBlockNodeView({ node, updateAttributes, selected, editor, de
 			</div>
 
 			{showPreview ? (
-				<div className="code-block-mermaid-preview" contentEditable={false}>
-					{mermaidError ? (
-						<pre className="code-block-mermaid-error">{mermaidError}</pre>
-					) : mermaidSvg ? (
-						// biome-ignore lint/security/noDangerouslySetInnerHtml: SVG dari Mermaid securityLevel 'strict'
-						<div dangerouslySetInnerHTML={{ __html: mermaidSvg }} />
+				<div
+					className="code-block-visual-preview"
+					data-visual={isDiagram ? 'diagram' : 'mermaid'}
+					contentEditable={false}
+				>
+					{visualError ? (
+						<pre className="code-block-visual-error">{visualError}</pre>
+					) : visualSvg ? (
+						// biome-ignore lint/security/noDangerouslySetInnerHtml: Mermaid securityLevel 'strict', atau sudah lewat sanitizeDiagramSvg
+						<div dangerouslySetInnerHTML={{ __html: visualSvg }} />
 					) : (
-						<p className="code-block-mermaid-empty">Merender diagram…</p>
+						<p className="code-block-visual-empty">
+							{isMermaid ? 'Merender diagram…' : 'Belum ada gambar di blok ini.'}
+						</p>
 					)}
 					<button
 						type="button"
 						onClick={toggleMermaidView}
-						className="code-block-mermaid-back"
+						className="code-block-visual-back"
 						title="Kembali ke sumber"
 					>
 						<Code2 className="h-3.5 w-3.5" /> Sunting sumber
@@ -228,10 +254,15 @@ export function CodeBlockNodeView({ node, updateAttributes, selected, editor, de
 			 * layar lewat CSS, bukan lewat kondisi di sini: kalau ia tidak ikut
 			 * ke DOM, tidak ada yang bisa dimunculkan `@media print`.
 			 */}
-			{isMermaid && !showPreview && mermaidSvg && (
-				<div className="code-block-mermaid-print" contentEditable={false} aria-hidden="true">
-					{/* biome-ignore lint/security/noDangerouslySetInnerHtml: SVG dari Mermaid securityLevel 'strict' */}
-					<div dangerouslySetInnerHTML={{ __html: mermaidSvg }} />
+			{isVisual && !showPreview && visualSvg && (
+				<div
+					className="code-block-visual-print"
+					data-visual={isDiagram ? 'diagram' : 'mermaid'}
+					contentEditable={false}
+					aria-hidden="true"
+				>
+					{/* biome-ignore lint/security/noDangerouslySetInnerHtml: Mermaid securityLevel 'strict', atau sudah lewat sanitizeDiagramSvg */}
+					<div dangerouslySetInnerHTML={{ __html: visualSvg }} />
 				</div>
 			)}
 		</NodeViewWrapper>

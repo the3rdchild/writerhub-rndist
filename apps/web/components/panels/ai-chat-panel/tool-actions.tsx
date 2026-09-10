@@ -5,6 +5,7 @@ import { Check, SkipForward, Wand2 } from 'lucide-react'
 import { useState } from 'react'
 import { useChat } from '@/features/chat/chat-context'
 import { describeToolCall } from '@/features/chat/tools'
+import { formatWordDelta } from '@/features/chat/word-delta'
 import { cn } from '@/lib/utils'
 
 export function ActionGroup({ actions, expired }: { actions: ToolCall[]; expired?: boolean }) {
@@ -31,18 +32,35 @@ export function ActionGroup({ actions, expired }: { actions: ToolCall[]; expired
 }
 
 export function ActionCard({ call, expired }: { call: ToolCall; expired?: boolean }) {
-	const { applyAction, skipAction, isActionApplied, isActionSettled } = useChat()
+	const { applyAction, skipAction, isActionApplied, isActionSettled, actionWords } = useChat()
 	const applied = isActionApplied(call.id)
+	/*
+	 * Hanya aksi yang benar-benar menyentuh naskah yang punya angka. Atur
+	 * margin, sisipkan diagram, buka proofreader - semuanya nyata, tapi `+0 −0`
+	 * di bawahnya terbaca seperti kegagalan.
+	 */
+	const words = actionWords(call.id)
+	const delta = words ? formatWordDelta(words) : null
 	const settled = isActionSettled(call.id)
 	const [outcome, setOutcome] = useState<{ ok: boolean; message: string } | null>(null)
 	const [confirming, setConfirming] = useState(false)
+
+	/*
+	 * Menggambar tidak selesai seketika - ia menunggu sub-agent. Selama itu
+	 * tombolnya dikunci, karena aksi yang sama yang diterapkan dua kali
+	 * menghasilkan dua diagram.
+	 */
+	const [running, setRunning] = useState(false)
 
 	const onClick = () => {
 		if (expired && !confirming && !applied) {
 			setConfirming(true)
 			return
 		}
-		setOutcome(applyAction(call))
+		setRunning(true)
+		applyAction(call)
+			.then(setOutcome)
+			.finally(() => setRunning(false))
 	}
 
 	return (
@@ -55,10 +73,14 @@ export function ActionCard({ call, expired }: { call: ToolCall; expired?: boolea
 			{expired && !settled && <p className="text-[11px] italic text-subtle">From a previous request</p>}
 
 			{applied ? (
-				<p className="text-[11px] text-green-400/70">Applied</p>
+				<p className="text-[11px] text-green-400/70">
+					Applied
+					{delta && <span className="text-faint"> · {delta}</span>}
+				</p>
 			) : outcome ? (
 				<p className={cn('text-[11px]', outcome.ok ? 'text-green-400' : 'text-yellow-400')}>
 					{outcome.message}
+					{delta && <span className="text-faint"> · {delta}</span>}
 				</p>
 			) : settled ? (
 				<p className="text-[11px] text-subtle">Skipped</p>
@@ -67,6 +89,7 @@ export function ActionCard({ call, expired }: { call: ToolCall; expired?: boolea
 					<button
 						type="button"
 						onClick={onClick}
+						disabled={running}
 						className={cn(
 							'flex flex-1 items-center justify-center gap-1 rounded-lg py-1.5 text-xs transition-colors',
 							expired
@@ -75,7 +98,7 @@ export function ActionCard({ call, expired }: { call: ToolCall; expired?: boolea
 						)}
 					>
 						<Check className="h-3.5 w-3.5" />
-						{expired ? (confirming ? 'Confirm?' : 'Apply') : 'Apply'}
+						{running ? 'Menggambar…' : expired ? (confirming ? 'Confirm?' : 'Apply') : 'Apply'}
 					</button>
 					<button
 						type="button"

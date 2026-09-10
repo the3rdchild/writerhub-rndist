@@ -1,6 +1,16 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
-import { ALL_TOOLS, EDITOR_TOOLS, isReadTool, RESEARCH_TOOLS, toProviderTools } from '@writer-hub/shared'
+import {
+	ACTIVE_SKILLS,
+	ALL_TOOLS,
+	EDITOR_TOOLS,
+	isReadTool,
+	RESEARCH_TOOLS,
+	SKILL_TOOLS,
+	skillFilePath,
+	toProviderTools,
+} from '@writer-hub/shared'
+import { isDrawTool } from './diagram-target'
 
 const executor = readFileSync(new URL('./tools.ts', import.meta.url), 'utf8')
 
@@ -144,7 +154,7 @@ describe('alat riset web', () => {
 
 	test('tidak dikirim ke model saat mode riset mati', () => {
 		const names = toProviderTools().map((tool) => (tool as { function: { name: string } }).function.name)
-		expect(names).toHaveLength(EDITOR_TOOLS.length)
+		expect(names).toHaveLength(EDITOR_TOOLS.length + SKILL_TOOLS.length)
 		expect(names).not.toContain('web_search')
 	})
 
@@ -336,5 +346,87 @@ describe('insert_toc', () => {
 
 	test('menyebut dirinya satu-satunya cara yang benar', () => {
 		expect(tool?.description).toContain('ONLY correct way')
+	})
+})
+
+describe('alat skill', () => {
+	test('selalu dikirim ke model, tidak seperti alat riset', () => {
+		const names = toProviderTools().map((tool) => (tool as { function: { name: string } }).function.name)
+		expect(names).toContain('read_skill')
+	})
+
+	test('alat baca, jadi model boleh memanggilnya sendiri', () => {
+		expect(isReadTool('read_skill')).toBe(true)
+	})
+
+	test('hanya skill yang overlaynya sudah ada yang ditawarkan', () => {
+		const tool = SKILL_TOOLS.find((entry) => entry.name === 'read_skill')
+		const allowed = (tool as { parameters: { properties: { name: { enum: string[] } } } }).parameters
+			.properties.name.enum
+		expect(allowed).toEqual(ACTIVE_SKILLS.map((skill) => skill.name))
+	})
+
+	test('jalur berkas hanya terbentuk dari katalog', () => {
+		expect(skillFilePath('scientific-writing')).toBe('scientific-writing/SKILL.md')
+		expect(skillFilePath('scientific-writing', 'evidence-audit')).toBe('scientific-writing/evidence-audit.md')
+		expect(skillFilePath('scientific-writing', '../../../etc/passwd')).toBeNull()
+		expect(skillFilePath('scientific-writing', 'evidence-audit.md')).toBeNull()
+		expect(skillFilePath('../../../etc/passwd')).toBeNull()
+		expect(skillFilePath('tidak-ada')).toBeNull()
+	})
+})
+
+describe('read_section tanpa indeks heading', () => {
+	/*
+	 * Dokumen yang isinya satu rancangan, satu diagram, atau satu tabel tidak
+	 * punya heading sama sekali. Sebelum ini tidak ada satu pun alat yang bisa
+	 * membacanya: `read_section` menuntut indeks yang tidak ada, dan `find_text`
+	 * hanya mengembalikan cuplikan. Model menghabiskan seluruh anggaran
+	 * penelusurannya untuk menemukan itu, lalu gilirannya mati tanpa menyunting
+	 * apa pun.
+	 */
+	test('heading_index tidak lagi wajib', () => {
+		const tool = ALL_TOOLS.find((entry) => entry.name === 'read_section')
+		expect(tool?.parameters.required ?? []).not.toContain('heading_index')
+	})
+
+	test('deskripsinya menyebut kapan indeksnya dilewati', () => {
+		const tool = ALL_TOOLS.find((entry) => entry.name === 'read_section')
+		expect(tool?.description).toContain('no headings')
+	})
+})
+
+describe('alat menggambar', () => {
+	/*
+	 * Keduanya berjenis tulis supaya ikut kartu aksi dan auto-apply seperti alat
+	 * tulis lain - tapi keduanya TIDAK ditangani `applyWriteTool`, melainkan
+	 * dicegat lebih dulu oleh `isDrawTool` karena harus menunggu jaringan.
+	 * Kalau nama di kedua tempat berpisah, aksinya akan dijalankan sebagai alat
+	 * tulis biasa dan jatuh ke cabang "Unknown tool" tanpa satu pun galat tipe.
+	 */
+	test('dikenali sebagai alat menggambar', () => {
+		expect(isDrawTool('draw_diagram')).toBe(true)
+		expect(isDrawTool('redraw_diagram')).toBe(true)
+	})
+
+	test('alat tulis lain tidak ikut tercegat', () => {
+		expect(isDrawTool('insert_diagram')).toBe(false)
+		expect(isDrawTool('insert_mermaid')).toBe(false)
+	})
+
+	test('keduanya ada di katalog sebagai alat tulis', () => {
+		for (const name of ['draw_diagram', 'redraw_diagram']) {
+			const tool = EDITOR_TOOLS.find((entry) => entry.name === name)
+			expect(tool?.kind).toBe('write')
+		}
+	})
+
+	/*
+	 * Kalimat ini yang menahan biaya seluruh rancangan sub-agent: model yang
+	 * membaca balik markup-nya membatalkan penghematannya.
+	 */
+	test('redraw_diagram melarang membaca balik markup-nya', () => {
+		const tool = EDITOR_TOOLS.find((entry) => entry.name === 'redraw_diagram')
+		expect(tool?.description).toContain('NEVER read the diagram')
 	})
 })

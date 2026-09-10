@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowUp, Square, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Square, X } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useChat } from '@/features/chat/chat-context'
 import { applyCommand, type ChatCommand, matchCommands } from '@/features/chat/commands'
@@ -9,14 +9,22 @@ import { cn } from '@/lib/utils'
 import { ChatCommandMenu } from '../chat-command-menu'
 import { ComposerToolbar } from './composer-toolbar'
 import { MessageBubble } from './message-bubble'
-import { StepTimeline, TaskSeparator } from './step-timeline'
+import { TaskSeparator } from './step-timeline'
 import { TurnError } from './turn-error'
+
+/**
+ * Sejauh apa dari dasar masih dihitung "sedang mengikuti".
+ *
+ * Bukan nol: menggulir dengan roda tetikus jarang berhenti persis di dasar,
+ * dan sisa beberapa piksel tidak berarti penulis sedang membaca ke atas.
+ */
+const FOLLOW_THRESHOLD_PX = 48
 
 export function AiChatPanel() {
 	const {
 		messages,
 		streaming,
-		steps,
+		parts,
 		isRunning,
 		error,
 		retry,
@@ -41,6 +49,14 @@ export function AiChatPanel() {
 	const [activeCommand, setActiveCommand] = useState(0)
 	const draftRef = useRef<HTMLTextAreaElement>(null)
 	const scrollRef = useRef<HTMLDivElement>(null)
+	/*
+	 * Dipegang dua kali karena dua pembacanya berbeda umur: efek di bawah
+	 * berjalan sesudah render dan butuh nilai terkini (ref), sedangkan tombol
+	 * "kembali ke bawah" perlu render ulang saat nilainya berubah (state).
+	 * Pola yang sama dipakai `chat-context.tsx` untuk langkah.
+	 */
+	const followingRef = useRef(true)
+	const [following, setFollowing] = useState(true)
 	const scope = useSelectionScope()
 	const dismissedRef = useRef<string | null>(null)
 	const selectionKey = scope ? `${scope.offset}:${scope.length}` : null
@@ -67,18 +83,47 @@ export function AiChatPanel() {
 		dismissedRef.current = selectionKey
 		clearAttachment()
 	}
+	const setFollowingBoth = (next: boolean) => {
+		followingRef.current = next
+		setFollowing(next)
+	}
+
+	const jumpToLatest = () => {
+		const element = scrollRef.current
+		if (element) element.scrollTop = element.scrollHeight
+		setFollowingBoth(true)
+	}
+
+	/*
+	 * Menempel ke dasar hanya selama penulis memang berada di sana.
+	 *
+	 * Sebelumnya baris ini memaksa `scrollTop = scrollHeight` tanpa syarat, dan
+	 * `steps` ikut jadi pemicunya - berarti selama model bekerja, panel ditarik
+	 * kembali ke dasar tiap kali satu langkah bertambah. Menggulir ke atas untuk
+	 * membaca ulang jadi mustahil, bukan sekadar sulit.
+	 */
+	const onScroll = () => {
+		const element = scrollRef.current
+		if (!element) return
+		const fromBottom = element.scrollHeight - element.scrollTop - element.clientHeight
+		setFollowingBoth(fromBottom <= FOLLOW_THRESHOLD_PX)
+	}
+
 	useEffect(
-		function scrollToLatestMessage() {
+		function followLatestMessage() {
+			if (!followingRef.current) return
 			const element = scrollRef.current
 			if (element) element.scrollTop = element.scrollHeight
 		},
-		[messages, streaming, steps],
+		[messages, streaming, parts],
 	)
 
 	const submit = () => {
 		if (!draft.trim() || isRunning) return
 		send(draft)
 		setDraft('')
+		// Mengirim pesan adalah pernyataan bahwa penulis kembali mengikuti.
+		setFollowingBoth(true)
 	}
 
 	const pickCommand = (command: ChatCommand) => {
@@ -124,6 +169,7 @@ export function AiChatPanel() {
 		<>
 			<div
 				ref={scrollRef}
+				onScroll={onScroll}
 				className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-surface-inset p-4"
 			>
 				{isEmpty && (
@@ -147,7 +193,7 @@ export function AiChatPanel() {
 								role={message.role}
 								content={message.content}
 								actions={message.actions}
-								steps={message.steps}
+								parts={message.parts}
 								usage={message.usage}
 								expired={!!message.taskId && message.taskId !== currentTaskId}
 							/>
@@ -155,16 +201,35 @@ export function AiChatPanel() {
 					)
 				})}
 
-				{streaming !== null && (
-					<>
-						{/* Lini masa langkah (§B1): proses yang sedang berjalan terlihat
-						    sebelum jawaban muncul. */}
-						{steps.length > 0 && <StepTimeline steps={steps} live />}
-						<MessageBubble role="assistant" content={streaming} pending />
-					</>
-				)}
+				{/*
+				 * Giliran yang sedang berjalan digambar dengan komponen yang sama
+				 * seperti giliran selesai - hanya `pending` yang berbeda. Dua
+				 * penggambar untuk satu bentuk data adalah cara paling mudah
+				 * membuat yang mengalir dan yang tersimpan terlihat berbeda.
+				 */}
+				{streaming !== null && <MessageBubble role="assistant" content={streaming} parts={parts} pending />}
 
 				{error && <TurnError error={error} onRetry={retry} disabled={isRunning} />}
+
+				{/*
+				 * Jalan kembali ke dasar, karena melepas ikatan otomatis berarti
+				 * penulis bisa tertinggal jauh tanpa cara cepat menyusul.
+				 * `h-0` supaya ia melayang di atas percakapan alih-alih
+				 * menyisipkan ruang yang menggeser isinya.
+				 */}
+				{!following && !isEmpty && (
+					<div className="pointer-events-none sticky bottom-0 z-10 flex h-0 justify-center">
+						<button
+							type="button"
+							onClick={jumpToLatest}
+							className="pointer-events-auto -translate-y-2 flex items-center gap-1 rounded-full bg-surface-raised px-3 py-1.5 text-xs text-subtle shadow-sm transition-colors hover:bg-[var(--overlay-hover)]"
+							aria-label="Jump to latest"
+						>
+							<ArrowDown className="h-3 w-3" />
+							Latest
+						</button>
+					</div>
+				)}
 			</div>
 
 			<div className="flex shrink-0 flex-col gap-2 px-4 py-3">

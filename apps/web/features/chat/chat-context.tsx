@@ -10,13 +10,13 @@ import {
 	type ChatUsage,
 	DEFAULT_CHAT_MODEL,
 	isReadTool,
-	type ResearchSource,
 	type ToolCall,
 } from '@writer-hub/shared'
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import { usePanels } from '@/features/analysis/panel-context'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
+import { type DiagramPalette, isCompletePalette, reskinSvg } from '@/features/editor/diagram-skin'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { buildEditorExtensions } from '@/features/editor/extensions'
 import { toEditorContent } from '@/features/editor/markdown'
@@ -44,19 +44,44 @@ import { buildSchema, fragmentToJSON, jsonToFragment } from '@/features/sync/ser
 import { useSync } from '@/features/sync/sync-context'
 import { getTemplate } from '@/features/templates/api'
 import { useActiveDocumentMetadata, useActiveTemplate } from '@/features/templates/use-templates'
+import { createVersion } from '@/features/versions/api'
+import { snapshotLocalVersion } from '@/features/versions/local-snapshot'
+import { useInvalidateVersions } from '@/features/versions/use-versions'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import { parseFallbackCalls, streamChat, stripFallbackCalls } from './api'
+import { diagramReceipt, drawDiagram } from './diagram-api'
+import { stitchDiagrams } from './diagram-embed'
+import { diagramBlocks, diagramTypeOf, findDiagramBlock, needsDrawing } from './diagram-target'
 import { chatFailureHint, toChatTurnError } from './failure'
 import { isRemoteReadTool, remoteToolLabel, runRemoteReadTool } from './remote-tools'
 import {
 	applyWriteTool,
+	insertDiagramBlock,
 	pageSummary,
 	type ReadToolContext,
 	readToolLabel,
+	replaceDiagramBlock,
 	runReadTool,
 	summarizeToolResult,
 	type ToolOutcome,
 } from './tools'
+import {
+	appendStep,
+	appendText as appendTextTo,
+	type ChatStep,
+	closeAll,
+	closeRunning,
+	flatSteps,
+	lastRunningStep,
+	mapSteps,
+	patchStep,
+	type TurnPart,
+	visibleParts,
+} from './turn-parts'
+import { formatWordDelta, sumWordDeltas, type WordDelta, wordDelta } from './word-delta'
+
+export type { ChatStep, TurnPart } from './turn-parts'
+export { flatSteps } from './turn-parts'
 
 export interface ChatAttachment {
 	text: string
@@ -65,22 +90,15 @@ export interface ChatAttachment {
 	length: number
 }
 
-export interface ChatStep {
-	id: string
-	label: string
-	status: 'running' | 'done' | 'failed' | 'cancelled'
-	startedAt: number
-	endedAt?: number
-	detail?: string
-	checklist?: { text: string; done: boolean }[]
-	/** Hanya untuk langkah riset web - dipakai kartu verifikasi. */
-	sources?: ResearchSource[]
-}
-
 export interface ChatTurn extends ChatMessage {
 	actions?: ToolCall[]
 	taskId?: string
-	steps?: ChatStep[]
+	/**
+	 * Bagian giliran ini sesuai urutan datangnya. `content` tetap ada dan tetap
+	 * memuat seluruh teksnya - ia yang dikirim ke provider; `parts` hanya
+	 * mengatur bagaimana giliran itu digambar.
+	 */
+	parts?: TurnPart[]
 	usage?: ChatUsage
 	intermediate?: boolean
 }
@@ -117,7 +135,7 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 			const {
 				actions: _actions,
 				taskId: _taskId,
-				steps: _steps,
+				parts: _parts,
 				usage: _usage,
 				intermediate: _intermediate,
 				...message
@@ -187,7 +205,7 @@ export interface ChatError {
 interface ChatContextValue {
 	messages: ChatTurn[]
 	streaming: string | null
-	steps: ChatStep[]
+	parts: TurnPart[]
 	isRunning: boolean
 	error: ChatError | null
 	/** Melanjutkan giliran terakhir dari langkah yang sudah tersimpan. */
@@ -204,8 +222,10 @@ interface ChatContextValue {
 	reset: () => void
 	startNewTopic: () => void
 	currentTaskId: string | undefined
-	applyAction: (call: ToolCall) => ToolOutcome
+	applyAction: (call: ToolCall) => Promise<ToolOutcome>
 	applyActions: (calls: ToolCall[]) => void
+	/** Besaran perubahan satu aksi, kalau ia memang menyentuh naskah. */
+	actionWords: (id: string) => WordDelta | undefined
 	skipAction: (call: ToolCall) => void
 	isActionApplied: (id: string) => boolean
 	isActionSettled: (id: string) => boolean
@@ -246,11 +266,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const [research, setResearch] = usePersistentState('writer-hub-chat-research', false)
 	const researchRef = useRef(research)
 	researchRef.current = research
-	// Riset dicatat ke Aktivitas; tautkan ke tab server supaya entrinya tidak
-	// yatim di halaman itu.
+	/*
+	 * Tab aktif di sisi server, kalau memang ada padanannya.
+	 *
+	 * Dua pemakai: riset dicatat ke Aktivitas dan butuh tautan supaya entrinya
+	 * tidak yatim di halaman itu, dan snapshot `ai_result` (§T4) butuh tahu
+	 * apakah versinya ditulis ke server atau ke simpanan lokal.
+	 */
 	const { linkage } = useSync()
-	const researchTabRef = useRef<string | null>(null)
-	researchTabRef.current = activeId ? (linkage[activeId]?.serverId ?? null) : null
+	const serverTabRef = useRef<string | null>(null)
+	serverTabRef.current = activeId ? (linkage[activeId]?.serverId ?? null) : null
 	// Template asal dokumen aktif: slug-nya ikut ke prompt server, spec-nya
 	// menjawab alat baca get_template_rules.
 	const activeTemplate = useActiveTemplate()
@@ -268,8 +293,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		taskId: undefined,
 		count: 0,
 	})
-	const [steps, setSteps] = useState<ChatStep[]>([])
-	const stepsRef = useRef<ChatStep[]>([])
+	const [parts, setParts] = useState<TurnPart[]>([])
+	const partsRef = useRef<TurnPart[]>([])
 
 	const abortRef = useRef<AbortController | null>(null)
 	const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -386,40 +411,71 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		setStreaming(null)
 	}, [])
 
-	const setStepsBoth = (next: ChatStep[]) => {
-		stepsRef.current = next
-		setSteps(next)
+	const setPartsBoth = (next: TurnPart[]) => {
+		partsRef.current = next
+		setParts(next)
 	}
 
-	const closeRunning = (status: 'done' | 'failed' | 'cancelled', list: ChatStep[]): ChatStep[] =>
-		list.map((step) => (step.status === 'running' ? { ...step, status, endedAt: Date.now() } : step))
+	/**
+	 * Langkah berurutan: yang baru menutup yang sebelumnya, karena model memang
+	 * mengerjakannya satu per satu. Pekerjaan sub-agent memakai `startBackgroundStep`.
+	 */
 	const pushStep = (label: string, detail?: string): string => {
 		const now = Date.now()
-		const id = `step_${now.toString(36)}_${stepsRef.current.length}`
-		setStepsBoth([
-			...closeRunning('done', stepsRef.current),
-			{ id, label, status: 'running', startedAt: now, detail },
-		])
+		const closed = closeRunning('done', partsRef.current, now)
+		const id = `step_${now.toString(36)}_${flatSteps(closed).length}`
+		setPartsBoth(appendStep(closed, { id, label, status: 'running', startedAt: now, detail }))
 		return id
 	}
-	const patchRunningStep = (patch: Partial<ChatStep>) => {
-		setStepsBoth(
-			stepsRef.current.map((step, index) =>
-				index === stepsRef.current.length - 1 && step.status === 'running' ? { ...step, ...patch } : step,
-			),
-		)
+
+	const appendText = (delta: string) => {
+		setPartsBoth(appendTextTo(partsRef.current, delta))
 	}
-	const finishSteps = (): ChatStep[] | undefined => {
-		const closed = closeRunning('done', stepsRef.current)
-		setStepsBoth(closed)
+
+	/**
+	 * Langkah yang berjalan sendiri, di samping pekerjaan model.
+	 *
+	 * Tidak menutup apa pun dan tidak ikut ditutup, jadi beberapa gambar bisa
+	 * berputar sekaligus di dalam satu kelompok. Labelnya menyebut pekerjaannya,
+	 * bukan mekanismenya: penulis tidak peduli ada sub-agent, ia peduli mana
+	 * dari dua gambar yang belum selesai.
+	 */
+	const startBackgroundStep = (label: string): string => {
+		const now = Date.now()
+		const id = `bg_${now.toString(36)}_${flatSteps(partsRef.current).length}`
+		setPartsBoth(
+			appendStep(partsRef.current, { id, label, status: 'running', startedAt: now, background: true }),
+		)
+		return id
+	}
+
+	const finishStep = (id: string, patch: Partial<ChatStep>) => {
+		setPartsBoth(patchStep(partsRef.current, id, { endedAt: Date.now(), ...patch }))
+	}
+
+	const patchRunningStep = (patch: Partial<ChatStep>) => {
+		const last = lastRunningStep(partsRef.current)
+		if (!last) return
+		setPartsBoth(patchStep(partsRef.current, last.id, patch))
+	}
+
+	/**
+	 * Giliran benar-benar berakhir, jadi yang berjalan sendiri pun ditutup: satu
+	 * gambar yang belum kembali saat gilirannya disimpan tidak akan pernah
+	 * kembali, dan spinner yang berputar selamanya lebih buruk daripada langkah
+	 * yang ditandai selesai.
+	 */
+	const finishParts = (): TurnPart[] | undefined => {
+		const closed = closeAll('done', partsRef.current)
+		setPartsBoth(closed)
 		return closed.length > 0 ? closed : undefined
 	}
 	const planRef = useRef<{ stepId: string; next: number } | null>(null)
 
 	const recordPlan = (items: string[]) => {
 		const stepId = pushStep(`Rencana ${items.length} langkah`)
-		setStepsBoth(
-			stepsRef.current.map((step) =>
+		setPartsBoth(
+			mapSteps(partsRef.current, (step) =>
 				step.id === stepId
 					? {
 							...step,
@@ -436,8 +492,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const advancePlan = () => {
 		const plan = planRef.current
 		if (!plan) return
-		setStepsBoth(
-			stepsRef.current.map((step) =>
+		setPartsBoth(
+			mapSteps(partsRef.current, (step) =>
 				step.id === plan.stepId && step.checklist
 					? {
 							...step,
@@ -578,6 +634,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						onDelta: (delta) => {
 							answer += delta
 							setStreaming(answer)
+							appendText(delta)
 						},
 						onToolCall: (call) => calls.push(call),
 						onToolsUnsupported: () => {
@@ -596,8 +653,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				)
 			} catch (cause) {
 				if (controller.signal.aborted) {
-					const cancelled = closeRunning('cancelled', stepsRef.current)
-					setStepsBoth(cancelled)
+					const cancelled = closeAll('cancelled', partsRef.current)
+					setPartsBoth(cancelled)
 					const partial = stripFallbackCalls(answer)
 					if (partial || cancelled.length > 0) {
 						commit([
@@ -606,13 +663,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 								role: 'assistant',
 								content: partial,
 								taskId,
-								steps: cancelled.length > 0 ? cancelled : undefined,
+								parts: cancelled.length > 0 ? visibleParts(cancelled) : undefined,
 								usage,
 							},
 						])
 					}
 				} else {
-					setStepsBoth(closeRunning('failed', stepsRef.current))
+					setPartsBoth(closeAll('failed', partsRef.current))
 				}
 				throw cause
 			}
@@ -651,7 +708,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						detail: 'Model masih meminta bacaan setelah anggaran habis; permintaannya tidak dijalankan.',
 					})
 				}
-				const finalTurn: ChatTurn = { ...assistant, steps: finishSteps(), usage }
+				const finalTurn: ChatTurn = { ...assistant, parts: visibleParts(finishParts()), usage }
 				commit([...history, finalTurn])
 				if (writes.length > 0 && autoApplyRef.current) pendingAutoApplyRef.current = writes
 				return
@@ -685,7 +742,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 				if (isRemoteReadTool(call.name)) {
 					pushStep(remoteToolLabel(call))
-					const remote = await runRemoteReadTool(call, controller.signal, researchTabRef.current)
+					const remote = await runRemoteReadTool(call, controller.signal, serverTabRef.current)
 					patchRunningStep({
 						status: 'done',
 						endedAt: Date.now(),
@@ -727,8 +784,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					detail: `${round} putaran · ${readsUsed + reads.length} alat baca. Model diminta menjawab dengan bahan yang ada.`,
 				})
 			}
-			const step: ChatTurn = { ...assistant, intermediate: !visible && writes.length === 0 }
+			/*
+			 * Langkah putaran ini ikut ke giliran putaran ini, bukan menumpuk ke
+			 * satu daftar milik giliran terakhir. Justru inilah yang membuat
+			 * urutannya benar: `messages` sudah terurut, jadi begitu tiap putaran
+			 * membawa langkahnya sendiri, teks dan kerja terbaca bergantian.
+			 */
+			const roundParts = visibleParts(finishParts())
+			const step: ChatTurn = {
+				...assistant,
+				parts: roundParts,
+				intermediate: !visible && writes.length === 0 && roundParts === undefined,
+			}
 			commit([...history, step, ...results])
+			setPartsBoth([])
 			setStreaming('')
 			await runTurn(
 				[...history, step, ...results],
@@ -814,7 +883,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			setCurrentTaskId(taskId)
 			setStreaming('')
 			setError(null)
-			setStepsBoth([])
+			setPartsBoth([])
 			planRef.current = null
 			writeWavesRef.current = { taskId, count: 0 }
 
@@ -822,12 +891,58 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		},
 		[commit, startTurn],
 	)
+	/*
+	 * Besaran tiap aksi, dipegang dua kali karena dua pembacanya berbeda umur:
+	 * kartu aksi merender dari state, sedangkan `settleActions` menjumlahkannya
+	 * di dalam callback yang ter-memo dan butuh nilai terkini.
+	 */
+	const [actionWords, setActionWords] = useState<Record<string, WordDelta>>({})
+	const actionWordsRef = useRef<Record<string, WordDelta>>({})
+	const invalidateVersions = useInvalidateVersions()
+
+	/**
+	 * Satu versi bertanda AI per giliran chat, bukan per aksi.
+	 *
+	 * Penulis yang menerapkan lima suntingan dari satu jawaban tidak sedang
+	 * membuat lima titik pemulihan; ia membuat satu. Karena itu snapshot diambil
+	 * ketika seluruh aksi giliran itu sudah selesai diputuskan - diterapkan atau
+	 * dilewati - dengan angka gabungannya.
+	 *
+	 * Konsekuensi yang disengaja: giliran yang aksinya dibiarkan menggantung
+	 * tidak pernah mendapat versi bertanda AI. Isinya tetap tersimpan lewat
+	 * snapshot interval; yang hilang cuma keterangannya, dan itu lebih baik
+	 * daripada menandai naskah yang penulis sendiri belum putuskan.
+	 */
+	const snapshotAiResult = useCallback(
+		async (delta: WordDelta) => {
+			const summary = formatWordDelta(delta)
+			const label = summary ? `AI Chat · ${summary}` : 'AI Chat'
+			const serverTabId = serverTabRef.current
+
+			if (serverTabId) {
+				await createVersion(serverTabId, label, 'ai_result').catch(() => undefined)
+				invalidateVersions({ tabId: serverTabId, serverTabId })
+				return
+			}
+
+			const tabId = appRef.current.activeId
+			if (!tabId) return
+			await snapshotLocalVersion(appRef.current.doc, tabId, 'ai_result', label)
+			invalidateVersions({ tabId, serverTabId: null })
+		},
+		[invalidateVersions],
+	)
+
 	const runWriteTool = useCallback(
 		(call: ToolCall): ToolOutcome => {
 			if (appliedActionIds.has(call.id)) return { ok: true, message: 'Sudah diterapkan.' }
 
 			const editor = editorRef.current
 			if (!editor) return { ok: false, message: 'Editor belum siap.' }
+
+			// Diukur mengapit penerapannya, bukan dari argumen alat: yang dihitung
+			// harus perubahan yang benar-benar mendarat di naskah.
+			const before = editorPlainText(editor)
 
 			const outcome = applyWriteTool(
 				{
@@ -849,7 +964,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				call,
 			)
 
-			if (outcome.ok) setAppliedActionIds((current) => new Set(current).add(call.id))
+			if (outcome.ok) {
+				setAppliedActionIds((current) => new Set(current).add(call.id))
+				const delta = wordDelta(before, editorPlainText(editor))
+				if (delta.added > 0 || delta.removed > 0) {
+					actionWordsRef.current = { ...actionWordsRef.current, [call.id]: delta }
+					setActionWords(actionWordsRef.current)
+				}
+			}
 			return outcome
 		},
 		[appliedActionIds, addComment, setActivePanel, markRun, state.text, language.code],
@@ -873,6 +995,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			}))
 			const complete =
 				owner !== undefined && taskId !== undefined && actionsSettled([...current, ...results], owner)
+
+			// Seluruh aksi giliran ini sudah diputuskan: saatnya satu versi bertanda AI.
+			if (complete && owner?.actions) {
+				const deltas = owner.actions
+					.map((action) => actionWordsRef.current[action.id])
+					.filter((delta): delta is WordDelta => delta !== undefined)
+				if (deltas.length > 0) void snapshotAiResult(sumWordDeltas(deltas))
+			}
 			const waves = writeWavesRef.current
 			const count = waves.taskId === taskId ? waves.count + 1 : 1
 			const resumable = complete && taskId === currentTaskId && !abortRef.current && count <= MAX_WRITE_WAVES
@@ -888,25 +1018,165 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			writeWavesRef.current = { taskId, count }
 
 			setStreaming('')
-			setStepsBoth([])
+			setPartsBoth([])
 			startTurn(next, taskId)
 		},
-		[commit, currentTaskId, startTurn],
+		[commit, currentTaskId, startTurn, snapshotAiResult],
+	)
+
+	/**
+	 * Aksi menggambar, satu-satunya yang tidak selesai seketika.
+	 *
+	 * Alat tulis lain menyentuh dokumen dan berakhir di baris yang sama. Yang
+	 * ini menunggu sub-agent, jadi ia mendapat langkah latarnya sendiri - dan
+	 * yang kembali ke model bukan gambarnya melainkan tanda terima. Di situlah
+	 * seluruh penghematannya: markup-nya berjalan dari server langsung ke
+	 * dokumen, tanpa singgah di percakapan yang harus dibayar ulang tiap giliran.
+	 */
+	const runDrawTool = useCallback(async (call: ToolCall): Promise<ToolOutcome> => {
+		const editor = editorRef.current
+		if (!editor) return { ok: false, message: 'Editor belum siap.' }
+
+		const redraw = call.name === 'redraw_diagram'
+		let target: { pos: number; source: string; title: string } | null = null
+
+		if (redraw) {
+			const asked = String(call.arguments.title ?? '').trim()
+			target = findDiagramBlock(diagramBlocks(editor.state.doc), asked || undefined)
+			if (!target) {
+				return {
+					ok: false,
+					message: asked
+						? `No diagram titled "${asked}" in the document. List what is there before trying again.`
+						: 'The document holds more than one diagram, or none. Name the one to change with "title".',
+				}
+			}
+		}
+
+		const label = redraw
+			? `Menggambar ulang "${target?.title || 'diagram'}"`
+			: `Menggambar diagram ${String(call.arguments.type ?? '')}`.trim()
+		const stepId = startBackgroundStep(label)
+
+		const drawn = await drawDiagram({
+			type: redraw ? diagramTypeOf(target?.source ?? '') : String(call.arguments.type ?? ''),
+			spec: String((redraw ? call.arguments.change : call.arguments.spec) ?? ''),
+			dark: call.arguments.dark === true,
+			...(redraw && target ? { previous: target.source } : {}),
+			model: modelRef.current,
+		})
+
+		if ('error' in drawn) {
+			finishStep(stepId, { status: 'failed', detail: drawn.error })
+			return { ok: false, message: `The drawing sub-agent failed: ${drawn.error}` }
+		}
+
+		if (redraw && target) replaceDiagramBlock(editor, target.pos, drawn.svg)
+		else insertDiagramBlock(editor, drawn.svg)
+
+		finishStep(stepId, {
+			status: 'done',
+			detail: `${drawn.title}${drawn.size ? ` · ${drawn.size.width}x${drawn.size.height}` : ''}`,
+		})
+		return { ok: true, message: diagramReceipt(drawn, redraw) }
+	}, [])
+
+	/**
+	 * Rancangan satu halaman yang membawa bagan.
+	 *
+	 * Gambarnya dibuat lebih dulu, diwarnai mengikuti rancangannya, lalu ditanam
+	 * ke penandanya - **semua di sini**, sesudah keduanya selesai. Markup dan
+	 * gambar bertemu pertama kali di klien, dan tidak satu pun dari keduanya
+	 * pernah melewati konteks model.
+	 */
+	const runHtmlWithDiagrams = useCallback(
+		async (call: ToolCall): Promise<ToolOutcome> => {
+			const requested = (call.arguments.diagrams ?? []) as Array<{
+				id?: string
+				type?: string
+				spec?: string
+				palette?: Partial<DiagramPalette>
+			}>
+
+			const drawn = new Map<string, string>()
+			const failed: string[] = []
+
+			for (const entry of requested) {
+				const id = String(entry.id ?? '').toLowerCase()
+				if (!id) continue
+
+				const stepId = startBackgroundStep(`Menggambar bagan "${id}"`)
+				const result = await drawDiagram({
+					type: String(entry.type ?? 'architecture'),
+					spec: String(entry.spec ?? ''),
+					model: modelRef.current,
+				})
+
+				if ('error' in result) {
+					finishStep(stepId, { status: 'failed', detail: result.error })
+					failed.push(id)
+					continue
+				}
+
+				/*
+				 * Diwarnai di sini, bukan diminta ke sub-agent: paletnya milik
+				 * rancangan, dan substitusi deterministik tidak bisa merusak tata
+				 * letak yang sudah benar - sedangkan model yang menggambar ulang
+				 * dengan warna lain bisa.
+				 */
+				const palette = entry.palette
+				drawn.set(id, palette && isCompletePalette(palette) ? reskinSvg(result.svg, palette) : result.svg)
+				finishStep(stepId, { status: 'done', detail: result.title })
+			}
+
+			const { html, missing } = stitchDiagrams(String(call.arguments.html ?? ''), drawn)
+			const outcome = runWriteTool({ ...call, arguments: { ...call.arguments, html } })
+			if (!outcome.ok) return outcome
+
+			const notes = [
+				failed.length > 0 && `Could not draw: ${failed.join(', ')}.`,
+				missing.length > 0 && `These placeholders were left empty: ${missing.join(', ')}.`,
+			].filter(Boolean)
+
+			return notes.length > 0 ? { ok: true, message: `${outcome.message} ${notes.join(' ')}` } : outcome
+		},
+		[runWriteTool],
+	)
+
+	const runAsyncTool = useCallback(
+		(call: ToolCall): Promise<ToolOutcome> =>
+			call.name === 'insert_html_block' ? runHtmlWithDiagrams(call) : runDrawTool(call),
+		[runDrawTool, runHtmlWithDiagrams],
 	)
 
 	const applyAction = useCallback(
-		(call: ToolCall): ToolOutcome => {
-			const outcome = runWriteTool(call)
+		async (call: ToolCall): Promise<ToolOutcome> => {
+			const outcome = needsDrawing(call.name, call.arguments) ? await runAsyncTool(call) : runWriteTool(call)
 			settleActions([{ call, content: outcome.message }])
 			return outcome
 		},
-		[runWriteTool, settleActions],
+		[runAsyncTool, runWriteTool, settleActions],
 	)
+
 	const applyActions = useCallback(
 		(calls: ToolCall[]) => {
-			settleActions(calls.map((call) => ({ call, content: runWriteTool(call).message })))
+			/*
+			 * Berurutan, bukan berbarengan. Aksi menggambar menyisipkan blok ke
+			 * dokumen yang sama, dan dua penyisipan yang berlomba menghitung
+			 * posisinya dari keadaan yang sudah berubah.
+			 */
+			void (async () => {
+				const entries: { call: ToolCall; content: string }[] = []
+				for (const call of calls) {
+					const outcome = needsDrawing(call.name, call.arguments)
+						? await runAsyncTool(call)
+						: runWriteTool(call)
+					entries.push({ call, content: outcome.message })
+				}
+				settleActions(entries)
+			})()
 		},
-		[runWriteTool, settleActions],
+		[runAsyncTool, runWriteTool, settleActions],
 	)
 	applyActionsRef.current = applyActions
 
@@ -930,7 +1200,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		setAttachment(null)
 		setAppliedActionIds(new Set())
 		setCurrentTaskId(undefined)
-		setStepsBoth([])
+		setPartsBoth([])
 		writeWavesRef.current = { taskId: undefined, count: 0 }
 	}, [stop, commit])
 	const settledActionIds = useMemo(
@@ -947,7 +1217,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		() => ({
 			messages,
 			streaming,
-			steps,
+			parts,
 			isRunning: streaming !== null,
 			error,
 			retry,
@@ -963,6 +1233,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			currentTaskId,
 			applyAction,
 			applyActions,
+			actionWords: (id: string) => actionWords[id],
 			skipAction,
 			isActionApplied: (id: string) => appliedActionIds.has(id),
 			isActionSettled: (id: string) => settledActionIds.has(id),
@@ -976,7 +1247,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		[
 			messages,
 			streaming,
-			steps,
+			parts,
 			error,
 			retry,
 			attachment,
@@ -988,6 +1259,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			currentTaskId,
 			applyAction,
 			applyActions,
+			actionWords,
 			skipAction,
 			appliedActionIds,
 			settledActionIds,

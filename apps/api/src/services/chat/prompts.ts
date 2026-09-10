@@ -1,5 +1,5 @@
 import type { DocumentMetadata, TemplateMetadataField } from '@writer-hub/shared'
-import { fallbackToolPrompt, type StyleMemory } from '@writer-hub/shared'
+import { ACTIVE_SKILLS, fallbackToolPrompt, type StyleMemory } from '@writer-hub/shared'
 
 /**
  * Seluruh teks yang dikirim sebagai peran "system" ke provider AI.
@@ -36,6 +36,8 @@ export const TOOL_GUIDANCE = [
 	'For multi-step work, start with the plan tool so the user can follow along.',
 	'You can also reshape the layout: set_page_setup (paper, orientation,',
 	'margins, pageless), insert_toc / set_toc_options, insert_mermaid,',
+	'draw_diagram / redraw_diagram (a drawing sub-agent; prefer these over',
+	'insert_diagram, and never read a diagram back to change it),',
 	'insert_table, apply_paragraph_style, format_text, restructure_section,',
 	'insert_image and create_tab.',
 	'Headers, footers and page numbers are yours too: set_header_footer writes',
@@ -314,6 +316,50 @@ export function dashRulePrompt(allowDashes: boolean | undefined): string {
  * ini. Bagian yang kosong - misalnya memori gaya yang belum diisi pengguna -
  * dibuang, bukan disisipkan sebagai paragraf hampa.
  */
+/**
+ * Indeks skill - nama dan satu kalimat, bukan isinya.
+ *
+ * Inilah inti dari pemuatan bertahap: yang permanen di system prompt cuma
+ * daftar ini (±150 token), sedangkan badan skill baru diambil `read_skill`
+ * kalau model memang memerlukannya. Menyuntikkan isinya sekaligus akan
+ * mengembalikan persis masalah yang mau dihindari.
+ */
+/**
+ * Sesudah sekian berkas, mendaftarnya satu per satu mengkhianati tujuan indeks.
+ *
+ * Skill berisi beberapa berkas dalam cukup dijelaskan barisnya; skill yang
+ * berisi puluhan - satu per tipe diagram - akan menambah ratusan token ke
+ * **setiap** permintaan, untuk setiap penulis, termasuk yang tidak pernah
+ * menggambar apa pun. Di atas ambang ini yang disebut hanya namanya, dan badan
+ * skill-nya yang menerangkan kapan masing-masing dipakai - persis pekerjaan
+ * yang memang sudah dilakukan tabel pemilihan di sana.
+ */
+const FILES_DESCRIBED = 3
+
+export function skillIndexPrompt(): string {
+	if (ACTIVE_SKILLS.length === 0) return ''
+
+	const lines = ACTIVE_SKILLS.map((skill) => {
+		const deeper =
+			skill.files.length > FILES_DESCRIBED
+				? [
+						`    deeper files (read the skill body first, it says which fits): ${skill.files.map((file) => file.name).join(', ')}`,
+					]
+				: skill.files.map((file) => `    - ${file.name}: ${file.summary}`)
+		return [`- ${skill.name}: ${skill.description}`, ...deeper].join('\n')
+	})
+
+	const preamble = [
+		'Skills available through read_skill. These carry procedural knowledge you',
+		'do not have to guess at - how to judge evidence, how to audit a draft.',
+		'Read the relevant one BEFORE drafting or critiquing, not after. Where a',
+		'skill and the active template disagree about structure or naming, the',
+		'template wins.',
+	].join(' ')
+
+	return [preamble, '', ...lines].join('\n')
+}
+
 export function buildSystemPrompt({
 	withTools,
 	research,
@@ -325,6 +371,7 @@ export function buildSystemPrompt({
 		SYSTEM_PROMPT,
 		dashRulePrompt(memory?.allowDashes),
 		withTools ? TOOL_GUIDANCE : fallbackToolPrompt({ research }),
+		skillIndexPrompt(),
 		withTools ? NARRATIVE_GUIDANCE : '',
 		research ? RESEARCH_GUIDANCE : RESEARCH_OFF_NOTICE,
 		memoryPrompt(memory),

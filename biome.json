@@ -6,9 +6,10 @@
 			"apps/**/*.ts",
 			"apps/**/*.tsx",
 			"packages/**/*.ts",
-			"!**/node_modules/**",
-			"!**/.next/**",
-			"!apps/api/src/db/migrations/**"
+			"scripts/**/*.ts",
+			"!**/node_modules",
+			"!**/.next",
+			"!apps/api/src/db/migrations"
 		]
 	},
 	"formatter": {
