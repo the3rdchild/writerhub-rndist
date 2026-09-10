@@ -26,7 +26,18 @@ export type DiagramSanitizeResult = { svg: string; error?: undefined } | { svg?:
 const MISSING_VIEWBOX =
 	'SVG ini tidak punya viewBox. Tambahkan viewBox="0 0 lebar tinggi" supaya diagramnya bisa diukur saat diekspor.'
 
-const NOT_SVG = 'Sumber diagram harus satu elemen <svg>.'
+/**
+ * Kesalahan yang paling sering terjadi, jadi pesannya menyebut jalan keluarnya.
+ *
+ * Model yang diminta "gambar" sering menjawab dengan potongan HTML - `<div>`
+ * berisi kartu, dengan `<svg>` sebagai ikon di dalamnya. Itu bukan diagram yang
+ * salah tulis melainkan **rancangan yang salah kamar**: tempatnya di blok
+ * rancangan, dan `convert_to_html_block` memindahkannya tanpa menulis ulang
+ * apa pun. Pesan yang cuma berkata "harus <svg>" membuat penulis mengira
+ * karyanya rusak.
+ */
+const NOT_SVG =
+	'Isi blok ini bukan satu gambar <svg>, melainkan markup HTML. Kalau ini rancangan, ubah jadi blok rancangan (minta AI "render blok ini"). Kalau ini memang diagram, elemen terluarnya harus <svg>.'
 
 function stripDisallowed(element: Element): void {
 	for (const attribute of [...element.attributes]) {

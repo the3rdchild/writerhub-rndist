@@ -10,7 +10,6 @@ import {
 	type ChatUsage,
 	DEFAULT_CHAT_MODEL,
 	isReadTool,
-	type ResearchSource,
 	type ToolCall,
 } from '@writer-hub/shared'
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
@@ -60,67 +59,29 @@ import {
 	summarizeToolResult,
 	type ToolOutcome,
 } from './tools'
+import {
+	appendStep,
+	appendText as appendTextTo,
+	type ChatStep,
+	closeAll,
+	closeRunning,
+	flatSteps,
+	lastRunningStep,
+	mapSteps,
+	patchStep,
+	type TurnPart,
+	visibleParts,
+} from './turn-parts'
 import { formatWordDelta, sumWordDeltas, type WordDelta, wordDelta } from './word-delta'
+
+export type { ChatStep, TurnPart } from './turn-parts'
+export { flatSteps } from './turn-parts'
 
 export interface ChatAttachment {
 	text: string
 	surrounding: string
 	offset: number
 	length: number
-}
-
-export interface ChatStep {
-	id: string
-	label: string
-	status: 'running' | 'done' | 'failed' | 'cancelled'
-	startedAt: number
-	endedAt?: number
-	detail?: string
-	checklist?: { text: string; done: boolean }[]
-	/** Hanya untuk langkah riset web - dipakai kartu verifikasi. */
-	sources?: ResearchSource[]
-}
-
-/**
- * Satu giliran sebagai **aliran terurut**, bukan dua tumpukan terpisah.
- *
- * Sebelumnya giliran disimpan sebagai satu blob teks plus satu daftar langkah,
- * dan panel selalu menggambar daftarnya di atas teksnya. Model yang bicara lalu
- * memakai alat lalu bicara lagi tidak punya tempat untuk ucapan pertamanya:
- * kedua ucapan disambung jadi satu, dan seluruh langkah menumpuk di bawahnya.
- * Yang penulis lihat adalah pesannya "berpindah" - padahal ia memang tidak
- * pernah punya posisi.
- *
- * Aturan pembentuknya satu kalimat: **teks memisahkan kelompok.** Model bicara,
- * kelompok langkah ditutup; ia bekerja lagi, kelompok baru dibuka.
- */
-export type TurnPart = { kind: 'text'; text: string } | { kind: 'steps'; steps: ChatStep[] }
-
-/** Semua langkah giliran ini, tanpa peduli di kelompok mana ia jatuh. */
-export function flatSteps(parts: TurnPart[]): ChatStep[] {
-	return parts.flatMap((part) => (part.kind === 'steps' ? part.steps : []))
-}
-
-function mapSteps(parts: TurnPart[], fn: (step: ChatStep) => ChatStep): TurnPart[] {
-	return parts.map((part) => (part.kind === 'steps' ? { kind: 'steps', steps: part.steps.map(fn) } : part))
-}
-
-/**
- * Membersihkan bagian teks sebelum giliran disimpan.
- *
- * Selama mengalir, teksnya ditampilkan mentah - termasuk panggilan alat
- * cadangan yang ditulis model sebagai teks biasa. Yang tersimpan tidak boleh
- * begitu, dan bagian teks yang habis dibersihkan tidak boleh menyisakan
- * gelembung kosong di antara dua kelompok langkah.
- */
-function visibleParts(parts: TurnPart[] | undefined): TurnPart[] | undefined {
-	if (!parts) return undefined
-	const cleaned = parts
-		.map((part) =>
-			part.kind === 'text' ? { kind: 'text' as const, text: stripFallbackCalls(part.text) } : part,
-		)
-		.filter((part) => part.kind !== 'text' || part.text.trim().length > 0)
-	return cleaned.length > 0 ? cleaned : undefined
 }
 
 export interface ChatTurn extends ChatMessage {
@@ -449,50 +410,36 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		setParts(next)
 	}
 
-	const closeRunning = (status: 'done' | 'failed' | 'cancelled', parts: TurnPart[]): TurnPart[] =>
-		mapSteps(parts, (step) => (step.status === 'running' ? { ...step, status, endedAt: Date.now() } : step))
-
 	/**
-	 * Membuka kelompok baru kalau bagian terakhir adalah teks, menyambung kalau
-	 * bukan. Satu-satunya tempat aturan "teks memisahkan kelompok" itu hidup.
+	 * Langkah berurutan: yang baru menutup yang sebelumnya, karena model memang
+	 * mengerjakannya satu per satu. Pekerjaan sub-agent memakai `startBackgroundStep`.
 	 */
 	const pushStep = (label: string, detail?: string): string => {
 		const now = Date.now()
-		const closed = closeRunning('done', partsRef.current)
+		const closed = closeRunning('done', partsRef.current, now)
 		const id = `step_${now.toString(36)}_${flatSteps(closed).length}`
-		const step: ChatStep = { id, label, status: 'running', startedAt: now, detail }
-		const last = closed[closed.length - 1]
-		setPartsBoth(
-			last?.kind === 'steps'
-				? [...closed.slice(0, -1), { kind: 'steps', steps: [...last.steps, step] }]
-				: [...closed, { kind: 'steps', steps: [step] }],
-		)
+		setPartsBoth(appendStep(closed, { id, label, status: 'running', startedAt: now, detail }))
 		return id
 	}
 
-	/**
-	 * Teks yang datang disambung ke bagian teks terakhir, atau membuka bagian
-	 * teks baru kalau sebelumnya kelompok langkah. Itu yang menutup kelompok.
-	 */
 	const appendText = (delta: string) => {
-		const parts = partsRef.current
-		const last = parts[parts.length - 1]
-		setPartsBoth(
-			last?.kind === 'text'
-				? [...parts.slice(0, -1), { kind: 'text', text: last.text + delta }]
-				: [...parts, { kind: 'text', text: delta }],
-		)
+		setPartsBoth(appendTextTo(partsRef.current, delta))
 	}
 
 	const patchRunningStep = (patch: Partial<ChatStep>) => {
-		const all = flatSteps(partsRef.current)
-		const last = all[all.length - 1]
-		if (last?.status !== 'running') return
-		setPartsBoth(mapSteps(partsRef.current, (step) => (step.id === last.id ? { ...step, ...patch } : step)))
+		const last = lastRunningStep(partsRef.current)
+		if (!last) return
+		setPartsBoth(patchStep(partsRef.current, last.id, patch))
 	}
 
+	/**
+	 * Giliran benar-benar berakhir, jadi yang berjalan sendiri pun ditutup: satu
+	 * gambar yang belum kembali saat gilirannya disimpan tidak akan pernah
+	 * kembali, dan spinner yang berputar selamanya lebih buruk daripada langkah
+	 * yang ditandai selesai.
+	 */
 	const finishParts = (): TurnPart[] | undefined => {
-		const closed = closeRunning('done', partsRef.current)
+		const closed = closeAll('done', partsRef.current)
 		setPartsBoth(closed)
 		return closed.length > 0 ? closed : undefined
 	}
@@ -679,7 +626,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				)
 			} catch (cause) {
 				if (controller.signal.aborted) {
-					const cancelled = closeRunning('cancelled', partsRef.current)
+					const cancelled = closeAll('cancelled', partsRef.current)
 					setPartsBoth(cancelled)
 					const partial = stripFallbackCalls(answer)
 					if (partial || cancelled.length > 0) {
@@ -695,7 +642,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						])
 					}
 				} else {
-					setPartsBoth(closeRunning('failed', partsRef.current))
+					setPartsBoth(closeAll('failed', partsRef.current))
 				}
 				throw cause
 			}
