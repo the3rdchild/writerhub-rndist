@@ -44,6 +44,9 @@ import { buildSchema, fragmentToJSON, jsonToFragment } from '@/features/sync/ser
 import { useSync } from '@/features/sync/sync-context'
 import { getTemplate } from '@/features/templates/api'
 import { useActiveDocumentMetadata, useActiveTemplate } from '@/features/templates/use-templates'
+import { createVersion } from '@/features/versions/api'
+import { snapshotLocalVersion } from '@/features/versions/local-snapshot'
+import { useInvalidateVersions } from '@/features/versions/use-versions'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import { parseFallbackCalls, streamChat, stripFallbackCalls } from './api'
 import { chatFailureHint, toChatTurnError } from './failure'
@@ -57,6 +60,7 @@ import {
 	summarizeToolResult,
 	type ToolOutcome,
 } from './tools'
+import { formatWordDelta, sumWordDeltas, type WordDelta, wordDelta } from './word-delta'
 
 export interface ChatAttachment {
 	text: string
@@ -253,6 +257,8 @@ interface ChatContextValue {
 	currentTaskId: string | undefined
 	applyAction: (call: ToolCall) => ToolOutcome
 	applyActions: (calls: ToolCall[]) => void
+	/** Besaran perubahan satu aksi, kalau ia memang menyentuh naskah. */
+	actionWords: (id: string) => WordDelta | undefined
 	skipAction: (call: ToolCall) => void
 	isActionApplied: (id: string) => boolean
 	isActionSettled: (id: string) => boolean
@@ -293,11 +299,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const [research, setResearch] = usePersistentState('writer-hub-chat-research', false)
 	const researchRef = useRef(research)
 	researchRef.current = research
-	// Riset dicatat ke Aktivitas; tautkan ke tab server supaya entrinya tidak
-	// yatim di halaman itu.
+	/*
+	 * Tab aktif di sisi server, kalau memang ada padanannya.
+	 *
+	 * Dua pemakai: riset dicatat ke Aktivitas dan butuh tautan supaya entrinya
+	 * tidak yatim di halaman itu, dan snapshot `ai_result` (§T4) butuh tahu
+	 * apakah versinya ditulis ke server atau ke simpanan lokal.
+	 */
 	const { linkage } = useSync()
-	const researchTabRef = useRef<string | null>(null)
-	researchTabRef.current = activeId ? (linkage[activeId]?.serverId ?? null) : null
+	const serverTabRef = useRef<string | null>(null)
+	serverTabRef.current = activeId ? (linkage[activeId]?.serverId ?? null) : null
 	// Template asal dokumen aktif: slug-nya ikut ke prompt server, spec-nya
 	// menjawab alat baca get_template_rules.
 	const activeTemplate = useActiveTemplate()
@@ -757,7 +768,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 				if (isRemoteReadTool(call.name)) {
 					pushStep(remoteToolLabel(call))
-					const remote = await runRemoteReadTool(call, controller.signal, researchTabRef.current)
+					const remote = await runRemoteReadTool(call, controller.signal, serverTabRef.current)
 					patchRunningStep({
 						status: 'done',
 						endedAt: Date.now(),
@@ -906,12 +917,58 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		},
 		[commit, startTurn],
 	)
+	/*
+	 * Besaran tiap aksi, dipegang dua kali karena dua pembacanya berbeda umur:
+	 * kartu aksi merender dari state, sedangkan `settleActions` menjumlahkannya
+	 * di dalam callback yang ter-memo dan butuh nilai terkini.
+	 */
+	const [actionWords, setActionWords] = useState<Record<string, WordDelta>>({})
+	const actionWordsRef = useRef<Record<string, WordDelta>>({})
+	const invalidateVersions = useInvalidateVersions()
+
+	/**
+	 * Satu versi bertanda AI per giliran chat, bukan per aksi.
+	 *
+	 * Penulis yang menerapkan lima suntingan dari satu jawaban tidak sedang
+	 * membuat lima titik pemulihan; ia membuat satu. Karena itu snapshot diambil
+	 * ketika seluruh aksi giliran itu sudah selesai diputuskan - diterapkan atau
+	 * dilewati - dengan angka gabungannya.
+	 *
+	 * Konsekuensi yang disengaja: giliran yang aksinya dibiarkan menggantung
+	 * tidak pernah mendapat versi bertanda AI. Isinya tetap tersimpan lewat
+	 * snapshot interval; yang hilang cuma keterangannya, dan itu lebih baik
+	 * daripada menandai naskah yang penulis sendiri belum putuskan.
+	 */
+	const snapshotAiResult = useCallback(
+		async (delta: WordDelta) => {
+			const summary = formatWordDelta(delta)
+			const label = summary ? `AI Chat · ${summary}` : 'AI Chat'
+			const serverTabId = serverTabRef.current
+
+			if (serverTabId) {
+				await createVersion(serverTabId, label, 'ai_result').catch(() => undefined)
+				invalidateVersions({ tabId: serverTabId, serverTabId })
+				return
+			}
+
+			const tabId = appRef.current.activeId
+			if (!tabId) return
+			await snapshotLocalVersion(appRef.current.doc, tabId, 'ai_result', label)
+			invalidateVersions({ tabId, serverTabId: null })
+		},
+		[invalidateVersions],
+	)
+
 	const runWriteTool = useCallback(
 		(call: ToolCall): ToolOutcome => {
 			if (appliedActionIds.has(call.id)) return { ok: true, message: 'Sudah diterapkan.' }
 
 			const editor = editorRef.current
 			if (!editor) return { ok: false, message: 'Editor belum siap.' }
+
+			// Diukur mengapit penerapannya, bukan dari argumen alat: yang dihitung
+			// harus perubahan yang benar-benar mendarat di naskah.
+			const before = editorPlainText(editor)
 
 			const outcome = applyWriteTool(
 				{
@@ -933,7 +990,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				call,
 			)
 
-			if (outcome.ok) setAppliedActionIds((current) => new Set(current).add(call.id))
+			if (outcome.ok) {
+				setAppliedActionIds((current) => new Set(current).add(call.id))
+				const delta = wordDelta(before, editorPlainText(editor))
+				if (delta.added > 0 || delta.removed > 0) {
+					actionWordsRef.current = { ...actionWordsRef.current, [call.id]: delta }
+					setActionWords(actionWordsRef.current)
+				}
+			}
 			return outcome
 		},
 		[appliedActionIds, addComment, setActivePanel, markRun, state.text, language.code],
@@ -957,6 +1021,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			}))
 			const complete =
 				owner !== undefined && taskId !== undefined && actionsSettled([...current, ...results], owner)
+
+			// Seluruh aksi giliran ini sudah diputuskan: saatnya satu versi bertanda AI.
+			if (complete && owner?.actions) {
+				const deltas = owner.actions
+					.map((action) => actionWordsRef.current[action.id])
+					.filter((delta): delta is WordDelta => delta !== undefined)
+				if (deltas.length > 0) void snapshotAiResult(sumWordDeltas(deltas))
+			}
 			const waves = writeWavesRef.current
 			const count = waves.taskId === taskId ? waves.count + 1 : 1
 			const resumable = complete && taskId === currentTaskId && !abortRef.current && count <= MAX_WRITE_WAVES
@@ -975,7 +1047,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			setPartsBoth([])
 			startTurn(next, taskId)
 		},
-		[commit, currentTaskId, startTurn],
+		[commit, currentTaskId, startTurn, snapshotAiResult],
 	)
 
 	const applyAction = useCallback(
@@ -1047,6 +1119,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			currentTaskId,
 			applyAction,
 			applyActions,
+			actionWords: (id: string) => actionWords[id],
 			skipAction,
 			isActionApplied: (id: string) => appliedActionIds.has(id),
 			isActionSettled: (id: string) => settledActionIds.has(id),
@@ -1072,6 +1145,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			currentTaskId,
 			applyAction,
 			applyActions,
+			actionWords,
 			skipAction,
 			appliedActionIds,
 			settledActionIds,

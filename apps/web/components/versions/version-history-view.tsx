@@ -54,7 +54,13 @@ function entryLabel(version: VersionSummary): string {
 		case 'pre_translate':
 			return 'Sebelum terjemah'
 		case 'ai_result': {
-			const label = featureLabel(version.feature)
+			/*
+			 * Dua penulis, dua bentuk keterangan. Modul analisis menandai
+			 * versinya lewat `feature`; AI Chat menaruh keterangannya di `label`
+			 * karena yang perlu disebut bukan nama fitur melainkan besaran
+			 * perubahannya ("AI Chat · +128 −34 kata").
+			 */
+			const label = version.label ?? featureLabel(version.feature)
 			return label ? `Hasil AI: ${label}` : 'Hasil AI'
 		}
 	}
