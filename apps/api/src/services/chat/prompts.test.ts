@@ -133,10 +133,13 @@ describe('indeks skill', () => {
 	})
 
 	test('hanya daftar, bukan isi skill', () => {
-		// Menyuntikkan badannya mengembalikan persis masalah yang mau dihindari,
-		// jadi ukurannya dijaga: satu baris per skill, satu per berkas dalam.
+		// Menyuntikkan badannya mengembalikan persis masalah yang mau dihindari.
+		// Pagunya per entri, bukan total, supaya menambah skill tidak diam-diam
+		// membengkakkan system prompt - satu entri kira-kira 50 token.
 		const index = skillIndexPrompt()
-		expect(index.length).toBeLessThan(1200)
+		const entries = ACTIVE_SKILLS.length + ACTIVE_SKILLS.reduce((sum, s) => sum + s.files.length, 0)
+
+		expect(index.length / entries).toBeLessThan(240)
 	})
 
 	test('ikut di system prompt, dan menegaskan template yang menang', () => {

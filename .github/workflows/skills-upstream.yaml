@@ -1,0 +1,87 @@
+name: Skills upstream
+
+# Memantau K-Dense-AI/scientific-agent-skills. Overlay kita memang menyimpang
+# jauh dari upstream (docs/AGENT-SKILLS-PLAN.md §6), jadi yang dibuka issue
+# untuk dibaca manusia - bukan PR yang menggabungkan sendiri.
+
+on:
+  schedule:
+    - cron: "0 2 * * 1" # Senin 02:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: skills-upstream
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Periksa pergerakan upstream
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2"
+
+      - name: Bandingkan dengan tag terbaru
+        id: check
+        run: |
+          if bun run skills:sync --check > laporan.txt 2>&1; then
+            echo "moved=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "moved=yes" >> "$GITHUB_OUTPUT"
+          fi
+          cat laporan.txt
+
+      - name: Buka issue kalau upstream bergerak
+        if: steps.check.outputs.moved == 'yes'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs')
+            const laporan = fs.readFileSync('laporan.txt', 'utf8')
+            const judul = 'Skills upstream bergerak'
+
+            // Satu issue terbuka saja: kalau minggu lalu belum ditinjau,
+            // laporan baru menempel di sana alih-alih menumpuk issue.
+            const terbuka = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'skills-upstream',
+            })
+
+            const isi = [
+              'Pemeriksaan mingguan menemukan perubahan di upstream.',
+              '',
+              '```',
+              laporan.trim(),
+              '```',
+              '',
+              'Langkah berikutnya: `bun run skills:sync --latest`, lalu baca `git diff vendor/`',
+              'dan putuskan apakah overlay di `packages/shared/skills/` perlu ikut disesuaikan.',
+              'Jangan menyalin teks upstream apa adanya - lihat `docs/AGENT-SKILLS-PLAN.md` §6.',
+            ].join('\n')
+
+            if (terbuka.data.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: terbuka.data[0].number,
+                body: isi,
+              })
+              return
+            }
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: judul,
+              labels: ['skills-upstream'],
+              body: isi,
+            })

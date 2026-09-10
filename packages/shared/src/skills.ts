@@ -46,13 +46,13 @@ export const SKILLS: readonly SkillDefinition[] = [
 		label: 'Tulisan ilmiah',
 		hint: 'Aturan argumen, bukti, dan ketidakpastian',
 		description:
-			'How to build and audit an evidence-bound scientific argument: what may be claimed, how a claim is tied to a source, and how uncertainty must survive into the prose.',
+			'Building an evidence-bound argument: what may be claimed, how a claim is tied to a source, and how uncertainty survives the rewrite.',
 		overlay: 'scientific-writing',
 		files: [
 			{
 				name: 'evidence-audit',
 				summary:
-					'Step-by-step audit of an existing draft: finding unsupported claims, overstated certainty, and mismatches between methods and results.',
+					'Auditing an existing draft for unsupported claims, overstated certainty, and methods that do not match the results.',
 			},
 		],
 	},
@@ -60,32 +60,42 @@ export const SKILLS: readonly SkillDefinition[] = [
 		name: 'peer-review',
 		label: 'Tinjauan sejawat',
 		hint: 'Periksa naskah sebelum disetor',
-		description: '',
-		overlay: null,
-		files: [],
+		description:
+			"Assessing a manuscript, the writer's own or someone else's: what to examine in which order, and how a usable comment is built.",
+		overlay: 'peer-review',
+		files: [
+			{
+				name: 'revision-response',
+				summary:
+					'Answering reviewer comments: what to concede, what to defend, how the response letter is built.',
+			},
+		],
 	},
 	{
 		name: 'venue-templates',
 		label: 'Aturan penerbit',
 		hint: 'Format sesuai tujuan terbit',
-		description: '',
-		overlay: null,
+		description:
+			'Preparing for a journal, conference or funder that rejects on formatting alone. Venue rules change between calls, so never state one from memory.',
+		overlay: 'venue-templates',
 		files: [],
 	},
 	{
 		name: 'research-grants',
 		label: 'Proposal penelitian',
 		hint: 'Susun usulan dana penelitian',
-		description: '',
-		overlay: null,
+		description:
+			'The argument a funded proposal must make - why it matters, why it is new, why it will work, why this team - and how reviewers actually read.',
+		overlay: 'research-grants',
 		files: [],
 	},
 	{
 		name: 'scientific-brainstorming',
 		label: 'Curah gagasan',
 		hint: 'Tahap awal, sebelum ada tulisan',
-		description: '',
-		overlay: null,
+		description:
+			'Before there is anything to write: separating idea from assumption from evidence, and refusing to assert a research gap nobody searched for.',
+		overlay: 'scientific-brainstorming',
 		files: [],
 	},
 ]

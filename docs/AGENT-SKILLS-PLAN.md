@@ -1,6 +1,6 @@
 # Rencana Implementasi — Agent Skills di Chat AI
 
-Status: **PR-1 dan PR-2 selesai** · Disusun 10 September 2026 · Baseline kode
+Status: **PR-1 sampai PR-4 selesai** · Disusun 10 September 2026 · Baseline kode
 `9293480` (branch `main`)
 
 **Sumber luar:** [K-Dense-AI/scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills)
@@ -112,8 +112,8 @@ packages/shared/src/skills.ts  (SKILLS / ACTIVE_SKILLS)
    └─→ tier 'skill' di /… → penulis bisa memaksa
 ```
 
-**Kenapa tanpa `list_skills`.** Dengan ~5 skill, indeksnya (nama + satu baris) hanya ±150 token
-— lebih murah disuntik permanen daripada membayar satu putaran tool call untuk membacanya.
+**Kenapa tanpa `list_skills`.** Dengan lima skill, indeksnya ±338 token (§11) — masih lebih
+murah disuntik permanen daripada membayar satu putaran tool call untuk membacanya.
 `list_skills` baru masuk akal di angka ~30 skill ke atas.
 
 **Kenapa `/` bukan sekadar nice-to-have.** Pemilihan skill oleh model pasti meleset sesekali,
@@ -202,6 +202,23 @@ Sudah ada pijakan untuk itu di repo: `packages/shared/src/research-tools.ts` dan
 di `apps/web/app/api/citations/route.ts`. Rencananya dipisah ke
 **`docs/CITATION-ACADEMIC-SEARCH-PLAN.md`**.
 
+**Catatan dari penulisan PR-3.** Dua skill menyimpang lebih jauh dari upstream daripada yang
+diperkirakan, dan itu disengaja:
+
+- `research-grants` upstream hampir seluruhnya berisi aturan NSF, NIH, DOE, DARPA, dan NSTC
+  Taiwan. Aturan itu tidak berlaku untuk pemberi dana yang dihadapi penulis di sini, dan
+  memindahkannya apa adanya akan membuat model memberi angka yang salah dengan percaya diri.
+  Overlaynya menyimpan bagian yang lintas-pemberi-dana - empat pertanyaan yang sebenarnya
+  dinilai peninjau - dan menyuruh model mengambil angka dari dokumen panggilan, bukan dari
+  ingatannya.
+- `venue-templates` upstream membundel scaffold LaTeX dan aturan per jurnal. Kita tidak punya
+  LaTeX, dan formatnya sudah dimiliki katalog template. Yang tersisa justru aturan terpenting
+  upstream: **jangan pernah menyebut batas halaman atau syarat format dari ingatan**, karena
+  aturan itu berubah antar panggilan.
+
+Keduanya menegaskan §6 dari arah lain: yang diwarisi dari upstream adalah strukturnya, bukan
+angkanya.
+
 **Tidak masuk sama sekali:** 157 skill sisanya (scanpy, qiskit, rdkit, pymatgen, dst).
 Sparse-checkout hanya mengambil lima direktori yang dikurasi, bukan 30 MB penuh.
 
@@ -230,18 +247,29 @@ Jalur berkas hanya boleh terbentuk lewat `skillFilePath()`, yang mencocokkan ke 
 Tidak ada string dari model yang sampai ke sistem berkas, jadi penelusuran direktori mustahil
 - bukan sekadar disaring.
 
-**PR-3 — empat skill sisanya.** Pekerjaan mekanis setelah bentuknya terbukti.
+**PR-3 — empat skill sisanya.** ✅ *Selesai.* `peer-review` (+ `revision-response`),
+`venue-templates`, `research-grants`, `scientific-brainstorming`. Ternyata tidak sepenuhnya
+mekanis - lihat catatan tentang cakupan di bawah.
 
-**PR-4 — Action sinkronisasi mingguan.**
+**PR-4 — Action sinkronisasi mingguan.** ✅ *Selesai.* `.github/workflows/skills-upstream.yaml`,
+Senin 02:00 UTC. Membuka satu issue berlabel `skills-upstream`; kalau issue itu masih terbuka
+minggu berikutnya, laporan baru menempel di sana alih-alih menumpuk issue.
 
 ---
 
 ## 11. Yang belum diputuskan
 
 - **Pemangkasan `TOOL_GUIDANCE` belum dikerjakan.** Sekarang sudah terukur, bukan ditebak:
-  system prompt ±2.718 token, `TOOL_GUIDANCE` ±1.354 token (separuhnya), indeks skill ±162
-  token. Artinya PR-2 justru *menambah* ±162 token dulu; penghematannya baru datang kalau
-  isi `TOOL_GUIDANCE` benar-benar pindah.
+  system prompt ±2.894 token, `TOOL_GUIDANCE` ±1.354 token (hampir separuhnya), indeks skill
+  ±338 token. Artinya lapisan skill sejauh ini *menambah* ±338 token; penghematannya baru
+  datang kalau isi `TOOL_GUIDANCE` benar-benar pindah.
+
+  Catatan atas perkiraan di §5: "±150 token" ternyata meleset. Dengan lima skill dan dua
+  berkas dalam, indeksnya ±338 token - sekitar 48 token per entri, bukan 25. Deskripsi
+  sependek satu frasa tidak cukup untuk memilih skill yang benar, dan memaksakannya justru
+  membuat model salah pilih lalu membaca badan skill yang keliru. Pagunya sekarang diuji per
+  entri di `prompts.test.ts`, bukan sebagai total, supaya menambah skill tidak diam-diam
+  membengkakkan system prompt.
 
   Yang bisa pindah tidak banyak: hampir seluruh `TOOL_GUIDANCE` menjelaskan alat editor yang
   memang harus selalu tersedia. Kandidat yang jelas cuma `NARRATIVE_GUIDANCE` - ia sudah

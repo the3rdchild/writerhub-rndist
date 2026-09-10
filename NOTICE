@@ -24,6 +24,19 @@ Berkas yang diturunkan sejauh ini:
   packages/shared/skills/scientific-writing/evidence-audit.md
     ← skills/scientific-writing/ (MIT, K-Dense Inc.)
 
+  packages/shared/skills/peer-review/SKILL.md
+  packages/shared/skills/peer-review/revision-response.md
+    ← skills/peer-review/ (MIT, K-Dense Inc.)
+
+  packages/shared/skills/venue-templates/SKILL.md
+    ← skills/venue-templates/ (MIT, K-Dense Inc.)
+
+  packages/shared/skills/research-grants/SKILL.md
+    ← skills/research-grants/ (MIT, K-Dense Inc.)
+
+  packages/shared/skills/scientific-brainstorming/SKILL.md
+    ← skills/scientific-brainstorming/ (MIT, K-Dense Inc.)
+
 --------------------------------------------------------------------------------
 
 Catatan: skill `markdown-mermaid-writing` di repositori upstream berlisensi
