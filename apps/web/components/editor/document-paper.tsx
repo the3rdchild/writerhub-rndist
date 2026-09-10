@@ -2,7 +2,7 @@
 
 import type { DocumentTypography } from '@writer-hub/shared'
 import type { ReactNode } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FurnitureEditor } from '@/features/editor/page-furniture/furniture-editor'
 import {
 	type FurnitureSlot,
@@ -19,11 +19,13 @@ import {
 	footerMarginOf,
 	headerMarginOf,
 	type PageGeometry,
+	type PageMargins,
 	type PageSetup,
 	pageGeometry,
 	type SheetGeometry,
 } from '@/features/editor/page-geometry'
 import { typographyRules } from '@/features/editor/typography-css'
+import { watermarkIsEmpty } from '@/features/editor/watermark'
 import { cn } from '@/lib/utils'
 import { useWatermarkSrc, WatermarkLayer, WatermarkPrintLayer } from './watermark-layer'
 
@@ -59,8 +61,12 @@ const CODE_BLOCK_MIN_HEIGHT = 120
 
 const mm = (px: number) => Math.round((px / 96) * 25.4 * 100) / 100
 
-function pageRuleBody(setup: PageSetup): string {
+function pageRuleBody(setup: PageSetup, bleed = false): string {
 	const { width, height, margins } = pageGeometry(setup)
+	/* Margin nol adalah SYARAT watermark tanpa batas margin, bukan gaya: lapisan
+	 * cetak `fixed` selalu menyusut ke kotak margin `@page`. Marginnya tidak
+	 * hilang - ia pindah ke bingkai cetak yang berulang tiap halaman. */
+	if (bleed) return `size: ${mm(width)}mm ${mm(height)}mm; margin: 0;`
 	return `size: ${mm(width)}mm ${mm(height)}mm; margin: ${mm(margins.top)}mm ${mm(margins.right)}mm ${mm(margins.bottom)}mm ${mm(margins.left)}mm;`
 }
 
@@ -85,16 +91,36 @@ function flyerPageRule(base: PageSetup): string {
 	return `@page flyer { size: ${mm(width)}mm ${mm(height)}mm; margin: 0; }`
 }
 
-export function printPageRules(base: PageSetup, sections: readonly PageSetup[]): string {
-	const rules = [`@page { ${pageRuleBody(base)} }`, flyerPageRule(base)]
+export function printPageRules(base: PageSetup, sections: readonly PageSetup[], bleed = false): string {
+	const rules = [`@page { ${pageRuleBody(base, bleed)} }`, flyerPageRule(base)]
 
 	sections.forEach((setup, index) => {
 		if (index === 0) return
-		rules.push(`@page sec${index} { ${pageRuleBody(setup)} }`)
+		rules.push(`@page sec${index} { ${pageRuleBody(setup, bleed)} }`)
 		rules.push(`.document-section-${index} { page: sec${index}; }`)
 	})
 
 	return rules.join('\n')
+}
+
+/**
+ * Margin semua section sama dengan margin dasar?
+ *
+ * Bingkai cetak hanya bisa membawa SATU tinggi spacer untuk seluruh dokumen -
+ * `<thead>` yang sama itulah yang diulang peramban di tiap halaman. Dokumen
+ * yang margin per bagiannya berbeda-beda karena itu tidak bisa dilayaninya, dan
+ * jatuh kembali ke margin `@page` (watermarknya tetap terkurung kotak margin di
+ * kertas) alih-alih mencetak bagian yang marginnya salah.
+ */
+function marginsUniform(base: PageSetup, sections: readonly PageSetup[]): boolean {
+	const same = (a: PageSetup) => {
+		const one = pageGeometry(a).margins
+		const two = pageGeometry(base).margins
+		return (
+			one.top === two.top && one.right === two.right && one.bottom === two.bottom && one.left === two.left
+		)
+	}
+	return sections.every(same)
 }
 
 /**
@@ -208,6 +234,18 @@ export function DocumentPaper({
 	const watermarkSrc = useWatermarkSrc(watermark)
 
 	/*
+	 * Jalur cetak bermargin nol - dipakai HANYA saat memang dibutuhkan.
+	 *
+	 * Watermark tanpa batas margin adalah satu-satunya alasan menyentuh aliran
+	 * cetak, jadi dokumen tanpa watermark seperti itu mencetak persis seperti
+	 * sebelumnya: margin tetap di `@page`, tanpa bingkai tabel di DOM-nya.
+	 */
+	const bleedWanted = !setup.pageless && watermark?.bleed === true && !watermarkIsEmpty(watermark)
+	const paperRef = useRef<HTMLDivElement>(null)
+	const hasPageBlock = usePageBlockPresence(paperRef, bleedWanted)
+	const bleedPrint = bleedWanted && !hasPageBlock && marginsUniform(setup, sections)
+
+	/*
 	 * Batas tinggi blok kode, dihitung dari lembar yang sedang dipakai. Tanpa
 	 * ini blok kode panjang mengalir menembus batas halaman dan terbaca
 	 * menyambung seolah tidak ada batas; mode pageless tidak punya lembar untuk
@@ -248,7 +286,7 @@ export function DocumentPaper({
 			    menentukan ukuran judul dan badan naskahnya sendiri. Tanpa atribut
 			    `media` karena ia harus berlaku di layar maupun di hasil cetak. */}
 			<style>{typeRules}</style>
-			{!setup.pageless && <style media="print">{printPageRules(setup, sections)}</style>}
+			{!setup.pageless && <style media="print">{printPageRules(setup, sections, bleedPrint)}</style>}
 
 			{/*
 			 * `document-print-root` (E1): satu-satunya bagian DOM yang boleh
@@ -263,6 +301,7 @@ export function DocumentPaper({
 			 * harus dilepas saat mencetak.
 			 */}
 			<div
+				ref={paperRef}
 				className="document-paper document-print-root"
 				style={{ width: canvasWidth, minHeight: totalHeight }}
 			>
@@ -285,7 +324,15 @@ export function DocumentPaper({
 								{!setup.pageless && (
 									<WatermarkLayer
 										watermark={watermark}
-										geometry={{ ...geometry, margins: sheet.margins }}
+										/* Ukuran lembar ikut, bukan hanya marginnya: bidang acuan
+										 * `bleed` adalah kertas lembar INI, dan lembar section bisa
+										 * berbeda ukuran dari lembar dasarnya. */
+										geometry={{
+											...geometry,
+											margins: sheet.margins,
+											width: sheet.width,
+											height: sheet.height,
+										}}
 										src={watermarkSrc}
 									/>
 								)}
@@ -383,35 +430,128 @@ export function DocumentPaper({
 				 * (lihat `toc-block-view.tsx`); itulah satu-satunya cara blok HTML
 				 * mode satu halaman tahu setinggi apa kertasnya.
 				 */}
-				{/* biome-ignore lint/a11y/noStaticElementInteractions: klik ganda di badan
-				 * naskah hanya jalan keluar tambahan dari mode sunting perabot; padanan
-				 * papan tiknya Escape (lihat furniture-editor.tsx) dan tombol "Done".
-				 * `aria-hidden` tidak dipakai di sini - ini pembungkus seluruh naskah. */}
-				<div
-					className={cn('document-page-padding relative z-10', furnitureEdit && 'furniture-dimming')}
-					onDoubleClick={furnitureEdit ? onFurnitureDeactivate : undefined}
-					style={
-						{
-							paddingTop: margins.top,
-							paddingRight: margins.right,
-							paddingBottom: margins.bottom,
-							paddingLeft: margins.left,
-							'--code-block-max-height': codeBlockMaxHeight,
-							...(setup.pageless
-								? {}
-								: {
-										'--page-content-height': `${contentHeight}px`,
-										'--page-width': `${width}px`,
-										'--page-height': `${height}px`,
-										'--page-margin-top': `${margins.top}px`,
-										'--page-margin-left': `${margins.left}px`,
-									}),
-						} as React.CSSProperties
-					}
-				>
-					{children}
-				</div>
+				{withPrintFrame(
+					/* biome-ignore lint/a11y/noStaticElementInteractions: klik ganda di badan
+					 * naskah hanya jalan keluar tambahan dari mode sunting perabot; padanan
+					 * papan tiknya Escape (lihat furniture-editor.tsx) dan tombol "Done".
+					 * `aria-hidden` tidak dipakai di sini - ini pembungkus seluruh naskah. */
+					<div
+						className={cn('document-page-padding relative z-10', furnitureEdit && 'furniture-dimming')}
+						onDoubleClick={furnitureEdit ? onFurnitureDeactivate : undefined}
+						style={
+							{
+								paddingTop: margins.top,
+								paddingRight: margins.right,
+								paddingBottom: margins.bottom,
+								paddingLeft: margins.left,
+								'--code-block-max-height': codeBlockMaxHeight,
+								...(setup.pageless
+									? {}
+									: {
+											'--page-content-height': `${contentHeight}px`,
+											'--page-width': `${width}px`,
+											'--page-height': `${height}px`,
+											'--page-margin-top': `${margins.top}px`,
+											'--page-margin-left': `${margins.left}px`,
+										}),
+							} as React.CSSProperties
+						}
+					>
+						{children}
+					</div>,
+					bleedPrint ? margins : null,
+				)}
 			</div>
 		</>
+	)
+}
+
+/**
+ * Adakah rancangan satu halaman (`fit: page`) di kertas ini?
+ *
+ * Bingkai cetak dan blok itu tidak bisa hidup bersama: bingkainya menyisakan
+ * ruang setinggi margin di SETIAP halaman, sementara rancangan itu menuntut
+ * setinggi kertas - hasilnya pecah jadi dua halaman, yang kedua nyaris kosong
+ * (terukur di print-pages.test.ts). Yang mengalah watermarknya, bukan
+ * rancangannya: dokumen yang sudah benar tidak boleh berubah karena setelan
+ * yang baru dinyalakan.
+ *
+ * Diperiksa dari DOM, bukan dari prop, supaya ketiga tampilan naskah - kanvas,
+ * halaman berbagi, riwayat versi - terlayani satu kali. Pengamatnya hanya
+ * dipasang saat watermark tembus margin memang diminta, jadi dokumen lain tidak
+ * memikul biayanya sama sekali.
+ */
+function usePageBlockPresence(paper: React.RefObject<HTMLDivElement | null>, enabled: boolean): boolean {
+	const [present, setPresent] = useState(false)
+
+	useEffect(
+		function watchPageBlocks() {
+			if (!enabled) {
+				setPresent(false)
+				return
+			}
+			const node = paper.current
+			if (!node) return
+
+			const look = () => setPresent(node.querySelector('[data-html-block-fit="page"]') !== null)
+			look()
+
+			const observer = new MutationObserver(look)
+			observer.observe(node, { childList: true, subtree: true })
+			return () => observer.disconnect()
+		},
+		[enabled, paper],
+	)
+
+	return present
+}
+
+/**
+ * Bingkai cetak: margin halaman yang dipindah dari `@page` ke DOM.
+ *
+ * Bentuknya tabel SUNGGUHAN, dan itu bukan selera: hanya `<thead>`/`<tfoot>`
+ * tabel HTML yang diulang peramban di tiap halaman cetak - `display:
+ * table-header-group` pada div tidak diulang sama sekali (terukur di
+ * print-pages.test.ts). Spacer setinggi margin itulah yang menjaga naskah tetap
+ * masuk ke dalam, sementara `@page`-nya sendiri sudah bermargin nol sehingga
+ * watermark boleh menembus sampai tepi kertas.
+ *
+ * Di layar ia tidak berbekas: CSS mengembalikan semua elemennya ke `display:
+ * block` dan menyembunyikan spacernya, jadi kanvas, halaman berbagi, dan
+ * riwayat versi tetap seperti sebelumnya.
+ */
+function withPrintFrame(content: ReactNode, margins: PageMargins | null): ReactNode {
+	if (!margins) return content
+
+	return (
+		<table
+			className="document-print-frame"
+			style={
+				{
+					'--print-margin-top': `${margins.top}px`,
+					'--print-margin-right': `${margins.right}px`,
+					'--print-margin-bottom': `${margins.bottom}px`,
+					'--print-margin-left': `${margins.left}px`,
+				} as React.CSSProperties
+			}
+		>
+			{/* Spacer, bukan perabot: kosong dan `aria-hidden`, semata-mata
+			    penyedia ruang margin yang berulang di tiap halaman. */}
+			<thead aria-hidden="true">
+				<tr>
+					<td />
+				</tr>
+			</thead>
+			<tfoot aria-hidden="true">
+				<tr>
+					<td />
+				</tr>
+			</tfoot>
+			<tbody>
+				<tr>
+					<td>{content}</td>
+				</tr>
+			</tbody>
+		</table>
 	)
 }

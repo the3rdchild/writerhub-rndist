@@ -1078,6 +1078,34 @@ a {
   color: #111827;
 }
 
+/* ── bingkai cetak (margin yang pindah dari @page) ─────────────────────── */
+
+/*
+ * Tabel ini hanya hidup saat mencetak; di layar ia harus TIDAK BERBEKAS.
+ *
+ * Ia tabel sungguhan karena hanya `<thead>`/`<tfoot>` tabel HTML yang diulang
+ * peramban di tiap halaman cetak - div ber-`display: table-header-group` tidak
+ * diulang sama sekali (terukur, lihat print-pages.test.ts). Konsekuensinya
+ * elemennya ada juga di layar, jadi di sini semuanya dikembalikan ke perilaku
+ * blok biasa dan spacernya disembunyikan.
+ */
+.document-print-frame,
+.document-print-frame > tbody,
+.document-print-frame > tbody > tr,
+.document-print-frame > tbody > tr > td {
+  display: block;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  vertical-align: baseline;
+}
+
+.document-print-frame > thead,
+.document-print-frame > tfoot {
+  display: none;
+}
+
 /* ── lapisan handle tabel ──────────────────────────────────────────────── */
 
 /*
@@ -2446,6 +2474,44 @@ html.light .range-highlight {
    */
   .document-page-padding {
     padding: 0 !important;
+  }
+
+  /*
+   * Bingkai cetak: margin halaman yang dipindah dari `@page` ke DOM.
+   *
+   * Dipakai hanya saat watermark diminta menembus margin. `@page`-nya lalu
+   * bermargin nol - satu-satunya cara lapisan watermark `fixed` bisa mencapai
+   * tepi kertas, karena kotaknya selalu menyusut ke kotak margin `@page` - dan
+   * ruang margin itu dikembalikan oleh spacer `<thead>`/`<tfoot>` yang diulang
+   * peramban di setiap halaman.
+   */
+  .document-print-frame {
+    display: table;
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .document-print-frame > thead {
+    display: table-header-group;
+  }
+  .document-print-frame > tfoot {
+    display: table-footer-group;
+  }
+  .document-print-frame > tbody {
+    display: table-row-group;
+  }
+  .document-print-frame > tbody > tr {
+    display: table-row;
+  }
+  .document-print-frame > tbody > tr > td {
+    display: table-cell;
+    vertical-align: top;
+    padding: 0 var(--print-margin-right, 0px) 0 var(--print-margin-left, 0px);
+  }
+  .document-print-frame > thead td {
+    height: var(--print-margin-top, 0px);
+  }
+  .document-print-frame > tfoot td {
+    height: var(--print-margin-bottom, 0px);
   }
 
   /* Cadangan bila `@page` dari kanvas tidak sempat terpasang (mis. mode

@@ -105,10 +105,23 @@ export interface Watermark {
 	 */
 	imageDataUrl?: string
 	anchor: WatermarkAnchor
-	/** Geseran dari jangkar, sebagai fraksi lebar/tinggi kotak isi. */
+	/**
+	 * Bidang acuannya kertas utuh, bukan kotak isi - watermark boleh menembus
+	 * margin sampai tepi lembar.
+	 *
+	 * Di layar ini sekadar kotak yang lebih besar. Di kertas ia menuntut
+	 * seluruh aliran cetak berubah: lapisan `fixed` selalu di-clip ke kotak
+	 * margin `@page` (diukur, bukan diduga - lihat print-pages.test.ts), jadi
+	 * satu-satunya cara menembusnya adalah `@page { margin: 0 }` dengan
+	 * marginnya dipindah ke bingkai cetak yang berulang tiap halaman.
+	 *
+	 * Opsional supaya dokumen lama tetap sah; kosong berarti terkurung margin.
+	 */
+	bleed?: boolean
+	/** Geseran dari jangkar, sebagai fraksi lebar/tinggi bidang acuannya. */
 	offsetX: number
 	offsetY: number
-	/** Lebar watermark sebagai fraksi lebar kotak isi. */
+	/** Lebar watermark sebagai fraksi lebar bidang acuannya. */
 	scale: number
 	opacity: number
 	/** Derajat, searah jarum jam. */

@@ -62,14 +62,44 @@ export interface WatermarkSlot {
 	shiftY: number
 }
 
+export interface WatermarkBox {
+	/** Sudut kiri-atas bidang acuan, relatif kertas (px CSS). */
+	left: number
+	top: number
+	width: number
+	height: number
+}
+
+/**
+ * Bidang acuan watermark pada satu lembar: kotak isi, atau kertas utuh bila
+ * `bleed` menyala.
+ *
+ * Kotak isi adalah bawaannya karena itulah yang bisa dijanjikan kertas tanpa
+ * syarat: lapisan cetak `fixed` selalu di-clip ke kotak margin `@page`.
+ * `bleed` menukarnya dengan kertas utuh, dan menuntut jalur cetak bermargin nol
+ * berikut bingkai berulangnya (lihat `document-paper.tsx`) supaya layar dan
+ * kertas tetap menjanjikan hal yang sama.
+ */
+export function watermarkBox(watermark: Watermark, geometry: PageGeometry): WatermarkBox {
+	if (watermark.bleed) {
+		return { left: 0, top: 0, width: geometry.width, height: geometry.height }
+	}
+	return {
+		left: geometry.margins.left,
+		top: geometry.margins.top,
+		width: geometry.contentWidth,
+		height: geometry.contentHeight,
+	}
+}
+
 /**
  * Titik-titik tempat watermark digambar. Satu untuk jangkar biasa, `n` untuk
  * ubin.
  *
- * Semuanya fraksi **kotak isi** halaman, bukan kertas: saat mencetak, isi
- * halaman di-clip ke kotak margin `@page`, jadi kertas utuh bukan bidang yang
- * benar-benar tersedia. Penyaji layar memakai kotak yang sama supaya keduanya
- * tidak bisa berbeda.
+ * Semuanya fraksi **bidang acuannya** (lihat `watermarkBox`), bukan kertas
+ * begitu saja: tanpa `bleed`, isi halaman di-clip ke kotak margin `@page` saat
+ * mencetak, jadi kertas utuh bukan bidang yang benar-benar tersedia. Penyaji
+ * layar memakai kotak yang sama supaya keduanya tidak bisa berbeda.
  */
 export function watermarkSlots(watermark: Watermark): WatermarkSlot[] {
 	if (watermark.anchor === 'tile') {
@@ -105,14 +135,14 @@ export function effectiveScale(watermark: Watermark): number {
 }
 
 /**
- * Ukuran watermark dalam piksel CSS, dihitung dari lebar kotak isi.
+ * Ukuran watermark dalam piksel CSS, dihitung dari lebar bidang acuannya.
  *
  * Piksel, bukan persen: teks tidak bisa diukur dengan persen (persen pada
  * `font-size` mengacu ke induknya), dan px CSS bernilai sama di layar maupun di
  * kertas (1/96 inci), jadi satu angka melayani kedua penyaji.
  */
 export function watermarkSizePx(watermark: Watermark, geometry: PageGeometry): number {
-	return Math.max(1, geometry.contentWidth * effectiveScale(watermark))
+	return Math.max(1, watermarkBox(watermark, geometry).width * effectiveScale(watermark))
 }
 
 export function watermarkTransform(slot: WatermarkSlot, watermark: Watermark): string {

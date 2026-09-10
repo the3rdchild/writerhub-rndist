@@ -76,6 +76,8 @@ body { margin: 0; background: #fff }
 .document-body > * + * { margin-top: 0.75em }
 p { margin: 0 }
 .document-watermark-item { position: absolute }
+.document-print-frame, .document-print-frame > tbody, .document-print-frame > tbody > tr, .document-print-frame > tbody > tr > td { display: block; width: auto; margin: 0; padding: 0; border: 0 }
+.document-print-frame > thead, .document-print-frame > tfoot { display: none }
 .html-block-page .html-block-stage { position: relative; height: var(--page-content-height, 640px) }
 .html-block-page .html-block-frame { position: absolute; top: calc(-1 * var(--page-margin-top, 0px)); left: calc(-1 * var(--page-margin-left, 0px)); width: var(--page-width, 100%); height: var(--page-height, 100%); border: 0; border-radius: 0 }
 `
@@ -321,12 +323,95 @@ const WATERMARK_ITEM =
 	`<img class="document-watermark-item" src="${WATERMARK_PNG}" alt="" ` +
 	'style="left:50%;top:50%;width:60%;transform:translate(-50%,-50%)">'
 
+/**
+ * Lebar & posisi tiap tinta XObject, dari matriks `cm` sebelum `Do`.
+ *
+ * Satuannya ruang gambar Chrome, bukan poin PDF - jadi yang bermakna adalah
+ * PERBANDINGANNYA: watermark yang terkurung margin selebar kotak isi, yang
+ * menembus margin selebar kertas. Angka mutlaknya boleh berubah antarversi,
+ * rasionya tidak.
+ */
+function inkPlacements(pdf: Buffer): { width: number; left: number }[] {
+	const bytes = pdf.toString('latin1')
+	const out: { width: number; left: number }[] = []
+	let at = 0
+
+	for (;;) {
+		const start = bytes.indexOf('stream', at)
+		if (start === -1) break
+		let from = start + 'stream'.length
+		if (bytes[from] === '\r') from += 1
+		if (bytes[from] === '\n') from += 1
+		const end = bytes.indexOf('endstream', from)
+		if (end === -1) break
+
+		const raw = pdf.subarray(from, end)
+		let content: string
+		try {
+			content = inflateSync(raw).toString('latin1')
+		} catch {
+			content = raw.toString('latin1')
+		}
+		const matrix = /([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) cm[\s\S]{0,120}?\/\w+\s+Do/g
+		for (const hit of content.matchAll(matrix)) {
+			out.push({ width: Number(hit[1]), left: Number(hit[5]) })
+		}
+		at = end + 'endstream'.length
+	}
+
+	return out
+}
+
 /** Prosa secukupnya untuk memaksa berapa pun halaman yang dibutuhkan uji. */
 function prose(paragraphs: number): string {
 	const sentence =
 		'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor ' +
 		'incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud.'
 	return Array.from({ length: paragraphs }, (_, i) => `<p>${i + 1}. ${sentence} ${sentence}</p>`).join('')
+}
+
+/**
+ * Naskah bermargin yang dibungkus BINGKAI CETAK - persis bentuk yang dirender
+ * `document-paper.tsx` saat watermarknya diminta menembus margin: `@page`
+ * bermargin nol, dan margin naskahnya dipikul spacer `<thead>`/`<tfoot>` yang
+ * diulang peramban tiap halaman.
+ */
+function bleedFixture(paragraphs: number, extra = ''): string {
+	const setup = DEFAULT_PAGE_SETUP
+	const geometry = pageGeometry(setup)
+	const vars = [
+		`--page-content-height:${geometry.contentHeight}px`,
+		`--page-width:${geometry.width}px`,
+		`--page-height:${geometry.height}px`,
+		`--page-margin-top:${geometry.margins.top}px`,
+		`--page-margin-left:${geometry.margins.left}px`,
+	].join(';')
+	const frameVars = [
+		`--print-margin-top:${geometry.margins.top}px`,
+		`--print-margin-right:${geometry.margins.right}px`,
+		`--print-margin-bottom:${geometry.margins.bottom}px`,
+		`--print-margin-left:${geometry.margins.left}px`,
+	].join(';')
+
+	return [
+		'<!doctype html><html><head><meta charset="utf-8">',
+		`<style>${SCREEN_CSS}</style>`,
+		`<style>${printCssOf(css)}</style>`,
+		`<style media="print">${printPageRules(setup, [], true)}</style>`,
+		'</head><body>',
+		'<div class="document-canvas">',
+		'<div class="document-paper document-print-root">',
+		sheetLayer(setup),
+		`<div class="document-watermark-print" aria-hidden="true">${WATERMARK_ITEM}</div>`,
+		`<table class="document-print-frame" style="${frameVars}">`,
+		'<thead aria-hidden="true"><tr><td></td></tr></thead>',
+		'<tfoot aria-hidden="true"><tr><td></td></tr></tfoot>',
+		'<tbody><tr><td>',
+		`<div class="document-page-padding" style="padding:0;${vars}">`,
+		`<div class="document-body">${prose(paragraphs)}${extra}</div>`,
+		'</div></td></tr></tbody></table>',
+		'</div></div></body></html>',
+	].join('')
 }
 
 /** Naskah biasa (A4 bermargin) dengan watermark di salah satu dari dua letak. */
@@ -382,6 +467,91 @@ describe('uji cetak watermark - lapisan yang berulang per halaman', () => {
 			const pdf = await printedPdfOf(page, watermarkFixture(24, 'sheet-layer'))
 			expect(pageCount(pdf)).toBeGreaterThan(1)
 			expect(xobjectInvocations(pdf)).toBe(0)
+		} finally {
+			await page.close()
+		}
+	})
+
+	/*
+	 * Watermark tanpa batas margin (bleed). Kegagalannya sama senyapnya: PDF
+	 * tetap terbit, watermarknya sekadar berhenti di garis margin - dan tidak
+	 * ada uji CSS tekstual yang bisa melihat itu, karena aturannya SUDAH benar
+	 * di globals.css. Yang menentukan adalah dua hal yang hanya bisa diukur
+	 * dari mesin cetaknya: kotak `fixed` selalu menyusut ke kotak margin
+	 * `@page` (jadi marginnya harus nol), dan hanya `<thead>` tabel SUNGGUHAN
+	 * yang diulang tiap halaman (jadi ruang margin naskah punya pemikul).
+	 */
+	test('bingkai cetak: tinta watermark selebar KERTAS, bukan kotak isi', async () => {
+		if (!browser) return
+		const page = await browser.newPage()
+		try {
+			const terkurung = inkPlacements(await printedPdfOf(page, watermarkFixture(2, 'print-root')))
+			const tembus = inkPlacements(await printedPdfOf(page, bleedFixture(2)))
+
+			expect(terkurung.length).toBeGreaterThan(0)
+			expect(tembus.length).toBe(terkurung.length)
+
+			/* Rasionya = lebar kertas : lebar kotak isi. Satuan gambarnya boleh
+			 * berubah antarversi Chrome; perbandingan ini tidak. */
+			const { width, contentWidth, margins } = pageGeometry(DEFAULT_PAGE_SETUP)
+			expect(tembus[0].width / terkurung[0].width).toBeCloseTo(width / contentWidth, 2)
+
+			/*
+			 * Dan ia benar-benar berangkat dari kertas, bukan dari garis margin.
+			 * Tintanya selebar 60% bidangnya dan berjangkar tengah, jadi tepi
+			 * kirinya 20% bidang itu - dinyatakan sebagai rasio terhadap lebar
+			 * tintanya sendiri supaya bebas satuan.
+			 */
+			expect(tembus[0].left / tembus[0].width).toBeCloseTo((0.2 * width) / (0.6 * width), 2)
+			expect(terkurung[0].left / terkurung[0].width).toBeCloseTo(
+				(margins.left + 0.2 * contentWidth) / (0.6 * contentWidth),
+				2,
+			)
+			expect(tembus[0].left).toBeLessThan(terkurung[0].left)
+		} finally {
+			await page.close()
+		}
+	})
+
+	test('bingkai cetak: watermarknya tetap berulang di TIAP halaman', async () => {
+		if (!browser) return
+		const page = await browser.newPage()
+		try {
+			const pendek = await printedPdfOf(page, bleedFixture(2))
+			const panjang = await printedPdfOf(page, bleedFixture(24))
+
+			const halamanPendek = pageCount(pendek)
+			expect(halamanPendek).toBe(1)
+			expect(pageCount(panjang)).toBeGreaterThan(1)
+
+			const perHalaman = xobjectInvocations(pendek) / halamanPendek
+			expect(perHalaman).toBeGreaterThan(0)
+			expect(xobjectInvocations(panjang)).toBe(perHalaman * pageCount(panjang))
+		} finally {
+			await page.close()
+		}
+	})
+
+	/*
+	 * Margin naskah tidak boleh ikut hilang bersama margin `@page`.
+	 *
+	 * Yang memikulnya spacer `<thead>`/`<tfoot>`, dan itu hanya bekerja kalau
+	 * bingkainya tabel SUNGGUHAN - div ber-`display: table-header-group` tidak
+	 * diulang peramban sama sekali. Buktinya jumlah halaman: ruang per halaman
+	 * yang sama besar menghasilkan paginasi yang sama persis dengan jalur
+	 * `@page` bermargin. Kalau spacernya berhenti berulang, halaman kedua dan
+	 * seterusnya jadi lebih lega dan naskah yang sama muat di lebih sedikit
+	 * halaman - persis kegagalan yang tidak terlihat di halaman pertama.
+	 */
+	test('bingkai cetak: paginasinya sama dengan jalur @page bermargin', async () => {
+		if (!browser) return
+		const page = await browser.newPage()
+		try {
+			const denganMargin = await printedPagesOf(page, watermarkFixture(24, 'print-root'))
+			const denganBingkai = await printedPagesOf(page, bleedFixture(24))
+
+			expect(denganMargin).toBeGreaterThan(1)
+			expect(denganBingkai).toBe(denganMargin)
 		} finally {
 			await page.close()
 		}

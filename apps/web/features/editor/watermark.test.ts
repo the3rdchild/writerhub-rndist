@@ -6,6 +6,7 @@ import {
 	TILE_COLUMNS,
 	TILE_ROWS,
 	type Watermark,
+	watermarkBox,
 	watermarkIsEmpty,
 	watermarkSizePx,
 	watermarkSlots,
@@ -101,5 +102,47 @@ describe('watermarkIsEmpty', () => {
 		expect(watermarkIsEmpty(at({ kind: 'image', assetId: 'a1' }))).toBe(false)
 		/* Jalur ekspor: asetnya sudah tersemat, id-nya tidak lagi diperlukan. */
 		expect(watermarkIsEmpty(at({ kind: 'image', imageDataUrl: 'data:image/png;base64,AA' }))).toBe(false)
+	})
+})
+
+describe('watermarkBox - bidang acuan', () => {
+	const geometry = pageGeometry(DEFAULT_PAGE_SETUP)
+
+	test('bawaannya kotak isi, sejauh margin dari tepi kertas', () => {
+		const box = watermarkBox(at(), geometry)
+		expect(box.left).toBe(geometry.margins.left)
+		expect(box.top).toBe(geometry.margins.top)
+		expect(box.width).toBe(geometry.contentWidth)
+		expect(box.height).toBe(geometry.contentHeight)
+	})
+
+	test('bleed menukarnya dengan kertas utuh', () => {
+		const box = watermarkBox(at({ bleed: true }), geometry)
+		expect(box.left).toBe(0)
+		expect(box.top).toBe(0)
+		expect(box.width).toBe(geometry.width)
+		expect(box.height).toBe(geometry.height)
+	})
+
+	/*
+	 * `scale` adalah fraksi bidang acuannya, bukan angka mutlak - kalau ia tetap
+	 * mengukur dari kotak isi, watermark "100%" pada mode bleed akan berhenti
+	 * sebelum tepi kertas dan mode itu tidak menepati namanya.
+	 */
+	test('ukuran ikut bidangnya: bleed lebih besar sebanding lebar kertas', () => {
+		const biasa = watermarkSizePx(at({ scale: 1 }), geometry)
+		const tembus = watermarkSizePx(at({ scale: 1, bleed: true }), geometry)
+		expect(biasa).toBeCloseTo(geometry.contentWidth, 6)
+		expect(tembus).toBeCloseTo(geometry.width, 6)
+		expect(tembus).toBeGreaterThan(biasa)
+	})
+
+	test('jangkar sudut pada mode bleed tetap fraksi - yang berubah kotaknya', () => {
+		/* Slot tidak tahu-menahu soal bleed: ia selalu fraksi bidang acuannya,
+		 * dan itulah yang membuat satu rumus melayani kedua mode. */
+		const [biasa] = watermarkSlots(at({ anchor: 'top-left' }))
+		const [tembus] = watermarkSlots(at({ anchor: 'top-left', bleed: true }))
+		expect(tembus.left).toBe(biasa.left)
+		expect(tembus.top).toBe(biasa.top)
 	})
 })

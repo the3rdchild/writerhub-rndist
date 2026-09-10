@@ -31,6 +31,7 @@ const watermarkSchema = z.object({
 		'bottom-right',
 		'tile',
 	]),
+	bleed: z.boolean().optional(),
 	offsetX: z.number(),
 	offsetY: z.number(),
 	scale: z.number(),

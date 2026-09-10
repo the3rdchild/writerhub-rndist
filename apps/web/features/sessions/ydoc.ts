@@ -197,6 +197,7 @@ function normalizeWatermark(raw: unknown): Watermark | undefined {
 		scale: clampNumber(value.scale, 0.01, 1, 0.6),
 		opacity: clampNumber(value.opacity, 0, 1, 0.15),
 		rotation: clampNumber(value.rotation, -360, 360, 0),
+		...(value.bleed === true ? { bleed: true } : {}),
 		...(kind === 'text' && typeof value.text === 'string' ? { text: value.text } : {}),
 		...(kind === 'image' && typeof value.assetId === 'string' ? { assetId: value.assetId } : {}),
 	}

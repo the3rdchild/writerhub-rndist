@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
+import { printPageRules } from '@/components/editor/document-paper'
+import { DEFAULT_PAGE_SETUP } from './page-geometry'
 
 const canvas = readFileSync(new URL('../../components/editor/document-canvas.tsx', import.meta.url), 'utf8')
 const paper = readFileSync(new URL('../../components/editor/document-paper.tsx', import.meta.url), 'utf8')
@@ -28,6 +30,10 @@ const exportView = readFileSync(
 	'utf8',
 )
 const extensions = readFileSync(new URL('./extensions.ts', import.meta.url), 'utf8')
+const printPages = readFileSync(
+	new URL('../../components/export/print-pages.test.ts', import.meta.url),
+	'utf8',
+)
 
 describe('document-print-root (E1)', () => {
 	/*
@@ -218,5 +224,69 @@ describe('letak lapisan watermark', () => {
 		   globals.css punya beberapa blok cetak, jadi memotong di blok pertama
 		   akan melewatkannya. */
 		expect(ruleBody(css, css.lastIndexOf('.document-watermark-print'))).toContain('position: fixed')
+	})
+})
+
+/*
+ * Bingkai cetak: margin halaman yang pindah dari `@page` ke DOM saat watermark
+ * diminta menembus batas margin. Bentuknya terikat pada satu temuan yang hanya
+ * bisa diukur dari mesin cetaknya (print-pages.test.ts): hanya `<thead>` tabel
+ * SUNGGUHAN yang diulang peramban di tiap halaman. Uji di sini menjaga
+ * bentuknya; uji cetak menjaga hasilnya.
+ */
+describe('bingkai cetak watermark tanpa batas margin', () => {
+	test('kertas merendernya sebagai tabel, bukan div', () => {
+		expect(paper).toContain('document-print-frame')
+		expect(paper).toContain('<thead')
+		expect(paper).toContain('<tfoot')
+	})
+
+	test('dipakai hanya saat memang diminta - dokumen lain mencetak seperti sebelumnya', () => {
+		expect(paper).toContain('watermark?.bleed === true')
+		expect(paper).toContain('printPageRules(setup, sections, bleedPrint)')
+	})
+
+	test('margin @page jadi nol, karena kotak `fixed` selalu menyusut ke sana', () => {
+		const bleed = printPageRules(DEFAULT_PAGE_SETUP, [], true)
+		const biasa = printPageRules(DEFAULT_PAGE_SETUP, [], false)
+		expect(bleed).toContain('margin: 0;')
+		expect(biasa).not.toContain('@page { size: 216mm 279mm; margin: 0;')
+	})
+
+	test('bagian dengan margin berbeda ikut bermargin nol - satu bingkai untuk semua', () => {
+		const landscape = { ...DEFAULT_PAGE_SETUP, orientation: 'landscape' as const }
+		const rules = printPageRules(DEFAULT_PAGE_SETUP, [DEFAULT_PAGE_SETUP, landscape], true)
+		expect(rules).toContain('@page sec1 {')
+		expect(rules.match(/margin: 0;/g)?.length).toBeGreaterThan(1)
+	})
+
+	/*
+	 * Rancangan satu halaman menuntut setinggi kertas, sedangkan bingkai selalu
+	 * menyisakan ruang margin di tiap halaman - bersama-sama mereka memecah
+	 * rancangan itu jadi dua lembar (terukur). Yang mengalah watermarknya.
+	 */
+	test('mengalah pada rancangan satu halaman, bukan sebaliknya', () => {
+		expect(paper).toContain('usePageBlockPresence')
+		expect(paper).toContain('data-html-block-fit="page"')
+		expect(paper).toContain('bleedWanted && !hasPageBlock')
+	})
+
+	test('di layar bingkainya tak berbekas: blok biasa, spacer disembunyikan', () => {
+		const screen = css.slice(css.indexOf('.document-print-frame'))
+		expect(screen).toContain('display: block')
+		expect(screen.slice(0, screen.indexOf('@media print'))).toContain('display: none')
+	})
+
+	test('CSS cetak menghidupkannya sebagai tabel dengan spacer setinggi margin', () => {
+		const print = css.slice(css.lastIndexOf('.document-print-frame {'))
+		expect(print).toContain('display: table')
+		expect(print).toContain('table-header-group')
+		expect(print).toContain('var(--print-margin-top')
+	})
+
+	/* Kerangka DOM di uji cetak disalin tangan; kalau netralisasi layarnya tidak
+	 * ikut disalin, uji itu mengukur bentuk yang tidak pernah ada di aplikasi. */
+	test('uji cetak memakai netralisasi layar yang sama', () => {
+		expect(printPages).toContain('.document-print-frame > thead, .document-print-frame > tfoot')
 	})
 })

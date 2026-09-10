@@ -5,6 +5,7 @@ import { useAssetUrls } from '@/features/assets/use-assets'
 import type { PageGeometry } from '@/features/editor/page-geometry'
 import {
 	type Watermark,
+	watermarkBox,
 	watermarkIsEmpty,
 	watermarkSizePx,
 	watermarkSlots,
@@ -99,12 +100,13 @@ function WatermarkItems({
 }
 
 /**
- * Penyaji layar: satu salinan per lembar, di dalam kotak isi lembar itu.
+ * Penyaji layar: satu salinan per lembar, di dalam bidang acuan lembar itu.
  *
- * Kotak isi, bukan kertas utuh - saat mencetak, isi halaman di-clip ke kotak
- * margin `@page`, jadi watermark yang melebar sampai tepi kertas akan terpotong.
- * Layar memakai kotak yang sama supaya tidak menjanjikan yang tidak bisa
- * ditepati kertas.
+ * Bawaannya kotak isi, bukan kertas utuh - saat mencetak, isi halaman di-clip
+ * ke kotak margin `@page`, jadi watermark yang melebar sampai tepi kertas akan
+ * terpotong. Layar memakai kotak yang sama supaya tidak menjanjikan yang tidak
+ * bisa ditepati kertas. `bleed` menukarnya dengan kertas utuh, dan kertas
+ * mengikutinya lewat bingkai cetak bermargin nol di `document-paper.tsx`.
  */
 export function WatermarkLayer({
 	watermark,
@@ -117,16 +119,13 @@ export function WatermarkLayer({
 }) {
 	if (watermarkIsEmpty(watermark) || !watermark) return null
 
+	const box = watermarkBox(watermark, geometry)
+
 	return (
 		<div
 			aria-hidden="true"
 			className="document-watermark"
-			style={{
-				top: geometry.margins.top,
-				right: geometry.margins.right,
-				bottom: geometry.margins.bottom,
-				left: geometry.margins.left,
-			}}
+			style={{ top: box.top, left: box.left, width: box.width, height: box.height }}
 		>
 			<WatermarkItems watermark={watermark} geometry={geometry} src={src} />
 		</div>

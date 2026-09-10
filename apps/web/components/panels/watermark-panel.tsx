@@ -11,6 +11,7 @@ import {
 	DEFAULT_WATERMARK,
 	type Watermark,
 	type WatermarkAnchor,
+	watermarkBox,
 	watermarkIsEmpty,
 	watermarkSizePx,
 	watermarkSlots,
@@ -48,10 +49,12 @@ const clamp = (value: number, low: number, high: number) => Math.min(high, Math.
  * tab ini.
  *
  * Kanvas mini di sini bukan hiasan melainkan satu-satunya tempat posisinya bisa
- * diatur - dan ia sengaja menggambar batas margin, karena batas itu nyata:
- * saat mencetak, isi halaman di-clip ke kotak margin `@page`, jadi watermark
- * yang melewatinya akan terpotong di PDF. Menyembunyikan batas itu berarti
- * membiarkan pengguna menata sesuatu yang tidak akan pernah tercetak utuh.
+ * diatur - dan ia menggambar bidang acuannya, bukan sekadar kertas. Bawaannya
+ * kotak margin, karena batas itu nyata: saat mencetak, isi halaman di-clip ke
+ * kotak margin `@page`, jadi watermark yang melewatinya akan terpotong di PDF.
+ * "Lepas dari batas margin" memindahkan bidang itu ke kertas utuh sekaligus
+ * mengubah jalur cetaknya (lihat `document-paper.tsx`), jadi yang ditata di
+ * sini tetap sama dengan yang keluar dari mesin cetak.
  */
 export function WatermarkPanelBody() {
 	const { setup, setPageSetup } = usePageSetup()
@@ -133,7 +136,8 @@ export function WatermarkPanelBody() {
 		event.currentTarget.setPointerCapture(event.pointerId)
 		draggingRef.current = true
 
-		const boxHeight = boxWidth * (geometry.contentHeight / geometry.contentWidth)
+		const preview = watermarkBox(current, geometry)
+		const boxHeight = boxWidth * (preview.height / preview.width)
 		const startX = event.clientX
 		const startY = event.clientY
 		const from = { x: current.offsetX, y: current.offsetY }
@@ -173,12 +177,15 @@ export function WatermarkPanelBody() {
 	}
 
 	const active = draft
-	const previewScale = boxWidth > 0 ? boxWidth / geometry.contentWidth : 0
+	/* Kotak yang sama dengan yang dipakai kertas sungguhan - kotak isi, atau
+	 * kertas utuh saat "lepas dari margin" menyala. */
+	const box = watermarkBox(active ?? DEFAULT_WATERMARK, geometry)
+	const previewScale = boxWidth > 0 ? boxWidth / box.width : 0
 	const marginPercent = {
-		top: `${(geometry.margins.top / geometry.height) * 100}%`,
-		right: `${(geometry.margins.right / geometry.width) * 100}%`,
-		bottom: `${(geometry.margins.bottom / geometry.height) * 100}%`,
-		left: `${(geometry.margins.left / geometry.width) * 100}%`,
+		top: `${(box.top / geometry.height) * 100}%`,
+		right: `${((geometry.width - box.left - box.width) / geometry.width) * 100}%`,
+		bottom: `${((geometry.height - box.top - box.height) / geometry.height) * 100}%`,
+		left: `${(box.left / geometry.width) * 100}%`,
 	}
 
 	return (
@@ -334,8 +341,7 @@ export function WatermarkPanelBody() {
 				</div>
 			</div>
 			<p className="text-[11px] text-subtle">
-				Garis putus-putus adalah batas margin. Saat mencetak, isi di luarnya dipotong - jadi watermark pun
-				berhenti di situ.
+				Garis putus-putus adalah batas margin.
 			</p>
 
 			<div className="flex items-start gap-3">
@@ -372,6 +378,27 @@ export function WatermarkPanelBody() {
 					Ubin
 				</button>
 			</div>
+
+			{/*
+			 * Batas margin bisa dilepas - dan itu mengubah kertas, bukan cuma layar:
+			 * `@page` ikut bermargin nol dan margin naskahnya pindah ke bingkai
+			 * cetak berulang. Karena itu keterangannya menyebut PDF, bukan sekadar
+			 * "penuh": inilah satu-satunya setelan watermark yang menyentuh cetak.
+			 */}
+			<label className="flex items-start gap-2 text-foreground text-sm">
+				<input
+					type="checkbox"
+					checked={active?.bleed === true}
+					onChange={(event) => patch({ bleed: event.target.checked })}
+					className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
+				/>
+				<span className="flex flex-col gap-0.5">
+					Lepas dari batas margin
+					<span className="text-[11px] text-subtle leading-relaxed">
+						Watermark memakai kertas utuh sampai ke tepinya.
+					</span>
+				</span>
+			</label>
 
 			<Slider
 				label="Ukuran"
