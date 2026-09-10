@@ -31,7 +31,17 @@ type Handle =
 	| { kind: 'columnsGap'; index: number; side: 'left' | 'right' }
 	| { kind: 'columnsGapBand'; index: number }
 
+/*
+ * Gagang yang naskahnya baru mengalir saat jari diangkat.
+ *
+ * Margin ikut di sini karena ia yang paling mahal: satu tulis `pointermove`
+ * berarti paginasi menghitung ulang SELURUH dokumen, enam puluh kali sedetik -
+ * di naskah empat puluh halaman itulah jank-nya, bukan di penggaris yang
+ * digambar ulang. Yang bergerak selama seret cuma arsiran dan gagangnya.
+ */
 const DEFERRED: ReadonlySet<Handle['kind']> = new Set([
+	'marginLeft',
+	'marginRight',
 	'tableLeft',
 	'tableRight',
 	'tableCol',
@@ -39,6 +49,29 @@ const DEFERRED: ReadonlySet<Handle['kind']> = new Set([
 	'columnsGap',
 	'columnsGapBand',
 ])
+
+/**
+ * Margin hasil menyeret gagang, atau `null` kalau gagangnya bukan margin.
+ *
+ * Diangkat ke tingkat modul karena dua pemakainya harus sepakat mutlak:
+ * arsiran yang bergerak selama seret, dan nilai yang benar-benar tertulis saat
+ * dilepas. Dua salinan clamp yang menyimpang berarti penggarisnya menjanjikan
+ * margin yang tidak akan pernah tersimpan.
+ */
+export function rulerMarginPatch(
+	kind: Handle['kind'],
+	x: number,
+	width: number,
+	margins: PageMargins,
+): Partial<PageMargins> | null {
+	if (kind === 'marginLeft') {
+		return { left: clamp(x, 0, width - margins.right - MIN_CONTENT_WIDTH) }
+	}
+	if (kind === 'marginRight') {
+		return { right: clamp(width - x, 0, width - margins.left - MIN_CONTENT_WIDTH) }
+	}
+	return null
+}
 
 const MIN_COLUMN_GAP = 8
 
@@ -75,17 +108,18 @@ export function DocumentRuler({
 		},
 		[editor, indent, indentWidth],
 	)
+	const marginPatch = useCallback(
+		(handle: Handle, x: number) => rulerMarginPatch(handle.kind, x, width, margins),
+		[width, margins],
+	)
 	const applyHandle = useCallback(
 		(handle: Handle, x: number) => {
+			const patch = marginPatch(handle, x)
+			if (patch) {
+				onMarginsChange(patch)
+				return
+			}
 			switch (handle.kind) {
-				case 'marginLeft':
-					onMarginsChange({ left: clamp(x, 0, width - margins.right - MIN_CONTENT_WIDTH) })
-					return
-				case 'marginRight':
-					onMarginsChange({
-						right: clamp(width - x, 0, width - margins.left - MIN_CONTENT_WIDTH),
-					})
-					return
 				case 'firstLine':
 					setIndent({ firstLine: x - indentBase - indent.left })
 					return
@@ -131,6 +165,7 @@ export function DocumentRuler({
 			target,
 			onMarginsChange,
 			setIndent,
+			marginPatch,
 		],
 	)
 	const { dragging, startDrag } = useRulerDrag<Handle>({
@@ -162,6 +197,17 @@ export function DocumentRuler({
 	const hasIndentControls = editor !== null && target?.kind !== 'table'
 	const live = (x: number, match: (handle: Handle) => boolean) =>
 		preview !== null && dragging !== null && match(dragging) ? preview : x
+
+	/*
+	 * Margin yang SEDANG ditampilkan. Selama seret ia ikut jari, sementara naskah
+	 * di bawahnya belum mengalir - itu memang perilakunya: yang ditunda hanya
+	 * alirannya, bukan umpan baliknya. Penanda indentasi sengaja tidak ikut
+	 * bergerak; ia milik teks, dan teks belum pindah.
+	 */
+	const shownMargins: PageMargins =
+		dragging !== null && preview !== null
+			? { ...margins, ...(marginPatch(dragging, preview) ?? {}) }
+			: margins
 
 	const table =
 		target?.kind === 'table'
@@ -208,23 +254,26 @@ export function DocumentRuler({
 		>
 			<div ref={trackRef} className="relative h-full">
 				{/* Arsiran margin: area di luar batas tulis. */}
-				<div className="document-ruler__margin" style={{ left: 0, width: toScreen(margins.left) }} />
+				<div className="document-ruler__margin" style={{ left: 0, width: toScreen(shownMargins.left) }} />
 				<div
 					className="document-ruler__margin"
-					style={{ left: toScreen(width - margins.right), width: toScreen(margins.right) }}
+					style={{
+						left: toScreen(width - shownMargins.right),
+						width: toScreen(shownMargins.right),
+					}}
 				/>
 
 				<Ticks width={width} zoom={zoom} />
 
 				<MarginHandle
 					label="Margin kiri"
-					x={toScreen(margins.left)}
+					x={toScreen(shownMargins.left)}
 					onPointerDown={startDrag({ kind: 'marginLeft' })}
 					onKeyDown={nudge({ kind: 'marginLeft' }, margins.left)}
 				/>
 				<MarginHandle
 					label="Margin kanan"
-					x={toScreen(width - margins.right)}
+					x={toScreen(width - shownMargins.right)}
 					onPointerDown={startDrag({ kind: 'marginRight' })}
 					onKeyDown={nudge({ kind: 'marginRight' }, width - margins.right)}
 				/>
