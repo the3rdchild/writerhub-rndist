@@ -20,7 +20,8 @@ import type { DiagramDrawBody } from './dto'
  */
 const OUTPUT_CONTRACT = [
 	'Answer with the <svg> element and nothing else: no prose, no code fence, no explanation.',
-	'The <svg> must carry a viewBox whose height does not exceed its width, and its first two children must be <title> and <desc>.',
+	'The <svg> must carry a viewBox that contains the whole drawing and is at most 1.5x taller than it is wide, and its first two children must be <title> and <desc>.',
+	'Never shrink the viewBox to satisfy that ratio — anything past its edge is cut off silently. Draw fewer nodes instead.',
 	'Style every element with presentation attributes. A <style> element, <foreignObject>, <image>, <script>, <a>, animation elements, event handlers, and any reference pointing outside the file are all rejected.',
 	'Fonts are limited to Inter, JetBrains Mono and Source Serif 4.',
 	'Do not draw a title, an eyebrow or a caption inside the drawing — those belong to the document.',

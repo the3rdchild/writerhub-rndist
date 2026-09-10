@@ -197,15 +197,42 @@ untuk penulis skripsi — ganti token tetap.
 
 ## 8. Aturan yang dikunci di overlay
 
-- **`viewBox`: tinggi ≤ lebar** untuk diagram di badan dokumen (contoh upstream
-  1000×480 dan 1000×600, keduanya aman). Yang butuh lebih tinggi memang
-  seharusnya dipecah dua.
+- **`viewBox` harus memuat seluruh gambar, dan paling tinggi 1,5× lebarnya.**
+  Bagian pertama kalimat itu mengalahkan bagian keduanya — lihat §8.2.
 - **Dilarang `<style>` di dalam SVG** (§5.3).
 - **Dilarang sumber daya jauh** — tidak ada `<link>`, `<image href="http…">`.
 - **Judul dan eyebrow di luar SVG**, jadi teks dokumen biasa.
 - **Font hanya dari katalog** (§7.2).
 - **Coral hanya untuk 1-2 node fokal** — aturan upstream yang dipertahankan
   karena itu yang membuat gambarnya terbaca.
+
+### 8.2 Kenapa rasionya 1,5 dan bukan 1,0
+
+Aturan pertama berbunyi "tinggi tidak boleh melebihi lebar". Uji pertama dengan
+model sungguhan langsung menunjukkan kenapa itu salah.
+
+Diminta menggambar alur penerbitan berita, model menghasilkan flowchart sembilan
+langkah dari atas ke bawah yang membentang sampai y=912 — lalu menuliskan
+`viewBox="0 0 1000 720"`, karena 912 melanggar aturannya. Hasilnya bukan diagram
+yang lebih pendek melainkan **kanvas yang berbohong**: gambarnya terurai benar,
+tampil benar, dan sepertiga bawahnya — termasuk simpul fokal dan kotak akhir —
+hilang tanpa satu pun pesan.
+
+**Aturan yang mendorong model berbohong lebih buruk daripada tidak ada aturan.**
+Dua koreksi menyusul:
+
+1. Rasionya jadi **1,5**, diturunkan dari kertas dan bukan dari selera: kotak isi
+   A4 potret kira-kira 642×971 px pada 96 dpi, dan diagram selalu diskalakan ke
+   lebar kolom.
+2. Diucapkan ke model di tiga tempat bahwa **kanvas tidak pernah boleh
+   dikecilkan** untuk memenuhi rasio itu. Kalau gambarnya tidak muat, yang
+   dikurangi adalah simpulnya.
+
+`contentExtent` di `svg-output.ts` menaksir jangkauan sebenarnya dari kotak,
+lingkaran, teks dan poligon, lalu membandingkannya dengan `viewBox`. Konektor
+`<path>` sengaja dilewati — jangkauannya sudah dibatasi simpul yang
+dihubungkannya, dan taksiran yang melewatkan kasus tepi lebih baik daripada
+taksiran yang menuduh gambar yang benar.
 
 ### 8.1 Catatan soal "judul di luar"
 

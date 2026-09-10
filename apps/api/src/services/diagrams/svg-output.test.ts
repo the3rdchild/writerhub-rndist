@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { extractSvg, structuralProblems, svgReceipt, viewBoxSize } from './svg-output'
+import { contentExtent, extractSvg, structuralProblems, svgReceipt, viewBoxSize } from './svg-output'
 
 const GOOD =
 	'<svg viewBox="0 0 1000 480" xmlns="http://www.w3.org/2000/svg">' +
@@ -33,9 +33,31 @@ describe('keluhan yang dikirim balik ke model', () => {
 		expect(structuralProblems(GOOD)).toEqual([])
 	})
 
-	test('lebih tinggi daripada lebar - terpotong di tepi kertas', () => {
-		const tall = GOOD.replace('0 0 1000 480', '0 0 480 1000')
-		expect(structuralProblems(tall).join(' ')).toContain('taller')
+	test('jauh lebih tinggi daripada lebar - melewati satu lembar', () => {
+		const tall = GOOD.replace('0 0 1000 480', '0 0 400 1000')
+		expect(structuralProblems(tall).join(' ')).toContain('taller than it is wide')
+	})
+
+	/*
+	 * Flowchart dari atas ke bawah memang tinggi. Aturan yang menolaknya bukan
+	 * membuat gambar lebih pendek, melainkan membuat model memotong kanvasnya -
+	 * jadi rasio sampai 1,5 harus lolos tanpa keluhan.
+	 */
+	test('tinggi yang wajar untuk alur menurun tetap lolos', () => {
+		expect(structuralProblems(GOOD.replace('0 0 1000 480', '0 0 1000 1400'))).toEqual([])
+	})
+
+	/*
+	 * Kegagalan yang paling sulit dilihat, dan yang benar-benar terjadi:
+	 * gambarnya terurai benar, tampil benar, dan sepertiga bagiannya hilang
+	 * tanpa satu pun pesan.
+	 */
+	test('isi yang melewati viewBox ditangkap', () => {
+		// Bentuk aslinya: kanvas 1000x720, kotak terakhir berakhir di y=912.
+		const cut =
+			'<svg viewBox="0 0 1000 720"><title>a</title><desc>b</desc>' +
+			'<rect x="390" y="868" width="220" height="44"/></svg>'
+		expect(structuralProblems(cut).join(' ')).toContain('cut off')
 	})
 
 	/*
@@ -78,5 +100,32 @@ describe('tanda terima', () => {
 			desc: 'Naskah bergerak dari reporter ke editor.',
 			size: { width: 1000, height: 480 },
 		})
+	})
+})
+
+describe('menaksir jangkauan gambar', () => {
+	test('kotak diukur dari sudut jauhnya', () => {
+		expect(contentExtent('<svg><rect x="10" y="868" width="100" height="44"/></svg>')).toEqual({
+			width: 110,
+			height: 912,
+		})
+	})
+
+	test('lingkaran, teks dan poligon ikut terhitung', () => {
+		expect(contentExtent('<svg><circle cx="90" cy="40" r="10"/></svg>')).toEqual({ width: 100, height: 50 })
+		expect(contentExtent('<svg><polygon points="500,176 580,226 500,276"/></svg>')).toEqual({
+			width: 580,
+			height: 276,
+		})
+	})
+
+	/*
+	 * Konektor sengaja dilewati: jangkauannya sudah dibatasi simpul yang
+	 * dihubungkannya, dan mengurai `d` dengan benar butuh pengurai jalur
+	 * sungguhan. Taksiran yang melewatkan kasus tepi lebih baik daripada
+	 * taksiran yang menuduh gambar yang benar.
+	 */
+	test('path tidak ikut dihitung', () => {
+		expect(contentExtent('<svg><path d="M0,0 V9999"/></svg>')).toBeNull()
 	})
 })

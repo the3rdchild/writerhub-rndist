@@ -16,6 +16,21 @@
  * menambah satu dependensi demi tebakan awal tidak sebanding.
  */
 
+/**
+ * Setinggi apa gambar boleh dibanding lebarnya.
+ *
+ * Angkanya berasal dari kertas, bukan dari selera. Kotak isi A4 potret pada 96
+ * dpi kira-kira 642x971 px sesudah margin, dan diagram selalu diskalakan ke
+ * lebar kolom - jadi rasio di atas ~1,5 mulai melewati satu lembar, dan
+ * `break-inside: avoid` tidak bisa lagi menahannya utuh.
+ *
+ * Sempat 1,0. Itu terlalu ketat, dan akibatnya bukan diagram yang lebih pendek
+ * melainkan **viewBox yang berbohong**: model memenuhi aturannya dengan
+ * memotong kanvas, dan sepertiga bawah gambarnya hilang tanpa satu pun pesan.
+ * Aturan yang mendorong model berbohong lebih buruk daripada tidak ada aturan.
+ */
+const MAX_ASPECT = 1.5
+
 const SVG_BLOCK = /<svg\b[\s\S]*<\/svg\s*>/i
 const VIEW_BOX = /viewBox\s*=\s*["']\s*([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s*["']/i
 const TITLE = /<title\b[^>]*>([\s\S]*?)<\/title\s*>/i
@@ -61,6 +76,70 @@ export function viewBoxSize(svg: string): SvgSize | null {
 }
 
 /**
+ * Sejauh mana gambarnya benar-benar membentang, ditaksir dari bentuk-bentuknya.
+ *
+ * Ini menangkap kegagalan yang paling sulit dilihat: `viewBox` yang lebih kecil
+ * daripada isinya. Gambarnya terurai dengan benar, tampil dengan benar, dan
+ * sepertiga bagiannya **hilang tanpa pesan apa pun** - tidak ada yang rusak,
+ * cuma ada yang tidak ada.
+ *
+ * Yang dihitung hanya bentuk yang menentukan tepi gambar: kotak, lingkaran,
+ * teks, poligon, garis. `<path>` sengaja dilewati - ia dipakai untuk konektor
+ * antar simpul, jadi jangkauannya sudah dibatasi simpul yang dihubungkannya,
+ * sementara mengurai `d` dengan benar butuh pengurai jalur sungguhan. Taksiran
+ * yang melewatkan kasus tepi lebih baik daripada taksiran yang menuduh gambar
+ * yang benar.
+ */
+export function contentExtent(svg: string): SvgSize | null {
+	let width = 0
+	let height = 0
+	const seen = (x: number, y: number) => {
+		if (Number.isFinite(x)) width = Math.max(width, x)
+		if (Number.isFinite(y)) height = Math.max(height, y)
+	}
+
+	const attr = (tag: string, name: string): number => {
+		const match = new RegExp(`\\b${name}\\s*=\\s*["']([^"']*)["']`).exec(tag)
+		return match ? Number.parseFloat(match[1]) : Number.NaN
+	}
+
+	for (const [tag, name] of svg.matchAll(/<(rect|circle|ellipse|text|polygon|polyline|line)\b([^>]*)>/gi)) {
+		const kind = name.toLowerCase()
+		const body = tag
+
+		if (kind === 'rect') {
+			seen(attr(body, 'x') + attr(body, 'width'), attr(body, 'y') + attr(body, 'height'))
+			continue
+		}
+		if (kind === 'circle') {
+			seen(attr(body, 'cx') + attr(body, 'r'), attr(body, 'cy') + attr(body, 'r'))
+			continue
+		}
+		if (kind === 'ellipse') {
+			seen(attr(body, 'cx') + attr(body, 'rx'), attr(body, 'cy') + attr(body, 'ry'))
+			continue
+		}
+		if (kind === 'text') {
+			seen(attr(body, 'x'), attr(body, 'y'))
+			continue
+		}
+		if (kind === 'line') {
+			seen(Math.max(attr(body, 'x1'), attr(body, 'x2')), Math.max(attr(body, 'y1'), attr(body, 'y2')))
+			continue
+		}
+
+		const points = /\bpoints\s*=\s*["']([^"']*)["']/.exec(body)?.[1] ?? ''
+		const numbers = points
+			.split(/[\s,]+/)
+			.map(Number)
+			.filter(Number.isFinite)
+		for (let index = 0; index + 1 < numbers.length; index += 2) seen(numbers[index], numbers[index + 1])
+	}
+
+	return width > 0 && height > 0 ? { width, height } : null
+}
+
+/**
  * Keluhan yang bisa dikirim balik ke model, kosong kalau tidak ada.
  *
  * Dikembalikan sebagai daftar, bukan sebagai gagal-pada-yang-pertama: jawaban
@@ -73,10 +152,19 @@ export function structuralProblems(svg: string): string[] {
 	const size = viewBoxSize(svg)
 	if (!size) {
 		problems.push('no usable viewBox — add viewBox="0 0 width height"')
-	} else if (size.height > size.width) {
-		problems.push(
-			`the viewBox is taller (${size.height}) than it is wide (${size.width}) — a diagram that tall is clipped at the page edge; make it wider or split it in two`,
-		)
+	} else {
+		if (size.height > size.width * MAX_ASPECT) {
+			problems.push(
+				`the viewBox is ${size.width}x${size.height}, more than ${MAX_ASPECT}x taller than it is wide — that overruns one page. Remove nodes or change the layout; do NOT shrink the viewBox`,
+			)
+		}
+
+		const extent = contentExtent(svg)
+		if (extent && (extent.width > size.width || extent.height > size.height)) {
+			problems.push(
+				`the drawing runs to ${Math.round(extent.width)}x${Math.round(extent.height)} but the viewBox is only ${size.width}x${size.height}, so everything past the edge is cut off. Grow the viewBox to contain the whole drawing, or draw less`,
+			)
+		}
 	}
 
 	if (!TITLE.test(svg)) problems.push('no <title> — it is required for accessibility')

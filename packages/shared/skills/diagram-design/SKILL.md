@@ -26,9 +26,15 @@ Six constraints are enforced by the editor, not by taste. Violating them means t
 is rejected with a visible message, or silently missing from the exported file:
 
 1. **A `viewBox` is required.** Export measures the drawing from it. `viewBox="0 0 1000 480"`.
-2. **Height must not exceed width.** A diagram taller than the page cannot be kept whole
-   across a page break, and gets clipped at the paper edge. If the content needs more
-   height, it is two diagrams.
+2. **The viewBox must contain the whole drawing, and be at most 1.5x taller than it is
+   wide.** The first half of that sentence outranks the second. A drawing that runs past
+   its viewBox is silently cut off — it parses, it renders, and a third of it is simply
+   missing, with nothing to tell the reader. So when the drawing does not fit, **never
+   shrink the viewBox**: remove nodes, shorten labels, or change the layout. A top-to-bottom
+   flow of nine steps that will not fit is two diagrams, or a flow with fewer steps.
+
+   The 1.5 comes from the paper: an A4 content box is roughly 642x971px, and a diagram is
+   always scaled to the column width, so anything taller overruns a single page.
 3. **No `<style>` element.** CSS inside an SVG is not scoped; one rule would restyle the
    whole page. Put every visual property on the element as a presentation attribute:
    `fill=`, `stroke=`, `font-family=`, `font-size=`.
