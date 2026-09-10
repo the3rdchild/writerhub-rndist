@@ -27,16 +27,16 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'read_section',
 		kind: 'read',
 		description:
-			'Read the text under one heading, up to the next heading of the same or higher level. Prefer this over asking for the whole document.',
+			'Read the text under one heading, up to the next heading of the same or higher level. Prefer this over asking for the whole document. Omit heading_index to read the document from the top instead - that is the right call when get_outline reports no headings at all, which happens whenever the document is one design, one diagram or one table rather than prose.',
 		parameters: {
 			type: 'object',
 			properties: {
 				heading_index: {
 					type: 'number',
-					description: 'Index of the heading as returned by get_outline.',
+					description:
+						'Index of the heading as returned by get_outline. Omit it to read from the start of the document.',
 				},
 			},
-			required: ['heading_index'],
 		},
 	},
 	{

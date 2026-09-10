@@ -374,3 +374,23 @@ describe('alat skill', () => {
 		expect(skillFilePath('tidak-ada')).toBeNull()
 	})
 })
+
+describe('read_section tanpa indeks heading', () => {
+	/*
+	 * Dokumen yang isinya satu rancangan, satu diagram, atau satu tabel tidak
+	 * punya heading sama sekali. Sebelum ini tidak ada satu pun alat yang bisa
+	 * membacanya: `read_section` menuntut indeks yang tidak ada, dan `find_text`
+	 * hanya mengembalikan cuplikan. Model menghabiskan seluruh anggaran
+	 * penelusurannya untuk menemukan itu, lalu gilirannya mati tanpa menyunting
+	 * apa pun.
+	 */
+	test('heading_index tidak lagi wajib', () => {
+		const tool = ALL_TOOLS.find((entry) => entry.name === 'read_section')
+		expect(tool?.parameters.required ?? []).not.toContain('heading_index')
+	})
+
+	test('deskripsinya menyebut kapan indeksnya dilewati', () => {
+		const tool = ALL_TOOLS.find((entry) => entry.name === 'read_section')
+		expect(tool?.description).toContain('no headings')
+	})
+})

@@ -118,9 +118,27 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 
 		case 'read_section': {
 			const list = headings(editor)
-			const at = Number(call.arguments.heading_index)
+			const asked = call.arguments.heading_index
+
+			/*
+			 * Tanpa indeks berarti "dari awal dokumen", dan itu bukan kemudahan.
+			 *
+			 * Dokumen yang isinya satu rancangan, satu diagram, atau satu tabel
+			 * tidak punya heading sama sekali - dan dulu itu berarti **tidak ada
+			 * satu pun alat yang bisa membacanya**. `read_section` menuntut
+			 * indeks yang tidak ada, `find_text` hanya mengembalikan cuplikan
+			 * berjari-jari tetap. Model yang diminta memperbaiki diagram
+			 * menghabiskan seluruh anggaran penelusurannya untuk menemukan itu,
+			 * lalu gilirannya mati tanpa menyunting apa pun.
+			 */
+			if (asked === undefined || asked === null) {
+				const whole = editor.state.doc.textBetween(0, editor.state.doc.content.size, '\n', ' ')
+				return whole.length > MAX_SECTION_CHARS ? `${whole.slice(0, MAX_SECTION_CHARS)}\n…(truncated)` : whole
+			}
+
+			const at = Number(asked)
 			if (!Number.isInteger(at) || at < 0 || at >= list.length) {
-				return `No heading with index ${call.arguments.heading_index}. Call get_outline first.`
+				return `No heading with index ${call.arguments.heading_index}. Call get_outline first, or omit heading_index to read from the top.`
 			}
 
 			const text = editor.state.doc.textBetween(list[at].pos, sectionEnd(editor, list, at), '\n', ' ')
@@ -258,7 +276,9 @@ export function readToolLabel(editor: Editor, call: ToolCall): string {
 		case 'get_outline':
 			return 'Membaca kerangka dokumen'
 		case 'read_section': {
-			const at = Number(call.arguments.heading_index)
+			const asked = call.arguments.heading_index
+			if (asked === undefined || asked === null) return 'Membaca naskah dari awal'
+			const at = Number(asked)
 			const heading = Number.isInteger(at) ? headings(editor)[at] : undefined
 			return heading ? `Membaca bagian "${heading.text.slice(0, 48)}"` : 'Membaca bagian naskah'
 		}
