@@ -133,8 +133,25 @@ judul dan deskripsi yang **benar-benar** dihasilkan sub-agent, bukan sekadar
 punya siapa-siapa untuk melapor. Statusnya harus tampil di UI, bukan hanya di
 konteks percakapan. Baris yang bisa diperbarui (§4) adalah tempatnya.
 
-**Sanitasi di server.** Karena keluaran lahir di server untuk semua jalur, penjaga
-dipasang satu kali di sana, sebelum apa pun dikirim ke klien.
+**Sanitasi tetap di perender — koreksi terhadap draf pertama dokumen ini.**
+Rancangan awal menaruh penjaga di server, dengan alasan seluruh keluaran lahir di
+sana. Itu tidak bisa dibangun dan juga tidak benar:
+
+- Server tidak punya pengurai XML. `DOMParser` tidak ada di Bun, dan menambah satu
+  dependensi demi salinan kedua tidak sebanding.
+- Lebih penting: server **tidak melihat semua sumber**. Penulis boleh menyunting
+  SVG-nya dengan tangan sesudah ia tersisip, dan suntingan itu tidak pernah
+  melewati server sama sekali. Penjaga di sana akan melewatkannya.
+
+Satu-satunya titik yang melihat setiap sumber di setiap jalur adalah perender:
+`apps/web/features/editor/diagram-svg.ts`, yang berjalan saat blok digambar,
+dicetak, dan diekspor. Di situlah penjaganya, dan hanya di situ.
+
+Yang ada di server adalah **pemeriksaan muka** (`svg-output.ts`): menangkap
+jawaban yang sudah pasti salah supaya model bisa diminta mengulang selagi
+permintaannya masih hidup — bukan supaya penulis yang menemukannya di petak
+kosong. Berkas itu menyebut dirinya bukan penyaring keamanan, tepat di
+kepalanya, supaya tidak ada yang mengira ia menjaga.
 
 ---
 

@@ -1,6 +1,7 @@
 import analysis from './analysis.route'
 import assets from './assets.route'
 import chat from './chat.route'
+import diagrams from './diagrams.route'
 import documents from './documents.route'
 import drafts from './drafts.route'
 import exports_ from './exports.route'
@@ -36,6 +37,7 @@ export const v1Routes = [
 	memory,
 	history,
 	research,
+	diagrams,
 	skills,
 	drafts,
 	assets,
