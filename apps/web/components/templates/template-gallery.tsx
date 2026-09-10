@@ -67,8 +67,15 @@ export function TemplateGallery() {
 	}
 
 	return (
-		<div className="flex min-h-screen flex-col bg-background">
-			<header className="sticky top-0 z-20 flex items-center gap-3 border-b border-line bg-surface px-4 py-3">
+		/*
+		 * Tinggi TETAP, bukan `min-h-screen`: dengan tinggi minimum, baris di
+		 * bawah ini tumbuh mengikuti isi galeri, jadi `overflow-y-auto` di
+		 * dalamnya tidak pernah memotong apa pun - seluruh halaman yang bergulir,
+		 * dan panel detail ikut memanjang setinggi grid template. Pola yang sama
+		 * dengan shell editor: tinggi viewport di akar, `min-h-0` di barisnya.
+		 */
+		<div className="flex h-dvh flex-col overflow-hidden bg-background">
+			<header className="flex shrink-0 items-center gap-3 border-b border-line bg-surface px-4 py-3">
 				<Link
 					href="/"
 					className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
@@ -89,15 +96,24 @@ export function TemplateGallery() {
 				</div>
 			</header>
 
-			<div className="flex flex-1 overflow-hidden">
-				<nav className="w-44 shrink-0 border-r border-line bg-surface px-3 py-4">
-					<ul className="space-y-1">
+			{/* `min-h-0` supaya ketiga kolomnya boleh lebih pendek dari isinya -
+			    tanpa itu, flex item menolak menyusut dan gulirannya pindah ke
+			    halaman. */}
+			{/* `min-h-0` supaya ketiga kolomnya boleh lebih pendek dari isinya -
+			    tanpa itu, flex item menolak menyusut dan gulirannya pindah ke
+			    halaman. `relative` menjadi acuan panel detail saat ia melayang di
+			    layar sempit. */}
+			<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+				{/* Kategori: kolom kiri di layar lebar, deretan chip yang bisa digeser
+				    di layar sempit - 176px terlalu mahal untuk dipakai nav di sana. */}
+				<nav className="shrink-0 overflow-x-auto border-b border-line bg-surface px-3 py-2 lg:w-44 lg:overflow-y-auto lg:overflow-x-visible lg:border-r lg:border-b-0 lg:py-4">
+					<ul className="flex gap-1 lg:block lg:space-y-1">
 						{CATEGORIES.map((item) => (
-							<li key={item.id}>
+							<li key={item.id} className="shrink-0 lg:shrink">
 								<button
 									type="button"
 									onClick={() => setCategory(item.id)}
-									className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+									className={`w-full whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm transition-colors ${
 										category === item.id
 											? 'bg-[var(--overlay-hover)] font-medium text-foreground'
 											: 'text-muted hover:bg-[var(--overlay-hover)] hover:text-foreground'
@@ -110,7 +126,7 @@ export function TemplateGallery() {
 					</ul>
 				</nav>
 
-				<main className="flex-1 overflow-y-auto px-6 py-6">
+				<main className="min-w-0 flex-1 overflow-y-auto px-6 py-6">
 					{templates.isPending ? (
 						<div className="flex h-64 items-center justify-center">
 							<div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
@@ -153,12 +169,23 @@ export function TemplateGallery() {
 				</main>
 
 				{selected && (
-					<TemplateDetailPanel
-						template={selected}
-						pending={pending}
-						error={useError}
-						onUse={() => void createFromTemplate(selected)}
-					/>
+					<>
+						{/* Latar peredup hanya ada saat panelnya melayang; di layar lebar
+						    panel berbagi ruang, bukan menutupi. */}
+						<button
+							type="button"
+							aria-label="Tutup detail template"
+							onClick={() => setSelectedSlug(null)}
+							className="absolute inset-0 z-20 bg-black/40 lg:hidden"
+						/>
+						<TemplateDetailPanel
+							template={selected}
+							pending={pending}
+							error={useError}
+							onUse={() => void createFromTemplate(selected)}
+							onClose={() => setSelectedSlug(null)}
+						/>
+					</>
 				)}
 			</div>
 		</div>
