@@ -1,0 +1,32 @@
+WritingHub (writer-hub)
+Copyright (c) 2026 Reacteev
+
+Produk ini memuat karya pihak ketiga di bawah ini.
+
+--------------------------------------------------------------------------------
+
+Scientific Agent Skills
+https://github.com/K-Dense-AI/scientific-agent-skills
+Copyright (c) K-Dense Inc.
+Lisensi: MIT
+
+Teks skill di `packages/shared/skills/` merupakan karya turunan dari repositori
+tersebut. Teksnya ditulis ulang secara substansial agar sesuai dengan penyunting
+dokumen ini - lihat `docs/AGENT-SKILLS-PLAN.md` §6 - tetapi struktur dan urutan
+pemeriksaannya berasal dari sana.
+
+Cuplikan upstream yang belum diolah disimpan di `vendor/scientific-agent-skills/`
+sebagai bahan pembanding. Salinan lisensinya ada di
+`vendor/scientific-agent-skills/LICENSE.md`.
+
+Berkas yang diturunkan sejauh ini:
+  packages/shared/skills/scientific-writing/SKILL.md
+  packages/shared/skills/scientific-writing/evidence-audit.md
+    ← skills/scientific-writing/ (MIT, K-Dense Inc.)
+
+--------------------------------------------------------------------------------
+
+Catatan: skill `markdown-mermaid-writing` di repositori upstream berlisensi
+Apache-2.0 (Superior Byte Works, LLC), bukan MIT. Skill itu TIDAK dikurasi dan
+tidak diturunkan di sini. Bila suatu saat dipakai, atribusinya harus ditambahkan
+di berkas ini beserta salinan lisensi Apache-2.0.
