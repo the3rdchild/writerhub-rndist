@@ -90,6 +90,40 @@ export const SKILLS: readonly SkillDefinition[] = [
 		files: [],
 	},
 	{
+		name: 'diagram-design',
+		label: 'Diagram editorial',
+		hint: 'Gambar bagan yang serasi dengan dokumen',
+		description:
+			'Drawing a diagram as inline SVG when a reader would learn more from a picture than from prose: which layout fits which relationship, the style tokens, and the constraints the editor enforces. Load it before calling insert_diagram.',
+		overlay: 'diagram-design',
+		files: [
+			{
+				name: 'architecture',
+				summary: 'Components of a system and how they talk: tiers, zones, protocol labels.',
+			},
+			{
+				name: 'flowchart',
+				summary: 'Decision logic where shape carries the meaning and every branch is labelled.',
+			},
+			{
+				name: 'timeline',
+				summary: 'Events on an axis, spaced in proportion to the real intervals between them.',
+			},
+			{
+				name: 'swimlane',
+				summary: 'A process with several actors, where the handoffs between them are the point.',
+			},
+			{
+				name: 'layers',
+				summary: 'Levels of abstraction stacked on one another, with the direction stated.',
+			},
+			{
+				name: 'tree',
+				summary: 'Containment or descent where every node has exactly one parent.',
+			},
+		],
+	},
+	{
 		name: 'scientific-brainstorming',
 		label: 'Curah gagasan',
 		hint: 'Tahap awal, sebelum ada tulisan',

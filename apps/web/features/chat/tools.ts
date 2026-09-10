@@ -465,6 +465,8 @@ export function describeToolCall(call: ToolCall): string {
 			return `Apply document format: ${call.arguments.template ?? '?'}`
 		case 'insert_mermaid':
 			return 'Insert Mermaid diagram'
+		case 'insert_diagram':
+			return 'Insert editorial diagram'
 		case 'insert_html_block':
 			return 'Insert HTML design block'
 		case 'convert_to_html_block':
@@ -946,6 +948,28 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 				.insertContent({
 					type: 'codeBlock',
 					attrs: { language: 'mermaid' },
+					content: [{ type: 'text', text: source }],
+				})
+				.run()
+			return { ok: true, message: 'Diagram inserted.' }
+		}
+
+		/*
+		 * Disisipkan mentah, tanpa disaring lebih dulu.
+		 *
+		 * Penyaringnya berjalan saat blok itu digambar (`diagram-svg.ts`), dan di
+		 * situlah tempatnya: sumber yang tersimpan harus tetap sama dengan yang
+		 * ditulis, supaya penulis melihat - dan bisa memperbaiki - apa yang
+		 * sebenarnya ditolak. Menyaring di sini justru membuat penolakan itu
+		 * lenyap tanpa jejak sebelum siapa pun sempat membacanya.
+		 */
+		case 'insert_diagram': {
+			const source = String(call.arguments.source ?? '').trim()
+			if (!source) return { ok: false, message: 'Nothing to insert.' }
+			insertChain(editor)
+				.insertContent({
+					type: 'codeBlock',
+					attrs: { language: 'diagram' },
 					content: [{ type: 'text', text: source }],
 				})
 				.run()

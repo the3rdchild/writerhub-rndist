@@ -36,6 +36,7 @@ export const TOOL_GUIDANCE = [
 	'For multi-step work, start with the plan tool so the user can follow along.',
 	'You can also reshape the layout: set_page_setup (paper, orientation,',
 	'margins, pageless), insert_toc / set_toc_options, insert_mermaid,',
+	'insert_diagram (editorial SVG - load the diagram-design skill first),',
 	'insert_table, apply_paragraph_style, format_text, restructure_section,',
 	'insert_image and create_tab.',
 	'Headers, footers and page numbers are yours too: set_header_footer writes',

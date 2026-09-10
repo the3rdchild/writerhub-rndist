@@ -98,6 +98,23 @@ function flyerBlock(label: string): string {
 	)
 }
 
+/**
+ * Blok diagram persis seperti `code-block-node-view.tsx` merendernya saat
+ * penulis sedang melihat sumbernya - `.code-block-pre` yang disembunyikan CSS
+ * cetak, dan `.code-block-visual-print` yang menggantikannya di kertas.
+ */
+function diagramBlock(width: number, height: number): string {
+	const svg =
+		`<svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">` +
+		`<rect width="${width}" height="${height}" fill="#ececec"/></svg>`
+	return (
+		"<div class='react-renderer node-codeBlock'><div class='code-block'>" +
+		"<pre class='code-block-pre'><code>svg</code></pre>" +
+		`<div class="code-block-visual-print">${svg}</div>` +
+		'</div></div>'
+	)
+}
+
 /** Lapisan latar lembar persis seperti `document-paper.tsx` merendernya. */
 function sheetLayer(setup: PageSetup, inSheet = ''): string {
 	const { width, height } = pageGeometry(setup)
@@ -239,6 +256,42 @@ function xobjectInvocations(pdf: Buffer): number {
 
 	return count
 }
+
+/*
+ * Diagram editorial di kertas.
+ *
+ * Dua jaminan yang seluruh aturan rasio di `docs/DIAGRAM-DESIGN-PLAN.md` §8
+ * bersandar padanya - dan keduanya hanya bisa diperiksa oleh peramban
+ * sungguhan, karena yang menentukan adalah `break-inside: avoid` dan
+ * `max-width: 100%` saat pagination berjalan.
+ */
+describe('uji cetak D1 - diagram di dalam naskah', () => {
+	test('diagram yang lebih lebar daripada tinggi muat di satu halaman', async () => {
+		if (!browser) return
+		const page = await browser.newPage()
+		try {
+			expect(await printedPagesOf(page, fixture(diagramBlock(1000, 480)))).toBe(1)
+		} finally {
+			await page.close()
+		}
+	})
+
+	/*
+	 * Yang dijaga di sini bukan jumlah halamannya melainkan keutuhannya: prosa
+	 * setinggi hampir satu lembar lalu satu diagram menghasilkan dua halaman,
+	 * bukan tiga - artinya diagramnya pindah utuh, tidak terbelah di tengah.
+	 */
+	test('diagram yang tidak muat di sisa halaman pindah utuh, tidak terbelah', async () => {
+		if (!browser) return
+		const page = await browser.newPage()
+		try {
+			const prose = '<p>Naskah.</p>'.repeat(40)
+			expect(await printedPagesOf(page, fixture(`${prose}${diagramBlock(1000, 700)}`))).toBe(2)
+		} finally {
+			await page.close()
+		}
+	})
+})
 
 describe('uji cetak T1 - lembar kosong di sekitar rancangan', () => {
 	test('rancangan tunggal, tanpa perabot lain: tepat satu halaman', async () => {

@@ -39,6 +39,38 @@ Berkas yang diturunkan sejauh ini:
 
 --------------------------------------------------------------------------------
 
+Diagram Design
+https://github.com/cathrynlavery/diagram-design
+Copyright (c) Cathryn Lavery
+Lisensi: MIT
+
+Teks skill di `packages/shared/skills/diagram-design/` merupakan karya turunan
+dari repositori tersebut (v2.6). Teksnya ditulis ulang untuk penyunting ini -
+lihat `docs/DIAGRAM-DESIGN-PLAN.md` §7 - tetapi tata bahasa tiap tipe diagram,
+token gaya, dan aturan konektornya berasal dari sana.
+
+Daftar putih di `apps/web/features/editor/diagram-allowlist.ts` juga diturunkan
+dari sana: kosakatanya adalah inventaris elemen dan atribut yang benar-benar
+dipakai 162 contoh upstream.
+
+Berkas yang diturunkan sejauh ini:
+  packages/shared/skills/diagram-design/SKILL.md
+    ← skills/diagram-design/SKILL.md + references/style-guide.md
+       (MIT, Cathryn Lavery)
+
+  packages/shared/skills/diagram-design/architecture.md
+  packages/shared/skills/diagram-design/flowchart.md
+  packages/shared/skills/diagram-design/timeline.md
+  packages/shared/skills/diagram-design/swimlane.md
+  packages/shared/skills/diagram-design/layers.md
+  packages/shared/skills/diagram-design/tree.md
+    ← references/type-*.md (MIT, Cathryn Lavery)
+
+Cuplikan upstream belum disimpan di `vendor/`; klon kerjanya ada di
+`ref/diagram-design/`, yang tidak ikut ke image dan tidak ikut ter-commit.
+
+--------------------------------------------------------------------------------
+
 Catatan: skill `markdown-mermaid-writing` di repositori upstream berlisensi
 Apache-2.0 (Superior Byte Works, LLC), bukan MIT. Skill itu TIDAK dikurasi dan
 tidak diturunkan di sini. Bila suatu saat dipakai, atribusinya harus ditambahkan

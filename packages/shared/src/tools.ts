@@ -388,6 +388,23 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		},
 	},
 	{
+		name: 'insert_diagram',
+		kind: 'write',
+		description:
+			'Insert an editorial diagram as a single self-contained inline <svg> element. Use it when a reader would learn more from a drawing than from a paragraph, a table or a list - an architecture, a flow, a timeline, a process, a layer stack, a tree. Load the diagram-design skill FIRST: it carries the layout grammar for each type and the style tokens, and a diagram drawn without it will not match the rest of the document. Pass only the <svg> element, nothing around it. Everything is styled with presentation attributes on each element (fill=, stroke=, font-family=) - a <style> element is rejected, because CSS inside an SVG is not scoped and would leak into the whole page. Also rejected: <foreignObject>, <image>, <script>, animation elements, on* handlers, and any reference that points outside this file. A viewBox is required, and its height must not exceed its width, or the diagram cannot be measured for export and may be clipped at the page edge. The title and caption belong in the document as ordinary text, NOT inside the drawing.',
+		parameters: {
+			type: 'object',
+			properties: {
+				source: {
+					type: 'string',
+					description:
+						'The complete <svg> element, including viewBox, <title> and <desc>. No HTML wrapper, no <style>, no remote resources.',
+				},
+			},
+			required: ['source'],
+		},
+	},
+	{
 		name: 'apply_template_format',
 		kind: 'write',
 		description:
