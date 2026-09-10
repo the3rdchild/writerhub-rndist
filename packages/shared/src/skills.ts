@@ -133,6 +133,38 @@ export const SKILLS: readonly SkillDefinition[] = [
 				name: 'scatter',
 				summary: 'Two continuous variables against each other: correlation, clusters, outliers.',
 			},
+			{
+				name: 'er',
+				summary: 'Entities and how many of each relate to each other - a conceptual data model.',
+			},
+			{
+				name: 'sequence',
+				summary: 'An exchange between actors over time: calls, returns, who held control when.',
+			},
+			{
+				name: 'fishbone',
+				summary: 'Root-cause analysis: one effect, causes grouped by category, what was investigated.',
+			},
+			{
+				name: 'gantt',
+				summary: 'A plan with dates: tasks that start and end, grouped into phases, drawn to scale.',
+			},
+			{
+				name: 'pyramid',
+				summary: 'Ranked layers, or a funnel narrowing from audience to conversion.',
+			},
+			{
+				name: 'quadrant',
+				summary: 'Position on two axes: impact against effort, a portfolio map, a 2x2 frame.',
+			},
+			{
+				name: 'org-chart',
+				summary: 'Who reports to whom, or who owns what.',
+			},
+			{
+				name: 'venn',
+				summary: 'Overlap between two or three sets, when the intersection is the point.',
+			},
 		],
 	},
 	{

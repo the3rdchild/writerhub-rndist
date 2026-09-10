@@ -1,6 +1,6 @@
 # Rencana Implementasi — Diagram Editorial (diagram-design)
 
-Status: **fase 1-3 selesai** · fase 4-5 belum · Disusun 10 September 2026 · Baseline kode
+Status: **fase 1-3 dan 5 selesai, fase 4 sebagian** · Disusun 10 September 2026 · Baseline kode
 `72c495f` (branch `feat/agent-skills`)
 
 **Sumber luar:** [cathrynlavery/diagram-design](https://github.com/cathrynlavery/diagram-design)
@@ -309,8 +309,8 @@ dipaksakan mesin, bukan sekadar disepakati. MIT → tambahkan atribusi di `NOTIC
 | 1 | Slot: bahasa code block, sanitizer, font di `rasterizeSvg`, 6 tipe struktural | selesai — **belum dilihat di kertas** |
 | 2 | Sub-agent (`docs/CHAT-SUBAGENT-PLAN.md`) + `redraw_diagram` | belum |
 | 3 | `reskinSvg` + diagram di dalam pamflet | selesai |
-| 4 | Sisa tipe struktural | belum |
-| 5 | Chart dengan penjagaan angka (§10) | belum |
+| 4 | Sisa tipe struktural | 17 dari 40 - lihat §12.4 |
+| 5 | Chart dengan penjagaan angka (§10) | selesai |
 
 ### 12.1 Yang mendarat di fase 1
 
@@ -349,6 +349,34 @@ dan mungkin lebih dari satu.
 - Penandanya komentar HTML dengan sengaja: yang belum sempat diganti tetap
   markup yang sah, jadi kegagalan menggambar menyisakan petak kosong, bukan
   halaman rusak. Yang tidak terisi dilaporkan ke model, bukan dihapus diam-diam.
+
+### 12.4 Tipe: 17 dari 40, dan kenapa berhenti di situ
+
+Yang ada sekarang: architecture, flowchart, timeline, swimlane, layers, tree, bar,
+line, scatter, er, sequence, fishbone, gantt, pyramid, quadrant, org-chart, venn.
+
+Yang sengaja belum ditulis, dan alasannya sama untuk semuanya: **ia melayani
+dek konsultan dan dokumentasi teknik, bukan penulis yang dilayani produk ini** —
+wardley, medallion, dp-integration, dp-security-matrix, deployment, dependency,
+uml-class, story-map, db-schema, it-state, high-level, process, kanban, journey,
+sankey, waterfall, polar, radar, treemap, nested, loop, state, dan beberapa
+varian chart lain.
+
+Beberapa di antaranya juga parametrik di upstream — `process` dan `loop`
+menurunkan tiap koordinat dari kontrak input YAML — dan tidak muat di plafon 4K
+token per berkas tanpa dipecah lebih dulu.
+
+**Overlay yang tipis lebih buruk daripada tidak ada overlay.** Berkas tipe yang
+tidak benar-benar membawa tata bahasanya menghasilkan diagram yang tampak
+diimprovisasi, dan model tidak punya cara tahu bahwa panduannya kurang. Menambah
+tipe berikutnya berarti membaca referensi upstream-nya utuh, bukan menyalin
+judulnya.
+
+Menambah satu tipe sekarang: tulis berkasnya di
+`packages/shared/skills/diagram-design/`, daftarkan di `SKILLS`, tambahkan
+barisnya di tabel pemilihan `SKILL.md`, dan masukkan namanya ke dua enum di
+`tools.ts`. Indeks system prompt tidak ikut membengkak — di atas tiga berkas ia
+hanya menyebut nama.
 
 ### 12.2 Yang belum terverifikasi
 

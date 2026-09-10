@@ -67,6 +67,14 @@ Berkas yang diturunkan sejauh ini:
   packages/shared/skills/diagram-design/bar.md
   packages/shared/skills/diagram-design/line.md
   packages/shared/skills/diagram-design/scatter.md
+  packages/shared/skills/diagram-design/er.md
+  packages/shared/skills/diagram-design/sequence.md
+  packages/shared/skills/diagram-design/fishbone.md
+  packages/shared/skills/diagram-design/gantt.md
+  packages/shared/skills/diagram-design/pyramid.md
+  packages/shared/skills/diagram-design/quadrant.md
+  packages/shared/skills/diagram-design/org-chart.md
+  packages/shared/skills/diagram-design/venn.md
     ← references/type-*.md (MIT, Cathryn Lavery)
 
 Cuplikan upstream belum disimpan di `vendor/`; klon kerjanya ada di

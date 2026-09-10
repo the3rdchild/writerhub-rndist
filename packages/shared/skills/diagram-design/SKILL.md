@@ -127,6 +127,14 @@ it, so the line does not run through the letters.
 | One number per category, side by side | Bar chart | `bar` |
 | A trend over time or a sequence | Line chart | `line` |
 | Two variables against each other | Scatter plot | `scatter` |
+| Entities and how many of each relate | ER / data model | `er` |
+| An exchange between actors over time | Sequence | `sequence` |
+| One effect and the causes investigated | Fishbone | `fishbone` |
+| Tasks with start and end dates | Gantt | `gantt` |
+| Ranked layers, or a narrowing funnel | Pyramid / funnel | `pyramid` |
+| Position on two axes | Quadrant | `quadrant` |
+| Who reports to whom | Org chart | `org-chart` |
+| Overlap between two or three sets | Venn | `venn` |
 
 Read the matching file with `read_skill('diagram-design', '<name>')` before drawing. Each one
 carries the layout grammar and the mistakes specific to that shape. Do not improvise a type
