@@ -9,6 +9,7 @@ import { PageSetupDialog } from '@/components/settings/page-setup-dialog'
 import { SettingsDialog } from '@/components/settings/settings-dialog'
 import { ShortcutsDialog } from '@/components/settings/shortcuts-dialog'
 import { ShareDialog } from '@/components/share/share-dialog'
+import { DocumentMetadataDialog } from '@/components/templates/document-metadata-dialog'
 import { ExportDocxDialog } from '@/features/document/export-docx-dialog'
 import { EDITOR_READY_ATTRIBUTE } from '@/features/editor/editor-ready'
 import { FurnitureEditProvider } from '@/features/editor/page-furniture/furniture-edit-context'
@@ -74,6 +75,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 				<PageNumbersDialog />
 				<ExportDocxDialog />
 				<ShareDialog />
+				<DocumentMetadataDialog />
 			</div>
 		</FurnitureEditProvider>
 	)

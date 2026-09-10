@@ -13,6 +13,7 @@ import { findTemplateBySlug } from '@/repository/template'
 import BaseService from '@/services/base.service'
 import { snapshotIntervalTab } from '@/services/tabs/service'
 import { templateDocumentLayout, templateTabLayout } from '@/services/templates/layout'
+import { applyTemplateMetadata } from '@/services/templates/metadata'
 import type { DocumentDetail, DocumentSummary, TabRow, TabSummary } from './dto'
 import { createDocumentBodySchema, updateDocumentBodySchema } from './dto'
 
@@ -31,6 +32,7 @@ export default class DocumentsService extends BaseService {
 				projectId: row.projectId,
 				templateSlug: row.templateSlug,
 				layout: row.layout,
+				metadata: row.metadata,
 				tabCount: Number(row.tabCount),
 				updatedAt: row.updatedAt.getTime(),
 				createdAt: row.createdAt.getTime(),
@@ -58,7 +60,8 @@ export default class DocumentsService extends BaseService {
 				return this.error({ errors: body.error.issues.map((issue) => issue.message) })
 			}
 
-			const { content, emoji, language, layout, tabLayout, templateSlug, projectId, title } = body.data
+			const { content, emoji, language, layout, metadata, tabLayout, templateSlug, projectId, title } =
+				body.data
 			const identityId = await this.identityId()
 
 			// Template menentukan judul, isi, dan tata letak bawaannya; nilai yang
@@ -85,13 +88,23 @@ export default class DocumentsService extends BaseService {
 				project_id: targetProjectId,
 				template_slug: template?.slug ?? null,
 				layout: layout ?? (template && templateDocumentLayout(template.spec)) ?? null,
+				metadata: metadata ?? null,
 			})
 			if (!document) throw AppError.internalServerError('Gagal menyimpan dokumen')
 
 			const tab = await insertTab({
 				document_id: document.id,
 				title: resolvedTitle,
-				content: content ?? template?.content ?? EMPTY_CONTENT,
+				/*
+				 * Metadata mengganti teks contoh di kerangka - sekali, di sini. Isi
+				 * yang dikirim pemanggil tidak disentuh: ia bukan kerangka template,
+				 * jadi tidak ada teks contoh yang boleh diasumsikan ada di dalamnya.
+				 */
+				content:
+					content ??
+					(template
+						? applyTemplateMetadata(template.content, template.spec.metadataFields, metadata)
+						: EMPTY_CONTENT),
 				emoji: emoji ?? null,
 				language: language ?? null,
 				layout: tabLayout ?? (template && templateTabLayout(template.spec)) ?? null,
@@ -173,6 +186,7 @@ export default class DocumentsService extends BaseService {
 			projectId: document.project_id,
 			templateSlug: document.template_slug,
 			layout: document.layout,
+			metadata: document.metadata,
 			tabCount: tabSummaries.length,
 			tabs: tabSummaries,
 			updatedAt: document.updated_at.getTime(),

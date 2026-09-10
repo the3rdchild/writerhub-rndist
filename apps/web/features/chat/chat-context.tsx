@@ -29,7 +29,7 @@ import { createTab as createTabInDoc } from '@/features/sessions/ydoc'
 import { buildSchema, fragmentToJSON, jsonToFragment } from '@/features/sync/serialize'
 import { useSync } from '@/features/sync/sync-context'
 import { getTemplate } from '@/features/templates/api'
-import { useActiveTemplate } from '@/features/templates/use-templates'
+import { useActiveDocumentMetadata, useActiveTemplate } from '@/features/templates/use-templates'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import { parseFallbackCalls, streamChat, stripFallbackCalls } from './api'
 import { chatFailureHint, toChatTurnError } from './failure'
@@ -241,6 +241,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const activeTemplate = useActiveTemplate()
 	const templateRef = useRef(activeTemplate)
 	templateRef.current = activeTemplate
+	/* Berjalan bersama slug templatenya: aturan format dan penjelasan dokumen
+	 * dikirim dalam satu permintaan yang sama. */
+	const activeMetadata = useActiveDocumentMetadata()
+	const metadataRef = useRef(activeMetadata)
+	metadataRef.current = activeMetadata
 	const applyActionsRef = useRef<((calls: ToolCall[]) => void) | null>(null)
 	const pendingAutoApplyRef = useRef<ToolCall[] | null>(null)
 	const messagesRef = useRef<ChatTurn[]>(messages)
@@ -507,6 +512,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						research: researchRef.current,
 						model: modelRef.current,
 						templateSlug: templateRef.current?.slug,
+						metadata: metadataRef.current ?? undefined,
 					},
 					{
 						onDelta: (delta) => {

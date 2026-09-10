@@ -1,10 +1,13 @@
-import type { TabLayout } from '@writer-hub/shared'
+import type { DocumentMetadata, TabLayout } from '@writer-hub/shared'
 import { z } from 'zod'
 import type { DocumentTab } from '@/db/schemas'
 import type { TabSummary } from '@/services/tabs/dto'
 import { tabLayoutOverrideSchema, tabLayoutSchema } from '@/services/tabs/dto'
 
 export type { TabSummary }
+
+/** Isian bebas milik template; kuncinya `TemplateMetadataField.key`. */
+export const documentMetadataSchema = z.record(z.string().max(64), z.string().max(4000))
 
 export const createDocumentBodySchema = z.object({
 	/** Opsional bila `templateSlug` dikirim - judul diambil dari nama template. */
@@ -19,6 +22,8 @@ export const createDocumentBodySchema = z.object({
 	layout: tabLayoutSchema.nullish(),
 	/** Penimpa tata letak untuk tab pertama. */
 	tabLayout: tabLayoutOverrideSchema.nullish(),
+	/** Metadata template; ikut mengganti teks contoh di kerangka saat dibuat. */
+	metadata: documentMetadataSchema.optional(),
 })
 
 export type CreateDocumentBody = z.infer<typeof createDocumentBodySchema>
@@ -27,6 +32,13 @@ export const updateDocumentBodySchema = z.object({
 	title: z.string().min(1).max(500).optional(),
 	projectId: z.uuid().optional(),
 	layout: tabLayoutSchema.nullish(),
+	/*
+	 * Bisa disunting ulang: judul skripsi berubah berkali-kali, dan metadata
+	 * yang tidak bisa diperbaiki akan berhenti dipercaya. Yang TIDAK berubah
+	 * adalah naskah yang sudah tertulis - sampulnya diisi sekali saat dokumen
+	 * lahir.
+	 */
+	metadata: documentMetadataSchema.nullish(),
 })
 
 export type UpdateDocumentBody = z.infer<typeof updateDocumentBodySchema>
@@ -37,6 +49,7 @@ export interface DocumentSummary {
 	projectId: string
 	templateSlug: string | null
 	layout: TabLayout | null
+	metadata: DocumentMetadata | null
 	tabCount: number
 	updatedAt: number
 	createdAt: number

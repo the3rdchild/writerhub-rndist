@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import type { TemplateSummary } from '@writer-hub/shared'
+import type { DocumentMetadata, TemplateSummary } from '@writer-hub/shared'
 import { useDocuments } from '@/features/documents/use-documents'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSync } from '@/features/sync/sync-context'
@@ -44,4 +44,21 @@ export function useActiveTemplate(): TemplateSummary | null {
 	const slug = documents.data?.find((entry) => entry.id === documentId)?.templateSlug ?? null
 
 	return useTemplate(slug).data ?? null
+}
+
+/**
+ * Metadata dokumen yang sedang dibuka - isian template yang sudah diisi
+ * penulis.
+ *
+ * Dibaca dari ringkasan dokumen server, sumber yang sama dengan slug
+ * templatenya: keduanya berjalan bersama ke system prompt AI, dan mengambilnya
+ * dari dua tempat berbeda hanya akan membuat keduanya bisa berselisih.
+ */
+export function useActiveDocumentMetadata(): DocumentMetadata | null {
+	const { activeId } = useSessions()
+	const { linkage } = useSync()
+	const documents = useDocuments()
+
+	const documentId = activeId ? linkage[activeId]?.documentId : undefined
+	return documents.data?.find((entry) => entry.id === documentId)?.metadata ?? null
 }

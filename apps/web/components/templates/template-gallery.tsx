@@ -1,15 +1,16 @@
 'use client'
 
-import type { TemplateCategory, TemplateSummary } from '@writer-hub/shared'
+import type { DocumentMetadata, TemplateCategory, TemplateSummary } from '@writer-hub/shared'
 import { ArrowLeft, FilePlus2, Search } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createDocument } from '@/features/documents/api'
 import { useSessions } from '@/features/sessions/session-context'
 import { useTemplates } from '@/features/templates/use-templates'
 import { TemplateCard } from './template-card'
 import { TemplateDetailPanel } from './template-detail-panel'
+import { TemplateMetadataDialog } from './template-metadata-dialog'
 
 const CATEGORIES: Array<{ id: TemplateCategory | 'all'; label: string }> = [
 	{ id: 'all', label: 'Semua' },
@@ -35,6 +36,19 @@ export function TemplateGallery() {
 	const [selectedSlug, setSelectedSlug] = useState<string | null>(null)
 	const [pending, setPending] = useState(false)
 	const [useError, setUseError] = useState<string | null>(null)
+	const [metadata, setMetadata] = useState<DocumentMetadata>({})
+	const [metadataOpen, setMetadataOpen] = useState(false)
+
+	/* Isian milik template, bukan milik galeri: berpindah template membuang
+	 * yang sudah diketik, karena kuncinya pun berbeda. */
+	// biome-ignore lint/correctness/useExhaustiveDependencies: sengaja hanya bereaksi pada pergantian template
+	useEffect(
+		function resetMetadataOnTemplateChange() {
+			setMetadata({})
+			setMetadataOpen(false)
+		},
+		[selectedSlug],
+	)
 
 	const selected = (templates.data ?? []).find((item) => item.slug === selectedSlug)
 
@@ -53,7 +67,13 @@ export function TemplateGallery() {
 		setPending(true)
 		setUseError(null)
 		try {
-			const created = await createDocument({ templateSlug: template.slug })
+			const filled = Object.fromEntries(
+				Object.entries(metadata).filter(([, value]) => value.trim().length > 0),
+			)
+			const created = await createDocument({
+				templateSlug: template.slug,
+				...(Object.keys(filled).length > 0 ? { metadata: filled } : {}),
+			})
 			router.push(`/d/${created.id}`)
 		} catch (cause) {
 			setUseError(cause instanceof Error ? cause.message : 'Gagal membuat dokumen dari template')
@@ -182,12 +202,28 @@ export function TemplateGallery() {
 							template={selected}
 							pending={pending}
 							error={useError}
+							filledMetadata={Object.values(metadata).filter((value) => value.trim()).length}
+							onEditMetadata={() => setMetadataOpen(true)}
 							onUse={() => void createFromTemplate(selected)}
 							onClose={() => setSelectedSlug(null)}
 						/>
 					</>
 				)}
 			</div>
+
+			{metadataOpen && selected?.spec.metadataFields?.length && (
+				<TemplateMetadataDialog
+					title={`Metadata - ${selected.name}`}
+					fields={selected.spec.metadataFields}
+					values={metadata}
+					afterCreation={false}
+					onSave={(next) => {
+						setMetadata(next)
+						setMetadataOpen(false)
+					}}
+					onClose={() => setMetadataOpen(false)}
+				/>
+			)}
 		</div>
 	)
 }

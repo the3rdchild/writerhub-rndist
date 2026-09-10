@@ -97,6 +97,8 @@ interface SettingsContextValue {
 	setHeadersFootersOpen: (open: boolean) => void
 	pageNumbersOpen: boolean
 	setPageNumbersOpen: (open: boolean) => void
+	documentMetadataOpen: boolean
+	setDocumentMetadataOpen: (open: boolean) => void
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null)
@@ -110,6 +112,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 	const [pageSetupOpen, setPageSetupOpen] = useState(false)
 	const [headersFootersOpen, setHeadersFootersOpen] = useState(false)
 	const [pageNumbersOpen, setPageNumbersOpen] = useState(false)
+	const [documentMetadataOpen, setDocumentMetadataOpen] = useState(false)
 	useEffect(
 		function applyThemeOnChange() {
 			applyTheme(settings.theme)
@@ -163,6 +166,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 			setHeadersFootersOpen,
 			pageNumbersOpen,
 			setPageNumbersOpen,
+			documentMetadataOpen,
+			setDocumentMetadataOpen,
 		}),
 		[
 			settings,
@@ -174,6 +179,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 			pageSetupOpen,
 			headersFootersOpen,
 			pageNumbersOpen,
+			documentMetadataOpen,
 		],
 	)
 

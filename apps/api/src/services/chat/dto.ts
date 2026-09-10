@@ -28,6 +28,13 @@ export const chatBodySchema = z.object({
 	model: z.string().max(200).optional(),
 	/** Template dokumen yang sedang dibuka; aturan formatnya ikut ke prompt. */
 	templateSlug: z.string().max(64).optional(),
+	/*
+	 * Metadata dokumen, dikirim klien bersama slug templatenya - jalur yang sama
+	 * dengan template itu sendiri, jadi tidak ada pembacaan basis data baru di
+	 * jalur chat. Isinya diperlakukan sebagai fakta tentang karya penulis, bukan
+	 * instruksi; lihat `documentBriefPrompt`.
+	 */
+	metadata: z.record(z.string().max(64), z.string().max(4000)).optional(),
 })
 
 export type ChatBody = z.infer<typeof chatBodySchema>

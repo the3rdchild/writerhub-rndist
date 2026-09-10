@@ -1,7 +1,7 @@
 'use client'
 
 import type { CitationStyle, TemplateSummary } from '@writer-hub/shared'
-import { FileText, X } from 'lucide-react'
+import { FileText, PencilLine, X } from 'lucide-react'
 import { useEffect } from 'react'
 import { contentToPreviewHtml } from '@/features/templates/preview-html'
 import { TemplatePreview } from './template-preview'
@@ -20,6 +20,9 @@ interface TemplateDetailPanelProps {
 	error: string | null
 	onUse: () => void
 	onClose: () => void
+	/** Berapa isian metadata yang sudah diisi; menentukan label tombolnya. */
+	filledMetadata?: number
+	onEditMetadata?: () => void
 }
 
 /**
@@ -32,7 +35,15 @@ interface TemplateDetailPanelProps {
  * tombolnya, pengguna harus menggulir sepanjang seluruh grid template - makin
  * banyak templatenya, makin jauh tombolnya.
  */
-export function TemplateDetailPanel({ template, pending, error, onUse, onClose }: TemplateDetailPanelProps) {
+export function TemplateDetailPanel({
+	template,
+	pending,
+	error,
+	onUse,
+	onClose,
+	filledMetadata = 0,
+	onEditMetadata,
+}: TemplateDetailPanelProps) {
 	const { spec } = template
 
 	useEffect(
@@ -130,8 +141,22 @@ export function TemplateDetailPanel({ template, pending, error, onUse, onClose }
 
 			{/* Bilah aksi berlabuh: satu-satunya alasan panel ini dibuka ada di sini,
 			    jadi ia tidak boleh ikut tergulir pergi. */}
-			<div className="shrink-0 border-t border-line px-6 py-4">
-				{error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+			<div className="flex shrink-0 flex-col gap-2 border-t border-line px-6 py-4">
+				{error && <p className="text-sm text-red-600">{error}</p>}
+
+				{/* Opsional, dan sengaja sekunder: memaksa mengisi formulir sebelum
+				    boleh mencoba template adalah gesekan di tempat yang salah. */}
+				{spec.metadataFields?.length && onEditMetadata ? (
+					<button
+						type="button"
+						onClick={onEditMetadata}
+						className="flex items-center justify-center gap-1.5 rounded-xl border border-line px-5 py-2 text-sm text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
+					>
+						<PencilLine className="h-4 w-4" />
+						{filledMetadata > 0 ? `Metadata terisi (${filledMetadata})` : 'Isi metadata (opsional)'}
+					</button>
+				) : null}
+
 				<button
 					type="button"
 					onClick={onUse}

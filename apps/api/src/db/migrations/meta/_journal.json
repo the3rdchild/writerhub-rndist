@@ -183,6 +183,13 @@
       "when": 1788585726456,
       "tag": "0025_careful_sugar_man",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1789011233209,
+      "tag": "0026_outstanding_deathstrike",
+      "breakpoints": true
     }
   ]
 }

@@ -46,12 +46,16 @@ export function buildMessages(
 	withTools: boolean,
 	memory: StyleMemory | null,
 	templateRules?: string[],
+	documentBrief?: string,
 ): unknown[] {
 	const { messages, context, research } = body
 	const contextPart = contextMessage(context)
 
 	return [
-		{ role: 'system', content: buildSystemPrompt({ withTools, research, memory, templateRules }) },
+		{
+			role: 'system',
+			content: buildSystemPrompt({ withTools, research, memory, templateRules, documentBrief }),
+		},
 		...(contextPart ? [contextPart] : []),
 		...messages.map(toProviderMessage),
 	]

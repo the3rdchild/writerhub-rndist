@@ -169,6 +169,50 @@ Tahun
 				'BAB I must contain Latar Belakang, Rumusan Masalah, Tujuan Penelitian, Manfaat Penelitian, and Batasan Masalah as subsections.',
 				'The abstract is one paragraph of 150-250 words, followed by keywords.',
 			],
+			/*
+			 * Isian sampul plus dua isian yang tidak menyentuh naskah sama sekali
+			 * (`topik`, `metodologi`): keduanya ada semata supaya AI tahu skripsi
+			 * ini tentang apa sejak dokumennya masih kosong - yaitu justru saat
+			 * naskahnya belum bisa memberi tahu apa pun.
+			 */
+			metadataFields: [
+				{
+					key: 'judul',
+					label: 'Judul skripsi',
+					placeholder: 'Judul Skripsi',
+					example: 'Rancang Bangun Sistem Prediksi Kualitas Uap Panas Bumi',
+				},
+				{ key: 'nama', label: 'Nama mahasiswa', placeholder: 'Nama Mahasiswa' },
+				{ key: 'nim', label: 'NIM', placeholder: '1234567890' },
+				{ key: 'prodi', label: 'Program studi', placeholder: 'Program Studi' },
+				{ key: 'fakultas', label: 'Fakultas', placeholder: 'Fakultas' },
+				{ key: 'universitas', label: 'Universitas', placeholder: 'Universitas' },
+				{ key: 'tahun', label: 'Tahun', placeholder: 'Tahun', example: '2026' },
+				{
+					key: 'abstrak',
+					label: 'Abstrak',
+					kind: 'multiline',
+					placeholder: 'Abstrak bahasa Indonesia, 150-250 kata, satu paragraf.',
+					hint: 'Boleh kasar dulu - AI memakainya untuk mengerti arah penelitian Anda.',
+				},
+				{
+					key: 'kataKunci',
+					label: 'Kata kunci',
+					placeholder: 'kata kunci 1, kata kunci 2, kata kunci 3',
+				},
+				{
+					key: 'topik',
+					label: 'Bidang dan objek penelitian',
+					hint: 'Tidak ditulis ke naskah - hanya menjelaskan dokumen ini kepada AI.',
+					example: 'Instrumentasi pembangkit listrik tenaga panas bumi',
+				},
+				{
+					key: 'metodologi',
+					label: 'Metode yang dipakai',
+					hint: 'Tidak ditulis ke naskah - hanya menjelaskan dokumen ini kepada AI.',
+					example: 'Kuantitatif, regresi deret waktu atas data sensor',
+				},
+			],
 			caveats: [
 				'Nomor halaman romawi (i, ii, iii) di bagian awal belum otomatis - atur manual.',
 				'Nomor halaman di daftar isi adalah potretan saat diekspor, bukan field yang bisa disegarkan Word.',

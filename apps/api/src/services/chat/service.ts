@@ -1,12 +1,14 @@
 import type { StyleMemory } from '@writer-hub/shared'
 import { toProviderTools } from '@writer-hub/shared'
 import { env } from '@/config/env'
+import type { Template } from '@/db/schemas'
 import { pickModel } from '@/lib/pick-model'
 import type { ResolvedProvider } from '@/lib/provider-resolver'
 import { findTemplateBySlug } from '@/repository/template'
 import JobSubmissionService from '@/services/job-submission.service'
 import { type ChatBody, chatBodySchema } from './dto'
 import { buildMessages } from './messages'
+import { documentBriefPrompt } from './prompts'
 import { openChatStream } from './stream'
 
 const TEMPERATURE = 0.4
@@ -44,9 +46,13 @@ export default class ChatService extends JobSubmissionService {
 			}
 
 			const memory = await this.styleMemory()
-			const templateRules = await this.templateRules(parsed.data.templateSlug)
+			const template = await this.templateOf(parsed.data.templateSlug)
+			/* Templatenya memberi tahu model bagaimana menulis; metadata memberi
+			 * tahu tentang apa. Label isiannya datang dari template yang sama, jadi
+			 * satu pencarian melayani keduanya. */
+			const documentBrief = documentBriefPrompt(template?.spec.metadataFields, parsed.data.metadata)
 			const call = (withTools: boolean) =>
-				this.callProvider(config, parsed.data, withTools, memory, templateRules)
+				this.callProvider(config, parsed.data, withTools, memory, template?.spec.aiRules, documentBrief)
 
 			// Penjaga dash tunduk pada preferensi tersimpan: aktif kecuali penulis
 			// sengaja menyalakannya di AI Memory.
@@ -84,6 +90,7 @@ export default class ChatService extends JobSubmissionService {
 		withTools: boolean,
 		memory: StyleMemory | null,
 		templateRules?: string[],
+		documentBrief?: string,
 	): Promise<Response> {
 		return fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
 			method: 'POST',
@@ -95,7 +102,7 @@ export default class ChatService extends JobSubmissionService {
 				model,
 				stream: true,
 				temperature: TEMPERATURE,
-				messages: buildMessages(body, withTools, memory, templateRules),
+				messages: buildMessages(body, withTools, memory, templateRules, documentBrief),
 				...(withTools ? { tools: toProviderTools({ research: body.research }), tool_choice: 'auto' } : {}),
 			}),
 			/*
@@ -109,17 +116,17 @@ export default class ChatService extends JobSubmissionService {
 	}
 
 	/**
-	 * Aturan format template dokumen yang sedang dibuka. Slug yang tidak dikenal
-	 * - misalnya template yang sudah dihapus - dilewati diam-diam: chat tidak
-	 * boleh gagal hanya karena referensi template basi.
+	 * Template dokumen yang sedang dibuka - sumber aturan formatnya sekaligus
+	 * label isian metadatanya. Slug yang tidak dikenal - misalnya template yang
+	 * sudah dihapus - dilewati diam-diam: chat tidak boleh gagal hanya karena
+	 * referensi template basi.
 	 */
-	private async templateRules(slug?: string): Promise<string[] | undefined> {
-		if (!slug) return undefined
+	private async templateOf(slug?: string): Promise<Template | null> {
+		if (!slug) return null
 		try {
-			const template = await findTemplateBySlug(slug)
-			return template?.spec.aiRules
+			return (await findTemplateBySlug(slug)) ?? null
 		} catch {
-			return undefined
+			return null
 		}
 	}
 }

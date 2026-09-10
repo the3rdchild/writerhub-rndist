@@ -4,6 +4,7 @@ import type {
 	ChatStreamEvent,
 	ChatStreamPhase,
 	ChatUsage,
+	DocumentMetadata,
 	ToolCall,
 } from '@writer-hub/shared'
 import { FALLBACK_TOOL_FENCE } from '@writer-hub/shared'
@@ -26,6 +27,7 @@ export async function streamChat(
 		research = false,
 		model,
 		templateSlug,
+		metadata,
 	}: {
 		messages: ChatMessage[]
 		context?: ChatContext
@@ -33,6 +35,7 @@ export async function streamChat(
 		research?: boolean
 		model?: string
 		templateSlug?: string
+		metadata?: DocumentMetadata
 	},
 	handlers: StreamChatHandlers | ((text: string) => void),
 	signal?: AbortSignal,
@@ -49,6 +52,7 @@ export async function streamChat(
 			research,
 			...(model ? { model } : {}),
 			...(templateSlug ? { templateSlug } : {}),
+			...(metadata && Object.keys(metadata).length > 0 ? { metadata } : {}),
 		}),
 		signal,
 	})

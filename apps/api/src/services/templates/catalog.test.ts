@@ -66,3 +66,56 @@ describe('slug yang disebutkan ke model', () => {
 		}
 	})
 })
+
+/*
+ * Metadata mengganti teks contoh dengan pencocokan LITERAL. Kalau teks yang
+ * dijanjikan `metadataFields` tidak ada di kerangkanya, isian itu diam-diam
+ * tidak melakukan apa pun; kalau ia muncul lebih dari sekali, mengisinya juga
+ * menimpa tempat lain yang tidak dimaksud. Keduanya gagal tanpa pesan, jadi
+ * katalognya yang dijaga di sini - bukan pemakainya.
+ */
+describe('isian metadata template', () => {
+	const textsOf = (node: unknown, out: string[] = []): string[] => {
+		if (Array.isArray(node)) {
+			for (const child of node) textsOf(child, out)
+			return out
+		}
+		if (!node || typeof node !== 'object') return out
+		const record = node as Record<string, unknown>
+		if (typeof record.text === 'string') out.push(record.text)
+		for (const value of Object.values(record)) textsOf(value, out)
+		return out
+	}
+
+	const withFields = BUILTIN_TEMPLATES.filter((template) => template.spec.metadataFields?.length)
+
+	test('minimal satu template menawarkannya', () => {
+		expect(withFields.length).toBeGreaterThan(0)
+	})
+
+	test('kuncinya unik di dalam satu template', () => {
+		for (const template of withFields) {
+			const keys = (template.spec.metadataFields ?? []).map((field) => field.key)
+			expect(new Set(keys).size, `${template.slug} punya kunci metadata kembar`).toBe(keys.length)
+		}
+	})
+
+	test('tiap teks contoh muncul TEPAT SEKALI di kerangkanya', () => {
+		for (const template of withFields) {
+			const body = textsOf(compileTemplateContent(template)).join('\n')
+			for (const field of template.spec.metadataFields ?? []) {
+				if (!field.placeholder) continue
+				const hits = body.split(field.placeholder).length - 1
+				expect(hits, `${template.slug}: teks contoh "${field.placeholder}" muncul ${hits}x`).toBe(1)
+			}
+		}
+	})
+
+	test('isian tanpa teks contoh tetap punya label - ia muncul di formulir', () => {
+		for (const template of withFields) {
+			for (const field of template.spec.metadataFields ?? []) {
+				expect(field.label.length, `${template.slug}: isian ${field.key} tanpa label`).toBeGreaterThan(0)
+			}
+		}
+	})
+})

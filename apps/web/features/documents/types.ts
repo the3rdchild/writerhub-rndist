@@ -1,11 +1,12 @@
 import type { JSONContent } from '@tiptap/core'
-import type { TabLayout, TabLayoutOverride } from '@writer-hub/shared'
+import type { DocumentMetadata, TabLayout, TabLayoutOverride } from '@writer-hub/shared'
 
 export interface DocumentSummary {
 	id: string
 	title: string
 	projectId: string
 	templateSlug: string | null
+	metadata: DocumentMetadata | null
 	layout: TabLayout | null
 	tabCount: number
 	updatedAt: number
@@ -41,12 +42,15 @@ export interface CreateDocumentInput {
 	templateSlug?: string
 	layout?: TabLayout | null
 	tabLayout?: TabLayoutOverride | null
+	/** Isian metadata template; ikut mengganti teks contoh di kerangka. */
+	metadata?: DocumentMetadata
 }
 
 export interface UpdateDocumentInput {
 	title?: string
 	projectId?: string
 	layout?: TabLayout | null
+	metadata?: DocumentMetadata | null
 }
 
 export interface CreateTabInput {
