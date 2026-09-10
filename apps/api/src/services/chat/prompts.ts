@@ -1,5 +1,5 @@
 import type { DocumentMetadata, TemplateMetadataField } from '@writer-hub/shared'
-import { fallbackToolPrompt, type StyleMemory } from '@writer-hub/shared'
+import { ACTIVE_SKILLS, fallbackToolPrompt, type StyleMemory } from '@writer-hub/shared'
 
 /**
  * Seluruh teks yang dikirim sebagai peran "system" ke provider AI.
@@ -314,6 +314,33 @@ export function dashRulePrompt(allowDashes: boolean | undefined): string {
  * ini. Bagian yang kosong - misalnya memori gaya yang belum diisi pengguna -
  * dibuang, bukan disisipkan sebagai paragraf hampa.
  */
+/**
+ * Indeks skill - nama dan satu kalimat, bukan isinya.
+ *
+ * Inilah inti dari pemuatan bertahap: yang permanen di system prompt cuma
+ * daftar ini (±150 token), sedangkan badan skill baru diambil `read_skill`
+ * kalau model memang memerlukannya. Menyuntikkan isinya sekaligus akan
+ * mengembalikan persis masalah yang mau dihindari.
+ */
+export function skillIndexPrompt(): string {
+	if (ACTIVE_SKILLS.length === 0) return ''
+
+	const lines = ACTIVE_SKILLS.map((skill) => {
+		const deeper = skill.files.map((file) => `    - ${file.name}: ${file.summary}`)
+		return [`- ${skill.name}: ${skill.description}`, ...deeper].join('\n')
+	})
+
+	const preamble = [
+		'Skills available through read_skill. These carry procedural knowledge you',
+		'do not have to guess at - how to judge evidence, how to audit a draft.',
+		'Read the relevant one BEFORE drafting or critiquing, not after. Where a',
+		'skill and the active template disagree about structure or naming, the',
+		'template wins.',
+	].join(' ')
+
+	return [preamble, '', ...lines].join('\n')
+}
+
 export function buildSystemPrompt({
 	withTools,
 	research,
@@ -325,6 +352,7 @@ export function buildSystemPrompt({
 		SYSTEM_PROMPT,
 		dashRulePrompt(memory?.allowDashes),
 		withTools ? TOOL_GUIDANCE : fallbackToolPrompt({ research }),
+		skillIndexPrompt(),
 		withTools ? NARRATIVE_GUIDANCE : '',
 		research ? RESEARCH_GUIDANCE : RESEARCH_OFF_NOTICE,
 		memoryPrompt(memory),

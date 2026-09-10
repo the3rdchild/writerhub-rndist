@@ -1,5 +1,6 @@
 import { fontChoicePrompt } from './fonts'
 import { RESEARCH_TOOLS } from './research-tools'
+import { SKILL_TOOLS } from './skills'
 
 export type ToolKind = 'read' | 'write'
 
@@ -723,7 +724,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 ]
 
 /** Semua alat yang bisa dipanggil model, apa pun modenya. */
-export const ALL_TOOLS: readonly ToolDefinition[] = [...EDITOR_TOOLS, ...RESEARCH_TOOLS]
+export const ALL_TOOLS: readonly ToolDefinition[] = [...EDITOR_TOOLS, ...SKILL_TOOLS, ...RESEARCH_TOOLS]
 
 const BY_NAME = new Map(ALL_TOOLS.map((tool) => [tool.name, tool]))
 
@@ -752,8 +753,12 @@ export interface ToolScope {
 	research?: boolean
 }
 
+/**
+ * `read_skill` selalu ikut, tidak seperti alat riset: ia tidak memanggil
+ * layanan berbayar dan tidak butuh mode apa pun - isinya ada di repo ini.
+ */
 function toolsInScope(scope: ToolScope | undefined): readonly ToolDefinition[] {
-	return scope?.research ? ALL_TOOLS : EDITOR_TOOLS
+	return scope?.research ? ALL_TOOLS : [...EDITOR_TOOLS, ...SKILL_TOOLS]
 }
 
 export function toProviderTools(scope?: ToolScope): unknown[] {

@@ -1,6 +1,6 @@
 # Rencana Implementasi — Agent Skills di Chat AI
 
-Status: **PR-1 selesai, PR-2 belum** · Disusun 10 September 2026 · Baseline kode
+Status: **PR-1 dan PR-2 selesai** · Disusun 10 September 2026 · Baseline kode
 `9293480` (branch `main`)
 
 **Sumber luar:** [K-Dense-AI/scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills)
@@ -217,8 +217,18 @@ disentuh sama sekali** — `ACTIVE_SKILLS` diekspor tapi belum ada yang memakain
 Awalnya PR-1 dirancang murni infrastruktur, lalu direvisi: manifest kosong tidak bisa dinilai
 — bentuknya baru terbukti benar setelah ada isi yang lewat di dalamnya.
 
-**PR-2 — runtime.** Suntik indeks ke system prompt, tool `read_skill`, tier `skill` di palet
-`/`. Di sinilah `TOOL_GUIDANCE` mulai bisa dipangkas.
+**PR-2 — runtime.** ✅ *Selesai.* Indeks disuntik lewat `skillIndexPrompt()`, alat `read_skill`
+(dilayani `/api/v1/skills/read`, dieksekusi browser seperti alat riset), tier `skill` di palet
+`/`.
+
+`read_skill` dilayani server, bukan dibaca browser: putaran alat memang berjalan di browser,
+tapi `packages/shared/skills/*.md` tidak ikut ke bundel web. Menjadikannya alat jarak jauh
+menghindari codegen yang menyalin Markdown ke dalam TypeScript, dan menjaga `.md` tetap satu-
+satunya sumber kebenaran yang di-diff ke upstream.
+
+Jalur berkas hanya boleh terbentuk lewat `skillFilePath()`, yang mencocokkan ke katalog.
+Tidak ada string dari model yang sampai ke sistem berkas, jadi penelusuran direktori mustahil
+- bukan sekadar disaring.
 
 **PR-3 — empat skill sisanya.** Pekerjaan mekanis setelah bentuknya terbukti.
 
@@ -228,8 +238,14 @@ Awalnya PR-1 dirancang murni infrastruktur, lalu direvisi: manifest kosong tidak
 
 ## 11. Yang belum diputuskan
 
-- Berapa banyak `TOOL_GUIDANCE` yang benar-benar bisa pindah ke skill di PR-2. Sebagian besar
-  isinya soal alat editor, yang memang harus selalu ada — jadi penghematannya mungkin lebih
-  kecil dari yang terlihat. Diukur, bukan ditebak.
+- **Pemangkasan `TOOL_GUIDANCE` belum dikerjakan.** Sekarang sudah terukur, bukan ditebak:
+  system prompt ±2.718 token, `TOOL_GUIDANCE` ±1.354 token (separuhnya), indeks skill ±162
+  token. Artinya PR-2 justru *menambah* ±162 token dulu; penghematannya baru datang kalau
+  isi `TOOL_GUIDANCE` benar-benar pindah.
+
+  Yang bisa pindah tidak banyak: hampir seluruh `TOOL_GUIDANCE` menjelaskan alat editor yang
+  memang harus selalu tersedia. Kandidat yang jelas cuma `NARRATIVE_GUIDANCE` - ia sudah
+  berdiri sendiri, hanya relevan untuk naskah cerita, dan bentuknya sudah persis seperti
+  skill. Itu pekerjaan tersendiri, bukan tempelan di PR ini.
 - Apakah skill perlu digantung otomatis ke `templateSlug` (template skripsi → aktifkan
   `scientific-writing` tanpa diminta). Ditunda sampai ada data pemakaian nyata.

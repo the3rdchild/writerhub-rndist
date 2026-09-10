@@ -1,6 +1,15 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
-import { ALL_TOOLS, EDITOR_TOOLS, isReadTool, RESEARCH_TOOLS, toProviderTools } from '@writer-hub/shared'
+import {
+	ACTIVE_SKILLS,
+	ALL_TOOLS,
+	EDITOR_TOOLS,
+	isReadTool,
+	RESEARCH_TOOLS,
+	SKILL_TOOLS,
+	skillFilePath,
+	toProviderTools,
+} from '@writer-hub/shared'
 
 const executor = readFileSync(new URL('./tools.ts', import.meta.url), 'utf8')
 
@@ -144,7 +153,7 @@ describe('alat riset web', () => {
 
 	test('tidak dikirim ke model saat mode riset mati', () => {
 		const names = toProviderTools().map((tool) => (tool as { function: { name: string } }).function.name)
-		expect(names).toHaveLength(EDITOR_TOOLS.length)
+		expect(names).toHaveLength(EDITOR_TOOLS.length + SKILL_TOOLS.length)
 		expect(names).not.toContain('web_search')
 	})
 
@@ -336,5 +345,31 @@ describe('insert_toc', () => {
 
 	test('menyebut dirinya satu-satunya cara yang benar', () => {
 		expect(tool?.description).toContain('ONLY correct way')
+	})
+})
+
+describe('alat skill', () => {
+	test('selalu dikirim ke model, tidak seperti alat riset', () => {
+		const names = toProviderTools().map((tool) => (tool as { function: { name: string } }).function.name)
+		expect(names).toContain('read_skill')
+	})
+
+	test('alat baca, jadi model boleh memanggilnya sendiri', () => {
+		expect(isReadTool('read_skill')).toBe(true)
+	})
+
+	test('hanya skill yang overlaynya sudah ada yang ditawarkan', () => {
+		const tool = SKILL_TOOLS.find((entry) => entry.name === 'read_skill')
+		const allowed = (tool as { parameters: { properties: { name: { enum: string[] } } } }).parameters
+			.properties.name.enum
+		expect(allowed).toEqual(ACTIVE_SKILLS.map((skill) => skill.name))
+	})
+
+	test('jalur berkas hanya terbentuk dari katalog', () => {
+		expect(skillFilePath('scientific-writing')).toBe('scientific-writing/SKILL.md')
+		expect(skillFilePath('scientific-writing', 'evidence-audit')).toBe('scientific-writing/evidence-audit.md')
+		expect(skillFilePath('scientific-writing', '../../../etc/passwd')).toBeNull()
+		expect(skillFilePath('peer-review')).toBeNull()
+		expect(skillFilePath('tidak-ada')).toBeNull()
 	})
 })

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { StyleMemory } from '@writer-hub/shared'
+import { ACTIVE_SKILLS, type StyleMemory } from '@writer-hub/shared'
 import {
 	buildSystemPrompt,
 	memoryPrompt,
@@ -7,6 +7,7 @@ import {
 	RESEARCH_GUIDANCE,
 	RESEARCH_OFF_NOTICE,
 	SYSTEM_PROMPT,
+	skillIndexPrompt,
 	TASK_BOUNDARY_GUIDANCE,
 	TOOL_GUIDANCE,
 } from './prompts'
@@ -117,5 +118,31 @@ describe('blok memori', () => {
 		expect(memoryPrompt(null)).toBe('')
 		expect(memoryPrompt({} as StyleMemory)).toBe('')
 		expect(memoryPrompt({ glossary: [] } as unknown as StyleMemory)).toBe('')
+	})
+})
+
+describe('indeks skill', () => {
+	test('menyebut tiap skill aktif beserta berkas dalamnya', () => {
+		const index = skillIndexPrompt()
+
+		for (const skill of ACTIVE_SKILLS) {
+			expect(index).toContain(skill.name)
+			expect(index).toContain(skill.description)
+			for (const file of skill.files) expect(index).toContain(file.name)
+		}
+	})
+
+	test('hanya daftar, bukan isi skill', () => {
+		// Menyuntikkan badannya mengembalikan persis masalah yang mau dihindari,
+		// jadi ukurannya dijaga: satu baris per skill, satu per berkas dalam.
+		const index = skillIndexPrompt()
+		expect(index.length).toBeLessThan(1200)
+	})
+
+	test('ikut di system prompt, dan menegaskan template yang menang', () => {
+		const prompt = buildSystemPrompt(dasar)
+
+		expect(prompt).toContain(skillIndexPrompt())
+		expect(skillIndexPrompt()).toContain('the template wins')
 	})
 })

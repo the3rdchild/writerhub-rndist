@@ -14,6 +14,8 @@
  * Rancangan lengkap: `docs/AGENT-SKILLS-PLAN.md`.
  */
 
+import type { ToolDefinition } from './tools'
+
 export interface SkillFile {
 	/** Nama yang dipakai model di `read_skill(name, file)`. */
 	name: string
@@ -90,3 +92,53 @@ export const SKILLS: readonly SkillDefinition[] = [
 
 /** Skill yang overlaynya sudah ada - satu-satunya yang boleh dipakai. */
 export const ACTIVE_SKILLS: readonly SkillDefinition[] = SKILLS.filter((skill) => skill.overlay !== null)
+
+export function findActiveSkill(name: string): SkillDefinition | undefined {
+	return ACTIVE_SKILLS.find((skill) => skill.name === name)
+}
+
+/**
+ * Jalur berkas relatif terhadap `packages/shared/skills/`.
+ *
+ * Mengembalikan `null` bila skill atau berkasnya tidak ada di katalog. Karena
+ * itu satu-satunya cara jalur dibentuk, tidak ada string dari model yang
+ * pernah sampai ke sistem berkas - penelusuran direktori jadi mustahil, bukan
+ * sekadar dicegah.
+ */
+export function skillFilePath(name: string, file?: string | null): string | null {
+	const skill = findActiveSkill(name)
+	if (!skill?.overlay) return null
+	if (!file) return `${skill.overlay}/SKILL.md`
+	return skill.files.some((entry) => entry.name === file) ? `${skill.overlay}/${file}.md` : null
+}
+
+/**
+ * Alat pengambil isi skill. Kosong selama belum ada satu pun overlay: alat
+ * yang tidak punya apa-apa untuk dibaca hanya mengundang model memanggilnya.
+ */
+export const SKILL_TOOLS: readonly ToolDefinition[] =
+	ACTIVE_SKILLS.length === 0
+		? []
+		: [
+				{
+					name: 'read_skill',
+					kind: 'read',
+					description:
+						'Load the full text of one skill listed in the skills index. Call it when the writer is working on something a skill covers, before you start drafting or judging their text. Pass `file` to go deeper than the main body; the index says which deeper files exist and what each is for.',
+					parameters: {
+						type: 'object',
+						properties: {
+							name: {
+								type: 'string',
+								description: 'Skill name exactly as it appears in the skills index.',
+								enum: ACTIVE_SKILLS.map((skill) => skill.name),
+							},
+							file: {
+								type: 'string',
+								description: 'Optional deeper file within the skill. Omit to read the main body first.',
+							},
+						},
+						required: ['name'],
+					},
+				},
+			]

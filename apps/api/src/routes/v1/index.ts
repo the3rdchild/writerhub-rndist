@@ -13,6 +13,7 @@ import memory from './memory.route'
 import projects from './projects.route'
 import research from './research.route'
 import share from './share.route'
+import skills from './skills.route'
 import status from './status.route'
 import stream from './stream.route'
 import tabs from './tabs.route'
@@ -35,6 +36,7 @@ export const v1Routes = [
 	memory,
 	history,
 	research,
+	skills,
 	drafts,
 	assets,
 	exports_,

@@ -1,4 +1,4 @@
-import { ALL_TOOLS } from '@writer-hub/shared'
+import { ACTIVE_SKILLS, ALL_TOOLS } from '@writer-hub/shared'
 
 /**
  * Perintah garis miring untuk kotak chat.
@@ -11,7 +11,7 @@ export interface ChatCommand {
 	trigger: string
 	label: string
 	hint: string
-	tier: 'intent' | 'tool'
+	tier: 'intent' | 'skill' | 'tool'
 	/** Teks yang menggantikan perintah di kotak chat. */
 	instruction: string
 	/** Menyalakan mode riset web - satu-satunya perintah yang mengubah state. */
@@ -80,6 +80,23 @@ const INTENTS: ChatCommand[] = [
 ]
 
 /**
+ * Tingkat 1b: skill yang bisa dipaksa penulis.
+ *
+ * Diturunkan dari katalog, bukan ditulis tangan - sama seperti tingkat 2 di
+ * bawah. Duduk bersama intent, bukan bersama alat mentah: daftarnya pendek,
+ * dan gunanya justru saat pemilihan otomatis oleh model meleset, jadi ia harus
+ * kelihatan sejak garis miring pertama diketik.
+ */
+const SKILL_COMMANDS: ChatCommand[] = ACTIVE_SKILLS.map((skill) => ({
+	id: `skill-${skill.name}`,
+	trigger: skill.name,
+	label: skill.label,
+	hint: skill.hint,
+	tier: 'skill' as const,
+	instruction: `Baca skill ${skill.name} lebih dulu, lalu kerjakan: `,
+}))
+
+/**
  * Tingkat 2 diturunkan dari registri alat, bukan ditulis ulang. Alat baca
  * disaring habis: model memanggilnya sendiri untuk mengorientasi diri, dan
  * mengetiknya sebagai perintah tidak menghasilkan apa pun yang terlihat.
@@ -109,10 +126,11 @@ export function matchCommands(draft: string): ChatCommand[] {
 	if (token === null) return []
 
 	const intents = INTENTS.filter((command) => command.trigger.startsWith(token))
-	if (token.length < TOOL_TIER_MIN_CHARS) return intents
+	const skills = SKILL_COMMANDS.filter((command) => command.trigger.includes(token))
+	if (token.length < TOOL_TIER_MIN_CHARS) return [...intents, ...skills]
 
 	const tools = TOOL_COMMANDS.filter((command) => command.trigger.includes(token))
-	return [...intents, ...tools]
+	return [...intents, ...skills, ...tools]
 }
 
 export function applyCommand(command: ChatCommand): string {

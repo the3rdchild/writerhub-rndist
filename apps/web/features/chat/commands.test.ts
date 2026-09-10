@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { ACTIVE_SKILLS } from '@writer-hub/shared'
 import { applyCommand, commandToken, matchCommands } from './commands'
 
 describe('token perintah', () => {
@@ -17,10 +18,21 @@ describe('token perintah', () => {
 })
 
 describe('pencocokan perintah', () => {
-	test('garis miring kosong menampilkan intent saja', () => {
+	test('garis miring kosong menampilkan intent dan skill, tanpa alat mentah', () => {
 		const found = matchCommands('/')
 		expect(found.length).toBeGreaterThan(0)
-		expect(found.every((command) => command.tier === 'intent')).toBe(true)
+		expect(found.every((command) => command.tier !== 'tool')).toBe(true)
+	})
+
+	test('skill ikut muncul sejak garis miring pertama', () => {
+		const skills = matchCommands('/').filter((command) => command.tier === 'skill')
+		expect(skills.length).toBe(ACTIVE_SKILLS.length)
+		expect(skills.every((command) => command.instruction.startsWith('Baca skill '))).toBe(true)
+	})
+
+	test('skill dipanggil dengan namanya sendiri', () => {
+		const found = matchCommands('/scientific')
+		expect(found.some((command) => command.id === 'skill-scientific-writing')).toBe(true)
 	})
 
 	test('alat mentah baru muncul setelah tiga huruf', () => {
