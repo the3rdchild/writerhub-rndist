@@ -16,6 +16,7 @@ import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef
 import { usePanels } from '@/features/analysis/panel-context'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
+import { type DiagramPalette, isCompletePalette, reskinSvg } from '@/features/editor/diagram-skin'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { buildEditorExtensions } from '@/features/editor/extensions'
 import { toEditorContent } from '@/features/editor/markdown'
@@ -49,7 +50,8 @@ import { useInvalidateVersions } from '@/features/versions/use-versions'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import { parseFallbackCalls, streamChat, stripFallbackCalls } from './api'
 import { diagramReceipt, drawDiagram } from './diagram-api'
-import { diagramBlocks, diagramTypeOf, findDiagramBlock, isDrawTool } from './diagram-target'
+import { stitchDiagrams } from './diagram-embed'
+import { diagramBlocks, diagramTypeOf, findDiagramBlock, needsDrawing } from './diagram-target'
 import { chatFailureHint, toChatTurnError } from './failure'
 import { isRemoteReadTool, remoteToolLabel, runRemoteReadTool } from './remote-tools'
 import {
@@ -1079,13 +1081,81 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		return { ok: true, message: diagramReceipt(drawn, redraw) }
 	}, [])
 
+	/**
+	 * Rancangan satu halaman yang membawa bagan.
+	 *
+	 * Gambarnya dibuat lebih dulu, diwarnai mengikuti rancangannya, lalu ditanam
+	 * ke penandanya - **semua di sini**, sesudah keduanya selesai. Markup dan
+	 * gambar bertemu pertama kali di klien, dan tidak satu pun dari keduanya
+	 * pernah melewati konteks model.
+	 */
+	const runHtmlWithDiagrams = useCallback(
+		async (call: ToolCall): Promise<ToolOutcome> => {
+			const requested = (call.arguments.diagrams ?? []) as Array<{
+				id?: string
+				type?: string
+				spec?: string
+				palette?: Partial<DiagramPalette>
+			}>
+
+			const drawn = new Map<string, string>()
+			const failed: string[] = []
+
+			for (const entry of requested) {
+				const id = String(entry.id ?? '').toLowerCase()
+				if (!id) continue
+
+				const stepId = startBackgroundStep(`Menggambar bagan "${id}"`)
+				const result = await drawDiagram({
+					type: String(entry.type ?? 'architecture'),
+					spec: String(entry.spec ?? ''),
+					model: modelRef.current,
+				})
+
+				if ('error' in result) {
+					finishStep(stepId, { status: 'failed', detail: result.error })
+					failed.push(id)
+					continue
+				}
+
+				/*
+				 * Diwarnai di sini, bukan diminta ke sub-agent: paletnya milik
+				 * rancangan, dan substitusi deterministik tidak bisa merusak tata
+				 * letak yang sudah benar - sedangkan model yang menggambar ulang
+				 * dengan warna lain bisa.
+				 */
+				const palette = entry.palette
+				drawn.set(id, palette && isCompletePalette(palette) ? reskinSvg(result.svg, palette) : result.svg)
+				finishStep(stepId, { status: 'done', detail: result.title })
+			}
+
+			const { html, missing } = stitchDiagrams(String(call.arguments.html ?? ''), drawn)
+			const outcome = runWriteTool({ ...call, arguments: { ...call.arguments, html } })
+			if (!outcome.ok) return outcome
+
+			const notes = [
+				failed.length > 0 && `Could not draw: ${failed.join(', ')}.`,
+				missing.length > 0 && `These placeholders were left empty: ${missing.join(', ')}.`,
+			].filter(Boolean)
+
+			return notes.length > 0 ? { ok: true, message: `${outcome.message} ${notes.join(' ')}` } : outcome
+		},
+		[runWriteTool],
+	)
+
+	const runAsyncTool = useCallback(
+		(call: ToolCall): Promise<ToolOutcome> =>
+			call.name === 'insert_html_block' ? runHtmlWithDiagrams(call) : runDrawTool(call),
+		[runDrawTool, runHtmlWithDiagrams],
+	)
+
 	const applyAction = useCallback(
 		async (call: ToolCall): Promise<ToolOutcome> => {
-			const outcome = isDrawTool(call.name) ? await runDrawTool(call) : runWriteTool(call)
+			const outcome = needsDrawing(call.name, call.arguments) ? await runAsyncTool(call) : runWriteTool(call)
 			settleActions([{ call, content: outcome.message }])
 			return outcome
 		},
-		[runDrawTool, runWriteTool, settleActions],
+		[runAsyncTool, runWriteTool, settleActions],
 	)
 
 	const applyActions = useCallback(
@@ -1098,13 +1168,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			void (async () => {
 				const entries: { call: ToolCall; content: string }[] = []
 				for (const call of calls) {
-					const outcome = isDrawTool(call.name) ? await runDrawTool(call) : runWriteTool(call)
+					const outcome = needsDrawing(call.name, call.arguments)
+						? await runAsyncTool(call)
+						: runWriteTool(call)
 					entries.push({ call, content: outcome.message })
 				}
 				settleActions(entries)
 			})()
 		},
-		[runDrawTool, runWriteTool, settleActions],
+		[runAsyncTool, runWriteTool, settleActions],
 	)
 	applyActionsRef.current = applyActions
 

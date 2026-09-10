@@ -472,7 +472,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 	{
 		name: 'insert_html_block',
 		kind: 'write',
-		description: `Insert a self-contained HTML design block - use it for flyers, pamphlets, posters, banners and other colourful print pieces whose layout cannot be expressed as paragraphs and headings (gradients, absolute positioning, overlapping elements). It is also the right tool for the pictorial pages of a book: the front cover, a chapter title page, an illustration for a scene, the back cover with its blurb. Do NOT use it for ordinary prose - including the narrative itself: the block is flattened to an image on DOCX export, so text inside it is not searchable or editable in Word. The HTML is rendered in a locked-down frame: your scripts never run and NOTHING loads from a URL - no icon library, no remote image, no font file - and all CSS must be inline or in a <style> tag. Draw icons, logos, badges, dividers and decorative shapes as inline <svg> elements: markup is not a network request, so they render on screen, stay vector in the printed PDF, and survive the DOCX flattening. Write the path data yourself instead of reaching for an icon set, and do not settle for emoji standing in for icons. Prefer inline <svg> over <img src="data:image/svg+xml,...">, which shows on screen but is unreliable in the DOCX export path. Raster images must still be data: URIs. Design these pieces ambitiously - real typographic hierarchy, layered shapes, gradients and custom SVG iconography all work here. If the design contains a diagram - an architecture, a flow, a timeline, a process - load the diagram-design skill and draw that part following its grammar and its colour tokens, adapted to this design's own palette. It applies to the diagram only: the rest of the piece stays as ambitious as it needs to be. Do NOT hand-draw a chart with bars or plotted points here: their geometry has nothing checking it, and a chart whose bars do not match its numbers is wrong data rather than a rough draft - use a table instead. Pass only the markup that belongs inside <body>. Call get_page_setup first to learn the exact pixel canvas you are designing into. ${fontChoicePrompt()}`,
+		description: `Insert a self-contained HTML design block - use it for flyers, pamphlets, posters, banners and other colourful print pieces whose layout cannot be expressed as paragraphs and headings (gradients, absolute positioning, overlapping elements). It is also the right tool for the pictorial pages of a book: the front cover, a chapter title page, an illustration for a scene, the back cover with its blurb. Do NOT use it for ordinary prose - including the narrative itself: the block is flattened to an image on DOCX export, so text inside it is not searchable or editable in Word. The HTML is rendered in a locked-down frame: your scripts never run and NOTHING loads from a URL - no icon library, no remote image, no font file - and all CSS must be inline or in a <style> tag. Draw icons, logos, badges, dividers and decorative shapes as inline <svg> elements: markup is not a network request, so they render on screen, stay vector in the printed PDF, and survive the DOCX flattening. Write the path data yourself instead of reaching for an icon set, and do not settle for emoji standing in for icons. Prefer inline <svg> over <img src="data:image/svg+xml,...">, which shows on screen but is unreliable in the DOCX export path. Raster images must still be data: URIs. Design these pieces ambitiously - real typographic hierarchy, layered shapes, gradients and custom SVG iconography all work here. If the design contains a diagram - an architecture, a flow, a timeline, a swimlane, a layer stack, a tree - do NOT draw it yourself. Put a placeholder comment where it belongs, "<!--diagram:tren-->" with an id of your choosing, and describe it in the "diagrams" argument. The drawing sub-agent fills it in before the block is inserted, so the markup never has to carry hundreds of lines of coordinates. It applies to the diagram only: the rest of the piece stays as ambitious as it needs to be. Do NOT hand-draw a chart with bars or plotted points here: their geometry has nothing checking it, and a chart whose bars do not match its numbers is wrong data rather than a rough draft - use a table instead. Pass only the markup that belongs inside <body>. Call get_page_setup first to learn the exact pixel canvas you are designing into. ${fontChoicePrompt()}`,
 		parameters: {
 			type: 'object',
 			properties: {
@@ -490,6 +490,40 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 					type: 'number',
 					description:
 						'Block height in pixels at 96 dpi. Only used when fit is "embed"; ignored for "page". Defaults to 320, and is capped at the height of one page.',
+				},
+				diagrams: {
+					type: 'array',
+					description:
+						'Diagrams to draw and drop into the placeholders. Each id must match a "<!--diagram:id-->" comment in the html. Omit when the design has no diagram.',
+					items: {
+						type: 'object',
+						properties: {
+							id: { type: 'string', description: 'Matches the placeholder comment, e.g. "tren".' },
+							type: {
+								type: 'string',
+								enum: ['architecture', 'flowchart', 'timeline', 'swimlane', 'layers', 'tree'],
+							},
+							spec: {
+								type: 'string',
+								description: 'What to draw, in plain language. The sub-agent sees nothing else.',
+							},
+							palette: {
+								type: 'object',
+								description:
+									"This design's own colours, so the diagram belongs to the piece instead of sitting on it. Give all seven, as hex.",
+								properties: {
+									paper: { type: 'string' },
+									paper2: { type: 'string' },
+									ink: { type: 'string' },
+									muted: { type: 'string' },
+									soft: { type: 'string' },
+									accent: { type: 'string' },
+									link: { type: 'string' },
+								},
+							},
+						},
+						required: ['id', 'type', 'spec'],
+					},
 				},
 			},
 			required: ['html'],

@@ -1,6 +1,6 @@
 # Rencana Implementasi — Diagram Editorial (diagram-design)
 
-Status: **fase 1 selesai** (`eb9ebcb`, `9a403ff`) · fase 2-5 belum · Disusun 10 September 2026 · Baseline kode
+Status: **fase 1-3 selesai** · fase 4-5 belum · Disusun 10 September 2026 · Baseline kode
 `72c495f` (branch `feat/agent-skills`)
 
 **Sumber luar:** [cathrynlavery/diagram-design](https://github.com/cathrynlavery/diagram-design)
@@ -308,7 +308,7 @@ dipaksakan mesin, bukan sekadar disepakati. MIT → tambahkan atribusi di `NOTIC
 | 0 | `docs/CHAT-TRANSCRIPT-PLAN.md` T2 | selesai |
 | 1 | Slot: bahasa code block, sanitizer, font di `rasterizeSvg`, 6 tipe struktural | selesai — **belum dilihat di kertas** |
 | 2 | Sub-agent (`docs/CHAT-SUBAGENT-PLAN.md`) + `redraw_diagram` | belum |
-| 3 | `reskinSvg` + diagram di dalam pamflet | belum |
+| 3 | `reskinSvg` + diagram di dalam pamflet | selesai |
 | 4 | Sisa tipe struktural | belum |
 | 5 | Chart dengan penjagaan angka (§10) | belum |
 
@@ -330,6 +330,25 @@ lewat rumus — dan jauh melewati plafon 4K token per berkas. `swimlane` menjawa
 pertanyaan yang sama, siapa mengerjakan apa dalam urutan apa, dengan tata bahasa
 yang muat. Kalau `process` memang dibutuhkan nanti, ia perlu berkasnya sendiri
 dan mungkin lebih dari satu.
+
+### 12.3 Yang mendarat di fase 3
+
+- `diagram-skin.ts` — `reskinSvg` mengganti palet lewat substitusi satu lintasan.
+  Satu lintasan, bukan berurutan: terang dan gelap saling menukar dua nilai, dan
+  penggantian berurutan akan membalik hasil penggantian pertama sehingga seluruh
+  diagram keluar dengan satu warna. Bentuk `rgba()` ikut berpindah pada opasitas
+  yang sama — kalau tidak, garis rambut di atas kertas gelap tetap digambar
+  dengan tinta gelap dan menghilang.
+- `isCompletePalette` menolak palet yang kurang satu peran. Diagram yang
+  kertasnya ikut rancangan tapi tintanya tidak akan keluar sebagai teks gelap di
+  atas kertas gelap — tak terbaca, dan tidak jelas apa yang salah.
+- `insert_html_block` menerima `diagrams`, dan markup-nya membawa penanda
+  `<!--diagram:id-->`. Sub-agent menggambar, `reskinSvg` mewarnai mengikuti
+  rancangan, lalu penanda diganti **di klien**. Markup dan gambar bertemu
+  pertama kali di sana; tidak satu pun dari keduanya melewati konteks model.
+- Penandanya komentar HTML dengan sengaja: yang belum sempat diganti tetap
+  markup yang sah, jadi kegagalan menggambar menyisakan petak kosong, bukan
+  halaman rusak. Yang tidak terisi dilaporkan ke model, bukan dihapus diam-diam.
 
 ### 12.2 Yang belum terverifikasi
 

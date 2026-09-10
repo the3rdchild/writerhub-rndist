@@ -59,6 +59,19 @@ export function isDrawTool(name: string): boolean {
 }
 
 /**
+ * Aksi yang harus menunggu sub-agent sebelum ia menyentuh dokumen.
+ *
+ * Rancangan satu halaman ikut ke sini hanya kalau ia memang membawa bagan.
+ * Pamflet tanpa diagram tetap lewat jalur tulis biasa yang selesai seketika -
+ * memaksanya menunggu jaringan berarti membayar jeda untuk sesuatu yang tidak
+ * pernah dipanggil.
+ */
+export function needsDrawing(name: string, args: Record<string, unknown>): boolean {
+	if (isDrawTool(name)) return true
+	return name === 'insert_html_block' && Array.isArray(args.diagrams) && args.diagrams.length > 0
+}
+
+/**
  * Tipe tata bahasa yang dipakai gambar lama, ditebak dari isinya.
  *
  * Gambar ulang perlu memuat tata bahasa yang sama supaya hasilnya tidak
