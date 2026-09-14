@@ -1,7 +1,7 @@
 /**
  * Kontrak template dokumen: satu definisi yang dibaca dua pihak sekaligus -
  * manusia lewat galeri `/new`, dan AI lewat `aiRules` yang disuntik ke system
- * prompt. Rancangan lengkapnya ada di `docs/TEMPLATE-GALLERY-PLAN.md`.
+ * prompt.
  */
 
 import type { PageFurniture, PageSetup } from './layout'

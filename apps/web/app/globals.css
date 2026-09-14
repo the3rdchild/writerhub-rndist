@@ -1045,7 +1045,7 @@ a {
  * di dalam kotak isinya. Saat mencetak, yang menggandakan adalah peramban:
  * SATU lapisan `fixed` muncul kembali di tiap halaman - itulah satu-satunya
  * mekanisme yang bisa mengulang isi yang sama di semua halaman tanpa paginator
- * kita sendiri (docs/WATERMARK-PLAN.md §1).
+ * kita sendiri.
  *
  * Keduanya memakai kotak acuan yang sama, yaitu kotak ISI halaman: isi halaman
  * di-clip ke kotak margin `@page` saat mencetak, jadi kertas utuh bukan bidang
@@ -2230,8 +2230,7 @@ html.light .range-highlight {
      menyembunyikan `.document-sheet` saja menyisakan kotak pembungkus setinggi
      nol, dan kotak itulah yang mendahului blok `page: flyer` — peramban selalu
      memaksa penggalan halaman saat nama `@page` berganti, jai flyer-nya
-     terdorong ke lembar kedua dengan lembar pertama kosong
-     (docs/DRAFTS-API-FINDINGS.md T1). */
+     terdorong ke lembar kedua dengan lembar pertama kosong. */
   .page-break-spacer,
   .document-sheet-layer,
   .document-sheet {

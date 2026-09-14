@@ -102,8 +102,7 @@ describe('flyer satu halaman di kertas', () => {
 })
 
 /*
- * T1 (docs/DRAFTS-API-FINDINGS.md): dua halaman kosong mengapit rancangan di
- * PDF. Perbaikannya dua lapis - CSS menyembunyikan lapisan lembar UTUH, dan
+ * Dua halaman kosong mengapit rancangan di PDF. Perbaikannya dua lapis - CSS menyembunyikan lapisan lembar UTUH, dan
  * halaman ekspor berhenti memuat paragraf penutup. Yang dijaga di sini
  * kontraknya; jumlah lembar yang benar-benar keluar dijaga uji cetak
  * `components/export/print-pages.test.ts`.
@@ -192,8 +191,7 @@ describe('penyegaran sebelum ekspor', () => {
  *
  * Uji cetak sungguhannya (print-pages.test.ts) butuh Chromium dan melewati diri
  * sendiri kalau tidak ada. Dua aturan letaknya bisa dijaga tanpa mencetak apa
- * pun, dan justru itu yang paling gampang terlanggar saat merapikan JSX -
- * lihat docs/WATERMARK-PLAN.md §1.3.
+ * pun, dan justru itu yang paling gampang terlanggar saat merapikan JSX.
  */
 describe('letak lapisan watermark', () => {
 	/* Yang dicari pemasangannya di JSX, bukan penyebutan namanya di komentar. */

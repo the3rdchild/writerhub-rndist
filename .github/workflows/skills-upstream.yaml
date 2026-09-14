@@ -1,7 +1,7 @@
 name: Skills upstream
 
 # Memantau K-Dense-AI/scientific-agent-skills. Overlay kita memang menyimpang
-# jauh dari upstream (docs/AGENT-SKILLS-PLAN.md §6), jadi yang dibuka issue
+# jauh dari upstream, jadi yang dibuka issue
 # untuk dibaca manusia - bukan PR yang menggabungkan sendiri.
 
 on:
@@ -65,7 +65,7 @@ jobs:
               '',
               'Langkah berikutnya: `bun run skills:sync --latest`, lalu baca `git diff vendor/`',
               'dan putuskan apakah overlay di `packages/shared/skills/` perlu ikut disesuaikan.',
-              'Jangan menyalin teks upstream apa adanya - lihat `docs/AGENT-SKILLS-PLAN.md` §6.',
+              'Jangan menyalin teks upstream apa adanya - overlay kita sengaja menyimpang.',
             ].join('\n')
 
             if (terbuka.data.length > 0) {

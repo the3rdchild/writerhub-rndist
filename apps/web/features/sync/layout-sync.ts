@@ -2,8 +2,7 @@
  * Jembatan antara tata letak di Y.Doc lokal dan kolom `layout` di server
  * (`documents.layout` sebagai dasar, `document_tabs.layout` sebagai penimpa
  * per tab). Semua fungsi di sini murni terhadap Y.Doc yang diberikan supaya
- * putar-baliknya bisa diuji tanpa jaringan - lihat
- * `docs/TEMPLATE-GALLERY-PLAN.md` §7 P1.
+ * putar-baliknya bisa diuji tanpa jaringan.
  *
  * Perabot halaman hanya punya representasi per tab di Y.Doc - tidak ada
  * pembaca untuk perabot tingkat dokumen - jadi `applyDocLayout` sengaja tidak

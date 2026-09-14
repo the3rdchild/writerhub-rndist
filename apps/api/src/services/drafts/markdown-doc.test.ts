@@ -186,7 +186,7 @@ describe('rancangan satu halaman', () => {
 	})
 
 	/*
-	 * T3 (docs/DRAFTS-API-FINDINGS.md): dulu SATU kalimat penutup dari model
+	 * Dulu SATU kalimat penutup dari model
 	 * menjatuhkan seluruh rancangan jadi dokumen penuh blok kode. Basa-basi
 	 * pendek antar/setelah pagar kini ditoleransi - strukturnya (heading,
 	 * tabel, daftar) dan total yang melewati batas tetap membatalkan.

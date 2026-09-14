@@ -52,7 +52,7 @@ export const DESIGN_MAX_PAGES = 8
  *
  * "3 halaman" / "3 pages" / "3-page" sebelum ini tidak punya pembaca sama
  * sekali - permintaannya dijawab satu lembar dengan sisa isi terpotong, tanpa
- * satu pun sinyal (docs/DRAFTS-API-FINDINGS.md T2). Dibaca dari kata kunci
+ * satu pun sinyal. Dibaca dari kata kunci
  * seperti ukuran kertas: deterministik, bisa diuji, dan bukan satu keluaran
  * terstruktur lagi yang bisa digagalkan model.
  *

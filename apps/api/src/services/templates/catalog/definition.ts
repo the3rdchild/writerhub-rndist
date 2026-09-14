@@ -2,9 +2,8 @@ import type { TemplateCategory, TemplateLocale, TemplateSpec } from '@writer-hub
 
 /**
  * Definisi template bawaan, ditulis sebagai kode supaya aturan format ikut
- * ter-review dalam PR yang sama dengan kodenya (`docs/TEMPLATE-GALLERY-PLAN.md`
- * §2). Baris tabelnya hanyalah salinan hasil kompilasi - sumber kebenarannya
- * di sini.
+ * ter-review dalam PR yang sama dengan kodenya. Baris tabelnya hanyalah
+ * salinan hasil kompilasi - sumber kebenarannya di sini.
  */
 export interface BuiltinTemplateDefinition {
 	slug: string

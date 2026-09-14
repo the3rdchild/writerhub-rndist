@@ -232,8 +232,7 @@ export function memoryPrompt(memory: StyleMemory | null): string {
 /**
  * Aturan format dari template dokumen yang sedang dibuka. Disisipkan sesudah
  * memori gaya supaya aturan template menang atas preferensi umum pengguna,
- * tapi tetap tunduk pada permintaan eksplisit di pesan
- * (`docs/TEMPLATE-GALLERY-PLAN.md` §5.3).
+ * tapi tetap tunduk pada permintaan eksplisit di pesan.
  */
 export function templateRulesPrompt(aiRules: string[] | undefined): string {
 	if (!aiRules?.length) return ''

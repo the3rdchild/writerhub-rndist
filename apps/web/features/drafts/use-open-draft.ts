@@ -32,8 +32,8 @@ const MAX_WAIT_MS = 10 * 60_000
  * di sini.
  *
  * `queued` dan `rendering` menggambarkan pekerjaan **sesudah** naskahnya jadi:
- * mengubah dokumen menjadi berkas untuk pemanggil eksternal
- * (docs/RENDER-WORKER-PLAN.md §2). Dokumennya sendiri sudah utuh. Menunggu
+ * mengubah dokumen menjadi berkas untuk pemanggil eksternal. Dokumennya
+ * sendiri sudah utuh. Menunggu
  * sampai `ready` berarti menahan penulisnya di layar tunggu demi berkas yang
  * bukan ia yang meminta - dan karena `progress` hanya terisi selama
  * `generating`, yang ia lihat adalah bilah yang kembali ke 0%.

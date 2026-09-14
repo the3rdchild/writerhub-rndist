@@ -10,8 +10,6 @@
  *
  * Isinya ada di `packages/shared/skills/`, bukan di sini: teks panjang di
  * dalam berkas TypeScript menghalangi diff yang bisa dibaca.
- *
- * Rancangan lengkap: `docs/AGENT-SKILLS-PLAN.md`.
  */
 
 import type { ToolDefinition } from './tools'

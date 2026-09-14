@@ -15,8 +15,7 @@ import type { ProviderErrorCode } from './provider-failure'
  *
  * `queued` dan `rendering` menggambarkan pekerjaan **sesudah** naskahnya jadi:
  * mengubah dokumen menjadi berkas. Keduanya sudah ada di kontrak sebelum
- * perendernya ada, supaya pemanggil menuliskan penanganannya sekali saja - lihat
- * `docs/RENDER-WORKER-PLAN.md` §7.
+ * perendernya ada, supaya pemanggil menuliskan penanganannya sekali saja.
  */
 export type DraftStatus = 'generating' | 'queued' | 'rendering' | 'ready' | 'failed'
 

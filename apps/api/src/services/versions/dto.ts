@@ -2,9 +2,9 @@ import { z } from 'zod'
 
 export const createVersionBodySchema = z.object({
 	label: z.string().max(255).nullish(),
-	// `ai_result` ditulis jalur AI Chat sesudah aksinya diterapkan - lihat
-	// docs/CHAT-TRANSCRIPT-PLAN.md §6. `interval` dan `pre_restore` tetap milik
-	// server sendiri dan tidak boleh datang dari klien.
+	// `ai_result` ditulis jalur AI Chat sesudah aksinya diterapkan.
+	// `interval` dan `pre_restore` tetap milik server sendiri dan tidak boleh
+	// datang dari klien.
 	trigger: z.enum(['manual', 'pre_translate', 'ai_result']).optional(),
 })
 

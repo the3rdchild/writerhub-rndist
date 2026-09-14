@@ -4,7 +4,7 @@
  * Dasarnya satu pengamatan: versi terang dan versi gelap diagram editorial
  * **geometrinya identik**. Dibandingkan berdampingan, jumlah kemunculan tiap
  * warna cocok satu per satu - 25x muted, 12x paper, 8x ink, 7x accent - dan yang
- * berubah hanya nilainya. Lihat `docs/DIAGRAM-DESIGN-PLAN.md` §5.2.
+ * berubah hanya nilainya.
  *
  * Artinya perpindahan palet tidak butuh model sama sekali. Menyerahkannya ke
  * model berarti membayar ratusan baris koordinat untuk mengubah tujuh angka,

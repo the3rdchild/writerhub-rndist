@@ -8,7 +8,7 @@ import { DEFAULT_PAGE_SETUP, type PageSetup, pageGeometry } from '@/features/edi
 /**
  * Uji cetak yang BENAR-BENAR mencetak, lalu menghitung halamannya.
  *
- * Kelas bug T1 (docs/DRAFTS-API-FINDINGS.md) tidak bisa ditangkap uji CSS
+ * Kelas bug lembar kosong ini tidak bisa ditangkap uji CSS
  * tekstual: aturannya tertulis benar di globals.css, tapi peramban tetap
  * menghasilkan lembar kosong karena kotak pembungkus setinggi nol yang
  * mendahului blok `page: flyer`. Gejalanya juga tak terlihat di layar -
@@ -260,8 +260,8 @@ function xobjectInvocations(pdf: Buffer): number {
 /*
  * Diagram editorial di kertas.
  *
- * Dua jaminan yang seluruh aturan rasio di `docs/DIAGRAM-DESIGN-PLAN.md` §8
- * bersandar padanya - dan keduanya hanya bisa diperiksa oleh peramban
+ * Dua jaminan yang seluruh aturan rasio diagram bersandar padanya - dan
+ * keduanya hanya bisa diperiksa oleh peramban
  * sungguhan, karena yang menentukan adalah `break-inside: avoid` dan
  * `max-width: 100%` saat pagination berjalan.
  */
@@ -484,9 +484,6 @@ function watermarkFixture(paragraphs: number, where: 'print-root' | 'sheet-layer
  * ada `transform`, `filter`, atau `contain` baru di jalur leluhur saat mencetak -
  * tidak ada error, tidak ada peringatan, hanya PDF yang watermarknya cuma di
  * halaman pertama. Tidak ada uji CSS tekstual yang bisa menangkap itu.
- *
- * Lihat docs/WATERMARK-PLAN.md §1 untuk pengukuran yang melahirkan dua aturan
- * yang dijaga di sini.
  */
 describe('uji cetak watermark - lapisan yang berulang per halaman', () => {
 	test('watermark di dalam print root berulang di TIAP halaman', async () => {

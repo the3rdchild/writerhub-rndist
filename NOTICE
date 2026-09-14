@@ -12,7 +12,7 @@ Lisensi: MIT
 
 Teks skill di `packages/shared/skills/` merupakan karya turunan dari repositori
 tersebut. Teksnya ditulis ulang secara substansial agar sesuai dengan penyunting
-dokumen ini - lihat `docs/AGENT-SKILLS-PLAN.md` §6 - tetapi struktur dan urutan
+dokumen ini, tetapi struktur dan urutan
 pemeriksaannya berasal dari sana.
 
 Cuplikan upstream yang belum diolah disimpan di `vendor/scientific-agent-skills/`
@@ -45,8 +45,8 @@ Copyright (c) Cathryn Lavery
 Lisensi: MIT
 
 Teks skill di `packages/shared/skills/diagram-design/` merupakan karya turunan
-dari repositori tersebut (v2.6). Teksnya ditulis ulang untuk penyunting ini -
-lihat `docs/DIAGRAM-DESIGN-PLAN.md` §7 - tetapi tata bahasa tiap tipe diagram,
+dari repositori tersebut (v2.6). Teksnya ditulis ulang untuk penyunting ini,
+tetapi tata bahasa tiap tipe diagram,
 token gaya, dan aturan konektornya berasal dari sana.
 
 Daftar putih di `apps/web/features/editor/diagram-allowlist.ts` juga diturunkan

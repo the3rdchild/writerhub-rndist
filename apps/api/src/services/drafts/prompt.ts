@@ -90,7 +90,7 @@ export const DRAFT_FLYER_PROMPT = [...FLYER_TITLE_LINES, ...FLYER_SINGLE_FENCE, 
  * `null` (atau 1) memakai bentuk asli satu-pagar - permintaan tanpa angka
  * memang tidak pernah menjanjikan halaman kedua. Angka N mengganti instruksi
  * pagarnya: N pagar berurutan, satu per halaman, sebagai satu karya
- * bersambung (docs/DRAFTS-API-FINDINGS.md T2).
+ * bersambung.
  */
 export function flyerPrompt(pages: number | null): string {
 	if (pages === null || pages <= 1) return DRAFT_FLYER_PROMPT

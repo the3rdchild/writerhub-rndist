@@ -28,7 +28,7 @@ interface TemplateDetailPanelProps {
 /**
  * Panel samping galeri: pratinjau besar, struktur bab, gaya sitasi, dan
  * caveats - catatan jujur tentang bagian format yang belum otomatis - sebelum
- * pengguna menekan "Pakai template ini" (`docs/TEMPLATE-GALLERY-PLAN.md` §6).
+ * pengguna menekan "Pakai template ini".
  *
  * Gulirannya berdiri sendiri, terpisah dari galeri di sebelahnya, dan tombol
  * pakainya berlabuh di dasar panel. Dulu keduanya satu guliran: untuk menekan

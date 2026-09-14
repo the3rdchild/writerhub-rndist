@@ -77,8 +77,7 @@ export const draftRequestObject = z.object({
 export type DraftRequest = z.infer<typeof draftRequestObject>
 
 /**
- * Nama medan yang dikenal skema - dasar menghitung medan yang diabaikan (T5
- * di docs/DRAFTS-API-FINDINGS.md).
+ * Nama medan yang dikenal skema - dasar menghitung medan yang diabaikan.
  *
  * `z.object` tanpa `.strict()` membuang medan tak dikenal tanpa bersuara;
  * `"Model"` dengan M besar lenyap begitu saja dan drafnya ditulis model

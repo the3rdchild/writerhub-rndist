@@ -86,7 +86,7 @@ export interface DraftGeneration {
 	/**
 	 * Berkas yang diminta pemanggil. Job rendernya dititipkan begitu naskahnya
 	 * tersimpan - menulis dan merender dipisah supaya Chromium tidak menganggur
-	 * menunggu model mengetik (docs/RENDER-WORKER-PLAN.md §2).
+	 * menunggu model mengetik.
 	 */
 	outputs?: readonly DraftOutput[]
 }

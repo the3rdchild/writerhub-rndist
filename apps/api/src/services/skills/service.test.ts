@@ -33,8 +33,9 @@ describe('isi skill', () => {
 	})
 
 	test('badan skill tidak menyebut nama heading - itu milik template', async () => {
-		// Aturan §6 di docs/AGENT-SKILLS-PLAN.md. Label Inggris yang bocor ke
-		// sini muncul di dokumen berbahasa Indonesia sebagai heading asing.
+		// Nama heading adalah milik template, bukan milik skill. Label Inggris
+		// yang bocor ke sini muncul di dokumen berbahasa Indonesia sebagai
+		// heading asing.
 		const terlarang = ['## Introduction', '## Methods', '## Results', '## Discussion', '## Conclusion']
 
 		for (const skill of ACTIVE_SKILLS) {

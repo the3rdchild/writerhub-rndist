@@ -27,8 +27,6 @@ const REQUEST_TIMEOUT_MS = 90_000
  * utama. Pemisahan itu adalah seluruh alasan sub-agent ini ada - kalau
  * gambarnya ikut kembali lewat hasil alat, ratusan baris koordinat mendarat di
  * percakapan dan dibayar lagi di setiap giliran sesudahnya.
- *
- * Rancangan: `docs/CHAT-SUBAGENT-PLAN.md`.
  */
 export default class DiagramsService extends JobSubmissionService {
 	async draw(): Promise<Response> {

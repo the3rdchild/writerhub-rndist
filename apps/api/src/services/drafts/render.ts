@@ -16,7 +16,7 @@ import { type RenderRecord, readRenderRecord, writeRenderRecord } from './render
  * job dibuat, apps/api tidak tahu kapan ia jalan - ia hanya membaca hasilnya.
  * Kalau penulisan dan render diikat jadi satu job, Chromium menganggur satu
  * setengah menit menunggu model mengetik; dipisah, dua peramban melayani
- * belasan permintaan per menit (docs/RENDER-WORKER-PLAN.md §2).
+ * belasan permintaan per menit.
  */
 
 const log = LoggerClient.getInstance()

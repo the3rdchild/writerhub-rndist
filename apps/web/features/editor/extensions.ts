@@ -88,8 +88,7 @@ export function buildEditorExtensions({
 	 * Paragraf kosong di ujung dokumen adalah kenyamanan MENYUNTING, bukan isi.
 	 * Halaman ekspor mematikannya: editor di sana tidak bisa disunting, dan
 	 * paragraf itu kembali ke `@page` bawaan sehingga peramban menambah satu
-	 * lembar kosong setelah rancangan `page: flyer`
-	 * (docs/DRAFTS-API-FINDINGS.md T1).
+	 * lembar kosong setelah rancangan `page: flyer`.
 	 */
 	trailingParagraph?: boolean
 } = {}): Extensions {

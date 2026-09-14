@@ -144,7 +144,7 @@ async function runSearch(
 /**
  * Mengambil isi halaman lewat Tavily, bukan lewat proksi sendiri - jadi API ini
  * tidak pernah melakukan request keluar ke URL arbitrer, dan seluruh pengaman
- * SSRF tidak diperlukan. Lihat `docs/WEB-RESEARCH-PLAN.md`.
+ * SSRF tidak diperlukan.
  */
 export async function extract(urls: string[], query?: string): Promise<TavilyExtractResult> {
 	const wanted = urls.slice(0, EXTRACT_URL_LIMIT)

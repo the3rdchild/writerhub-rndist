@@ -39,8 +39,8 @@ export const EXPORT_PAGES_ATTRIBUTE = 'data-export-pages'
  *
  * Editor menampilkan potongan itu sebagai lencana "Isi terpotong Npx", tapi
  * pemanggil API tidak pernah melihat layar - tanpa angka ini ia menerima
- * `renderErrors: []` untuk flyer yang sepertiga isinya terbuang
- * (docs/DRAFTS-API-FINDINGS.md T4). Pengukurannya butuh DOM, jadi hanya bisa
+ * `renderErrors: []` untuk flyer yang sepertiga isinya terbuang.
+ * Pengukurannya butuh DOM, jadi hanya bisa
  * datang dari halaman ini.
  */
 export const EXPORT_CLIPPED_ATTRIBUTE = 'data-export-clipped'

@@ -149,7 +149,7 @@ export const env = {
 	RESEARCH_CACHE_TTL_NEWS: num('RESEARCH_CACHE_TTL_NEWS', 10_800),
 	RESEARCH_CACHE_TTL_GENERAL: num('RESEARCH_CACHE_TTL_GENERAL', 86_400),
 	RESEARCH_DENY_DOMAINS: str('RESEARCH_DENY_DOMAINS'),
-	// Anggaran per giliran chat yang dijelaskan di docs/WEB-RESEARCH-PLAN.md.
+	// Anggaran per giliran chat.
 	// Nilainya terbaca tapi belum ada yang menegakkannya - lihat catatan di
 	// bawah pada validateEnv.
 	RESEARCH_MAX_SEARCHES: num('RESEARCH_MAX_SEARCHES', 5),

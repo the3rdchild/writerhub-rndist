@@ -92,7 +92,7 @@ export function ExportDocumentView({ payload }: { payload: ExportPayload }) {
 			onSheetsChange: setSheets,
 			// Paragraf penutup adalah perkakas menyunting; editor di sini tidak
 			// bisa disunting, dan paragraf itu menambah satu lembar kosong di
-			// belakang rancangan `page: flyer` (docs/DRAFTS-API-FINDINGS.md T1).
+			// belakang rancangan `page: flyer`.
 			trailingParagraph: false,
 		}),
 		content,

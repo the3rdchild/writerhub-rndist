@@ -256,9 +256,9 @@ const BLOCK_READERS: BlockReader[] = [
  *    prosa sebelum pagar membatalkan seluruhnya, karena pengantar panjang
  *    adalah wajah artikel, bukan wajah rancangan.
  * 2. Antara dan sesudah pagar, hanya baris kosong dan basa-basi pendek yang
- *    ditoleransi (model suka menutup dengan "Semoga membantu!" - T3 di
- *    docs/DRAFTS-API-FINDINGS.md; tanpa toleransi ini satu kalimat penutup
- *    menjatuhkan seluruh rancangan jadi dokumen penuh blok kode). Struktur
+ *    ditoleransi (model suka menutup dengan "Semoga membantu!"; tanpa
+ *    toleransi ini satu kalimat penutup menjatuhkan seluruh rancangan jadi
+ *    dokumen penuh blok kode). Struktur
  *    artikel (heading, tabel, daftar) dan total basa-bisi di atas batas
  *    tetap membatalkan.
  */

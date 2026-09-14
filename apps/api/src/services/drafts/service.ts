@@ -332,7 +332,7 @@ export default class DraftsService extends JobSubmissionService {
 	 * tidak menyebut unduhan sama sekali - bentuk yang persis sama dengan
 	 * sebelum medan `output` ada. Selama naskahnya belum selesai, catatan
 	 * rendernya belum ada untuk dibaca: job baru dititipkan setelah naskahnya
-	 * tersimpan (docs/RENDER-WORKER-PLAN.md §2).
+	 * tersimpan.
 	 */
 	private async renderPart(
 		document: Document,

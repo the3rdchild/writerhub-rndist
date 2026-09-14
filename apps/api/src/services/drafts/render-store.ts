@@ -33,7 +33,7 @@ export interface RenderDownloadEntry {
 	page?: number
 	/**
 	 * Jumlah halaman berkasnya, dihitung worker dari berkas yang benar-benar
-	 * keluar - bukan dari paginasi layar (T7 di docs/DRAFTS-API-FINDINGS.md).
+	 * keluar - bukan dari paginasi layar.
 	 */
 	pages?: number
 }

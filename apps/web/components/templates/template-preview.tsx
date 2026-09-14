@@ -15,7 +15,7 @@ interface TemplatePreviewProps {
 /**
  * Pratinjau halaman pertama template, dirender langsung dari `content`
  * kerangkanya dengan skala kecil - bukan aset gambar, supaya tidak basi saat
- * kerangka disunting (`docs/TEMPLATE-GALLERY-PLAN.md` §6).
+ * kerangka disunting.
  */
 export function TemplatePreview({ pageSetup, html, width, className }: TemplatePreviewProps) {
 	const page = resolvePageSize(pageSetup)

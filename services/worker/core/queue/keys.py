@@ -3,8 +3,8 @@
 Tata letaknya harus sama persis dengan sisi TypeScript - `wait_key`/
 `job_hash_key` dengan `apps/api/src/lib/queue.ts`, `stream_channel` dengan
 `apps/api/src/lib/job-events.ts` (`jobChannel`). Python tidak membaca
-`packages/shared` (lihat docs/design.md §5), jadi kecocokannya cuma dijaga
-lewat konvensi tertulis ini, bukan compiler - ubah kedua sisi sekaligus.
+`packages/shared`, jadi kecocokannya cuma dijaga lewat konvensi tertulis
+ini, bukan compiler - ubah kedua sisi sekaligus.
 """
 
 

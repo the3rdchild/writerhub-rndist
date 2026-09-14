@@ -132,8 +132,8 @@ function write(source: string, tag: string, files: string[]): void {
 
 /**
  * Membandingkan tanpa menulis. Sengaja tidak auto-merge: overlay kita memang
- * menyimpang jauh dari upstream (lihat docs/AGENT-SKILLS-PLAN.md §6), jadi
- * penggabungan otomatis hanya akan merusak.
+ * menyimpang jauh dari upstream, jadi penggabungan otomatis hanya akan
+ * merusak.
  */
 function check(source: string, tag: string, files: string[]): number {
 	const lock = readLockfile()

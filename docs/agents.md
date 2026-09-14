@@ -1,6 +1,6 @@
 # Aturan Kerja Agen AI — WritingHub
 
-Status: **Aturan tetap** · Disusun 25 Agustus 2026, diperbarui 26 Agustus 2026 · Baseline kode
+Status: **Aturan tetap** · Disusun 25 Agustus 2026, diperbarui 14 September 2026 · Baseline kode
 `66dfe5e` (branch `main`)
 
 Dokumen ini berlaku untuk **setiap agen AI** yang menulis kode di repo ini, kapan pun, sesi
@@ -19,24 +19,23 @@ arsitektur dari membaca beberapa berkas.
 
 | Kalau tugasmu soal… | Baca |
 |---|---|
-| Apa pun | `README.md`, `docs/design.md` |
-| Menambah atau memindahkan kode | `docs/coding_standard.md` — **wajib** |
-| Fitur produk & prioritas | `docs/prd.md`, `docs/WRITERHUB-POC-STATUS.md` |
-| Editor: kolom, paginasi, section | `docs/COLUMNS-PROOFREADER-TOOLS-PRD.md`, `docs/EDITOR-AI-UPGRADE-PRD.md` |
-| Ekspor / cetak | `docs/EXPORT-COLUMNS-PRD.md` |
-| Tab & pemodelan dokumen | `docs/DOCUMENT-TABS-RESTRUCTURE-PLAN.md` |
-| Version history | `docs/VERSION-HISTORY-PLAN.md` |
-| History, Projects, Memory | `docs/HISTORY-PROJECTS-MEMORY-PLAN.md` |
-| Glosarium | `docs/GLOSSARY-MAKER-PLAN.md` |
-| Riset web di chat | `docs/WEB-RESEARCH-PLAN.md` |
-| Agent Skills di chat | `docs/AGENT-SKILLS-PLAN.md` |
-| Sitasi & pencarian akademik | `docs/CITATION-ACADEMIC-SEARCH-PLAN.md` |
-| Template dokumen & galeri | `docs/TEMPLATE-GALLERY-PLAN.md` |
-| Bekerja paralel dengan agen lain | `docs/WORKPLAN-P1-P12-DUA-JALUR.md` |
+| Apa pun | `README.md`, lalu `docs/PANDUAN-KODE.docx` |
+| Mencari letak sebuah fitur | `docs/PANDUAN-KODE.docx` bab 2 — peta "fiturnya ada di mana" |
+| Arsitektur & alur permintaan | `docs/PANDUAN-KODE.docx` bab 4 |
+| Isi tiap paket | `docs/PANDUAN-KODE.docx` bab 5–8 |
+| Menambah endpoint, tabel DB, tombol editor, atau job worker | `docs/PANDUAN-KODE.docx` bab 10 — resep langkah demi langkah |
+| Integrasi `/drafts` dari AI Chat PPE | `docs/PANDUAN-KODE.docx` bab 12 |
+| Variabel lingkungan | `docs/PANDUAN-KODE.docx` bab 13 |
+| Skema basis data | `docs/erd.dbml` |
 
-Hampir setiap area fitur **sudah punya PRD atau rencana tertulis**. Menulis rancangan baru
-untuk sesuatu yang sudah dirancang adalah pemborosan dan sumber dokumen yang saling
-bertentangan. Cari dulu.
+PRD dan rencana per fitur yang dulu memenuhi `docs/` sudah dibersihkan; isinya tidak hilang —
+ia ada di riwayat git. Penggantinya `docs/PANDUAN-KODE.docx`: peta direktori, letak tiap fitur,
+dan resep mengubahnya.
+
+Untuk **alasan** di balik sebuah keputusan, komentar di kodenya sendiri yang berwenang. Repo ini
+memang menyimpan alasan di dalam kode, terutama untuk hal yang tampak aneh — `apps/api/src/config/env.ts`,
+`docker-compose.yml`, dan `services/worker/services/render_service.py` contoh terbaiknya. Baca dulu
+sebelum menyimpulkan sesuatu salah.
 
 ---
 
@@ -48,8 +47,7 @@ bertentangan. Cari dulu.
 melayani hal yang berkas itu memang tentangnya. Kalau kamu tidak bisa menjelaskan sebuah
 berkas tanpa mengucap "dan", ia mengerjakan dua urusan.
 
-Ini aturan terpenting di repo ini dan punya dokumennya sendiri: **`docs/coding_standard.md`**.
-Yang perlu diingat di sini:
+Ini aturan terpenting di repo ini. Yang perlu diingat:
 
 - **Ukuran tidak pernah jadi temuan.** Berkas 1.400 baris yang seluruhnya satu urusan itu
   benar. Yang dihitung jumlah urusan, bukan jumlah baris.
@@ -128,8 +126,7 @@ pernah terjadi, bukan kehati-hatian teoretis.
 ## 4. Bekerja paralel dengan agen lain
 
 Kalau lebih dari satu agen bekerja di repo ini bersamaan, **pakai pembagian menurut kepemilikan
-berkas** — bukan menurut fitur, bukan menurut ukuran tugas. Rinciannya di
-`docs/WORKPLAN-P1-P12-DUA-JALUR.md`.
+berkas** — bukan menurut fitur, bukan menurut ukuran tugas.
 
 | Jalur | Wilayah |
 |---|---|

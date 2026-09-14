@@ -22,9 +22,8 @@ const CATEGORIES: Array<{ id: TemplateCategory | 'all'; label: string }> = [
 
 /**
  * Halaman "Mulai dokumen baru" ala galeri Google Docs: kartu pertama selalu
- * Dokumen kosong, selebihnya template dari katalog
- * (`docs/TEMPLATE-GALLERY-PLAN.md` §6). Memilih kartu membuka panel detail;
- * "Pakai template ini" membuat dokumen di server lalu membukanya lewat
+ * Dokumen kosong, selebihnya template dari katalog. Memilih kartu membuka
+ * panel detail; "Pakai template ini" membuat dokumen di server lalu membukanya lewat
  * halaman serah-terima `/d/<id>` yang sama dengan draf.
  */
 export function TemplateGallery() {

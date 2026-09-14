@@ -67,8 +67,8 @@ export function resolveOutputs(request: DraftRequest): DraftOutput[] {
  * `generating`, dan `failed` yang tidak akan pernah punya naskah.
  *
  * Bukan kegagalan, dan kalimatnya harus mencerminkan itu: render baru
- * dititipkan setelah naskahnya tersimpan (docs/RENDER-WORKER-PLAN.md §2), jadi
- * satu-satunya jawaban jujur di sini adalah "belum, tanyakan lagi".
+ * dititipkan setelah naskahnya tersimpan, jadi satu-satunya jawaban jujur di
+ * sini adalah "belum, tanyakan lagi".
  */
 const NOT_WRITTEN_YET = 'Berkasnya baru dibuat setelah naskahnya selesai - tanyakan lagi lewat statusUrl.'
 
