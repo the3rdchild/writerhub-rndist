@@ -12,7 +12,7 @@ Butuh Bun ≥ 1.2 dan Python 3.12.
 docker compose up -d postgres redis
 bun install && bun run db:push
 bun run dev:api                       # http://localhost:8080
-bun run dev:web                       # http://localhost:3000
+bun run dev:web                       # http://localhost:8090
 
 python3 -m venv .venv                 # di luar `services/worker`
 . .venv/bin/activate

@@ -16,7 +16,7 @@ const SITE_DESCRIPTION = 'Tulis, periksa, dan sempurnakan dokumen dalam satu rua
  * aplikasi hanya gara-gara satu variabel lingkungan salah ketik.
  */
 function siteUrl(): URL {
-	const fallback = 'http://localhost:3000'
+	const fallback = 'http://localhost:8090'
 	try {
 		return new URL(process.env.SITE_URL || fallback)
 	} catch {

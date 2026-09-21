@@ -109,7 +109,7 @@ services:
       WATCHPACK_POLLING: "true" # bind mount tidak selalu meneruskan event inotify
     command: ["bun", "run", "dev"]
     ports:
-      - "3000:3000"
+      - "8090:8090"
     depends_on:
       - api
     restart: unless-stopped
@@ -126,7 +126,7 @@ services:
       # Perender membuka halaman ekspor dari DALAM jaringan Docker, jadi di sini
       # hostname internal justru yang benar - kebalikan dari SERVICE_URL milik
       # `api` di atas, yang ditujukan ke luar. Lihat docs/RENDER-WORKER-PLAN.md.
-      RENDER_WEB_URL: http://web:3000
+      RENDER_WEB_URL: http://web:8090
     volumes:
       - ./services/worker:/app
     depends_on:

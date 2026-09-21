@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
 	 * Host yang boleh mengambil sumber daya dev (`/_next/*`) selain localhost.
 	 *
 	 * Perender berkas menjalankan peramban **di dalam** jaringan Docker dan
-	 * membuka `http://web:3000`, jadi Host-nya `web` - dan Next 15+ memblokir
+	 * membuka `http://web:8090`, jadi Host-nya `web` - dan Next 15+ memblokir
 	 * sumber daya dev dari host yang tidak dikenalnya. Gejalanya jauh dari
 	 * sebabnya: chunk editor tidak pernah selesai dimuat, React tidak pernah
 	 * hidrasi, dan yang terlihat cuma `data-export-ready` yang tidak pernah

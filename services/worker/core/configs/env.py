@@ -38,8 +38,8 @@ AI_APP_TITLE = os.getenv("AI_APP_TITLE", "writer-hub")
 # Nama antrean harus sama persis dengan RENDER_QUEUE_NAME di apps/api.
 RENDER_QUEUE_NAME = os.getenv("RENDER_QUEUE_NAME", "RENDER_QUEUE")
 # Alamat apps/web sebagaimana dilihat dari dalam jaringan worker - di dalam
-# compose itu `http://web:3000`, bukan WEB_URL apps/api yang ditujukan ke luar.
-RENDER_WEB_URL = os.getenv("RENDER_WEB_URL", "http://localhost:3000")
+# compose itu `http://web:8090`, bukan WEB_URL apps/api yang ditujukan ke luar.
+RENDER_WEB_URL = os.getenv("RENDER_WEB_URL", "http://localhost:8090")
 RENDER_MAX_CONCURRENCY = _int("RENDER_MAX_CONCURRENCY", 2)
 RENDER_PAGE_TIMEOUT_S = _int("RENDER_PAGE_TIMEOUT_S", 120)
 RENDER_QUEUE_TIMEOUT_S = _int("RENDER_QUEUE_TIMEOUT_S", 300)
