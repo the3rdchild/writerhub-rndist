@@ -121,6 +121,19 @@ describe('continueNudge', () => {
 		expect(nudge).toContain('no tool calls')
 	})
 
+	test('tombol "bab masih kosong" meminta bab itu ditulis, bukan sekadar acuan', () => {
+		const nudge = continueNudge('incomplete', ['BAB IV HASIL'])
+		expect(nudge).toContain(
+			'Write the level-1 sections that still have no body text, in document order: BAB IV HASIL.',
+		)
+		expect(nudge).not.toContain('Fill only those the request covers')
+	})
+
+	test('tugas yang dihentikan penulis diteruskan dari tempatnya', () => {
+		expect(continueNudge('stopped', [])).toContain('The writer stopped you earlier')
+		expect(continueNudge('stopped', [])).toContain('from where you stopped')
+	})
+
 	test('jawaban terpotong diminta per bagian kecil', () => {
 		expect(continueNudge('truncated', [])).toContain('one section per insert_content call')
 		expect(continueNudge('truncated', [])).not.toContain('For reference')

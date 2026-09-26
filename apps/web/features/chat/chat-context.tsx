@@ -76,6 +76,7 @@ import { chatFailureHint, toChatTurnError } from './failure'
 import { fitWindow, withToolResults } from './outbound-window'
 import { isRemoteReadTool, remoteToolLabel, runRemoteReadTool } from './remote-tools'
 import {
+	type ContinueReason,
 	continueNudge,
 	emptySections,
 	isContinuePrompt,
@@ -143,8 +144,28 @@ export interface ChatTurn extends ChatMessage {
 	 * melanjutkan tugas yang berhenti di tengah - otomatis, atau lewat tombol
 	 * "Lanjutkan". Digambar sebagai penanda, bukan gelembung.
 	 */
-	continuation?: { mode: 'auto' | 'manual'; reason: StallReason }
+	continuation?: { mode: 'auto' | 'manual'; reason: ContinueReason }
 }
+
+/**
+ * Tugas terakhir yang masih bisa diteruskan lewat tombol "Lanjutkan" di atas
+ * kotak chat. Tombolnya sendiri yang memutuskan muncul atau tidak: ia yang
+ * membaca bab kosong dari naskah yang terus berubah.
+ */
+export interface ChatResume {
+	taskId: string
+	/** Dihentikan penulis, atau kartu macetnya ditutup - bukan selesai sendiri. */
+	interrupted: 'stopped' | StallReason | null
+	/** Tugas ini menulis isi naskah: bab yang masih kosong layak ditawarkan. */
+	wrote: boolean
+}
+
+/*
+ * Alat yang menulis isi naskah. Tugas yang hanya merapikan format atau
+ * mengganti kata tidak menawarkan "bab masih kosong" - di dokumen template,
+ * semua bab kosong sejak awal.
+ */
+const CONTENT_TOOLS = new Set(['insert_content', 'insert_table', 'insert_html_block', 'restructure_section'])
 
 /** Tugas yang berhenti sebelum selesai dan sudah tidak dilanjutkan sendiri. */
 export interface ChatStall {
@@ -205,6 +226,8 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 				continuation: _continuation,
 				...message
 			} = turn
+			// Giliran yang dihentikan sebelum sempat menulis apa pun: tidak ada yang dikirim.
+			if (message.role === 'assistant' && !message.content && !message.toolCalls?.length) continue
 			if (request === undefined && message.role === 'user') request = outbound.length
 			outbound.push(message)
 			continue
@@ -234,6 +257,11 @@ export function resumableTask(history: ChatTurn[], taskId: string | undefined): 
 	if (!taskId) return false
 	const owners = history.filter((turn) => turn.role === 'assistant' && turn.taskId === taskId)
 	return owners.length > 0 && owners.every((owner) => actionsSettled(history, owner))
+}
+
+/** Model sudah pernah menjawab di tugas ini - bukan dihentikan sebelum giliran pertamanya tersimpan. */
+function answeredTask(history: readonly ChatTurn[], taskId: string): boolean {
+	return history.some((turn) => turn.role === 'assistant' && turn.taskId === taskId)
 }
 
 /**
@@ -349,6 +377,10 @@ interface ChatContextValue {
 	stall: ChatStall | null
 	continueStalled: () => void
 	dismissStall: () => void
+	/** Tugas terakhir yang bisa diteruskan dari tombol di atas kotak chat. */
+	resumable: ChatResume | null
+	/** Meneruskan tugas terakhir; `false` bila tidak ada yang bisa diteruskan. */
+	resumeTask: () => boolean
 
 	attachment: ChatAttachment | null
 	attach: (attachment: ChatAttachment) => void
@@ -455,6 +487,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		auto: 0,
 	})
 	const handleStallRef = useRef<((reason: StallReason, taskId: string) => void) | null>(null)
+	/* Tugas yang dihentikan penulis, atau yang kartu macetnya ia tutup. */
+	const [interruption, setInterruption] = useState<{
+		taskId: string
+		reason: 'stopped' | StallReason
+	} | null>(null)
 	const [parts, setParts] = useState<TurnPart[]>([])
 	const partsRef = useRef<TurnPart[]>([])
 
@@ -573,6 +610,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const stop = useCallback(() => {
 		// Percobaan ulang yang masih menunggu ikut dibatalkan; tanpa ini
 		// percakapan yang sudah dihentikan penulis hidup lagi sedetik kemudian.
+		const running = abortRef.current !== null || retryPendingRef.current
+		const taskId = currentTaskIdRef.current
+		if (running && taskId) setInterruption({ taskId, reason: 'stopped' })
 		if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
 		retryTimerRef.current = null
 		retryPendingRef.current = false
@@ -1179,6 +1219,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 		setError(null)
 		setStall(null)
+		setInterruption(null)
 		setStreaming('')
 		startTurnRef.current?.(messagesRef.current, currentTaskIdRef.current ?? newTaskId(), false)
 	}, [])
@@ -1190,11 +1231,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	 * dorongan `[Continue]` yang menyebut bagian naskah yang masih kosong.
 	 */
 	const continueTask = useCallback(
-		(reason: StallReason, mode: 'auto' | 'manual') => {
+		(reason: ContinueReason | 'empty', mode: 'auto' | 'manual') => {
 			const taskId = currentTaskIdRef.current
 			if (abortRef.current || !taskId) return
 
 			setStall(null)
+			setInterruption(null)
 			setError(null)
 			let history = messagesRef.current
 			if (reason !== 'empty') {
@@ -1243,7 +1285,34 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		continueTask(stall.reason, 'manual')
 	}, [stall, continueTask])
 
-	const dismissStall = useCallback(() => setStall(null), [])
+	// Kartu yang ditutup tidak hilang begitu saja: tombol di atas kotak chat menggantikannya.
+	const dismissStall = useCallback(() => {
+		const taskId = currentTaskIdRef.current
+		if (stall && taskId) setInterruption({ taskId, reason: stall.reason })
+		setStall(null)
+	}, [stall])
+
+	/**
+	 * Tombol "Lanjutkan" di atas kotak chat, dan `/lanjut`. Tugas yang
+	 * dihentikan atau terjeda diteruskan dengan sebabnya sendiri; selebihnya
+	 * sebagai "bab masih kosong".
+	 */
+	const resumeTask = useCallback((): boolean => {
+		if (stall) {
+			continueStalled()
+			return true
+		}
+		const taskId = currentTaskIdRef.current
+		if (abortRef.current || !taskId) return false
+		const reason = interruption?.taskId === taskId ? interruption.reason : 'incomplete'
+		// Dihentikan sebelum AI sempat menjawab: permintaannya cukup dikirim ulang.
+		const unanswered = reason === 'stopped' && !answeredTask(messagesRef.current, taskId)
+		if (!unanswered && !resumableTask(messagesRef.current, taskId)) return false
+		// Penulis sendiri yang meminta: jatah lanjutan otomatisnya dibuka lagi.
+		continuesRef.current = { taskId, auto: 0 }
+		continueTask(unanswered ? 'empty' : reason, 'manual')
+		return true
+	}, [stall, continueStalled, interruption, continueTask])
 
 	const send = useCallback(
 		(prompt: string) => {
@@ -1264,6 +1333,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			setStreaming('')
 			setError(null)
 			setStall(null)
+			setInterruption(null)
 			setPartsBoth([])
 			if (!resume) planRef.current = null
 			writeWavesRef.current = { taskId, count: 0 }
@@ -1641,6 +1711,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const startNewTopic = useCallback(() => {
 		setCurrentTaskId(newTaskId())
 		setStall(null)
+		setInterruption(null)
 	}, [])
 
 	const reset = useCallback(() => {
@@ -1654,6 +1725,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		setPartsBoth([])
 		writeWavesRef.current = { taskId: undefined, count: 0 }
 		continuesRef.current = { taskId: undefined, auto: 0 }
+		setInterruption(null)
 	}, [stop, commit])
 	const settledActionIds = useMemo(
 		() =>
@@ -1678,6 +1750,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		() => (streaming === null ? pendingAskOf(messages, currentTaskId) : null),
 		[messages, currentTaskId, streaming],
 	)
+	const resumable = useMemo<ChatResume | null>(() => {
+		if (streaming !== null || stall || error || pendingAsk || !currentTaskId) return null
+		const interrupted = interruption?.taskId === currentTaskId ? interruption.reason : null
+		const unanswered = interrupted === 'stopped' && !answeredTask(messages, currentTaskId)
+		if (!unanswered && !resumableTask(messages, currentTaskId)) return null
+		const wrote = messages.some(
+			(turn) =>
+				turn.taskId === currentTaskId &&
+				turn.actions?.some((action) => CONTENT_TOOLS.has(action.name) && appliedActionIds.has(action.id)),
+		)
+		if (!interrupted && !wrote) return null
+		return { taskId: currentTaskId, interrupted, wrote }
+	}, [streaming, stall, error, pendingAsk, currentTaskId, messages, appliedActionIds, interruption])
 
 	const value = useMemo<ChatContextValue>(
 		() => ({
@@ -1690,6 +1775,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			stall,
 			continueStalled,
 			dismissStall,
+			resumable,
+			resumeTask,
 			attachment,
 			attach: setAttachment,
 			clearAttachment: () => setAttachment(null),
@@ -1725,6 +1812,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			stall,
 			continueStalled,
 			dismissStall,
+			resumable,
+			resumeTask,
 			attachment,
 			includeDocument,
 			send,

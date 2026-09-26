@@ -138,27 +138,47 @@ export function emptySections(doc: PMNode): { total: number; empty: string[] } {
 
 const MAX_LISTED = 12
 
-const LEAD: Record<Exclude<StallReason, 'empty'>, string> = {
+/**
+ * Alasan sebuah tugas diteruskan dengan dorongan `[Continue]`: tiga sebab
+ * macet di atas, ditambah dua yang datang dari penulis lewat tombol
+ * "Lanjutkan" di atas kotak chat - tugas yang ia hentikan sendiri, dan naskah
+ * yang babnya masih kosong sesudah tugas menulis selesai.
+ */
+export type ContinueReason = Exclude<StallReason, 'empty'> | 'stopped' | 'incomplete'
+
+const LEAD: Record<ContinueReason, string> = {
 	wave_limit: 'The app paused this request after a long series of edits.',
 	promised: 'You announced your next step but ended your turn without doing it.',
 	truncated: 'Your last reply was cut off by the output length limit.',
+	stopped: 'The writer stopped you earlier and now asks you to go on.',
+	incomplete: 'The writer asks you to go on with the document.',
 }
 
 /**
- * Dorongan untuk model, sebagai pesan pengguna bertanda `[Continue]`. Daftar
- * bagian kosong disebut sebagai acuan, bukan perintah: permintaannya mungkin
- * memang hanya satu bab.
+ * Dorongan untuk model, sebagai pesan pengguna bertanda `[Continue]`.
+ *
+ * Daftar bagian kosong biasanya disebut sebagai acuan, bukan perintah:
+ * permintaannya mungkin memang hanya satu bab. Kecuali untuk `incomplete` -
+ * penulis menekan tombol yang menyebut bab kosong itu, jadi di situlah
+ * permintaannya.
  */
-export function continueNudge(reason: Exclude<StallReason, 'empty'>, empty: readonly string[]): string {
+export function continueNudge(reason: ContinueReason, empty: readonly string[]): string {
 	const listed = empty.slice(0, MAX_LISTED)
-	return [
-		`[Continue] ${LEAD[reason]}`,
+	const sections = `${listed.join('; ')}${empty.length > listed.length ? '; ...' : ''}`
+	const body =
 		reason === 'truncated'
 			? 'Carry on from where it stopped, in smaller pieces: one section per insert_content call.'
-			: 'Carry on with the same request from where you stopped.',
+			: reason === 'incomplete'
+				? listed.length > 0
+					? `Write the level-1 sections that still have no body text, in document order: ${sections}. Follow the plan, depth and style of what is already written.`
+					: 'Check what the earlier request still lacks and finish it.'
+				: 'Carry on with the same request from where you stopped.'
+	return [
+		`[Continue] ${LEAD[reason]}`,
+		body,
 		'Do not start over and do not repeat what is already in the document; call get_outline if unsure what is there.',
-		listed.length > 0
-			? `For reference, level-1 sections that still have no body text: ${listed.join('; ')}${empty.length > listed.length ? '; ...' : ''}. Fill only those the request covers.`
+		reason !== 'incomplete' && listed.length > 0
+			? `For reference, level-1 sections that still have no body text: ${sections}. Fill only those the request covers.`
 			: '',
 		'When everything the writer asked for is done, reply with a short summary and no tool calls.',
 	]

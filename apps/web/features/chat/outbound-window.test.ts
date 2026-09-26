@@ -110,3 +110,19 @@ describe('resumableTask - "lanjut" meneruskan tugas yang sama', () => {
 		expect(resumableTask([ask], undefined)).toBe(false)
 	})
 })
+
+describe('buildOutboundMessages - giliran yang dihentikan', () => {
+	test('giliran asisten kosong tanpa panggilan alat tidak dikirim', () => {
+		const history: ChatTurn[] = [
+			{ role: 'user', content: 'tulis bab 1', taskId: 't' },
+			{ role: 'assistant', content: '', taskId: 't' },
+			{
+				role: 'user',
+				content: '[Continue] ...',
+				taskId: 't',
+				continuation: { mode: 'manual', reason: 'stopped' },
+			},
+		]
+		expect(buildOutboundMessages(history, 't').map((message) => message.role)).toEqual(['user', 'user'])
+	})
+})

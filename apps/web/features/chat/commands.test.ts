@@ -69,3 +69,12 @@ describe('penerapan perintah', () => {
 		expect(applyCommand(riset)).toBe('')
 	})
 })
+
+describe('/lanjut', () => {
+	test('meneruskan tugas, dengan awal kalimat sebagai cadangan', () => {
+		const [command] = matchCommands('/lan')
+		expect(command.id).toBe('lanjut')
+		expect(command.resumes).toBe(true)
+		expect(applyCommand(command)).toBe('Lanjutkan ')
+	})
+})

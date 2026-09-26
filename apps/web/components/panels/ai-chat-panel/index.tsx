@@ -11,6 +11,7 @@ import { ChatCommandMenu } from '../chat-command-menu'
 import { AskCard } from './ask-card'
 import { ComposerToolbar } from './composer-toolbar'
 import { MessageBubble } from './message-bubble'
+import { ResumeChip } from './resume-chip'
 import { ContinueMarker, StallCard } from './stall-card'
 import { TaskSeparator } from './step-timeline'
 import { TurnError } from './turn-error'
@@ -34,6 +35,8 @@ export function AiChatPanel() {
 		stall,
 		continueStalled,
 		dismissStall,
+		resumable,
+		resumeTask,
 		attachment,
 		attach,
 		clearAttachment,
@@ -135,6 +138,13 @@ export function AiChatPanel() {
 
 	const pickCommand = (command: ChatCommand) => {
 		if (command.enablesResearch) setResearch(true)
+		// `/lanjut` meneruskan tugas terakhir; tanpa tugas yang bisa diteruskan ia menjadi awal kalimat biasa.
+		if (command.resumes && resumeTask()) {
+			setDraft('')
+			setActiveCommand(0)
+			setFollowingBoth(true)
+			return
+		}
 		setDraft(applyCommand(command))
 		setActiveCommand(0)
 		draftRef.current?.focus()
@@ -259,6 +269,16 @@ export function AiChatPanel() {
 				</div>
 			) : (
 				<div className="flex shrink-0 flex-col gap-2 px-4 py-3">
+					{resumable && (
+						<ResumeChip
+							key={resumable.taskId}
+							resume={resumable}
+							onResume={() => {
+								resumeTask()
+								setFollowingBoth(true)
+							}}
+						/>
+					)}
 					{attachment && (
 						<div className="flex items-start gap-2 rounded-xl bg-[var(--overlay-hover)] px-3 py-2">
 							<span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-accent">

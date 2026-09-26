@@ -2,7 +2,7 @@
 
 import { Play, RotateCw } from 'lucide-react'
 import type { ChatStall, ChatTurn } from '@/features/chat/chat-context'
-import { STALL_TEXT, type StallReason } from '@/features/chat/stall'
+import { type ContinueReason, STALL_TEXT } from '@/features/chat/stall'
 
 /**
  * Tugas yang berhenti sebelum selesai - bukan galat, jadi tidak merah. Ia
@@ -64,21 +64,23 @@ export function StallCard({
 	)
 }
 
-const MARKER: Record<Exclude<StallReason, 'empty'>, string> = {
+const MARKER: Record<ContinueReason, string> = {
 	wave_limit: 'jeda suntingan',
 	promised: 'AI sempat berhenti',
 	truncated: 'jawaban terpotong',
+	stopped: 'setelah dihentikan',
+	incomplete: 'bagian yang masih kosong',
 }
 
 /** Dorongan `[Continue]` di percakapan: penanda kecil, bukan gelembung pesan penulis. */
 export function ContinueMarker({ continuation }: { continuation: NonNullable<ChatTurn['continuation']> }) {
-	const reason = continuation.reason === 'empty' ? null : MARKER[continuation.reason]
+	const reason = MARKER[continuation.reason]
 	return (
 		<div className="flex items-center gap-2 py-0.5 text-[11px] text-subtle" role="note">
 			<span className="h-px flex-1 bg-foreground/10" />
 			<span>
 				{continuation.mode === 'auto' ? 'Dilanjutkan otomatis' : 'Dilanjutkan'}
-				{reason && <span className="text-faint"> · {reason}</span>}
+				<span className="text-faint"> · {reason}</span>
 			</span>
 			<span className="h-px flex-1 bg-foreground/10" />
 		</div>

@@ -14,8 +14,10 @@ export interface ChatCommand {
 	tier: 'intent' | 'skill' | 'tool'
 	/** Teks yang menggantikan perintah di kotak chat. */
 	instruction: string
-	/** Menyalakan mode riset web - satu-satunya perintah yang mengubah state. */
+	/** Menyalakan mode riset web. */
 	enablesResearch?: boolean
+	/** Meneruskan tugas terakhir alih-alih mengisi kotak chat. */
+	resumes?: boolean
 }
 
 /** Tingkat 1: apa yang ingin dikerjakan penulis, bukan alat mana yang dipanggil. */
@@ -28,6 +30,15 @@ const INTENTS: ChatCommand[] = [
 		tier: 'intent',
 		instruction: '',
 		enablesResearch: true,
+	},
+	{
+		id: 'lanjut',
+		trigger: 'lanjut',
+		label: 'Lanjutkan tugas',
+		hint: 'Teruskan tugas terakhir dari tempat ia berhenti',
+		tier: 'intent',
+		instruction: 'Lanjutkan ',
+		resumes: true,
 	},
 	{
 		id: 'susun',
