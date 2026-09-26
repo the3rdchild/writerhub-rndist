@@ -1,4 +1,4 @@
-import { decodeEntities, protectEscapes, restoreEscapes } from '@writer-hub/shared'
+import { decodeEntities, isPageBreakLine, protectEscapes, restoreEscapes } from '@writer-hub/shared'
 import { type DesignCanvas, repairDesignHtml } from './design-repair'
 /**
  * Menerjemahkan Markdown menjadi dokumen ProseMirror - bentuk yang disimpan
@@ -67,7 +67,7 @@ const INLINE_PATTERNS: InlinePattern[] = [
 	},
 	// Tebal dicari sebelum miring dan isinya boleh memuat bintang, supaya
 	// "**tebal dan *miring* sekaligus**" tidak terbaca sebagai miring tunggal.
-	{ pattern: /\*\*([^\n]+?)\*\*/, mark: () => ({ type: 'bold' }), inner: (m) => m[1] },
+	{ pattern: /\*\*((?:[^*\n]|\*[^*\n]+\*)+?)\*\*/, mark: () => ({ type: 'bold' }), inner: (m) => m[1] },
 	{ pattern: /__([^\n]+?)__/, mark: () => ({ type: 'bold' }), inner: (m) => m[1] },
 	{ pattern: /(?<!\*)\*(?!\*)([^*\n]+?)\*(?!\*)/, mark: () => ({ type: 'italic' }), inner: (m) => m[1] },
 	{
@@ -203,6 +203,9 @@ const readHeading: BlockReader = (lines, index) => {
 	}
 }
 
+const readPageBreak: BlockReader = (lines, index) =>
+	isPageBreakLine(lines[index]) ? { node: { type: 'pageBreak' }, next: index + 1 } : null
+
 const readHorizontalRule: BlockReader = (lines, index) =>
 	HORIZONTAL_RULE.test(lines[index].trim()) ? { node: { type: 'horizontalRule' }, next: index + 1 } : null
 
@@ -243,7 +246,14 @@ const readParagraph: BlockReader = (lines, index) => {
 
 	while (cursor < lines.length) {
 		const line = lines[cursor].trim()
-		if (!line || isTableRow(lines[cursor]) || BLOCK_START.test(line) || HORIZONTAL_RULE.test(line)) break
+		if (
+			!line ||
+			isTableRow(lines[cursor]) ||
+			BLOCK_START.test(line) ||
+			HORIZONTAL_RULE.test(line) ||
+			isPageBreakLine(line)
+		)
+			break
 		collected.push(line)
 		cursor += 1
 	}
@@ -254,6 +264,7 @@ const readParagraph: BlockReader = (lines, index) => {
 const BLOCK_READERS: BlockReader[] = [
 	readFencedCode,
 	readTable,
+	readPageBreak,
 	readHorizontalRule,
 	readHeading,
 	readList,

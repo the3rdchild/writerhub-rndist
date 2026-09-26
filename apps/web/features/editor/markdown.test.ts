@@ -213,3 +213,25 @@ describe('entitas HTML dan backslash-escape', () => {
 		expect(looksLikeMarkdown('Riset dan pengembangan (R&D)')).toBe(false)
 	})
 })
+
+/* Keluaran DeepSeek V4 Flash untuk skripsi lengkap, 26 Sep. */
+describe('kebiasaan LaTeX dan penanda bersarang dari model', () => {
+	test('\\pagebreak di baris sendiri menjadi pindah halaman, bukan teks', () => {
+		const html = markdownToHtml('Penutup bab.\n\\pagebreak\n\n# BAB II TINJAUAN PUSTAKA')
+		expect(html).toBe('<p>Penutup bab.</p><div data-page-break=""></div><h1>BAB II TINJAUAN PUSTAKA</h1>')
+		expect(markdownToHtml('\\newpage')).toBe('<div data-page-break=""></div>')
+	})
+
+	test('\\pagebreak di tengah kalimat tetap teks', () => {
+		expect(markdownToHtml('Perintah \\pagebreak di LaTeX **penting**')).not.toContain('data-page-break')
+	})
+
+	test('miring di dalam tebal', () => {
+		expect(markdownToHtml('**a. Daya Ingat (*Short-Term Memory*)**')).toBe(
+			'<p><strong>a. Daya Ingat (<em>Short-Term Memory</em>)</strong></p>',
+		)
+		expect(markdownToHtml('**3.3.1 Variabel (X): *Brainrot***')).toBe(
+			'<p><strong>3.3.1 Variabel (X): <em>Brainrot</em></strong></p>',
+		)
+	})
+})

@@ -27,7 +27,7 @@ export const DEFAULT_TOC_ATTRS: TocBlockAttrs = {
 	snapshot: '',
 }
 
-function clampedAttrs(attrs: Partial<TocBlockAttrs>): TocBlockAttrs {
+export function clampedAttrs(attrs: Partial<TocBlockAttrs>): TocBlockAttrs {
 	return {
 		...DEFAULT_TOC_ATTRS,
 		...attrs,

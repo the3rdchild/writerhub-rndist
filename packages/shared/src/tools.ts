@@ -261,7 +261,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'insert_content',
 		kind: 'write',
 		description:
-			'Insert new content into the document, written as Markdown: # headings, | … | tables, - lists. They become real editor nodes. Mathematics goes in $…$; everything else must be Markdown, never LaTeX markup like \\section or \\begin{tabular}.',
+			'Insert new content into the document, written as Markdown: # headings, | … | tables, - lists. They become real editor nodes. Mathematics goes in $…$; everything else must be Markdown, never LaTeX markup like \\section or \\begin{tabular}. A line holding only \\pagebreak starts a new page. When the document already has sections, say where the content belongs with after_heading instead of relying on the cursor.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -272,7 +272,12 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 				position: {
 					type: 'string',
 					enum: ['cursor', 'end'],
-					description: 'Where it goes. Defaults to the cursor.',
+					description: 'Where it goes. Defaults to the cursor. Ignored when after_heading is given.',
+				},
+				after_heading: {
+					type: 'string',
+					description:
+						'Insert at the end of the section under this heading, exactly as get_outline lists it - e.g. "KATA PENGANTAR" to place "Daftar Isi" after it.',
 				},
 			},
 			required: ['markdown'],
@@ -470,6 +475,11 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 				min_level: { type: 'number', description: 'Highest heading level included, 1-9.' },
 				max_level: { type: 'number', description: 'Deepest heading level included, 1-9.' },
 				indent_cm: { type: 'number', description: 'Indent per level, in centimeters.' },
+				after_heading: {
+					type: 'string',
+					description:
+						'The heading the block goes directly under. Defaults to the "Daftar Isi" / "Daftar Gambar" / "Daftar Tabel" heading; the call fails when there is none, so insert that heading first.',
+				},
 			},
 		},
 	},

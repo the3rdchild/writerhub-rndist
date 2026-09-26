@@ -117,3 +117,13 @@ export function restoreEscapes(text: string, render: (char: string) => string = 
 		render(String.fromCharCode(placeholder.charCodeAt(0) - PROTECTED_BASE)),
 	)
 }
+
+/**
+ * Baris yang meminta pindah halaman. Model menulisnya dengan kebiasaan LaTeX -
+ * `\pagebreak`, `\newpage`, `\clearpage` - di antara bab, dan tanpa aturan ini
+ * perintahnya tertulis sebagai paragraf sementara babnya tidak pernah pindah
+ * halaman.
+ */
+export function isPageBreakLine(line: string): boolean {
+	return /^\\(?:pagebreak|newpage|clearpage)(?:\{\})?$/i.test(line.trim())
+}

@@ -355,3 +355,21 @@ describe('entitas HTML dan backslash-escape', () => {
 		expect(headingTitle('# Bab \\#1 &mdash; Pendahuluan')).toBe('Bab #1 — Pendahuluan')
 	})
 })
+
+describe('kebiasaan LaTeX dan penanda bersarang dari model', () => {
+	test('\\pagebreak di baris sendiri menjadi node pindah halaman', () => {
+		expect(markdownToDoc('Penutup bab.\n\\pagebreak\n# BAB II').content.map((node) => node.type)).toEqual([
+			'paragraph',
+			'pageBreak',
+			'heading',
+		])
+	})
+
+	test('miring di dalam tebal', () => {
+		const [paragraph] = markdownToDoc('**3.3.1 Variabel (X): *Brainrot***').content
+		expect(paragraph.content).toEqual([
+			{ type: 'text', text: '3.3.1 Variabel (X): ', marks: [{ type: 'bold' }] },
+			{ type: 'text', text: 'Brainrot', marks: [{ type: 'bold' }, { type: 'italic' }] },
+		])
+	})
+})

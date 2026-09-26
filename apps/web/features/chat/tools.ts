@@ -17,6 +17,7 @@ import { DEFAULT_HTML_BLOCK_ATTRS, HTML_BLOCK } from '@/features/editor/html-blo
 import { escapeNodeSelection } from '@/features/editor/insert-point'
 import { toEditorContent } from '@/features/editor/markdown'
 import { MATH_BLOCK, MATH_INLINE, stripDelimiters } from '@/features/editor/math'
+import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import type {
 	FurnitureSlot,
 	FurnitureVariant,
@@ -27,7 +28,7 @@ import { clampMargins, INCH, PAGE_SIZES, type PageSetup, pageGeometry } from '@/
 import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
 import { isSectionScope, sectionRange } from '@/features/editor/section-scope'
 import { editorPlainText } from '@/features/editor/text-content'
-import { TOC_BLOCK, type TocBlockAttrs, type TocListKind } from '@/features/editor/toc-block'
+import { clampedAttrs, TOC_BLOCK, type TocBlockAttrs, type TocListKind } from '@/features/editor/toc-block'
 import type { CommentThread } from '@/features/sessions/types'
 import { countWords } from '@/lib/utils'
 import { blockSummary, htmlCandidates } from './html-block-candidates'
@@ -725,6 +726,36 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const markdown = String(call.arguments.markdown ?? '')
 			if (!markdown.trim()) return { ok: false, message: 'Nothing to insert.' }
 
+			/*
+			 * Sisipan di kursor adalah tebakan: kursor berada di mana pun sisipan
+			 * terakhir berakhir. Naskah panjang ditulis tidak berurutan - halaman
+			 * judul, lalu bab, lalu daftar pustaka, lalu kembali ke kata
+			 * pengantar - jadi `after_heading` menaruhnya di akhir bagian yang
+			 * disebut, di mana pun kursornya.
+			 */
+			const section = cleanTitle(call.arguments.after_heading)
+			if (section) {
+				const list = headings(editor)
+				const at = list.findIndex((heading) => sameHeading(heading.text, section))
+				if (at === -1) {
+					return {
+						ok: false,
+						message: `No heading "${section}" in the document. Call get_outline and use a heading exactly as listed.`,
+					}
+				}
+				/* Pindah halaman yang menutup bagian itu tetap menutupnya: sisipan
+				 * jatuh sebelum pemenggal, bukan sesudahnya - kalau tidak, pemenggal
+				 * bawaan sisipan bertemu pemenggal lama dan lahirlah halaman kosong. */
+				let end = sectionEnd(editor, list, at)
+				for (;;) {
+					const before = editor.state.doc.resolve(end).nodeBefore
+					if (before?.type.name !== PAGE_BREAK_NODE) break
+					end -= before.nodeSize
+				}
+				editor.chain().insertContentAt(end, toEditorContent(markdown)).run()
+				return { ok: true, message: `Inserted at the end of "${list[at].text}".` }
+			}
+
 			const chain = insertChain(editor)
 			if (call.arguments.position === 'end') chain.setTextSelection(editor.state.doc.content.size)
 			chain.insertContent(toEditorContent(markdown)).run()
@@ -904,8 +935,15 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 
 		case 'insert_toc': {
 			const attrs = tocAttrsFromArgs(call.arguments)
-			insertChain(editor).insertToc(attrs).run()
-			return { ok: true, message: 'Table of contents inserted.' }
+			const kind = attrs.listKind ?? 'isi'
+			const placement = tocPlacement(editor, kind, cleanTitle(call.arguments.after_heading))
+			if ('error' in placement) return { ok: false, message: placement.error }
+
+			editor
+				.chain()
+				.insertContentAt(placement.at, { type: TOC_BLOCK, attrs: clampedAttrs({ ...attrs, listKind: kind }) })
+				.run()
+			return { ok: true, message: `${TOC_TITLE_LABEL[kind]} inserted under "${placement.heading}".` }
 		}
 
 		case 'set_toc_options': {
@@ -1366,6 +1404,65 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 		default:
 			return { ok: false, message: `Unknown tool: ${call.name}` }
 	}
+}
+
+const TOC_TITLE_LABEL: Record<TocListKind, string> = {
+	isi: 'Table of contents',
+	gambar: 'List of figures',
+	tabel: 'List of tables',
+}
+
+/* Judul yang lazim di atas tiap jenis daftar, Indonesia dan Inggris. */
+const TOC_HEADINGS: Record<TocListKind, RegExp> = {
+	isi: /^(daftar isi|table of contents|contents)$/i,
+	gambar: /^(daftar gambar|list of figures)$/i,
+	tabel: /^(daftar tabel|list of tables)$/i,
+}
+
+function sameHeading(a: string, b: string): boolean {
+	const norm = (text: string) => text.replace(/\s+/g, ' ').trim().toLowerCase()
+	return norm(a) === norm(b)
+}
+
+/**
+ * Tempat daftar isi: tepat di bawah judulnya ("Daftar Isi"), bukan di kursor.
+ *
+ * Model menulis naskah panjang dalam beberapa gelombang dan baru ingat daftar
+ * isi di tengah jalan; dulu blok itu mendarat di mana pun kursor berada -
+ * pernah di tengah BAB V. Tanpa judul yang bisa dijadikan patokan, lebih baik
+ * menolak dan menyuruh model membuat judulnya di tempat yang benar daripada
+ * menebak.
+ */
+function tocPlacement(
+	editor: Editor,
+	kind: TocListKind,
+	afterHeading: string,
+): { at: number; heading: string } | { error: string } {
+	let existing = false
+	editor.state.doc.descendants((node) => {
+		if (node.type.name === TOC_BLOCK && (node.attrs.listKind ?? 'isi') === kind) existing = true
+		return !existing
+	})
+	if (existing) {
+		return {
+			error: `The document already has a ${TOC_TITLE_LABEL[kind].toLowerCase()} block. Change it with set_toc_options instead of inserting another.`,
+		}
+	}
+
+	const list = headings(editor)
+	const anchor = afterHeading
+		? list.find((heading) => sameHeading(heading.text, afterHeading))
+		: list.find((heading) => TOC_HEADINGS[kind].test(heading.text.replace(/\s+/g, ' ').trim()))
+	if (!anchor) {
+		return {
+			error: afterHeading
+				? `No heading "${afterHeading}" in the document. Call get_outline and use a heading exactly as listed.`
+				: `No "Daftar ${kind === 'isi' ? 'Isi' : kind === 'gambar' ? 'Gambar' : 'Tabel'}" heading to place it under. Insert that heading where the list belongs first (insert_content with after_heading), then call insert_toc again - it goes directly under the heading.`,
+		}
+	}
+
+	const node = editor.state.doc.nodeAt(anchor.pos)
+	return { at: anchor.pos + (node?.nodeSize ?? 0), heading: anchor.text }
 }
 
 function tocAttrsFromArgs(args: Record<string, unknown>): Partial<TocBlockAttrs> {

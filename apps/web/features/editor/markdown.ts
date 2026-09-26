@@ -1,4 +1,4 @@
-import { protectEscapes, restoreEscapes, startsEntity } from '@writer-hub/shared'
+import { isPageBreakLine, protectEscapes, restoreEscapes, startsEntity } from '@writer-hub/shared'
 import { latexToMarkdown, looksLikeLatexDocument } from './latex-document'
 import { wholeParagraphLatex } from './math'
 
@@ -65,7 +65,8 @@ function inline(text: string): string {
 		)
 		.join('')
 		.replace(/`([^`]+)`/g, '<code>$1</code>')
-		.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+		// Isi tebal boleh memuat miring utuh: "**a. Rentang (*attention span*)**".
+		.replace(/\*\*((?:[^*]|\*[^*]+\*)+?)\*\*/g, '<strong>$1</strong>')
 		.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
 		.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2">$1</a>')
 
@@ -148,6 +149,11 @@ export function markdownToHtml(markdown: string): string {
 			out.push(`<table><tbody><tr>${head}</tr>${body}</tbody></table>`)
 			continue
 		}
+		if (isPageBreakLine(trimmed)) {
+			out.push('<div data-page-break=""></div>')
+			index += 1
+			continue
+		}
 		if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
 			out.push('<hr>')
 			index += 1
@@ -198,6 +204,7 @@ export function markdownToHtml(markdown: string): string {
 			const current = lines[index].trim()
 			if (
 				!current ||
+				isPageBreakLine(current) ||
 				isTableRow(lines[index]) ||
 				/^(#{1,6}\s|[-*]\s|\d+\.\s|>|```)/.test(current) ||
 				/^(?:-{3,}|\*{3,}|_{3,})$/.test(current)
