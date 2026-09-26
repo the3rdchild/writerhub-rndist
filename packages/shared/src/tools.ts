@@ -14,6 +14,11 @@ export type ToolKind = 'read' | 'write' | 'ask'
 /** Isian brief yang boleh disebut model - catatan penulis bukan salah satunya. */
 const AI_BRIEF_KEYS = BRIEF_FIELDS.filter((field) => !field.userOnly).map((field) => field.key)
 
+/* Kosakata pilihan panel, supaya model mencatat "Kuantitatif", bukan "kuantitatif (survei)". */
+const BRIEF_CHOICES = BRIEF_FIELDS.filter((field) => field.tab === 'research' && field.options)
+	.map((field) => `${field.key}: ${field.options?.join(' / ')}`)
+	.join('; ')
+
 export interface ToolDefinition {
 	name: string
 	kind: ToolKind
@@ -149,7 +154,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'ask_user',
 		kind: 'ask',
 		description:
-			"Ask the writer 1-4 multiple-choice questions and wait for the answers. They appear in place of the writer's chat box; the writer can always type their own answer or skip. Use it only when the answer changes what you would write and cannot be read from the research brief or the document. Call it alone, as the last thing in your turn. The answers come back as this tool's result.",
+			'Ask the writer 1-4 multiple-choice questions and wait for the answers. They appear in place of the writer\'s chat box; the writer can always type their own answer or skip. Use it only when the answer changes what you would write and cannot be read from the research brief or the document. Every question needs real choices: for anything the writer must word themselves - a title, research questions, objectives - use request_brief instead, and never add an option like "write my own". Call it alone, as the last thing in your turn. The answers come back as this tool\'s result.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -215,8 +220,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 	{
 		name: 'update_brief',
 		kind: 'read',
-		description:
-			"Record what you learned about this research in the brief shown in the Metadata panel. A decision field is only recorded with evidence - an exact quote from the document or from the writer's own words; without it the update is rejected and you should ask instead. Derived fields (chapter summaries, keywords) you may refresh freely. A field the writer filled becomes a proposal they approve. The result lists what was saved, proposed and rejected.",
+		description: `Record what you learned about this research in the brief shown in the Metadata panel. A decision field is only recorded with evidence - the writer's or the document's exact words in quotes, e.g. "skripsi saya"; without a real quote the update is rejected and you should ask instead. Derived fields (chapter summaries, keywords) you may refresh freely. A field the writer filled becomes a proposal they approve. For choice fields use the panel's wording when it fits - ${BRIEF_CHOICES}. The result lists what was saved, proposed and rejected.`,
 		parameters: {
 			type: 'object',
 			properties: {

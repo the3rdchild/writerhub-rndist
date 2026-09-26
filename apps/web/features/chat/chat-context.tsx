@@ -58,7 +58,9 @@ import { usePersistentState } from '@/lib/use-persistent-state'
 import { parseFallbackCalls, streamChat, stripFallbackCalls } from './api'
 import {
 	type AskAnswer,
+	answerWords,
 	askResultText,
+	briefAnswerValue,
 	parseAskQuestions,
 	requestedBriefFields,
 	requestMessage,
@@ -611,9 +613,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	 * penulis - pesan dan jawaban kartu pertanyaannya.
 	 */
 	const runBriefUpdate = (call: ToolCall, history: readonly ChatTurn[]): string => {
-		const said = history
-			.filter((turn) => turn.role === 'user' || (turn.role === 'tool' && turn.answer))
-			.map((turn) => turn.content)
+		const said = history.flatMap((turn) =>
+			turn.role === 'user'
+				? [turn.content]
+				: turn.role === 'tool' && turn.answer
+					? answerWords(turn.answer)
+					: [],
+		)
 		const manuscript = appRef.current.sessions.map((tab) => tabText(tab.id) ?? '')
 		const report = briefRef.current.applyAiUpdate(briefUpdateFromArgs(call.arguments), [
 			...manuscript,
@@ -1364,16 +1370,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const answerAsk = useCallback(
 		(call: ToolCall, answer: AskAnswer) => {
 			const saved: BriefKey[] = []
+			const unfit: BriefKey[] = []
 			let final = answer
 
 			if (!answer.skipped && call.name === 'ask_user') {
 				const questions = parseAskQuestions(call.arguments)
 				answer.responses?.forEach((response, index) => {
-					const key = questions[index]?.briefField
-					const value = responseValue(response)
-					if (!key || !value) return
-					briefRef.current.saveWriterAnswer(key, value)
-					saved.push(key)
+					const question = questions[index]
+					if (!question?.briefField || !responseValue(response)) return
+					const value = briefAnswerValue(question, response)
+					if (value === null) {
+						unfit.push(question.briefField)
+						return
+					}
+					briefRef.current.saveWriterAnswer(question.briefField, value)
+					saved.push(question.briefField)
 				})
 			}
 
@@ -1397,7 +1408,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				briefRef.current.clearRequest()
 			}
 
-			settleActions([{ call, content: askResultText(call, final, saved), answer: final }])
+			settleActions([{ call, content: askResultText(call, final, saved, unfit), answer: final }])
 		},
 		[settleActions],
 	)

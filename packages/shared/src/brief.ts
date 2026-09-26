@@ -581,15 +581,39 @@ function stripQuoteMarks(text: string): string {
 	return text.replace(/^["'\s.…]+|["'\s.…]+$/g, '')
 }
 
+/** Kutipan di dalam tanda kutip, sesudah tanda kutip lengkung diluruskan. */
+const QUOTED = /"([^"]{3,})"|'([^']{3,})'/g
+const SEGMENT = /→|->|=>|:|;|\(|\)/
+
 /**
  * Apakah bukti yang disebut AI benar-benar ada - di naskah, atau di sesuatu
  * yang dikatakan penulis. Bukti yang tidak ditemukan di mana pun adalah
  * tebakan yang menyamar sebagai kutipan.
+ *
+ * Model jarang menyerahkan kutipan telanjang: ia menulis `User said:
+ * 'skripsi saya'` atau `"Kuantitatif" (pilihan dari ask_user)`. Karena itu
+ * yang dicocokkan bukan hanya seluruh teksnya, tapi juga tiap bagian yang
+ * dikutipnya - pembungkusnya bukan klaim, kutipannya yang klaim.
  */
 export function evidenceFound(evidence: string | undefined, sources: readonly string[]): boolean {
-	const needle = stripQuoteMarks(normalizeForMatch(evidence ?? ''))
-	if (needle.length < 2) return false
-	return sources.some((source) => normalizeForMatch(source).includes(needle))
+	const normalized = normalizeForMatch(evidence ?? '')
+	const haystacks = sources.map(normalizeForMatch)
+	const present = (needle: string) => haystacks.some((source) => source.includes(needle))
+
+	const whole = stripQuoteMarks(normalized)
+	if (whole.length >= 2 && present(whole)) return true
+
+	for (const match of normalized.matchAll(QUOTED)) {
+		const quote = stripQuoteMarks(match[1] ?? match[2] ?? '')
+		if (quote.length >= 3 && present(quote)) return true
+	}
+
+	// "Bidang → Pendidikan Sejarah", "Pendekatan: kualitatif" - label lalu nilainya.
+	for (const part of normalized.split(SEGMENT)) {
+		const piece = stripQuoteMarks(part)
+		if (piece.length >= 4 && present(piece)) return true
+	}
+	return false
 }
 
 export type BriefVerdict =
@@ -617,7 +641,7 @@ export function judgeBriefWrite(
 			return {
 				verdict: 'reject',
 				reason:
-					'no evidence found in the manuscript or in what the writer said - ask with ask_user instead of guessing',
+					"no quote found in the document or in the writer's own words - put their exact words in quotes as evidence, or ask with ask_user instead of guessing",
 			}
 		}
 		return { verdict: 'apply' }
@@ -679,7 +703,10 @@ export function applyAiBriefUpdate(
 			report.rejected.push({ target: incoming.key, reason: 'unknown field' })
 			continue
 		}
-		const value = incoming.value.slice(0, BRIEF_LIMITS.value).trim()
+		const raw = incoming.value.slice(0, BRIEF_LIMITS.value).trim()
+		// "kuantitatif" dicatat sebagai "Kuantitatif": pilihan yang sama dengan
+		// chip di panel, supaya chip-nya menyala dan tidak jatuh ke "Lainnya".
+		const value = field.options?.find((option) => option.toLowerCase() === raw.toLowerCase()) ?? raw
 		const evidence = incoming.evidence?.slice(0, BRIEF_LIMITS.evidence).trim() || undefined
 		const verdict = judgeBriefWrite(
 			field,

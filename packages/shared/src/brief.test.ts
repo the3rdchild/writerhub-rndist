@@ -78,6 +78,33 @@ describe('bukti', () => {
 		expect(evidenceFound('“…pendekatan kualitatif dengan wawancara…”', [MANUSCRIPT])).toBe(true)
 	})
 
+	/* Bentuk-bentuk ini persis yang ditulis DeepSeek V4 Flash dalam uji 26 Sep -
+	 * semuanya kutipan asli yang dulu ditolak karena pembungkusnya. */
+	test('kutipan yang dibungkus keterangan tetap dikenali', () => {
+		const said = ['Buatkan latar belakang untuk skripsi saya tentang literasi digital.']
+		const answered = ['The writer answered:\n2. Pendekatan penelitian apa? → Kuantitatif']
+		expect(evidenceFound("User said: 'skripsi saya'", said)).toBe(true)
+		expect(evidenceFound('"skripsi saya" (pesan pengguna)', said)).toBe(true)
+		expect(evidenceFound('"Kuantitatif" (pilihan dari ask_user)', answered)).toBe(true)
+		expect(
+			evidenceFound("Writer answered 'Kuantitatif' when asked 'Pendekatan penelitian apa?'", answered),
+		).toBe(true)
+	})
+
+	test('bukti berbentuk label lalu nilai dicocokkan per bagian', () => {
+		const answered = ['Pendidikan Sejarah', '1 orang guru']
+		expect(evidenceFound('Bidang → Pendidikan Sejarah', answered)).toBe(true)
+		expect(evidenceFound('Informan: 1 orang guru', answered)).toBe(true)
+		expect(evidenceFound('Bidang → Ilmu Komunikasi', answered)).toBe(false)
+	})
+
+	test('pembungkus tidak meloloskan kutipan karangan atau yang terlalu pendek', () => {
+		const said = ['Buatkan latar belakang untuk skripsi saya.']
+		expect(evidenceFound("User said: 'penelitian kuantitatif'", said)).toBe(false)
+		expect(evidenceFound("Implied by 'ya'", said)).toBe(false)
+		expect(evidenceFound('Pengaruh X terhadap Y menyiratkan pendekatan kuantitatif', said)).toBe(false)
+	})
+
 	test('bukti karangan tidak ditemukan', () => {
 		expect(evidenceFound('pendekatan kuantitatif', [MANUSCRIPT])).toBe(false)
 		expect(evidenceFound('', [MANUSCRIPT])).toBe(false)
@@ -118,6 +145,15 @@ describe('applyAiBriefUpdate', () => {
 		})
 		expect(brief.entries.judul?.value).toBe('Judul lama')
 		expect(brief.proposals).toEqual([{ id: 'field:judul', key: 'judul', value: 'Judul baru', at: 5 }])
+	})
+
+	test('nilai pilihan dicatat dengan ejaan panel', () => {
+		const { brief } = applyAiBriefUpdate(
+			EMPTY_BRIEF,
+			{ fields: [{ key: 'pendekatan', value: 'kualitatif', evidence: 'pendekatan kualitatif' }] },
+			context,
+		)
+		expect(brief.entries.pendekatan?.value).toBe('Kualitatif')
 	})
 
 	test('usulan baru untuk isian yang sama menggantikan yang lama', () => {
