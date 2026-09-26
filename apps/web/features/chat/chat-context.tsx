@@ -2,18 +2,25 @@
 
 import { generateJSON } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
-import type { ProviderErrorCode, TemplateSpec } from '@writer-hub/shared'
+import type { BriefKey, ProviderErrorCode, TemplateSpec } from '@writer-hub/shared'
 import {
+	type BriefChapterUpdate,
+	type BriefFieldUpdate,
+	briefField,
+	CHAPTER_STATUSES,
 	CHAT_CONTEXT_LIMITS,
+	type ChapterStatus,
 	type ChatMessage,
 	type ChatStreamPhase,
 	type ChatUsage,
 	DEFAULT_CHAT_MODEL,
+	isAskTool,
 	isReadTool,
 	type ToolCall,
 } from '@writer-hub/shared'
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import { usePanels } from '@/features/analysis/panel-context'
+import { useBrief } from '@/features/brief/brief-context'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
 import { type DiagramPalette, isCompletePalette, reskinSvg } from '@/features/editor/diagram-skin'
@@ -49,6 +56,14 @@ import { snapshotLocalVersion } from '@/features/versions/local-snapshot'
 import { useInvalidateVersions } from '@/features/versions/use-versions'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import { parseFallbackCalls, streamChat, stripFallbackCalls } from './api'
+import {
+	type AskAnswer,
+	askResultText,
+	parseAskQuestions,
+	requestedBriefFields,
+	requestMessage,
+	responseValue,
+} from './ask'
 import { diagramReceipt, drawDiagram } from './diagram-api'
 import { stitchDiagrams } from './diagram-embed'
 import { diagramBlocks, diagramTypeOf, findDiagramBlock, needsDrawing } from './diagram-target'
@@ -92,6 +107,14 @@ export interface ChatAttachment {
 
 export interface ChatTurn extends ChatMessage {
 	actions?: ToolCall[]
+	/**
+	 * Pertanyaan kepada penulis (`ask_user`, `request_brief`). Terpisah dari
+	 * `actions` karena tidak ada yang bisa "diterapkan" - hanya dijawab - tapi
+	 * sama-sama menahan giliran sampai diputuskan.
+	 */
+	asks?: ToolCall[]
+	/** Di giliran hasil alat: jawaban penulis, untuk ringkasan tanya-jawab di percakapan. */
+	answer?: AskAnswer
 	taskId?: string
 	/**
 	 * Bagian giliran ini sesuai urutan datangnya. `content` tetap ada dan tetap
@@ -134,6 +157,8 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 		if (turn.taskId === currentTaskId) {
 			const {
 				actions: _actions,
+				asks: _asks,
+				answer: _answer,
 				taskId: _taskId,
 				parts: _parts,
 				usage: _usage,
@@ -160,7 +185,60 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 
 export function actionsSettled(history: ChatTurn[], owner: ChatTurn): boolean {
 	const decided = new Set(history.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId))
-	return (owner.actions ?? []).every((action) => decided.has(action.id))
+	return [...(owner.actions ?? []), ...(owner.asks ?? [])].every((action) => decided.has(action.id))
+}
+
+/**
+ * Pertanyaan yang sedang menunggu penulis - kalau ada, kartunya menggantikan
+ * kotak chat. Hanya giliran pertanyaan terakhir dari tugas yang sedang
+ * berjalan yang dihitung: pertanyaan dari tugas lama sudah tidak punya giliran
+ * untuk dilanjutkan.
+ */
+export function pendingAskOf(
+	history: readonly ChatTurn[],
+	currentTaskId: string | undefined,
+): ToolCall | null {
+	const settled = new Set(history.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId))
+	for (let index = history.length - 1; index >= 0; index--) {
+		const turn = history[index]
+		if (turn.role !== 'assistant' || !turn.asks?.length) continue
+		if (turn.taskId !== currentTaskId) return null
+		return turn.asks.find((call) => !settled.has(call.id)) ?? null
+	}
+	return null
+}
+
+const EXTRA_ASK_RESULT =
+	'Not shown: only one question card is shown at a time. Ask this again, if it still matters, after the writer answers the first.'
+
+/**
+ * Argumen `update_brief` dari model, dibaca dengan curiga - yang tidak
+ * berbentuk seperti isian atau bab dibuang di sini, bukan di aturan brief.
+ */
+export function briefUpdateFromArgs(args: Record<string, unknown>): {
+	fields: BriefFieldUpdate[]
+	chapters: BriefChapterUpdate[]
+} {
+	const list = (value: unknown): Record<string, unknown>[] =>
+		Array.isArray(value)
+			? value.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+			: []
+	const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+
+	return {
+		fields: list(args.fields).map((field) => ({
+			key: text(field.key),
+			value: text(field.value),
+			...(text(field.evidence) ? { evidence: text(field.evidence) } : {}),
+		})),
+		chapters: list(args.chapters).map((chapter) => ({
+			title: text(chapter.title),
+			summary: text(chapter.summary),
+			...(CHAPTER_STATUSES.includes(chapter.status as ChapterStatus)
+				? { status: chapter.status as ChapterStatus }
+				: {}),
+		})),
+	}
 }
 
 const OUTLINE_SNIPPET_CHARS = 600
@@ -222,6 +300,11 @@ interface ChatContextValue {
 	reset: () => void
 	startNewTopic: () => void
 	currentTaskId: string | undefined
+	/** Pertanyaan AI yang menunggu jawaban; kartunya menggantikan kotak chat. */
+	pendingAsk: ToolCall | null
+	answerAsk: (call: ToolCall, answer: AskAnswer) => void
+	/** Jawaban penulis untuk satu pertanyaan yang sudah diputuskan. */
+	askAnswer: (id: string) => AskAnswer | undefined
 	applyAction: (call: ToolCall) => Promise<ToolOutcome>
 	applyActions: (calls: ToolCall[]) => void
 	/** Besaran perubahan satu aksi, kalau ia memang menyentuh naskah. */
@@ -286,6 +369,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const activeMetadata = useActiveDocumentMetadata()
 	const metadataRef = useRef(activeMetadata)
 	metadataRef.current = activeMetadata
+	/* Brief penelitian ikut di setiap permintaan, dan alat `update_brief` serta
+	 * jawaban kartu pertanyaan menulis ke sana - dibaca lewat ref karena
+	 * `runTurn` hidup lebih lama dari satu render. */
+	const briefApi = useBrief()
+	const briefRef = useRef(briefApi)
+	briefRef.current = briefApi
 	const applyActionsRef = useRef<((calls: ToolCall[]) => void) | null>(null)
 	const pendingAutoApplyRef = useRef<ToolCall[] | null>(null)
 	const messagesRef = useRef<ChatTurn[]>(messages)
@@ -506,6 +595,56 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		)
 		plan.next += 1
 	}
+	const tabText = (tabId: string): string | null => {
+		try {
+			const json = fragmentToJSON(appRef.current.doc, tabId)
+			const node = buildSchema().nodeFromJSON(json)
+			return node.textBetween(0, node.content.size, '\n', ' ')
+		} catch {
+			return null
+		}
+	}
+
+	/**
+	 * `update_brief`: tulisan AI ke brief, disaring aturan brief. Bukti sebuah
+	 * keputusan dicari di seluruh tab dokumen dan di semua yang pernah dikatakan
+	 * penulis - pesan dan jawaban kartu pertanyaannya.
+	 */
+	const runBriefUpdate = (call: ToolCall, history: readonly ChatTurn[]): string => {
+		const said = history
+			.filter((turn) => turn.role === 'user' || (turn.role === 'tool' && turn.answer))
+			.map((turn) => turn.content)
+		const manuscript = appRef.current.sessions.map((tab) => tabText(tab.id) ?? '')
+		const report = briefRef.current.applyAiUpdate(briefUpdateFromArgs(call.arguments), [
+			...manuscript,
+			...said,
+		])
+		if (!report) return 'No document is open, so nothing was recorded.'
+
+		const lines = [
+			report.applied.length > 0 && `Saved: ${report.applied.join(', ')}.`,
+			report.proposed.length > 0 &&
+				`Proposed to the writer, awaiting their approval: ${report.proposed.join(', ')}.`,
+			report.skipped.length > 0 && `Unchanged: ${report.skipped.join(', ')}.`,
+			report.rejected.length > 0 &&
+				`Rejected: ${report.rejected.map((entry) => `${entry.target} (${entry.reason})`).join('; ')}.`,
+		].filter(Boolean)
+		return lines.length > 0 ? lines.join('\n') : 'Nothing to record.'
+	}
+
+	/*
+	 * `request_brief` membuka panel Metadata sendiri - satu-satunya saat panel
+	 * itu muncul tanpa diminta, karena isian panjang memang tidak muat di kartu.
+	 */
+	const announceAsk = (call: ToolCall | undefined) => {
+		if (call?.name !== 'request_brief') return
+		const message = requestMessage(call.arguments)
+		briefRef.current.openPanel({
+			highlight: requestedBriefFields(call.arguments),
+			...(message ? { message } : {}),
+		})
+	}
+
 	const buildReadContext = (editor: Editor): ReadToolContext => {
 		const app = appRef.current
 		const template = templateRef.current
@@ -518,15 +657,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				label: sessionLabel(tab),
 				active: tab.id === app.activeId,
 			})),
-			readTab: (tabId) => {
-				try {
-					const json = fragmentToJSON(app.doc, tabId)
-					const node = buildSchema().nodeFromJSON(json)
-					return node.textBetween(0, node.content.size, '\n', ' ')
-				} catch {
-					return null
-				}
-			},
+			readTab: tabText,
 			comments: app.comments,
 			template: template ? { name: template.name, slug: template.slug, spec: template.spec } : null,
 			furniture: app.furniture,
@@ -629,6 +760,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						model: modelRef.current,
 						templateSlug: templateRef.current?.slug,
 						metadata: metadataRef.current ?? undefined,
+						brief: briefRef.current.docId ? briefRef.current.brief : undefined,
 					},
 					{
 						onDelta: (delta) => {
@@ -677,7 +809,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 			const visible = stripFallbackCalls(answer)
 			const reads = calls.filter((call) => isReadTool(call.name))
-			const writes = calls.filter((call) => !isReadTool(call.name))
+			const writes = calls.filter((call) => !isReadTool(call.name) && !isAskTool(call.name))
+			/*
+			 * Satu kartu pertanyaan dalam satu waktu. Pertanyaan tambahan dalam
+			 * putaran yang sama langsung dijawab "tidak ditampilkan" - setiap
+			 * panggilan alat wajib punya hasil sebelum model bicara lagi.
+			 */
+			const [ask, ...extraAsks] = calls.filter((call) => isAskTool(call.name))
+			const extraAskResults: ChatTurn[] = extraAsks.map((call) => ({
+				role: 'tool',
+				content: EXTRA_ASK_RESULT,
+				toolCallId: call.id,
+				taskId,
+			}))
 
 			// Spec template diambil di sini, selagi masih boleh menunggu.
 			await loadTemplateSpecs(writes)
@@ -695,6 +839,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 							}))
 						: undefined,
 				actions: writes.length > 0 ? writes : undefined,
+				asks: ask ? [ask] : undefined,
 			}
 
 			const editor = editorRef.current
@@ -709,8 +854,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					})
 				}
 				const finalTurn: ChatTurn = { ...assistant, parts: visibleParts(finishParts()), usage }
-				commit([...history, finalTurn])
+				commit([...history, finalTurn, ...extraAskResults])
 				if (writes.length > 0 && autoApplyRef.current) pendingAutoApplyRef.current = writes
+				announceAsk(ask)
 				return
 			}
 			const results: ChatTurn[] = []
@@ -727,6 +873,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						toolCallId: call.id,
 						taskId,
 					})
+					continue
+				}
+				if (call.name === 'update_brief') {
+					pushStep('Memperbarui metadata')
+					const content = runBriefUpdate(call, history)
+					patchRunningStep({ status: 'done', endedAt: Date.now(), detail: content })
+					results.push({ role: 'tool', content, toolCallId: call.id, taskId })
 					continue
 				}
 				if (call.name === 'think') {
@@ -794,7 +947,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			const step: ChatTurn = {
 				...assistant,
 				parts: roundParts,
-				intermediate: !visible && writes.length === 0 && roundParts === undefined,
+				intermediate: !visible && writes.length === 0 && !ask && roundParts === undefined,
+			}
+			/*
+			 * Bacaan di putaran yang sama tetap dijalankan - hasilnya harus ada
+			 * sebelum model bicara lagi - tapi putarannya berhenti di sini. Model
+			 * baru mendapat giliran lagi sesudah penulis menjawab.
+			 */
+			if (ask) {
+				commit([...history, step, ...results, ...extraAskResults])
+				if (writes.length > 0 && autoApplyRef.current) pendingAutoApplyRef.current = writes
+				announceAsk(ask)
+				return
 			}
 			commit([...history, step, ...results])
 			setPartsBoth([])
@@ -977,13 +1141,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		[appliedActionIds, addComment, setActivePanel, markRun, state.text, language.code],
 	)
 	const settleActions = useCallback(
-		(entries: { call: ToolCall; content: string }[]) => {
+		(entries: { call: ToolCall; content: string; answer?: AskAnswer }[]) => {
 			const current = messagesRef.current
 			const settled = new Set(current.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId))
 			const fresh = entries.filter((entry) => !settled.has(entry.call.id))
 			if (fresh.length === 0) return
+			const id = fresh[0].call.id
 			const owner = current.find(
-				(turn) => turn.role === 'assistant' && turn.actions?.some((action) => action.id === fresh[0].call.id),
+				(turn) =>
+					turn.role === 'assistant' &&
+					(turn.actions?.some((action) => action.id === id) || turn.asks?.some((call) => call.id === id)),
 			)
 			const taskId = owner?.taskId
 
@@ -992,6 +1159,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				content: entry.content,
 				toolCallId: entry.call.id,
 				taskId,
+				...(entry.answer ? { answer: entry.answer } : {}),
 			}))
 			const complete =
 				owner !== undefined && taskId !== undefined && actionsSettled([...current, ...results], owner)
@@ -1188,6 +1356,52 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		},
 		[settleActions],
 	)
+	/**
+	 * Jawaban penulis atas kartu pertanyaan. Jawaban yang ditujukan ke satu
+	 * isian brief dicatat sebagai keputusan penulis sendiri - ia yang memilihnya -
+	 * lalu gilirannya dilanjutkan dengan jawaban itu sebagai hasil alat.
+	 */
+	const answerAsk = useCallback(
+		(call: ToolCall, answer: AskAnswer) => {
+			const saved: BriefKey[] = []
+			let final = answer
+
+			if (!answer.skipped && call.name === 'ask_user') {
+				const questions = parseAskQuestions(call.arguments)
+				answer.responses?.forEach((response, index) => {
+					const key = questions[index]?.briefField
+					const value = responseValue(response)
+					if (!key || !value) return
+					briefRef.current.saveWriterAnswer(key, value)
+					saved.push(key)
+				})
+			}
+
+			if (call.name === 'request_brief') {
+				// Yang dikembalikan ke model adalah isi brief SAAT penulis selesai,
+				// bukan apa yang diminta - penulis boleh mengisi sebagian saja.
+				const { brief } = briefRef.current
+				const keys = requestedBriefFields(call.arguments)
+				if (!answer.skipped) {
+					final = {
+						filled: keys
+							.filter((key) => brief.entries[key])
+							.map((key) => ({
+								key,
+								label: briefField(key)?.label ?? key,
+								value: brief.entries[key]?.value ?? '',
+							})),
+						empty: keys.filter((key) => !brief.entries[key]),
+					}
+				}
+				briefRef.current.clearRequest()
+			}
+
+			settleActions([{ call, content: askResultText(call, final, saved), answer: final }])
+		},
+		[settleActions],
+	)
+
 	const startNewTopic = useCallback(() => {
 		setCurrentTaskId(newTaskId())
 	}, [])
@@ -1212,6 +1426,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			),
 		[messages],
 	)
+	const answers = useMemo(
+		() =>
+			new Map(
+				messages
+					.filter((turn) => turn.role === 'tool' && turn.toolCallId && turn.answer)
+					.map((turn) => [turn.toolCallId as string, turn.answer as AskAnswer]),
+			),
+		[messages],
+	)
+	// Selama model masih bekerja tidak ada yang menunggu penulis.
+	const pendingAsk = useMemo(
+		() => (streaming === null ? pendingAskOf(messages, currentTaskId) : null),
+		[messages, currentTaskId, streaming],
+	)
 
 	const value = useMemo<ChatContextValue>(
 		() => ({
@@ -1231,6 +1459,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			reset,
 			startNewTopic,
 			currentTaskId,
+			pendingAsk,
+			answerAsk,
+			askAnswer: (id: string) => answers.get(id),
 			applyAction,
 			applyActions,
 			actionWords: (id: string) => actionWords[id],
@@ -1257,6 +1488,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			reset,
 			startNewTopic,
 			currentTaskId,
+			pendingAsk,
+			answerAsk,
+			answers,
 			applyAction,
 			applyActions,
 			actionWords,

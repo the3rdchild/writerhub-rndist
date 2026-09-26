@@ -33,6 +33,7 @@ export default class DocumentsService extends BaseService {
 				templateSlug: row.templateSlug,
 				layout: row.layout,
 				metadata: row.metadata,
+				brief: row.brief,
 				tabCount: Number(row.tabCount),
 				updatedAt: row.updatedAt.getTime(),
 				createdAt: row.createdAt.getTime(),
@@ -60,7 +61,7 @@ export default class DocumentsService extends BaseService {
 				return this.error({ errors: body.error.issues.map((issue) => issue.message) })
 			}
 
-			const { content, emoji, language, layout, metadata, tabLayout, templateSlug, projectId, title } =
+			const { content, emoji, language, layout, metadata, brief, tabLayout, templateSlug, projectId, title } =
 				body.data
 			const identityId = await this.identityId()
 
@@ -89,6 +90,7 @@ export default class DocumentsService extends BaseService {
 				template_slug: template?.slug ?? null,
 				layout: layout ?? (template && templateDocumentLayout(template.spec)) ?? null,
 				metadata: metadata ?? null,
+				brief: brief ?? null,
 			})
 			if (!document) throw AppError.internalServerError('Gagal menyimpan dokumen')
 
@@ -187,6 +189,7 @@ export default class DocumentsService extends BaseService {
 			templateSlug: document.template_slug,
 			layout: document.layout,
 			metadata: document.metadata,
+			brief: document.brief,
 			tabCount: tabSummaries.length,
 			tabs: tabSummaries,
 			updatedAt: document.updated_at.getTime(),

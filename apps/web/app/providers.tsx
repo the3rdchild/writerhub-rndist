@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { type ReactNode, useState } from 'react'
 import { AnalysisDiffProvider } from '@/features/analysis/analysis-diff-context'
 import { PanelProvider } from '@/features/analysis/panel-context'
+import { BriefProvider } from '@/features/brief/brief-context'
 import { ChatProvider } from '@/features/chat/chat-context'
 import { CommentsProvider } from '@/features/comments/comments-context'
 import { DocumentProvider } from '@/features/document/document-context'
@@ -53,13 +54,18 @@ export function Providers({ children }: { children: ReactNode }) {
 									    jembatan antar-panel, bukan penyedia data. */}
 										<AnalysisDiffProvider>
 											<CommentsProvider>
-												<ChatProvider>
-													<DocumentImportProvider>
-														<ShareProvider>
-															<SearchProvider>{children}</SearchProvider>
-														</ShareProvider>
-													</DocumentImportProvider>
-												</ChatProvider>
+												{/* Brief penelitian dibaca chat di setiap permintaan dan
+												    ditulis alat-alatnya, jadi ia membungkus chat - dan ia
+												    butuh panel untuk membuka panel Metadata di sampingnya. */}
+												<BriefProvider>
+													<ChatProvider>
+														<DocumentImportProvider>
+															<ShareProvider>
+																<SearchProvider>{children}</SearchProvider>
+															</ShareProvider>
+														</DocumentImportProvider>
+													</ChatProvider>
+												</BriefProvider>
 											</CommentsProvider>
 										</AnalysisDiffProvider>
 									</PanelProvider>

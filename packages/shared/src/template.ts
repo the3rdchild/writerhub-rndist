@@ -4,6 +4,7 @@
  * prompt.
  */
 
+import type { BriefKey } from './brief'
 import type { PageFurniture, PageSetup } from './layout'
 import type { DocumentTypography } from './typography'
 
@@ -50,6 +51,18 @@ export interface TemplateMetadataField {
 	hint?: string
 	/** Contoh nilai, ditampilkan sebagai placeholder kolom isian. */
 	example?: string
+	/**
+	 * Data pribadi penulis - nama, NIM. Mengisi sampul, tapi tidak pernah
+	 * dikirim ke provider AI: ia tidak membantu model tetap di jalur
+	 * penelitiannya, dan tidak ada alasan membawanya keluar dari sini.
+	 */
+	personal?: boolean
+	/**
+	 * Isian brief penelitian yang mewakili isian ini sesudah dokumen lahir.
+	 * Nilainya menyemai brief sekali, lalu brief-lah yang dibaca AI dan
+	 * disunting di panel Metadata - bukan dua salinan yang bisa berselisih.
+	 */
+	briefKey?: BriefKey
 }
 
 /**

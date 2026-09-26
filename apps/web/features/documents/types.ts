@@ -1,5 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
-import type { DocumentMetadata, TabLayout, TabLayoutOverride } from '@writer-hub/shared'
+import type { DocumentMetadata, ResearchBrief, TabLayout, TabLayoutOverride } from '@writer-hub/shared'
 
 export interface DocumentSummary {
 	id: string
@@ -7,6 +7,8 @@ export interface DocumentSummary {
 	projectId: string
 	templateSlug: string | null
 	metadata: DocumentMetadata | null
+	/** Salinan server dari brief di Y.Doc; null untuk dokumen yang belum pernah punya. */
+	brief: ResearchBrief | null
 	layout: TabLayout | null
 	tabCount: number
 	updatedAt: number
@@ -44,6 +46,7 @@ export interface CreateDocumentInput {
 	tabLayout?: TabLayoutOverride | null
 	/** Isian metadata template; ikut mengganti teks contoh di kerangka. */
 	metadata?: DocumentMetadata
+	brief?: ResearchBrief
 }
 
 export interface UpdateDocumentInput {
@@ -51,6 +54,7 @@ export interface UpdateDocumentInput {
 	projectId?: string
 	layout?: TabLayout | null
 	metadata?: DocumentMetadata | null
+	brief?: ResearchBrief | null
 }
 
 export interface CreateTabInput {

@@ -5,6 +5,7 @@ import type {
 	ChatStreamPhase,
 	ChatUsage,
 	DocumentMetadata,
+	ResearchBrief,
 	ToolCall,
 } from '@writer-hub/shared'
 import { FALLBACK_TOOL_FENCE } from '@writer-hub/shared'
@@ -28,6 +29,7 @@ export async function streamChat(
 		model,
 		templateSlug,
 		metadata,
+		brief,
 	}: {
 		messages: ChatMessage[]
 		context?: ChatContext
@@ -36,6 +38,8 @@ export async function streamChat(
 		model?: string
 		templateSlug?: string
 		metadata?: DocumentMetadata
+		/** Brief penelitian dokumen aktif; lihat `researchBriefPrompt` di server. */
+		brief?: ResearchBrief
 	},
 	handlers: StreamChatHandlers | ((text: string) => void),
 	signal?: AbortSignal,
@@ -53,6 +57,7 @@ export async function streamChat(
 			...(model ? { model } : {}),
 			...(templateSlug ? { templateSlug } : {}),
 			...(metadata && Object.keys(metadata).length > 0 ? { metadata } : {}),
+			...(brief ? { brief } : {}),
 		}),
 		signal,
 	})

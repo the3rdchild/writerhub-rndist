@@ -1,8 +1,18 @@
+import { BRIEF_FIELDS, CHAPTER_STATUSES } from './brief'
 import { fontChoicePrompt } from './fonts'
 import { RESEARCH_TOOLS } from './research-tools'
 import { SKILL_TOOLS } from './skills'
 
-export type ToolKind = 'read' | 'write'
+/**
+ * `read` berjalan seketika dan hasilnya langsung kembali ke model. `write`
+ * menunggu penulis menerapkannya. `ask` menghentikan giliran sampai penulis
+ * menjawab - ia tidak menyentuh naskah, tapi juga tidak bisa dijawab siapa pun
+ * selain penulis.
+ */
+export type ToolKind = 'read' | 'write' | 'ask'
+
+/** Isian brief yang boleh disebut model - catatan penulis bukan salah satunya. */
+const AI_BRIEF_KEYS = BRIEF_FIELDS.filter((field) => !field.userOnly).map((field) => field.key)
 
 export interface ToolDefinition {
 	name: string
@@ -132,6 +142,114 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 				thought: { type: 'string', description: 'The reasoning, briefly.' },
 			},
 			required: ['thought'],
+		},
+	},
+
+	{
+		name: 'ask_user',
+		kind: 'ask',
+		description:
+			"Ask the writer 1-4 multiple-choice questions and wait for the answers. They appear in place of the writer's chat box; the writer can always type their own answer or skip. Use it only when the answer changes what you would write and cannot be read from the research brief or the document. Call it alone, as the last thing in your turn. The answers come back as this tool's result.",
+		parameters: {
+			type: 'object',
+			properties: {
+				questions: {
+					type: 'array',
+					description: '1 to 4 questions, asked together.',
+					items: {
+						type: 'object',
+						properties: {
+							question: {
+								type: 'string',
+								description: "The full question in the writer's language, ending with a question mark.",
+							},
+							header: {
+								type: 'string',
+								description:
+									'A very short label for the question (at most 12 characters), e.g. "Pendekatan".',
+							},
+							options: {
+								type: 'array',
+								description: '2 to 5 distinct choices. Do not add an "other" choice - it is always offered.',
+								items: {
+									type: 'object',
+									properties: {
+										label: { type: 'string', description: 'The choice itself, 1-5 words.' },
+										description: { type: 'string', description: 'What choosing it means, one line.' },
+									},
+									required: ['label'],
+								},
+							},
+							multi_select: { type: 'boolean', description: 'Allow more than one choice.' },
+							brief_field: {
+								type: 'string',
+								enum: AI_BRIEF_KEYS,
+								description:
+									"When the answer is a fact for the research brief, name its field and the answer is saved there as the writer's own decision.",
+							},
+						},
+						required: ['question', 'options'],
+					},
+				},
+			},
+			required: ['questions'],
+		},
+	},
+	{
+		name: 'request_brief',
+		kind: 'ask',
+		description:
+			'Ask the writer to fill in research brief fields that need their own words - a title, research questions, objectives, focus - by opening the Metadata panel beside the chat with those fields highlighted. Use it instead of ask_user when the answer is long free text. Waits until the writer is done; the filled values come back as its result.',
+		parameters: {
+			type: 'object',
+			properties: {
+				fields: { type: 'array', items: { type: 'string', enum: AI_BRIEF_KEYS } },
+				message: {
+					type: 'string',
+					description: "One short sentence in the writer's language saying why you need them.",
+				},
+			},
+			required: ['fields'],
+		},
+	},
+	{
+		name: 'update_brief',
+		kind: 'read',
+		description:
+			"Record what you learned about this research in the brief shown in the Metadata panel. A decision field is only recorded with evidence - an exact quote from the document or from the writer's own words; without it the update is rejected and you should ask instead. Derived fields (chapter summaries, keywords) you may refresh freely. A field the writer filled becomes a proposal they approve. The result lists what was saved, proposed and rejected.",
+		parameters: {
+			type: 'object',
+			properties: {
+				fields: {
+					type: 'array',
+					items: {
+						type: 'object',
+						properties: {
+							key: { type: 'string', enum: AI_BRIEF_KEYS },
+							value: { type: 'string' },
+							evidence: {
+								type: 'string',
+								description:
+									"Exact quote from the document or from the writer's messages that states this. Required for decisions.",
+							},
+						},
+						required: ['key', 'value'],
+					},
+				},
+				chapters: {
+					type: 'array',
+					description: 'Chapter summaries, one entry per chapter, titled exactly as its heading.',
+					items: {
+						type: 'object',
+						properties: {
+							title: { type: 'string', description: 'The chapter heading, e.g. "BAB I Pendahuluan".' },
+							summary: { type: 'string', description: 'What the chapter covers, 1-3 sentences.' },
+							status: { type: 'string', enum: CHAPTER_STATUSES },
+						},
+						required: ['title', 'summary'],
+					},
+				},
+			},
 		},
 	},
 
@@ -870,6 +988,10 @@ export function findTool(name: string): ToolDefinition | undefined {
 
 export function isReadTool(name: string): boolean {
 	return BY_NAME.get(name)?.kind === 'read'
+}
+
+export function isAskTool(name: string): boolean {
+	return BY_NAME.get(name)?.kind === 'ask'
 }
 
 export interface ToolCall {

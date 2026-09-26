@@ -12,6 +12,7 @@ import {
 	useState,
 } from 'react'
 import { IndexeddbPersistence } from 'y-indexeddb'
+import { briefSyncKey, readDocBrief, writeDocBrief } from '@/features/brief/brief-ydoc'
 import { backupComments, restoreComments } from '@/features/comments/comment-backup'
 import {
 	createDocument,
@@ -61,6 +62,8 @@ export interface SyncLinkage {
 	lastDocTitle?: string
 	/** Kunci `layoutSyncKey` dari tata letak dasar dokumen yang terakhir terkirim. */
 	lastDocLayoutKey?: string
+	/** Kunci `briefSyncKey` dari brief penelitian yang terakhir terkirim. */
+	lastDocBriefKey?: string
 }
 
 interface SyncContextValue {
@@ -248,10 +251,19 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 					)
 					if (!savedLayout) return false
 				}
+				const docBrief = parentId ? readDocBrief(doc, parentId) : null
+				const docBriefKey = briefSyncKey(docBrief)
+				if (parentId && docBriefKey !== (linkage.lastDocBriefKey ?? '')) {
+					const savedBrief = await write(updateDocument(linkage.documentId, { brief: docBrief }), () =>
+						unlinkDocument(linkage.documentId),
+					)
+					if (!savedBrief) return false
+				}
 				const synced: SyncLinkage = {
 					...linkage,
 					lastSyncedAt: Date.now(),
 					lastDocLayoutKey: docLayoutKey,
+					lastDocBriefKey: docBriefKey,
 					...(docTitle !== undefined ? { lastDocTitle: docTitle } : {}),
 				}
 				setStore((current) => ({
@@ -461,6 +473,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
 			setStatus(tabId, 'saving')
 			try {
+				const docBrief = parentId ? readDocBrief(doc, parentId) : null
 				const created = await createDocument({
 					title: docTitle,
 					content: serializeTab(tabId),
@@ -468,6 +481,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 					language: meta.language,
 					layout: parentId ? readDocLayout(doc, parentId) : null,
 					tabLayout: readTabLayoutOverride(doc, tabId),
+					...(docBrief ? { brief: docBrief } : {}),
 				})
 				const serverTabId = created.tabs[0]?.id
 				if (!serverTabId) throw new Error('Respons dokumen tanpa tab')
@@ -481,6 +495,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 							lastSyncedAt: Date.now(),
 							lastDocTitle: docTitle,
 							lastDocLayoutKey: layoutSyncKey(parentId ? readDocLayout(doc, parentId) : null),
+							lastDocBriefKey: briefSyncKey(docBrief),
 						},
 					},
 				}))
@@ -515,6 +530,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				firstTabId = readTabs(doc, docId)[0]?.id ?? ''
 				if (!firstTabId) return
 				applyDocLayout(doc, docId, serverDoc.layout)
+				writeDocBrief(doc, docId, serverDoc.brief ?? null, SYNC_ORIGIN)
 				pairs.push({ localTabId: firstTabId, serverTabId: serverDoc.tabs[0].id })
 				for (const serverTab of serverDoc.tabs.slice(1)) {
 					pairs.push({
@@ -547,6 +563,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 						lastSyncedAt: now,
 						lastDocTitle: serverDoc.title,
 						lastDocLayoutKey: layoutSyncKey(serverDoc.layout),
+						lastDocBriefKey: briefSyncKey(serverDoc.brief ?? null),
 					}
 				}
 				return { ...current, linkage: next }
@@ -600,6 +617,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
 					setStatus(tabId, 'saving')
 					if (!parentId) {
+						const docBrief = readDocBrief(doc, docId)
 						const created = await createDocument({
 							title: dok.title,
 							content: serializeTab(tabId),
@@ -607,6 +625,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 							language: meta.language,
 							layout: readDocLayout(doc, docId),
 							tabLayout: readTabLayoutOverride(doc, tabId),
+							...(docBrief ? { brief: docBrief } : {}),
 						})
 						const serverTabId = created.tabs[0]?.id
 						if (!serverTabId) throw new Error('Respons dokumen tanpa tab')
@@ -621,6 +640,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 									lastSyncedAt: Date.now(),
 									lastDocTitle: dok.title,
 									lastDocLayoutKey: layoutSyncKey(readDocLayout(doc, docId)),
+									lastDocBriefKey: briefSyncKey(docBrief),
 								},
 							},
 						}))

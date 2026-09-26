@@ -300,6 +300,8 @@ export function readToolLabel(editor: Editor, call: ToolCall): string {
 		}
 		case 'get_comments':
 			return 'Membaca komentar terbuka'
+		case 'update_brief':
+			return 'Memperbarui metadata'
 		default:
 			return `Menjalankan ${call.name}`
 	}
@@ -594,6 +596,14 @@ export function describeToolCall(call: ToolCall): string {
 			return `Rename the document to “${String(call.arguments.title ?? '').slice(0, 40)}”`
 		case 'rename_tab':
 			return `Rename ${call.arguments.tab_id ? `tab ${String(call.arguments.tab_id).slice(0, 12)}` : 'this tab'} to “${String(call.arguments.title ?? '').slice(0, 40)}”`
+		/* Pertanyaan tidak pernah menjadi kartu aksi - chat menggambarnya sendiri -
+		 * tapi ringkasan langkah dan riwayat tetap butuh kalimatnya. */
+		case 'ask_user': {
+			const count = Array.isArray(call.arguments.questions) ? call.arguments.questions.length : 0
+			return `Ask the writer ${count === 1 ? 'a question' : `${count} questions`}`
+		}
+		case 'request_brief':
+			return 'Ask the writer to fill in the research brief'
 		default:
 			return call.name
 	}
