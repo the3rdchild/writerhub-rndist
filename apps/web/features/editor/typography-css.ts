@@ -57,6 +57,9 @@ export function typographyRules(typography: DocumentTypography): string {
 		// milik badan naskah tidak boleh bocor ke paragraf di dalam sel tabel,
 		// kutipan, atau daftar.
 		rule('.document-body > p', paragraph),
+		// Baris rata tengah atau kanan (sampul, tanda tangan) tidak membawa inden
+		// baris pertama badan naskah - kalau membawa, barisnya bergeser dari tengah.
+		".document-body > p[style*='text-align: center'], .document-body > p[style*='text-align: right'] { text-indent: 0; }",
 		...HEADING_LEVELS.map((level) => rule(headingSelector(level), resolveHeadingStyle(typography, level))),
 	]
 

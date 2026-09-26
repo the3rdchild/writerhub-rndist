@@ -731,3 +731,20 @@ describe('kolom tak-sama dan pindah kolom pulang ke DOCX (W3/W4)', () => {
 		expect((columns.widths as number[])[0] / (columns.widths as number[])[1]).toBeCloseTo(130 / 448, 1)
 	})
 })
+
+/* Sampul dan halaman pengesahan baku memakai tabel polos; di Word ia harus
+ * tetap tanpa garis, bukan mendapat kisi bawaan docx. */
+describe('tabel polos di DOCX', () => {
+	test('borderStyle none menjadi garis "none" di setiap sisi', async () => {
+		const { FRONT_MATTER, frontMatterNodes } = await import('@writer-hub/shared')
+		const content = frontMatterNodes('approval', FRONT_MATTER.skripsi) as JSONContent[]
+		const doc = buildSchema().nodeFromJSON({ type: 'doc', content })
+		const blob = await exportDocx(doc, { title: 'uji', geometry: pageGeometry(DEFAULT_PAGE_SETUP) })
+		const xml = strFromU8(unzipSync(new Uint8Array(await blob.arrayBuffer()))['word/document.xml'])
+		const borders = /<w:tblBorders>([\s\S]*?)<\/w:tblBorders>/.exec(xml)?.[1] ?? ''
+		for (const side of ['top', 'bottom', 'left', 'right', 'insideH', 'insideV']) {
+			expect(borders).toMatch(new RegExp(`<w:${side} w:val="none"`))
+		}
+		expect(xml).toContain('HALAMAN PENGESAHAN')
+	})
+})

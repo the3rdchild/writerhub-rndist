@@ -8,6 +8,7 @@ import type {
 	PageNumbering,
 	TemplateSpec,
 	ToolCall,
+	WorkKind,
 } from '@writer-hub/shared'
 import type { PanelId } from '@/features/analysis/panel-context'
 import { COMMENT_MARK } from '@/features/comments/comment-mark'
@@ -31,6 +32,7 @@ import { editorPlainText } from '@/features/editor/text-content'
 import { clampedAttrs, TOC_BLOCK, type TocBlockAttrs, type TocListKind } from '@/features/editor/toc-block'
 import type { CommentThread } from '@/features/sessions/types'
 import { countWords } from '@/lib/utils'
+import { insertFrontMatter } from './front-matter-insert'
 import { blockSummary, htmlCandidates } from './html-block-candidates'
 import { setBlockStyle } from './paragraph-style'
 
@@ -448,6 +450,12 @@ export interface WriteToolContext {
 	) => ToolOutcome
 	/** Halaman pertama memakai perabotnya sendiri (kosong) - sampul tanpa nomor. */
 	setFirstPageSeparate: (separate: boolean) => ToolOutcome
+	/**
+	 * Jenis karya dan isian sampul dokumen aktif: identitas template, judul dan
+	 * jenis karya dari brief. Dibaca saat alatnya dijalankan, bukan saat
+	 * diusulkan - penulis boleh melengkapi metadata sebelum menerapkannya.
+	 */
+	frontMatter: () => { kind: WorkKind; values: Record<string, string> }
 }
 
 export interface ToolOutcome {
@@ -606,6 +614,12 @@ export function describeToolCall(call: ToolCall): string {
 		}
 		case 'request_brief':
 			return 'Ask the writer to fill in the research brief'
+		case 'insert_template_part':
+			return call.arguments.part === 'cover'
+				? 'Insert the cover page'
+				: call.arguments.part === 'approval'
+					? 'Insert the approval page'
+					: 'Insert the cover and approval pages'
 		default:
 			return call.name
 	}
@@ -955,6 +969,19 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			}
 			insertChain(editor).setSectionBreak(attrs).run()
 			return { ok: true, message: 'Section break inserted.' }
+		}
+
+		case 'insert_template_part': {
+			const { kind: fallback, values } = context.frontMatter()
+			const kind = WORK_KINDS.includes(call.arguments.kind as WorkKind)
+				? (call.arguments.kind as WorkKind)
+				: fallback
+			const request =
+				call.arguments.part === 'cover' || call.arguments.part === 'approval' ? call.arguments.part : 'both'
+			const { tr, schema } = editor.state
+			const outcome = insertFrontMatter(tr, schema, request, kind, values)
+			if (outcome.ok) editor.view.dispatch(tr)
+			return outcome
 		}
 
 		case 'insert_toc': {
@@ -1429,6 +1456,8 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			return { ok: false, message: `Unknown tool: ${call.name}` }
 	}
 }
+
+const WORK_KINDS: readonly WorkKind[] = ['skripsi', 'tesis', 'disertasi', 'proposal']
 
 const TOC_TITLE_LABEL: Record<TocListKind, string> = {
 	isi: 'Table of contents',

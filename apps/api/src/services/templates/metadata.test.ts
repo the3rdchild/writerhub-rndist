@@ -107,3 +107,30 @@ describe('applyTemplateMetadata', () => {
 		expect(applyTemplateMetadata(source, fields, {})).toBe(source)
 	})
 })
+
+test('teks contoh versi kapital diganti nilai yang dikapitalkan', () => {
+	const content = {
+		type: 'doc',
+		content: [
+			{ type: 'paragraph', content: [{ type: 'text', text: '[NAMA PENYUSUN]' }] },
+			{ type: 'paragraph', content: [{ type: 'text', text: 'PROGRAM STUDI [PROGRAM STUDI]' }] },
+			{ type: 'paragraph', content: [{ type: 'text', text: 'Ketua Program Studi [Program Studi]' }] },
+		],
+	}
+	const fields = [
+		{ key: 'nama', label: 'Nama', placeholder: '[Nama Penyusun]' },
+		{ key: 'prodi', label: 'Prodi', placeholder: '[Program Studi]' },
+	]
+	expect(
+		JSON.stringify(applyTemplateMetadata(content, fields, { nama: 'Budi Santoso', prodi: 'Teknik Elektro' })),
+	).toBe(
+		JSON.stringify({
+			type: 'doc',
+			content: [
+				{ type: 'paragraph', content: [{ type: 'text', text: 'BUDI SANTOSO' }] },
+				{ type: 'paragraph', content: [{ type: 'text', text: 'PROGRAM STUDI TEKNIK ELEKTRO' }] },
+				{ type: 'paragraph', content: [{ type: 'text', text: 'Ketua Program Studi Teknik Elektro' }] },
+			],
+		}),
+	)
+})

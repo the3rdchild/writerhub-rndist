@@ -30,6 +30,8 @@ const CSS_LINE_TO_WORD = 1 / 1.15
 
 type BorderStyleValue = 'single' | 'dashed' | 'dotted' | 'double'
 
+const NO_BORDER = { style: 'none', size: 0, color: 'auto' } as const
+
 const BORDER_STYLES: Record<string, BorderStyleValue> = {
 	solid: 'single',
 	dashed: 'dashed',
@@ -444,18 +446,31 @@ export async function exportDocx(
 					: { size: 100, type: WidthType.PERCENTAGE },
 			columnWidths: widths.map(px),
 			...(indentLeft > 0 ? { indent: { size: px(indentLeft), type: WidthType.DXA } } : {}),
-			...(tableBorder
+			/* Tabel polos (sampul, blok tanda tangan) harus tetap polos di Word:
+			 * tanpa penanda ini docx memberi garis bawaan ke setiap tabel. */
+			...(node.attrs.borderStyle === 'none'
 				? {
 						borders: {
-							top: tableBorder,
-							bottom: tableBorder,
-							left: tableBorder,
-							right: tableBorder,
-							insideHorizontal: tableBorder,
-							insideVertical: tableBorder,
+							top: NO_BORDER,
+							bottom: NO_BORDER,
+							left: NO_BORDER,
+							right: NO_BORDER,
+							insideHorizontal: NO_BORDER,
+							insideVertical: NO_BORDER,
 						},
 					}
-				: {}),
+				: tableBorder
+					? {
+							borders: {
+								top: tableBorder,
+								bottom: tableBorder,
+								left: tableBorder,
+								right: tableBorder,
+								insideHorizontal: tableBorder,
+								insideVertical: tableBorder,
+							},
+						}
+					: {}),
 		})
 	}
 

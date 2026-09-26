@@ -621,6 +621,27 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		},
 	},
 	{
+		name: 'insert_template_part',
+		kind: 'write',
+		description:
+			"Insert the standard cover page and/or approval page (Halaman Pengesahan) of an Indonesian skripsi, tesis, disertasi or research proposal, one fixed page each, at the start of the document. They are filled from the writer's identity data; anything missing stays a [bracketed] placeholder for the writer. ALWAYS use this for those pages - never design a cover with insert_html_block and never type one out yourself. Does nothing for a page the document already has.",
+		parameters: {
+			type: 'object',
+			properties: {
+				part: {
+					type: 'string',
+					enum: ['both', 'cover', 'approval'],
+					description: 'Which page(s). Defaults to both.',
+				},
+				kind: {
+					type: 'string',
+					enum: ['skripsi', 'tesis', 'disertasi', 'proposal'],
+					description: "Type of work. Defaults to the document's template, then to the research brief.",
+				},
+			},
+		},
+	},
+	{
 		name: 'insert_html_block',
 		kind: 'write',
 		description: `Insert a self-contained HTML design block - use it for flyers, pamphlets, posters, banners and other colourful print pieces whose layout cannot be expressed as paragraphs and headings (gradients, absolute positioning, overlapping elements). It is also the right tool for the pictorial pages of a book: the front cover, a chapter title page, an illustration for a scene, the back cover with its blurb. Do NOT use it for ordinary prose - including the narrative itself: the block is flattened to an image on DOCX export, so text inside it is not searchable or editable in Word. The HTML is rendered in a locked-down frame: your scripts never run and NOTHING loads from a URL - no icon library, no remote image, no font file - and all CSS must be inline or in a <style> tag. Draw icons, logos, badges, dividers and decorative shapes as inline <svg> elements: markup is not a network request, so they render on screen, stay vector in the printed PDF, and survive the DOCX flattening. Write the path data yourself instead of reaching for an icon set, and do not settle for emoji standing in for icons. Prefer inline <svg> over <img src="data:image/svg+xml,...">, which shows on screen but is unreliable in the DOCX export path. Raster images must still be data: URIs. Design these pieces ambitiously - real typographic hierarchy, layered shapes, gradients and custom SVG iconography all work here. If the design contains a diagram - an architecture, a flow, a timeline, a swimlane, a layer stack, a tree - do NOT draw it yourself. Put a placeholder comment where it belongs, "<!--diagram:tren-->" with an id of your choosing, and describe it in the "diagrams" argument. The drawing sub-agent fills it in before the block is inserted, so the markup never has to carry hundreds of lines of coordinates. It applies to the diagram only: the rest of the piece stays as ambitious as it needs to be. Do NOT hand-draw a chart with bars or plotted points here: their geometry has nothing checking it, and a chart whose bars do not match its numbers is wrong data rather than a rough draft - use a table instead. Pass only the markup that belongs inside <body>. Call get_page_setup first to learn the exact pixel canvas you are designing into. ${fontChoicePrompt()}`,

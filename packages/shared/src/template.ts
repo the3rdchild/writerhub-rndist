@@ -5,6 +5,7 @@
  */
 
 import type { BriefKey } from './brief'
+import type { WorkKind } from './front-matter'
 import type { PageFurniture, PageSetup } from './layout'
 import type { DocumentTypography } from './typography'
 
@@ -106,6 +107,12 @@ export interface TemplateSpec {
 	 * menampilkan tombol metadata sama sekali.
 	 */
 	metadataFields?: TemplateMetadataField[]
+	/**
+	 * Karya akademik yang membuka dengan halaman sampul dan halaman pengesahan
+	 * baku (`front-matter.ts`). Kompilasi template menaruh keduanya di depan
+	 * kerangka, dan alat `insert_template_part` memakai bentuk yang sama.
+	 */
+	frontMatter?: WorkKind
 	/** Catatan jujur untuk kartu galeri: bagian format yang belum otomatis. */
 	caveats?: string[]
 }

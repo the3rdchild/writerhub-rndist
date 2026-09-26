@@ -18,6 +18,8 @@ import {
 	isDelegation,
 	isReadTool,
 	type ToolCall,
+	type WorkKind,
+	workKindOf,
 } from '@writer-hub/shared'
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import { usePanels } from '@/features/analysis/panel-context'
@@ -735,6 +737,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			: { ok: true, message: `${slot === 'header' ? 'Header' : 'Footer'} cleared${where}.` }
 	}
 
+	/*
+	 * Isian sampul: identitas dari metadata template (nama, NIM, pembimbing),
+	 * judul dan jenis karya dari brief. Jenis karya: template dulu - dokumen
+	 * skripsi tetap skripsi - lalu brief, lalu skripsi.
+	 */
+	const frontMatterSource = (): { kind: WorkKind; values: Record<string, string> } => {
+		const brief = briefRef.current.snapshot()
+		const identity = metadataRef.current ?? {}
+		const kind =
+			templateRef.current?.spec.frontMatter ?? workKindOf(brief.entries.jenisKarya?.value) ?? 'skripsi'
+		const title = brief.entries.judul?.value ?? identity.judul ?? ''
+		return { kind, values: { ...identity, ...(title ? { judul: title } : {}) } }
+	}
+
 	const setFirstPageSeparate = (separate: boolean): ToolOutcome => {
 		const app = appRef.current
 		const tabId = app.activeId
@@ -1131,6 +1147,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					renameTab: renameTabById,
 					setFurnitureLine,
 					setFirstPageSeparate,
+					frontMatter: frontMatterSource,
 				},
 				call,
 			)
