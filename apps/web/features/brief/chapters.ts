@@ -7,7 +7,7 @@
  */
 
 import type { JSONContent } from '@tiptap/core'
-import { chapterKey, textFingerprint } from '@writer-hub/shared'
+import { chapterKey, type ResearchBrief, textFingerprint } from '@writer-hub/shared'
 
 export interface HeadingSection {
 	title: string
@@ -71,4 +71,35 @@ export function topLevelHeadings(tabs: readonly JSONContent[]): { title: string;
 		}
 	}
 	return found
+}
+
+/** Panjang isi tiap bab, menurut judulnya - nol berarti babnya baru judul. */
+export function chapterTextLengths(tabs: readonly JSONContent[]): Map<string, number> {
+	const lengths = new Map<string, number>()
+	for (const tab of tabs) {
+		for (const section of headingSections(tab)) {
+			const key = chapterKey(section.title)
+			if (!lengths.has(key)) lengths.set(key, section.text.trim().length)
+		}
+	}
+	return lengths
+}
+
+/**
+ * Status bab seperti yang dilihat model: "belum" untuk bab yang di naskah
+ * sudah berisi dikirim sebagai "draf". Rencana bab dicatat di awal lalu
+ * jarang diperbarui, dan model yang membaca "BAB II [belum]" pernah
+ * melaporkan seluruh bab masih kosong padahal naskahnya sudah lengkap.
+ */
+export function withWrittenChapters(
+	brief: ResearchBrief,
+	lengths: ReadonlyMap<string, number>,
+): ResearchBrief {
+	let changed = false
+	const chapters = brief.chapters.map((chapter) => {
+		if (chapter.status !== 'belum' || !(lengths.get(chapterKey(chapter.title)) ?? 0)) return chapter
+		changed = true
+		return { ...chapter, status: 'draf' as const }
+	})
+	return changed ? { ...brief, chapters } : brief
 }

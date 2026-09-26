@@ -5,6 +5,7 @@ import {
 	type BriefEntry,
 	fallbackToolPrompt,
 	isBriefEmpty,
+	isDelegation,
 	missingDecisions,
 	type StyleMemory,
 } from '@writer-hub/shared'
@@ -69,7 +70,9 @@ export const TOOL_GUIDANCE = [
 	'justified text. Put the heading ("Daftar Isi") where it belongs - with',
 	'insert_content after_heading when the document already has other parts -',
 	'then call insert_toc: it goes directly under that heading, wherever the',
-	'cursor is.',
+	'cursor is. Front matter written after the chapters - Kata Pengantar,',
+	'Abstrak, Daftar Isi - still belongs before BAB I: place it with',
+	'insert_content after_heading (the part it follows), never position "end".',
 	'When the writer asks for a document of a known kind - an Indonesian',
 	'skripsi, tesis or disertasi, a research proposal, a business report, a',
 	'conference paper - call apply_template_format FIRST, before writing any',
@@ -369,6 +372,7 @@ export function researchBriefPrompt(brief: ResearchBrief | undefined): string {
 	}
 
 	const research: string[] = []
+	const handedOver: string[] = []
 	let notes = ''
 	for (const field of BRIEF_FIELDS) {
 		if (field.tab !== 'research') continue
@@ -376,6 +380,13 @@ export function researchBriefPrompt(brief: ResearchBrief | undefined): string {
 		if (!entry) continue
 		if (field.key === 'catatan') {
 			notes = briefValue(entry.value)
+			continue
+		}
+		/* "Buatkan saya" di isian rumusan masalah bukan rumusan masalahnya -
+		 * penulis menyerahkannya. Dibaca sebagai fakta, model melaporkan bahwa
+		 * naskahnya "masih bertuliskan Buatkan saya". */
+		if (isDelegation(entry.value)) {
+			handedOver.push(field.prompt)
 			continue
 		}
 		research.push(`- ${field.prompt}: ${briefValue(entry.value)}${sourceNote(entry)}`)
@@ -394,6 +405,11 @@ export function researchBriefPrompt(brief: ResearchBrief | undefined): string {
 		)
 	}
 	if (notes) sections.push(`The writer's own notes for you about this research: ${notes}`)
+	if (handedOver.length > 0) {
+		sections.push(
+			`The writer left these for you to decide: ${handedOver.join(', ')}. Read the document first - you may already have written them - and record what is there with update_brief; do not ask for them again.`,
+		)
+	}
 
 	if (brief.chapters.length > 0) {
 		const chapters = brief.chapters
@@ -403,7 +419,12 @@ export function researchBriefPrompt(brief: ResearchBrief | undefined): string {
 					`- ${chapter.title} [${chapter.status}]${chapter.summary ? `: ${briefValue(chapter.summary, BRIEF_SUMMARY_LIMIT)}` : ''}`,
 			)
 		sections.push(
-			['Chapter plan (status: belum = not started, draf = drafted, selesai = done):', ...chapters].join('\n'),
+			[
+				'Chapter plan from the brief (status: belum = not started, draf = drafted, selesai = done).',
+				'It can lag behind the document: the document is the authority on what is',
+				'written - read it before telling the writer a chapter is empty.',
+				...chapters,
+			].join('\n'),
 		)
 	}
 

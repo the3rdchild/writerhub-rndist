@@ -201,3 +201,23 @@ test('sumber bukti dari jawaban hanya kata-kata penulis, bukan pertanyaan model'
 	])
 	expect(answerWords({ skipped: true })).toEqual([])
 })
+
+test('"Buatkan saya" tidak disimpan sebagai rumusan masalah; model diberi tahu untuk memutuskan', () => {
+	const question: AskQuestion = {
+		question: 'Apa rumusan masalah Anda?',
+		header: 'Rumusan',
+		options: [],
+		multiSelect: false,
+		briefField: 'rumusanMasalah',
+	}
+	expect(briefAnswerValue(question, { question: 'q', choices: [], other: 'Buatkan saya' })).toBeNull()
+	const text = askResultText(
+		call('ask_user'),
+		{ responses: [{ question: 'Apa rumusan masalah Anda?', choices: [], other: 'Buatkan saya' }] },
+		[],
+		[],
+		['rumusanMasalah'],
+	)
+	expect(text).toContain('The writer left these to you: Research questions.')
+	expect(text).toContain('Do not ask for them again')
+})

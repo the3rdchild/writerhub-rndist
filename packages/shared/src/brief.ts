@@ -877,3 +877,19 @@ export function textFingerprint(text: string): string {
 	}
 	return (hash >>> 0).toString(36)
 }
+
+/*
+ * "Buatkan saya", "terserah kamu", "AI saja": jawaban yang menyerahkan
+ * keputusan, bukan keputusan itu sendiri. Dulu tersimpan apa adanya sebagai
+ * rumusan masalah, lalu dibaca model di setiap giliran sebagai fakta - dan
+ * model melaporkan bahwa rumusan masalahnya "masih bertuliskan Buatkan saya"
+ * padahal naskahnya sudah lengkap.
+ */
+const DELEGATION =
+	/^(tolong\s+|silakan\s+|coba\s+)?(buat(kan|in)?|isi(kan|in)?|tulis(kan|in)?|tentu(kan|in)|pilih(kan|in)?|kamu|anda|ai|terserah|bebas|serah(kan)?|you decide|up to you|dari (kamu|ai|anda))\b/i
+
+export function isDelegation(value: string): boolean {
+	const text = value.trim()
+	if (!text || text.split(/\s+/).length > 6) return false
+	return DELEGATION.test(text)
+}

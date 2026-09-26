@@ -13,6 +13,7 @@ import {
 	type BriefKey,
 	briefField,
 	isBriefKey,
+	isDelegation,
 	type ToolCall,
 } from '@writer-hub/shared'
 
@@ -174,7 +175,7 @@ export function responseValue(response: AskResponse): string {
  */
 export function briefAnswerValue(question: AskQuestion, response: AskResponse): string | null {
 	const field = question.briefField ? briefField(question.briefField) : undefined
-	if (!field) return null
+	if (!field || isDelegation(responseValue(response))) return null
 	if (!field.options) return responseValue(response) || null
 
 	if (response.choices.length === 1 && !response.other) return canonicalOption(field, response.choices[0])
@@ -192,6 +193,7 @@ export function askResultText(
 	answer: AskAnswer,
 	saved: readonly BriefKey[] = [],
 	unfit: readonly BriefKey[] = [],
+	delegated: readonly BriefKey[] = [],
 ): string {
 	if (answer.skipped) return SKIPPED
 
@@ -224,5 +226,9 @@ export function askResultText(
 		unfit.length > 0
 			? `Not saved to the brief - the answer does not fit the field: ${unfit.map(label).join(', ')}.`
 			: ''
-	return ['The writer answered:', ...lines, note, skipped].filter(Boolean).join('\n')
+	const handedOver =
+		delegated.length > 0
+			? `The writer left these to you: ${delegated.map(label).join(', ')}. Decide them yourself, write them into the document, then record them with update_brief quoting what you wrote. Do not ask for them again.`
+			: ''
+	return ['The writer answered:', ...lines, note, skipped, handedOver].filter(Boolean).join('\n')
 }

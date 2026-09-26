@@ -15,6 +15,7 @@ import {
 	type ChatUsage,
 	DEFAULT_CHAT_MODEL,
 	isAskTool,
+	isDelegation,
 	isReadTool,
 	type ToolCall,
 } from '@writer-hub/shared'
@@ -1371,6 +1372,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		(call: ToolCall, answer: AskAnswer) => {
 			const saved: BriefKey[] = []
 			const unfit: BriefKey[] = []
+			const delegated: BriefKey[] = []
 			let final = answer
 
 			if (!answer.skipped && call.name === 'ask_user') {
@@ -1378,6 +1380,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				answer.responses?.forEach((response, index) => {
 					const question = questions[index]
 					if (!question?.briefField || !responseValue(response)) return
+					if (isDelegation(responseValue(response))) {
+						delegated.push(question.briefField)
+						return
+					}
 					const value = briefAnswerValue(question, response)
 					if (value === null) {
 						unfit.push(question.briefField)
@@ -1408,7 +1414,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				briefRef.current.clearRequest()
 			}
 
-			settleActions([{ call, content: askResultText(call, final, saved, unfit), answer: final }])
+			settleActions([{ call, content: askResultText(call, final, saved, unfit, delegated), answer: final }])
 		},
 		[settleActions],
 	)

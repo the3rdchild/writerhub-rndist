@@ -756,9 +756,33 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 				return { ok: true, message: `Inserted at the end of "${list[at].text}".` }
 			}
 
-			const chain = insertChain(editor)
-			if (call.arguments.position === 'end') chain.setTextSelection(editor.state.doc.content.size)
-			chain.insertContent(toEditorContent(markdown)).run()
+			/*
+			 * "Akhir dokumen" adalah sesudah blok terakhir, bukan kursor di teks
+			 * terakhir: kalau naskah berakhir dengan daftar bernomor, kursor itu
+			 * ada di butir terakhirnya, dan KATA PENGANTAR yang disisipkan di sana
+			 * menjadi butir daftar di bawah Saran BAB V. Sisipan berjudul di
+			 * dalam daftar atau kutipan keluar ke sesudah bloknya, dengan alasan
+			 * yang sama.
+			 */
+			const html = toEditorContent(markdown)
+			if (call.arguments.position === 'end') {
+				// Paragraf kosong penutup dokumen tetap penutup - sisipan jatuh
+				// sebelumnya, bukan meninggalkannya sebagai celah di antara bagian.
+				const { doc } = editor.state
+				const last = doc.lastChild
+				const trailingEmpty = last?.type.name === 'paragraph' && last.content.size === 0
+				editor
+					.chain()
+					.insertContentAt(doc.content.size - (trailingEmpty ? last.nodeSize : 0), html)
+					.run()
+				return { ok: true, message: 'Inserted at the end of the document.' }
+			}
+			const { $from } = editor.state.selection
+			if ($from.depth > 1 && /^\s*#{1,6}\s/m.test(markdown)) {
+				editor.chain().insertContentAt($from.after(1), html).run()
+				return { ok: true, message: 'Inserted after the list the cursor was in.' }
+			}
+			insertChain(editor).insertContent(html).run()
 
 			return { ok: true, message: 'Inserted.' }
 		}

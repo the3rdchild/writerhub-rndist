@@ -113,3 +113,19 @@ test('panduan bertanya hanya ikut saat alat aktif', () => {
 	expect(buildSystemPrompt({ ...base, withTools: true })).toContain(ASK_AND_BRIEF_GUIDANCE)
 	expect(buildSystemPrompt({ ...base, withTools: false })).not.toContain(ASK_AND_BRIEF_GUIDANCE)
 })
+
+test('isian berisi "Buatkan saya" bukan fakta, melainkan diserahkan ke AI', () => {
+	const prompt = researchBriefPrompt({
+		...EMPTY_BRIEF,
+		entries: {
+			judul: { value: 'Pemetaan Lahan Sawit dengan Drone', source: 'user', at },
+			rumusanMasalah: { value: 'Buatkan saya', source: 'user', at },
+		},
+	})
+	expect(prompt).not.toContain('Research questions: Buatkan saya')
+	expect(prompt).toContain('The writer left these for you to decide: Research questions.')
+})
+
+test('rencana bab tidak mengalahkan naskah', () => {
+	expect(researchBriefPrompt(skripsi)).toContain('the document is the authority on what is')
+})

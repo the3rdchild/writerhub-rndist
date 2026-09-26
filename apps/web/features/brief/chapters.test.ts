@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
 import { textFingerprint } from '@writer-hub/shared'
-import { chapterFingerprints, headingSections, topLevelHeadings } from './chapters'
+import {
+	chapterFingerprints,
+	chapterTextLengths,
+	headingSections,
+	topLevelHeadings,
+	withWrittenChapters,
+} from './chapters'
 
 const heading = (level: number, text: string): JSONContent => ({
 	type: 'heading',
@@ -52,5 +58,28 @@ describe('bab dari naskah', () => {
 			{ title: 'BAB II Tinjauan Pustaka', empty: true },
 		])
 		expect(topLevelHeadings([{ type: 'doc', content: [] }])).toEqual([])
+	})
+})
+
+describe('status bab yang dikirim ke AI', () => {
+	test('bab yang di naskah sudah berisi tidak lagi dikirim sebagai "belum"', () => {
+		const brief = {
+			entries: {},
+			proposals: [],
+			chapters: [
+				{ title: 'BAB I Pendahuluan', summary: '', status: 'belum' as const, source: 'ai' as const, at: 1 },
+				{
+					title: 'BAB II Tinjauan Pustaka',
+					summary: '',
+					status: 'belum' as const,
+					source: 'ai' as const,
+					at: 1,
+				},
+			],
+		}
+		const result = withWrittenChapters(brief, chapterTextLengths([tab]))
+		expect(result.chapters.map((chapter) => chapter.status)).toEqual(['draf', 'belum'])
+		// Tanpa perubahan, objek yang sama dikembalikan.
+		expect(withWrittenChapters(result, new Map())).toBe(result)
 	})
 })

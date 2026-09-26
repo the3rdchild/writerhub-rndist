@@ -8,6 +8,7 @@ import {
 	confirmEntry,
 	EMPTY_BRIEF,
 	evidenceFound,
+	isDelegation,
 	judgeBriefWrite,
 	missingDecisions,
 	normalizeBrief,
@@ -312,4 +313,26 @@ describe('normalizeBrief', () => {
 test('sidik jari tidak peduli spasi, tapi peduli isi', () => {
 	expect(textFingerprint('a  b\nc')).toBe(textFingerprint('a b c'))
 	expect(textFingerprint('a b c')).not.toBe(textFingerprint('a b d'))
+})
+
+/* Jawaban pengguna 26 Sep untuk "apa rumusan masalah Anda?". */
+test('jawaban yang menyerahkan keputusan dikenali, isian sungguhan tidak', () => {
+	for (const handedOver of [
+		'Buatkan saya',
+		'buatin aja',
+		'Terserah kamu',
+		'kamu yang tentukan',
+		'AI saja',
+		'tolong buatkan',
+	]) {
+		expect(isDelegation(handedOver)).toBe(true)
+	}
+	for (const real of [
+		'Bagaimana merancang sistem pemetaan lahan sawit berbasis drone?',
+		'Kuantitatif',
+		'Pengembangan Sistem Pemetaan Lahan Kelapa Sawit',
+		'Buatkan sistem informasi geografis untuk pemetaan lahan kelapa sawit di Riau',
+	]) {
+		expect(isDelegation(real)).toBe(false)
+	}
 })

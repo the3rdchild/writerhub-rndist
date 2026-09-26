@@ -32,7 +32,7 @@ import { fragmentToJSON } from '@/features/sync/serialize'
 import { useSync } from '@/features/sync/sync-context'
 import { useActiveDocumentMetadata, useActiveTemplate } from '@/features/templates/use-templates'
 import { briefSyncKey, readDocBrief, writeDocBrief } from './brief-ydoc'
-import { chapterFingerprints } from './chapters'
+import { chapterFingerprints, chapterTextLengths, withWrittenChapters } from './chapters'
 import { seedBriefFromTemplate } from './seed'
 
 export interface BriefPanelState {
@@ -167,6 +167,15 @@ export function BriefProvider({ children }: { children: ReactNode }) {
 		return chapterFingerprints(readTabs(doc, activeDocId).map((tab) => fragmentToJSON(doc, tab.id)))
 	}, [doc, activeDocId])
 
+	/* Yang dikirim ke AI: brief tersimpan, dengan status bab disesuaikan ke
+	 * naskah sekarang - dibaca dari Y.Doc, bukan dari state render terakhir. */
+	const snapshot = useCallback((): ResearchBrief => {
+		const current = read()
+		if (!activeDocId || !current.chapters.some((chapter) => chapter.status === 'belum')) return current
+		const tabs = readTabs(doc, activeDocId).map((tab) => fragmentToJSON(doc, tab.id))
+		return withWrittenChapters(current, chapterTextLengths(tabs))
+	}, [read, doc, activeDocId])
+
 	const applyAiUpdate = useCallback(
 		(
 			update: { fields?: BriefFieldUpdate[]; chapters?: BriefChapterUpdate[] },
@@ -257,7 +266,7 @@ export function BriefProvider({ children }: { children: ReactNode }) {
 		() => ({
 			docId: activeDocId,
 			brief,
-			snapshot: read,
+			snapshot,
 			setField: (key, next) => mutate((current) => setUserEntry(current, key, next, Date.now())),
 			confirmField: (key) => mutate((current) => confirmEntry(current, key, Date.now())),
 			setChapters: (chapters) => mutate((current) => setUserChapters(current, chapters)),
@@ -275,7 +284,7 @@ export function BriefProvider({ children }: { children: ReactNode }) {
 			clearRequest: () =>
 				setPanel((current) => ({ ...current, highlight: [], message: null, requestDocId: null })),
 		}),
-		[activeDocId, brief, read, mutate, applyAiUpdate, fingerprints, identity, panel, openPanel],
+		[activeDocId, brief, snapshot, mutate, applyAiUpdate, fingerprints, identity, panel, openPanel],
 	)
 
 	return <BriefContext.Provider value={value}>{children}</BriefContext.Provider>
