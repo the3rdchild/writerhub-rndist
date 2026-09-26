@@ -11,6 +11,7 @@ import { ChatCommandMenu } from '../chat-command-menu'
 import { AskCard } from './ask-card'
 import { ComposerToolbar } from './composer-toolbar'
 import { MessageBubble } from './message-bubble'
+import { ContinueMarker, StallCard } from './stall-card'
 import { TaskSeparator } from './step-timeline'
 import { TurnError } from './turn-error'
 
@@ -30,6 +31,9 @@ export function AiChatPanel() {
 		isRunning,
 		error,
 		retry,
+		stall,
+		continueStalled,
+		dismissStall,
 		attachment,
 		attach,
 		clearAttachment,
@@ -193,15 +197,19 @@ export function AiChatPanel() {
 					return (
 						<Fragment key={`${index}-${message.content.slice(0, 24)}`}>
 							{newTaskBoundary && <TaskSeparator />}
-							<MessageBubble
-								role={message.role}
-								content={message.content}
-								actions={message.actions}
-								asks={message.asks}
-								parts={message.parts}
-								usage={message.usage}
-								expired={!!message.taskId && message.taskId !== currentTaskId}
-							/>
+							{message.continuation ? (
+								<ContinueMarker continuation={message.continuation} />
+							) : (
+								<MessageBubble
+									role={message.role}
+									content={message.content}
+									actions={message.actions}
+									asks={message.asks}
+									parts={message.parts}
+									usage={message.usage}
+									expired={!!message.taskId && message.taskId !== currentTaskId}
+								/>
+							)}
 						</Fragment>
 					)
 				})}
@@ -215,6 +223,14 @@ export function AiChatPanel() {
 				{streaming !== null && <MessageBubble role="assistant" content={streaming} parts={parts} pending />}
 
 				{error && <TurnError error={error} onRetry={retry} disabled={isRunning} />}
+				{stall && !error && !isRunning && (
+					<StallCard
+						stall={stall}
+						onContinue={continueStalled}
+						onDismiss={dismissStall}
+						disabled={isRunning}
+					/>
+				)}
 
 				{/*
 				 * Jalan kembali ke dasar, karena melepas ikatan otomatis berarti

@@ -258,6 +258,8 @@ export const TASK_BOUNDARY_GUIDANCE = [
 	'The history may contain earlier assistant tool calls whose results are no',
 	'longer included. Treat any earlier unfinished tool work as completed and do',
 	'NOT resume it unless the user explicitly refers back to that previous task.',
+	'Exception: a user message that starts with [Continue] is not a new request.',
+	'It resumes the request you were working on; its earlier steps are still in the history.',
 ].join(' ')
 
 export function memoryPrompt(memory: StyleMemory | null): string {

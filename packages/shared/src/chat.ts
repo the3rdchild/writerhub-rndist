@@ -48,7 +48,8 @@ export type ChatStreamEvent =
 	| { type: 'tool_result'; id: string; summary: string; ok: boolean }
 	| { type: 'usage'; promptTokens?: number; completionTokens?: number }
 	| { type: 'ping' }
-	| { type: 'done' }
+	/** `finish`: alasan provider berhenti - `length` berarti jawabannya terpotong. */
+	| { type: 'done'; finish?: string }
 	/**
 	 * `message` sudah berupa kalimat untuk penulis, bukan pesan pengecualian.
 	 * `code` dan `retryable` yang dibaca antarmuka untuk memutuskan apakah

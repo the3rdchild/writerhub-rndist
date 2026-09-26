@@ -29,7 +29,7 @@ export interface ChatFailure {
 const MESSAGE: Record<ProviderErrorCode, string> = {
 	timeout: 'Provider AI tidak menjawab dalam batas waktu. Percakapanmu masih utuh.',
 	provider_unreachable: 'Provider AI tidak bisa dihubungi - periksa koneksi jaringan.',
-	quota_exceeded: 'Kuota provider AI habis. Coba lagi nanti atau ganti model.',
+	quota_exceeded: 'Kuota atau saldo provider AI habis. Coba lagi nanti atau ganti model.',
 	provider_rejected: 'Provider AI menolak permintaan ini.',
 	unknown: 'Percakapan terhenti karena sebab yang tidak dikenali.',
 }

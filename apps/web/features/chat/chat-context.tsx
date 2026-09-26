@@ -73,7 +73,16 @@ import { diagramReceipt, drawDiagram } from './diagram-api'
 import { stitchDiagrams } from './diagram-embed'
 import { diagramBlocks, diagramTypeOf, findDiagramBlock, needsDrawing } from './diagram-target'
 import { chatFailureHint, toChatTurnError } from './failure'
+import { fitWindow, withToolResults } from './outbound-window'
 import { isRemoteReadTool, remoteToolLabel, runRemoteReadTool } from './remote-tools'
+import {
+	continueNudge,
+	emptySections,
+	isContinuePrompt,
+	mayAutoContinue,
+	promisesMore,
+	type StallReason,
+} from './stall'
 import {
 	applyWriteTool,
 	insertDiagramBlock,
@@ -129,6 +138,22 @@ export interface ChatTurn extends ChatMessage {
 	parts?: TurnPart[]
 	usage?: ChatUsage
 	intermediate?: boolean
+	/**
+	 * Pesan pengguna yang bukan ketikan penulis: dorongan `[Continue]` yang
+	 * melanjutkan tugas yang berhenti di tengah - otomatis, atau lewat tombol
+	 * "Lanjutkan". Digambar sebagai penanda, bukan gelembung.
+	 */
+	continuation?: { mode: 'auto' | 'manual'; reason: StallReason }
+}
+
+/** Tugas yang berhenti sebelum selesai dan sudah tidak dilanjutkan sendiri. */
+export interface ChatStall {
+	reason: StallReason
+	/** Berapa kali tugas ini sudah dilanjutkan otomatis sebelum berhenti di sini. */
+	autoContinues: number
+	/** Bagian tingkat satu naskah, dan yang masih tanpa isi. */
+	total: number
+	empty: string[]
 }
 
 const MAX_TOOL_ROUNDS = 12
@@ -137,10 +162,17 @@ const MAX_READ_CALLS = 48
 const BUDGET_NOTICE =
 	'\n\n[System] Read budget for this turn is exhausted. Answer now with what you already have, or propose write tools. Further read tools will not be executed.'
 
+/*
+ * Gelombang suntingan beruntun sebelum aplikasi berhenti menyambung giliran
+ * sendiri. Dulu gelombang terakhir membawa pesan "Wrap up" ke model, yang
+ * secara harfiah menyuruhnya berhenti - model lalu menulis "karena batasan
+ * sistem saya tidak bisa melanjutkan". Kini model tidak diberi tahu apa-apa:
+ * tugasnya dijeda, lalu dilanjutkan (lihat `stall.ts`).
+ */
 const MAX_WRITE_WAVES = 8
 
-const WRITE_WAVE_NOTICE =
-	'\n\n[System] This is the last batch of edits that will be carried out automatically for this request. Wrap up: summarize what changed and what is left for the writer to decide.'
+const BROKEN_ARGS_RESULT =
+	'Not carried out: the arguments of this call were cut off or were not valid JSON (a reply that hits the output length limit ends mid-call). Send it again in smaller pieces: one section per insert_content call.'
 
 const PHASE_LABEL: Record<ChatStreamPhase, string> = {
 	connecting: 'Menghubungi provider…',
@@ -158,6 +190,8 @@ function newTaskId(): string {
 
 export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string | undefined): ChatMessage[] {
 	const outbound: ChatMessage[] = []
+	// Indeks permintaan tugas berjalan: ia ikut di depan jendela, sepanjang apa pun tugasnya.
+	let request: number | undefined
 	for (const turn of history) {
 		if (turn.taskId === currentTaskId) {
 			const {
@@ -168,8 +202,10 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 				parts: _parts,
 				usage: _usage,
 				intermediate: _intermediate,
+				continuation: _continuation,
 				...message
 			} = turn
+			if (request === undefined && message.role === 'user') request = outbound.length
 			outbound.push(message)
 			continue
 		}
@@ -180,17 +216,24 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 		}
 		outbound.push({ role: turn.role, content: turn.content })
 	}
-	if (outbound.length > CHAT_CONTEXT_LIMITS.messages) {
-		let start = outbound.length - CHAT_CONTEXT_LIMITS.messages
-		while (start < outbound.length - 1 && outbound[start].role !== 'user') start++
-		return outbound.slice(start)
-	}
-	return outbound
+	return fitWindow(withToolResults(outbound), CHAT_CONTEXT_LIMITS.messages, request)
 }
 
 export function actionsSettled(history: ChatTurn[], owner: ChatTurn): boolean {
 	const decided = new Set(history.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId))
 	return [...(owner.actions ?? []), ...(owner.asks ?? [])].every((action) => decided.has(action.id))
+}
+
+/**
+ * Bisakah "lanjut" dari penulis meneruskan tugas ini alih-alih memulai yang
+ * baru? Hanya kalau model sudah pernah menjawab di dalamnya dan tidak ada aksi
+ * atau pertanyaan yang masih menunggu - panggilan alat tanpa hasil tidak
+ * boleh ikut terkirim.
+ */
+export function resumableTask(history: ChatTurn[], taskId: string | undefined): boolean {
+	if (!taskId) return false
+	const owners = history.filter((turn) => turn.role === 'assistant' && turn.taskId === taskId)
+	return owners.length > 0 && owners.every((owner) => actionsSettled(history, owner))
 }
 
 /**
@@ -302,6 +345,10 @@ interface ChatContextValue {
 	error: ChatError | null
 	/** Melanjutkan giliran terakhir dari langkah yang sudah tersimpan. */
 	retry: () => void
+	/** Tugas yang berhenti di tengah dan menunggu penulis menekan "Lanjutkan". */
+	stall: ChatStall | null
+	continueStalled: () => void
+	dismissStall: () => void
 
 	attachment: ChatAttachment | null
 	attach: (attachment: ChatAttachment) => void
@@ -396,6 +443,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		taskId: undefined,
 		count: 0,
 	})
+	/*
+	 * Tugas yang berhenti di tengah. `stallPendingRef` diisi `runTurn` di akhir
+	 * giliran dan dibaca sesudah gilirannya ditutup; `continuesRef` menghitung
+	 * lanjutan otomatis per tugas.
+	 */
+	const [stall, setStall] = useState<ChatStall | null>(null)
+	const stallPendingRef = useRef<{ reason: StallReason; taskId: string } | null>(null)
+	const continuesRef = useRef<{ taskId: string | undefined; auto: number; reason?: StallReason }>({
+		taskId: undefined,
+		auto: 0,
+	})
+	const handleStallRef = useRef<((reason: StallReason, taskId: string) => void) | null>(null)
 	const [parts, setParts] = useState<TurnPart[]>([])
 	const partsRef = useRef<TurnPart[]>([])
 
@@ -517,9 +576,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
 		retryTimerRef.current = null
 		retryPendingRef.current = false
+		stallPendingRef.current = null
 		abortRef.current?.abort()
 		abortRef.current = null
 		setStreaming(null)
+		setStall(null)
 	}, [])
 
 	const setPartsBoth = (next: TurnPart[]) => {
@@ -633,8 +694,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	 * penulis - pesan dan jawaban kartu pertanyaannya.
 	 */
 	const runBriefUpdate = (call: ToolCall, history: readonly ChatTurn[]): string => {
+		// Dorongan `[Continue]` bukan kata-kata penulis.
 		const said = history.flatMap((turn) =>
-			turn.role === 'user'
+			turn.role === 'user' && !turn.continuation
 				? [turn.content]
 				: turn.role === 'tool' && turn.answer
 					? answerWords(turn.answer)
@@ -788,8 +850,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		): Promise<void> => {
 			let answer = ''
 			const calls: ToolCall[] = []
+			const malformed = new Set<string>()
 			let usage: ChatUsage | undefined
 			let reasoning = ''
+			let finish: string | undefined
 
 			try {
 				await streamChat(
@@ -809,7 +873,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 							setStreaming(answer)
 							appendText(delta)
 						},
-						onToolCall: (call) => calls.push(call),
+						onToolCall: (call, broken) => {
+							calls.push(call)
+							if (broken) malformed.add(call.id)
+						},
+						onDone: (reason) => {
+							finish = reason
+						},
 						onToolsUnsupported: () => {
 							toolsRef.current = false
 						},
@@ -849,20 +919,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			calls.push(...parseFallbackCalls(answer))
 
 			const visible = stripFallbackCalls(answer)
-			const reads = calls.filter((call) => isReadTool(call.name))
-			const writes = calls.filter((call) => !isReadTool(call.name) && !isAskTool(call.name))
+			/*
+			 * Panggilan yang argumennya terpotong - jawaban yang menabrak batas
+			 * panjang keluaran berhenti di tengah JSON - tidak dijalankan dengan
+			 * argumen kosong. Ia langsung dijawab, dan model diminta mengirim ulang
+			 * dalam potongan yang lebih kecil.
+			 */
+			const usable = calls.filter((call) => !malformed.has(call.id))
+			const reads = usable.filter((call) => isReadTool(call.name))
+			const writes = usable.filter((call) => !isReadTool(call.name) && !isAskTool(call.name))
 			/*
 			 * Satu kartu pertanyaan dalam satu waktu. Pertanyaan tambahan dalam
 			 * putaran yang sama langsung dijawab "tidak ditampilkan" - setiap
 			 * panggilan alat wajib punya hasil sebelum model bicara lagi.
 			 */
-			const [ask, ...extraAsks] = calls.filter((call) => isAskTool(call.name))
-			const extraAskResults: ChatTurn[] = extraAsks.map((call) => ({
-				role: 'tool',
-				content: EXTRA_ASK_RESULT,
-				toolCallId: call.id,
-				taskId,
-			}))
+			const [ask, ...extraAsks] = usable.filter((call) => isAskTool(call.name))
+			const immediateResults: ChatTurn[] = [
+				...extraAsks.map((call) => ({ call, content: EXTRA_ASK_RESULT })),
+				...calls
+					.filter((call) => malformed.has(call.id))
+					.map((call) => ({ call, content: BROKEN_ARGS_RESULT })),
+			].map(({ call, content }) => ({ role: 'tool', content, toolCallId: call.id, taskId }))
 
 			// Spec template diambil di sini, selagi masih boleh menunggu.
 			await loadTemplateSpecs(writes)
@@ -885,7 +962,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 			const editor = editorRef.current
 			const budgetSpent = round >= MAX_TOOL_ROUNDS || readsUsed >= MAX_READ_CALLS
-			if (reads.length === 0 || sealed) {
+			const broken = malformed.size > 0
+			if ((reads.length === 0 && !broken) || sealed) {
 				if (reads.length > 0 && sealed) {
 					pushStep('Penelusuran ditutup')
 					patchRunningStep({
@@ -894,13 +972,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						detail: 'Model masih meminta bacaan setelah anggaran habis; permintaannya tidak dijalankan.',
 					})
 				}
+				/*
+				 * Giliran yang berakhir tanpa suntingan dan tanpa pertanyaan: entah
+				 * tugasnya selesai, entah model berhenti di tengah. Yang kedua
+				 * ditandai di sini dan ditangani sesudah gilirannya benar-benar
+				 * ditutup (`startTurn`).
+				 */
+				if (writes.length === 0 && !ask) {
+					if (calls.length === 0 && !visible.trim()) {
+						// Balasan kosong tidak disimpan: percobaan berikutnya mengulang dari langkah yang sama.
+						finishParts()
+						stallPendingRef.current = { reason: 'empty', taskId }
+						return
+					}
+					if (finish === 'length') stallPendingRef.current = { reason: 'truncated', taskId }
+					else if (promisesMore(visible)) stallPendingRef.current = { reason: 'promised', taskId }
+				}
 				const finalTurn: ChatTurn = { ...assistant, parts: visibleParts(finishParts()), usage }
-				commit([...history, finalTurn, ...extraAskResults])
+				commit([...history, finalTurn, ...immediateResults])
 				if (writes.length > 0 && autoApplyRef.current) pendingAutoApplyRef.current = writes
 				announceAsk(ask)
 				return
 			}
-			const results: ChatTurn[] = []
+			const results: ChatTurn[] = [...immediateResults]
 			const readContext = editor ? buildReadContext(editor) : null
 			for (const call of reads) {
 				if (call.name === 'plan') {
@@ -968,7 +1062,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				advancePlan()
 				results.push({ role: 'tool', content, toolCallId: call.id, taskId })
 			}
-			if (budgetSpent && results.length > 0) {
+			if (budgetSpent && reads.length > 0) {
 				const last = results[results.length - 1]
 				results[results.length - 1] = { ...last, content: last.content + BUDGET_NOTICE }
 				pushStep('Anggaran penelusuran habis')
@@ -993,10 +1087,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			/*
 			 * Bacaan di putaran yang sama tetap dijalankan - hasilnya harus ada
 			 * sebelum model bicara lagi - tapi putarannya berhenti di sini. Model
-			 * baru mendapat giliran lagi sesudah penulis menjawab.
+			 * baru mendapat giliran lagi sesudah penulis menjawab, atau sesudah
+			 * suntingan di putaran yang sama diputuskan (`settleActions`).
+			 *
+			 * Suntingan ikut menahan putaran: dulu putaran ini langsung dikirim
+			 * lagi, dengan panggilan tulis yang belum punya hasil. Provider
+			 * menolaknya dengan 400, server membacanya sebagai "tool calling tidak
+			 * didukung", dan sisa sesi berjalan tanpa alat - chat berhenti
+			 * menyunting di tengah jalan.
 			 */
-			if (ask) {
-				commit([...history, step, ...results, ...extraAskResults])
+			if (ask || writes.length > 0) {
+				commit([...history, step, ...results])
 				if (writes.length > 0 && autoApplyRef.current) pendingAutoApplyRef.current = writes
 				announceAsk(ask)
 				return
@@ -1059,6 +1160,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					const pending = pendingAutoApplyRef.current
 					pendingAutoApplyRef.current = null
 					if (pending && !controller.signal.aborted) applyActionsRef.current?.(pending)
+					const stalled = stallPendingRef.current
+					stallPendingRef.current = null
+					if (stalled && !controller.signal.aborted) handleStallRef.current?.(stalled.reason, stalled.taskId)
 				})
 		},
 		[runTurn],
@@ -1074,23 +1178,96 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		if (abortRef.current || messagesRef.current.length === 0) return
 
 		setError(null)
+		setStall(null)
 		setStreaming('')
 		startTurnRef.current?.(messagesRef.current, currentTaskIdRef.current ?? newTaskId(), false)
 	}, [])
+
+	/**
+	 * Meneruskan tugas yang berhenti di tengah, dengan `taskId` yang sama -
+	 * model tetap melihat seluruh langkahnya - dan rangkaian gelombang
+	 * suntingan yang baru. Balasan kosong cukup diulang; sebab lain mendapat
+	 * dorongan `[Continue]` yang menyebut bagian naskah yang masih kosong.
+	 */
+	const continueTask = useCallback(
+		(reason: StallReason, mode: 'auto' | 'manual') => {
+			const taskId = currentTaskIdRef.current
+			if (abortRef.current || !taskId) return
+
+			setStall(null)
+			setError(null)
+			let history = messagesRef.current
+			if (reason !== 'empty') {
+				const editor = editorRef.current
+				const empty = editor && !editor.isDestroyed ? emptySections(editor.state.doc).empty : []
+				history = [
+					...history,
+					{ role: 'user', content: continueNudge(reason, empty), taskId, continuation: { mode, reason } },
+				]
+				commit(history)
+			}
+			writeWavesRef.current = { taskId, count: 0 }
+			setStreaming('')
+			setPartsBoth([])
+			startTurn(history, taskId)
+		},
+		[commit, startTurn],
+	)
+
+	/*
+	 * Tugas yang berhenti di tengah dilanjutkan sendiri selama masih ada
+	 * jatahnya dan lanjutan sebelumnya menghasilkan sesuatu; sesudah itu kartu
+	 * "Lanjutkan" yang menunggu penulis.
+	 */
+	handleStallRef.current = (reason, taskId) => {
+		if (taskId !== currentTaskIdRef.current) return
+		const previous =
+			continuesRef.current.taskId === taskId ? continuesRef.current : { auto: 0, reason: undefined }
+		const auto = previous.auto
+		const waves = writeWavesRef.current
+		const progressed = waves.taskId === taskId && waves.count > 0
+		if (mayAutoContinue(auto, progressed, previous.reason === reason)) {
+			continuesRef.current = { taskId, auto: auto + 1, reason }
+			continueTask(reason, 'auto')
+			return
+		}
+		const editor = editorRef.current
+		const sections = editor && !editor.isDestroyed ? emptySections(editor.state.doc) : { total: 0, empty: [] }
+		setStall({ reason, autoContinues: auto, ...sections })
+	}
+
+	const continueStalled = useCallback(() => {
+		if (!stall) return
+		// Penulis sendiri yang meminta: jatah lanjutan otomatisnya dibuka lagi.
+		continuesRef.current = { taskId: currentTaskIdRef.current, auto: 0 }
+		continueTask(stall.reason, 'manual')
+	}, [stall, continueTask])
+
+	const dismissStall = useCallback(() => setStall(null), [])
 
 	const send = useCallback(
 		(prompt: string) => {
 			const trimmed = prompt.trim()
 			if (!trimmed || abortRef.current) return
-			const taskId = newTaskId()
+			/*
+			 * "lanjut" meneruskan tugas yang sedang berjalan. Sebagai tugas baru,
+			 * seluruh langkah sebelumnya terpangkas dari riwayat dan model
+			 * membalas dengan menu "Apa yang ingin Anda kerjakan?".
+			 */
+			const previous = currentTaskIdRef.current
+			const resume = isContinuePrompt(trimmed) && resumableTask(messagesRef.current, previous)
+			const taskId = resume && previous ? previous : newTaskId()
 			const history: ChatTurn[] = [...messagesRef.current, { role: 'user', content: trimmed, taskId }]
 			commit(history)
 			setCurrentTaskId(taskId)
+			currentTaskIdRef.current = taskId
 			setStreaming('')
 			setError(null)
+			setStall(null)
 			setPartsBoth([])
-			planRef.current = null
+			if (!resume) planRef.current = null
 			writeWavesRef.current = { taskId, count: 0 }
+			continuesRef.current = { taskId, auto: 0 }
 
 			startTurn(history, taskId)
 		},
@@ -1218,13 +1395,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					.filter((delta): delta is WordDelta => delta !== undefined)
 				if (deltas.length > 0) void snapshotAiResult(sumWordDeltas(deltas))
 			}
+			// Hanya suntingan yang dihitung: menjawab kartu pertanyaan bukan rangkaian otomatis.
 			const waves = writeWavesRef.current
-			const count = waves.taskId === taskId ? waves.count + 1 : 1
-			const resumable = complete && taskId === currentTaskId && !abortRef.current && count <= MAX_WRITE_WAVES
-			if (resumable && count === MAX_WRITE_WAVES) {
-				const last = results[results.length - 1]
-				results[results.length - 1] = { ...last, content: last.content + WRITE_WAVE_NOTICE }
-			}
+			const previous = waves.taskId === taskId ? waves.count : 0
+			const count = owner?.actions?.length ? previous + 1 : previous
+			const resumable = complete && taskId === currentTaskId && !abortRef.current
 
 			const next = [...current, ...results]
 			commit(next)
@@ -1232,6 +1407,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			if (!resumable || taskId === undefined) return
 			writeWavesRef.current = { taskId, count }
 
+			if (count >= MAX_WRITE_WAVES) {
+				handleStallRef.current?.('wave_limit', taskId)
+				return
+			}
 			setStreaming('')
 			setPartsBoth([])
 			startTurn(next, taskId)
@@ -1461,6 +1640,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 	const startNewTopic = useCallback(() => {
 		setCurrentTaskId(newTaskId())
+		setStall(null)
 	}, [])
 
 	const reset = useCallback(() => {
@@ -1473,6 +1653,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		setCurrentTaskId(undefined)
 		setPartsBoth([])
 		writeWavesRef.current = { taskId: undefined, count: 0 }
+		continuesRef.current = { taskId: undefined, auto: 0 }
 	}, [stop, commit])
 	const settledActionIds = useMemo(
 		() =>
@@ -1506,6 +1687,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			isRunning: streaming !== null,
 			error,
 			retry,
+			stall,
+			continueStalled,
+			dismissStall,
 			attachment,
 			attach: setAttachment,
 			clearAttachment: () => setAttachment(null),
@@ -1538,6 +1722,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			parts,
 			error,
 			retry,
+			stall,
+			continueStalled,
+			dismissStall,
 			attachment,
 			includeDocument,
 			send,

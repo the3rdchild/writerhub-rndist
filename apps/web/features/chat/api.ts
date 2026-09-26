@@ -13,11 +13,14 @@ import { ChatTurnError } from './failure'
 
 export interface StreamChatHandlers {
 	onDelta: (text: string) => void
-	onToolCall?: (call: ToolCall) => void
+	/** `broken`: argumennya bukan JSON utuh - biasanya terpotong batas panjang keluaran. */
+	onToolCall?: (call: ToolCall, broken: boolean) => void
 	onToolsUnsupported?: () => void
 	onStatus?: (phase: ChatStreamPhase, detail?: string) => void
 	onReasoning?: (text: string) => void
 	onUsage?: (usage: ChatUsage) => void
+	/** Alasan provider berhenti (`stop`, `length`, `tool_calls`...), kalau ia menyebutnya. */
+	onDone?: (finish: string | undefined) => void
 }
 
 export async function streamChat(
@@ -99,26 +102,37 @@ export async function streamChat(
 			}
 
 			if (event.type === 'delta') on.onDelta(event.text)
-			else if (event.type === 'tool_call') on.onToolCall?.(parseToolCall(event))
-			else if (event.type === 'tools_unsupported') on.onToolsUnsupported?.()
+			else if (event.type === 'tool_call') {
+				const parsed = parseToolCall(event)
+				on.onToolCall?.(parsed.call, parsed.broken)
+			} else if (event.type === 'tools_unsupported') on.onToolsUnsupported?.()
 			else if (event.type === 'status') on.onStatus?.(event.phase, event.detail)
 			else if (event.type === 'reasoning') on.onReasoning?.(event.text)
 			else if (event.type === 'usage') {
 				on.onUsage?.({ promptTokens: event.promptTokens, completionTokens: event.completionTokens })
 			} else if (event.type === 'error') {
 				throw new ChatTurnError(event.message, event.code ?? 'unknown', event.retryable ?? false)
-			} else if (event.type === 'done') return
+			} else if (event.type === 'done') {
+				on.onDone?.(event.finish)
+				return
+			}
 		}
 	}
 }
 
-function parseToolCall(event: { id: string; name: string; arguments: string }): ToolCall {
+export function parseToolCall(event: { id: string; name: string; arguments: string }): {
+	call: ToolCall
+	broken: boolean
+} {
 	let parsed: Record<string, unknown> = {}
+	let broken = false
 	try {
 		const value = JSON.parse(event.arguments || '{}')
 		if (value && typeof value === 'object') parsed = value as Record<string, unknown>
-	} catch {}
-	return { id: event.id, name: event.name, arguments: parsed }
+	} catch {
+		broken = true
+	}
+	return { call: { id: event.id, name: event.name, arguments: parsed }, broken }
 }
 
 export function parseFallbackCalls(content: string): ToolCall[] {
