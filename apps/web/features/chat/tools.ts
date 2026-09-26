@@ -31,6 +31,7 @@ import { TOC_BLOCK, type TocBlockAttrs, type TocListKind } from '@/features/edit
 import type { CommentThread } from '@/features/sessions/types'
 import { countWords } from '@/lib/utils'
 import { blockSummary, htmlCandidates } from './html-block-candidates'
+import { setBlockStyle } from './paragraph-style'
 
 /**
  * Rantai untuk alat yang menyisipkan sesuatu di kursor - lihat
@@ -1071,23 +1072,8 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const typeName = isHeading ? 'heading' : 'paragraph'
 
 			const { tr, schema } = editor.state
-			const seen: number[] = []
-			editor.state.doc.nodesBetween(range.from, range.to, (node, pos) => {
-				if (node.isTextblock) {
-					seen.push(pos)
-					return false
-				}
-				return true
-			})
-			for (const pos of seen) {
-				const node = tr.doc.nodeAt(pos)
-				if (!node) continue
-				tr.setNodeMarkup(pos, schema.nodes[typeName], {
-					...node.attrs,
-					...(isHeading ? { level } : {}),
-				})
-			}
-			if (seen.length === 0) return { ok: false, message: 'No paragraph covers that passage.' }
+			const changed = setBlockStyle(tr, range, schema.nodes[typeName], isHeading ? { level } : {})
+			if (changed === 0) return { ok: false, message: 'No paragraph covers that passage.' }
 			editor.view.dispatch(tr)
 			return { ok: true, message: isHeading ? `Heading ${level} applied.` : 'Paragraph style applied.' }
 		}

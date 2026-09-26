@@ -67,12 +67,29 @@ export function pmRangeToText(
 	return { offset: start, length: end - start }
 }
 
+/*
+ * Pindah baris lunak, gambar, dan rumus inline tidak punya karakter di teks
+ * indeks, jadi posisi teks tepat di antara dua segmen menunjuk dua tempat:
+ * akhir segmen kiri (sebelum node itu) dan awal segmen kanan (sesudahnya).
+ * Awal sebuah rentang selalu yang kanan - kalau tidak, rentang "Struktur
+ * pasar" sesudah Shift+Enter ikut menelan pindah barisnya, dan penggantian
+ * teks menghapusnya.
+ */
+function rangeStartToPM({ segments }: TextIndex, textPos: number): number | null {
+	for (const segment of segments) {
+		if (textPos >= segment.textStart && textPos < segment.textStart + segment.length) {
+			return segment.pmStart + (textPos - segment.textStart)
+		}
+	}
+	return null
+}
+
 export function textRangeToPM(
 	index: TextIndex,
 	offset: number,
 	length: number,
 ): { from: number; to: number } | null {
-	const from = textPosToPM(index, offset)
+	const from = (length > 0 ? rangeStartToPM(index, offset) : null) ?? textPosToPM(index, offset)
 	const to = textPosToPM(index, offset + length)
 	if (from === null || to === null || to <= from) return null
 	return { from, to }
