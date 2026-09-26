@@ -760,7 +760,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						model: modelRef.current,
 						templateSlug: templateRef.current?.slug,
 						metadata: metadataRef.current ?? undefined,
-						brief: briefRef.current.docId ? briefRef.current.brief : undefined,
+						brief: briefRef.current.docId ? briefRef.current.snapshot() : undefined,
 					},
 					{
 						onDelta: (delta) => {
@@ -1380,7 +1380,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			if (call.name === 'request_brief') {
 				// Yang dikembalikan ke model adalah isi brief SAAT penulis selesai,
 				// bukan apa yang diminta - penulis boleh mengisi sebagian saja.
-				const { brief } = briefRef.current
+				const brief = briefRef.current.snapshot()
 				const keys = requestedBriefFields(call.arguments)
 				if (!answer.skipped) {
 					final = {

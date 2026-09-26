@@ -146,7 +146,12 @@ export function formatDifferences(
 		const current = pxToCm(setup.margins[side])
 		const wantedCm = pxToCm(wanted)
 		if (Math.abs(current - wantedCm) > MARGIN_TOLERANCE_CM) {
-			differences.push({ key: side, label: SIDE_LABEL[side], current: formatCm(current), wanted: formatCm(wantedCm) })
+			differences.push({
+				key: side,
+				label: SIDE_LABEL[side],
+				current: formatCm(current),
+				wanted: formatCm(wantedCm),
+			})
 		}
 	}
 

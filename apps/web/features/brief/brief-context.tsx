@@ -72,6 +72,13 @@ export interface BriefIdentity {
 interface BriefContextValue {
 	docId: string | null
 	brief: ResearchBrief
+	/**
+	 * Brief SAAT INI, dibaca langsung dari Y.Doc. `brief` baru berubah sesudah
+	 * render berikutnya, sedangkan chat melanjutkan gilirannya di tick yang
+	 * sama dengan jawaban yang baru saja disimpan - membaca `brief` di sana
+	 * berarti mengirim model versi sebelum jawaban itu.
+	 */
+	snapshot: () => ResearchBrief
 	setField: (key: BriefKey, value: string) => void
 	confirmField: (key: BriefKey) => void
 	setChapters: (chapters: BriefChapter[]) => void
@@ -250,6 +257,7 @@ export function BriefProvider({ children }: { children: ReactNode }) {
 		() => ({
 			docId: activeDocId,
 			brief,
+			snapshot: read,
 			setField: (key, next) => mutate((current) => setUserEntry(current, key, next, Date.now())),
 			confirmField: (key) => mutate((current) => confirmEntry(current, key, Date.now())),
 			setChapters: (chapters) => mutate((current) => setUserChapters(current, chapters)),
@@ -267,7 +275,7 @@ export function BriefProvider({ children }: { children: ReactNode }) {
 			clearRequest: () =>
 				setPanel((current) => ({ ...current, highlight: [], message: null, requestDocId: null })),
 		}),
-		[activeDocId, brief, mutate, applyAiUpdate, fingerprints, identity, panel, openPanel],
+		[activeDocId, brief, read, mutate, applyAiUpdate, fingerprints, identity, panel, openPanel],
 	)
 
 	return <BriefContext.Provider value={value}>{children}</BriefContext.Provider>

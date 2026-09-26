@@ -8,6 +8,7 @@ import { AiChatPanel } from './ai-chat-panel'
 import { AiDetectorPanel } from './ai-detector-panel'
 import { AiRewriterPanel } from './ai-rewriter-panel'
 import { AssetsPanel } from './assets-panel'
+import { BriefPanel, BriefToggleButton } from './brief-panel'
 import { CommentsPanel } from './comments-panel'
 import { GlossaryPanel } from './glossary-panel'
 import { HumanizerPanel } from './humanizer-panel'
@@ -72,23 +73,34 @@ export function PanelContainer({ panel }: { panel: PanelId }) {
 		[panel, dispatch],
 	)
 
+	/*
+	 * Pembungkus `relative` di luar panel, bukan di dalamnya: panel sendiri
+	 * `overflow-hidden` demi sudutnya yang membulat, dan panel Metadata yang
+	 * menempel di kirinya harus bisa keluar dari batas itu.
+	 */
 	return (
-		<div className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-2xl bg-surface">
-			<div className="flex shrink-0 items-center justify-between px-4 py-2.5">
-				<h2 className="text-sm font-semibold text-foreground">{PANEL_TITLES[panel]}</h2>
-				<button
-					type="button"
-					onClick={() => setActivePanel(null)}
-					aria-label="Close panel"
-					title="Close panel"
-					className="rounded-md p-1 text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
-				>
-					<X className="h-4 w-4" />
-				</button>
+		<div className="relative flex shrink-0">
+			<div className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-2xl bg-surface">
+				<div className="flex shrink-0 items-center justify-between px-4 py-2.5">
+					<h2 className="text-sm font-semibold text-foreground">{PANEL_TITLES[panel]}</h2>
+					<div className="flex items-center gap-1 text-xs">
+						{panel === 'ai_chat' && <BriefToggleButton />}
+						<button
+							type="button"
+							onClick={() => setActivePanel(null)}
+							aria-label="Close panel"
+							title="Close panel"
+							className="rounded-md p-1 text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
+						>
+							<X className="h-4 w-4" />
+						</button>
+					</div>
+				</div>
+				<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+					<PanelBody panel={panel} />
+				</div>
 			</div>
-			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-				<PanelBody panel={panel} />
-			</div>
+			{panel === 'ai_chat' && <BriefPanel />}
 		</div>
 	)
 }

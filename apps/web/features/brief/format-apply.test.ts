@@ -17,11 +17,16 @@ const letter: PageSetup = {
 	pageColor: null,
 	pageless: false,
 }
-const plain: DocumentTypography = { baseFont: { family: 'Arial, Helvetica, sans-serif', sizePt: 11 }, lineHeight: 1 }
+const plain: DocumentTypography = {
+	baseFont: { family: 'Arial, Helvetica, sans-serif', sizePt: 11 },
+	lineHeight: 1,
+}
 
 const rules = (entries: Record<string, string>): ResearchBrief => ({
 	...EMPTY_BRIEF,
-	entries: Object.fromEntries(Object.entries(entries).map(([key, value]) => [key, { value, source: 'user', at: 1 }])),
+	entries: Object.fromEntries(
+		Object.entries(entries).map(([key, value]) => [key, { value, source: 'user', at: 1 }]),
+	),
 })
 
 const skripsi = rules({
@@ -79,7 +84,10 @@ describe('aturan kampus ke tata letak', () => {
 			current: '2,54 cm',
 			wanted: '4 cm',
 		})
-		expect(differences.find((item) => item.key === 'lineHeight')).toMatchObject({ current: '1', wanted: '1,5' })
+		expect(differences.find((item) => item.key === 'lineHeight')).toMatchObject({
+			current: '1',
+			wanted: '1,5',
+		})
 	})
 
 	test('sesudah diterapkan tidak ada lagi perbedaan, dan yang tidak diatur tetap', () => {

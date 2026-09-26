@@ -2,6 +2,7 @@
 import { Boxes, Download, Files, FileText, Info, Printer, RotateCcw, Upload } from 'lucide-react'
 import { useState } from 'react'
 import { DropdownSeparator, Submenu } from '@/components/ui/dropdown'
+import { useBrief } from '@/features/brief/brief-context'
 import { useDocument } from '@/features/document/document-context'
 import { download, safeFilename } from '@/features/document/download'
 import { exportDocx } from '@/features/document/export-docx'
@@ -21,8 +22,8 @@ import { Item, Menu, run } from './menu-shell'
 export function FileMenu() {
 	const { editor } = useEditorInstance()
 	const { state } = useDocument()
-	const { setExportOpen, setDocxExportOpen, setPageSetupOpen, setDocumentMetadataOpen, settings } =
-		useSettings()
+	const { setExportOpen, setDocxExportOpen, setPageSetupOpen, settings } = useSettings()
+	const { openPanel: openMetadata } = useBrief()
 	const { newSession, deleteSession, activeId, sessions, doc } = useSessions()
 	const { setup: activeSetup } = usePageSetup()
 	const { furniture } = usePageFurniture()
@@ -137,11 +138,12 @@ export function FileMenu() {
 						Penyiapan halaman…
 					</Item>
 					{/* Metadata milik dokumen, bukan halaman - tapi keduanya sama-sama
-					    "tentang berkas ini", dan menu File tempat orang mencarinya. */}
+					    "tentang berkas ini", dan menu File tempat orang mencarinya.
+					    Yang dibuka panel di samping AI Chat, tempat AI membacanya. */}
 					<Item
 						icon={<Info className="h-4 w-4" />}
 						disabled={!activeId}
-						onSelect={() => run(close, () => setDocumentMetadataOpen(true))}
+						onSelect={() => run(close, () => openMetadata())}
 					>
 						Metadata dokumen…
 					</Item>

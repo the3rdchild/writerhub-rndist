@@ -34,6 +34,7 @@ export function MetadataForm({
 						<label htmlFor={id} className="flex items-baseline gap-2">
 							<span className="font-medium text-muted text-xs">{field.label}</span>
 							{!field.placeholder && <span className="text-[10px] text-faint">tidak ditulis ke naskah</span>}
+							{field.personal && <span className="text-[10px] text-faint">tidak dikirim ke AI</span>}
 						</label>
 
 						{field.kind === 'multiline' ? (

@@ -17,7 +17,9 @@ export interface HeadingSection {
 
 function textOf(node: JSONContent): string {
 	if (node.type === 'text') return node.text ?? ''
-	return (node.content ?? []).map(textOf).join(node.type === 'paragraph' || node.type === 'heading' ? '' : '\n')
+	return (node.content ?? [])
+		.map(textOf)
+		.join(node.type === 'paragraph' || node.type === 'heading' ? '' : '\n')
 }
 
 /** Hanya judul di tingkat teratas: judul di dalam tabel atau kotak bukan awal bab. */
