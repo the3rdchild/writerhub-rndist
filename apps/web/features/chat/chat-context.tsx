@@ -26,6 +26,13 @@ import { usePanels } from '@/features/analysis/panel-context'
 import { useBrief } from '@/features/brief/brief-context'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
+import {
+	BODY_NUMBERING,
+	firstChapterPos,
+	hasFrontMatter,
+	numberingCustomized,
+	opensWithCover,
+} from '@/features/editor/academic-numbering'
 import { type DiagramPalette, isCompletePalette, reskinSvg } from '@/features/editor/diagram-skin'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { buildEditorExtensions } from '@/features/editor/extensions'
@@ -49,7 +56,13 @@ import { editorPlainText } from '@/features/editor/text-content'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useTypography } from '@/features/editor/use-typography'
 import { sessionLabel, useSessions } from '@/features/sessions/session-context'
-import { createTab as createTabInDoc, readAppliedFormat, setAppliedFormat } from '@/features/sessions/ydoc'
+import {
+	createTab as createTabInDoc,
+	readAppliedFormat,
+	readNumberingPreset,
+	setAppliedFormat,
+	setNumberingPreset,
+} from '@/features/sessions/ydoc'
 import { buildSchema, fragmentToJSON, jsonToFragment } from '@/features/sync/serialize'
 import { useSync } from '@/features/sync/sync-context'
 import { getTemplate } from '@/features/templates/api'
@@ -73,6 +86,7 @@ import { diagramReceipt, drawDiagram } from './diagram-api'
 import { stitchDiagrams } from './diagram-embed'
 import { diagramBlocks, diagramTypeOf, findDiagramBlock, needsDrawing } from './diagram-target'
 import { chatFailureHint, toChatTurnError } from './failure'
+import { applyAcademicNumbering, type NumberingContext } from './numbering-apply'
 import { fitWindow, withToolResults } from './outbound-window'
 import { isRemoteReadTool, remoteToolLabel, runRemoteReadTool } from './remote-tools'
 import {
@@ -245,6 +259,24 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 export function actionsSettled(history: ChatTurn[], owner: ChatTurn): boolean {
 	const decided = new Set(history.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId))
 	return [...(owner.actions ?? []), ...(owner.asks ?? [])].every((action) => decided.has(action.id))
+}
+
+/** Tugas ini berhasil menyisipkan sampul lewat `insert_template_part`. */
+export function coverInserted(history: readonly ChatTurn[], taskId: string): boolean {
+	const ids = new Set(
+		history.flatMap((turn) =>
+			turn.taskId === taskId
+				? (turn.actions ?? []).filter((call) => call.name === 'insert_template_part').map((call) => call.id)
+				: [],
+		),
+	)
+	return history.some(
+		(turn) =>
+			turn.role === 'tool' &&
+			turn.toolCallId !== undefined &&
+			ids.has(turn.toolCallId) &&
+			turn.content.includes('Inserted the cover'),
+	)
 }
 
 /**
@@ -879,6 +911,61 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		return { ok: true, message: 'First page updated.' }
 	}
 
+	/*
+	 * Penomoran halaman karya ilmiah, dipasang sendiri begitu dokumen akademik
+	 * punya BAB I - romawi di bagian depan, angka mulai BAB I (lihat
+	 * `academic-numbering.ts`). Sekali per tab: sesudahnya penulis bebas
+	 * mengubahnya. Satu-satunya lanjutan: tab yang tadinya hanya punya badan
+	 * naskah mendapat romawi untuk bagian depannya begitu bagian itu ditulis,
+	 * selama penomorannya masih seperti yang dipasang.
+	 */
+	const numberingContext = (editor: Editor): NumberingContext => ({
+		editor,
+		setup: appRef.current.setup,
+		setPageSetup: appRef.current.setPageSetup,
+		setFirstPageSeparate,
+		furniture: () => appRef.current.furniture,
+		setFurnitureLine,
+	})
+
+	const autoNumber = (history: readonly ChatTurn[], taskId: string): string | null => {
+		const editor = editorRef.current
+		const app = appRef.current
+		if (!editor || editor.isDestroyed || !app.activeId || app.setup.pageless) return null
+		const brief = briefRef.current.docId ? briefRef.current.snapshot() : null
+		const academic =
+			templateRef.current?.spec.frontMatter !== undefined ||
+			workKindOf(brief?.entries.jenisKarya?.value) !== null
+		if (!academic) return null
+
+		const doc = editor.state.doc
+		const chapter = firstChapterPos(doc)
+		if (chapter === null) return null
+		const front = hasFrontMatter(doc, chapter)
+		const preset = readNumberingPreset(app.doc, app.activeId)
+
+		if (preset === 'academic') {
+			// Sampul yang baru disisipkan tugas ini: halaman pertamanya tanpa nomor.
+			if (coverInserted(history, taskId) && opensWithCover(doc)) setFirstPageSeparate(true)
+			return null
+		}
+		if (preset === 'academic-body') {
+			const untouched =
+				JSON.stringify(app.setup.pageNumbering ?? null) === JSON.stringify(BODY_NUMBERING) &&
+				!numberingCustomized(doc, undefined)
+			if (!front || !untouched) return null
+		} else if (numberingCustomized(doc, app.setup.pageNumbering)) {
+			return null
+		}
+
+		const outcome = applyAcademicNumbering(numberingContext(editor))
+		if (!outcome.ok) return null
+		setNumberingPreset(app.doc, app.activeId, outcome.front ? 'academic' : 'academic-body')
+		return outcome.front
+			? 'Bagian depan bernomor romawi (i, ii, …) di tengah bawah; mulai BAB I angka dari 1 - tengah bawah di halaman pembuka bab, kanan atas di halaman lainnya.'
+			: 'Angka dari 1 - tengah bawah di halaman pembuka bab, kanan atas di halaman lainnya. Bagian depan akan bernomor romawi begitu ditulis.'
+	}
+
 	const runTurn = useCallback(
 		async (
 			history: ChatTurn[],
@@ -1027,6 +1114,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					}
 					if (finish === 'length') stallPendingRef.current = { reason: 'truncated', taskId }
 					else if (promisesMore(visible)) stallPendingRef.current = { reason: 'promised', taskId }
+					// Tugas selesai: penomoran halaman karya ilmiah, bila memang waktunya.
+					if (!stallPendingRef.current) {
+						const numbered = autoNumber(history, taskId)
+						if (numbered) {
+							pushStep('Penomoran halaman dipasang', numbered)
+							patchRunningStep({ status: 'done', endedAt: Date.now() })
+						}
+					}
 				}
 				const finalTurn: ChatTurn = { ...assistant, parts: visibleParts(finishParts()), usage }
 				commit([...history, finalTurn, ...immediateResults])
@@ -1417,6 +1512,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					markFormatApplied: (slug) => {
 						const app = appRef.current
 						if (app.activeDocId) setAppliedFormat(app.doc, app.activeDocId, slug)
+					},
+					furniture: () => appRef.current.furniture,
+					markNumberingPreset: (preset) => {
+						const app = appRef.current
+						if (app.activeId) setNumberingPreset(app.doc, app.activeId, preset)
 					},
 				},
 				call,

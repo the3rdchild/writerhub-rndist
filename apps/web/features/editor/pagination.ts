@@ -46,6 +46,8 @@ export interface Measurement {
 	 * blockquote, callout). Penyesuaian margin dan label section ditempelkan ke
 	 * kontainernya, bukan ke tiap anak. */
 	container?: number
+	/** Judul tingkat satu di tingkat teratas: lembar yang dibukanya adalah halaman pembuka bab. */
+	opensChapter?: boolean
 }
 
 /*
@@ -188,6 +190,7 @@ function measureBlocks(view: EditorView): Measurement[] {
 			isSectionBreak: node.type.name === SECTION_BREAK_NODE || undefined,
 			kind: 'block',
 			keepWithNext: KEEP_WITH_NEXT.has(node.type.name) || undefined,
+			opensChapter: (node.type.name === 'heading' && Number(node.attrs.level) === 1) || undefined,
 		})
 	})
 
@@ -387,6 +390,17 @@ export function computeSpacers(
 		{ ...geometry, index: 0, top: 0, sectionIndex: 0, pageNumbering: baseNumbering ?? null },
 	]
 	const contentTop = (sheet: SheetGeometry) => sheet.top + sheet.margins.top - baseMargins.top
+	/*
+	 * Lembar terakhir yang sudah berisi blok. Judul tingkat satu yang menjadi
+	 * blok pertama lembarnya menandai lembar itu halaman pembuka bab - tempat
+	 * pedoman karya ilmiah menaruh nomor di tengah bawah.
+	 */
+	let filledSheet = -1
+	const place = (block: Measurement) => {
+		const page = sheets.length - 1
+		if (block.opensChapter && filledSheet !== page) sheets[page].opensChapter = true
+		filledSheet = page
+	}
 	const pushSheet = (): SheetGeometry => {
 		const last = sheets[sheets.length - 1]
 		const next: SheetGeometry = {
@@ -395,6 +409,8 @@ export function computeSpacers(
 			top: last.top + last.height + PAGE_GAP,
 			sectionIndex: pendingSection?.index ?? last.sectionIndex ?? 0,
 			pageNumbering: pendingSection ? pendingSection.pageNumbering : (last.pageNumbering ?? null),
+			// Disebar dari lembar sebelumnya - tanda pembuka bab tidak ikut diwarisi.
+			opensChapter: undefined,
 		}
 		sheets.push(next)
 		pendingGeometry = null
@@ -516,6 +532,7 @@ export function computeSpacers(
 			}
 
 			blockPages.push({ pos: block.pos, page: sheets.length - 1 })
+			place(block)
 			const canvasBottom = block.bottom + cumulative + baseMargins.top
 			while (nextContentTop() < canvasBottom - 0.5) pushSheet()
 			cumulative += block.internal ?? 0
@@ -541,6 +558,7 @@ export function computeSpacers(
 			pageStart = block.top - headerHeight
 		}
 		if (block.kind === 'block') blockPages.push({ pos: block.pos, page: sheets.length - 1 })
+		place(block)
 
 		/*
 		 * Permintaan lembar baru sudah dipenuhi oleh blok ini; tanpa reset,
@@ -613,7 +631,11 @@ export function sameSheets(a: readonly SheetGeometry[], b: readonly SheetGeometr
 				 * disembunyikan" — `true` dan kosong sama-sama berarti tampil, supaya
 				 * dokumen lama tanpa medan `show` tidak memicu pemancaran semu.
 				 */
-				(sheet.pageNumbering?.show === false) === (other.pageNumbering?.show === false)
+				(sheet.pageNumbering?.show === false) === (other.pageNumbering?.show === false) &&
+				// Letak nomor dan halaman pembuka bab juga tidak menggeser geometri apa pun.
+				(sheet.pageNumbering?.position ?? null) === (other.pageNumbering?.position ?? null) &&
+				(sheet.pageNumbering?.openingPosition ?? null) === (other.pageNumbering?.openingPosition ?? null) &&
+				Boolean(sheet.opensChapter) === Boolean(other.opensChapter)
 			)
 		})
 	)
@@ -988,7 +1010,10 @@ export const Pagination = Extension.create<PaginationOptions>({
 							pageCount !== state.pageCount ||
 							!sameAdjustments(adjustments, state.marginAdjustments) ||
 							!sameBlockPages(blockPages, state.blockPages) ||
-							!sameBlockSections(sectionsOfBlocks, state.blockSections)
+							!sameBlockSections(sectionsOfBlocks, state.blockSections) ||
+							/* Penomoran yang berganti tanpa menggeser apa pun (desimal → romawi)
+							 * tetap harus sampai ke state: daftar isi membaca nomornya dari sini. */
+							!sameSheets(sheets, state.sheets)
 						) {
 							const transaction = view.state.tr.setMeta(paginationKey, {
 								spacers,

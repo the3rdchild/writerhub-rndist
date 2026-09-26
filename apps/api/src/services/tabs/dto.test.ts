@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import type { PageFurniture, PageNumbering } from '@writer-hub/shared'
 import { tabLayoutOverrideSchema, tabLayoutSchema } from './dto'
 
 const VALID_SETUP = {
@@ -102,5 +103,42 @@ describe('watermark selamat melewati skema', () => {
 			pageSetup: { ...VALID_SETUP, watermark: { ...WATERMARK, anchor: 'entah' } },
 		})
 		expect(parsed.success).toBe(false)
+	})
+})
+
+describe('penomoran halaman di tata letak', () => {
+	const pageSetup = {
+		size: 'a4',
+		orientation: 'portrait',
+		margins: { top: 96, right: 96, bottom: 96, left: 96 },
+		pageColor: null,
+		pageless: false,
+	}
+
+	test('romawi bagian depan beserta letaknya tidak dibuang saat parsing', () => {
+		const pageNumbering: PageNumbering = {
+			format: 'lower-roman',
+			restart: 1,
+			position: 'bottom-center',
+			openingPosition: 'bottom-center',
+		}
+		const parsed = tabLayoutOverrideSchema.parse({ pageSetup: { ...pageSetup, pageNumbering } })
+		expect(parsed.pageSetup?.pageNumbering).toEqual(pageNumbering)
+	})
+
+	test('letak di luar daftar ditolak', () => {
+		expect(() =>
+			tabLayoutOverrideSchema.parse({
+				pageSetup: {
+					...pageSetup,
+					pageNumbering: { format: 'decimal', restart: 'continue', position: 'middle' },
+				},
+			}),
+		).toThrow()
+	})
+
+	test('footer halaman pertama yang kosong sah - sampul tanpa nomor', () => {
+		const furniture: PageFurniture = { footer: { first: { text: '', align: 'center' } } }
+		expect(tabLayoutOverrideSchema.parse({ furniture }).furniture).toEqual(furniture)
 	})
 })

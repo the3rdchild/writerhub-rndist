@@ -1,4 +1,4 @@
-import { FRONT_MATTER, frontMatterNodes } from '@writer-hub/shared'
+import { ACADEMIC_NUMBERING, FIRST_CHAPTER_TITLE, FRONT_MATTER, frontMatterNodes } from '@writer-hub/shared'
 import type { DocNode, ProseMirrorDoc } from '@/services/drafts/markdown-doc'
 import { markdownToDoc } from '@/services/drafts/markdown-doc'
 import type { BuiltinTemplateDefinition } from './catalog/definition'
@@ -16,7 +16,10 @@ import { withTocBlocks } from './toc-blocks'
  * dokumen bila seluruh isinya memang berkolom.
  */
 export function compileTemplateContent(definition: BuiltinTemplateDefinition): ProseMirrorDoc {
-	const doc = withFrontMatter(withTocBlocks(markdownToDoc(definition.markdown)), definition)
+	const doc = withBodyNumbering(
+		withFrontMatter(withTocBlocks(markdownToDoc(definition.markdown)), definition),
+		definition,
+	)
 	const columns = definition.spec.layout.columns
 	if (!columns) return doc
 
@@ -62,4 +65,31 @@ function withFrontMatter(doc: ProseMirrorDoc, definition: BuiltinTemplateDefinit
 			...doc.content,
 		],
 	}
+}
+
+const textOf = (node: DocNode): string =>
+	node.type === 'text' ? String(node.text ?? '') : (node.content ?? []).map(textOf).join('')
+
+/**
+ * Pemisah bagian tepat di depan BAB I, membawa penomoran badan naskah: angka
+ * mulai 1. Bagian depannya bernomor romawi lewat aturan tab
+ * (`templateDocumentLayout`). Pemenggal halaman yang ada di sana digantikan -
+ * pemisah bagian sudah membuka lembar baru.
+ */
+function withBodyNumbering(doc: ProseMirrorDoc, definition: BuiltinTemplateDefinition): ProseMirrorDoc {
+	if (!definition.spec.frontMatter) return doc
+	const at = doc.content.findIndex(
+		(node) =>
+			node.type === 'heading' &&
+			node.attrs?.level === 1 &&
+			FIRST_CHAPTER_TITLE.test(textOf(node).replace(/\s+/g, ' ').trim()),
+	)
+	if (at <= 0) return doc
+
+	const sectionBreak: DocNode = {
+		type: 'sectionBreak',
+		attrs: { pageSetup: { pageNumbering: ACADEMIC_NUMBERING.body }, columns: null, continuous: false },
+	}
+	const start = doc.content[at - 1]?.type === 'pageBreak' ? at - 1 : at
+	return { ...doc, content: [...doc.content.slice(0, start), sectionBreak, ...doc.content.slice(at)] }
 }

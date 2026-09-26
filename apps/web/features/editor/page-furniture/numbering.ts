@@ -8,7 +8,7 @@
  * section-nya, persis seperti Word.
  */
 
-import { formatPageNumber, type PageNumbering } from '@writer-hub/shared'
+import { formatPageNumber, type PageNumbering, type PageNumberPosition } from '@writer-hub/shared'
 
 /** Aturan ketika section tidak menyimpan apa-apa: desimal, lanjut mengalir. */
 export const CONTINUE_NUMBERING: PageNumbering = { format: 'decimal', restart: 'continue' }
@@ -52,4 +52,18 @@ export function formatSheetNumbers(sheets: readonly NumberedSheet[], fallbackCou
 	}
 
 	return numbers
+}
+
+/**
+ * Letak nomor yang digambar aturan penomoran lembar ini sendiri, atau `null`
+ * bila aturannya tidak menyebut letak - nomornya lalu datang dari
+ * header/footer atau lencana sudut, seperti sebelumnya.
+ */
+export function numberPositionOf(sheet: {
+	opensChapter?: boolean
+	pageNumbering?: PageNumbering | null
+}): PageNumberPosition | null {
+	const rule = sheet.pageNumbering
+	if (!rule) return null
+	return (sheet.opensChapter ? rule.openingPosition : undefined) ?? rule.position ?? null
 }

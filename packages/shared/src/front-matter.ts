@@ -13,6 +13,7 @@
  * tanpa garis), bukan blok HTML: bisa disunting, dan tetap teks di DOCX.
  */
 
+import type { PageNumbering } from './layout'
 import type { TemplateMetadataField } from './template'
 
 export type FrontMatterPart = 'cover' | 'approval'
@@ -265,3 +266,18 @@ export function frontMatterNodes(
 		line(`NIP. ${get('nipKaprodi')}`),
 	]
 }
+
+/**
+ * Penomoran halaman karya ilmiah menurut pedoman umum: bagian depan romawi
+ * kecil di tengah bawah (sampul dihitung i tapi tanpa nomor), lalu mulai BAB I
+ * angka dari 1 - tengah bawah di halaman pembuka bab, kanan atas di halaman
+ * lainnya. Dipakai template (dokumen lahir sudah bernomor) dan editor (AI
+ * memasangnya pada dokumen yang ditulis dari nol).
+ */
+export const ACADEMIC_NUMBERING: { front: PageNumbering; body: PageNumbering } = {
+	front: { format: 'lower-roman', restart: 1, position: 'bottom-center', openingPosition: 'bottom-center' },
+	body: { format: 'decimal', restart: 1, position: 'top-right', openingPosition: 'bottom-center' },
+}
+
+/** Judul yang membuka badan naskah: "BAB I", "BAB 1 PENDAHULUAN", atau "PENDAHULUAN" saja. */
+export const FIRST_CHAPTER_TITLE = /^(bab\s+(1|i)\b|pendahuluan$)/i

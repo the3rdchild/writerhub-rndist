@@ -39,6 +39,29 @@ const watermarkSchema = z.object({
 	rotation: z.number(),
 })
 
+const numberPositionSchema = z.enum([
+	'top-left',
+	'top-center',
+	'top-right',
+	'bottom-left',
+	'bottom-center',
+	'bottom-right',
+])
+
+/*
+ * Penomoran halaman ikut divalidasi karena alasan yang sama dengan watermark:
+ * tanpa bidang ini, `z.object` membuangnya diam-diam, dan romawi bagian depan
+ * yang disetel di editor kembali menjadi 1, 2, 3 begitu dokumen dibuka dari
+ * peladen.
+ */
+const pageNumberingSchema = z.object({
+	format: z.enum(['decimal', 'lower-roman', 'upper-roman', 'lower-alpha', 'upper-alpha']),
+	restart: z.union([z.literal('continue'), z.number().int().min(0)]),
+	show: z.boolean().optional(),
+	position: numberPositionSchema.optional(),
+	openingPosition: numberPositionSchema.optional(),
+})
+
 const pageSetupSchema = z.object({
 	size: z.enum([
 		'letter',
@@ -60,11 +83,18 @@ const pageSetupSchema = z.object({
 	margins: pageMarginsSchema,
 	pageColor: z.string().nullable(),
 	pageless: z.boolean(),
+	headerMargin: z.number().optional(),
+	footerMargin: z.number().optional(),
+	pageNumbering: pageNumberingSchema.optional(),
 	watermark: watermarkSchema.optional(),
 })
 
+/*
+ * Teks kosong sah: baris halaman pertama yang kosong adalah cara menyatakan
+ * "sampul tanpa header/footer" - termasuk tanpa nomor halaman.
+ */
 const furnitureLineSchema = z.object({
-	text: z.string().min(1),
+	text: z.string(),
 	align: z.enum(['left', 'center', 'right']),
 })
 

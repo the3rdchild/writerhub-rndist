@@ -106,6 +106,9 @@ export function PageNumbersDialog() {
 			format: numbering.format,
 			restart: numbering.restart === 'continue' ? 'continue' : Math.max(0, Math.floor(restartAt)),
 			show: numbering.show !== false,
+			// Letak nomor (penomoran karya ilmiah) tidak diatur dialog ini, jadi ikut apa adanya.
+			...(numbering.position ? { position: numbering.position } : {}),
+			...(numbering.openingPosition ? { openingPosition: numbering.openingPosition } : {}),
 		}
 
 		if (scope === 'tab') {

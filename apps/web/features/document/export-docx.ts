@@ -18,7 +18,7 @@ import {
 } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE, type SectionSpan, sectionSpans } from '@/features/editor/section-break'
 import { DOCX_ALIGNMENT, docxTypographyStyles } from './docx/typography-styles'
-import { docxSectionFurniture, type FurnitureContent } from './export-furniture'
+import { docxPositionedFurniture, docxSectionFurniture, type FurnitureContent } from './export-furniture'
 
 const TWIPS_PER_PX = 15
 
@@ -722,7 +722,11 @@ export async function exportDocx(
 				return node.textContent ? [new Paragraph({ text: node.textContent })] : []
 		}
 	}
-	const sectionProperties = (span: SectionSpan | null) => {
+	/*
+	 * `continued`: bagian Word hasil pemecahan per bab (lihat di bawah) - ia
+	 * melanjutkan hitungan bagian induknya, jadi tidak membawa `start`.
+	 */
+	const sectionProperties = (span: SectionSpan | null, continued = false) => {
 		const geo = span ? pageGeometry(span.setup) : geometry
 		const columns = span?.columns
 		const upright = span
@@ -738,8 +742,14 @@ export async function exportDocx(
 					'upper-alpha': docx.NumberFormat.UPPER_LETTER,
 				}[numbering.format]
 			: undefined
+		/*
+		 * Mulai 1 di bagian PERTAMA sama dengan tanpa `start` - Word memulai dari
+		 * 1. Di bagian lain tidak: tanpa `start` Word melanjutkan hitungan, dan
+		 * BAB I sesudah bagian depan romawi terbaca halaman 8, bukan 1.
+		 */
+		const first = span === null || span.pos === 0
 		const startAt =
-			numbering && typeof numbering.restart === 'number' && numbering.restart !== 1
+			!continued && numbering && typeof numbering.restart === 'number' && !(first && numbering.restart === 1)
 				? numbering.restart
 				: undefined
 
@@ -795,9 +805,28 @@ export async function exportDocx(
 		properties: ReturnType<typeof sectionProperties>
 		children: unknown[]
 		span: SectionSpan | null
+		/** Blok pertamanya judul bab: halaman pertamanya halaman pembuka bab. */
+		opensChapter: boolean
 	}[] = []
 	let current: unknown[] = []
 	let spanIndex = 0
+	/*
+	 * Nomor yang letaknya berbeda di halaman pembuka bab (tengah bawah) dan di
+	 * halaman lain (kanan atas) hanya bisa dinyatakan Word lewat "halaman
+	 * pertama berbeda" - yang berlaku per section. Karena itu bagian seperti
+	 * itu dipecah menjadi satu section Word per bab, masing-masing melanjutkan
+	 * hitungan bagian induknya.
+	 */
+	const splitsChapters = (span: SectionSpan | undefined) => {
+		const numbering = span?.setup.pageNumbering
+		return Boolean(numbering?.openingPosition && numbering.openingPosition !== (numbering.position ?? null))
+	}
+	const chapterBreaks = typography?.headings?.[1]?.pageBreakBefore === true
+	let continued = false
+	let opensChapter = false
+	/* Paragraf pemenggal terakhir: pemenggal tepat sebelum judul bab dibuang
+	 * saat bagiannya dipecah, karena section baru sudah membuka halaman baru. */
+	let lastBreak: unknown = null
 
 	const contentWidthOf = (span: SectionSpan | undefined) =>
 		span ? pageGeometry(span.setup).contentWidth : geometry.contentWidth
@@ -817,21 +846,50 @@ export async function exportDocx(
 	root.forEach((node) => {
 		if (node.type.name === SECTION_BREAK_NODE && spans.length > 0) {
 			sections.push({
-				properties: sectionProperties(spans[spanIndex] ?? null),
+				properties: sectionProperties(spans[spanIndex] ?? null, continued),
 				children: current,
 				span: spans[spanIndex] ?? null,
+				opensChapter,
 			})
 			spanIndex += 1
 			current = []
+			continued = false
+			opensChapter = false
+			lastBreak = null
 			sectionContentWidth = contentWidthOf(spans[spanIndex])
 			return
 		}
-		current.push(...blockOf(node))
+
+		const chapter =
+			node.type.name === 'heading' &&
+			Number(node.attrs.level) === 1 &&
+			(chapterBreaks || node.attrs.pageBreakBefore === true || lastBreak !== null || current.length === 0)
+		if (chapter && splitsChapters(spans[spanIndex])) {
+			if (current.at(-1) === lastBreak && lastBreak !== null) current.pop()
+			if (current.length > 0) {
+				sections.push({
+					properties: sectionProperties(spans[spanIndex] ?? null, continued),
+					children: current,
+					span: spans[spanIndex] ?? null,
+					opensChapter,
+				})
+				current = []
+				continued = true
+			}
+			opensChapter = true
+		} else if (chapter && current.length === 0) {
+			opensChapter = true
+		}
+
+		const blocks = blockOf(node)
+		current.push(...blocks)
+		lastBreak = node.type.name === PAGE_BREAK_NODE ? (blocks[0] ?? null) : null
 	})
 	sections.push({
-		properties: sectionProperties(spans[spanIndex] ?? null),
+		properties: sectionProperties(spans[spanIndex] ?? null, continued),
 		children: current,
 		span: spans[spanIndex] ?? null,
+		opensChapter,
 	})
 
 	// Perabot halaman dipasang di section pertama; section berikutnya mewarisi
@@ -864,6 +922,23 @@ export async function exportDocx(
 		effectiveHidden = hidden
 	}
 
+	/*
+	 * Bagian yang aturan penomorannya menyebut letak (romawi tengah bawah,
+	 * angka kanan atas...) menulis header/footer-nya sendiri; sisanya tetap
+	 * lewat perabot tab seperti sebelumnya.
+	 */
+	const positioned = sections.map((section, index) => {
+		const numbering = section.span?.setup.pageNumbering
+		if (!numbering?.position && !numbering?.openingPosition) return null
+		const cover = index === 0 && furnitureBase.titlePage === true
+		return docxPositionedFurniture(docx, furniture, furnitureContent, {
+			position: numbering.position ?? null,
+			opening: section.opensChapter && !cover ? (numbering.openingPosition ?? null) : null,
+			cover,
+			hidden: numbering.show === false,
+		})
+	})
+
 	const document = new Document({
 		title,
 		...(typography ? { styles: docxTypographyStyles(typography) } : {}),
@@ -871,23 +946,34 @@ export async function exportDocx(
 		numbering: {
 			config: [...orderedConfigs].map(([reference, levels]) => ({ reference, levels })),
 		},
-		sections: sections.map((section, index) => ({
-			properties:
-				index === 0 && furnitureBase.titlePage
-					? { ...section.properties, titlePage: true }
-					: section.properties,
-			...(index === 0 && furnitureBase.headers
-				? { headers: furnitureBase.headers }
-				: overrides[index]?.headers
-					? { headers: overrides[index]?.headers }
-					: {}),
-			...(index === 0 && furnitureBase.footers
-				? { footers: furnitureBase.footers }
-				: overrides[index]?.footers
-					? { footers: overrides[index]?.footers }
-					: {}),
-			children: section.children as never,
-		})) as never,
+		sections: sections.map((section, index) => {
+			const own = positioned[index]
+			if (own) {
+				return {
+					properties: own.titlePage ? { ...section.properties, titlePage: true } : section.properties,
+					headers: own.headers,
+					footers: own.footers,
+					children: section.children as never,
+				}
+			}
+			return {
+				properties:
+					index === 0 && furnitureBase.titlePage
+						? { ...section.properties, titlePage: true }
+						: section.properties,
+				...(index === 0 && furnitureBase.headers
+					? { headers: furnitureBase.headers }
+					: overrides[index]?.headers
+						? { headers: overrides[index]?.headers }
+						: {}),
+				...(index === 0 && furnitureBase.footers
+					? { footers: furnitureBase.footers }
+					: overrides[index]?.footers
+						? { footers: overrides[index]?.footers }
+						: {}),
+				children: section.children as never,
+			}
+		}) as never,
 	})
 
 	return Packer.toBlob(document)

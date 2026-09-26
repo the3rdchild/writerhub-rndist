@@ -834,3 +834,35 @@ describe('section menerus tidak menghapus mulai-ulang lembar berjalan (W1)', () 
 		expect(formatSheetNumbers(sheets)).toEqual(['32', '33'])
 	})
 })
+
+describe('halaman pembuka bab', () => {
+	const block = (
+		pos: number,
+		top: number,
+		height: number,
+		extra: Partial<Measurement> = {},
+	): Measurement => ({
+		pos,
+		top,
+		bottom: top + height,
+		isBreak: false,
+		kind: 'block',
+		...extra,
+	})
+
+	test('lembar yang dibuka judul tingkat satu ditandai; lembar lanjutannya tidak', () => {
+		const blocks = [
+			block(0, 0, 40, { opensChapter: true }),
+			block(1, 40, contentHeight),
+			block(2, 40 + contentHeight, 40, { opensChapter: true, breakBefore: true }),
+			block(3, 80 + contentHeight, 40),
+		]
+		const { sheets } = computeSpacers(blocks, geometry)
+		expect(sheets.map((sheet) => Boolean(sheet.opensChapter))).toEqual([true, false, true])
+	})
+
+	test('judul di tengah lembar tidak menjadikan lembarnya pembuka bab', () => {
+		const blocks = [block(0, 0, 40), block(1, 40, 40, { opensChapter: true })]
+		expect(computeSpacers(blocks, geometry).sheets[0].opensChapter).toBeFalsy()
+	})
+})

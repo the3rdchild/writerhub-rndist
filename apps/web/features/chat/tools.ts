@@ -1,18 +1,21 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import type {
-	AnalysisFeature,
-	DocumentTypography,
-	PageNumberFormat,
-	PageNumbering,
-	TemplateSpec,
-	ToolCall,
-	WorkKind,
+import {
+	type AnalysisFeature,
+	type DocumentTypography,
+	PAGE_NUMBER_POSITIONS,
+	type PageNumberFormat,
+	type PageNumbering,
+	type PageNumberPosition,
+	type TemplateSpec,
+	type ToolCall,
+	type WorkKind,
 } from '@writer-hub/shared'
 import type { PanelId } from '@/features/analysis/panel-context'
 import { COMMENT_MARK } from '@/features/comments/comment-mark'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
+import { placeSectionNumbering } from '@/features/editor/academic-numbering'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { DEFAULT_HTML_BLOCK_ATTRS, HTML_BLOCK } from '@/features/editor/html-block'
 import { escapeNodeSelection } from '@/features/editor/insert-point'
@@ -34,6 +37,7 @@ import type { CommentThread } from '@/features/sessions/types'
 import { countWords } from '@/lib/utils'
 import { insertFrontMatter } from './front-matter-insert'
 import { blockSummary, htmlCandidates } from './html-block-candidates'
+import { applyAcademicNumbering } from './numbering-apply'
 import { setBlockStyle } from './paragraph-style'
 import { promoteSectionTitles } from './section-titles'
 
@@ -460,6 +464,10 @@ export interface WriteToolContext {
 	/** Format template yang sudah diterapkan ke dokumen ini, bila ada. */
 	appliedFormat: () => string | null
 	markFormatApplied: (slug: string) => void
+	/** Header/footer tab aktif saat ini. */
+	furniture: () => PageFurniture | null
+	/** Penomoran karya ilmiah sudah dipasang - pemasangan otomatis tidak mengulanginya. */
+	markNumberingPreset: (preset: 'academic' | 'academic-body') => void
 }
 
 export interface ToolOutcome {
@@ -507,14 +515,18 @@ export function describeToolCall(call: ToolCall): string {
 			return text ? `Set ${slot}${where} - “${text.slice(0, 40)}”` : `Clear the ${slot}${where}`
 		}
 		case 'set_page_numbering': {
+			if (call.arguments.preset === 'academic')
+				return 'Set academic page numbering (i, ii… then 1, 2… from BAB I)'
 			const parts = [
 				call.arguments.format ? String(call.arguments.format) : null,
 				typeof call.arguments.start_at === 'number' ? `start at ${call.arguments.start_at}` : null,
 				call.arguments.show === false ? 'hidden' : null,
 				call.arguments.show_on_first_page === false ? 'not on the first page' : null,
+				typeof call.arguments.position === 'string' ? String(call.arguments.position) : null,
 			].filter(Boolean)
-			const where =
-				call.arguments.scope === 'this_page'
+			const where = call.arguments.from_heading
+				? ` from "${String(call.arguments.from_heading).slice(0, 40)}"`
+				: call.arguments.scope === 'this_page'
 					? ' for this page'
 					: call.arguments.scope === 'from_here'
 						? ' from here on'
@@ -638,6 +650,18 @@ function cleanTitle(value: unknown): string {
 		.replace(/\s+/g, ' ')
 		.trim()
 		.slice(0, MAX_TITLE_CHARS)
+}
+
+/** Letak nomor dari argumen alat; yang tidak disebut ikut aturan sebelumnya. */
+function positionsOf(
+	args: Record<string, unknown>,
+	base: PageNumbering,
+): { position?: PageNumberPosition; openingPosition?: PageNumberPosition } {
+	const placed = (value: unknown): PageNumberPosition | undefined =>
+		PAGE_NUMBER_POSITIONS.includes(value as PageNumberPosition) ? (value as PageNumberPosition) : undefined
+	const position = placed(args.position) ?? base.position
+	const openingPosition = placed(args.opening_position) ?? base.openingPosition
+	return { ...(position ? { position } : {}), ...(openingPosition ? { openingPosition } : {}) }
 }
 
 function scopeLabel(call: ToolCall): string {
@@ -914,6 +938,12 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 		case 'set_page_numbering': {
 			const args = call.arguments
 
+			if (args.preset === 'academic') {
+				const outcome = applyAcademicNumbering(context)
+				if (outcome.ok) context.markNumberingPreset(outcome.front ? 'academic' : 'academic-body')
+				return { ok: outcome.ok, message: outcome.message }
+			}
+
 			/* Sampul tanpa nomor adalah sumbunya sendiri: ia berlaku untuk tab utuh
 			 * dan tidak menyentuh deret angkanya, jadi diterapkan lebih dulu dan
 			 * boleh berdiri sendiri tanpa argumen penomoran lain. */
@@ -943,6 +973,27 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 							? Math.max(0, Math.floor(startAt))
 							: base.restart,
 				show: typeof args.show === 'boolean' ? args.show : base.show !== false,
+				...positionsOf(args, base),
+			}
+
+			/*
+			 * Mulai dari sebuah judul, bukan dari kursor: model tidak memegang
+			 * kursor, dan "from_here" dulu menaruh pergantian romawi-ke-angka di
+			 * mana pun sisipan terakhirnya berakhir.
+			 */
+			const fromHeading = cleanTitle(args.from_heading)
+			if (fromHeading) {
+				const target = headings(editor).find((heading) => sameHeading(heading.text, fromHeading))
+				if (!target) {
+					return {
+						ok: false,
+						message: `No heading "${fromHeading}" in the document. Call get_outline and use a heading exactly as listed.`,
+					}
+				}
+				const { tr, schema } = editor.state
+				placeSectionNumbering(tr, schema, target.pos, next)
+				editor.view.dispatch(tr)
+				return { ok: true, message: `Page numbering changed from "${target.text}" onwards.${firstPage}` }
 			}
 
 			if (isSectionScope(args.scope)) {

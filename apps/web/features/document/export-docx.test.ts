@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
-import type { DocumentTypography } from '@writer-hub/shared'
+import { ACADEMIC_NUMBERING, type DocumentTypography } from '@writer-hub/shared'
 import { strFromU8, unzipSync } from 'fflate'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import { DEFAULT_PAGE_SETUP, type PageSetup, pageGeometry } from '@/features/editor/page-geometry'
+import { DEFAULT_TYPOGRAPHY } from '@/features/editor/typography'
 import { buildSchema } from '@/features/sync/serialize'
 import { exportDocx, mergeTabContents } from './export-docx'
 
@@ -746,5 +747,101 @@ describe('tabel polos di DOCX', () => {
 			expect(borders).toMatch(new RegExp(`<w:${side} w:val="none"`))
 		}
 		expect(xml).toContain('HALAMAN PENGESAHAN')
+	})
+})
+
+describe('penomoran karya ilmiah di DOCX', () => {
+	const text = (value: string): JSONContent => ({
+		type: 'paragraph',
+		content: [{ type: 'text', text: value }],
+	})
+	const h1 = (value: string): JSONContent => ({
+		type: 'heading',
+		attrs: { level: 1 },
+		content: [{ type: 'text', text: value }],
+	})
+
+	/** Tiap section: format & start penomorannya, titlePg, dan isi part header/footer per jenis. */
+	async function sectionsOf() {
+		const setup: PageSetup = { ...DEFAULT_PAGE_SETUP, pageNumbering: ACADEMIC_NUMBERING.front }
+		const blob = await exportDocx(
+			buildSchema().nodeFromJSON({
+				type: 'doc',
+				content: [
+					text('SKRIPSI'),
+					{ type: PAGE_BREAK_NODE },
+					h1('KATA PENGANTAR'),
+					text('Puji syukur.'),
+					{
+						type: 'sectionBreak',
+						attrs: {
+							pageSetup: { pageNumbering: ACADEMIC_NUMBERING.body },
+							columns: null,
+							continuous: false,
+						},
+					},
+					h1('BAB I PENDAHULUAN'),
+					text('Isi bab satu.'),
+					{ type: PAGE_BREAK_NODE },
+					h1('BAB II TINJAUAN PUSTAKA'),
+					text('Isi bab dua.'),
+				],
+			}),
+			{
+				title: 'uji',
+				geometry: pageGeometry(setup),
+				setup,
+				furniture: { footer: { first: { text: '', align: 'center' } } },
+				typography: {
+					...DEFAULT_TYPOGRAPHY,
+					headings: { ...DEFAULT_TYPOGRAPHY.headings, 1: { pageBreakBefore: true } },
+				},
+			},
+		)
+		const files = unzipSync(new Uint8Array(await blob.arrayBuffer()))
+		const xml = strFromU8(files['word/document.xml'])
+		const rels = strFromU8(files['word/_rels/document.xml.rels'])
+		const target = (id: string) => new RegExp(`Id="${id}"[^>]*Target="([^"]+)"`).exec(rels)?.[1] ?? ''
+		const part = (id: string) => strFromU8(files[`word/${target(id)}`])
+		/** "PAGE@right" - letak field PAGE di part itu, atau "-" bila tanpa nomor. */
+		const numberIn = (partXml: string) =>
+			/PAGE/.test(partXml) ? `PAGE@${/<w:jc w:val="(\w+)"/.exec(partXml)?.[1] ?? '?'}` : '-'
+
+		return [...xml.matchAll(/<w:sectPr[\s\S]*?<\/w:sectPr>/g)].map(([sectPr]) => {
+			const parts: Record<string, string> = {}
+			for (const [, kind, type, id] of sectPr.matchAll(
+				/<w:(header|footer)Reference w:type="(\w+)" r:id="(\w+)"/g,
+			)) {
+				parts[`${kind}.${type}`] = numberIn(part(id))
+			}
+			return {
+				pgNumType: /<w:pgNumType[^>]*\/>/.exec(sectPr)?.[0] ?? null,
+				titlePg: /<w:titlePg/.test(sectPr),
+				parts,
+			}
+		})
+	}
+
+	test('bagian depan satu section; badan naskah satu section per bab', async () => {
+		const sections = await sectionsOf()
+		expect(sections).toHaveLength(3)
+		expect(sections[0].pgNumType).toContain('lowerRoman')
+		// BAB I mulai 1 - tanpa `start`, Word melanjutkan hitungan romawi.
+		expect(sections[1].pgNumType).toMatch(/w:start="1"/)
+		expect(sections[2].pgNumType ?? '').not.toMatch(/w:start/)
+		expect(sections.every((section) => section.titlePg)).toBe(true)
+	})
+
+	test('sampul tanpa nomor, bagian depan tengah bawah, bab: pembuka tengah bawah, lainnya kanan atas', async () => {
+		const [front, bab1, bab2] = await sectionsOf()
+		expect(front.parts['footer.first']).toBe('-')
+		expect(front.parts['footer.default']).toBe('PAGE@center')
+		expect(front.parts['header.default']).toBe('-')
+		for (const bab of [bab1, bab2]) {
+			expect(bab.parts['footer.first']).toBe('PAGE@center')
+			expect(bab.parts['header.first']).toBe('-')
+			expect(bab.parts['header.default']).toBe('PAGE@right')
+			expect(bab.parts['footer.default']).toBe('-')
+		}
 	})
 })

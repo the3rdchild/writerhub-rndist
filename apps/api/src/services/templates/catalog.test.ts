@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { EDITOR_TOOLS } from '@writer-hub/shared'
+import { ACADEMIC_NUMBERING, EDITOR_TOOLS } from '@writer-hub/shared'
 import { BUILTIN_TEMPLATES } from './catalog'
 import { compileTemplateContent } from './compile'
+import { templateDocumentLayout, templateTabLayout } from './layout'
 
 describe('katalog template bawaan', () => {
 	test('setiap slug unik', () => {
@@ -134,6 +135,28 @@ describe('isian metadata template', () => {
 			expect(texts[breaks[0] + 1], template.slug).toBe('HALAMAN PENGESAHAN')
 			// Tanpa logo dan tanpa kampus tertentu.
 			expect(texts.join(' ')).not.toMatch(/padjadjaran|unpad/i)
+		}
+	})
+
+	test('karya akademik lahir bernomor: romawi di depan, angka mulai BAB I lewat pemisah bagian', () => {
+		const academic = BUILTIN_TEMPLATES.filter((template) => template.spec.frontMatter)
+		for (const template of academic) {
+			const content = compileTemplateContent(template).content
+			const breaks = content.flatMap((node, index) => (node.type === 'sectionBreak' ? [index] : []))
+			expect(breaks, `${template.slug}: satu pemisah bagian`).toHaveLength(1)
+			const next = content[breaks[0] + 1]
+			expect(next?.type, template.slug).toBe('heading')
+			expect(textsOf(next).join(''), template.slug).toMatch(/^(bab\s+(1|i)\b|pendahuluan)/i)
+			expect(content[breaks[0] - 1]?.type, `${template.slug}: tanpa pemenggal ganda`).not.toBe('pageBreak')
+			expect(breaks[0] > 0).toBe(true)
+
+			const pageSetup = next && content[breaks[0]].attrs?.pageSetup
+			expect(pageSetup, template.slug).toEqual({ pageNumbering: ACADEMIC_NUMBERING.body })
+			expect(templateDocumentLayout(template.spec).pageSetup.pageNumbering).toEqual(ACADEMIC_NUMBERING.front)
+			expect(templateTabLayout(template.spec)?.furniture?.footer?.first).toEqual({
+				text: '',
+				align: 'center',
+			})
 		}
 	})
 

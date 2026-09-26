@@ -75,10 +75,15 @@ export function hasFurniture(furniture: PageFurniture | null | undefined): boole
 const ALIGNS = new Set(['left', 'center', 'right'])
 const VARIANTS = new Set(['default', 'first', 'even'])
 
-function normalizeLine(raw: unknown): PageFurnitureLine | null {
+/*
+ * Baris kosong hanya sah untuk halaman pertama: di sana kehadirannya sendiri
+ * yang berarti "halaman pertama tanpa header/footer" - sampul tanpa nomor,
+ * bentuk yang dibawa template karya ilmiah dari peladen.
+ */
+function normalizeLine(raw: unknown, allowEmpty = false): PageFurnitureLine | null {
 	if (!raw || typeof raw !== 'object') return null
 	const { text, align } = raw as { text?: unknown; align?: unknown }
-	if (typeof text !== 'string' || text.length === 0) return null
+	if (typeof text !== 'string' || (text.length === 0 && !allowEmpty)) return null
 	if (typeof align !== 'string' || !ALIGNS.has(align)) return null
 	return { text, align: align as PageFurnitureLine['align'] }
 }
@@ -88,7 +93,7 @@ function normalizeSlot(raw: unknown): Partial<Record<FurnitureVariant, PageFurni
 	const out: Partial<Record<FurnitureVariant, PageFurnitureLine>> = {}
 	for (const [variant, line] of Object.entries(raw as Record<string, unknown>)) {
 		if (!VARIANTS.has(variant)) continue
-		const normalized = normalizeLine(line)
+		const normalized = normalizeLine(line, variant === 'first')
 		if (normalized) out[variant as FurnitureVariant] = normalized
 	}
 	return Object.keys(out).length > 0 ? out : null

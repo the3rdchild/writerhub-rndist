@@ -1,4 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
+import type { PageNumberPosition } from '@writer-hub/shared'
 import {
 	PAGE_TOKEN,
 	PAGES_TOKEN,
@@ -276,4 +277,99 @@ export function docxSectionFurniture(
 		...(hasFirst ? { titlePage: true } : {}),
 		...(hasEven ? { evenAndOdd: true } : {}),
 	}
+}
+
+type Slot = 'header' | 'footer'
+type Variant = 'default' | 'first' | 'even'
+type ParagraphOf = InstanceType<DocxModule['Paragraph']>
+
+/** Isi perabot satu slot+varian (kaya menang atas baris lama), atau kosong. */
+function furnitureParagraphs(
+	docx: DocxModule,
+	furniture: PageFurniture | null | undefined,
+	content: FurnitureContent | null | undefined,
+	slot: Slot,
+	variant: Variant,
+	hideNumbers: boolean,
+): ParagraphOf[] {
+	const blocks = content?.[slot]?.[variant]
+	if (blocks && blocks.length > 0)
+		return blocksAreEmpty(blocks) ? [] : childrenOfBlocks(docx, blocks, hideNumbers)
+	const line = furniture?.[slot]?.[variant]
+	return line?.text.trim() ? childrenOf(docx, line, hideNumbers) : []
+}
+
+function furnitureCarriesNumber(
+	furniture: PageFurniture | null | undefined,
+	content: FurnitureContent | null | undefined,
+	variant: Variant,
+): boolean {
+	return (['header', 'footer'] as const).some((slot) => {
+		const blocks = content?.[slot]?.[variant]
+		return blocks && blocks.length > 0
+			? blocksCarryNumber(blocks)
+			: carriesToken(furniture?.[slot]?.[variant]?.text ?? '')
+	})
+}
+
+/**
+ * Header/footer satu section Word yang nomor halamannya digambar aturan
+ * penomorannya sendiri (`PageNumbering.position`), bukan oleh token perabot.
+ *
+ * Setiap slot SELALU ditulis, kosong sekalipun: section Word yang tidak
+ * menulis header/footer mewarisi milik section sebelumnya, dan nomor kanan
+ * atas badan naskah akan muncul di bagian depan - atau sebaliknya.
+ *
+ * - `opening`: section ini dibuka judul bab; halaman pertamanya (`titlePg`)
+ *   memakai letak pembuka, halaman lainnya letak biasa.
+ * - `cover`: halaman pertama section ini sampul; ia memakai perabot halaman
+ *   pertama tab (kosong) tanpa nomor.
+ *
+ * Perabot yang sudah membawa nomornya sendiri menang, seperti di layar.
+ */
+export function docxPositionedFurniture(
+	docx: DocxModule,
+	furniture: PageFurniture | null | undefined,
+	content: FurnitureContent | null | undefined,
+	options: {
+		position: PageNumberPosition | null
+		opening: PageNumberPosition | null
+		cover: boolean
+		hidden: boolean
+	},
+): SectionFurniture {
+	const numberParagraph = (position: PageNumberPosition) =>
+		new docx.Paragraph({
+			alignment: alignOf(docx, position.split('-')[1] as PageFurnitureLine['align']),
+			children: [new docx.TextRun({ children: [docx.PageNumber.CURRENT] })],
+		})
+	const slotOf = (position: PageNumberPosition | null): Slot | null =>
+		position ? (position.startsWith('top') ? 'header' : 'footer') : null
+
+	const titlePage = options.cover || options.opening !== null
+	const variants: Variant[] = titlePage ? ['default', 'first'] : ['default']
+	if (furniture?.header?.even || furniture?.footer?.even || content?.header?.even || content?.footer?.even) {
+		variants.push('even')
+	}
+
+	const headers: Record<string, InstanceType<DocxModule['Header']>> = {}
+	const footers: Record<string, InstanceType<DocxModule['Footer']>> = {}
+	for (const variant of variants) {
+		// Halaman pembuka bab memakai perabot biasa tab; hanya sampul yang punya perabot sendiri.
+		const source: Variant = variant === 'first' && !options.cover ? 'default' : variant
+		const position = variant === 'first' ? (options.cover ? null : options.opening) : options.position
+		const numbered =
+			!options.hidden && position !== null && !furnitureCarriesNumber(furniture, content, source)
+		for (const slot of ['header', 'footer'] as const) {
+			const children = [
+				...furnitureParagraphs(docx, furniture, content, slot, source, options.hidden),
+				...(numbered && position && slotOf(position) === slot ? [numberParagraph(position)] : []),
+			]
+			const filled = children.length > 0 ? children : [new docx.Paragraph({})]
+			if (slot === 'header') headers[variant] = new docx.Header({ children: filled })
+			else footers[variant] = new docx.Footer({ children: filled })
+		}
+	}
+
+	return { headers, footers, ...(titlePage ? { titlePage: true } : {}) }
 }

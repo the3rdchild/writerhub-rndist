@@ -12,9 +12,9 @@ import {
 	type PageFurniture,
 	variantFor,
 } from '@/features/editor/page-furniture/model'
-import { formatSheetNumbers } from '@/features/editor/page-furniture/numbering'
+import { formatSheetNumbers, numberPositionOf } from '@/features/editor/page-furniture/numbering'
 import { FURNITURE_SLOTS } from '@/features/editor/page-furniture/page-furniture-ydoc'
-import { SheetFurniture } from '@/features/editor/page-furniture/sheet-furniture'
+import { SheetFurniture, SheetPageNumber } from '@/features/editor/page-furniture/sheet-furniture'
 import {
 	footerMarginOf,
 	headerMarginOf,
@@ -268,6 +268,8 @@ export function DocumentPaper({
 					width: sheet.width,
 					height: sheet.height,
 					margins: sheet.margins,
+					pageNumbering: sheet.pageNumbering,
+					opensChapter: sheet.opensChapter,
 				}))
 			: Array.from({ length: pageCount }, (_, index) => ({
 					key: index,
@@ -277,6 +279,8 @@ export function DocumentPaper({
 					width,
 					height,
 					margins,
+					pageNumbering: undefined,
+					opensChapter: undefined,
 				}))
 
 	return (
@@ -388,11 +392,32 @@ export function DocumentPaper({
 										onExit={onFurnitureDeactivate ?? (() => {})}
 									/>
 								)}
+								{/*
+								 * Aturan penomoran yang menyebut letaknya sendiri (romawi di tengah
+								 * bawah, angka di kanan atas...) menggambar nomornya di sana, dan
+								 * menggantikan lencana sudut. Ia bagian dari dokumen - ikut ke DOCX -
+								 * jadi tidak tunduk pada preferensi tampilan lencana. Header/footer
+								 * yang sudah membawa nomor tetap menang, supaya tidak tergambar dua kali.
+								 */}
+								{!setup.pageless &&
+									numberPositionOf(sheet) !== null &&
+									!furnitureShowsNumber(sheet.index) &&
+									!(sheet.index === 0 && firstPageSeparate) &&
+									(sheetNumbers[sheet.index] ?? '') !== '' && (
+										<SheetPageNumber
+											position={numberPositionOf(sheet) ?? 'bottom-right'}
+											margins={sheet.margins}
+											headerMargin={headerMargin}
+											footerMargin={footerMargin}
+											pageNumber={sheetNumbers[sheet.index] ?? ''}
+										/>
+									)}
 								{/* Ikut penomoran dokumen: kalau bagian ini memakai romawi, lencana
 								 * sudut pun membaca "iii", bukan "3". Kosong berarti bagian ini
 								 * memang disembunyikan - lencananya pun tidak digambar. */}
 								{showPageNumbers &&
 									!setup.pageless &&
+									numberPositionOf(sheet) === null &&
 									!furnitureShowsNumber(sheet.index) &&
 									!(sheet.index === 0 && firstPageSeparate) &&
 									(sheetNumbers[sheet.index] ?? String(sheet.index + 1)) !== '' && (

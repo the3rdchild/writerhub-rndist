@@ -425,10 +425,32 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'set_page_numbering',
 		kind: 'write',
 		description:
-			'Change how page numbers are counted and drawn: their format (1/i/I/a/A), where the count restarts, and whether they are shown at all. It only rules the digits - the number appears on the sheet through the {page} token of a header or footer, so call set_header_footer too when the document has none yet. Scope "tab" rules the whole tab; "from_here" and "this_page" insert section breaks so one part can run i, ii, iii while the rest runs 1, 2, 3 - that is how Indonesian academic front matter is numbered. To leave the cover unnumbered use show_on_first_page false, which gives the first page its own empty header/footer.',
+			'Change how page numbers are counted and drawn: their format (1/i/I/a/A), where the count restarts, whether they are shown, and where they sit. For a skripsi, tesis, disertasi or proposal use preset "academic" - ONE call sets the whole Indonesian academic scheme: unnumbered cover counted as i, front matter i, ii, iii at the bottom center, and arabic numbers restarting at 1 from BAB I (bottom center on chapter-opening pages, top right elsewhere). The app also applies it by itself once an academic document has front matter and BAB I, so only call it when the writer asks or the numbering is wrong. Otherwise: from_heading starts a new numbering section at that heading (e.g. restart arabic at an appendix); position/opening_position draw the number at a fixed spot without any header/footer. Without a position the number appears through the {page} token of a header or footer (set_header_footer). Scope "tab" rules the whole tab; "from_here"/"this_page" follow the cursor, which you do not control - prefer from_heading. show_on_first_page false gives the first page its own empty header/footer, so a cover carries no number.',
 		parameters: {
 			type: 'object',
 			properties: {
+				preset: {
+					type: 'string',
+					enum: ['academic'],
+					description:
+						'The complete Indonesian academic scheme in one call; every other argument is ignored.',
+				},
+				from_heading: {
+					type: 'string',
+					description:
+						'Start this numbering at the page where this heading begins, exactly as get_outline lists it. Inserts a section break before it.',
+				},
+				position: {
+					type: 'string',
+					enum: ['top-left', 'top-center', 'top-right', 'bottom-left', 'bottom-center', 'bottom-right'],
+					description: 'Where the number sits on the pages of this scope.',
+				},
+				opening_position: {
+					type: 'string',
+					enum: ['top-left', 'top-center', 'top-right', 'bottom-left', 'bottom-center', 'bottom-right'],
+					description:
+						'Where the number sits on chapter-opening pages (pages that start with a level-1 heading).',
+				},
 				format: {
 					type: 'string',
 					enum: ['decimal', 'lower-roman', 'upper-roman', 'lower-alpha', 'upper-alpha'],

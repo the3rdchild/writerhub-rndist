@@ -4,8 +4,14 @@ import { type NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer } from '@tip
 import { Copy, MoreVertical, RefreshCw, Settings2, Trash2, Type } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown'
+import { formatSheetNumbers } from '@/features/editor/page-furniture/numbering'
 import { pageGeometry } from '@/features/editor/page-geometry'
-import { paginationKey, SELF_PAGINATE_ATTRIBUTE, SPACER_ATTRIBUTE } from '@/features/editor/pagination'
+import {
+	pageOfPos,
+	paginationKey,
+	SELF_PAGINATE_ATTRIBUTE,
+	SPACER_ATTRIBUTE,
+} from '@/features/editor/pagination'
 import {
 	DEFAULT_TOC_ATTRS,
 	TOC_BLOCK,
@@ -19,7 +25,8 @@ import { cn } from '@/lib/utils'
 
 interface TocEntry {
 	item: OutlineItem
-	page?: number
+	/** Nomor terformat - "iv" di bagian depan, "1" di BAB I - bukan nomor lembar fisik. */
+	page?: string
 }
 
 interface TocGap {
@@ -91,13 +98,28 @@ export function TocBlockView({
 			)
 			const state = paginationKey.getState(editor.state)
 			const stride = state?.geometry?.pageStride ?? pageGeometry().pageStride
+			/*
+			 * Nomor yang tercetak di lembarnya, bukan urutan lembar: dokumen yang
+			 * bagian depannya bernomor romawi memulai BAB I di halaman 1, meski
+			 * itu lembar ketujuh. Tanpa paginasi, jatuh ke urutan lembar.
+			 */
+			const numbers =
+				state && !state.pageless && state.sheets.length > 0
+					? formatSheetNumbers(state.sheets, state.pageCount)
+					: null
 			const next: TocEntry[] = items.map((item) => {
-				let page: number | undefined
+				let page: string | undefined
 				if (item.pos + 1 <= editor.state.doc.content.size) {
 					try {
 						const el = editor.view.nodeDOM(item.pos)
 						if (el instanceof HTMLElement) {
-							if (attrs.showPageNumbers) page = Math.floor(el.offsetTop / stride) + 1
+							const sheet = numbers && state ? pageOfPos(state.blockPages, item.pos) : null
+							if (attrs.showPageNumbers) {
+								page =
+									numbers && sheet !== null
+										? numbers[sheet] || undefined
+										: String(Math.floor(el.offsetTop / stride) + 1)
+							}
 							if (attrs.style === 'link') el.id = tocAnchorId(item.pos)
 						}
 					} catch {}
@@ -174,7 +196,9 @@ export function TocBlockView({
 				if (
 					current.spacers !== last.spacers ||
 					current.geometry !== last.geometry ||
-					current.pageless !== last.pageless
+					current.pageless !== last.pageless ||
+					// Penomoran bagian berubah tanpa menggeser apa pun.
+					current.sheets !== last.sheets
 				) {
 					last = current
 					setPageTick((t) => t + 1)
