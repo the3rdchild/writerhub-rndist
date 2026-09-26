@@ -616,6 +616,11 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 					description:
 						'Template slug from the catalog, e.g. "skripsi-s1", "tesis-s2", "disertasi-s3", "proposal-penelitian", "laporan-kerja-praktik", "makalah-kuliah", "artikel-jurnal-nasional", "ieee-conference", "apa7-student", "proposal-proyek", "laporan-bulanan", "sop", "flyer-a4", "poster-a3".',
 				},
+				reapply: {
+					type: 'boolean',
+					description:
+						'Only when the writer explicitly asks to reset the document to this format again. A format already applied is otherwise refused.',
+				},
 			},
 			required: ['template'],
 		},

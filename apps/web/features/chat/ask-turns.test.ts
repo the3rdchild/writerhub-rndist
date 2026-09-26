@@ -6,6 +6,7 @@ import {
 	buildOutboundMessages,
 	type ChatTurn,
 	pendingAskOf,
+	withAppliedFormat,
 } from './chat-context'
 
 const TASK = 'task-a'
@@ -81,4 +82,11 @@ test('argumen update_brief yang rusak dibuang di pintu masuk', () => {
 		],
 	})
 	expect(briefUpdateFromArgs({})).toEqual({ fields: [], chapters: [] })
+})
+
+test('konteks halaman memberi tahu model format yang sudah diterapkan', () => {
+	expect(withAppliedFormat('A4 portrait.', null)).toBe('A4 portrait.')
+	expect(withAppliedFormat('A4 portrait.', 'skripsi-s1')).toContain(
+		'The skripsi-s1 format is already applied (the writer may have adjusted it since): do not call apply_template_format again',
+	)
 })

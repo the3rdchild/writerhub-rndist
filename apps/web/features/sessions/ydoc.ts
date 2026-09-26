@@ -574,3 +574,23 @@ export function duplicateTab(doc: Y.Doc, id: string): string | null {
 
 	return copyId
 }
+
+const APPLIED_FORMAT = 'appliedFormat'
+
+/**
+ * Template format yang sudah diterapkan ke dokumen lewat `apply_template_format`.
+ *
+ * Tanpa catatan ini AI menerapkannya ulang di setiap permintaan yang menyebut
+ * "skripsi" - menimpa margin dan huruf yang sudah diatur ulang penulis, dan
+ * membakar satu putaran penuh tiap kali.
+ */
+export function readAppliedFormat(doc: Y.Doc, docId: string): string | null {
+	const value = docsRoot(doc).meta.get(docId)?.get(APPLIED_FORMAT)
+	return typeof value === 'string' && value ? value : null
+}
+
+export function setAppliedFormat(doc: Y.Doc, docId: string, slug: string): void {
+	const entry = docsRoot(doc).meta.get(docId)
+	if (!entry || entry.get(APPLIED_FORMAT) === slug) return
+	doc.transact(() => entry.set(APPLIED_FORMAT, slug), LOCAL_ORIGIN)
+}

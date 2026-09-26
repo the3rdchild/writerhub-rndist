@@ -35,6 +35,7 @@ import { countWords } from '@/lib/utils'
 import { insertFrontMatter } from './front-matter-insert'
 import { blockSummary, htmlCandidates } from './html-block-candidates'
 import { setBlockStyle } from './paragraph-style'
+import { promoteSectionTitles } from './section-titles'
 
 /**
  * Rantai untuk alat yang menyisipkan sesuatu di kursor - lihat
@@ -456,6 +457,9 @@ export interface WriteToolContext {
 	 * diusulkan - penulis boleh melengkapi metadata sebelum menerapkannya.
 	 */
 	frontMatter: () => { kind: WorkKind; values: Record<string, string> }
+	/** Format template yang sudah diterapkan ke dokumen ini, bila ada. */
+	appliedFormat: () => string | null
+	markFormatApplied: (slug: string) => void
 }
 
 export interface ToolOutcome {
@@ -766,7 +770,10 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 					if (before?.type.name !== PAGE_BREAK_NODE) break
 					end -= before.nodeSize
 				}
-				editor.chain().insertContentAt(end, toEditorContent(markdown)).run()
+				editor
+					.chain()
+					.insertContentAt(end, toEditorContent(promoteSectionTitles(markdown)))
+					.run()
 				return { ok: true, message: `Inserted at the end of "${list[at].text}".` }
 			}
 
@@ -778,7 +785,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			 * dalam daftar atau kutipan keluar ke sesudah bloknya, dengan alasan
 			 * yang sama.
 			 */
-			const html = toEditorContent(markdown)
+			const html = toEditorContent(promoteSectionTitles(markdown))
 			if (call.arguments.position === 'end') {
 				// Paragraf kosong penutup dokumen tetap penutup - sisipan jatuh
 				// sebelumnya, bukan meninggalkannya sebagai celah di antara bagian.
@@ -1020,8 +1027,19 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const slug = String(call.arguments.template ?? '').trim()
 			const spec = slug ? context.templateSpecs.get(slug) : undefined
 			if (!spec) return { ok: false, message: `Template "${slug}" tidak dikenal.` }
+			/*
+			 * Sekali saja. Penulis boleh mengatur ulang margin atau hurufnya
+			 * sesudah itu, dan penerapan ulang diam-diam menimpa semuanya.
+			 */
+			if (context.appliedFormat() === slug && call.arguments.reapply !== true) {
+				return {
+					ok: false,
+					message: `The ${slug} format is already applied to this document, and the writer may have adjusted margins or fonts since. Not applied again - carry on with the writing. Re-apply only when the writer explicitly asks to reset the format, with reapply: true.`,
+				}
+			}
 
 			const { pageSetup, typography } = spec.layout
+			context.markFormatApplied(slug)
 			context.setPageSetup(pageSetup, 'document')
 			if (typography) context.setTypography(typography, 'document')
 

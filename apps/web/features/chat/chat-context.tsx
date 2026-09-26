@@ -49,7 +49,7 @@ import { editorPlainText } from '@/features/editor/text-content'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useTypography } from '@/features/editor/use-typography'
 import { sessionLabel, useSessions } from '@/features/sessions/session-context'
-import { createTab as createTabInDoc } from '@/features/sessions/ydoc'
+import { createTab as createTabInDoc, readAppliedFormat, setAppliedFormat } from '@/features/sessions/ydoc'
 import { buildSchema, fragmentToJSON, jsonToFragment } from '@/features/sync/serialize'
 import { useSync } from '@/features/sync/sync-context'
 import { getTemplate } from '@/features/templates/api'
@@ -247,6 +247,15 @@ export function briefUpdateFromArgs(args: Record<string, unknown>): {
 }
 
 const OUTLINE_SNIPPET_CHARS = 600
+
+/**
+ * Konteks halaman memberi tahu model bahwa formatnya sudah diterapkan, jadi
+ * ia tidak menghabiskan satu putaran untuk mencobanya lagi.
+ */
+export function withAppliedFormat(page: string, applied: string | null): string {
+	if (!applied) return page
+	return `${page} The ${applied} format is already applied (the writer may have adjusted it since): do not call apply_template_format again unless the writer explicitly asks to reset the format.`
+}
 
 function editorOutlineSummary(editor: Editor): string | undefined {
 	const doc = editor.state.doc
@@ -470,6 +479,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		messagesRef.current = next
 		setMessages(next)
 	}, [])
+	/* Dokumen dari galeri sudah lahir dengan format templatenya. Hanya membaca
+	 * ref, jadi aman dipanggil dari callback yang ter-memo. */
+	const appliedFormatOf = useCallback((): string | null => {
+		const app = appRef.current
+		const recorded = app.activeDocId ? readAppliedFormat(app.doc, app.activeDocId) : null
+		return recorded ?? templateRef.current?.slug ?? null
+	}, [])
+
 	const buildContext = useCallback(() => {
 		const { attachment: current, includeDocument: whole, state: document } = contextRef.current
 		const editor = editorRef.current
@@ -490,9 +507,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			selection: current?.text,
 			surrounding: current?.surrounding,
 			document: documentText,
-			page: pageSummary(appRef.current.setup),
+			page: withAppliedFormat(pageSummary(appRef.current.setup), appliedFormatOf()),
 		}
-	}, [])
+	}, [appliedFormatOf])
 
 	const stop = useCallback(() => {
 		// Percobaan ulang yang masih menunggu ikut dibatalkan; tanpa ini
@@ -742,6 +759,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	 * judul dan jenis karya dari brief. Jenis karya: template dulu - dokumen
 	 * skripsi tetap skripsi - lalu brief, lalu skripsi.
 	 */
+
 	const frontMatterSource = (): { kind: WorkKind; values: Record<string, string> } => {
 		const brief = briefRef.current.snapshot()
 		const identity = metadataRef.current ?? {}
@@ -1148,6 +1166,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					setFurnitureLine,
 					setFirstPageSeparate,
 					frontMatter: frontMatterSource,
+					appliedFormat: appliedFormatOf,
+					markFormatApplied: (slug) => {
+						const app = appRef.current
+						if (app.activeDocId) setAppliedFormat(app.doc, app.activeDocId, slug)
+					},
 				},
 				call,
 			)
