@@ -1,9 +1,24 @@
+import { protectEscapes, restoreEscapes, startsEntity } from '@writer-hub/shared'
 import { latexToMarkdown, looksLikeLatexDocument } from './latex-document'
 import { wholeParagraphLatex } from './math'
 
 function escapeHtml(value: string): string {
 	return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
+
+/**
+ * Seperti `escapeHtml`, tapi `&` yang membuka entitas dibiarkan: `&emsp;`
+ * yang ditulis model untuk merapikan blok tanda tangan harus menjadi spasi,
+ * bukan tulisan "&emsp;". Aman - referensi entitas tidak pernah membentuk tag.
+ */
+function escapeText(value: string): string {
+	return value
+		.replace(/&/g, (amp, offset: number) => (startsEntity(value, offset) ? amp : '&amp;'))
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+}
+
+const CODE_SPAN = /(`[^`]+`)/
 
 function escapeAttribute(value: string): string {
 	return escapeHtml(value).replace(/"/g, '&quot;')
@@ -15,13 +30,15 @@ function inline(text: string): string {
 	const formulas: string[] = []
 
 	const stash = (latex: string, display: boolean): string => {
-		const trimmed = latex.trim()
+		// `\$` di dalam rumus adalah LaTeX, bukan escape Markdown - backslash-nya kembali.
+		const trimmed = restoreEscapes(latex, (char) => `\\${char}`).trim()
 		if (!trimmed) return ''
 		const tag = display ? 'div' : 'span'
 		formulas.push(`<${tag} data-latex="${escapeAttribute(trimmed)}"></${tag}>`)
 		return `${MATH_PLACEHOLDER}${formulas.length - 1}\u0000`
 	}
-	const guarded = text
+	// `\$` tidak pernah membuka rumus, jadi ia diamankan sebelum rumus dicari.
+	const guarded = protectEscapes(text, '$')
 		.replace(
 			/\\begin\{((?:equation|align|gather|multline)\*?)\}([\s\S]*?)\\end\{\1\}/g,
 			(whole, _name, body: string) => stash(body, true) || whole,
@@ -34,13 +51,25 @@ function inline(text: string): string {
 			return stash(trimmed, whole.startsWith('$$')) || whole
 		})
 
-	const rendered = escapeHtml(guarded)
+	/*
+	 * Isi kode tidak mengenal escape maupun entitas: `\_` dan `&nbsp;` di
+	 * dalam backtick ditulis apa adanya. Di luar kode, backslash-escape
+	 * diamankan dulu supaya `\*` tidak menjadi penanda miring.
+	 */
+	const rendered = guarded
+		.split(CODE_SPAN)
+		.map((part, index) =>
+			index % 2 === 1
+				? escapeHtml(restoreEscapes(part, (char) => `\\${char}`))
+				: escapeText(protectEscapes(part)),
+		)
+		.join('')
 		.replace(/`([^`]+)`/g, '<code>$1</code>')
 		.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
 		.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
 		.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2">$1</a>')
 
-	return rendered.replace(
+	return restoreEscapes(rendered, escapeHtml).replace(
 		new RegExp(`${MATH_PLACEHOLDER}(\\d+)\\u0000`, 'g'),
 		(_whole, index: string) => formulas[Number(index)] ?? '',
 	)
@@ -67,7 +96,10 @@ export function looksLikeMarkdown(text: string): boolean {
 		/\*\*[^*\n]+\*\*|`[^`\n]+`/.test(text) ||
 		/```/.test(text) ||
 		/\$\$?[^\s$][^$\n]*[^\s$]\$\$?|\$[^\s$]\$/.test(text) ||
-		/\\\[[\s\S]*?\\\]|\\\([^)\n]*?\\\)|\\begin\{(?:equation|align|gather|multline)\*?\}/.test(text)
+		/\\\[[\s\S]*?\\\]|\\\([^)\n]*?\\\)|\\begin\{(?:equation|align|gather|multline)\*?\}/.test(text) ||
+		// Backslash-escape dan entitas HTML: tanpa konversi keduanya tertulis mentah.
+		/\\[_*#`~|<>+.!{}&$-]/.test(text) ||
+		/&(?:#\d{1,7}|#x[0-9a-f]{1,6}|[a-z][a-z0-9]{1,31});/i.test(text)
 	)
 }
 

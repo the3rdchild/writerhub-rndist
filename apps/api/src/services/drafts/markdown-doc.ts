@@ -1,3 +1,4 @@
+import { decodeEntities, protectEscapes, restoreEscapes } from '@writer-hub/shared'
 import { type DesignCanvas, repairDesignHtml } from './design-repair'
 /**
  * Menerjemahkan Markdown menjadi dokumen ProseMirror - bentuk yang disimpan
@@ -76,15 +77,30 @@ const INLINE_PATTERNS: InlinePattern[] = [
 	},
 ]
 
+/*
+ * Entitas diterjemahkan dan escape dikembalikan di sini, sesudah penanda
+ * inline selesai dicari: `&#42;` dan `\*` adalah bintang harfiah, bukan
+ * pembuka miring. Isi kode tidak mengenal keduanya - ditulis apa adanya.
+ */
 function textNode(text: string, marks: DocMark[]): DocNode {
-	return marks.length > 0 ? { type: 'text', text, marks } : { type: 'text', text }
+	const code = marks.some((mark) => mark.type === 'code')
+	const value = code ? restoreEscapes(text, (char) => `\\${char}`) : restoreEscapes(decodeEntities(text))
+	return marks.length > 0 ? { type: 'text', text: value, marks } : { type: 'text', text: value }
+}
+
+/**
+ * Teks inline Markdown menjadi node teks bertanda. Backslash-escape diamankan
+ * dulu supaya `\_\_\_` (garis isian) tidak terbaca sebagai penanda miring.
+ */
+export function inlineNodes(text: string, marks: DocMark[] = []): DocNode[] {
+	return markedNodes(protectEscapes(text), marks)
 }
 
 /**
  * Penanda paling kiri yang menang, lalu sisanya diproses ulang - dengan begitu
  * `**tebal *miring* **` bersarang tanpa perlu parser bertingkat.
  */
-export function inlineNodes(text: string, marks: DocMark[] = []): DocNode[] {
+function markedNodes(text: string, marks: DocMark[]): DocNode[] {
 	let earliest: { match: RegExpExecArray; spec: InlinePattern } | null = null
 	for (const spec of INLINE_PATTERNS) {
 		const match = spec.pattern.exec(text)
@@ -100,9 +116,9 @@ export function inlineNodes(text: string, marks: DocMark[] = []): DocNode[] {
 	const nested = [...marks, spec.mark(match)]
 
 	return [
-		...inlineNodes(before, marks),
-		...(spec.literal ? (inner ? [textNode(inner, nested)] : []) : inlineNodes(inner, nested)),
-		...inlineNodes(after, marks),
+		...markedNodes(before, marks),
+		...(spec.literal ? (inner ? [textNode(inner, nested)] : []) : markedNodes(inner, nested)),
+		...markedNodes(after, marks),
 	]
 }
 

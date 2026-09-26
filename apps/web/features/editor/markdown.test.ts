@@ -156,3 +156,60 @@ describe('pembatas LaTeX', () => {
 		expect(looksLikeMarkdown('\\begin{equation}x\\end{equation}')).toBe(true)
 	})
 })
+
+/* Keluaran DeepSeek V4 Flash untuk lembar pengesahan, 26 Sep: entitas dan
+ * garis bawah yang di-escape tertulis mentah di naskah. */
+describe('entitas HTML dan backslash-escape', () => {
+	const SIGNATURE = [
+		'## Lembar Pengesahan',
+		'',
+		'&emsp; &emsp; &emsp; NIP.',
+		'',
+		'&nbsp;',
+		'',
+		'Pembimbing I &emsp; &emsp; Pembimbing II',
+		'',
+		'( \\_\\_\\_\\_ ) &emsp; ( \\_\\_\\_\\_ )',
+	].join('\n')
+
+	test('entitas diserahkan ke peramban, tidak di-escape menjadi teks', () => {
+		const html = markdownToHtml(SIGNATURE)
+		expect(html).toContain('<p>&emsp; &emsp; &emsp; NIP.</p>')
+		expect(html).toContain('<p>&nbsp;</p>')
+		expect(html).not.toContain('&amp;emsp;')
+	})
+
+	test('garis isian yang di-escape menjadi garis bawah, tanpa backslash', () => {
+		expect(markdownToHtml(SIGNATURE)).toContain('<p>( ____ ) &emsp; ( ____ )</p>')
+	})
+
+	test('penanda yang di-escape tidak memformat', () => {
+		expect(markdownToHtml('\\*bukan miring\\* dan \\*\\*bukan tebal\\*\\*')).toBe(
+			'<p>*bukan miring* dan **bukan tebal**</p>',
+		)
+	})
+
+	test('entitas tidak pernah membuka jalan bagi tag', () => {
+		expect(markdownToHtml('&lt;script&gt; <b>x</b> R&D')).toBe(
+			'<p>&lt;script&gt; &lt;b&gt;x&lt;/b&gt; R&amp;D</p>',
+		)
+	})
+
+	test('isi kode ditulis apa adanya', () => {
+		expect(markdownToHtml('Pakai `&nbsp; \\_` di HTML')).toBe(
+			'<p>Pakai <code>&amp;nbsp; \\_</code> di HTML</p>',
+		)
+	})
+
+	test('dolar yang di-escape bukan rumus, dolar di dalam rumus tetap LaTeX', () => {
+		expect(markdownToHtml('Harga \\$5 sampai \\$10')).toBe('<p>Harga $5 sampai $10</p>')
+		expect(markdownToHtml('Nilai $a\\$b$ saja')).toContain('data-latex="a\\$b"')
+	})
+
+	test('teks polos berisi entitas atau escape ikut dikonversi', () => {
+		expect(looksLikeMarkdown('Ttd &emsp; NIP.')).toBe(true)
+		expect(looksLikeMarkdown('( \\_\\_\\_ )')).toBe(true)
+		expect(toEditorContent('( \\_\\_\\_ )')).toBe('<p>( ___ )</p>')
+		expect(looksLikeMarkdown('Riset dan pengembangan (R&D)')).toBe(false)
+	})
+})

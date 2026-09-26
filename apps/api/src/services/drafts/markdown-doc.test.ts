@@ -323,3 +323,35 @@ describe('dokumen HTML utuh diratakan', () => {
 		expect(singleHtmlBlock('<div class="flyer">isi</div>')).toBe('<div class="flyer">isi</div>')
 	})
 })
+
+/* Keluaran DeepSeek V4 Flash untuk lembar pengesahan, 26 Sep. */
+describe('entitas HTML dan backslash-escape', () => {
+	const texts = (markdown: string) =>
+		markdownToDoc(markdown).content.map((node) => node.content?.map((child) => child.text).join(''))
+
+	test('entitas diterjemahkan dan garis isian kehilangan backslash-nya', () => {
+		expect(texts('&emsp; NIP.\n\n&nbsp;\n\n( \\_\\_\\_ ) &emsp; ( \\_\\_\\_ )')).toEqual([
+			'\u2003 NIP.',
+			'\u00a0',
+			'( ___ ) \u2003 ( ___ )',
+		])
+	})
+
+	test('penanda yang di-escape atau ditulis sebagai entitas tidak memformat', () => {
+		const [paragraph] = markdownToDoc('\\*bukan miring\\* dan &#42;juga bukan&#42;').content
+		expect(paragraph.content).toEqual([{ type: 'text', text: '*bukan miring* dan *juga bukan*' }])
+	})
+
+	test('escape entitas tetap harfiah', () => {
+		expect(texts('\\&amp; tetap tertulis')).toEqual(['&amp; tetap tertulis'])
+	})
+
+	test('isi kode ditulis apa adanya', () => {
+		const [paragraph] = markdownToDoc('Pakai `&nbsp; \\_` di HTML').content
+		expect(paragraph.content?.[1]).toEqual({ type: 'text', text: '&nbsp; \\_', marks: [{ type: 'code' }] })
+	})
+
+	test('judul dokumen ikut bersih', () => {
+		expect(headingTitle('# Bab \\#1 &mdash; Pendahuluan')).toBe('Bab #1 — Pendahuluan')
+	})
+})
