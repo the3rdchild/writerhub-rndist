@@ -4,6 +4,7 @@ import { EditorState } from '@tiptap/pm/state'
 import { markdownToHtml } from '@/features/editor/markdown'
 import { buildSchema } from '@/features/sync/serialize'
 import {
+	afterBlockAt,
 	figureLine,
 	figureOf,
 	insideFigure,
@@ -238,5 +239,26 @@ describe('markup yang tidak boleh menjadi naskah', () => {
 		expect(markdownToHtml('Pakai `<!-- x -->` di HTML')).toBe(
 			'<p>Pakai <code>&lt;!-- x --&gt;</code> di HTML</p>',
 		)
+	})
+})
+
+describe('letak gambar sesudah keterangannya (AC-10)', () => {
+	test('sesudah paragraf yang memuat teksnya', () => {
+		const root = chapter()
+		// Posisi di tengah teks "Gambar 1. Tren nilai transaksi".
+		let captionPos = 0
+		root.forEach((node, pos) => {
+			if (node.textContent.startsWith('Gambar 1')) captionPos = pos
+		})
+		const caption = root.nodeAt(captionPos)
+		expect(afterBlockAt(root, captionPos + 5)).toBe(captionPos + (caption?.nodeSize ?? 0))
+	})
+
+	test('keterangan di dalam tabel: sesudah tabelnya, bukan di dalam sel', () => {
+		const cell = schema.node('tableCell', null, [p('Gambar 2. Di sel')])
+		const table = schema.node('table', null, [schema.node('tableRow', null, [cell])])
+		const root = doc(p('awal'), table, p('akhir'))
+		const tablePos = root.child(0).nodeSize
+		expect(afterBlockAt(root, tablePos + 5)).toBe(tablePos + table.nodeSize)
 	})
 })

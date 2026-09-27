@@ -92,7 +92,13 @@ import { readableText } from './figures'
 import { LEAKED_BROKEN_RESULT, leakedCallRepeats, parseLeakedCalls, stripLeakedCalls } from './leaked-calls'
 import { applyAcademicNumbering, type NumberingContext } from './numbering-apply'
 import { clipMessage, fitWindow, withToolResults } from './outbound-window'
-import { type OutlineProgress, outlineDone, outlineForModel, outlineForWriter } from './outline-check'
+import {
+	type OutlineProgress,
+	outlineDone,
+	outlineForModel,
+	outlineForWriter,
+	outlineGaps,
+} from './outline-check'
 import { measureOutline } from './outline-measure'
 import { isRemoteReadTool, remoteToolLabel, runRemoteReadTool } from './remote-tools'
 import {
@@ -106,6 +112,7 @@ import {
 } from './stall'
 import {
 	applyWriteTool,
+	figurePlacement,
 	insertDiagramBlock,
 	pageSummary,
 	type ReadToolContext,
@@ -437,12 +444,19 @@ export function briefUpdateFromArgs(args: Record<string, unknown>): {
  */
 export function outlineFromArgs(args: Record<string, unknown>): OutlineUpdate {
 	const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+	/* Janji tabel/gambar kadang datang sebagai objek `{label, description}`,
+	 * bukan teks (uji 27 Sep, UC3) - labelnya yang dipakai, bukan dibuang. */
+	const item = (value: unknown): string => {
+		if (!value || typeof value !== 'object') return text(value)
+		const entry = value as Record<string, unknown>
+		return text(entry.label) || text(entry.title) || text(entry.name) || text(entry.caption)
+	}
 	const sections = (Array.isArray(args.sections) ? args.sections : [])
-		.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+		.filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object')
 		.map((section) => ({
 			title: text(section.title),
 			summary: text(section.summary),
-			items: Array.isArray(section.items) ? section.items.map(text).filter(Boolean) : [],
+			items: Array.isArray(section.items) ? section.items.map(item).filter(Boolean) : [],
 		}))
 
 	const raw = args.pages
@@ -633,7 +647,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	 */
 	const [stall, setStall] = useState<ChatStall | null>(null)
 	const stallPendingRef = useRef<{ reason: StallReason; taskId: string } | null>(null)
-	const continuesRef = useRef<{ taskId: string | undefined; auto: number; reason?: StallReason }>({
+	const continuesRef = useRef<{
+		taskId: string | undefined
+		auto: number
+		reason?: StallReason
+		/** Sidik kekurangan kerangka saat lanjutan 'unfinished' terakhir - `outlineGaps`. */
+		gaps?: string
+	}>({
 		taskId: undefined,
 		auto: 0,
 	})
@@ -1555,14 +1575,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		const auto = previous.auto
 		const waves = writeWavesRef.current
 		const progressed = waves.taskId === taskId && waves.count > 0
-		if (mayAutoContinue(auto, progressed, previous.reason === reason)) {
-			continuesRef.current = { taskId, auto: auto + 1, reason }
+		const outline = currentOutline()
+		/* Suntingan saja belum kemajuan: model yang menyisipkan grafik di tempat
+		 * yang salah tetap menyunting, tapi kekurangan kerangkanya tidak berubah. */
+		const gaps = reason === 'unfinished' && outline ? outlineGaps(outline) : undefined
+		const stuck = gaps !== undefined && previous.reason === 'unfinished' && previous.gaps === gaps
+		if (!stuck && mayAutoContinue(auto, progressed, previous.reason === reason)) {
+			continuesRef.current = { taskId, auto: auto + 1, reason, gaps }
 			continueTask(reason, 'auto')
 			return
 		}
 		const editor = editorRef.current
 		const sections = editor && !editor.isDestroyed ? emptySections(editor.state.doc) : { total: 0, empty: [] }
-		const outline = currentOutline()
 		const lacking = outline && !outlineDone(outline) ? outlineForWriter(outline).detail : undefined
 		setStall({ reason, autoContinues: auto, ...sections, ...(lacking ? { outline: lacking } : {}) })
 	}
@@ -1811,6 +1835,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			}
 		}
 
+		// Letak yang salah ditolak sebelum menggambar: menggambar itu yang mahal.
+		if (!redraw) {
+			const placement = figurePlacement(editor, call.arguments)
+			if (typeof placement === 'string') return { ok: false, message: placement }
+		}
+
 		const label = redraw
 			? `Menggambar ulang "${target?.title || 'diagram'}"`
 			: `Menggambar diagram ${String(call.arguments.type ?? '')}`.trim()
@@ -1829,8 +1859,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			return { ok: false, message: `The drawing sub-agent failed: ${drawn.error}` }
 		}
 
+		// Dihitung ulang: naskah bisa berubah selama sub-agent menggambar.
+		const placement = redraw ? null : figurePlacement(editor, call.arguments)
+		const at = typeof placement === 'number' ? placement : null
 		if (redraw && target) replaceDiagramBlock(editor, target.pos, drawn.svg)
-		else insertDiagramBlock(editor, drawn.svg)
+		else insertDiagramBlock(editor, drawn.svg, at)
 		// Tanpa ini kartunya berakhir "Skipped" padahal diagramnya sudah ada di naskah.
 		setAppliedActionIds((current) => new Set(current).add(call.id))
 
@@ -1838,7 +1871,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			status: 'done',
 			detail: `${drawn.title}${drawn.size ? ` · ${drawn.size.width}x${drawn.size.height}` : ''}`,
 		})
-		return { ok: true, message: diagramReceipt(drawn, redraw) }
+		const moved =
+			typeof placement === 'string'
+				? ' The text you named disappeared while it was being drawn, so it went in at the cursor.'
+				: at !== null
+					? ' It sits right after the text you named.'
+					: ''
+		return { ok: true, message: `${diagramReceipt(drawn, redraw)}${moved}` }
 	}, [])
 
 	/**
@@ -1857,6 +1896,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				spec?: string
 				palette?: Partial<DiagramPalette>
 			}>
+
+			const editor = editorRef.current
+			const placement = editor ? figurePlacement(editor, call.arguments) : null
+			if (typeof placement === 'string') return { ok: false, message: placement }
 
 			const drawn = new Map<string, string>()
 			const failed: string[] = []

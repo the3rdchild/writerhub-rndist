@@ -30,6 +30,19 @@ export interface ToolDefinition {
 	}
 }
 
+/**
+ * Letak gambar yang disisipkan: sesudah paragraf yang memuat teks ini.
+ *
+ * Tanpa ini gambar jatuh di kursor, dan di uji-asap UC9 keterangan "Gambar 1.1"
+ * berdiri tanpa grafiknya: model tidak punya cara menaruh grafik tepat di
+ * sebelah keterangannya, lalu berputar 60 menit mencobanya (AC-10).
+ */
+const AFTER_TEXT = {
+	type: 'string',
+	description:
+		'Put it right after the paragraph holding this exact text - usually its caption, e.g. "Gambar 1. Tren transaksi". Without it, it goes in at the cursor.',
+} as const
+
 export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 	{
 		name: 'get_outline',
@@ -603,6 +616,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		parameters: {
 			type: 'object',
 			properties: {
+				after_text: AFTER_TEXT,
 				source: { type: 'string', description: 'Mermaid source, e.g. "graph TD; A-->B".' },
 			},
 			required: ['source'],
@@ -616,6 +630,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		parameters: {
 			type: 'object',
 			properties: {
+				after_text: AFTER_TEXT,
 				source: {
 					type: 'string',
 					description:
@@ -633,6 +648,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		parameters: {
 			type: 'object',
 			properties: {
+				after_text: AFTER_TEXT,
 				type: {
 					type: 'string',
 					enum: [
@@ -742,6 +758,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		parameters: {
 			type: 'object',
 			properties: {
+				after_text: AFTER_TEXT,
 				html: {
 					type: 'string',
 					description: 'HTML fragment for the body: markup plus inline <style>. No scripts, no remote URLs.',
@@ -1055,6 +1072,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		parameters: {
 			type: 'object',
 			properties: {
+				after_text: AFTER_TEXT,
 				src: { type: 'string', description: 'Public image URL.' },
 				alt: { type: 'string' },
 			},

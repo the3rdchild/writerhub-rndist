@@ -1,5 +1,6 @@
 'use client'
 
+import type { JSONContent } from '@tiptap/core'
 import { NodeSelection, Selection } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
 import {
@@ -36,6 +37,7 @@ import { clampedAttrs, TOC_BLOCK, type TocBlockAttrs, type TocListKind } from '@
 import type { CommentThread } from '@/features/sessions/types'
 import { countWords } from '@/lib/utils'
 import {
+	afterBlockAt,
 	type FigurePlan,
 	type FigureSlot,
 	figureNote,
@@ -425,15 +427,37 @@ export function readToolLabel(editor: Editor, call: ToolCall): string {
  * jadi penulis bisa menyuntingnya persis seperti diagram yang ditulis model
  * sendiri.
  */
-export function insertDiagramBlock(editor: Editor, svg: string): void {
-	insertChain(editor)
-		.insertContent({
-			type: 'codeBlock',
-			attrs: { language: 'diagram' },
-			content: [{ type: 'text', text: svg }],
-		})
-		.run()
+/**
+ * Letak gambar menurut `after_text`: posisi sesudah paragrafnya, null bila
+ * tidak diminta (di kursor), atau kalimat galat bila teksnya tidak ada.
+ */
+export function figurePlacement(editor: Editor, args: Record<string, unknown>): number | null | string {
+	const text = typeof args.after_text === 'string' ? args.after_text.trim() : ''
+	if (!text) return null
+	const index = buildTextIndex(editor.state.doc)
+	const span = resolveSpan(index.text, text, 0)
+	const range = span ? textRangeToPM(index, span.offset, span.length) : null
+	if (!range) {
+		return `Not carried out: "${text}" is not in the document. Quote the caption exactly as read_section shows it, or write the caption first.`
+	}
+	return afterBlockAt(editor.state.doc, range.to)
 }
+
+/** Menyisipkan satu blok gambar di `at`, atau di kursor bila `at` null. */
+function insertFigure(editor: Editor, content: JSONContent, at: number | null): boolean {
+	if (at === null) return insertChain(editor).insertContent(content).run()
+	return editor.chain().insertContentAt(at, content).run()
+}
+
+export function insertDiagramBlock(editor: Editor, svg: string, at: number | null = null): void {
+	insertFigure(
+		editor,
+		{ type: 'codeBlock', attrs: { language: 'diagram' }, content: [{ type: 'text', text: svg }] },
+		at,
+	)
+}
+
+const PLACED = (at: number | null) => (at === null ? '' : ' It sits right after the text you named.')
 
 /**
  * Menimpa isi satu blok diagram di tempatnya.
@@ -1295,19 +1319,31 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 
 			const fit = call.arguments.fit === 'page' ? 'page' : 'embed'
 			const height = Number(call.arguments.height)
+			const at = figurePlacement(editor, call.arguments)
+			if (typeof at === 'string') return { ok: false, message: at }
 			/*
 			 * Hasil rantainya dilaporkan apa adanya. Sebelumnya alat ini selalu
 			 * menjawab "ok", jadi sisipan yang gagal tetap muncul di lini masa
 			 * sebagai "Applied" - dan model melanjutkan seolah sampulnya ada.
 			 */
-			const inserted = insertChain(editor)
-				.insertHtmlBlock({ html, fit, ...(height ? { height } : {}) })
-				.run()
+			const inserted =
+				at === null
+					? insertChain(editor)
+							.insertHtmlBlock({ html, fit, ...(height ? { height } : {}) })
+							.run()
+					: insertFigure(
+							editor,
+							{
+								type: HTML_BLOCK,
+								attrs: { ...DEFAULT_HTML_BLOCK_ATTRS, html, fit, ...(height ? { height } : {}) },
+							},
+							at,
+						)
 			if (!inserted) return { ok: false, message: 'The design block could not be inserted here.' }
 
 			return {
 				ok: true,
-				message: fit === 'page' ? 'Full-page HTML design inserted.' : 'HTML design block inserted.',
+				message: `${fit === 'page' ? 'Full-page HTML design inserted.' : 'HTML design block inserted.'}${PLACED(at)}`,
 			}
 		}
 
@@ -1359,14 +1395,14 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 		case 'insert_mermaid': {
 			const source = String(call.arguments.source ?? '').trim()
 			if (!source) return { ok: false, message: 'Nothing to insert.' }
-			insertChain(editor)
-				.insertContent({
-					type: 'codeBlock',
-					attrs: { language: 'mermaid' },
-					content: [{ type: 'text', text: source }],
-				})
-				.run()
-			return { ok: true, message: 'Diagram inserted.' }
+			const at = figurePlacement(editor, call.arguments)
+			if (typeof at === 'string') return { ok: false, message: at }
+			insertFigure(
+				editor,
+				{ type: 'codeBlock', attrs: { language: 'mermaid' }, content: [{ type: 'text', text: source }] },
+				at,
+			)
+			return { ok: true, message: `Diagram inserted.${PLACED(at)}` }
 		}
 
 		/*
@@ -1381,14 +1417,10 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 		case 'insert_diagram': {
 			const source = String(call.arguments.source ?? '').trim()
 			if (!source) return { ok: false, message: 'Nothing to insert.' }
-			insertChain(editor)
-				.insertContent({
-					type: 'codeBlock',
-					attrs: { language: 'diagram' },
-					content: [{ type: 'text', text: source }],
-				})
-				.run()
-			return { ok: true, message: 'Diagram inserted.' }
+			const at = figurePlacement(editor, call.arguments)
+			if (typeof at === 'string') return { ok: false, message: at }
+			insertDiagramBlock(editor, source, at)
+			return { ok: true, message: `Diagram inserted.${PLACED(at)}` }
 		}
 
 		case 'insert_table': {
@@ -1675,10 +1707,12 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const verdict = publicImageUrl(src)
 			if (verdict) return { ok: false, message: verdict }
 
-			insertChain(editor)
-				.setImage({ src, alt: String(call.arguments.alt ?? '') || null })
-				.run()
-			return { ok: true, message: 'Image inserted.' }
+			const at = figurePlacement(editor, call.arguments)
+			if (typeof at === 'string') return { ok: false, message: at }
+			const alt = String(call.arguments.alt ?? '') || null
+			if (at === null) insertChain(editor).setImage({ src, alt }).run()
+			else insertFigure(editor, { type: 'image', attrs: { src, alt } }, at)
+			return { ok: true, message: `Image inserted.${PLACED(at)}` }
 		}
 
 		case 'create_tab': {

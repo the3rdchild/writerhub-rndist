@@ -338,3 +338,18 @@ export function svgInProse(markdown: string): boolean {
 
 export const SVG_IN_PROSE =
 	'Not carried out: the text holds SVG markup, which would print as code in the middle of the prose. A figure is not text: draw it with draw_diagram, change one with redraw_diagram, and keep an existing figure by writing its [Figure: …] line exactly as read_section shows it.'
+
+/**
+ * Posisi tepat sesudah paragraf yang memuat `pos` - letak gambar yang
+ * disisipkan dengan `after_text`.
+ *
+ * Paragraf di dalam tabel dilewati sampai ke sesudah tabel terluarnya: gambar
+ * di dalam sel menyempit selebar kolom dan keterangannya ikut terjepit.
+ */
+export function afterBlockAt(doc: PMNode, pos: number): number {
+	const $pos = doc.resolve(pos)
+	for (let depth = 1; depth <= $pos.depth; depth += 1) {
+		if ($pos.node(depth).type.spec.tableRole === 'table') return $pos.after(depth)
+	}
+	return $pos.depth > 0 ? $pos.after($pos.depth) : pos
+}
