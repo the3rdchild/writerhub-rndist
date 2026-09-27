@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "test": "bun test",
+    "use-cases": "bun e2e/use-cases/cli.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
