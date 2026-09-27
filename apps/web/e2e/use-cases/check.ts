@@ -20,10 +20,16 @@ export interface DriverStats {
 	model?: string
 	/** Pesan "lanjutkan" yang diketik penguji. */
 	nudges?: number
+	/** Lanjutan yang dilakukan aplikasi sendiri - bukan dorongan manual. */
+	autoContinues?: number
+	/** Kartu pertanyaan AI yang dijawab penguji. */
+	questions?: number
 	calls?: number
 	tokensIn?: number
 	tokensOut?: number
 	costUsd?: number
+	/** `tagihan`: selisih pemakaian provider; `tarif`: token × tarif. */
+	costSource?: 'tagihan' | 'tarif'
 	minutes?: number
 }
 
@@ -265,6 +271,9 @@ export function readinessReport(results: readonly CaseResult[], title = 'Hasil u
 	const nudges = results.flatMap((result) =>
 		result.driver?.nudges === undefined ? [] : [result.driver.nudges],
 	)
+	const autos = results.flatMap((result) =>
+		result.driver?.autoContinues === undefined ? [] : [result.driver.autoContinues],
+	)
 	const costs = results.flatMap((result) =>
 		result.driver?.costUsd === undefined ? [] : [result.driver.costUsd],
 	)
@@ -282,6 +291,13 @@ export function readinessReport(results: readonly CaseResult[], title = 'Hasil u
 				? 'belum diukur'
 				: `${Math.min(...nudges)}–${Math.max(...nudges)} (${nudges.length} dokumen)`,
 			'0',
+		],
+		[
+			'Lanjutan otomatis oleh aplikasi (bukan dorongan manual)',
+			autos.length === 0
+				? 'belum diukur'
+				: `${autos.reduce((sum, value) => sum + value, 0)} kali di ${autos.filter((value) => value > 0).length} dokumen`,
+			'-',
 		],
 		[
 			'Elemen visual yang diminta ada sebagai gambar di DOCX',
