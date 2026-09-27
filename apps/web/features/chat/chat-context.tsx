@@ -89,8 +89,9 @@ import { stitchDiagrams } from './diagram-embed'
 import { diagramBlocks, diagramTypeOf, findDiagramBlock, needsDrawing } from './diagram-target'
 import { chatFailureHint, toChatTurnError } from './failure'
 import { readableText } from './figures'
+import { LEAKED_BROKEN_RESULT, leakedCallRepeats, parseLeakedCalls, stripLeakedCalls } from './leaked-calls'
 import { applyAcademicNumbering, type NumberingContext } from './numbering-apply'
-import { fitWindow, withToolResults } from './outbound-window'
+import { clipMessage, fitWindow, withToolResults } from './outbound-window'
 import { type OutlineProgress, outlineDone, outlineForModel, outlineForWriter } from './outline-check'
 import { measureOutline } from './outline-measure'
 import { isRemoteReadTool, remoteToolLabel, runRemoteReadTool } from './remote-tools'
@@ -266,7 +267,13 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 		}
 		outbound.push({ role: turn.role, content: turn.content })
 	}
-	return fitWindow(withToolResults(outbound), CHAT_CONTEXT_LIMITS.messages, request)
+	// Balasan lama yang tersimpan sebelum DSML dibersihkan tetap dibersihkan di sini.
+	return fitWindow(withToolResults(outbound), CHAT_CONTEXT_LIMITS.messages, request).map((message) =>
+		clipMessage(
+			message.role === 'assistant' ? { ...message, content: stripLeakedCalls(message.content) } : message,
+			CHAT_CONTEXT_LIMITS.message,
+		),
+	)
 }
 
 export function actionsSettled(history: ChatTurn[], owner: ChatTurn): boolean {
@@ -1107,9 +1114,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			let answer = ''
 			const calls: ToolCall[] = []
 			const malformed = new Set<string>()
+			/** Panggilan DSML yang bocor ke teks dengan argumen rusak - lihat `leaked-calls.ts`. */
+			const leakedBroken = new Set<string>()
 			let usage: ChatUsage | undefined
 			let reasoning = ''
 			let finish: string | undefined
+			/*
+			 * Aliran sendiri, bukan `controller` giliran: aliran yang dihentikan
+			 * karena model berputar mengulang panggilan DSML yang sama bukan
+			 * pembatalan oleh penulis - gilirannya tetap diselesaikan dengan
+			 * panggilan yang sempat terbaca.
+			 */
+			const stream = new AbortController()
+			const relayAbort = () => stream.abort()
+			controller.signal.addEventListener('abort', relayAbort)
+			let looping = false
+			let leakChecked = 0
 
 			try {
 				await streamChat(
@@ -1128,6 +1148,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 							answer += delta
 							setStreaming(answer)
 							appendText(delta)
+							const opener = answer.lastIndexOf('DSML')
+							if (opener > leakChecked) {
+								leakChecked = opener
+								if (leakedCallRepeats(answer)) {
+									looping = true
+									finish = 'repetition'
+									stream.abort()
+								}
+							}
 						},
 						onToolCall: (call, broken) => {
 							calls.push(call)
@@ -1148,10 +1177,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 							usage = report
 						},
 					},
-					controller.signal,
+					stream.signal,
 				)
 			} catch (cause) {
-				if (controller.signal.aborted) {
+				// Dihentikan di sini karena berputar, bukan gagal: lanjut dengan yang sempat terbaca.
+				if (looping && !controller.signal.aborted) {
+					// sengaja kosong
+				} else if (controller.signal.aborted) {
 					const cancelled = closeAll('cancelled', partsRef.current)
 					setPartsBoth(cancelled)
 					const partial = stripFallbackCalls(answer)
@@ -1170,9 +1202,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				} else {
 					setPartsBoth(closeAll('failed', partsRef.current))
 				}
-				throw cause
+				if (!looping || controller.signal.aborted) throw cause
+			} finally {
+				controller.signal.removeEventListener('abort', relayAbort)
 			}
 			calls.push(...parseFallbackCalls(answer))
+			for (const { call, broken } of parseLeakedCalls(answer)) {
+				calls.push(call)
+				if (broken) {
+					malformed.add(call.id)
+					leakedBroken.add(call.id)
+				}
+			}
 
 			const visible = stripFallbackCalls(answer)
 			/*
@@ -1194,7 +1235,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				...extraAsks.map((call) => ({ call, content: EXTRA_ASK_RESULT })),
 				...calls
 					.filter((call) => malformed.has(call.id))
-					.map((call) => ({ call, content: BROKEN_ARGS_RESULT })),
+					.map((call) => ({
+						call,
+						content: leakedBroken.has(call.id) ? LEAKED_BROKEN_RESULT : BROKEN_ARGS_RESULT,
+					})),
 			].map(({ call, content }) => ({ role: 'tool', content, toolCallId: call.id, taskId }))
 
 			// Spec template diambil di sini, selagi masih boleh menunggu.

@@ -10,6 +10,7 @@ import type {
 } from '@writer-hub/shared'
 import { FALLBACK_TOOL_FENCE } from '@writer-hub/shared'
 import { ChatTurnError } from './failure'
+import { stripLeakedCalls } from './leaked-calls'
 
 export interface StreamChatHandlers {
 	onDelta: (text: string) => void
@@ -71,6 +72,18 @@ export async function streamChat(
 		// 502/503/504 datang dari proxy atau gateway, bukan dari model - sekali
 		// coba lagi sering cukup.
 		const retryable = response.status >= 502 && response.status <= 504
+		/*
+		 * 400/413/422 ditolak server kita sendiri sebelum sampai ke provider -
+		 * permintaannya yang tidak lolos validasi. Saran "periksa kunci API"
+		 * menyesatkan di sini (uji 27 Sep, UC3: satu pesan >64 ribu karakter).
+		 */
+		if (response.status === 400 || response.status === 413 || response.status === 422) {
+			throw new ChatTurnError(
+				`Permintaan ditolak sebelum sampai ke model${detail ? `: ${detail}` : ''}.`,
+				'unknown',
+				false,
+			)
+		}
 		throw new ChatTurnError(
 			detail || `Percakapan gagal (${response.status})`,
 			retryable ? 'provider_unreachable' : 'provider_rejected',
@@ -157,8 +170,9 @@ export function parseFallbackCalls(content: string): ToolCall[] {
 	return calls
 }
 
+/** Teks balasan tanpa panggilan cadangan, termasuk panggilan DSML yang bocor (`leaked-calls.ts`). */
 export function stripFallbackCalls(content: string): string {
-	return content
+	return stripLeakedCalls(content)
 		.replace(FALLBACK_TOOL_FENCE, '')
 		.replace(/\n{3,}/g, '\n\n')
 		.trim()

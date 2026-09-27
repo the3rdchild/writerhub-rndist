@@ -95,3 +95,18 @@ export function fitWindow(messages: readonly ChatMessage[], limit: number, reque
 	const head = messages[anchor]
 	return [{ ...head, content: skippedWork ? head.content + TRIMMED_NOTE : head.content }, ...kept]
 }
+
+/**
+ * Satu pesan yang melewati batas server dipotong, bukan dikirim utuh.
+ *
+ * Server menolak seluruh permintaan bila satu pesan saja kepanjangan, dan
+ * riwayat yang sama dikirim ulang di setiap giliran - jadi satu balasan
+ * kebablasan cukup untuk mematikan percakapan selamanya (uji 27 Sep, UC3).
+ * Awal pesannya yang dipertahankan: di sanalah model biasanya menulis
+ * maksudnya, sisanya ulangan.
+ */
+export function clipMessage(message: ChatMessage, limit: number): ChatMessage {
+	if (message.content.length <= limit) return message
+	const note = `\n\n[… ${message.content.length - limit} more characters cut: this message was too long to send again.]`
+	return { ...message, content: `${message.content.slice(0, Math.max(0, limit - note.length))}${note}` }
+}
