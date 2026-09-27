@@ -256,6 +256,49 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 			},
 		},
 	},
+	{
+		name: 'set_outline',
+		kind: 'read',
+		description:
+			"Record the outline of the document you are going to write, for any kind of document. Call it in the same turn you propose an outline, and again whenever the writer changes it. It is kept with the document and shown to you on every later turn - also after the writer's approval starts a new request - and the app checks the document against it, telling you which sections are still empty, which promised tables and figures are missing, and how the length compares with the target. It replaces the previous outline.",
+		parameters: {
+			type: 'object',
+			properties: {
+				sections: {
+					type: 'array',
+					description:
+						'Every top-level section in order, titled exactly as its heading will be written in the document.',
+					items: {
+						type: 'object',
+						properties: {
+							title: { type: 'string', description: 'The heading, e.g. "BAB I PENDAHULUAN" or "Metode".' },
+							summary: { type: 'string', description: 'What the section will cover, one sentence.' },
+							items: {
+								type: 'array',
+								items: { type: 'string' },
+								description:
+									'The numbered tables and figures this section promises, label first: "Tabel 1: statistik adopsi dompet digital", "Gambar 2: infografis statistik kunci". Its caption in the document must start with the same label.',
+							},
+						},
+						required: ['title'],
+					},
+				},
+				pages: {
+					type: 'object',
+					description: 'The length the writer asked for, in pages. Leave it out when they did not ask.',
+					properties: { min: { type: 'number' }, max: { type: 'number' } },
+					required: ['min', 'max'],
+				},
+				notes: {
+					type: 'array',
+					items: { type: 'string' },
+					description:
+						'The facts and sources from your research that the writing will rely on, one per line: the figure or claim, then its source and year. Recorded here, they survive into the writing turns, so you do not search again.',
+				},
+			},
+			required: ['sections'],
+		},
+	},
 
 	{
 		name: 'insert_content',

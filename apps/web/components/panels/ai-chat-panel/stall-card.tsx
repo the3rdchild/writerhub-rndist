@@ -27,13 +27,22 @@ export function StallCard({
 		<div className="rounded-xl border border-accent/25 bg-accent/5 px-3 py-2.5 text-xs">
 			<p className="text-foreground">{text.title}</p>
 			{text.hint && <p className="mt-1 text-muted">{text.hint}</p>}
-			{stall.total > 0 && (
-				<p className="mt-1 text-muted">
-					{filled} dari {stall.total} bagian sudah berisi
-					{stall.empty.length > 0 && stall.empty.length <= 4 && (
-						<span className="text-subtle"> · kosong: {stall.empty.join(', ')}</span>
-					)}
-				</p>
+			{stall.outline && stall.outline.length > 0 ? (
+				<ul className="mt-1 list-disc pl-4 text-muted">
+					{stall.outline.slice(0, 4).map((line) => (
+						<li key={line}>{line}</li>
+					))}
+					{stall.outline.length > 4 && <li className="text-subtle">+{stall.outline.length - 4} lagi</li>}
+				</ul>
+			) : (
+				stall.total > 0 && (
+					<p className="mt-1 text-muted">
+						{filled} dari {stall.total} bagian sudah berisi
+						{stall.empty.length > 0 && stall.empty.length <= 4 && (
+							<span className="text-subtle"> · kosong: {stall.empty.join(', ')}</span>
+						)}
+					</p>
+				)
 			)}
 
 			<div className="mt-2 flex flex-wrap items-center gap-2">
@@ -70,6 +79,7 @@ const MARKER: Record<ContinueReason, string> = {
 	truncated: 'jawaban terpotong',
 	stopped: 'setelah dihentikan',
 	incomplete: 'bagian yang masih kosong',
+	unfinished: 'kerangka belum lengkap',
 }
 
 /** Dorongan `[Continue]` di percakapan: penanda kecil, bukan gelembung pesan penulis. */

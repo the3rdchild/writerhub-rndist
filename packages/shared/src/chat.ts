@@ -23,6 +23,12 @@ export interface ChatContext {
 	 * mengandalkan model ingat bertanya lebih dulu terbukti tidak cukup.
 	 */
 	page?: string
+	/**
+	 * Naskah dibandingkan dengan kerangka yang dicatat `set_outline`: bab yang
+	 * kosong, tabel/gambar yang dijanjikan tapi belum ada, panjang terhadap
+	 * target. Dihitung klien - hanya ia yang memegang semua tab naskah.
+	 */
+	outline?: string
 }
 
 export interface ChatRequest {
@@ -64,4 +70,6 @@ export const CHAT_CONTEXT_LIMITS = {
 	messages: 40,
 	/** Satu pesan - longgar karena hasil `fetch_url` masuk lewat sini. */
 	message: 64_000,
+	page: 1_000,
+	outline: 3_000,
 } as const

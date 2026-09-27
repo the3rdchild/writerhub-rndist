@@ -125,6 +125,13 @@ export const TOOL_GUIDANCE = [
 	'you created - is written with write_section on that heading, never with',
 	'insert_content (that adds a second copy of the heading) and never with',
 	'replace_text on the heading plus its placeholder. Write one section per call.',
+	'Whenever you propose an outline - for any document - record it in the same',
+	'turn with set_outline: the headings exactly as you will write them, the',
+	'numbered tables and figures each section promises, the length the writer',
+	'asked for, and the facts and sources from your research. After the writer',
+	'approves, write it section by section; the editor context then reports what',
+	'the outline still lacks. When that report says the document is longer than',
+	'planned, shorten existing sections with write_section instead of adding.',
 	'Editing tools are queued for the writer to approve, so state plainly what',
 	'you are proposing.',
 	'You get another turn once the writer has decided on them, and you are told',
@@ -428,18 +435,35 @@ export function researchBriefPrompt(brief: ResearchBrief | undefined): string {
 	}
 
 	if (brief.chapters.length > 0) {
-		const chapters = brief.chapters
-			.slice(0, BRIEF_CHAPTERS_IN_PROMPT)
-			.map(
-				(chapter) =>
-					`- ${chapter.title} [${chapter.status}]${chapter.summary ? `: ${briefValue(chapter.summary, BRIEF_SUMMARY_LIMIT)}` : ''}`,
-			)
+		const chapters = brief.chapters.slice(0, BRIEF_CHAPTERS_IN_PROMPT).map((chapter) => {
+			const summary = chapter.summary ? `: ${briefValue(chapter.summary, BRIEF_SUMMARY_LIMIT)}` : ''
+			const promises = chapter.items?.length ? ` | promises: ${chapter.items.join('; ')}` : ''
+			return `- ${chapter.title} [${chapter.status}]${summary}${promises}`
+		})
 		sections.push(
 			[
 				'Chapter plan from the brief (status: belum = not started, draf = drafted, selesai = done).',
 				'It can lag behind the document: the document is the authority on what is',
-				'written - read it before telling the writer a chapter is empty.',
+				'written - read it before telling the writer a chapter is empty. Keep these',
+				'headings exactly as listed: the app checks the document against them.',
 				...chapters,
+			].join('\n'),
+		)
+	}
+
+	/* Kerangka dari `set_outline`: panjang yang diminta dan catatan riset.
+	 * Catatan inilah yang membuat giliran menulis tidak mengulang riset. */
+	const pages = brief.plan?.pages
+	if (pages) {
+		sections.push(
+			`Planned length: ${pages[0] === pages[1] ? pages[0] : `${pages[0]}-${pages[1]}`} pages. Write to fit it; the editor context reports the current length.`,
+		)
+	}
+	if (brief.plan?.notes.length) {
+		sections.push(
+			[
+				'Research notes recorded with the outline. Use them for the writing instead of searching again; search only for what they do not cover.',
+				...brief.plan.notes.map((note) => `- ${briefValue(note)}`),
 			].join('\n'),
 		)
 	}

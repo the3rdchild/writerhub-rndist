@@ -396,6 +396,12 @@ export interface BriefChapter {
 	status: ChapterStatus
 	source: BriefSource
 	/**
+	 * Tabel dan gambar yang dijanjikan kerangka untuk bab ini, berlabel
+	 * nomornya: "Tabel 1: statistik adopsi", "Gambar 2: infografis". Aplikasi
+	 * memeriksa naskah terhadapnya - lihat `set_outline`.
+	 */
+	items?: string[]
+	/**
 	 * Sidik jari isi bab saat ringkasannya ditulis. Berbeda dengan isi bab
 	 * sekarang berarti naskahnya berubah sejak diringkas.
 	 */
@@ -418,10 +424,25 @@ export interface BriefProposal {
 	at: number
 }
 
+/**
+ * Bagian kerangka tugas menulis yang bukan milik satu bab: panjang yang diminta
+ * penulis dan catatan riset. Ikut di setiap giliran, jadi tidak hilang ketika
+ * "Outline disetujui" memulai permintaan baru - dulu riset yang sama diulang
+ * dari nol di giliran menulis (T13).
+ */
+export interface BriefPlan {
+	/** Rentang halaman yang diminta, [min, maks]. */
+	pages?: [number, number]
+	/** Fakta dan sumber dari riset yang akan dipakai naskah, satu per baris. */
+	notes: string[]
+	at: number
+}
+
 export interface ResearchBrief {
 	entries: Partial<Record<BriefKey, BriefEntry>>
 	chapters: BriefChapter[]
 	proposals: BriefProposal[]
+	plan?: BriefPlan
 	/**
 	 * Template yang sudah pernah menyemai brief ini. Tanpa penanda ini, isian
 	 * yang sengaja dikosongkan penulis akan terisi lagi dari template setiap
@@ -437,6 +458,11 @@ export const BRIEF_LIMITS = {
 	chapterTitle: 200,
 	summary: 1_200,
 	proposals: 40,
+	items: 12,
+	item: 200,
+	notes: 20,
+	note: 400,
+	pages: 2_000,
 } as const
 
 export const EMPTY_BRIEF: ResearchBrief = { entries: {}, chapters: [], proposals: [] }
@@ -488,11 +514,13 @@ export function normalizeBrief(raw: unknown): ResearchBrief {
 		const fields = chapter as Record<string, unknown>
 		const title = clip(fields.title, BRIEF_LIMITS.chapterTitle).trim()
 		if (!title) continue
+		const items = readLines(fields.items, BRIEF_LIMITS.items, BRIEF_LIMITS.item)
 		chapters.push({
 			title,
 			summary: clip(fields.summary, BRIEF_LIMITS.summary).trim(),
 			status: readStatus(fields.status),
 			source: readSource(fields.source),
+			...(items.length > 0 ? { items } : {}),
 			...(typeof fields.fingerprint === 'string' ? { fingerprint: fields.fingerprint.slice(0, 64) } : {}),
 			at: readTime(fields.at),
 		})
@@ -519,11 +547,40 @@ export function normalizeBrief(raw: unknown): ResearchBrief {
 	}
 
 	const seededFrom = clip(value.seededFrom, 64) || undefined
-	return { entries, chapters, proposals, ...(seededFrom ? { seededFrom } : {}) }
+	const plan = readPlan(value.plan)
+	return { entries, chapters, proposals, ...(plan ? { plan } : {}), ...(seededFrom ? { seededFrom } : {}) }
+}
+
+/** Larik teks pendek: yang bukan teks atau kosong dibuang, sisanya dipotong. */
+function readLines(raw: unknown, count: number, length: number): string[] {
+	if (!Array.isArray(raw)) return []
+	return raw
+		.map((line) => clip(line, length).replace(/\s+/g, ' ').trim())
+		.filter(Boolean)
+		.slice(0, count)
+}
+
+/** Rentang halaman yang masuk akal: bilangan bulat, 1 ≤ min ≤ maks. */
+export function readPageRange(raw: unknown): [number, number] | undefined {
+	if (!Array.isArray(raw) || raw.length !== 2) return undefined
+	const [min, max] = raw.map((value) => Math.round(Number(value)))
+	if (!Number.isFinite(min) || !Number.isFinite(max) || min < 1 || max < min || max > BRIEF_LIMITS.pages) {
+		return undefined
+	}
+	return [min, max]
+}
+
+function readPlan(raw: unknown): BriefPlan | undefined {
+	if (!raw || typeof raw !== 'object') return undefined
+	const fields = raw as Record<string, unknown>
+	const pages = readPageRange(fields.pages)
+	const notes = readLines(fields.notes, BRIEF_LIMITS.notes, BRIEF_LIMITS.note)
+	if (!pages && notes.length === 0) return undefined
+	return { ...(pages ? { pages } : {}), notes, at: readTime(fields.at) }
 }
 
 export function isBriefEmpty(brief: ResearchBrief): boolean {
-	return Object.keys(brief.entries).length === 0 && brief.chapters.length === 0
+	return Object.keys(brief.entries).length === 0 && brief.chapters.length === 0 && !brief.plan
 }
 
 export function fieldProposalId(key: BriefKey): string {
@@ -799,6 +856,106 @@ export function applyAiBriefUpdate(
 	}
 
 	return { brief: { ...brief, entries, chapters, proposals }, report }
+}
+
+export interface OutlineSection {
+	title: string
+	summary?: string
+	items?: string[]
+}
+
+export interface OutlineUpdate {
+	sections: readonly OutlineSection[]
+	/** `null` menghapus target; tanpa kunci ini target lama dipertahankan. */
+	pages?: [number, number] | null
+	notes?: readonly string[]
+}
+
+export interface OutlineReport {
+	sections: number
+	items: number
+	/** Bab tulisan penulis yang tidak ada di kerangka - dipertahankan, bukan dihapus. */
+	kept: string[]
+	/** Bab rekaan AI atau template yang digantikan kerangka ini. */
+	replaced: string[]
+}
+
+/**
+ * Kerangka dari `set_outline`: daftar bab menjadi urutan kerangka, dengan
+ * tabel/gambar yang dijanjikan tiap bab.
+ *
+ * Kerangka yang disetujui penulis menggantikan daftar bab rekaan AI atau
+ * semaian template - yang tidak disebut kerangka dibuang, supaya pemeriksaan
+ * kelengkapan tidak menagih bab yang memang tidak direncanakan. Bab yang
+ * ditulis penulis sendiri tetap ada, di belakang, dan ringkasannya tidak
+ * ditimpa. Status bab yang sudah berjalan dipertahankan.
+ */
+export function applyOutline(
+	brief: ResearchBrief,
+	outline: OutlineUpdate,
+	now: number,
+): { brief: ResearchBrief; report: OutlineReport } {
+	const existing = new Map(brief.chapters.map((chapter) => [chapterKey(chapter.title), chapter]))
+	const planned = new Set<string>()
+	const chapters: BriefChapter[] = []
+
+	for (const section of outline.sections) {
+		const title = section.title.slice(0, BRIEF_LIMITS.chapterTitle).replace(/\s+/g, ' ').trim()
+		const key = chapterKey(title)
+		if (!title || planned.has(key) || chapters.length >= BRIEF_LIMITS.chapters) continue
+		planned.add(key)
+
+		const items = readLines(section.items ?? [], BRIEF_LIMITS.items, BRIEF_LIMITS.item)
+		const summary = (section.summary ?? '').slice(0, BRIEF_LIMITS.summary).trim()
+		const before = existing.get(key)
+		const ownSummary = before?.source === 'user' && before.summary !== ''
+		chapters.push({
+			title: before?.title ?? title,
+			summary: ownSummary || !summary ? (before?.summary ?? '') : summary,
+			status: before?.status ?? 'belum',
+			source: ownSummary ? 'user' : 'ai',
+			...(items.length > 0 ? { items } : {}),
+			...(before?.fingerprint ? { fingerprint: before.fingerprint } : {}),
+			at: now,
+		})
+	}
+
+	const kept: string[] = []
+	const replaced: string[] = []
+	for (const chapter of brief.chapters) {
+		if (planned.has(chapterKey(chapter.title))) continue
+		if (chapter.source === 'user' && chapters.length < BRIEF_LIMITS.chapters) {
+			chapters.push(chapter)
+			kept.push(chapter.title)
+		} else {
+			replaced.push(chapter.title)
+		}
+	}
+
+	const pages = outline.pages === undefined ? brief.plan?.pages : (readPageRange(outline.pages) ?? undefined)
+	const notes =
+		outline.notes === undefined
+			? (brief.plan?.notes ?? [])
+			: readLines(outline.notes, BRIEF_LIMITS.notes, BRIEF_LIMITS.note)
+	const plan: BriefPlan | undefined =
+		pages || notes.length > 0 ? { ...(pages ? { pages } : {}), notes, at: now } : undefined
+
+	const titles = new Set(chapters.map((chapter) => chapterProposalId(chapter.title)))
+	const { plan: _previous, ...rest } = brief
+	return {
+		brief: {
+			...rest,
+			chapters,
+			proposals: brief.proposals.filter((proposal) => !proposal.chapter || titles.has(proposal.id)),
+			...(plan ? { plan } : {}),
+		},
+		report: {
+			sections: planned.size,
+			items: chapters.reduce((sum, chapter) => sum + (chapter.items?.length ?? 0), 0),
+			kept,
+			replaced,
+		},
+	}
 }
 
 /** Suntingan penulis: selalu menang, dan menggugurkan usulan AI untuk isian yang sama. */

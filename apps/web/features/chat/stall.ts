@@ -16,12 +16,15 @@ import { TOC_BLOCK } from '@/features/editor/toc-block'
  *   penulis; model hanya berhenti.
  * - `truncated` - jawaban terpotong batas panjang keluaran provider.
  * - `empty` - provider selesai tanpa teks dan tanpa panggilan alat.
+ * - `unfinished` - model menutup tugas menulis dari kerangka yang baru
+ *   disetujui, padahal kerangkanya belum terpenuhi: bab kosong, tabel/gambar
+ *   yang dijanjikan belum ada, atau panjangnya jauh dari target.
  *
  * Semuanya ditangani sama: dilanjutkan otomatis beberapa kali, lalu - kalau
  * masih berhenti - kartu "Lanjutkan" di tempat percakapannya berhenti.
  */
 
-export type StallReason = 'wave_limit' | 'promised' | 'truncated' | 'empty'
+export type StallReason = 'wave_limit' | 'promised' | 'truncated' | 'empty' | 'unfinished'
 
 /**
  * Lanjutan otomatis per permintaan penulis. Satu lanjutan membuka satu
@@ -152,6 +155,7 @@ const LEAD: Record<ContinueReason, string> = {
 	truncated: 'Your last reply was cut off by the output length limit.',
 	stopped: 'The writer stopped you earlier and now asks you to go on.',
 	incomplete: 'The writer asks you to go on with the document.',
+	unfinished: 'You ended the request, but the outline you recorded is not finished yet.',
 }
 
 /**
@@ -162,24 +166,37 @@ const LEAD: Record<ContinueReason, string> = {
  * penulis menekan tombol yang menyebut bab kosong itu, jadi di situlah
  * permintaannya.
  */
-export function continueNudge(reason: ContinueReason, empty: readonly string[]): string {
+export function continueNudge(reason: ContinueReason, empty: readonly string[], outline?: string): string {
 	const listed = empty.slice(0, MAX_LISTED)
 	const sections = `${listed.join('; ')}${empty.length > listed.length ? '; ...' : ''}`
+	/*
+	 * Dengan kerangka dari `set_outline`, yang ditagih adalah kerangka itu -
+	 * bab, tabel/gambar yang dijanjikan, dan panjangnya - bukan sekadar bab
+	 * tingkat satu yang kosong.
+	 */
 	const body =
 		reason === 'truncated'
 			? 'Carry on from where it stopped, in smaller pieces: one section per call (write_section for a heading that exists, insert_content for a new one).'
-			: reason === 'incomplete'
-				? listed.length > 0
-					? `Write the level-1 sections that still have no body text, in document order, each with write_section on its heading: ${sections}. Follow the plan, depth and style of what is already written.`
-					: 'Check what the earlier request still lacks and finish it.'
+			: reason === 'incomplete' || reason === 'unfinished'
+				? outline
+					? `Finish what the outline still lacks, in document order, one section per call. ${outline}`
+					: listed.length > 0
+						? `Write the level-1 sections that still have no body text, in document order, each with write_section on its heading: ${sections}. Follow the plan, depth and style of what is already written.`
+						: 'Check what the earlier request still lacks and finish it.'
 				: 'Carry on with the same request from where you stopped.'
+	const reference =
+		reason === 'incomplete' || reason === 'unfinished'
+			? ''
+			: outline
+				? `Outline check: ${outline}`
+				: listed.length > 0
+					? `For reference, level-1 sections that still have no body text: ${sections}. Fill only those the request covers.`
+					: ''
 	return [
 		`[Continue] ${LEAD[reason]}`,
 		body,
 		'Do not start over and do not repeat what is already in the document; call get_outline if unsure what is there.',
-		reason !== 'incomplete' && listed.length > 0
-			? `For reference, level-1 sections that still have no body text: ${sections}. Fill only those the request covers.`
-			: '',
+		reference,
 		'When everything the writer asked for is done, reply with a short summary and no tool calls.',
 	]
 		.filter(Boolean)
@@ -203,5 +220,9 @@ export const STALL_TEXT: Record<StallReason, { title: string; hint: string }> = 
 	empty: {
 		title: 'AI tidak mengirim jawaban apa pun.',
 		hint: 'Biasanya gangguan sesaat di sisi provider.',
+	},
+	unfinished: {
+		title: 'AI berhenti sebelum kerangka yang disetujui selesai.',
+		hint: 'Yang masih kurang dihitung dari kerangka di panel Metadata.',
 	},
 }

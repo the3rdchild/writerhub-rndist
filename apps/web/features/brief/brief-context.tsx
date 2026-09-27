@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import {
 	acceptProposal as acceptInBrief,
 	applyAiBriefUpdate,
+	applyOutline as applyOutlineToBrief,
 	type BriefChapter,
 	type BriefChapterUpdate,
 	type BriefFieldUpdate,
@@ -15,6 +16,8 @@ import {
 	confirmEntry,
 	type DocumentMetadata,
 	EMPTY_BRIEF,
+	type OutlineReport,
+	type OutlineUpdate,
 	type ResearchBrief,
 	rejectProposal as rejectInBrief,
 	setUserChapters,
@@ -89,6 +92,8 @@ interface BriefContextValue {
 		update: { fields?: BriefFieldUpdate[]; chapters?: BriefChapterUpdate[] },
 		evidenceSources: readonly string[],
 	) => BriefUpdateReport | null
+	/** Jalur alat `set_outline`; `null` bila tidak ada dokumen yang terbuka. */
+	applyOutline: (outline: OutlineUpdate) => OutlineReport | null
 	/** Jawaban kartu pertanyaan yang ditujukan ke satu isian brief: keputusan penulis sendiri. */
 	saveWriterAnswer: (key: BriefKey, value: string) => void
 	/** Sidik jari isi bab sekarang, dihitung dari semua tab dokumen. */
@@ -198,6 +203,20 @@ export function BriefProvider({ children }: { children: ReactNode }) {
 		[activeDocId, mutate, fingerprints],
 	)
 
+	const applyOutline = useCallback(
+		(outline: OutlineUpdate): OutlineReport | null => {
+			if (!activeDocId) return null
+			let report: OutlineReport | null = null
+			mutate((current) => {
+				const result = applyOutlineToBrief(current, outline, Date.now())
+				report = result.report
+				return result.brief
+			})
+			return report
+		},
+		[activeDocId, mutate],
+	)
+
 	const [panel, setPanel] = useState<BriefPanelState>(CLOSED_PANEL)
 
 	useEffect(
@@ -273,6 +292,7 @@ export function BriefProvider({ children }: { children: ReactNode }) {
 			acceptProposal: (id) => mutate((current) => acceptInBrief(current, id, Date.now())),
 			rejectProposal: (id) => mutate((current) => rejectInBrief(current, id)),
 			applyAiUpdate,
+			applyOutline,
 			saveWriterAnswer: (key, next) => mutate((current) => setUserEntry(current, key, next, Date.now())),
 			fingerprints,
 			identity,
@@ -284,7 +304,18 @@ export function BriefProvider({ children }: { children: ReactNode }) {
 			clearRequest: () =>
 				setPanel((current) => ({ ...current, highlight: [], message: null, requestDocId: null })),
 		}),
-		[activeDocId, brief, snapshot, mutate, applyAiUpdate, fingerprints, identity, panel, openPanel],
+		[
+			activeDocId,
+			brief,
+			snapshot,
+			mutate,
+			applyAiUpdate,
+			applyOutline,
+			fingerprints,
+			identity,
+			panel,
+			openPanel,
+		],
 	)
 
 	return <BriefContext.Provider value={value}>{children}</BriefContext.Provider>

@@ -360,6 +360,8 @@ export function readToolLabel(editor: Editor, call: ToolCall): string {
 			return 'Membaca komentar terbuka'
 		case 'update_brief':
 			return 'Memperbarui metadata'
+		case 'set_outline':
+			return 'Mencatat kerangka tulisan'
 		default:
 			return `Menjalankan ${call.name}`
 	}

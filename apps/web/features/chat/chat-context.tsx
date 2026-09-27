@@ -17,6 +17,9 @@ import {
 	isAskTool,
 	isDelegation,
 	isReadTool,
+	type OutlineReport,
+	type OutlineUpdate,
+	readPageRange,
 	type ToolCall,
 	type WorkKind,
 	workKindOf,
@@ -88,6 +91,8 @@ import { diagramBlocks, diagramTypeOf, findDiagramBlock, needsDrawing } from './
 import { chatFailureHint, toChatTurnError } from './failure'
 import { applyAcademicNumbering, type NumberingContext } from './numbering-apply'
 import { fitWindow, withToolResults } from './outbound-window'
+import { type OutlineProgress, outlineDone, outlineForModel, outlineForWriter } from './outline-check'
+import { measureOutline } from './outline-measure'
 import { isRemoteReadTool, remoteToolLabel, runRemoteReadTool } from './remote-tools'
 import {
 	type ContinueReason,
@@ -195,6 +200,8 @@ export interface ChatStall {
 	/** Bagian tingkat satu naskah, dan yang masih tanpa isi. */
 	total: number
 	empty: string[]
+	/** Yang masih kurang menurut kerangka dari `set_outline`, untuk penulis. */
+	outline?: string[]
 }
 
 const MAX_TOOL_ROUNDS = 12
@@ -265,6 +272,67 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 export function actionsSettled(history: ChatTurn[], owner: ChatTurn): boolean {
 	const decided = new Set(history.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId))
 	return [...(owner.actions ?? []), ...(owner.asks ?? [])].every((action) => decided.has(action.id))
+}
+
+/** `set_outline`: kerangka ke brief, lalu laporan singkat untuk model. */
+export function recordOutline(
+	brief: { applyOutline: (outline: OutlineUpdate) => OutlineReport | null },
+	call: ToolCall,
+): string {
+	const outline = outlineFromArgs(call.arguments)
+	if (outline.sections.length === 0) return 'Nothing recorded: the outline needs at least one section.'
+	const report = brief.applyOutline(outline)
+	if (!report) return 'No document is open, so nothing was recorded.'
+
+	const pages = outline.pages && readPageRange(outline.pages)
+	return [
+		`Outline recorded: ${report.sections} sections, ${report.items} promised tables/figures${pages ? `, target ${pages[0]}-${pages[1]} pages` : ''}${outline.notes ? `, ${outline.notes.length} research notes` : ''}.`,
+		report.kept.length > 0 &&
+			`The writer's own chapters not in this outline were kept: ${report.kept.join(', ')}.`,
+		'From now on the editor context checks the document against it on every turn.',
+	]
+		.filter(Boolean)
+		.join(' ')
+}
+
+/** Tugas ini menulis isi naskah: ada aksi isi yang diterapkan, bukan dilewati penulis. */
+export function wroteContent(history: readonly ChatTurn[], taskId: string): boolean {
+	const ids = new Set(
+		history.flatMap((turn) =>
+			turn.taskId === taskId
+				? (turn.actions ?? []).filter((call) => CONTENT_TOOLS.has(call.name)).map((call) => call.id)
+				: [],
+		),
+	)
+	return history.some(
+		(turn) =>
+			turn.role === 'tool' &&
+			turn.toolCallId !== undefined &&
+			ids.has(turn.toolCallId) &&
+			!turn.content.startsWith('The writer skipped'),
+	)
+}
+
+/**
+ * Kerangka dicatat (`set_outline`) di tugas ini atau tepat sebelumnya - tugas
+ * menulis dari outline yang baru disetujui. Hanya tugas seperti itu yang
+ * dilanjutkan sendiri sampai kerangkanya terpenuhi: permintaan kecil di lain
+ * waktu ("tambahkan satu tabel") tidak boleh berubah menjadi menulis seluruh
+ * sisa kerangka.
+ */
+export function followsOutline(history: readonly ChatTurn[], taskId: string): boolean {
+	const order: string[] = []
+	for (const turn of history) if (turn.taskId && !order.includes(turn.taskId)) order.push(turn.taskId)
+	const at = order.indexOf(taskId)
+	if (at === -1) return false
+	const recent = new Set(order.slice(Math.max(0, at - 1), at + 1))
+	return history.some(
+		(turn) =>
+			turn.role === 'assistant' &&
+			turn.taskId !== undefined &&
+			recent.has(turn.taskId) &&
+			(turn.toolCalls ?? []).some((call) => call.name === 'set_outline'),
+	)
 }
 
 /** Tugas ini berhasil menyisipkan sampul lewat `insert_template_part`. */
@@ -353,6 +421,36 @@ export function briefUpdateFromArgs(args: Record<string, unknown>): {
 				: {}),
 		})),
 	}
+}
+
+/**
+ * Argumen `set_outline` dari model. Rentang halaman diterima sebagai
+ * `{min, max}` sesuai skemanya, tapi juga sebagai `[8, 12]` atau "8-12" -
+ * bentuk yang sering ditulis model walau skemanya berkata lain.
+ */
+export function outlineFromArgs(args: Record<string, unknown>): OutlineUpdate {
+	const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+	const sections = (Array.isArray(args.sections) ? args.sections : [])
+		.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+		.map((section) => ({
+			title: text(section.title),
+			summary: text(section.summary),
+			items: Array.isArray(section.items) ? section.items.map(text).filter(Boolean) : [],
+		}))
+
+	const raw = args.pages
+	let pages: [number, number] | undefined
+	if (Array.isArray(raw) && raw.length === 2) pages = [Number(raw[0]), Number(raw[1])]
+	else if (raw && typeof raw === 'object') {
+		const range = raw as Record<string, unknown>
+		pages = [Number(range.min), Number(range.max ?? range.min)]
+	} else if (typeof raw === 'string') {
+		const match = /(\d+)\s*(?:-|–|sampai|to)?\s*(\d+)?/.exec(raw)
+		if (match) pages = [Number(match[1]), Number(match[2] ?? match[1])]
+	}
+	const notes = Array.isArray(args.notes) ? args.notes.map(text).filter(Boolean) : undefined
+
+	return { sections, ...(pages ? { pages } : {}), ...(notes ? { notes } : {}) }
 }
 
 const OUTLINE_SNIPPET_CHARS = 600
@@ -621,6 +719,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		return recorded ?? templateRef.current?.slug ?? null
 	}, [])
 
+	/*
+	 * Naskah terhadap kerangka dari `set_outline`, dibaca dari semua tab dan
+	 * brief SAAT INI - bukan dari state render terakhir.
+	 */
+	const currentOutline = useCallback((): OutlineProgress | null => {
+		const app = appRef.current
+		if (!briefRef.current.docId) return null
+		return measureOutline({
+			doc: app.doc,
+			tabIds: app.sessions.map((tab) => tab.id),
+			brief: briefRef.current.snapshot(),
+			editor: editorRef.current,
+			setup: app.setup,
+		})
+	}, [])
+
 	const buildContext = useCallback(() => {
 		const { attachment: current, includeDocument: whole, state: document } = contextRef.current
 		const editor = editorRef.current
@@ -636,14 +750,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			documentText = text || undefined
 		}
 
+		const outline = currentOutline()
 		return {
 			title: document.title || undefined,
 			selection: current?.text,
 			surrounding: current?.surrounding,
 			document: documentText,
 			page: withAppliedFormat(pageSummary(appRef.current.setup), appliedFormatOf()),
+			outline: outline ? outlineForModel(outline).slice(0, CHAT_CONTEXT_LIMITS.outline) : undefined,
 		}
-	}, [appliedFormatOf])
+	}, [appliedFormatOf, currentOutline])
 
 	const stop = useCallback(() => {
 		// Percobaan ulang yang masih menunggu ikut dibatalkan; tanpa ini
@@ -1120,6 +1236,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					}
 					if (finish === 'length') stallPendingRef.current = { reason: 'truncated', taskId }
 					else if (promisesMore(visible)) stallPendingRef.current = { reason: 'promised', taskId }
+					else if (wroteContent(history, taskId) && followsOutline(history, taskId)) {
+						// "Selesai" dari model belum tentu selesai: kerangkanya yang menentukan.
+						const outline = currentOutline()
+						if (outline && !outlineDone(outline)) stallPendingRef.current = { reason: 'unfinished', taskId }
+					}
 					// Tugas selesai: penomoran halaman karya ilmiah, bila memang waktunya.
 					if (!stallPendingRef.current) {
 						const numbered = autoNumber(history, taskId)
@@ -1154,6 +1275,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				if (call.name === 'update_brief') {
 					pushStep('Memperbarui metadata')
 					const content = runBriefUpdate(call, history)
+					patchRunningStep({ status: 'done', endedAt: Date.now(), detail: content })
+					results.push({ role: 'tool', content, toolCallId: call.id, taskId })
+					continue
+				}
+				if (call.name === 'set_outline') {
+					pushStep('Mencatat kerangka tulisan')
+					const content = recordOutline(briefRef.current, call)
 					patchRunningStep({ status: 'done', endedAt: Date.now(), detail: content })
 					results.push({ role: 'tool', content, toolCallId: call.id, taskId })
 					continue
@@ -1255,7 +1383,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				budgetSpent,
 			)
 		},
-		[loadTemplateSpecs],
+		[loadTemplateSpecs, currentOutline],
 	)
 	/*
 	 * Satu giliran, dengan satu kesempatan mengulang diam-diam.
@@ -1343,9 +1471,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			if (reason !== 'empty') {
 				const editor = editorRef.current
 				const empty = editor && !editor.isDestroyed ? emptySections(editor.state.doc).empty : []
+				const outline = currentOutline()
+				const lacking = outline && !outlineDone(outline) ? outlineForModel(outline) : undefined
 				history = [
 					...history,
-					{ role: 'user', content: continueNudge(reason, empty), taskId, continuation: { mode, reason } },
+					{
+						role: 'user',
+						content: continueNudge(reason, empty, lacking),
+						taskId,
+						continuation: { mode, reason },
+					},
 				]
 				commit(history)
 			}
@@ -1354,7 +1489,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			setPartsBoth([])
 			startTurn(history, taskId)
 		},
-		[commit, startTurn],
+		[commit, startTurn, currentOutline],
 	)
 
 	/*
@@ -1376,7 +1511,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		}
 		const editor = editorRef.current
 		const sections = editor && !editor.isDestroyed ? emptySections(editor.state.doc) : { total: 0, empty: [] }
-		setStall({ reason, autoContinues: auto, ...sections })
+		const outline = currentOutline()
+		const lacking = outline && !outlineDone(outline) ? outlineForWriter(outline).detail : undefined
+		setStall({ reason, autoContinues: auto, ...sections, ...(lacking ? { outline: lacking } : {}) })
 	}
 
 	const continueStalled = useCallback(() => {

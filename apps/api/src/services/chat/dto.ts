@@ -22,6 +22,10 @@ export const chatBodySchema = z.object({
 			surrounding: z.string().max(CHAT_CONTEXT_LIMITS.surrounding).optional(),
 			document: z.string().max(CHAT_CONTEXT_LIMITS.document).optional(),
 			title: z.string().max(500).optional(),
+			/* Dulu tidak terdaftar, dan zod membuang kunci yang tidak dikenal:
+			 * baris "Page:" tidak pernah sampai ke model. */
+			page: z.string().max(CHAT_CONTEXT_LIMITS.page).optional(),
+			outline: z.string().max(CHAT_CONTEXT_LIMITS.outline).optional(),
 		})
 		.optional(),
 	tools: z.boolean().optional().default(true),

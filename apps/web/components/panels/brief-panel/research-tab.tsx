@@ -11,12 +11,24 @@ import {
 	chapterProposalId,
 	type DocumentMetadata,
 } from '@writer-hub/shared'
-import { ChevronDown, ListPlus, type LucideIcon, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
+import {
+	Check,
+	ChevronDown,
+	Circle,
+	ListPlus,
+	type LucideIcon,
+	Plus,
+	RefreshCw,
+	Sparkles,
+	Trash2,
+} from 'lucide-react'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { MetadataForm, MetadataScopeNote } from '@/components/templates/metadata-form'
 import { useBrief } from '@/features/brief/brief-context'
 import { topLevelHeadings } from '@/features/brief/chapters'
 import { useChat } from '@/features/chat/chat-context'
+import type { ItemState, OutlineProgress } from '@/features/chat/outline-check'
+import { useOutlineProgress } from '@/features/chat/use-outline-progress'
 import { useSessions } from '@/features/sessions/session-context'
 import { readTabs } from '@/features/sessions/ydoc'
 import { fragmentToJSON } from '@/features/sync/serialize'
@@ -152,6 +164,7 @@ function ChapterList({ chatBusy, onRefresh }: { chatBusy: boolean; onRefresh: ()
 	const { brief, docId, setChapters, acceptProposal, rejectProposal } = useBrief()
 	const { doc } = useSessions()
 	const prints = useChapterPrints()
+	const outline = useOutlineProgress()
 	const chapters = brief.chapters
 
 	/*
@@ -220,6 +233,8 @@ function ChapterList({ chatBusy, onRefresh }: { chatBusy: boolean; onRefresh: ()
 				</div>
 			</div>
 
+			<OutlinePlan outline={outline} />
+
 			{chapters.length === 0 && (
 				<p className="rounded-xl border border-dashed border-line px-3 py-2.5 text-[11px] leading-relaxed text-subtle">
 					Belum ada bab. Ambil judulnya dari naskah, atau minta AI meringkas tiap bab - ringkasan inilah yang
@@ -242,6 +257,7 @@ function ChapterList({ chatBusy, onRefresh }: { chatBusy: boolean; onRefresh: ()
 						key={`${chapterKey(chapter.title)}-${index}`}
 						chapter={chapter}
 						state={state}
+						items={outline?.items.filter((item) => chapterKey(item.chapter) === chapterKey(chapter.title))}
 						onChange={(patch) => update(index, patch)}
 						onRemove={() => setChapters(chapters.filter((_, at) => at !== index))}
 						footer={
@@ -261,15 +277,60 @@ function ChapterList({ chatBusy, onRefresh }: { chatBusy: boolean; onRefresh: ()
 	)
 }
 
+/**
+ * Panjang yang diminta dan catatan riset dari kerangka (`set_outline`).
+ * Catatan riset dilipat: isinya untuk AI, penulis cukup tahu ia ada.
+ */
+function OutlinePlan({ outline }: { outline: OutlineProgress | null }) {
+	const { brief } = useBrief()
+	const plan = brief.plan
+	if (!plan) return null
+	const pages = plan.pages
+	const current = outline?.pages?.current
+	const off = pages && current !== undefined && (current < pages[0] || current > pages[1])
+
+	return (
+		<div className="flex flex-col gap-1 rounded-xl border border-line bg-surface-raised px-3 py-2 text-[11px] text-muted">
+			{pages && (
+				<p>
+					Target {pages[0] === pages[1] ? pages[0] : `${pages[0]}-${pages[1]}`} halaman
+					{current !== undefined && (
+						<span className={off ? 'text-yellow-400' : 'text-subtle'}> · sekarang {current}</span>
+					)}
+				</p>
+			)}
+			{plan.notes.length > 0 && (
+				<details>
+					<summary className="cursor-pointer text-subtle">Catatan riset ({plan.notes.length})</summary>
+					<ul className="mt-1 list-disc pl-4 leading-snug">
+						{plan.notes.map((note) => (
+							<li key={note}>{note}</li>
+						))}
+					</ul>
+				</details>
+			)}
+		</div>
+	)
+}
+
+const ITEM_NOTE: Record<ItemState['state'], string> = {
+	present: 'sudah ada',
+	'caption-only': 'baru keterangannya',
+	missing: 'belum ada',
+}
+
 function ChapterCard({
 	chapter,
 	state,
+	items,
 	onChange,
 	onRemove,
 	footer,
 }: {
 	chapter: BriefChapter
 	state: 'missing' | 'stale' | 'fresh'
+	/** Tabel/gambar yang dijanjikan kerangka untuk bab ini, dengan keadaannya di naskah. */
+	items?: ItemState[]
 	onChange: (patch: Partial<BriefChapter>) => void
 	onRemove: () => void
 	footer?: ReactNode
@@ -337,6 +398,26 @@ function ChapterCard({
 				className={cn(FIELD_INPUT, 'resize-y text-xs leading-snug')}
 			/>
 
+			{items && items.length > 0 && (
+				<ul
+					className="flex flex-col gap-0.5 text-[11px] leading-snug"
+					aria-label={`Tabel dan gambar ${chapter.title}`}
+				>
+					{items.map((item) => (
+						<li key={item.text} className="flex items-start gap-1.5" title={item.text}>
+							{item.state === 'present' ? (
+								<Check className="mt-0.5 h-3 w-3 shrink-0 text-green-400" />
+							) : (
+								<Circle className="mt-0.5 h-3 w-3 shrink-0 text-faint" />
+							)}
+							<span className={item.state === 'present' ? 'text-muted' : 'text-foreground'}>
+								{item.label}
+								<span className="text-subtle"> · {ITEM_NOTE[item.state]}</span>
+							</span>
+						</li>
+					))}
+				</ul>
+			)}
 			{state === 'stale' && (
 				<p className="text-[11px] leading-snug text-yellow-400">Naskah bab ini berubah sejak diringkas.</p>
 			)}
