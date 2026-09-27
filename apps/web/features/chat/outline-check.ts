@@ -1,6 +1,6 @@
 import type { Node as PMNode } from '@tiptap/pm/model'
 import type { ResearchBrief } from '@writer-hub/shared'
-import { HTML_BLOCK } from '@/features/editor/html-block'
+import { figureOf } from './figures'
 import { docHeadings, sameTitle, sectionIsEmpty } from './section-write'
 
 /**
@@ -61,11 +61,7 @@ function isCaption(node: PMNode, label: string): boolean {
 
 function holds(node: PMNode, kind: ItemKind): boolean {
 	const matches = (child: PMNode) =>
-		kind === 'table'
-			? child.type.name === 'table'
-			: child.type.name === 'image' ||
-				child.type.name === HTML_BLOCK ||
-				(child.type.name === 'codeBlock' && ['diagram', 'mermaid'].includes(String(child.attrs.language)))
+		kind === 'table' ? child.type.name === 'table' : figureOf(child) !== null
 	if (matches(node)) return true
 	let found = false
 	node.descendants((child) => {

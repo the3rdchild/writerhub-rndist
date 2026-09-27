@@ -42,7 +42,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'read_section',
 		kind: 'read',
 		description:
-			'Read the text under one heading, up to the next heading of the same or higher level. Prefer this over asking for the whole document. Omit heading_index to read the document from the top instead - that is the right call when get_outline reports no headings at all, which happens whenever the document is one design, one diagram or one table rather than prose.',
+			'Read the text under one heading, up to the next heading of the same or higher level. Figures - diagrams, images, design blocks - are already rendered and show as one line each, like [Figure: diagram "Title"]. Prefer this over asking for the whole document. Omit heading_index to read the document from the top instead - that is the right call when get_outline reports no headings at all, which happens whenever the document is one design, one diagram or one table rather than prose.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -330,7 +330,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'write_section',
 		kind: 'write',
 		description:
-			'Write the body of a section that already has a heading - a template placeholder, or an outline you set up earlier - replacing whatever is under that heading now. This is the way to fill a planned document section by section. The heading itself stays. Subsections you repeat as Markdown headings in the content are filled in place; new ones are added after them; subsections you leave out stay as they are. Use insert_content only for sections that do not exist yet, and replace_text for small edits inside a paragraph.',
+			'Write the body of a section that already has a heading - a template placeholder, or an outline you set up earlier - replacing whatever is under that heading now. This is the way to fill a planned document section by section. The heading itself stays. Subsections you repeat as Markdown headings in the content are filled in place; new ones are added after them; subsections you leave out stay as they are. Figures under the heading are never lost: repeat the [Figure: …] line read_section shows for each where it belongs; one you leave out stays at the end of the section, and [Delete figure: …] removes it. Use insert_content only for sections that do not exist yet, and replace_text for small edits inside a paragraph.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -354,7 +354,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'replace_text',
 		kind: 'write',
 		description:
-			'Replace an exact passage with new text - for edits inside a paragraph or a few paragraphs. The find value must match the document character for character - use find_text or read_section first to copy it exactly. To rewrite a whole section under its heading, use write_section instead.',
+			'Replace an exact passage with new text - for edits inside a paragraph or a few paragraphs. The find value must match the document character for character - use find_text or read_section first to copy it exactly. A [Figure: …] line is not text: find the text before or after it. To rewrite a whole section under its heading, use write_section instead.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -817,7 +817,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'convert_to_html_block',
 		kind: 'write',
 		description:
-			'Turn HTML that is already sitting in the document as ordinary text or as a code block into a real rendered design block. Use this whenever the writer asks to render, preview or "make a flyer out of" markup that is already there - NEVER read the markup and re-send it through insert_html_block, which costs a full rewrite of a design you already have. It takes no HTML: it finds the markup in the document and converts it in place. Answers with what it converted, or tells you no HTML-looking block was found.',
+			'Turn HTML that is already sitting in the document as ordinary text or as a code block into a real rendered design block. Diagrams from draw_diagram are already rendered figures, never candidates. Use this whenever the writer asks to render, preview or "make a flyer out of" markup that is already there - NEVER read the markup and re-send it through insert_html_block, which costs a full rewrite of a design you already have. It takes no HTML: it finds the markup in the document and converts it in place. Answers with what it converted, or tells you no HTML-looking block was found.',
 		parameters: {
 			type: 'object',
 			properties: {

@@ -55,7 +55,6 @@ import {
 } from '@/features/editor/page-furniture/page-furniture-ydoc'
 import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
 import { paginationKey } from '@/features/editor/pagination'
-import { editorPlainText } from '@/features/editor/text-content'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useTypography } from '@/features/editor/use-typography'
 import { sessionLabel, useSessions } from '@/features/sessions/session-context'
@@ -89,6 +88,7 @@ import { diagramReceipt, drawDiagram } from './diagram-api'
 import { stitchDiagrams } from './diagram-embed'
 import { diagramBlocks, diagramTypeOf, findDiagramBlock, needsDrawing } from './diagram-target'
 import { chatFailureHint, toChatTurnError } from './failure'
+import { readableText } from './figures'
 import { applyAcademicNumbering, type NumberingContext } from './numbering-apply'
 import { fitWindow, withToolResults } from './outbound-window'
 import { type OutlineProgress, outlineDone, outlineForModel, outlineForWriter } from './outline-check'
@@ -464,6 +464,14 @@ export function withAppliedFormat(page: string, applied: string | null): string 
 	return `${page} The ${applied} format is already applied (the writer may have adjusted it since): do not call apply_template_format again unless the writer explicitly asks to reset the format.`
 }
 
+/**
+ * Teks naskah untuk menghitung kata sebuah aksi, tanpa sumber SVG diagram:
+ * mengubah satu diagram tidak boleh tercatat "−449 kata".
+ */
+function proseText(editor: Editor): string {
+	return readableText(editor.state.doc, 0, editor.state.doc.content.size, 'omit')
+}
+
 function editorOutlineSummary(editor: Editor): string | undefined {
 	const doc = editor.state.doc
 	const lines: string[] = []
@@ -477,7 +485,7 @@ function editorOutlineSummary(editor: Editor): string | undefined {
 		return true
 	})
 
-	const plain = editorPlainText(editor)
+	const plain = readableText(editor.state.doc)
 	const hasText = plain.trim().length > 0
 	if (!hasText && headingCount === 0) return undefined
 
@@ -741,7 +749,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		let documentText: string | undefined
 		if (editor && !editor.isDestroyed) {
 			documentText = whole
-				? editorPlainText(editor).slice(0, CHAT_CONTEXT_LIMITS.document)
+				? readableText(editor.state.doc).slice(0, CHAT_CONTEXT_LIMITS.document)
 				: editorOutlineSummary(editor)
 		} else {
 			const text = whole
@@ -875,8 +883,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const tabText = (tabId: string): string | null => {
 		try {
 			const json = fragmentToJSON(appRef.current.doc, tabId)
-			const node = buildSchema().nodeFromJSON(json)
-			return node.textBetween(0, node.content.size, '\n', ' ')
+			return readableText(buildSchema().nodeFromJSON(json))
 		} catch {
 			return null
 		}
@@ -1632,7 +1639,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 			// Diukur mengapit penerapannya, bukan dari argumen alat: yang dihitung
 			// harus perubahan yang benar-benar mendarat di naskah.
-			const before = editorPlainText(editor)
+			const before = proseText(editor)
 
 			const outcome = applyWriteTool(
 				{
@@ -1667,7 +1674,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 			if (outcome.ok) {
 				setAppliedActionIds((current) => new Set(current).add(call.id))
-				const delta = wordDelta(before, editorPlainText(editor))
+				const delta = wordDelta(before, proseText(editor))
 				if (delta.added > 0 || delta.removed > 0) {
 					actionWordsRef.current = { ...actionWordsRef.current, [call.id]: delta }
 					setActionWords(actionWordsRef.current)
@@ -1780,6 +1787,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 		if (redraw && target) replaceDiagramBlock(editor, target.pos, drawn.svg)
 		else insertDiagramBlock(editor, drawn.svg)
+		// Tanpa ini kartunya berakhir "Skipped" padahal diagramnya sudah ada di naskah.
+		setAppliedActionIds((current) => new Set(current).add(call.id))
 
 		finishStep(stepId, {
 			status: 'done',
