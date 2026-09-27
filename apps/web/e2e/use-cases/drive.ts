@@ -1,0 +1,552 @@
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { type Browser, chromium, type Page } from 'playwright'
+import type { UseCase } from './cases'
+import { type CaseResult, caseResult, type DriverStats } from './check'
+import { docxFacts, pdfFacts } from './measure'
+
+/**
+ * Menjalankan use case lewat UI Writer Hub seperti penulis: pilih template,
+ * minta outline, setujui, biarkan AI menulis, dorong bila berhenti, lalu
+ * ekspor lewat menu File dan ukur berkasnya.
+ *
+ * Dipindahkan dari alat uji putaran 17-23 Sep (`harness/server.cjs`,
+ * `drive-case.py`). Kalimat persetujuan outline sama persis, supaya hasilnya
+ * sebanding dengan putaran itu. Bedanya:
+ *
+ * - Selesai-tidaknya dibaca dari aplikasi, bukan dengan meminta AI menjawab
+ *   "SELESAI": AI dianggap berhenti di tengah bila kartu macet atau tombol
+ *   "Lanjutkan" masih tampil. Dorongan penguji hanya "lanjutkan" - yang
+ *   diketik penulis sungguhan - dan itulah yang dihitung sebagai dorongan
+ *   manual. Lanjutan otomatis aplikasi dihitung terpisah.
+ * - Aksi AI diterapkan lewat Auto-apply, setara penulis yang menyetujui semua.
+ * - Kartu pertanyaan dijawab dengan pilihan pertama; permintaan metadata
+ *   dilewati - prompt uji sudah memuat semua yang dibutuhkan.
+ * - Rem biaya membaca saldo OpenRouter sendiri, di proses yang sama.
+ */
+
+export interface DriveOptions {
+	/** Alamat web, mis. http://localhost:8090. */
+	base: string
+	/** Folder hasil: satu subfolder per case, dan `<id>.json` untuk `report`. */
+	out: string
+	/** Label model di pemilih model. */
+	model: string
+	/** Batas biaya seluruh putaran, US$. */
+	budgetUsd: number
+	/** Executable peramban Chromium/Edge. */
+	browser: string
+	maxNudges: number
+	/** Tarif per sejuta token, untuk perkiraan bila saldo provider tidak terbaca. */
+	priceIn: number
+	priceOut: number
+	/** `apps/api/.env` - tempat kunci OpenRouter untuk membaca saldo. */
+	apiEnv: string
+}
+
+const APPROVE = (extra: string) =>
+	`Outline disetujui. Silakan tulis isinya ke dokumen sesuai urutan outline. Tulis per bagian: satu bagian per langkah, jangan sekaligus satu dokumen. ${extra} Panjang total tetap sesuai permintaan awal.`
+const NUDGE = 'lanjutkan'
+
+const OUTLINE_TIMEOUT_MS = 15 * 60_000
+const WRITE_TIMEOUT_MS = 60 * 60_000
+/** Panel harus diam selama ini sebelum dianggap berhenti: lanjutan otomatis dan Auto-apply butuh jeda. */
+const SETTLE_MS = 30_000
+const SPEND_CHECK_MS = 60_000
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** Pemakaian OpenRouter sejak putaran dimulai; `null` bila saldo tidak bisa dibaca. */
+class Spend {
+	private start: number | null = null
+	private last: { at: number; value: number | null } = { at: 0, value: null }
+
+	private constructor(private readonly key: string | null) {}
+
+	static fromEnv(path: string): Spend {
+		if (!existsSync(path)) return new Spend(null)
+		const env = Object.fromEntries(
+			readFileSync(path, 'utf8')
+				.split('\n')
+				.map((line) => line.split('='))
+				.filter((parts) => parts.length >= 2)
+				.map(([name, ...value]) => [name.trim(), value.join('=').trim()]),
+		)
+		// Kuncinya hanya dikirim ke provider pemiliknya.
+		return new Spend(
+			String(env.AI_BASE_URL ?? '').includes('openrouter.ai') ? (env.AI_API_KEY ?? null) : null,
+		)
+	}
+
+	private async usage(): Promise<number | null> {
+		if (!this.key) return null
+		try {
+			const response = await fetch('https://openrouter.ai/api/v1/credits', {
+				headers: { authorization: `Bearer ${this.key}` },
+				signal: AbortSignal.timeout(20_000),
+			})
+			if (!response.ok) return null
+			const body = (await response.json()) as { data?: { total_usage?: number } }
+			return typeof body.data?.total_usage === 'number' ? body.data.total_usage : null
+		} catch {
+			return null
+		}
+	}
+
+	async begin(): Promise<void> {
+		this.start = await this.usage()
+	}
+
+	/** Terpakai sejak `begin`, dibaca paling sering sekali per `SPEND_CHECK_MS` kecuali `fresh`. */
+	async spent(fresh = false): Promise<number | null> {
+		if (this.start === null) return null
+		if (fresh || Date.now() - this.last.at >= SPEND_CHECK_MS) {
+			const now = await this.usage()
+			this.last = { at: Date.now(), value: now === null ? null : now - this.start }
+		}
+		return this.last.value
+	}
+}
+
+interface PanelState {
+	running: boolean
+	drawing: boolean
+	pendingApply: boolean
+	ask: 'question' | 'metadata' | null
+	stall: boolean
+	resume: string | null
+	errors: string[]
+}
+
+async function panelState(page: Page): Promise<PanelState> {
+	return page.evaluate(() => {
+		const text = (el: Element | null | undefined) => ((el as HTMLElement | null)?.innerText ?? '').trim()
+		const buttons = [...document.querySelectorAll('button')]
+		const hasButton = (label: string) => buttons.some((button) => text(button) === label)
+		const body = document.body.innerText
+		const resume = document.querySelector('button[aria-label="Sembunyikan tombol lanjutkan"]')
+		return {
+			running: !!document.querySelector('button[aria-label="Stop"]'),
+			drawing: hasButton('Menggambar…'),
+			pendingApply: buttons.some((button) => /^Apply all \(\d+\)$/.test(text(button))),
+			ask:
+				body.includes('AI meminta metadata') && hasButton('Lewati')
+					? 'metadata'
+					: body.includes('Pertanyaan AI') && hasButton('Lewati')
+						? 'question'
+						: null,
+			stall: hasButton('Cukup'),
+			resume: resume ? text(resume.previousElementSibling) : null,
+			errors: [...document.querySelectorAll('div.bg-red-400\\/10')].map((el) => text(el)),
+		} as const
+	}) as Promise<PanelState>
+}
+
+function transcriptOf(page: Page): Promise<string> {
+	return page.evaluate(() => {
+		const scroller = document.querySelector('div.bg-surface-inset.overflow-y-auto') as HTMLElement | null
+		return scroller?.innerText ?? ''
+	})
+}
+
+class CaseRun {
+	questions = 0
+	private shots = 0
+
+	constructor(
+		readonly page: Page,
+		readonly dir: string,
+	) {}
+
+	log(type: string, data: Record<string, unknown> = {}): void {
+		appendFileSync(
+			join(this.dir, 'log.jsonl'),
+			`${JSON.stringify({ t: new Date().toISOString(), type, ...data })}\n`,
+		)
+	}
+
+	async shot(name: string): Promise<void> {
+		this.shots += 1
+		await this.page.screenshot({ path: join(this.dir, `${String(this.shots).padStart(3, '0')}-${name}.png`) })
+	}
+
+	async send(text: string): Promise<void> {
+		await this.page.locator('textarea[aria-label="Message"]').fill(text)
+		await this.page.locator('button[aria-label="Send"]').click()
+		this.log('send', { text })
+	}
+
+	/** Kartu pertanyaan dijawab seperti penulis yang terburu-buru: pilihan pertama. */
+	async answer(kind: 'question' | 'metadata'): Promise<void> {
+		this.questions += 1
+		const { page } = this
+		if (kind === 'metadata') {
+			await page.getByRole('button', { name: 'Lewati', exact: true }).first().click()
+			this.log('ask', { kind, answer: 'dilewati' })
+			return
+		}
+		for (let step = 0; step < 6; step++) {
+			const option = page.locator('fieldset[aria-label] button[aria-pressed]').first()
+			if ((await option.count()) === 0) break
+			const question = await page.locator('fieldset[aria-label]').first().getAttribute('aria-label')
+			if ((await option.getAttribute('aria-pressed')) !== 'true') await option.click()
+			this.log('ask', { kind, question, answer: (await option.innerText()).split('\n')[0] })
+			const forward = page.getByRole('button', { name: /^(Berikutnya|Kirim)/ }).first()
+			const submit = /^Kirim/.test(await forward.innerText())
+			await forward.click()
+			await sleep(800)
+			if (submit) break
+		}
+	}
+
+	/**
+	 * Tunggu sampai panel diam: tidak berjalan, tidak menggambar, tidak ada aksi
+	 * tertunda, selama `SETTLE_MS`. Kartu pertanyaan dijawab di sepanjang jalan.
+	 */
+	async settle(timeoutMs: number, brake?: () => Promise<boolean>): Promise<PanelState> {
+		const deadline = Date.now() + timeoutMs
+		let idleSince: number | null = null
+		while (Date.now() < deadline) {
+			const state = await panelState(this.page)
+			if (brake && (await brake())) {
+				if (state.running) await this.page.locator('button[aria-label="Stop"]').click()
+				this.log('brake', {})
+				return panelState(this.page)
+			}
+			if (state.ask) {
+				await this.answer(state.ask)
+				idleSince = null
+			} else if (state.running || state.drawing) {
+				idleSince = null
+			} else if (state.pendingApply) {
+				await this.page
+					.getByRole('button', { name: /^Apply all \(\d+\)$/ })
+					.first()
+					.click()
+				this.log('apply-all', {})
+				idleSince = null
+			} else {
+				idleSince ??= Date.now()
+				if (Date.now() - idleSince >= SETTLE_MS) return state
+			}
+			await sleep(2_000)
+		}
+		this.log('timeout', { timeoutMs })
+		return panelState(this.page)
+	}
+}
+
+async function setup(run: CaseRun, useCase: UseCase, options: DriveOptions): Promise<void> {
+	const { page } = run
+	await page.goto(`${options.base}/new`, { waitUntil: 'networkidle', timeout: 120_000 })
+	if (useCase.template) {
+		await page.getByText(useCase.template, { exact: true }).first().click()
+		await sleep(1_200)
+		await page.getByRole('button', { name: 'Pakai template ini' }).click()
+	} else {
+		await page.getByText('Dokumen kosong', { exact: true }).first().click()
+	}
+	await page.waitForURL(`${options.base}/`, { timeout: 120_000 })
+	await page.waitForSelector('.ProseMirror', { timeout: 120_000 })
+	await sleep(3_000)
+	if ((await page.locator('textarea[aria-label="Message"]').count()) === 0) {
+		await page.locator('button[aria-label="AI Chat"]').first().click()
+		await page.waitForSelector('textarea[aria-label="Message"]', { timeout: 30_000 })
+	}
+	await page.locator('button[title^="Model: "]').click()
+	await sleep(400)
+	await page.getByText(options.model, { exact: true }).first().click()
+	await sleep(400)
+	const toggle = async (label: string, want: boolean) => {
+		const button = page.locator(`button[aria-label="${label}"]`)
+		if (((await button.getAttribute('aria-pressed')) === 'true') !== want) await button.click()
+		await sleep(300)
+	}
+	await toggle('Riset web', useCase.research)
+	await toggle('Auto-apply', true)
+	const model = await page.locator('button[title^="Model: "]').getAttribute('title')
+	run.log('setup', { template: useCase.template, model, research: useCase.research })
+	await run.shot('setup')
+}
+
+async function openExportMenu(page: Page): Promise<void> {
+	await page.keyboard.press('Escape').catch(() => {})
+	await page
+		.locator('button[aria-haspopup="menu"]', { hasText: /^File$/ })
+		.first()
+		.click()
+	await sleep(400)
+	const exportItem = page.getByText('Ekspor', { exact: true }).first()
+	await exportItem.hover()
+	await sleep(400)
+	if (
+		!(await page
+			.getByText('Word (.docx)', { exact: true })
+			.first()
+			.isVisible()
+			.catch(() => false))
+	) {
+		await exportItem.click()
+		await sleep(400)
+	}
+}
+
+/**
+ * DOCX lewat File > Ekspor > Word, SELURUH tab bila dokumennya bertab lebih
+ * dari satu - CV dan surat lamaran UC7 ada di dua tab. PDF lewat dialog cetak
+ * yang disadap lalu `page.pdf()`: "Save as PDF" tanpa header/footer peramban.
+ */
+async function exportFiles(run: CaseRun, docx: string, pdf: string): Promise<string | null> {
+	const { page } = run
+	await page.evaluate(() => window.scrollTo(0, 0))
+	await openExportMenu(page)
+	const download = page.waitForEvent('download', { timeout: 180_000 })
+	await page.getByText('Word (.docx)', { exact: true }).first().click()
+	await sleep(1_500)
+	const dialog = page.locator('[aria-label="Ekspor Word"]')
+	if (await dialog.isVisible().catch(() => false)) {
+		await dialog.getByText('Seluruh tab', { exact: false }).first().click()
+		await sleep(400)
+		await dialog.locator('button').last().click()
+	}
+	const file = await download
+	await file.saveAs(docx)
+	run.log('export', { kind: 'docx', suggested: file.suggestedFilename() })
+
+	await openExportMenu(page)
+	await page.getByText('PDF…', { exact: true }).first().click()
+	const pdfDialog = page.locator('[aria-label="Ekspor PDF"]')
+	await pdfDialog.waitFor({ timeout: 30_000 })
+	const before = await page.evaluate(() => (window as unknown as { __printCalls: number }).__printCalls)
+	await pdfDialog.getByRole('button', { name: /Buka dialog cetak/ }).click()
+	await page.waitForFunction(
+		(count) => (window as unknown as { __printCalls: number }).__printCalls > count,
+		before,
+		{ timeout: 300_000 },
+	)
+	await page.pdf({ path: pdf, preferCSSPageSize: true })
+	run.log('export', { kind: 'pdf' })
+	return file.suggestedFilename()
+}
+
+/*
+ * Dipasang sebelum aplikasi dimuat: `window.print` disadap supaya ekspor PDF
+ * bisa diambil `page.pdf()`, dan salinan stream /api/chat dibaca lewat tee()
+ * untuk menghitung panggilan dan token - aplikasi tetap menerima stream aslinya.
+ */
+function tapScript(): void {
+	const win = window as unknown as {
+		__printCalls: number
+		__sse: { promptTokens: number; completionTokens: number; error: string | null; done: boolean }[]
+	}
+	win.__printCalls = 0
+	window.print = () => {
+		win.__printCalls += 1
+	}
+	win.__sse = []
+	const original = window.fetch.bind(window)
+	const tapped = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+		const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+		const response = await original(input, init)
+		if (!url.includes('/api/chat') || !response.body) return response
+		const [forApp, forTap] = response.body.tee()
+		const call = { promptTokens: 0, completionTokens: 0, error: null as string | null, done: false }
+		win.__sse.push(call)
+		void (async () => {
+			const reader = forTap.getReader()
+			const decoder = new TextDecoder()
+			let buffer = ''
+			try {
+				for (;;) {
+					const { done, value } = await reader.read()
+					if (done) break
+					buffer += decoder.decode(value, { stream: true })
+					const parts = buffer.split('\n\n')
+					buffer = parts.pop() ?? ''
+					for (const part of parts) {
+						const line = part.split('\n').find((item) => item.startsWith('data:'))
+						if (!line) continue
+						try {
+							const event = JSON.parse(line.slice(5))
+							if (event.type === 'usage') {
+								call.promptTokens += event.promptTokens ?? 0
+								call.completionTokens += event.completionTokens ?? 0
+							}
+							if (event.type === 'error') call.error = String(event.message ?? '').slice(0, 300)
+						} catch {}
+					}
+				}
+				call.done = true
+			} catch (error) {
+				call.error = String(error).slice(0, 300)
+			}
+		})()
+		return new Response(forApp, {
+			status: response.status,
+			statusText: response.statusText,
+			headers: response.headers,
+		})
+	}
+	window.fetch = tapped as typeof window.fetch
+}
+
+async function driveCase(
+	browser: Browser,
+	useCase: UseCase,
+	options: DriveOptions,
+	spend: Spend,
+	startedSpend: number | null,
+): Promise<CaseResult> {
+	const dir = join(options.out, useCase.id)
+	mkdirSync(dir, { recursive: true })
+	const context = await browser.newContext({
+		viewport: { width: 1680, height: 1050 },
+		acceptDownloads: true,
+		locale: 'id-ID',
+		timezoneId: 'Asia/Jakarta',
+	})
+	await context.addInitScript(tapScript)
+	const page = await context.newPage()
+	const run = new CaseRun(page, dir)
+	page.on('pageerror', (error) => run.log('pageerror', { text: String(error.stack ?? error).slice(0, 3000) }))
+	page.on('dialog', (dialog) => {
+		run.log('dialog', { message: dialog.message() })
+		dialog.accept().catch(() => {})
+	})
+
+	const started = Date.now()
+	const overBudget = async () => {
+		const spent = await spend.spent()
+		return spent !== null && spent >= options.budgetUsd
+	}
+	let status = 'selesai'
+	let nudges = 0
+
+	try {
+		await setup(run, useCase, options)
+		await run.send(useCase.prompt)
+		await run.settle(OUTLINE_TIMEOUT_MS, overBudget)
+		writeFileSync(join(dir, 'outline.txt'), await transcriptOf(page))
+		await run.shot('outline')
+
+		await run.send(APPROVE(useCase.approveExtra))
+		const deadline = started + WRITE_TIMEOUT_MS
+		for (;;) {
+			const state = await run.settle(Math.max(60_000, deadline - Date.now()), overBudget)
+			run.log('settled', { ...state })
+			if (await overBudget()) {
+				status = 'dihentikan: batas biaya'
+				break
+			}
+			const stopped = state.stall || state.resume !== null || state.errors.length > 0
+			if (!stopped) break
+			if (nudges >= options.maxNudges) {
+				status = 'berhenti: batas dorongan'
+				break
+			}
+			if (Date.now() >= deadline) {
+				status = 'berhenti: batas waktu'
+				break
+			}
+			nudges += 1
+			await run.send(NUDGE)
+		}
+	} catch (error) {
+		status = 'galat penggerak'
+		run.log('crash', { error: String((error as Error).stack ?? error).slice(0, 3000) })
+		await run.shot('crash').catch(() => {})
+	}
+
+	const transcript = await transcriptOf(page).catch(() => '')
+	writeFileSync(join(dir, 'transcript.txt'), transcript)
+	await run.shot('akhir').catch(() => {})
+
+	const docx = join(dir, `${useCase.id}.docx`)
+	const pdf = join(dir, `${useCase.id}.pdf`)
+	let exported = false
+	try {
+		await exportFiles(run, docx, pdf)
+		exported = true
+	} catch (error) {
+		run.log('export-failed', { error: String((error as Error).stack ?? error).slice(0, 3000) })
+	}
+
+	const usage = await page
+		.evaluate(
+			() => (window as unknown as { __sse: { promptTokens: number; completionTokens: number }[] }).__sse,
+		)
+		.catch(() => [])
+	await context.close()
+
+	const tokensIn = usage.reduce((sum, call) => sum + call.promptTokens, 0)
+	const tokensOut = usage.reduce((sum, call) => sum + call.completionTokens, 0)
+	const spentNow = await spend.spent(true)
+	const real = spentNow !== null && startedSpend !== null ? spentNow - startedSpend : null
+	const driver: DriverStats = {
+		status: exported ? status : `${status}; ekspor gagal`,
+		model: options.model,
+		nudges,
+		questions: run.questions,
+		autoContinues: (transcript.match(/Dilanjutkan otomatis/g) ?? []).length,
+		calls: usage.length,
+		tokensIn,
+		tokensOut,
+		costUsd: real ?? (tokensIn * options.priceIn + tokensOut * options.priceOut) / 1e6,
+		costSource: real === null ? 'tarif' : 'tagihan',
+		minutes: Math.round((Date.now() - started) / 6_000) / 10,
+	}
+
+	const facts = exported
+		? { docx: docxFacts(readFileSync(docx)), pdf: pdfFacts(pdf) }
+		: {
+				docx: { blocks: [], tables: 0, images: 0, media: 0, columnSections: [], words: 0, text: '' },
+				pdf: null,
+			}
+	const result = caseResult(useCase, facts, { pdf: exported ? pdf : null, docx }, driver)
+	writeFileSync(join(options.out, `${useCase.id}.json`), `${JSON.stringify(result, null, 1)}\n`)
+	return result
+}
+
+/** Case berurutan, satu konteks peramban per case, dengan rem biaya bersama. */
+export async function driveCases(
+	cases: readonly UseCase[],
+	options: DriveOptions,
+	report: (line: string) => void,
+): Promise<CaseResult[]> {
+	mkdirSync(options.out, { recursive: true })
+	const spend = Spend.fromEnv(options.apiEnv)
+	await spend.begin()
+	report(
+		(await spend.spent(true)) === null
+			? `Saldo provider tidak terbaca: rem biaya memakai perkiraan tarif, batas US$${options.budgetUsd}.`
+			: `Rem biaya aktif: batas US$${options.budgetUsd} untuk seluruh putaran.`,
+	)
+
+	const browser = await chromium.launch({
+		executablePath: options.browser,
+		headless: true,
+		args: ['--lang=id-ID'],
+	})
+	const results: CaseResult[] = []
+	let estimate = 0
+	try {
+		for (const useCase of cases) {
+			const spent = (await spend.spent(true)) ?? estimate
+			if (spent >= options.budgetUsd) {
+				report(`${useCase.id}: dilewati - batas biaya tercapai (US$${spent.toFixed(2)}).`)
+				continue
+			}
+			report(`${useCase.id}: mulai (${useCase.title}).`)
+			const result = await driveCase(browser, useCase, options, spend, await spend.spent(true))
+			estimate += result.driver?.costUsd ?? 0
+			results.push(result)
+			const failed = result.checks.filter((check) => !check.ok).length
+			report(
+				`${useCase.id}: ${result.driver?.status}; ${result.passed ? 'LOLOS' : `${failed} syarat belum terpenuhi`}; ${result.driver?.nudges} dorongan, ${result.driver?.autoContinues} lanjutan otomatis, US$${(result.driver?.costUsd ?? 0).toFixed(3)}.`,
+			)
+		}
+	} finally {
+		await browser.close()
+	}
+	return results
+}
