@@ -135,10 +135,14 @@ async function panelState(page: Page): Promise<PanelState> {
 			running: !!document.querySelector('button[aria-label="Stop"]'),
 			drawing: hasButton('Menggambar…') || hasButton('Menerapkan…'),
 			pendingApply: buttons.some((button) => /^Apply all \(\d+\)$/.test(text(button))),
+			/* Judul kartu ditulis huruf besar lewat CSS, dan `innerText` ikut
+			 * mengembalikannya begitu: "PERTANYAAN AI · 1/3". Dicocokkan tanpa
+			 * peduli huruf - putaran 27 dan 28 Sep tidak pernah menjawab satu
+			 * kartu pun, dan UC5/UC7/UC9 macet di depan kartu itu. */
 			ask:
-				body.includes('AI meminta metadata') && hasButton('Lewati')
+				/ai meminta metadata/i.test(body) && hasButton('Lewati')
 					? 'metadata'
-					: body.includes('Pertanyaan AI') && hasButton('Lewati')
+					: /pertanyaan ai/i.test(body) && hasButton('Lewati')
 						? 'question'
 						: null,
 			stall: hasButton('Cukup'),
@@ -197,6 +201,10 @@ class CaseRun {
 	}
 
 	async send(text: string): Promise<void> {
+		// Kartu pertanyaan menggantikan kotak pesan; ia dijawab dulu.
+		const state = await panelState(this.page)
+		if (state.ask) await this.answer(state.ask)
+		await this.page.locator('textarea[aria-label="Message"]').waitFor({ timeout: 60_000 })
 		await this.page.locator('textarea[aria-label="Message"]').fill(text)
 		await this.page.locator('button[aria-label="Send"]').click()
 		this.log('send', { text })
@@ -457,7 +465,14 @@ async function driveCase(
 	try {
 		await setup(run, useCase, options)
 		await run.send(useCase.prompt)
-		await run.settle(OUTLINE_TIMEOUT_MS, overBudget)
+		const outline = await run.settle(OUTLINE_TIMEOUT_MS, overBudget)
+		/* Model yang langsung menulis tanpa menunggu persetujuan (UC4, 28 Sep)
+		 * masih berjalan saat batas outline habis. Ia ditunggu sampai diam, bukan
+		 * disela: tombol Send baru ada lagi sesudah itu. */
+		if (outline.running) {
+			run.log('outline-overrun', {})
+			await run.settle(Math.max(60_000, started + WRITE_TIMEOUT_MS - Date.now()), overBudget)
+		}
 		writeFileSync(join(dir, 'outline.txt'), await transcriptOf(page))
 		await run.shot('outline')
 
