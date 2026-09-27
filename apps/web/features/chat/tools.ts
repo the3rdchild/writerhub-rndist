@@ -19,7 +19,7 @@ import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offset
 import { placeSectionNumbering } from '@/features/editor/academic-numbering'
 import { replaceTextRange } from '@/features/editor/apply-text'
 import { DEFAULT_HTML_BLOCK_ATTRS, HTML_BLOCK } from '@/features/editor/html-block'
-import { escapeNodeSelection } from '@/features/editor/insert-point'
+import { escapeNodeSelection, positionAfterTable } from '@/features/editor/insert-point'
 import { toEditorContent } from '@/features/editor/markdown'
 import { MATH_BLOCK, MATH_INLINE, stripDelimiters } from '@/features/editor/math'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
@@ -325,15 +325,16 @@ export function readToolLabel(editor: Editor, call: ToolCall): string {
  * jaringan. Yang disimpan tetap sumbernya - blok kode berbahasa `diagram` -
  * jadi penulis bisa menyuntingnya persis seperti diagram yang ditulis model
  * sendiri.
+ *
+ * Diagram tidak pernah masuk ke sel tabel: kursor yang tertinggal di sel
+ * terakhir sesudah tabel disisipkan diganti posisi sesudah tabelnya.
  */
 export function insertDiagramBlock(editor: Editor, svg: string): void {
-	insertChain(editor)
-		.insertContent({
-			type: 'codeBlock',
-			attrs: { language: 'diagram' },
-			content: [{ type: 'text', text: svg }],
-		})
-		.run()
+	const block = { type: 'codeBlock', attrs: { language: 'diagram' }, content: [{ type: 'text', text: svg }] }
+	const afterTable = positionAfterTable(editor.state.selection)
+	const chain = insertChain(editor)
+	if (afterTable === null) chain.insertContent(block).run()
+	else chain.insertContentAt(afterTable, block).run()
 }
 
 /**
@@ -1211,13 +1212,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 		case 'insert_diagram': {
 			const source = String(call.arguments.source ?? '').trim()
 			if (!source) return { ok: false, message: 'Nothing to insert.' }
-			insertChain(editor)
-				.insertContent({
-					type: 'codeBlock',
-					attrs: { language: 'diagram' },
-					content: [{ type: 'text', text: source }],
-				})
-				.run()
+			insertDiagramBlock(editor, source)
 			return { ok: true, message: 'Diagram inserted.' }
 		}
 

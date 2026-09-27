@@ -64,8 +64,8 @@ function cellBordersOf(cell: PMNode) {
 	return { top: border, bottom: border, left: border, right: border }
 }
 
-/** CSS padding shorthand (px values) → docx cell margins in twips. */
-function cellMarginsOf(cell: PMNode) {
+/** CSS padding shorthand (px values) → [top, right, bottom, left] in px. */
+function cellPaddingOf(cell: PMNode): [number, number, number, number] | null {
 	const padding = cell.attrs.cellPadding as string | null | undefined
 	if (!padding) return null
 	const parts = padding
@@ -74,7 +74,24 @@ function cellMarginsOf(cell: PMNode) {
 		.map((part) => Math.round(Number.parseFloat(part) || 0))
 	if (parts.length === 0) return null
 	const [top = 0, right = top, bottom = top, left = right] = parts
+	return [top, right, bottom, left]
+}
+
+/** CSS padding shorthand (px values) → docx cell margins in twips. */
+function cellMarginsOf(cell: PMNode) {
+	const padding = cellPaddingOf(cell)
+	if (!padding) return null
+	const [top, right, bottom, left] = padding
 	return { top: px(top), right: px(right), bottom: px(bottom), left: px(left) }
+}
+
+/** Margin kiri/kanan sel bawaan Word: 0,08 inci (108 twips). */
+const WORD_CELL_MARGIN_PX = 108 / TWIPS_PER_PX
+
+/** Lebar yang dimakan padding kiri dan kanan sel, dalam px. */
+function cellInsetOf(cell: PMNode): number {
+	const padding = cellPaddingOf(cell)
+	return padding ? padding[1] + padding[3] : 2 * WORD_CELL_MARGIN_PX
 }
 
 const VERTICAL_ALIGN: Record<string, 'top' | 'center' | 'bottom'> = {
@@ -362,10 +379,25 @@ export async function exportDocx(
 	}
 
 	const cellOf = (cell: PMNode, width?: number) => {
-		const children: InstanceType<typeof Paragraph>[] = []
-		cell.forEach((block) => {
-			if (block.isTextblock) children.push(paragraphOf(block))
-		})
+		/*
+		 * Isi sel dibangun lewat `blockOf`, jalur yang sama dengan badan naskah.
+		 * Dulu hanya blok teks yang diambil, jadi daftar, tabel bersarang, dan
+		 * gambar di dalam sel hilang dari berkas walau tampil di layar dan PDF
+		 * (UC9: grafik batang di sel terakhir Tabel 1.1), dan diagram tercetak
+		 * sebagai sumber SVG-nya. Selama isinya dibangun, lebar area teks adalah
+		 * lebar sel tanpa padding, supaya gambar dan tabel bersarang mengecil ke
+		 * selnya, bukan ke lebar halaman.
+		 */
+		const children: InstanceType<typeof Paragraph | typeof Table>[] = []
+		const outerWidth = sectionContentWidth
+		if (width && width > 0) sectionContentWidth = Math.max(1, width - cellInsetOf(cell))
+		try {
+			cell.forEach((block) => {
+				children.push(...(blockOf(block) as typeof children))
+			})
+		} finally {
+			sectionContentWidth = outerWidth
+		}
 		if (children.length === 0) children.push(new Paragraph({}))
 
 		const rowSpan = Math.max(1, Number(cell.attrs.rowspan) || 1)

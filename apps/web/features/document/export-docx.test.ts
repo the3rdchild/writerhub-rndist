@@ -329,6 +329,131 @@ describe('penggabungan sel di DOCX', () => {
 	})
 })
 
+describe('isi sel selain paragraf di DOCX (EX-1)', () => {
+	const PNG_1PX =
+		'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+	const EMU_PER_PX = 9525
+
+	const text = (value: string): JSONContent => ({
+		type: 'paragraph',
+		content: [{ type: 'text', text: value }],
+	})
+	const cell = (...content: JSONContent[]): JSONContent => ({ type: 'tableCell', content })
+	const table = (...rows: JSONContent[][]): JSONContent => ({
+		type: 'table',
+		content: rows.map((cells) => ({ type: 'tableRow', content: cells })),
+	})
+	const list = (type: 'bulletList' | 'orderedList', ...items: string[]): JSONContent => ({
+		type,
+		content: items.map((item) => ({ type: 'listItem', content: [text(item)] })),
+	})
+
+	/** Lebar isi satu sel dari tabel dua kolom tanpa colwidth, dalam px. */
+	const halfCellWidth = pageGeometry(DEFAULT_PAGE_SETUP).contentWidth / 2 - (2 * 108) / 15
+
+	async function xmlOf(content: JSONContent[]): Promise<string> {
+		const doc = buildSchema().nodeFromJSON({ type: 'doc', content })
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+			setup: DEFAULT_PAGE_SETUP,
+		})
+		return strFromU8(unzipSync(new Uint8Array(await blob.arrayBuffer()))['word/document.xml'])
+	}
+
+	/** Penanda itu berada di dalam sel tabel: `<w:tc>` terakhir sebelumnya belum ditutup. */
+	const insideCell = (xml: string, marker: string) => {
+		const at = xml.indexOf(marker)
+		return at >= 0 && xml.lastIndexOf('<w:tc>', at) > xml.lastIndexOf('</w:tc>', at)
+	}
+
+	/** XML paragraf Word yang memuat penanda itu. */
+	const paragraphWith = (xml: string, marker: string) => {
+		const at = xml.indexOf(marker)
+		return xml.slice(xml.lastIndexOf('<w:p>', at), xml.indexOf('</w:p>', at))
+	}
+
+	test('daftar berpoin dan bernomor di dalam sel ikut sebagai butir Word', async () => {
+		const xml = await xmlOf([
+			table([
+				cell(text('Temuan'), list('bulletList', 'butir berpoin')),
+				cell(list('orderedList', 'butir bernomor')),
+			]),
+		])
+
+		for (const marker of ['butir berpoin', 'butir bernomor']) {
+			expect(insideCell(xml, marker)).toBe(true)
+			expect(paragraphWith(xml, marker)).toContain('<w:numPr>')
+		}
+		expect(insideCell(xml, 'Temuan')).toBe(true)
+	})
+
+	test('gambar di dalam sel ikut, dan diperkecil selebar selnya', async () => {
+		const xml = await xmlOf([
+			table([
+				cell(text('Grafik')),
+				cell(text('penanda-gambar'), {
+					type: 'htmlBlock',
+					attrs: {
+						html: '<div>grafik batang</div>',
+						height: 400,
+						snapshot: PNG_1PX,
+						snapshotWidth: 1600,
+						snapshotHeight: 800,
+					},
+				}),
+			]),
+		])
+
+		expect(insideCell(xml, '<w:drawing>')).toBe(true)
+		const width = Number(/<wp:extent cx="(\d+)"/.exec(xml)?.[1])
+		expect(width).toBeGreaterThan(0)
+		expect(width).toBeLessThanOrEqual(Math.round(halfCellWidth) * EMU_PER_PX)
+	})
+
+	test('tabel bersarang ikut, selebar selnya, dan sel luarnya tetap ditutup paragraf', async () => {
+		const xml = await xmlOf([
+			table([cell(text('kiri')), cell(table([cell(text('dalam-a')), cell(text('dalam-b'))]))]),
+		])
+
+		expect(xml.match(/<w:tbl>/g)?.length).toBe(2)
+		expect(insideCell(xml, 'dalam-b')).toBe(true)
+		// Word menolak sel yang berakhir dengan tabel tanpa paragraf sesudahnya.
+		expect(xml).not.toContain('</w:tbl></w:tc>')
+
+		const grids = [...xml.matchAll(/<w:tblGrid>([\s\S]*?)<\/w:tblGrid>/g)].map((grid) =>
+			[...grid[1].matchAll(/w:w="(\d+)"/g)].reduce((sum, match) => sum + Number(match[1]), 0),
+		)
+		const inner = Math.min(...grids)
+		// Tiap kolom dibulatkan ke twip sendiri-sendiri: selisih 1 per kolom.
+		expect(inner).toBeLessThanOrEqual(Math.round(halfCellWidth * 15) + 2)
+	})
+
+	test('blok kode di dalam sel memakai huruf mesin ketik, satu paragraf per baris', async () => {
+		const xml = await xmlOf([
+			table([
+				cell({
+					type: 'codeBlock',
+					attrs: { language: 'python' },
+					content: [{ type: 'text', text: 'baris_satu = 1\nbaris_dua = 2' }],
+				}),
+			]),
+		])
+
+		expect(paragraphWith(xml, 'baris_satu')).toContain('Consolas')
+		expect(paragraphWith(xml, 'baris_satu')).not.toContain('baris_dua')
+		expect(insideCell(xml, 'baris_dua')).toBe(true)
+	})
+
+	test('sel berisi paragraf saja tetap seperti sebelumnya', async () => {
+		const xml = await xmlOf([table([cell(text('polos'))])])
+
+		expect(insideCell(xml, 'polos')).toBe(true)
+		expect(paragraphWith(xml, 'polos')).not.toContain('<w:numPr>')
+		expect(xml).not.toContain('<w:drawing>')
+	})
+})
+
 describe('baris baru di dalam satu simpul teks', () => {
 	test('jadi <w:br/>, bukan spasi', async () => {
 		const doc = buildSchema().nodeFromJSON({
