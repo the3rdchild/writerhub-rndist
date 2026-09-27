@@ -335,6 +335,21 @@ export function followsOutline(history: readonly ChatTurn[], taskId: string): bo
 	)
 }
 
+/**
+ * Aksi yang boleh mulai diterapkan: belum berjalan, dan belum diputuskan
+ * (tidak ada hasil alatnya di riwayat - diterapkan, dilewati, atau gagal).
+ */
+export function unclaimedActions(
+	calls: readonly ToolCall[],
+	running: ReadonlySet<string>,
+	history: readonly ChatTurn[],
+): ToolCall[] {
+	const decided = new Set(
+		history.flatMap((turn) => (turn.role === 'tool' && turn.toolCallId ? [turn.toolCallId] : [])),
+	)
+	return calls.filter((call) => !running.has(call.id) && !decided.has(call.id))
+}
+
 /** Tugas ini berhasil menyisipkan sampul lewat `insert_template_part`. */
 export function coverInserted(history: readonly ChatTurn[], taskId: string): boolean {
 	const ids = new Set(
@@ -541,6 +556,8 @@ interface ChatContextValue {
 	skipAction: (call: ToolCall) => void
 	isActionApplied: (id: string) => boolean
 	isActionSettled: (id: string) => boolean
+	/** Aksi yang sedang diterapkan - menggambar bisa berjalan puluhan detik. */
+	isActionRunning: (id: string) => boolean
 	autoApply: boolean
 	setAutoApply: (value: boolean) => void
 	research: boolean
@@ -1856,34 +1873,71 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		[runDrawTool, runHtmlWithDiagrams],
 	)
 
+	/*
+	 * Aksi yang sedang diterapkan. Menggambar menunggu sub-agent sampai
+	 * puluhan detik, dan selama itu kartunya masih "tertunda": "Apply all" yang
+	 * diklik lagi - atau Auto-apply yang berjalan bersamaan dengan klik penulis -
+	 * dulu memulai penerapan kedua untuk aksi yang sama. Uji 27 Sep: 174
+	 * permintaan gambar untuk 2 diagram dalam setengah jam. Setiap aksi kini
+	 * diklaim sekali; yang sedang berjalan atau sudah diputuskan dilewati.
+	 */
+	const inFlightRef = useRef(new Set<string>())
+	const [runningActionIds, setRunningActionIds] = useState<Set<string>>(() => new Set())
+	const claimActions = useCallback((calls: ToolCall[]): ToolCall[] => {
+		const fresh = unclaimedActions(calls, inFlightRef.current, messagesRef.current)
+		for (const call of fresh) inFlightRef.current.add(call.id)
+		if (fresh.length > 0) setRunningActionIds(new Set(inFlightRef.current))
+		return fresh
+	}, [])
+	const releaseActions = useCallback((calls: ToolCall[]) => {
+		for (const call of calls) inFlightRef.current.delete(call.id)
+		setRunningActionIds(new Set(inFlightRef.current))
+	}, [])
+
 	const applyAction = useCallback(
 		async (call: ToolCall): Promise<ToolOutcome> => {
-			const outcome = needsDrawing(call.name, call.arguments) ? await runAsyncTool(call) : runWriteTool(call)
-			settleActions([{ call, content: outcome.message }])
-			return outcome
+			if (claimActions([call]).length === 0) {
+				return { ok: false, message: 'Aksi ini sedang atau sudah diterapkan.' }
+			}
+			try {
+				const outcome = needsDrawing(call.name, call.arguments)
+					? await runAsyncTool(call)
+					: runWriteTool(call)
+				settleActions([{ call, content: outcome.message }])
+				return outcome
+			} finally {
+				releaseActions([call])
+			}
 		},
-		[runAsyncTool, runWriteTool, settleActions],
+		[runAsyncTool, runWriteTool, settleActions, claimActions, releaseActions],
 	)
 
 	const applyActions = useCallback(
 		(calls: ToolCall[]) => {
+			const fresh = claimActions(calls)
+			if (fresh.length === 0) return
 			/*
 			 * Berurutan, bukan berbarengan. Aksi menggambar menyisipkan blok ke
 			 * dokumen yang sama, dan dua penyisipan yang berlomba menghitung
 			 * posisinya dari keadaan yang sudah berubah.
 			 */
 			void (async () => {
-				const entries: { call: ToolCall; content: string }[] = []
-				for (const call of calls) {
-					const outcome = needsDrawing(call.name, call.arguments)
-						? await runAsyncTool(call)
-						: runWriteTool(call)
-					entries.push({ call, content: outcome.message })
+				try {
+					const entries: { call: ToolCall; content: string }[] = []
+					for (const call of fresh) {
+						const outcome = needsDrawing(call.name, call.arguments)
+							? await runAsyncTool(call)
+							: runWriteTool(call)
+						entries.push({ call, content: outcome.message })
+					}
+					settleActions(entries)
+				} finally {
+					// Sesudah dicatat sebagai diputuskan, jadi tidak ada celah untuk klik kedua.
+					releaseActions(fresh)
 				}
-				settleActions(entries)
 			})()
 		},
-		[runAsyncTool, runWriteTool, settleActions],
+		[runAsyncTool, runWriteTool, settleActions, claimActions, releaseActions],
 	)
 	applyActionsRef.current = applyActions
 
@@ -2039,6 +2093,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			skipAction,
 			isActionApplied: (id: string) => appliedActionIds.has(id),
 			isActionSettled: (id: string) => settledActionIds.has(id),
+			isActionRunning: (id: string) => runningActionIds.has(id),
 			autoApply,
 			setAutoApply,
 			research,
@@ -2073,6 +2128,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			skipAction,
 			appliedActionIds,
 			settledActionIds,
+			runningActionIds,
 			autoApply,
 			setAutoApply,
 			research,
