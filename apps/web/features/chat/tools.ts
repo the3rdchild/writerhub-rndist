@@ -56,6 +56,7 @@ import { applyAcademicNumbering } from './numbering-apply'
 import { setBlockStyle } from './paragraph-style'
 import { promoteSectionTitles } from './section-titles'
 import {
+	chapterSlot,
 	type DocHeading,
 	docHeadings,
 	dropLeadingTitle,
@@ -948,6 +949,32 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 							message: `The document already had an empty "${headings(editor)[chapter].text}" section; wrote the content there instead of adding a second heading. ${outcome.message}`,
 						}
 					: outcome
+			}
+
+			/* Bab bernomor punya tempat yang pasti menurut nomornya - lihat `chapterSlot`. */
+			const slot = chapterSlot(editor.state.doc, promoteSectionTitles(markdown))
+			if (slot?.kind === 'existing') {
+				if (!slot.empty) {
+					return {
+						ok: false,
+						message: `Not carried out: the document already has "${slot.title}" (index ${slot.index}) with content. Rewrite it with write_section, or give the new chapter the next free number.`,
+					}
+				}
+				if (!slot.body.trim()) return { ok: false, message: 'Nothing to insert besides the chapter heading.' }
+				const outcome = writeSection(editor, slot.index, slot.body)
+				return outcome.ok
+					? {
+							ok: true,
+							message: `The document already had an empty "${slot.title}"; wrote the content there instead of adding a second chapter with that number. ${outcome.message}`,
+						}
+					: outcome
+			}
+			if (slot) {
+				editor.chain().insertContentAt(slot.pos, toEditorContent(slot.markdown)).run()
+				return {
+					ok: true,
+					message: `Inserted ${slot.side} "${slot.neighbour}", where the chapter number puts it.`,
+				}
 			}
 
 			/*

@@ -317,7 +317,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'insert_content',
 		kind: 'write',
 		description:
-			'Insert new content into the document, written as Markdown: # headings, | … | tables, - lists. They become real editor nodes. Mathematics goes in $…$; everything else must be Markdown, never LaTeX markup like \\section or \\begin{tabular}. A line holding only \\pagebreak starts a new page. When the document already has sections, say where the content belongs with after_heading instead of relying on the cursor.',
+			'Insert new content into the document, written as Markdown: # headings, | … | tables, - lists. They become real editor nodes. Mathematics goes in $…$; everything else must be Markdown, never LaTeX markup like \\section or \\begin{tabular}. A line holding only \\pagebreak starts a new page. When the document already has sections, say where the content belongs with after_heading instead of relying on the cursor. A numbered chapter (BAB IV …) goes in its numbered place by itself.',
 		parameters: {
 			type: 'object',
 			properties: {
