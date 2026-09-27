@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { type Browser, chromium, type Page } from 'playwright'
 import type { UseCase } from './cases'
@@ -452,6 +452,7 @@ async function driveCase(
 	}
 	let status = 'selesai'
 	let nudges = 0
+	let appliedAtNudge = 0
 
 	try {
 		await setup(run, useCase, options)
@@ -479,6 +480,19 @@ async function driveCase(
 				status = 'berhenti: batas waktu'
 				break
 			}
+			/*
+			 * Dorongan yang tidak menghasilkan satu suntingan pun tidak diulang.
+			 * Uji-asap 27 Sep: model menyatakan UC9 selesai sementara keterangan
+			 * Gambar 1.1/1.2 tidak berdampingan dengan grafiknya - ia tidak
+			 * punya alat untuk memindahkannya - dan setiap "lanjutkan" membuka
+			 * putaran baru: 60 menit, 4,5 juta token.
+			 */
+			const applied = countApplied(await transcriptOf(page))
+			if (nudges > 0 && applied === appliedAtNudge) {
+				status = 'berhenti: dorongan tanpa kemajuan'
+				break
+			}
+			appliedAtNudge = applied
 			nudges += 1
 			await run.send(NUDGE)
 		}
@@ -537,6 +551,31 @@ async function driveCase(
 	return result
 }
 
+/** Aksi yang sudah diterapkan, menurut kartu aksi di transkrip panel. */
+function countApplied(transcript: string): number {
+	return (transcript.match(/^Applied\b/gm) ?? []).length
+}
+
+/*
+ * Satu penggerak per folder. Uji-asap 27 Sep: sesi penggerak lain yang masih
+ * hidup ikut menulis ke folder dan log yang sama, dan hasil UC9 yang bersih
+ * tertimpa hasilnya.
+ */
+function lockFolder(out: string): () => void {
+	const lock = join(out, 'drive.lock')
+	if (existsSync(lock)) {
+		const pid = Number(readFileSync(lock, 'utf8'))
+		let alive = false
+		try {
+			process.kill(pid, 0)
+			alive = true
+		} catch {}
+		if (alive) throw new Error(`Folder ${out} sedang dipakai penggerak lain (pid ${pid}).`)
+	}
+	writeFileSync(lock, String(process.pid))
+	return () => rmSync(lock, { force: true })
+}
+
 /** Case berurutan, satu konteks peramban per case, dengan rem biaya bersama. */
 export async function driveCases(
 	cases: readonly UseCase[],
@@ -544,6 +583,8 @@ export async function driveCases(
 	report: (line: string) => void,
 ): Promise<CaseResult[]> {
 	mkdirSync(options.out, { recursive: true })
+	const unlock = lockFolder(options.out)
+	report(`Penggerak pid ${process.pid}, folder ${options.out}.`)
 	const spend = Spend.fromEnv(options.apiEnv)
 	await spend.begin()
 	report(
@@ -577,6 +618,7 @@ export async function driveCases(
 		}
 	} finally {
 		await browser.close()
+		unlock()
 	}
 	return results
 }
