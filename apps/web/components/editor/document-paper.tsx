@@ -14,6 +14,7 @@ import {
 } from '@/features/editor/page-furniture/model'
 import { formatSheetNumbers, numberPositionOf } from '@/features/editor/page-furniture/numbering'
 import { FURNITURE_SLOTS } from '@/features/editor/page-furniture/page-furniture-ydoc'
+import { type PrintLine, printFurnitureRules } from '@/features/editor/page-furniture/print-furniture'
 import { SheetFurniture, SheetPageNumber } from '@/features/editor/page-furniture/sheet-furniture'
 import {
 	footerMarginOf,
@@ -91,16 +92,40 @@ function flyerPageRule(base: PageSetup): string {
 	return `@page flyer { size: ${mm(width)}mm ${mm(height)}mm; margin: 0; }`
 }
 
+/*
+ * Akhiran nama halaman: lembar pembuka bab (`o`) dan lembar pertama bagian yang
+ * mulai dari angka selain 1 (`f`) - lihat `withPrintVariants` di pagination.ts.
+ * Tata letaknya sama dengan bagiannya; yang berbeda hanya kotak marginnya.
+ */
+const PAGE_SUFFIXES = ['', 'o', 'f', 'fo'] as const
+
 export function printPageRules(base: PageSetup, sections: readonly PageSetup[], bleed = false): string {
 	const rules = [`@page { ${pageRuleBody(base, bleed)} }`, flyerPageRule(base)]
 
-	sections.forEach((setup, index) => {
-		if (index === 0) return
-		rules.push(`@page sec${index} { ${pageRuleBody(setup, bleed)} }`)
-		rules.push(`.document-section-${index} { page: sec${index}; }`)
+	const all = sections.length > 0 ? sections : [base]
+	all.forEach((setup, index) => {
+		for (const suffix of PAGE_SUFFIXES) {
+			// Bagian pertama tanpa akhiran memakai `@page` polos di atas.
+			if (index === 0 && suffix === '') continue
+			const name = `sec${index}${suffix}`
+			rules.push(`@page ${name} { ${pageRuleBody(index === 0 ? base : setup, bleed)} }`)
+			rules.push(`.document-section-${index}${suffix} { page: ${name}; }`)
+		}
 	})
 
 	return rules.join('\n')
+}
+
+/** Isi kaya perabot (HTML statis) → teks polos dan perataannya, untuk kotak margin cetak. */
+function printLineOf(html: string): PrintLine | null {
+	if (typeof DOMParser === 'undefined') return null
+	const body = new DOMParser().parseFromString(html, 'text/html').body
+	const blocks = [...body.children] as HTMLElement[]
+	const text = (blocks.length > 0 ? blocks.map((block) => block.textContent ?? '') : [body.textContent ?? ''])
+		.join('\n')
+		.trimEnd()
+	const align = blocks[0]?.style.textAlign
+	return { text, align: align === 'center' || align === 'right' ? align : 'left' }
 }
 
 /**
@@ -227,6 +252,29 @@ export function DocumentPaper({
 	)
 	const totalPages = String(sheets.length > 0 ? sheets.length : pageCount)
 
+	/*
+	 * Perabot untuk kertas cetak. Lapisan lembar - tempat perabot layar
+	 * digambar - disembunyikan saat mencetak, jadi isinya dinyatakan ulang
+	 * sebagai kotak margin `@page` (lihat print-furniture.ts).
+	 */
+	const printFurniture = useMemo(() => {
+		const lines: Partial<Record<FurnitureSlot, Partial<Record<FurnitureVariant, PrintLine>>>> = {}
+		for (const slot of FURNITURE_SLOTS) {
+			for (const variant of ['default', 'first', 'even'] as const) {
+				const html = furnitureContent?.(slot, variant)
+				const line = html ? printLineOf(html) : (furniture?.[slot]?.[variant] ?? null)
+				if (line) lines[slot] = { ...lines[slot], [variant]: line }
+			}
+		}
+		return printFurnitureRules({
+			sections: sections.length > 0 ? sections : [setup],
+			lines,
+			has: (slot, variant) => Boolean(furniture?.[slot]?.[variant] || furnitureHasVariant?.(slot, variant)),
+			showPageNumbers,
+			fontFamily: typography?.baseFont.family ?? 'serif',
+		})
+	}, [furniture, furnitureContent, furnitureHasVariant, sections, setup, showPageNumbers, typography])
+
 	/* Watermark dibaca sekali di sini, bukan per lembar: satu aset, satu URL
 	 * bertanda tangan - menjemputnya per lembar berarti puluhan permintaan
 	 * yang sama untuk gambar yang sama. */
@@ -290,7 +338,12 @@ export function DocumentPaper({
 			    menentukan ukuran judul dan badan naskahnya sendiri. Tanpa atribut
 			    `media` karena ia harus berlaku di layar maupun di hasil cetak. */}
 			<style>{typeRules}</style>
-			{!setup.pageless && <style media="print">{printPageRules(setup, sections, bleedPrint)}</style>}
+			{!setup.pageless && (
+				/* Header, footer, dan nomor di kotak margin `@page` - kecuali cetak
+				 * bermargin nol (watermark tembus margin): kotak marginnya setinggi nol.
+				 * Satu untai: `<style>` hanya menerima satu anak teks. */
+				<style media="print">{`${printPageRules(setup, sections, bleedPrint)}\n${bleedPrint ? '' : printFurniture}`}</style>
+			)}
 
 			{/*
 			 * `document-print-root` (E1): satu-satunya bagian DOM yang boleh

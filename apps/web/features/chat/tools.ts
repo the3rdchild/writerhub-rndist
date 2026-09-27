@@ -1,5 +1,6 @@
 'use client'
 
+import { NodeSelection, Selection } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
 import {
 	type AnalysisFeature,
@@ -1052,6 +1053,15 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 				.chain()
 				.insertContentAt(placement.at, { type: TOC_BLOCK, attrs: clampedAttrs({ ...attrs, listKind: kind }) })
 				.run()
+			/* Blok yang baru disisipkan tidak dibiarkan terpilih: ketikan penulis
+			 * berikutnya akan menggantikannya (lihat click-past-node-selection.ts). */
+			const { state } = editor
+			if (state.selection instanceof NodeSelection) {
+				// Blok teks sesudahnya - pemenggal halaman di sana pun blok yang bisa terpilih.
+				const $after = state.doc.resolve(state.selection.to)
+				const text = Selection.findFrom($after, 1, true) ?? Selection.findFrom($after, -1, true)
+				if (text) editor.view.dispatch(state.tr.setSelection(text))
+			}
 			return { ok: true, message: `${TOC_TITLE_LABEL[kind]} inserted under "${placement.heading}".` }
 		}
 

@@ -67,7 +67,7 @@ interface PaginationState {
 	sheets: SheetGeometry[]
 	marginAdjustments: MarginAdjustment[]
 	blockPages: BlockPage[]
-	blockSections: { pos: number; section: number }[]
+	blockSections: BlockSection[]
 	pageless: boolean
 	breakBeforeLevels: number[]
 }
@@ -89,7 +89,7 @@ export interface PaginationMeta {
 	sheets?: SheetGeometry[]
 	marginAdjustments?: MarginAdjustment[]
 	blockPages?: BlockPage[]
-	blockSections?: { pos: number; section: number }[]
+	blockSections?: BlockSection[]
 	geometry?: PageGeometry
 	setup?: PageSetup
 	pageless?: boolean
@@ -673,10 +673,29 @@ export function marginAdjustments(
 	return adjustments
 }
 
+/**
+ * Nama halaman cetak sebuah blok: indeks section-nya, ditambah akhiran bila
+ * lembarnya butuh aturan `@page` sendiri.
+ *
+ * - `o` - lembar pembuka bab di bagian yang nomornya berpindah tempat di
+ *   halaman pembuka (tengah bawah) dibanding halaman lain (kanan atas).
+ * - `f` - lembar pertama bagian yang mulai ulang dari angka selain 1.
+ *
+ * Peramban tidak bisa memilih "halaman pertama tiap bab" lewat CSS (`@page
+ * nama:first` hanya berlaku untuk halaman pertama dokumen), jadi lembar-lembar
+ * itu diberi nama halaman sendiri. Pergantian nama memaksa pemenggalan persis
+ * di batas lembar layar - yang di situ memang sudah ada pemenggalannya.
+ */
+export interface BlockSection {
+	pos: number
+	section: number
+	variant?: 'o' | 'f' | 'fo'
+}
+
 export function blockSections(
 	blockPositions: readonly number[],
 	sections: readonly { pos: number; name: number }[],
-): { pos: number; section: number }[] {
+): BlockSection[] {
 	return blockPositions.map((pos) => {
 		let section = 0
 		for (const entry of sections) {
@@ -685,6 +704,69 @@ export function blockSections(
 		}
 		return { pos, section }
 	})
+}
+
+/**
+ * Pemisah bagian (yang memulai halaman baru) memakai nama halaman blok DI
+ * DEPANNYA. Ia penutup bagian sebelumnya: dengan nama bagian berikutnya,
+ * peramban memenggal sebelum pemisah (nama berganti) DAN sesudahnya
+ * (`break-after: page`), dan di antaranya lahir halaman kosong. Dengan nama
+ * sebelumnya, kedua pemenggalan jatuh di titik yang sama dan menjadi satu.
+ */
+export function breaksKeepPreviousName(
+	entries: readonly BlockSection[],
+	breaks: ReadonlySet<number>,
+): BlockSection[] {
+	return entries.map((entry, index) => {
+		const previous = entries[index - 1]
+		if (!breaks.has(entry.pos) || !previous) return entry
+		return {
+			pos: entry.pos,
+			section: previous.section,
+			...(previous.variant ? { variant: previous.variant } : {}),
+		}
+	})
+}
+
+/**
+ * Menambahkan akhiran nama halaman cetak (lihat `BlockSection`) dari lembar
+ * tempat tiap blok jatuh. Kosong bila tidak ada blok yang membutuhkannya -
+ * dokumen biasa tidak mendapat dekorasi apa pun.
+ */
+export function withPrintVariants(
+	entries: readonly BlockSection[],
+	blockPages: readonly BlockPage[],
+	sheets: readonly SheetGeometry[],
+	rules: readonly (PageNumbering | null | undefined)[],
+): BlockSection[] {
+	const pageAt = new Map(blockPages.map((entry) => [entry.pos, entry.page]))
+	/* Kontainer (daftar, kutipan) tidak tercatat sendiri: lembarnya lembar anak pertamanya. */
+	const sheetOf = (pos: number): number | null =>
+		pageAt.get(pos) ?? blockPages.find((entry) => entry.pos > pos)?.page ?? null
+
+	const firstSheet = new Map<number, number>()
+	for (const entry of entries) {
+		const sheet = sheetOf(entry.pos)
+		if (sheet !== null && !firstSheet.has(entry.section)) firstSheet.set(entry.section, sheet)
+	}
+
+	let any = false
+	const result = entries.map((entry): BlockSection => {
+		const rule = rules[entry.section]
+		const sheet = sheetOf(entry.pos)
+		if (!rule || sheet === null) return entry
+		const opening =
+			sheets[sheet]?.opensChapter === true &&
+			rule.openingPosition !== undefined &&
+			rule.openingPosition !== (rule.position ?? null)
+		const first =
+			typeof rule.restart === 'number' && rule.restart !== 1 && firstSheet.get(entry.section) === sheet
+		const variant = first && opening ? 'fo' : first ? 'f' : opening ? 'o' : undefined
+		if (!variant) return entry
+		any = true
+		return { ...entry, variant }
+	})
+	return any ? result : []
 }
 
 /*
@@ -705,13 +787,15 @@ function outerBlockPositions(blocks: readonly Measurement[]): number[] {
 	return positions
 }
 
-function sameBlockSections(
-	a: readonly { pos: number; section: number }[],
-	b: readonly { pos: number; section: number }[],
-): boolean {
+function sameBlockSections(a: readonly BlockSection[], b: readonly BlockSection[]): boolean {
 	return (
 		a.length === b.length &&
-		a.every((entry, index) => entry.pos === b[index].pos && entry.section === b[index].section)
+		a.every(
+			(entry, index) =>
+				entry.pos === b[index].pos &&
+				entry.section === b[index].section &&
+				entry.variant === b[index].variant,
+		)
 	)
 }
 
@@ -737,7 +821,7 @@ function buildDecorations(
 	doc: PMNode,
 	spacers: readonly Spacer[],
 	adjustments: readonly MarginAdjustment[] = [],
-	sections: readonly { pos: number; section: number }[] = [],
+	sections: readonly BlockSection[] = [],
 ): DecorationSet {
 	const decorations: Decoration[] = []
 	for (const entry of sections) {
@@ -745,7 +829,7 @@ function buildDecorations(
 		if (!node) continue
 		decorations.push(
 			Decoration.node(entry.pos, entry.pos + node.nodeSize, {
-				class: `document-section-${entry.section}`,
+				class: `document-section-${entry.section}${entry.variant ?? ''}`,
 			}),
 		)
 	}
@@ -998,13 +1082,23 @@ export const Pagination = Extension.create<PaginationOptions>({
 							if (index > 0 && !continuous[index]) printSetups.push(span.setup)
 							pageNames.push(printSetups.length - 1)
 						})
-						const sectionsOfBlocks =
-							spans.length > 1
-								? blockSections(
-										targets,
-										spans.map((span, index) => ({ pos: span.pos, name: pageNames[index] })),
-									)
-								: []
+						const named = blockSections(
+							targets,
+							spans.map((span, index) => ({ pos: span.pos, name: pageNames[index] })),
+						)
+						const varied = withPrintVariants(
+							named,
+							blockPages,
+							sheets,
+							printSetups.map((setup) => setup.pageNumbering),
+						)
+						const pageBreaking = new Set(
+							spans.slice(1).flatMap((span, index) => (continuous[index + 1] ? [] : [span.pos])),
+						)
+						const sectionsOfBlocks = breaksKeepPreviousName(
+							varied.length > 0 ? varied : spans.length > 1 ? named : [],
+							pageBreaking,
+						)
 						if (
 							!sameSpacers(spacers, state.spacers) ||
 							pageCount !== state.pageCount ||
