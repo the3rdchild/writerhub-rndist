@@ -28,6 +28,8 @@ export interface DriverStats {
 	tokensIn?: number
 	tokensOut?: number
 	costUsd?: number
+	/** Token chat × tarif - tanpa sub-agent penggambar, yang tidak lewat stream chat. */
+	costEstimateUsd?: number
 	/** `tagihan`: selisih pemakaian provider; `tarif`: token × tarif. */
 	costSource?: 'tagihan' | 'tarif'
 	minutes?: number
