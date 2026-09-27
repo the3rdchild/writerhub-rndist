@@ -221,7 +221,13 @@ export function markdownToHtml(markdown: string): string {
 	return out.join('')
 }
 
+/**
+ * Teks dari AI menjadi isi editor. Paragraf yang dipisah baris kosong ikut
+ * lewat Markdown walau tanpa penanda lain: dibiarkan mentah, TipTap
+ * menyisipkannya sebagai satu untai teks, dan "Puji syukur…" plus paragraf
+ * kedua menjadi satu paragraf - atau satu heading - berisi baris baru.
+ */
 export function toEditorContent(text: string): string {
 	const source = looksLikeLatexDocument(text) ? latexToMarkdown(text) : text
-	return looksLikeMarkdown(source) ? markdownToHtml(source) : source
+	return looksLikeMarkdown(source) || /\n\s*\n/.test(source.trim()) ? markdownToHtml(source) : source
 }

@@ -98,7 +98,7 @@ export function isContinuePrompt(text: string): boolean {
 
 const DERIVED_SECTION = /^daftar\s+(isi|tabel|gambar|lampiran)\b/i
 
-function hasBody(node: PMNode): boolean {
+export function hasBody(node: PMNode): boolean {
 	if (node.type.name === PAGE_BREAK_NODE || node.type.name === TOC_BLOCK) return false
 	if (node.type.name === 'heading') return false
 	if (node.textContent.trim()) return true
@@ -167,10 +167,10 @@ export function continueNudge(reason: ContinueReason, empty: readonly string[]):
 	const sections = `${listed.join('; ')}${empty.length > listed.length ? '; ...' : ''}`
 	const body =
 		reason === 'truncated'
-			? 'Carry on from where it stopped, in smaller pieces: one section per insert_content call.'
+			? 'Carry on from where it stopped, in smaller pieces: one section per call (write_section for a heading that exists, insert_content for a new one).'
 			: reason === 'incomplete'
 				? listed.length > 0
-					? `Write the level-1 sections that still have no body text, in document order: ${sections}. Follow the plan, depth and style of what is already written.`
+					? `Write the level-1 sections that still have no body text, in document order, each with write_section on its heading: ${sections}. Follow the plan, depth and style of what is already written.`
 					: 'Check what the earlier request still lacks and finish it.'
 				: 'Carry on with the same request from where you stopped.'
 	return [

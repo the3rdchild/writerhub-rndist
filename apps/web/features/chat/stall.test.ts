@@ -124,7 +124,7 @@ describe('continueNudge', () => {
 	test('tombol "bab masih kosong" meminta bab itu ditulis, bukan sekadar acuan', () => {
 		const nudge = continueNudge('incomplete', ['BAB IV HASIL'])
 		expect(nudge).toContain(
-			'Write the level-1 sections that still have no body text, in document order: BAB IV HASIL.',
+			'Write the level-1 sections that still have no body text, in document order, each with write_section on its heading: BAB IV HASIL.',
 		)
 		expect(nudge).not.toContain('Fill only those the request covers')
 	})
@@ -135,7 +135,7 @@ describe('continueNudge', () => {
 	})
 
 	test('jawaban terpotong diminta per bagian kecil', () => {
-		expect(continueNudge('truncated', [])).toContain('one section per insert_content call')
+		expect(continueNudge('truncated', [])).toContain('one section per call')
 		expect(continueNudge('truncated', [])).not.toContain('For reference')
 	})
 })

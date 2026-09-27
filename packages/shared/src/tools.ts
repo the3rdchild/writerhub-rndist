@@ -284,10 +284,34 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		},
 	},
 	{
+		name: 'write_section',
+		kind: 'write',
+		description:
+			'Write the body of a section that already has a heading - a template placeholder, or an outline you set up earlier - replacing whatever is under that heading now. This is the way to fill a planned document section by section. The heading itself stays. Subsections you repeat as Markdown headings in the content are filled in place; new ones are added after them; subsections you leave out stay as they are. Use insert_content only for sections that do not exist yet, and replace_text for small edits inside a paragraph.',
+		parameters: {
+			type: 'object',
+			properties: {
+				heading: {
+					type: 'string',
+					description: 'The section heading exactly as get_outline lists it, e.g. "BAB I PENDAHULUAN".',
+				},
+				heading_index: {
+					type: 'number',
+					description: 'Index from get_outline. Needed only when two headings have the same text.',
+				},
+				markdown: {
+					type: 'string',
+					description: 'The section content as Markdown, without the section heading itself.',
+				},
+			},
+			required: ['markdown'],
+		},
+	},
+	{
 		name: 'replace_text',
 		kind: 'write',
 		description:
-			'Replace an exact passage with new text. The find value must match the document character for character - use find_text or read_section first to copy it exactly.',
+			'Replace an exact passage with new text - for edits inside a paragraph or a few paragraphs. The find value must match the document character for character - use find_text or read_section first to copy it exactly. To rewrite a whole section under its heading, use write_section instead.',
 		parameters: {
 			type: 'object',
 			properties: {

@@ -73,6 +73,14 @@ describe('teks biasa dibiarkan apa adanya', () => {
 		expect(looksLikeMarkdown('Ini **penting** sekali.')).toBe(true)
 		expect(markdownToHtml('Ini **penting** sekali.')).toBe('<p>Ini <strong>penting</strong> sekali.</p>')
 	})
+
+	// Dibiarkan mentah, dua paragraf menjadi satu untai teks berisi baris baru (T3).
+	test('tapi paragraf yang dipisah baris kosong menjadi paragraf sendiri-sendiri', () => {
+		expect(toEditorContent('Puji syukur penulis panjatkan.\n\nParagraf kedua.')).toBe(
+			'<p>Puji syukur penulis panjatkan.</p><p>Paragraf kedua.</p>',
+		)
+		expect(toEditorContent('Satu baris.\nBaris lanjutan.')).toBe('Satu baris.\nBaris lanjutan.')
+	})
 })
 
 describe('garis mendatar', () => {

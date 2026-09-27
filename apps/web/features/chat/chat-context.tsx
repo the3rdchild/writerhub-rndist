@@ -179,7 +179,13 @@ export interface ChatResume {
  * mengganti kata tidak menawarkan "bab masih kosong" - di dokumen template,
  * semua bab kosong sejak awal.
  */
-const CONTENT_TOOLS = new Set(['insert_content', 'insert_table', 'insert_html_block', 'restructure_section'])
+const CONTENT_TOOLS = new Set([
+	'insert_content',
+	'write_section',
+	'insert_table',
+	'insert_html_block',
+	'restructure_section',
+])
 
 /** Tugas yang berhenti sebelum selesai dan sudah tidak dilanjutkan sendiri. */
 export interface ChatStall {
@@ -207,7 +213,7 @@ const BUDGET_NOTICE =
 const MAX_WRITE_WAVES = 8
 
 const BROKEN_ARGS_RESULT =
-	'Not carried out: the arguments of this call were cut off or were not valid JSON (a reply that hits the output length limit ends mid-call). Send it again in smaller pieces: one section per insert_content call.'
+	'Not carried out: the arguments of this call were cut off or were not valid JSON (a reply that hits the output length limit ends mid-call). Send it again in smaller pieces: one section per call.'
 
 const PHASE_LABEL: Record<ChatStreamPhase, string> = {
 	connecting: 'Menghubungi provider…',
