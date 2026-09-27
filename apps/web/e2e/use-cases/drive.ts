@@ -20,6 +20,9 @@ import { docxFacts, pdfFacts } from './measure'
  *   diketik penulis sungguhan - dan itulah yang dihitung sebagai dorongan
  *   manual. Lanjutan otomatis aplikasi dihitung terpisah.
  * - Aksi AI diterapkan lewat Auto-apply, setara penulis yang menyetujui semua.
+ *   Penggerak tidak pernah menekan "Apply all" sendiri: aksi menggambar masih
+ *   berjalan saat kartunya tampil tertunda, dan klik tambahan dulu memulai
+ *   penerapan kedua (uji-asap 27 Sep: 174 permintaan gambar untuk 2 diagram).
  * - Kartu pertanyaan dijawab dengan pilihan pertama; permintaan metadata
  *   dilewati - prompt uji sudah memuat semua yang dibutuhkan.
  * - Rem biaya membaca saldo OpenRouter sendiri, di proses yang sama.
@@ -53,6 +56,9 @@ const WRITE_TIMEOUT_MS = 60 * 60_000
 /** Panel harus diam selama ini sebelum dianggap berhenti: lanjutan otomatis dan Auto-apply butuh jeda. */
 const SETTLE_MS = 30_000
 const SPEND_CHECK_MS = 60_000
+/** Aksi tertunda tanpa apa pun yang berjalan selama ini dianggap macet, bukan sibuk. */
+const STUCK_PENDING_MS = 5 * 60_000
+const USAGE_READ_MS = 30_000
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -127,7 +133,7 @@ async function panelState(page: Page): Promise<PanelState> {
 		const resume = document.querySelector('button[aria-label="Sembunyikan tombol lanjutkan"]')
 		return {
 			running: !!document.querySelector('button[aria-label="Stop"]'),
-			drawing: hasButton('Menggambar…'),
+			drawing: hasButton('Menggambar…') || hasButton('Menerapkan…'),
 			pendingApply: buttons.some((button) => /^Apply all \(\d+\)$/.test(text(button))),
 			ask:
 				body.includes('AI meminta metadata') && hasButton('Lewati')
@@ -149,8 +155,28 @@ function transcriptOf(page: Page): Promise<string> {
 	})
 }
 
+interface Usage {
+	calls: number
+	tokensIn: number
+	tokensOut: number
+}
+
+function readUsage(page: Page): Promise<Usage> {
+	return page.evaluate(() => {
+		const calls = (window as unknown as { __sse: { promptTokens: number; completionTokens: number }[] }).__sse
+		return {
+			calls: calls.length,
+			tokensIn: calls.reduce((sum, call) => sum + call.promptTokens, 0),
+			tokensOut: calls.reduce((sum, call) => sum + call.completionTokens, 0),
+		}
+	})
+}
+
 class CaseRun {
 	questions = 0
+	/** Pemakaian terakhir yang terbaca - tetap ada walau peramban tertutup di tengah jalan. */
+	usage: Usage = { calls: 0, tokensIn: 0, tokensOut: 0 }
+	private usageAt = 0
 	private shots = 0
 
 	constructor(
@@ -203,10 +229,17 @@ class CaseRun {
 	 * Tunggu sampai panel diam: tidak berjalan, tidak menggambar, tidak ada aksi
 	 * tertunda, selama `SETTLE_MS`. Kartu pertanyaan dijawab di sepanjang jalan.
 	 */
+	async refreshUsage(): Promise<void> {
+		this.usage = await readUsage(this.page).catch(() => this.usage)
+		this.usageAt = Date.now()
+	}
+
 	async settle(timeoutMs: number, brake?: () => Promise<boolean>): Promise<PanelState> {
 		const deadline = Date.now() + timeoutMs
 		let idleSince: number | null = null
+		let pendingSince: number | null = null
 		while (Date.now() < deadline) {
+			if (Date.now() - this.usageAt >= USAGE_READ_MS) await this.refreshUsage()
 			const state = await panelState(this.page)
 			if (brake && (await brake())) {
 				if (state.running) await this.page.locator('button[aria-label="Stop"]').click()
@@ -218,14 +251,12 @@ class CaseRun {
 				idleSince = null
 			} else if (state.running || state.drawing) {
 				idleSince = null
-			} else if (state.pendingApply) {
-				await this.page
-					.getByRole('button', { name: /^Apply all \(\d+\)$/ })
-					.first()
-					.click()
-				this.log('apply-all', {})
+				pendingSince = null
+			} else if (state.pendingApply && Date.now() - (pendingSince ??= Date.now()) < STUCK_PENDING_MS) {
+				// Auto-apply yang menerapkannya; penggerak menunggu, tidak menekan tombol.
 				idleSince = null
 			} else {
+				if (state.pendingApply && idleSince === null) this.log('stuck-pending', {})
 				idleSince ??= Date.now()
 				if (Date.now() - idleSince >= SETTLE_MS) return state
 			}
@@ -457,6 +488,7 @@ async function driveCase(
 		await run.shot('crash').catch(() => {})
 	}
 
+	await run.refreshUsage()
 	const transcript = await transcriptOf(page).catch(() => '')
 	writeFileSync(join(dir, 'transcript.txt'), transcript)
 	await run.shot('akhir').catch(() => {})
@@ -471,16 +503,13 @@ async function driveCase(
 		run.log('export-failed', { error: String((error as Error).stack ?? error).slice(0, 3000) })
 	}
 
-	const usage = await page
-		.evaluate(
-			() => (window as unknown as { __sse: { promptTokens: number; completionTokens: number }[] }).__sse,
-		)
-		.catch(() => [])
+	await run.refreshUsage()
 	await context.close()
 
-	const tokensIn = usage.reduce((sum, call) => sum + call.promptTokens, 0)
-	const tokensOut = usage.reduce((sum, call) => sum + call.completionTokens, 0)
+	const { calls, tokensIn, tokensOut } = run.usage
+	const estimate = (tokensIn * options.priceIn + tokensOut * options.priceOut) / 1e6
 	const spentNow = await spend.spent(true)
+	// Tagihan mencakup sub-agent penggambar, yang tidak lewat stream chat yang disadap.
 	const real = spentNow !== null && startedSpend !== null ? spentNow - startedSpend : null
 	const driver: DriverStats = {
 		status: exported ? status : `${status}; ekspor gagal`,
@@ -488,10 +517,11 @@ async function driveCase(
 		nudges,
 		questions: run.questions,
 		autoContinues: (transcript.match(/Dilanjutkan otomatis/g) ?? []).length,
-		calls: usage.length,
+		calls,
 		tokensIn,
 		tokensOut,
-		costUsd: real ?? (tokensIn * options.priceIn + tokensOut * options.priceOut) / 1e6,
+		costUsd: real ?? estimate,
+		costEstimateUsd: estimate,
 		costSource: real === null ? 'tarif' : 'tagihan',
 		minutes: Math.round((Date.now() - started) / 6_000) / 10,
 	}
