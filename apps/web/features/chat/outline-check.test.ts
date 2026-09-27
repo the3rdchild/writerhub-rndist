@@ -6,6 +6,7 @@ import {
 	outlineDone,
 	outlineForModel,
 	outlineForWriter,
+	outlineGaps,
 	outlineProgress,
 	promisedLabel,
 } from './outline-check'
@@ -182,7 +183,7 @@ describe('laporan untuk model dan penulis', () => {
 				'Still empty: "Metode".',
 				'No heading in the document yet for: "Simpulan".',
 				'Promised but not in the document: Gambar 2 (no caption starting with that label).',
-				'Captioned but with no real table or figure next to the caption: Tabel 1.',
+				'Captioned but with no real table or figure next to the caption: Tabel 1. Draw or insert each with after_text set to its caption, so it lands right after it.',
 				'Length: 18 pages, the writer asked for 8-12 - shorten existing sections, do not add.',
 			].join(' '),
 		)
@@ -204,5 +205,60 @@ describe('laporan untuk model dan penulis', () => {
 		expect(done && outlineForModel(done)).toBe(
 			'1 of 1 outline sections have body text. Everything in the outline is in place.',
 		)
+	})
+})
+
+describe('sidik kekurangan kerangka (AC-10)', () => {
+	const promised = brief([chapter('Hasil', ['Gambar 1: tren', 'Gambar 2: sebaran'])], [8, 12])
+	const measure = (pages: number, ...content: JSONContent[]) => {
+		const progress = outlineProgress(
+			[doc(heading(1, 'Hasil'), paragraph('isi'), ...content)],
+			promised,
+			pages,
+		)
+		if (!progress) throw new Error('tanpa kerangka')
+		return outlineGaps(progress)
+	}
+
+	test('suntingan tanpa kemajuan: sidiknya sama', () => {
+		const before = measure(9, paragraph('Gambar 1. Tren'), paragraph('Gambar 2. Sebaran'))
+		// Grafik yang jatuh di tempat lain menambah halaman, tapi keterangannya tetap kosong.
+		const after = measure(
+			10,
+			paragraph('Gambar 1. Tren'),
+			paragraph('Gambar 2. Sebaran'),
+			paragraph('a'),
+			paragraph('b'),
+			paragraph('c'),
+			diagram,
+		)
+		expect(after).toBe(before)
+		expect(before).toContain('Gambar 1:caption-only')
+	})
+
+	test('satu gambar terisi: sidiknya berubah', () => {
+		const before = measure(
+			9,
+			paragraph('Gambar 1. Tren'),
+			paragraph('x'),
+			paragraph('y'),
+			paragraph('Gambar 2. Sebaran'),
+		)
+		const after = measure(
+			9,
+			paragraph('Gambar 1. Tren'),
+			diagram,
+			paragraph('x'),
+			paragraph('y'),
+			paragraph('Gambar 2. Sebaran'),
+		)
+		expect(after).not.toBe(before)
+		expect(after).not.toContain('Gambar 1')
+	})
+
+	test('panjang di luar target ikut, dengan angkanya', () => {
+		expect(measure(14)).toContain('over:14')
+		expect(measure(13)).not.toBe(measure(14))
+		expect(measure(10)).not.toContain('over')
 	})
 })

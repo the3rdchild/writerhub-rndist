@@ -4,6 +4,8 @@ import { EditorState } from '@tiptap/pm/state'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import { buildSchema } from '@/features/sync/serialize'
 import {
+	chapterNumber,
+	chapterSlot,
 	docHeadings,
 	dropLeadingTitle,
 	emptyChapterFor,
@@ -442,5 +444,83 @@ describe('pembantu judul', () => {
 			[1, 'Kata Pengantar', 'heading'],
 			[2, 'Rumusan Masalah', 'heading'],
 		])
+	})
+})
+
+describe('bab bernomor menurut urutannya (ED-3)', () => {
+	const pb = () => schema.node(PAGE_BREAK_NODE)
+	/* Bentuk UC2, 27 Sep: skripsi tanpa BAB IV, bab dipisah pemenggal halaman. */
+	const skripsi = () =>
+		doc(
+			h(1, 'BAB I PENDAHULUAN'),
+			p('Latar.'),
+			pb(),
+			h(1, 'BAB II TINJAUAN PUSTAKA'),
+			p('Teori.'),
+			pb(),
+			h(1, 'BAB III METODE'),
+			h(2, '3.1 Desain'),
+			p('Desain.'),
+			pb(),
+			h(1, 'BAB V PENUTUP'),
+			p('Simpulan.'),
+			pb(),
+			h(1, 'DAFTAR PUSTAKA'),
+			p('Rujukan.'),
+			h(1, 'LAMPIRAN'),
+		)
+
+	test('nomor romawi dan angka', () => {
+		expect(chapterNumber('BAB IV HASIL DAN PEMBAHASAN')).toBe(4)
+		expect(chapterNumber('Bab 12 Penutup')).toBe(12)
+		expect(chapterNumber('**BAB IX**')).toBe(9)
+		expect(chapterNumber('DAFTAR PUSTAKA')).toBeNull()
+		expect(chapterNumber('Babak baru')).toBeNull()
+	})
+
+	test('BAB IV mendarat sesudah seluruh BAB III, bukan di akhir dokumen', () => {
+		const root = skripsi()
+		const slot = chapterSlot(root, '# BAB IV HASIL DAN PEMBAHASAN\n\nIsi hasil.')
+		expect(slot?.kind).toBe('insert')
+		if (slot?.kind !== 'insert') return
+		expect(slot.side).toBe('after')
+		expect(slot.neighbour).toBe('BAB III METODE')
+		// Sesudah "Desain.", sebelum pemenggal yang menutup BAB III.
+		expect(root.resolve(slot.pos).nodeBefore?.textContent).toBe('Desain.')
+		expect(root.resolve(slot.pos).nodeAfter?.type.name).toBe(PAGE_BREAK_NODE)
+		expect(slot.markdown.startsWith('\\pagebreak')).toBe(true)
+	})
+
+	test('pemenggal yang sudah ditulis model tidak digandakan', () => {
+		const slot = chapterSlot(skripsi(), '\\pagebreak\n\n# BAB IV HASIL\n\nIsi.')
+		expect(slot?.kind === 'insert' && slot.markdown).toBe('\\pagebreak\n\n# BAB IV HASIL\n\nIsi.')
+	})
+
+	test('bab tanpa pendahulu masuk sebelum bab bernomor berikutnya', () => {
+		const root = doc(h(1, 'KATA PENGANTAR'), p('Puji.'), pb(), h(1, 'BAB II TEORI'), p('x'))
+		const slot = chapterSlot(root, '# BAB I PENDAHULUAN\n\nLatar.')
+		expect(slot?.kind === 'insert' && slot.side).toBe('before')
+		if (slot?.kind !== 'insert') return
+		expect(root.resolve(slot.pos).nodeAfter?.textContent).toBe('BAB II TEORI')
+		expect(slot.markdown.endsWith('\\pagebreak')).toBe(true)
+	})
+
+	test('nomor yang sudah ada: diisi bila kosong, dilaporkan bila berisi', () => {
+		const root = doc(h(1, 'BAB I PENDAHULUAN'), p('Latar.'), h(1, 'BAB II HASIL PENELITIAN'), p(''))
+		const empty = chapterSlot(root, '# BAB II HASIL DAN PEMBAHASAN\n\nIsi baru.')
+		expect(empty).toEqual({
+			kind: 'existing',
+			index: 1,
+			empty: true,
+			title: 'BAB II HASIL PENELITIAN',
+			body: 'Isi baru.',
+		})
+		expect(chapterSlot(root, '# BAB I LAIN\n\nx')).toMatchObject({ kind: 'existing', empty: false })
+	})
+
+	test('dokumen tanpa bab bernomor, atau sisipan bukan bab: aturan lama', () => {
+		expect(chapterSlot(doc(h(1, 'Pendahuluan'), p('x')), '# BAB II\n\ny')).toBeNull()
+		expect(chapterSlot(skripsi(), '## 3.2 Sampel\n\nIsi.')).toBeNull()
+		expect(chapterSlot(skripsi(), 'Paragraf biasa.')).toBeNull()
 	})
 })

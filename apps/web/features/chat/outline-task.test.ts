@@ -50,6 +50,22 @@ describe('argumen set_outline', () => {
 		})
 	})
 
+	test('janji berupa objek {label, description} tidak dibuang (UC3, 27 Sep)', () => {
+		const parsed = outlineFromArgs({
+			sections: [
+				{
+					title: 'Kebijakan Ekonomi',
+					items: [
+						{ label: 'Tabel 1: Indikator Ekonomi 2014-2024', description: 'PDB, inflasi, kemiskinan' },
+						{ description: 'tanpa label' },
+						'Gambar 1: tren PDB',
+					],
+				},
+			],
+		})
+		expect(parsed.sections[0].items).toEqual(['Tabel 1: Indikator Ekonomi 2014-2024', 'Gambar 1: tren PDB'])
+	})
+
 	test('rentang yang ditulis model dalam bentuk lain tetap terbaca', () => {
 		expect(outlineFromArgs({ sections: [], pages: [5, 8] }).pages).toEqual([5, 8])
 		expect(outlineFromArgs({ sections: [], pages: '8-12 halaman' }).pages).toEqual([8, 12])

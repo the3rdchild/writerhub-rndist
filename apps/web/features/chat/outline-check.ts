@@ -1,6 +1,6 @@
 import type { Node as PMNode } from '@tiptap/pm/model'
 import type { ResearchBrief } from '@writer-hub/shared'
-import { HTML_BLOCK } from '@/features/editor/html-block'
+import { figureOf } from './figures'
 import { docHeadings, sameTitle, sectionIsEmpty } from './section-write'
 
 /**
@@ -61,11 +61,7 @@ function isCaption(node: PMNode, label: string): boolean {
 
 function holds(node: PMNode, kind: ItemKind): boolean {
 	const matches = (child: PMNode) =>
-		kind === 'table'
-			? child.type.name === 'table'
-			: child.type.name === 'image' ||
-				child.type.name === HTML_BLOCK ||
-				(child.type.name === 'codeBlock' && ['diagram', 'mermaid'].includes(String(child.attrs.language)))
+		kind === 'table' ? child.type.name === 'table' : figureOf(child) !== null
 	if (matches(node)) return true
 	let found = false
 	node.descendants((child) => {
@@ -152,6 +148,29 @@ export function outlineDone(progress: OutlineProgress): boolean {
 	)
 }
 
+/**
+ * Sidik kekurangan kerangka: yang belum ditulis dan yang belum ada, tanpa
+ * angka yang bisa berubah tanpa kemajuan nyata. Lanjutan otomatis berhenti
+ * bila sidiknya sama dengan lanjutan sebelumnya - uji-asap UC9 berputar
+ * 60 menit pada dua keterangan gambar yang tidak pernah terisi.
+ */
+export function outlineGaps(progress: OutlineProgress): string {
+	const sections = progress.sections
+		.filter((section) => section.state !== 'written')
+		.map((section) => `${section.title}:${section.state}`)
+	const items = progress.items
+		.filter((item) => item.state !== 'present')
+		.map((item) => `${item.label}:${item.state}`)
+	const pages = progress.pages
+	const length =
+		pages && pages.current > pages.max
+			? `over:${pages.current}`
+			: pages && pages.current < pages.min
+				? `under:${pages.current}`
+				: ''
+	return [...sections, ...items, length].join('|')
+}
+
 /** Laporan untuk model, di konteks editor setiap giliran. */
 export function outlineForModel(progress: OutlineProgress): string {
 	const written = progress.sections.filter((section) => section.state === 'written').length
@@ -170,7 +189,9 @@ export function outlineForModel(progress: OutlineProgress): string {
 			`Promised but not in the document: ${noItem.join(', ')} (no caption starting with that label).`,
 		)
 	if (onlyCaption.length > 0) {
-		lines.push(`Captioned but with no real table or figure next to the caption: ${onlyCaption.join(', ')}.`)
+		lines.push(
+			`Captioned but with no real table or figure next to the caption: ${onlyCaption.join(', ')}. Draw or insert each with after_text set to its caption, so it lands right after it.`,
+		)
 	}
 	if (progress.pages) {
 		const { current, max, min } = progress.pages

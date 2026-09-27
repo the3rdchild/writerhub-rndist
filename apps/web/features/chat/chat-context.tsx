@@ -55,7 +55,6 @@ import {
 } from '@/features/editor/page-furniture/page-furniture-ydoc'
 import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
 import { paginationKey } from '@/features/editor/pagination'
-import { editorPlainText } from '@/features/editor/text-content'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useTypography } from '@/features/editor/use-typography'
 import { sessionLabel, useSessions } from '@/features/sessions/session-context'
@@ -89,9 +88,17 @@ import { diagramReceipt, drawDiagram } from './diagram-api'
 import { stitchDiagrams } from './diagram-embed'
 import { diagramBlocks, diagramTypeOf, findDiagramBlock, needsDrawing } from './diagram-target'
 import { chatFailureHint, toChatTurnError } from './failure'
+import { readableText } from './figures'
+import { LEAKED_BROKEN_RESULT, leakedCallRepeats, parseLeakedCalls, stripLeakedCalls } from './leaked-calls'
 import { applyAcademicNumbering, type NumberingContext } from './numbering-apply'
-import { fitWindow, withToolResults } from './outbound-window'
-import { type OutlineProgress, outlineDone, outlineForModel, outlineForWriter } from './outline-check'
+import { clipMessage, fitWindow, withToolResults } from './outbound-window'
+import {
+	type OutlineProgress,
+	outlineDone,
+	outlineForModel,
+	outlineForWriter,
+	outlineGaps,
+} from './outline-check'
 import { measureOutline } from './outline-measure'
 import { isRemoteReadTool, remoteToolLabel, runRemoteReadTool } from './remote-tools'
 import {
@@ -105,6 +112,7 @@ import {
 } from './stall'
 import {
 	applyWriteTool,
+	figurePlacement,
 	insertDiagramBlock,
 	pageSummary,
 	type ReadToolContext,
@@ -266,7 +274,13 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 		}
 		outbound.push({ role: turn.role, content: turn.content })
 	}
-	return fitWindow(withToolResults(outbound), CHAT_CONTEXT_LIMITS.messages, request)
+	// Balasan lama yang tersimpan sebelum DSML dibersihkan tetap dibersihkan di sini.
+	return fitWindow(withToolResults(outbound), CHAT_CONTEXT_LIMITS.messages, request).map((message) =>
+		clipMessage(
+			message.role === 'assistant' ? { ...message, content: stripLeakedCalls(message.content) } : message,
+			CHAT_CONTEXT_LIMITS.message,
+		),
+	)
 }
 
 export function actionsSettled(history: ChatTurn[], owner: ChatTurn): boolean {
@@ -445,12 +459,19 @@ export function briefUpdateFromArgs(args: Record<string, unknown>): {
  */
 export function outlineFromArgs(args: Record<string, unknown>): OutlineUpdate {
 	const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+	/* Janji tabel/gambar kadang datang sebagai objek `{label, description}`,
+	 * bukan teks (uji 27 Sep, UC3) - labelnya yang dipakai, bukan dibuang. */
+	const item = (value: unknown): string => {
+		if (!value || typeof value !== 'object') return text(value)
+		const entry = value as Record<string, unknown>
+		return text(entry.label) || text(entry.title) || text(entry.name) || text(entry.caption)
+	}
 	const sections = (Array.isArray(args.sections) ? args.sections : [])
-		.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+		.filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object')
 		.map((section) => ({
 			title: text(section.title),
 			summary: text(section.summary),
-			items: Array.isArray(section.items) ? section.items.map(text).filter(Boolean) : [],
+			items: Array.isArray(section.items) ? section.items.map(item).filter(Boolean) : [],
 		}))
 
 	const raw = args.pages
@@ -479,6 +500,14 @@ export function withAppliedFormat(page: string, applied: string | null): string 
 	return `${page} The ${applied} format is already applied (the writer may have adjusted it since): do not call apply_template_format again unless the writer explicitly asks to reset the format.`
 }
 
+/**
+ * Teks naskah untuk menghitung kata sebuah aksi, tanpa sumber SVG diagram:
+ * mengubah satu diagram tidak boleh tercatat "−449 kata".
+ */
+function proseText(editor: Editor): string {
+	return readableText(editor.state.doc, 0, editor.state.doc.content.size, 'omit')
+}
+
 function editorOutlineSummary(editor: Editor): string | undefined {
 	const doc = editor.state.doc
 	const lines: string[] = []
@@ -492,7 +521,7 @@ function editorOutlineSummary(editor: Editor): string | undefined {
 		return true
 	})
 
-	const plain = editorPlainText(editor)
+	const plain = readableText(editor.state.doc)
 	const hasText = plain.trim().length > 0
 	if (!hasText && headingCount === 0) return undefined
 
@@ -635,7 +664,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	 */
 	const [stall, setStall] = useState<ChatStall | null>(null)
 	const stallPendingRef = useRef<{ reason: StallReason; taskId: string } | null>(null)
-	const continuesRef = useRef<{ taskId: string | undefined; auto: number; reason?: StallReason }>({
+	const continuesRef = useRef<{
+		taskId: string | undefined
+		auto: number
+		reason?: StallReason
+		/** Sidik kekurangan kerangka saat lanjutan 'unfinished' terakhir - `outlineGaps`. */
+		gaps?: string
+	}>({
 		taskId: undefined,
 		auto: 0,
 	})
@@ -758,7 +793,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		let documentText: string | undefined
 		if (editor && !editor.isDestroyed) {
 			documentText = whole
-				? editorPlainText(editor).slice(0, CHAT_CONTEXT_LIMITS.document)
+				? readableText(editor.state.doc).slice(0, CHAT_CONTEXT_LIMITS.document)
 				: editorOutlineSummary(editor)
 		} else {
 			const text = whole
@@ -892,8 +927,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const tabText = (tabId: string): string | null => {
 		try {
 			const json = fragmentToJSON(appRef.current.doc, tabId)
-			const node = buildSchema().nodeFromJSON(json)
-			return node.textBetween(0, node.content.size, '\n', ' ')
+			return readableText(buildSchema().nodeFromJSON(json))
 		} catch {
 			return null
 		}
@@ -1117,9 +1151,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			let answer = ''
 			const calls: ToolCall[] = []
 			const malformed = new Set<string>()
+			/** Panggilan DSML yang bocor ke teks dengan argumen rusak - lihat `leaked-calls.ts`. */
+			const leakedBroken = new Set<string>()
 			let usage: ChatUsage | undefined
 			let reasoning = ''
 			let finish: string | undefined
+			/*
+			 * Aliran sendiri, bukan `controller` giliran: aliran yang dihentikan
+			 * karena model berputar mengulang panggilan DSML yang sama bukan
+			 * pembatalan oleh penulis - gilirannya tetap diselesaikan dengan
+			 * panggilan yang sempat terbaca.
+			 */
+			const stream = new AbortController()
+			const relayAbort = () => stream.abort()
+			controller.signal.addEventListener('abort', relayAbort)
+			let looping = false
+			let leakChecked = 0
 
 			try {
 				await streamChat(
@@ -1138,6 +1185,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 							answer += delta
 							setStreaming(answer)
 							appendText(delta)
+							const opener = answer.lastIndexOf('DSML')
+							if (opener > leakChecked) {
+								leakChecked = opener
+								if (leakedCallRepeats(answer)) {
+									looping = true
+									finish = 'repetition'
+									stream.abort()
+								}
+							}
 						},
 						onToolCall: (call, broken) => {
 							calls.push(call)
@@ -1158,10 +1214,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 							usage = report
 						},
 					},
-					controller.signal,
+					stream.signal,
 				)
 			} catch (cause) {
-				if (controller.signal.aborted) {
+				// Dihentikan di sini karena berputar, bukan gagal: lanjut dengan yang sempat terbaca.
+				if (looping && !controller.signal.aborted) {
+					// sengaja kosong
+				} else if (controller.signal.aborted) {
 					const cancelled = closeAll('cancelled', partsRef.current)
 					setPartsBoth(cancelled)
 					const partial = stripFallbackCalls(answer)
@@ -1180,9 +1239,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				} else {
 					setPartsBoth(closeAll('failed', partsRef.current))
 				}
-				throw cause
+				if (!looping || controller.signal.aborted) throw cause
+			} finally {
+				controller.signal.removeEventListener('abort', relayAbort)
 			}
 			calls.push(...parseFallbackCalls(answer))
+			for (const { call, broken } of parseLeakedCalls(answer)) {
+				calls.push(call)
+				if (broken) {
+					malformed.add(call.id)
+					leakedBroken.add(call.id)
+				}
+			}
 
 			const visible = stripFallbackCalls(answer)
 			/*
@@ -1204,7 +1272,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				...extraAsks.map((call) => ({ call, content: EXTRA_ASK_RESULT })),
 				...calls
 					.filter((call) => malformed.has(call.id))
-					.map((call) => ({ call, content: BROKEN_ARGS_RESULT })),
+					.map((call) => ({
+						call,
+						content: leakedBroken.has(call.id) ? LEAKED_BROKEN_RESULT : BROKEN_ARGS_RESULT,
+					})),
 			].map(({ call, content }) => ({ role: 'tool', content, toolCallId: call.id, taskId }))
 
 			// Spec template diambil di sini, selagi masih boleh menunggu.
@@ -1521,14 +1592,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		const auto = previous.auto
 		const waves = writeWavesRef.current
 		const progressed = waves.taskId === taskId && waves.count > 0
-		if (mayAutoContinue(auto, progressed, previous.reason === reason)) {
-			continuesRef.current = { taskId, auto: auto + 1, reason }
+		const outline = currentOutline()
+		/* Suntingan saja belum kemajuan: model yang menyisipkan grafik di tempat
+		 * yang salah tetap menyunting, tapi kekurangan kerangkanya tidak berubah. */
+		const gaps = reason === 'unfinished' && outline ? outlineGaps(outline) : undefined
+		const stuck = gaps !== undefined && previous.reason === 'unfinished' && previous.gaps === gaps
+		if (!stuck && mayAutoContinue(auto, progressed, previous.reason === reason)) {
+			continuesRef.current = { taskId, auto: auto + 1, reason, gaps }
 			continueTask(reason, 'auto')
 			return
 		}
 		const editor = editorRef.current
 		const sections = editor && !editor.isDestroyed ? emptySections(editor.state.doc) : { total: 0, empty: [] }
-		const outline = currentOutline()
 		const lacking = outline && !outlineDone(outline) ? outlineForWriter(outline).detail : undefined
 		setStall({ reason, autoContinues: auto, ...sections, ...(lacking ? { outline: lacking } : {}) })
 	}
@@ -1649,7 +1724,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 			// Diukur mengapit penerapannya, bukan dari argumen alat: yang dihitung
 			// harus perubahan yang benar-benar mendarat di naskah.
-			const before = editorPlainText(editor)
+			const before = proseText(editor)
 
 			const outcome = applyWriteTool(
 				{
@@ -1684,7 +1759,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 			if (outcome.ok) {
 				setAppliedActionIds((current) => new Set(current).add(call.id))
-				const delta = wordDelta(before, editorPlainText(editor))
+				const delta = wordDelta(before, proseText(editor))
 				if (delta.added > 0 || delta.removed > 0) {
 					actionWordsRef.current = { ...actionWordsRef.current, [call.id]: delta }
 					setActionWords(actionWordsRef.current)
@@ -1777,6 +1852,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			}
 		}
 
+		// Letak yang salah ditolak sebelum menggambar: menggambar itu yang mahal.
+		if (!redraw) {
+			const placement = figurePlacement(editor, call.arguments)
+			if (typeof placement === 'string') return { ok: false, message: placement }
+		}
+
 		const label = redraw
 			? `Menggambar ulang "${target?.title || 'diagram'}"`
 			: `Menggambar diagram ${String(call.arguments.type ?? '')}`.trim()
@@ -1795,14 +1876,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			return { ok: false, message: `The drawing sub-agent failed: ${drawn.error}` }
 		}
 
+		// Dihitung ulang: naskah bisa berubah selama sub-agent menggambar.
+		const placement = redraw ? null : figurePlacement(editor, call.arguments)
+		const at = typeof placement === 'number' ? placement : null
 		if (redraw && target) replaceDiagramBlock(editor, target.pos, drawn.svg)
-		else insertDiagramBlock(editor, drawn.svg)
+		else insertDiagramBlock(editor, drawn.svg, at)
+		// Tanpa ini kartunya berakhir "Skipped" padahal diagramnya sudah ada di naskah.
+		setAppliedActionIds((current) => new Set(current).add(call.id))
 
 		finishStep(stepId, {
 			status: 'done',
 			detail: `${drawn.title}${drawn.size ? ` · ${drawn.size.width}x${drawn.size.height}` : ''}`,
 		})
-		return { ok: true, message: diagramReceipt(drawn, redraw) }
+		const moved =
+			typeof placement === 'string'
+				? ' The text you named disappeared while it was being drawn, so it went in at the cursor.'
+				: at !== null
+					? ' It sits right after the text you named.'
+					: ''
+		return { ok: true, message: `${diagramReceipt(drawn, redraw)}${moved}` }
 	}, [])
 
 	/**
@@ -1821,6 +1913,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				spec?: string
 				palette?: Partial<DiagramPalette>
 			}>
+
+			const editor = editorRef.current
+			const placement = editor ? figurePlacement(editor, call.arguments) : null
+			if (typeof placement === 'string') return { ok: false, message: placement }
 
 			const drawn = new Map<string, string>()
 			const failed: string[] = []

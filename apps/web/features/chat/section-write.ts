@@ -1,4 +1,5 @@
 import type { Node as PMNode } from '@tiptap/pm/model'
+import { isPageBreakLine } from '@writer-hub/shared'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
 import { hasBody } from './stall'
@@ -392,4 +393,100 @@ export function emptyChapterFor(doc: PMNode, markdown: string): number | null {
 	const matches = docHeadings(doc).filter((heading) => heading.level === 1 && sameTitle(heading.text, atx[2]))
 	if (matches.length !== 1) return null
 	return sectionIsEmpty(doc, matches[0].index) ? matches[0].index : null
+}
+
+const ROMAN: Record<string, number> = { i: 1, v: 5, x: 10, l: 50, c: 100 }
+
+/** Nomor bab dari judul "BAB IV HASIL…" atau "Bab 4 …"; null bila bukan bab bernomor. */
+export function chapterNumber(title: string): number | null {
+	const match = /^\s*(?:\*\*)?bab\s+([ivxlc]+|\d{1,3})\b/i.exec(title)
+	if (!match) return null
+	const token = match[1].toLowerCase()
+	if (/^\d+$/.test(token)) return Number(token)
+	let total = 0
+	for (let index = 0; index < token.length; index += 1) {
+		const value = ROMAN[token[index]]
+		total += value < (ROMAN[token[index + 1]] ?? 0) ? -value : value
+	}
+	return total > 0 ? total : null
+}
+
+export type ChapterSlot =
+	/** Bab bernomor sama sudah ada. `body`: Markdown tanpa baris judulnya. */
+	| { kind: 'existing'; index: number; empty: boolean; title: string; body: string }
+	/** Letak menurut urutan nomor, dengan pemenggal halaman yang sudah disesuaikan. */
+	| { kind: 'insert'; pos: number; markdown: string; neighbour: string; side: 'after' | 'before' }
+
+/**
+ * Tempat bab bernomor yang disisipkan tanpa `after_heading`.
+ *
+ * Di uji use case 27 Sep (UC2), "BAB IV Hasil dan Pembahasan" mendarat sesudah
+ * Daftar Pustaka dan Lampiran: template skripsi belum punya bab itu, dan
+ * sisipan tanpa `after_heading` jatuh di kursor atau di akhir dokumen. Bab
+ * bernomor punya tempat yang pasti - sesudah bab bernomor sebelumnya beserta
+ * seluruh subbabnya, atau sebelum bab bernomor sesudahnya.
+ *
+ * Bila bab-bab di dokumen dipisah pemenggal halaman, bab baru ikut dipisah:
+ * tanpa itu ia menempel di halaman terakhir bab sebelumnya, atau bab
+ * sesudahnya menempel padanya.
+ */
+export function chapterSlot(doc: PMNode, markdown: string): ChapterSlot | null {
+	const lines = markdown.replace(/\r\n/g, '\n').split('\n')
+	const first = lines.findIndex((line) => !isBlank(line) && !isPageBreakLine(line.trim()))
+	const atx = first === -1 ? null : ATX.exec(lines[first])
+	const number = atx ? chapterNumber(atx[2]) : null
+	if (!atx || number === null) return null
+
+	const list = docHeadings(doc)
+	const chapters = list
+		.filter((heading) => heading.level === 1)
+		.map((heading) => ({ heading, number: chapterNumber(heading.text) }))
+		.filter((chapter): chapter is { heading: DocHeading; number: number } => chapter.number !== null)
+	if (chapters.length === 0) return null
+
+	const same = chapters.find((chapter) => chapter.number === number)
+	if (same) {
+		return {
+			kind: 'existing',
+			index: same.heading.index,
+			empty: sectionIsEmpty(doc, same.heading.index),
+			title: same.heading.text,
+			body: lines
+				.slice(first + 1)
+				.join('\n')
+				.replace(/^(\s*\n)+/, ''),
+		}
+	}
+
+	const breakLine = (line: string | undefined) => line !== undefined && isPageBreakLine(line.trim())
+	const lower = chapters.filter((chapter) => chapter.number < number)
+	const previous = lower.reduce<(typeof lower)[number] | undefined>(
+		(best, chapter) => (!best || chapter.number >= best.number ? chapter : best),
+		undefined,
+	)
+	if (previous) {
+		const pos = subtreeEnd(doc, list, previous.heading.index)
+		// Pemenggal penutup bab sebelumnya tetap menutupnya; bab baru membuka halamannya sendiri.
+		const breaks = doc.resolve(pos).nodeAfter?.type.name === PAGE_BREAK_NODE
+		const opensPage = breakLine(lines.find((line) => !isBlank(line)))
+		return {
+			kind: 'insert',
+			pos,
+			markdown: breaks && !opensPage ? `\\pagebreak\n\n${markdown}` : markdown,
+			neighbour: previous.heading.text,
+			side: 'after',
+		}
+	}
+
+	const next = chapters.reduce((best, chapter) => (chapter.number < best.number ? chapter : best))
+	const pos = next.heading.pos
+	const breaks = doc.resolve(pos).nodeBefore?.type.name === PAGE_BREAK_NODE
+	const closesPage = breakLine(lines.filter((line) => !isBlank(line)).at(-1))
+	return {
+		kind: 'insert',
+		pos,
+		markdown: breaks && !closesPage ? `${markdown}\n\n\\pagebreak` : markdown,
+		neighbour: next.heading.text,
+		side: 'before',
+	}
 }

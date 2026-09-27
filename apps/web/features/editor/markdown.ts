@@ -20,6 +20,13 @@ function escapeText(value: string): string {
 
 const CODE_SPAN = /(`[^`]+`)/
 
+/**
+ * Komentar HTML tidak terlihat di Markdown mana pun. Model memakainya sebagai
+ * penanda - `<!--diagram:infografis-->` dari `insert_html_block` - dan tanpa
+ * dibuang ia tercetak di tengah naskah (uji use case 27 Sep, UC1).
+ */
+const HTML_COMMENT = / ?<!--[\s\S]*?-->/g
+
 function escapeAttribute(value: string): string {
 	return escapeHtml(value).replace(/"/g, '&quot;')
 }
@@ -61,7 +68,7 @@ function inline(text: string): string {
 		.map((part, index) =>
 			index % 2 === 1
 				? escapeHtml(restoreEscapes(part, (char) => `\\${char}`))
-				: escapeText(protectEscapes(part)),
+				: escapeText(protectEscapes(part.replace(HTML_COMMENT, ''))),
 		)
 		.join('')
 		.replace(/`([^`]+)`/g, '<code>$1</code>')
@@ -113,7 +120,7 @@ export function markdownToHtml(markdown: string): string {
 		const line = lines[index]
 		const trimmed = line.trim()
 
-		if (!trimmed) {
+		if (!trimmed || trimmed.replace(HTML_COMMENT, '').trim() === '') {
 			index += 1
 			continue
 		}
