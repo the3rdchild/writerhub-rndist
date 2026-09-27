@@ -454,6 +454,103 @@ describe('isi sel selain paragraf di DOCX (EX-1)', () => {
 	})
 })
 
+describe('gambar naskah di DOCX (EX-7)', () => {
+	/** PNG 1x1 yang sah; ukuran di halaman datang dari atribut node. */
+	const PNG_1PX =
+		'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+	const EMU_PER_PX = 9525
+	const contentWidth = pageGeometry(DEFAULT_PAGE_SETUP).contentWidth
+
+	const image = (attrs: Record<string, unknown>): JSONContent => ({
+		type: 'image',
+		attrs: { src: PNG_1PX, ...attrs },
+	})
+
+	async function docxOf(content: JSONContent[]) {
+		const doc = buildSchema().nodeFromJSON({ type: 'doc', content })
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+			setup: DEFAULT_PAGE_SETUP,
+		})
+		const files = unzipSync(new Uint8Array(await blob.arrayBuffer()))
+		return { files, xml: strFromU8(files['word/document.xml']) }
+	}
+
+	/** Ukuran gambar pertama di berkas, dalam px. */
+	const extentOf = (xml: string) => {
+		const match = /<wp:extent cx="(\d+)" cy="(\d+)"/.exec(xml)
+		return match ? { width: Number(match[1]) / EMU_PER_PX, height: Number(match[2]) / EMU_PER_PX } : null
+	}
+
+	/** XML paragraf Word yang memuat penanda itu. */
+	const paragraphWith = (xml: string, marker: string) => {
+		const at = xml.indexOf(marker)
+		return xml.slice(xml.lastIndexOf('<w:p>', at), xml.indexOf('</w:p>', at))
+	}
+
+	test('gambar di badan naskah ikut, dengan ukuran dari layar', async () => {
+		const { files, xml } = await docxOf([image({ width: 300, height: 150 })])
+
+		expect(xml).toContain('<w:drawing>')
+		expect(Object.keys(files).some((name) => name.startsWith('word/media/'))).toBe(true)
+		expect(extentOf(xml)).toEqual({ width: 300, height: 150 })
+	})
+
+	test('lebar persen bentuk lama dihitung dari area teks, dengan rasio hakiki', async () => {
+		const { xml } = await docxOf([image({ width: 50 })])
+		const half = Math.round(contentWidth / 2)
+
+		expect(extentOf(xml)).toEqual({ width: half, height: half })
+	})
+
+	test('perataan dan teks alt ikut', async () => {
+		const { xml } = await docxOf([
+			image({ width: 200, height: 100, align: 'center', alt: 'Grafik penjualan' }),
+		])
+
+		expect(paragraphWith(xml, '<w:drawing>')).toContain('<w:jc w:val="center"/>')
+		expect(xml).toContain('descr="Grafik penjualan"')
+	})
+
+	test('gambar di dalam sel ikut, dan tidak lebih lebar dari selnya', async () => {
+		const cell = (content: JSONContent): JSONContent => ({ type: 'tableCell', content: [content] })
+		const { xml } = await docxOf([
+			{
+				type: 'table',
+				content: [
+					{
+						type: 'tableRow',
+						content: [
+							cell({ type: 'paragraph', content: [{ type: 'text', text: 'Grafik' }] }),
+							cell(image({ width: 2000, height: 1000 })),
+						],
+					},
+				],
+			},
+		])
+		const at = xml.indexOf('<w:drawing>')
+
+		expect(at).toBeGreaterThan(0)
+		expect(xml.lastIndexOf('<w:tc>', at)).toBeGreaterThan(xml.lastIndexOf('</w:tc>', at))
+		const size = extentOf(xml)
+		expect(size?.width).toBeLessThan(contentWidth / 2)
+		expect((size?.width ?? 0) / (size?.height ?? 1)).toBeCloseTo(2, 1)
+	})
+
+	test('gambar yang gagal diambil meninggalkan penanda, ekspornya tetap jadi', async () => {
+		const { xml } = await docxOf([
+			{ type: 'paragraph', content: [{ type: 'text', text: 'sebelum' }] },
+			image({ src: 'data:image/png;base64,', alt: 'Peta lokasi' }),
+			{ type: 'paragraph', content: [{ type: 'text', text: 'sesudah' }] },
+		])
+
+		expect(xml).not.toContain('<w:drawing>')
+		expect(xml).toContain('[Gambar tidak ikut diekspor: Peta lokasi]')
+		expect(xml).toContain('sesudah')
+	})
+})
+
 describe('baris baru di dalam satu simpul teks', () => {
 	test('jadi <w:br/>, bukan spasi', async () => {
 		const doc = buildSchema().nodeFromJSON({
