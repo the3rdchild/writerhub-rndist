@@ -939,9 +939,11 @@ a {
    * Paragraf berisi teks tetap dicetak - penulis yang mengetik sesudah
    * rancangan memang mengharapkan halaman baru. `:has(br:only-child)`
    * hanya memilih paragraf yang isinya satu `<br>` - itulah tanda
-   * paragraf kosong di ProseMirror.
+   * paragraf kosong di ProseMirror. Penyangga paginasi kanvas bisa berdiri
+   * di antara blok dan paragrafnya - selektor kedua menjangkau bentuk itu.
    */
-  .document-body > [data-html-block-fit='page'] + p:has(br:only-child) {
+  .document-body > [data-html-block-fit='page'] + p:has(br:only-child),
+  .document-body > [data-html-block-fit='page'] + .page-break-spacer + p:has(br:only-child) {
     display: none;
   }
 }

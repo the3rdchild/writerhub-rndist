@@ -341,6 +341,24 @@ describe('uji cetak T1 - lembar kosong di sekitar rancangan', () => {
 	})
 
 	/*
+	 * Bentuk DOM sungguhan (uji UC5 29 Sep): penyangga paginasi kanvas berdiri
+	 * di antara blok dan paragraf kosongnya. Fixture di atas tanpa penyangga,
+	 * jadi uji itu lolos sementara PDF aplikasi tetap dua halaman.
+	 */
+	test('paragraf kosong di belakang penyangga paginasi: tetap satu halaman (EX-2)', async () => {
+		if (!browser) return
+		const page = await browser.newPage()
+		try {
+			const spacer =
+				'<div class="page-break-spacer ProseMirror-widget" aria-hidden="true" style="height: 134px;"></div>'
+			const html = fixture(`${flyerBlock('SATU')}${spacer}<p><br class="ProseMirror-trailingBreak" /></p>`)
+			expect(await printedPagesOf(page, html)).toBe(1)
+		} finally {
+			await page.close()
+		}
+	})
+
+	/*
 	 * Paragraf berisi teks sesudah rancangan tetap membuka halaman baru -
 	 * penulis yang mengetik sesudah rancangan memang mengharapkan halaman
 	 * baru. Ini memastikan aturan EX-2 hanya menyembunyikan paragraf KOSONG.
