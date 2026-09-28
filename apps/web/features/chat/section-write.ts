@@ -327,6 +327,12 @@ export type SectionWritePlan =
 			added: string[]
 			/** Subbab yang ada tetapi tidak disebut di Markdown. */
 			untouched: string[]
+			/**
+			 * Yang benar-benar dihapus `replaceSubsections`, termasuk turunannya.
+			 * Bisa lebih sedikit dari `untouched`: subbab yang memuat subbab yang
+			 * disebut dipertahankan.
+			 */
+			removed: string[]
 	  }
 	| { ok: false; message: string }
 
@@ -419,6 +425,7 @@ export function planSectionWrite(
 	// Subbab yang ada tapi tidak disebut di Markdown.
 	const untouchedHeadings = subtree.filter((heading) => !used.has(heading))
 	const untouched = untouchedHeadings.map((heading) => heading.text)
+	const removed: string[] = []
 
 	if (options.replaceSubsections) {
 		// Subbab yang dibuang diproses berurutan sesuai dokumen. Subbab yang
@@ -427,13 +434,15 @@ export function planSectionWrite(
 		// tertinggal (tetap ada di `untouched`).
 		let coveredTo = -1
 		for (const heading of untouchedHeadings) {
-			if (heading.pos < coveredTo) continue
+			if (heading.pos < coveredTo) {
+				removed.push(heading.text)
+				continue
+			}
 			const removeTo = subtreeEnd(doc, list, heading.index)
-			const containsMentioned = subtree.some(
-				(h) => used.has(h) && h.pos > heading.pos && h.pos < removeTo,
-			)
+			const containsMentioned = subtree.some((h) => used.has(h) && h.pos > heading.pos && h.pos < removeTo)
 			if (containsMentioned) continue
 			edits.push({ from: heading.pos, to: removeTo, markdown: '' })
+			removed.push(heading.text)
 			coveredTo = removeTo
 		}
 	}
@@ -448,7 +457,7 @@ export function planSectionWrite(
 	 */
 	const order = new Map(edits.map((edit, index) => [edit, index]))
 	edits.sort((a, b) => b.from - a.from || (order.get(b) ?? 0) - (order.get(a) ?? 0))
-	return { ok: true, edits, filled, added, untouched }
+	return { ok: true, edits, filled, added, untouched, removed }
 }
 
 /**

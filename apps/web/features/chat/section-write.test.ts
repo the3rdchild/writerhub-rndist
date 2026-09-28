@@ -15,6 +15,7 @@ import {
 	sameTitle,
 	sectionIsEmpty,
 } from './section-write'
+import { subsectionNotes } from './tools'
 
 const schema = buildSchema()
 const h = (level: number, text: string) => schema.node('heading', { level }, [schema.text(text)])
@@ -660,6 +661,18 @@ describe('write_section replace_subsections mengganti seluruh subbab (ED-5)', ()
 		if (!plan.ok) throw new Error(plan.message)
 		expect(plan.edits.some((edit) => edit.markdown === '' && edit.from <= 10)).toBe(false)
 		expect(plan.untouched).toContain('2.1 Induk')
+		expect(plan.removed).toEqual([])
+		// Hasil alat tidak menyebutnya "replaced": model akan mengiranya sudah hilang.
+		expect(subsectionNotes(plan, true)).toEqual(['kept "2.1 Induk" because they hold subsections you wrote'])
+	})
+
+	test('replace_subsections: yang dihapus, termasuk turunannya, tercatat di removed', () => {
+		const root = doc(h(1, 'BAB II'), h(2, '2.1 Lama'), h(3, '2.1.1 Lama'), h(2, '2.2 Tetap'), p('isi'))
+		const plan = planSectionWrite(root, 0, '## 2.2 Tetap\n\nBaru.', { replaceSubsections: true })
+		if (!plan.ok) throw new Error(plan.message)
+		expect(plan.removed).toEqual(['2.1 Lama', '2.1.1 Lama'])
+		expect(subsectionNotes(plan, true)).toEqual(['replaced "2.1 Lama", "2.1.1 Lama"'])
+		expect(subsectionNotes(plan, false)[0]).toContain('left out "2.1 Lama", "2.1.1 Lama"')
 	})
 })
 

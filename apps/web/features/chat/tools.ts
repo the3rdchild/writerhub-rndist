@@ -130,6 +130,29 @@ function sectionTarget(list: readonly DocHeading[], args: Record<string, unknown
 	return matches[0].index
 }
 
+const quoted = (titles: readonly string[]) => titles.map((text) => `"${text}"`).join(', ')
+
+/**
+ * Nasib subbab yang tidak disebut, untuk hasil alat. Dengan `replace_subsections`
+ * tidak semuanya terhapus: yang memuat subbab yang ditulis dipertahankan, dan
+ * menyebutnya "replaced" membuat model mengira subbab itu sudah hilang.
+ */
+export function subsectionNotes(
+	plan: { untouched: readonly string[]; removed: readonly string[] },
+	replace: boolean,
+): string[] {
+	if (!replace) {
+		return plan.untouched.length > 0
+			? [`left out ${quoted(plan.untouched)} (pass replace_subsections: true to replace them)`]
+			: []
+	}
+	const kept = plan.untouched.filter((title) => !plan.removed.includes(title))
+	return [
+		plan.removed.length > 0 && `replaced ${quoted(plan.removed)}`,
+		kept.length > 0 && `kept ${quoted(kept)} because they hold subsections you wrote`,
+	].filter((note): note is string => Boolean(note))
+}
+
 /** Menulis isi satu bagian menurut `planSectionWrite`, dalam satu transaksi. */
 function writeSection(
 	editor: Editor,
@@ -166,10 +189,7 @@ function writeSection(
 	const notes = [
 		plan.filled.length > 0 && `filled ${plan.filled.map((text) => `"${text}"`).join(', ')}`,
 		plan.added.length > 0 && `added ${plan.added.map((text) => `"${text}"`).join(', ')}`,
-		options.replaceSubsections && plan.untouched.length > 0
-			? `replaced ${plan.untouched.map((text) => `"${text}"`).join(', ')}`
-			: plan.untouched.length > 0 &&
-				`left out ${plan.untouched.map((text) => `"${text}"`).join(', ')} (pass replace_subsections: true to replace them)`,
+		...subsectionNotes(plan, options.replaceSubsections === true),
 	].filter(Boolean)
 	return {
 		ok: true,
