@@ -55,10 +55,25 @@ const FORBIDDEN: ReadonlyArray<readonly [RegExp, string]> = [
 	[/url\(\s*["']?(?!#)/i, 'a url() that does not point inside the file'],
 ]
 
-/** Memotong `<svg>…</svg>` dari jawaban yang mungkin berpagar atau berbasa-basi. */
+/**
+ * Memotong `<svg>…</svg>` dari jawaban yang mungkin berpagar atau berbasa-basi.
+ *
+ * Komentar ikut dibuang. Tidak ada yang membacanya di gambar jadi, dan model
+ * menulis relasi ERD sebagai `<!-- Kategori 1---N Barang -->`: `--` di dalam
+ * komentar membuat seluruh berkas bukan XML yang sah, dan `DOMParser` di klien
+ * menolak gambarnya (diukur 28 Sep). `&` yang bukan awal entitas di-escape
+ * dengan alasan yang sama.
+ */
 export function extractSvg(answer: string): string | null {
 	const match = SVG_BLOCK.exec(answer)
-	return match ? match[0].trim() : null
+	if (!match) return null
+	return (
+		match[0]
+			.replace(/<!--[\s\S]*?-->/g, '')
+			// "R&D" di label: `&` telanjang juga membuat berkasnya bukan XML yang sah.
+			.replace(/&(?!(?:[a-z][a-z0-9]*|#\d+|#x[0-9a-f]+);)/gi, '&amp;')
+			.trim()
+	)
 }
 
 export interface SvgSize {

@@ -15,6 +15,18 @@ describe('memotong jawaban model', () => {
 	test('jawaban tanpa svg sama sekali', () => {
 		expect(extractSvg('Maaf, saya tidak bisa menggambar itu.')).toBeNull()
 	})
+
+	/* ERD dari Flash, 28 Sep: `--` di dalam komentar membuat berkasnya bukan XML yang sah. */
+	test('komentar dibuang, termasuk yang tidak sah sebagai XML', () => {
+		const answer = GOOD.replace('<rect', '<!-- Lines -->\n<!-- Kategori 1---N Barang -->\n<rect')
+		expect(extractSvg(answer)).toBe(GOOD.replace('<rect', '\n\n<rect'))
+		expect(extractSvg(answer)).not.toContain('--')
+	})
+
+	test('& telanjang di label di-escape, entitas yang sah dibiarkan', () => {
+		const answer = GOOD.replace('Alur redaksi', 'R&D &amp; QA &#169; &lt;')
+		expect(extractSvg(answer)).toContain('<title>R&amp;D &amp; QA &#169; &lt;</title>')
+	})
 })
 
 describe('ukuran dari viewBox', () => {
