@@ -119,7 +119,9 @@ import {
 	readToolLabel,
 	replaceDiagramBlock,
 	runReadTool,
+	splitAtSwitchTab,
 	summarizeToolResult,
+	SWITCH_TAB_DEFERRED,
 	type ToolOutcome,
 } from './tools'
 import {
@@ -2008,11 +2010,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			 */
 			void (async () => {
 				const entries: { call: ToolCall; content: string }[] = []
-				for (const call of calls) {
+				const { before, switchCall, after } = splitAtSwitchTab(calls)
+				for (const call of before) {
 					const outcome = needsDrawing(call.name, call.arguments)
 						? await runAsyncTool(call)
 						: runWriteTool(call)
 					entries.push({ call, content: outcome.message })
+				}
+				if (switchCall) {
+					const outcome = runWriteTool(switchCall)
+					entries.push({ call: switchCall, content: outcome.message })
+				}
+				// Sesudah `switch_tab` berhasil, sisa aksi tidak dijalankan:
+				// pergantian tab tidak sinkron dengan `applyActions`, jadi
+				// `write_section` yang menyertainya menulis ke tab lama (UC7).
+				for (const call of after) {
+					entries.push({ call, content: SWITCH_TAB_DEFERRED })
 				}
 				settleActions(entries)
 			})()

@@ -443,6 +443,32 @@ export function findInOtherTabs(
 }
 
 /**
+ * Membelah daftar aksi di `switch_tab` pertama. Aksi sebelumnya dijalankan
+ * normal; `switch_tab` dijalankan; sisanya tidak dijalankan dan masing-masing
+ * dijawab dengan pesan "Not run".
+ *
+ * `switch_tab` mengganti tab aktif lewat state React, yang tidak sinkron dengan
+ * `applyActions`. Tanpa pembelahan ini, `write_section` yang menyertai
+ * `switch_tab` menulis ke tab LAMA - sebelum pergantian terjadi (UC7).
+ */
+export function splitAtSwitchTab(calls: readonly ToolCall[]): {
+	before: ToolCall[]
+	switchCall: ToolCall | null
+	after: ToolCall[]
+} {
+	const index = calls.findIndex((call) => call.name === 'switch_tab')
+	if (index === -1) return { before: [...calls], switchCall: null, after: [] }
+	return {
+		before: calls.slice(0, index),
+		switchCall: calls[index],
+		after: calls.slice(index + 1),
+	}
+}
+
+/** Pesan untuk aksi yang tidak dijalankan karena `switch_tab` mendahuluinya. */
+export const SWITCH_TAB_DEFERRED = 'Not run: the tab switch takes effect before your next step. Send this again now that the tab is open.'
+
+/**
  * Menaruh gambar dari sub-agent ke dalam dokumen.
  *
  * Dipisahkan dari `applyWriteTool` karena jalurnya memang berbeda: alat tulis
