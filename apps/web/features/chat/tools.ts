@@ -33,9 +33,9 @@ import type {
 import { clampMargins, INCH, PAGE_SIZES, type PageSetup, pageGeometry } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
 import { isSectionScope, sectionRange } from '@/features/editor/section-scope'
-import { buildSchema } from '@/features/sync/serialize'
 import { clampedAttrs, TOC_BLOCK, type TocBlockAttrs, type TocListKind } from '@/features/editor/toc-block'
 import type { CommentThread } from '@/features/sessions/types'
+import { buildSchema } from '@/features/sync/serialize'
 import { countWords } from '@/lib/utils'
 import {
 	afterBlockAt,

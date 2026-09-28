@@ -280,37 +280,56 @@ function normText(text: string): string {
 	return text.replace(/\s+/g, ' ').trim()
 }
 
-/**
- * Teks tiap blok di dokumen, berurutan: paragraf, heading, sel tabel, dll.
- * Blok gambar, diagram, dan blok HTML tidak menghasilkan teks - pemanggil
- * memeriksa keberadaannya terpisah.
- */
-function blockTexts(doc: PMNode): string[] {
-	const texts: string[] = []
-	doc.forEach((node) => {
-		if (node.isTextblock) texts.push(normText(node.textContent))
-		else if (node.type.name === 'table' || node.type.name === 'html_block' || node.type.name === 'diagram')
-			texts.push('\u0000') // penanda: blok non-teks
-		else node.forEach((child) => {
-			if (child.isTextblock) texts.push(normText(child.textContent))
-		})
+/** Isi dokumen yang menentukan apakah ia masih kerangka, di semua kedalaman. */
+interface ScaffoldParts {
+	/** Jenis node yang dipakai. */
+	types: Set<string>
+	/** Teks tiap blok teks - termasuk di dalam daftar, kutipan, dan sel tabel. */
+	texts: string[]
+	/** Node atom (gambar, blok HTML, rumus, …) sebagai JSON utuh. */
+	atoms: string[]
+}
+
+function scaffoldParts(root: PMNode): ScaffoldParts {
+	const parts: ScaffoldParts = { types: new Set(), texts: [], atoms: [] }
+	root.descendants((node) => {
+		if (node.isText) return false
+		parts.types.add(node.type.name)
+		if (node.isTextblock) {
+			parts.texts.push(normText(node.textContent))
+			return false
+		}
+		if (node.isAtom) {
+			parts.atoms.push(JSON.stringify(node.toJSON()))
+			return false
+		}
+		return true
 	})
-	return texts
+	return parts
 }
 
 /**
- * Dokumen dianggap kerangka hanya bila setiap blok teks di dalamnya, termasuk
- * yang sebelum heading pertama dan di semua tingkat heading, kosong atau teksnya
- * sama persis dengan salah satu blok teks di isi template asal (setelah spasi
- * dinormalisasi). Tabel, gambar, blok HTML, dan diagram berarti bukan kerangka.
- * Bila isi template tidak tersedia, jangan menggantikan apa pun.
+ * Dokumen hanya berisi kerangka template asalnya: setiap blok teks - di
+ * kedalaman mana pun, termasuk sebelum heading pertama - kosong atau sama
+ * persis dengan salah satu blok teks template, tidak ada jenis node yang
+ * tidak dipakai template, dan setiap node atom identik dengan milik template.
+ *
+ * Aturannya sengaja ketat: `insert_html_block` menghapus seluruh dokumen bila
+ * ini benar. Versi pertama hanya membaca satu tingkat dan menerima tabel serta
+ * blok HTML sebagai kerangka - tabel karya penulis, daftar manfaat yang sudah
+ * diubah, flyer lama, dan gambar ikut terhapus (tinjauan 28 Sep). Tanpa isi
+ * template, tidak ada yang digantikan.
  */
 export function docIsScaffold(doc: PMNode, template?: PMNode | null): boolean {
 	if (!template) return false
-	const docTexts = blockTexts(doc)
-	const tplTexts = new Set(blockTexts(template))
-	if (tplTexts.size === 0) return false
-	return docTexts.every((text) => text === '' || text === '\u0000' || tplTexts.has(text))
+	const expected = scaffoldParts(template)
+	if (expected.texts.length === 0) return false
+	const found = scaffoldParts(doc)
+	if ([...found.types].some((type) => !expected.types.has(type))) return false
+	const texts = new Set(expected.texts)
+	if (!found.texts.every((text) => text === '' || texts.has(text))) return false
+	const atoms = new Set(expected.atoms)
+	return found.atoms.every((atom) => atoms.has(atom))
 }
 
 export interface SectionEdit {

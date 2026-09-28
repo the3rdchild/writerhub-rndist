@@ -536,7 +536,15 @@ describe('docIsScaffold: kerangka dibandingkan dengan template asal (UC5)', () =
 	})
 
 	test('dokumen dengan teks yang berbeda dari template: false', () => {
-		const changed = doc(h(1, 'Flyer'), h(2, 'Judul'), p('Judul Baru'), h(2, 'Isi'), p(''), h(1, 'Kontak'), p(''))
+		const changed = doc(
+			h(1, 'Flyer'),
+			h(2, 'Judul'),
+			p('Judul Baru'),
+			h(2, 'Isi'),
+			p(''),
+			h(1, 'Kontak'),
+			p(''),
+		)
 		expect(docIsScaffold(changed, flyerTemplate())).toBe(false)
 	})
 
@@ -550,7 +558,16 @@ describe('docIsScaffold: kerangka dibandingkan dengan template asal (UC5)', () =
 	})
 
 	test('paragraf sebelum heading pertama yang berbeda: false', () => {
-		const changed = doc(p('Paragraf pembuka'), h(1, 'Flyer'), h(2, 'Judul'), p(''), h(2, 'Isi'), p(''), h(1, 'Kontak'), p(''))
+		const changed = doc(
+			p('Paragraf pembuka'),
+			h(1, 'Flyer'),
+			h(2, 'Judul'),
+			p(''),
+			h(2, 'Isi'),
+			p(''),
+			h(1, 'Kontak'),
+			p(''),
+		)
 		expect(docIsScaffold(changed, flyerTemplate())).toBe(false)
 	})
 
@@ -562,5 +579,95 @@ describe('docIsScaffold: kerangka dibandingkan dengan template asal (UC5)', () =
 	test('tanpa template: false (tidak menggantikan apa pun)', () => {
 		expect(docIsScaffold(flyerTemplate(), null)).toBe(false)
 		expect(docIsScaffold(flyerTemplate(), undefined)).toBe(false)
+	})
+	/* Isi asli template Flyer A4, dari /api/v1/templates/flyer-a4 (28 Sep). */
+	const FLYER_A4 = {
+		type: 'doc',
+		content: [
+			{ type: 'heading', attrs: { level: 1 }, content: [{ text: 'Headline Utama', type: 'text' }] },
+			{ type: 'heading', attrs: { level: 2 }, content: [{ text: 'Subheadline Pendukung', type: 'text' }] },
+			{ type: 'heading', attrs: { level: 2 }, content: [{ text: 'Visual Utama', type: 'text' }] },
+			{
+				type: 'paragraph',
+				content: [{ text: 'Sisipkan gambar utama di sini.', type: 'text', marks: [{ type: 'italic' }] }],
+			},
+			{ type: 'heading', attrs: { level: 2 }, content: [{ text: '3 Manfaat', type: 'text' }] },
+			{
+				type: 'orderedList',
+				content: [
+					{
+						type: 'listItem',
+						content: [{ type: 'paragraph', content: [{ text: 'Manfaat pertama', type: 'text' }] }],
+					},
+					{
+						type: 'listItem',
+						content: [{ type: 'paragraph', content: [{ text: 'Manfaat kedua', type: 'text' }] }],
+					},
+					{
+						type: 'listItem',
+						content: [{ type: 'paragraph', content: [{ text: 'Manfaat ketiga', type: 'text' }] }],
+					},
+				],
+			},
+			{ type: 'heading', attrs: { level: 2 }, content: [{ text: 'Ajakan Bertindak', type: 'text' }] },
+			{ type: 'heading', attrs: { level: 2 }, content: [{ text: 'Kontak', type: 'text' }] },
+		],
+	} as const
+	const flyer = (
+		edit: (blocks: Record<string, unknown>[]) => Record<string, unknown>[] = (blocks) => blocks,
+	) =>
+		schema.nodeFromJSON({
+			type: 'doc',
+			content: edit(structuredClone(FLYER_A4.content) as Record<string, unknown>[]),
+		})
+	const para = (text: string) => ({ type: 'paragraph', content: [{ type: 'text', text }] })
+
+	test('template Flyer A4 yang asli dan belum disentuh: kerangka', () => {
+		expect(docIsScaffold(flyer(), flyer())).toBe(true)
+	})
+
+	/* Tinjauan 28 Sep: versi pertama menganggap semua ini kerangka, dan menghapusnya. */
+	test('kerangka ditambah tabel karya penulis: bukan kerangka', () => {
+		const table = {
+			type: 'table',
+			content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [para('Rp 500.000')] }] }],
+		}
+		expect(
+			docIsScaffold(
+				flyer((blocks) => [...blocks, table]),
+				flyer(),
+			),
+		).toBe(false)
+	})
+
+	test('daftar manfaat yang sudah diubah penulis: bukan kerangka', () => {
+		const edited = flyer((blocks) =>
+			blocks.map((block) =>
+				block.type === 'orderedList'
+					? {
+							type: 'orderedList',
+							content: [{ type: 'listItem', content: [para('Kelas kecil, maksimal 8 orang')] }],
+						}
+					: block,
+			),
+		)
+		expect(docIsScaffold(edited, flyer())).toBe(false)
+	})
+
+	test('kerangka ditambah flyer lama atau gambar: bukan kerangka', () => {
+		const design = { type: 'htmlBlock', attrs: { html: '<div>flyer lama</div>', fit: 'page' } }
+		const image = { type: 'image', attrs: { src: 'https://contoh.id/foto.png' } }
+		expect(
+			docIsScaffold(
+				flyer((blocks) => [...blocks, design]),
+				flyer(),
+			),
+		).toBe(false)
+		expect(
+			docIsScaffold(
+				flyer((blocks) => [...blocks, image]),
+				flyer(),
+			),
+		).toBe(false)
 	})
 })

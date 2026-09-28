@@ -759,39 +759,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		)
 	}, [])
 
-	/**
-	 * Mengambil isi template (ProseMirror JSON) untuk slug yang belum pernah
-	 * diambil. Dipakai `insert_html_block` dengan `fit: 'page'` (UC5).
-	 * Kegagalan didiamkan: `docIsScaffold` tanpa isi template tidak
-	 * menggantikan apa pun.
-	 */
-	const loadTemplateContents = useCallback(async (calls: ToolCall[]) => {
-		const slugs = new Set<string>()
-		// `apply_template_format` membawa slug-nya sendiri.
-		for (const call of calls) {
-			if (call.name === 'apply_template_format') {
-				const slug = String(call.arguments.template ?? '').trim()
-				if (slug) slugs.add(slug)
-			}
-		}
-		// `insert_html_block` dengan `fit: 'page'` memakai template dokumen.
-		const hasPageFit = calls.some(
-			(call) => call.name === 'insert_html_block' && call.arguments.fit === 'page',
-		)
-		if (hasPageFit) {
-			const slug = appliedFormatOf()
-			if (slug) slugs.add(slug)
-		}
-
-		const pending = [...slugs].filter((slug) => !templateContentsRef.current.has(slug))
-		await Promise.all(
-			pending.map(async (slug) => {
-				try {
-					templateContentsRef.current.set(slug, (await getTemplate(slug)).content)
-				} catch {}
-			}),
-		)
-	}, [appliedFormatOf])
 	const commit = useCallback((next: ChatTurn[]) => {
 		messagesRef.current = next
 		setMessages(next)
@@ -803,6 +770,43 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		const recorded = app.activeDocId ? readAppliedFormat(app.doc, app.activeDocId) : null
 		return recorded ?? templateRef.current?.slug ?? null
 	}, [])
+
+	/**
+	 * Mengambil isi template (ProseMirror JSON) untuk slug yang belum pernah
+	 * diambil. Dipakai `insert_html_block` dengan `fit: 'page'` (UC5).
+	 * Kegagalan didiamkan: `docIsScaffold` tanpa isi template tidak
+	 * menggantikan apa pun.
+	 */
+	const loadTemplateContents = useCallback(
+		async (calls: ToolCall[]) => {
+			const slugs = new Set<string>()
+			// `apply_template_format` membawa slug-nya sendiri.
+			for (const call of calls) {
+				if (call.name === 'apply_template_format') {
+					const slug = String(call.arguments.template ?? '').trim()
+					if (slug) slugs.add(slug)
+				}
+			}
+			// `insert_html_block` dengan `fit: 'page'` memakai template dokumen.
+			const hasPageFit = calls.some(
+				(call) => call.name === 'insert_html_block' && call.arguments.fit === 'page',
+			)
+			if (hasPageFit) {
+				const slug = appliedFormatOf()
+				if (slug) slugs.add(slug)
+			}
+
+			const pending = [...slugs].filter((slug) => !templateContentsRef.current.has(slug))
+			await Promise.all(
+				pending.map(async (slug) => {
+					try {
+						templateContentsRef.current.set(slug, (await getTemplate(slug)).content)
+					} catch {}
+				}),
+			)
+		},
+		[appliedFormatOf],
+	)
 
 	/*
 	 * Naskah terhadap kerangka dari `set_outline`, dibaca dari semua tab dan
@@ -1771,7 +1775,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					setPageSetup: appRef.current.setPageSetup,
 					setTypography: appRef.current.setTypography,
 					templateSpecs: templateSpecsRef.current,
-				templateContents: templateContentsRef.current,
+					templateContents: templateContentsRef.current,
 					createTab: createTabWithContent,
 					renameDocument: renameActiveDocument,
 					renameTab: renameTabById,
