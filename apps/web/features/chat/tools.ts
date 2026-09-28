@@ -1218,9 +1218,15 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 				}
 				return { ok: false, message: target }
 			}
-			return writeSection(editor, target, markdown, {
-				replaceSubsections: call.arguments.replace_subsections === true,
-			})
+			// Support optional `new_heading` parameter: pass through to writeSection
+			const options = { replaceSubsections: call.arguments.replace_subsections === true } as {
+				replaceSubsections?: boolean
+				newHeading?: string | undefined
+			}
+			if (typeof call.arguments.new_heading === 'string' && call.arguments.new_heading.trim()) {
+				options.newHeading = String(call.arguments.new_heading).trim()
+			}
+			return writeSection(editor, target, markdown, options)
 		}
 
 		case 'insert_math': {

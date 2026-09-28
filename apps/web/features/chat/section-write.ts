@@ -373,11 +373,25 @@ export function planSectionWrite(
 	doc: PMNode,
 	at: number,
 	markdown: string,
-	options: { replaceSubsections?: boolean } = {},
+	options: { replaceSubsections?: boolean; newHeading?: string } = {},
 ): SectionWritePlan {
 	const list = docHeadings(doc)
 	const head = list[at]
 	if (!head) return { ok: false, message: `No heading with index ${at}. Call get_outline first.` }
+
+	// If caller requests a new heading text, schedule a replacement of the
+	// heading node itself by inserting a zero-length edit at the heading
+	// position. The writer must explicitly request this via `newHeading`.
+	if (typeof options.newHeading === 'string' && options.newHeading.trim()) {
+		const newText = options.newHeading.trim()
+		// Replace the heading node with one that keeps the same level.
+		// We insert an edit that replaces the heading node's from..to with
+		// a markdown heading line (keeps level) so that the later apply
+		// phase will write the new heading in place.
+		const headingLevel = head.level
+		const headingMarkdown = `${'#'.repeat(headingLevel)} ${newText}`
+		edits.push({ from: head.pos, to: head.end, markdown: headingMarkdown })
+	}
 
 	let subtreeLast = at
 	while (subtreeLast + 1 < list.length && list[subtreeLast + 1].level > head.level) subtreeLast += 1

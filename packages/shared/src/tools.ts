@@ -351,6 +351,10 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 					type: 'string',
 					description: 'The section heading exactly as get_outline lists it, e.g. "BAB I PENDAHULUAN".',
 				},
+				new_heading: {
+					type: 'string',
+					description: 'Optional: replace the section heading text (keeps original level). Use this to replace template placeholder headings like "Nama Lengkap".',
+				},
 				heading_index: {
 					type: 'number',
 					description: 'Index from get_outline. Needed only when two headings have the same text.',
