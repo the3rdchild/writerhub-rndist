@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { ToolCall } from '@writer-hub/shared'
-import { findInOtherTabs, splitAtSwitchTab, SWITCH_TAB_DEFERRED } from './tools'
+import { applyInOrder, findInOtherTabs, SWITCH_TAB_DEFERRED, splitAtSwitchTab } from './tools'
 
 describe('findInOtherTabs (UC7)', () => {
 	test('menemukan teks di tab lain yang bukan tab aktif', () => {
@@ -124,5 +124,37 @@ describe('splitAtSwitchTab (UC7)', () => {
 	test('SWITCH_TAB_DEFERRED adalah pesan yang menjelaskan penundaan', () => {
 		expect(SWITCH_TAB_DEFERRED).toContain('Not run')
 		expect(SWITCH_TAB_DEFERRED).toContain('tab switch')
+	})
+})
+describe('applyInOrder (UC7)', () => {
+	const calls = [
+		call('write_section', '1'),
+		call('switch_tab', '2'),
+		call('write_section', '3'),
+		call('replace_text', '4'),
+	]
+	const ran: string[] = []
+	const run = (ok: boolean) => (item: ToolCall) => {
+		ran.push(item.id)
+		return { ok: item.name === 'switch_tab' ? ok : true, message: `ran ${item.id}` }
+	}
+
+	test('switch_tab berhasil: sisa rangkaian tidak dijalankan, tiap panggilan tetap berhasil dijawab', async () => {
+		ran.length = 0
+		const entries = await applyInOrder(calls, run(true))
+		expect(ran).toEqual(['1', '2'])
+		expect(entries.map((entry) => entry.content)).toEqual([
+			'ran 1',
+			'ran 2',
+			SWITCH_TAB_DEFERRED,
+			SWITCH_TAB_DEFERRED,
+		])
+	})
+
+	test('switch_tab gagal: tidak ada pergantian yang ditunggu, sisanya tetap berjalan', async () => {
+		ran.length = 0
+		const entries = await applyInOrder(calls, run(false))
+		expect(ran).toEqual(['1', '2', '3', '4'])
+		expect(entries).toHaveLength(4)
 	})
 })

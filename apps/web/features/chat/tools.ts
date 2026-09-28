@@ -461,7 +461,10 @@ export function readToolLabel(editor: Editor, call: ToolCall): string {
  * untuk menunjuk tab mana yang menyimpan teks yang tidak ada di tab aktif.
  */
 export function findInOtherTabs(
-	context: { tabs: { id: string; label: string; active: boolean }[]; readTab: (tabId: string) => string | null },
+	context: {
+		tabs: { id: string; label: string; active: boolean }[]
+		readTab: (tabId: string) => string | null
+	},
 	query: string,
 ): { id: string; label: string } | null {
 	const lower = query.toLowerCase()
@@ -497,7 +500,36 @@ export function splitAtSwitchTab(calls: readonly ToolCall[]): {
 }
 
 /** Pesan untuk aksi yang tidak dijalankan karena `switch_tab` mendahuluinya. */
-export const SWITCH_TAB_DEFERRED = 'Not run: the tab switch takes effect before your next step. Send this again now that the tab is open.'
+export const SWITCH_TAB_DEFERRED =
+	'Not run: the tab switch takes effect before your next step. Send this again now that the tab is open.'
+
+/**
+ * Menerapkan rangkaian aksi berurutan, dengan aturan `switch_tab`: sesudah
+ * `switch_tab` berhasil, sisa rangkaian dijawab `SWITCH_TAB_DEFERRED`, karena
+ * pergantian tab lewat state React belum terjadi dan aksi berikutnya akan
+ * menulis ke tab lama (UC7). `switch_tab` yang gagal tidak mengganti apa pun,
+ * jadi sisanya tetap berjalan. Setiap panggilan mendapat tepat satu hasil.
+ */
+export async function applyInOrder(
+	calls: readonly ToolCall[],
+	run: (call: ToolCall) => ToolOutcome | Promise<ToolOutcome>,
+): Promise<{ call: ToolCall; content: string }[]> {
+	const entries: { call: ToolCall; content: string }[] = []
+	let rest = calls
+	while (rest.length > 0) {
+		const { before, switchCall, after } = splitAtSwitchTab(rest)
+		for (const call of before) entries.push({ call, content: (await run(call)).message })
+		if (!switchCall) break
+		const outcome = await run(switchCall)
+		entries.push({ call: switchCall, content: outcome.message })
+		if (outcome.ok) {
+			for (const call of after) entries.push({ call, content: SWITCH_TAB_DEFERRED })
+			break
+		}
+		rest = after
+	}
+	return entries
+}
 
 /**
  * Menaruh gambar dari sub-agent ke dalam dokumen.
