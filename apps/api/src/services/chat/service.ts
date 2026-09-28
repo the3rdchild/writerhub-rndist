@@ -6,6 +6,7 @@ import { pickModel } from '@/lib/pick-model'
 import type { ResolvedProvider } from '@/lib/provider-resolver'
 import { findTemplateBySlug } from '@/repository/template'
 import JobSubmissionService from '@/services/job-submission.service'
+import { fetchWithDeadline } from './deadline'
 import { type ChatBody, chatBodySchema } from './dto'
 import { buildMessages } from './messages'
 import { documentBriefPrompt, researchBriefPrompt } from './prompts'
@@ -100,27 +101,26 @@ export default class ChatService extends JobSubmissionService {
 		templateRules?: string[],
 		documentBrief?: string,
 	): Promise<Response> {
-		return fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
-			method: 'POST',
-			headers: {
-				authorization: `Bearer ${apiKey}`,
-				'content-type': 'application/json',
+		return fetchWithDeadline(
+			`${baseUrl.replace(/\/$/, '')}/chat/completions`,
+			{
+				method: 'POST',
+				headers: {
+					authorization: `Bearer ${apiKey}`,
+					'content-type': 'application/json',
+				},
+				body: JSON.stringify({
+					model,
+					stream: true,
+					temperature: TEMPERATURE,
+					messages: buildMessages(body, withTools, memory, templateRules, documentBrief),
+					...(withTools ? { tools: toProviderTools({ research: body.research }), tool_choice: 'auto' } : {}),
+				}),
+				// Penulis menutup percakapannya; batas waktu provider ada di `fetchWithDeadline`.
+				signal: this.context.req.raw.signal,
 			},
-			body: JSON.stringify({
-				model,
-				stream: true,
-				temperature: TEMPERATURE,
-				messages: buildMessages(body, withTools, memory, templateRules, documentBrief),
-				...(withTools ? { tools: toProviderTools({ research: body.research }), tool_choice: 'auto' } : {}),
-			}),
-			/*
-			 * Dua sebab berhenti sekaligus: penulis menutup percakapannya, atau
-			 * provider tidak juga menjawab. Yang kedua dulu tidak ada - batas
-			 * waktunya milik runtime, dan `DOMException`-nya bocor sampai ke
-			 * layar sebagai "The operation timed out."
-			 */
-			signal: AbortSignal.any([this.context.req.raw.signal, AbortSignal.timeout(env.AI_REQUEST_TIMEOUT_MS)]),
-		})
+			{ idleMs: env.AI_IDLE_TIMEOUT_MS, totalMs: env.AI_REQUEST_TIMEOUT_MS },
+		)
 	}
 
 	/**
