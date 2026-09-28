@@ -702,7 +702,12 @@ export interface WriteToolContext {
 	 * dokumen dengan kerangka template asal.
 	 */
 	templateContents: Map<string, JSONContent>
-	createTab: (title: string | undefined, markdown: string | undefined) => void
+	createTab: (
+		title: string | undefined,
+		markdown: string | undefined,
+		content?: JSONContent,
+		layout?: { pageSetup?: PageSetup; typography?: DocumentTypography },
+	) => string | undefined
 	/** Berpindah ke tab lain; mengganti tab aktif di editor. */
 	switchTab: (tabId: string) => ToolOutcome
 	/** Mengganti judul dokumen aktif - nama yang tampil di atas editor. */
@@ -889,8 +894,11 @@ export function describeToolCall(call: ToolCall): string {
 			return `${String(call.arguments.action ?? '')} section ${call.arguments.heading_index ?? '?'}`
 		case 'insert_image':
 			return 'Insert image'
-		case 'create_tab':
-			return `Create tab “${String(call.arguments.title ?? '').slice(0, 40) || 'baru'}”`
+		case 'create_tab': {
+			const tmpl = String(call.arguments.template ?? '').trim()
+			const from = tmpl ? ` from “${tmpl}”` : ''
+			return `Create tab “${String(call.arguments.title ?? '').slice(0, 40) || 'baru'}”${from}`
+		}
 		case 'switch_tab':
 			return `Switch to tab ${String(call.arguments.tab_id ?? '').slice(0, 12)}`
 		case 'rename_document':
@@ -1968,7 +1976,28 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 
 		case 'create_tab': {
 			const title = typeof call.arguments.title === 'string' ? call.arguments.title : undefined
+			const templateSlug = String(call.arguments.template ?? '').trim()
 			const markdown = typeof call.arguments.markdown === 'string' ? call.arguments.markdown : undefined
+
+			// Template diutamakan: isinya, tata letak, dan tipografinya dipasang
+			// ke tab baru. Tanpa template, perilaku lama (markdown mentah).
+			if (templateSlug) {
+				const spec = context.templateSpecs.get(templateSlug)
+				const templateJson = context.templateContents.get(templateSlug)
+				if (!spec || !templateJson) {
+					return { ok: false, message: `Template "${templateSlug}" tidak dikenal.` }
+				}
+				/*
+				 * Tata letak dan tipografi template ditulis langsung ke ydoc
+				 * tab baru, bukan lewat context.setPageSetup('tab'):
+				 * selectSession mengubah state React yang belum tersebar saat
+				 * handler ini berjalan, jadi setPageSetup('tab') akan menimpa
+				 * tab LAMA, bukan tab baru.
+				 */
+				context.createTab(title, undefined, templateJson, spec.layout)
+				return { ok: true, message: `Tab "${title ?? 'baru'}" created from template "${templateSlug}".` }
+			}
+
 			context.createTab(title, markdown)
 			return { ok: true, message: `Tab "${title ?? 'baru'}" created.` }
 		}

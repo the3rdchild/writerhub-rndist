@@ -2,7 +2,7 @@
 
 import { generateJSON, type JSONContent } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
-import type { BriefKey, ProviderErrorCode, TemplateSpec } from '@writer-hub/shared'
+import type { BriefKey, DocumentTypography, ProviderErrorCode, TemplateSpec } from '@writer-hub/shared'
 import {
 	type BriefChapterUpdate,
 	type BriefFieldUpdate,
@@ -54,6 +54,7 @@ import {
 	setPageFurnitureForTab,
 } from '@/features/editor/page-furniture/page-furniture-ydoc'
 import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
+import type { PageSetup } from '@/features/editor/page-geometry'
 import { paginationKey } from '@/features/editor/pagination'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useTypography } from '@/features/editor/use-typography'
@@ -64,6 +65,8 @@ import {
 	readNumberingPreset,
 	setAppliedFormat,
 	setNumberingPreset,
+	setPageSetupForTab,
+	setTypographyForTab,
 } from '@/features/sessions/ydoc'
 import { buildSchema, fragmentToJSON, jsonToFragment } from '@/features/sync/serialize'
 import { useSync } from '@/features/sync/sync-context'
@@ -772,7 +775,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const loadTemplateSpecs = useCallback(async (calls: ToolCall[]) => {
 		const pending = new Set(
 			calls
-				.filter((call) => call.name === 'apply_template_format')
+				.filter((call) => call.name === 'apply_template_format' || call.name === 'create_tab')
 				.map((call) => String(call.arguments.template ?? '').trim())
 				.filter((slug) => slug !== '' && !templateSpecsRef.current.has(slug)),
 		)
@@ -808,9 +811,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const loadTemplateContents = useCallback(
 		async (calls: ToolCall[]) => {
 			const slugs = new Set<string>()
-			// `apply_template_format` membawa slug-nya sendiri.
+			// `apply_template_format` dan `create_tab` membawa slug-nya sendiri.
 			for (const call of calls) {
-				if (call.name === 'apply_template_format') {
+				if (call.name === 'apply_template_format' || call.name === 'create_tab') {
 					const slug = String(call.arguments.template ?? '').trim()
 					if (slug) slugs.add(slug)
 				}
@@ -1061,14 +1064,31 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			furniture: app.furniture,
 		}
 	}
-	const createTabWithContent = (title: string | undefined, markdown: string | undefined) => {
+	const createTabWithContent = (
+		title: string | undefined,
+		markdown: string | undefined,
+		content?: JSONContent,
+		layout?: { pageSetup?: PageSetup; typography?: DocumentTypography },
+	): string | undefined => {
 		const app = appRef.current
 		if (!app.activeDocId) return
 		const id = createTabInDoc(app.doc, app.activeDocId, title ?? 'Untitled document')
-		if (markdown?.trim()) {
+		if (content) {
+			jsonToFragment(app.doc, id, content)
+		} else if (markdown?.trim()) {
 			const json = generateJSON(toEditorContent(markdown), buildEditorExtensions())
 			jsonToFragment(app.doc, id, json)
 		}
+		/*
+		 * Tata letak ditulis langsung ke ydoc tab baru (bukan lewat
+		 * usePageSetup('tab') yang membaca activeTabId dari state React —
+		 * state itu belum tersebar di siklus ini).
+		 */
+		if (layout?.pageSetup) setPageSetupForTab(app.doc, id, layout.pageSetup)
+		if (layout?.typography) setTypographyForTab(app.doc, id, layout.typography)
+		// Tab baru langsung dibuka.
+		selectSession(id)
+		return id
 	}
 
 	const renameActiveDocument = (title: string): ToolOutcome => {
