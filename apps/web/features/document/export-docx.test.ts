@@ -845,3 +845,23 @@ describe('penomoran karya ilmiah di DOCX', () => {
 		}
 	})
 })
+
+/* Surat lamaran: titik dua blok data sejajar lewat tab stop di Word juga. */
+describe('tab stop di DOCX', () => {
+	test('posisi tab stop dalam twip dari pt (1 pt = 20 twip), dan tab jadi <w:tab/>', async () => {
+		const doc = buildSchema().nodeFromJSON({
+			type: 'doc',
+			content: [
+				{
+					type: 'paragraph',
+					attrs: { tabStops: [{ posPt: 120, type: 'left' }] },
+					content: [{ type: 'text', text: 'Nama' }, { type: 'tab' }, { type: 'text', text: ': A' }],
+				},
+			],
+		})
+		const blob = await exportDocx(doc, { title: 'uji', geometry: pageGeometry(DEFAULT_PAGE_SETUP) })
+		const xml = strFromU8(unzipSync(new Uint8Array(await blob.arrayBuffer()))['word/document.xml'])
+		expect(xml).toMatch(/<w:tab w:val="left" w:pos="2400"\/>/)
+		expect(xml).toContain('<w:tab/>')
+	})
+})
