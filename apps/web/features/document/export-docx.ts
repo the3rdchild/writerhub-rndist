@@ -912,6 +912,9 @@ export async function exportDocx(
 	/* Paragraf pemenggal terakhir: pemenggal tepat sebelum judul bab dibuang
 	 * saat bagiannya dipecah, karena section baru sudah membuka halaman baru. */
 	let lastBreak: unknown = null
+	/* Apakah node sebelumnya adalah blok HTML `fit: 'page'`; dipakai untuk
+	 * melewatkan paragraf kosong sesudahnya (EX-2). */
+	let prevWasPageFit = false
 
 	const contentWidthOf = (span: SectionSpan | undefined) =>
 		span ? pageGeometry(span.setup).contentWidth : geometry.contentWidth
@@ -946,6 +949,18 @@ export async function exportDocx(
 			opensChapter = false
 			lastBreak = null
 			sectionContentWidth = contentWidthOf(spans[spanIndex])
+			prevWasPageFit = false
+			return
+		}
+
+		/*
+		 * Paragraf kosong sesudah blok `fit: 'page'` dilewati di DOCX (EX-2):
+		 * blok itu sudah memulai halaman baru lewat `pageBreakBefore`, dan
+		 * paragraf kosong sesudahnya hanya menambah halaman kosong di Word.
+		 * Paragraf berisi teks tetap diekspor.
+		 */
+		if (prevWasPageFit && node.type.name === 'paragraph' && node.content.size === 0) {
+			prevWasPageFit = false
 			return
 		}
 
@@ -973,6 +988,7 @@ export async function exportDocx(
 		const blocks = blockOf(node)
 		current.push(...blocks)
 		lastBreak = node.type.name === PAGE_BREAK_NODE ? (blocks[0] ?? null) : null
+		prevWasPageFit = node.type.name === HTML_BLOCK && node.attrs.fit === 'page'
 	})
 	sections.push({
 		properties: sectionProperties(spans[spanIndex] ?? null, continued),

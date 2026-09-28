@@ -5,6 +5,7 @@ import { TableMap } from '@tiptap/pm/tables'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import type { PageNumbering } from '@writer-hub/shared'
 import { COLUMN_BREAK_NODE } from './column-break'
+import { HTML_BLOCK } from './html-block'
 import { PAGE_BREAK_NODE } from './page-break'
 import {
 	PAGE_GAP,
@@ -48,6 +49,9 @@ export interface Measurement {
 	container?: number
 	/** Judul tingkat satu di tingkat teratas: lembar yang dibukanya adalah halaman pembuka bab. */
 	opensChapter?: boolean
+	/** Paragraf kosong yang langsung mengikuti blok `fit: 'page'`; tidak boleh
+	 * melahirkan lembar baru di kanvas (EX-2). */
+	trailingPageFit?: boolean
 }
 
 /*
@@ -121,12 +125,31 @@ function measureBlocks(view: EditorView): Measurement[] {
 	}
 	const regions = setup ? columnRegions(view.state.doc, setup) : []
 
+	/*
+	 * Node sebelumnya dipakai untuk menandai paragraf kosong yang mengikuti
+	 * blok `fit: 'page'` - ia tidak boleh melahirkan lembar baru di kanvas
+	 * (EX-2). `trailingPageFit` hanya true bila node sebelumnya adalah blok HTML
+	 * mode halaman dan node ini paragraf kosong.
+	 */
+	let prevWasPageFit = false
+
 	view.state.doc.forEach((node, offset) => {
 		cumulative += inserted.get(offset) ?? 0
 
+		/*
+		 * Paragraf kosong sesudah blok `fit: 'page'` ditandai di sini supaya
+		 * `computeSpacers` tahu untuk tidak mendorong lembar baru karenanya.
+		 * Diperiksa sebelum logika pengukuran manapun berjalan, supaya semua
+		 * jalur (region, selfPaginate, split, biasa) lewat titik yang sama.
+		 */
+		const isTrailingPageFit = prevWasPageFit && node.type.name === 'paragraph' && node.content.size === 0
+
 		const region = regions.find((entry) => offset >= entry.from && offset < entry.to)
 		if (region) {
-			if (offset !== region.from) return
+			if (offset !== region.from) {
+				prevWasPageFit = false
+				return
+			}
 
 			const placeholder = view.dom.querySelector(`[${REGION_SPACE_ATTRIBUTE}="${region.from}"]`)
 			if (placeholder instanceof HTMLElement) {
@@ -142,16 +165,21 @@ function measureBlocks(view: EditorView): Measurement[] {
 					selfPaginate: true,
 					internal,
 				})
+				prevWasPageFit = false
 				return
 			}
 		}
 
 		const dom = view.nodeDOM(offset)
-		if (!(dom instanceof HTMLElement)) return
+		if (!(dom instanceof HTMLElement)) {
+			prevWasPageFit = false
+			return
+		}
 		const top = dom.offsetTop - cumulative
 
 		if (node.type.name === 'table') {
 			cumulative = measureTable(view, node, offset, top, dom, cumulative, inserted, measurements)
+			prevWasPageFit = false
 			return
 		}
 
@@ -170,11 +198,13 @@ function measureBlocks(view: EditorView): Measurement[] {
 				selfPaginate: true,
 				internal,
 			})
+			prevWasPageFit = node.type.name === HTML_BLOCK && node.attrs.fit === 'page'
 			return
 		}
 
 		if (SPLIT_CONTAINERS.has(node.type.name)) {
 			cumulative = measureContainerChildren(view, node, offset, top, dom, cumulative, inserted, measurements)
+			prevWasPageFit = false
 			return
 		}
 
@@ -191,7 +221,9 @@ function measureBlocks(view: EditorView): Measurement[] {
 			kind: 'block',
 			keepWithNext: KEEP_WITH_NEXT.has(node.type.name) || undefined,
 			opensChapter: (node.type.name === 'heading' && Number(node.attrs.level) === 1) || undefined,
+			trailingPageFit: isTrailingPageFit || undefined,
 		})
+		prevWasPageFit = false
 	})
 
 	return measurements
@@ -538,6 +570,23 @@ export function computeSpacers(
 			cumulative += block.internal ?? 0
 			pageStart = contentTop(sheets[sheets.length - 1]) - cumulative
 
+			forceNext = false
+			continue
+		}
+
+		/*
+		 * Paragraf kosong sesudah blok `fit: 'page'` tidak boleh melahirkan
+		 * lembar baru di kanvas (EX-2). Blok sebelumnya mengisi tepat satu
+		 * lembar, jadi paragraf ini pasti meluap - tetapi isinya kosong, jadi
+		 * luapannya tidak terlihat. Ia ditaruh di lembar yang sama tanpa
+		 * mendorong lembar baru, supaya penulis masih bisa mengetik di situ.
+		 *
+		 * Paragraf yang sudah berisi teks tidak membawa bendera ini (lihat
+		 * `measureBlocks`), jadi ia tetap membuka halaman baru seperti biasa.
+		 */
+		if (block.trailingPageFit) {
+			if (block.kind === 'block') blockPages.push({ pos: block.pos, page: sheets.length - 1 })
+			place(block)
 			forceNext = false
 			continue
 		}

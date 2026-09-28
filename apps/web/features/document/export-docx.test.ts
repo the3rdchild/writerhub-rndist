@@ -630,6 +630,11 @@ describe('blok HTML di berkas DOCX', () => {
 	const PNG_1PX =
 		'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
+	const paragraph = (text: string): JSONContent => ({
+		type: 'paragraph',
+		content: [{ type: 'text', text }],
+	})
+
 	async function docxFiles(attrs: Record<string, unknown>) {
 		const doc = buildSchema().nodeFromJSON({
 			type: 'doc',
@@ -696,6 +701,69 @@ describe('blok HTML di berkas DOCX', () => {
 			snapshotHeight: 1123,
 		})
 		expect(strFromU8(files['word/document.xml'])).toContain('<w:pageBreakBefore/>')
+	})
+
+	/*
+	 * Paragraf kosong sesudah blok `fit: 'page'` tidak boleh ikut ke DOCX
+	 * (EX-2). Blok itu sudah memulai halaman baru lewat `pageBreakBefore`;
+	 * paragraf kosong sesudahnya hanya menambah halaman kosong di Word.
+	 * Paragraf berisi teks tetap diekspor.
+	 */
+	test('paragraf kosong setelah blok mode halaman dilewati (EX-2)', async () => {
+		const doc = buildSchema().nodeFromJSON({
+			type: 'doc',
+			content: [
+				{
+					type: 'htmlBlock',
+					attrs: {
+						html: '<h1>Flyer</h1>',
+						fit: 'page',
+						height: 600,
+						snapshot: PNG_1PX,
+						snapshotWidth: 794,
+						snapshotHeight: 1123,
+					},
+				},
+				{ type: 'paragraph' },
+			],
+		})
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+		})
+		const xml = strFromU8(unzipSync(new Uint8Array(await blob.arrayBuffer()))['word/document.xml'])
+
+		// Gambar blok ada, tetapi tidak ada paragraf kosong sesudahnya.
+		expect(xml).toContain('<w:drawing>')
+		// Hanya satu paragraf di seluruh dokumen: paragraf yang membawa gambar.
+		expect(xml.match(/<w:p[ >]/g) ?? []).toHaveLength(1)
+	})
+
+	test('paragraf berisi teks setelah blok mode halaman tetap diekspor (EX-2)', async () => {
+		const doc = buildSchema().nodeFromJSON({
+			type: 'doc',
+			content: [
+				{
+					type: 'htmlBlock',
+					attrs: {
+						html: '<h1>Flyer</h1>',
+						fit: 'page',
+						height: 600,
+						snapshot: PNG_1PX,
+						snapshotWidth: 794,
+						snapshotHeight: 1123,
+					},
+				},
+				paragraph('Teks setelah flyer'),
+			],
+		})
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+		})
+		const xml = strFromU8(unzipSync(new Uint8Array(await blob.arrayBuffer()))['word/document.xml'])
+
+		expect(xml).toContain('Teks setelah flyer')
 	})
 
 	// Sisipan tetap seperti semula: mengalir di dalam kolom teks, diperkecil
