@@ -169,7 +169,9 @@ export function outlineDone(progress: OutlineProgress): boolean {
 		progress.pages && progress.forcedPageFloor && progress.forcedPageFloor > progress.pages.max
 			? progress.forcedPageFloor
 			: progress.pages?.max
-	const lengthOk = !progress.pages || (progress.pages.current >= progress.pages.min && progress.pages.current <= (effectiveMax ?? Infinity))
+	const lengthOk =
+		!progress.pages ||
+		(progress.pages.current >= progress.pages.min && progress.pages.current <= (effectiveMax ?? Infinity))
 	return (
 		lengthOk &&
 		progress.sections.every((section) => section.state === 'written') &&
