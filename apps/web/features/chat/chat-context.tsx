@@ -84,7 +84,7 @@ import {
 	requestMessage,
 	responseValue,
 } from './ask'
-import { diagramReceipt, drawDiagram } from './diagram-api'
+import { diagramFailureResult, diagramReceipt, drawDiagram } from './diagram-api'
 import { stitchDiagrams } from './diagram-embed'
 import { diagramBlocks, diagramTypeOf, findDiagramBlock, needsDrawing } from './diagram-target'
 import { chatFailureHint, toChatTurnError } from './failure'
@@ -226,6 +226,9 @@ const BUDGET_NOTICE =
  * tugasnya dijeda, lalu dilanjutkan (lihat `stall.ts`).
  */
 const MAX_WRITE_WAVES = 8
+
+/** Hasil alat untuk aksi yang dilewati penulis; kartunya berbunyi "Skipped". */
+const SKIPPED_RESULT = 'The writer skipped this action. It was not applied to the document.'
 
 const BROKEN_ARGS_RESULT =
 	'Not carried out: the arguments of this call were cut off or were not valid JSON (a reply that hits the output length limit ends mid-call). Send it again in smaller pieces: one section per call.'
@@ -587,6 +590,12 @@ interface ChatContextValue {
 	isActionSettled: (id: string) => boolean
 	/** Aksi yang sedang diterapkan - menggambar bisa berjalan puluhan detik. */
 	isActionRunning: (id: string) => boolean
+	/**
+	 * Hasil aksi yang diputuskan tapi tidak mendarat - gambar yang gagal
+	 * digambar, teks yang tidak ditemukan. Undefined bila diterapkan atau
+	 * dilewati penulis. Tanpa ini kartu gambar yang gagal berbunyi "Skipped".
+	 */
+	actionFailure: (id: string) => string | undefined
 	autoApply: boolean
 	setAutoApply: (value: boolean) => void
 	research: boolean
@@ -1873,7 +1882,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 		if ('error' in drawn) {
 			finishStep(stepId, { status: 'failed', detail: drawn.error })
-			return { ok: false, message: `The drawing sub-agent failed: ${drawn.error}` }
+			return { ok: false, message: diagramFailureResult(drawn) }
 		}
 
 		// Dihitung ulang: naskah bisa berubah selama sub-agent menggambar.
@@ -2039,9 +2048,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 	const skipAction = useCallback(
 		(call: ToolCall) => {
-			settleActions([
-				{ call, content: 'The writer skipped this action. It was not applied to the document.' },
-			])
+			settleActions([{ call, content: SKIPPED_RESULT }])
 		},
 		[settleActions],
 	)
@@ -2120,12 +2127,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		continuesRef.current = { taskId: undefined, auto: 0 }
 		setInterruption(null)
 	}, [stop, commit])
-	const settledActionIds = useMemo(
+	/** Hasil alat per aksi yang sudah diputuskan - diterapkan, gagal, atau dilewati. */
+	const actionResults = useMemo(
 		() =>
-			new Set(
+			new Map(
 				messages
 					.filter((turn) => turn.role === 'tool' && turn.toolCallId)
-					.map((turn) => turn.toolCallId as string),
+					.map((turn) => [turn.toolCallId as string, turn.content]),
 			),
 		[messages],
 	)
@@ -2188,7 +2196,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			actionWords: (id: string) => actionWords[id],
 			skipAction,
 			isActionApplied: (id: string) => appliedActionIds.has(id),
-			isActionSettled: (id: string) => settledActionIds.has(id),
+			isActionSettled: (id: string) => actionResults.has(id),
+			actionFailure: (id: string) => {
+				const result = actionResults.get(id)
+				return result !== undefined && result !== SKIPPED_RESULT && !appliedActionIds.has(id)
+					? result
+					: undefined
+			},
 			isActionRunning: (id: string) => runningActionIds.has(id),
 			autoApply,
 			setAutoApply,
@@ -2223,7 +2237,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			actionWords,
 			skipAction,
 			appliedActionIds,
-			settledActionIds,
+			actionResults,
 			runningActionIds,
 			autoApply,
 			setAutoApply,

@@ -243,3 +243,21 @@ describe('kebiasaan LaTeX dan penanda bersarang dari model', () => {
 		)
 	})
 })
+
+/* Uji use case 28 Sep, UC4: bar chart ditulis model sebagai pagar ```mermaid. */
+describe('pagar kode membawa bahasanya', () => {
+	test('mermaid menjadi blok berbahasa mermaid, jadi digambar', () => {
+		expect(markdownToHtml('```mermaid\nflowchart TD\n  A-->B\n```')).toBe(
+			'<pre><code class="language-mermaid">flowchart TD\n  A--&gt;B</code></pre>',
+		)
+	})
+
+	test('tanpa bahasa tetap blok kode polos', () => {
+		expect(markdownToHtml('```\nx = 1\n```')).toBe('<pre><code>x = 1</code></pre>')
+	})
+
+	test('nama bahasa yang aneh tidak masuk ke atribut', () => {
+		expect(markdownToHtml('```js" onclick="x\ny\n```')).toBe('<pre><code>y</code></pre>')
+		expect(markdownToHtml('```Python\nprint(1)\n```')).toContain('class="language-python"')
+	})
+})

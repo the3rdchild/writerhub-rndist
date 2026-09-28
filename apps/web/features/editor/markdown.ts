@@ -125,6 +125,9 @@ export function markdownToHtml(markdown: string): string {
 			continue
 		}
 		if (trimmed.startsWith('```')) {
+			// Nama bahasa pagar ikut: ```mermaid tanpa itu tercetak sebagai kode,
+			// bukan digambar (uji 28 Sep, UC4). Hanya karakter nama bahasa yang lolos.
+			const language = /^```\s*([a-z0-9_+#-]{1,30})\s*$/i.exec(trimmed)?.[1]?.toLowerCase()
 			const body: string[] = []
 			index += 1
 			while (index < lines.length && !lines[index].trim().startsWith('```')) {
@@ -132,7 +135,8 @@ export function markdownToHtml(markdown: string): string {
 				index += 1
 			}
 			index += 1 // pagar penutup
-			out.push(`<pre><code>${escapeHtml(body.join('\n'))}</code></pre>`)
+			const attribute = language ? ` class="language-${language}"` : ''
+			out.push(`<pre><code${attribute}>${escapeHtml(body.join('\n'))}</code></pre>`)
 			continue
 		}
 		if (isTableRow(line) && index + 1 < lines.length && TABLE_DIVIDER.test(lines[index + 1])) {

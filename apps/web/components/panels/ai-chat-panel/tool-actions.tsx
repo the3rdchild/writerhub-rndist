@@ -34,8 +34,15 @@ export function ActionGroup({ actions, expired }: { actions: ToolCall[]; expired
 }
 
 export function ActionCard({ call, expired }: { call: ToolCall; expired?: boolean }) {
-	const { applyAction, skipAction, isActionApplied, isActionSettled, isActionRunning, actionWords } =
-		useChat()
+	const {
+		applyAction,
+		skipAction,
+		isActionApplied,
+		isActionSettled,
+		isActionRunning,
+		actionFailure,
+		actionWords,
+	} = useChat()
 	const applied = isActionApplied(call.id)
 	/*
 	 * Hanya aksi yang benar-benar menyentuh naskah yang punya angka. Atur
@@ -45,6 +52,7 @@ export function ActionCard({ call, expired }: { call: ToolCall; expired?: boolea
 	const words = actionWords(call.id)
 	const delta = words ? formatWordDelta(words) : null
 	const settled = isActionSettled(call.id)
+	const failure = actionFailure(call.id)
 	const [outcome, setOutcome] = useState<{ ok: boolean; message: string } | null>(null)
 	const [confirming, setConfirming] = useState(false)
 
@@ -87,6 +95,10 @@ export function ActionCard({ call, expired }: { call: ToolCall; expired?: boolea
 				<p className={cn('text-[11px]', outcome.ok ? 'text-green-400' : 'text-yellow-400')}>
 					{outcome.message}
 					{delta && <span className="text-faint"> · {delta}</span>}
+				</p>
+			) : failure ? (
+				<p className="text-[11px] text-yellow-400">
+					{failure.length > 240 ? `${failure.slice(0, 239)}…` : failure}
 				</p>
 			) : settled ? (
 				<p className="text-[11px] text-subtle">Skipped</p>
