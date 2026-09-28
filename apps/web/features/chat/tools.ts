@@ -440,7 +440,7 @@ export function findInOtherTabs(
 	for (const tab of context.tabs) {
 		if (tab.active) continue
 		const text = context.readTab(tab.id)
-		if (text && text.toLowerCase().includes(lower)) return { id: tab.id, label: tab.label }
+		if (text?.toLowerCase().includes(lower)) return { id: tab.id, label: tab.label }
 	}
 	return null
 }
