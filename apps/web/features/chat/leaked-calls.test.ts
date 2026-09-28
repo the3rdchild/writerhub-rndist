@@ -3,7 +3,7 @@ import { CHAT_CONTEXT_LIMITS } from '@writer-hub/shared'
 import { streamChat, stripFallbackCalls } from './api'
 import { buildOutboundMessages, type ChatTurn } from './chat-context'
 import { ChatTurnError, chatFailureHint } from './failure'
-import { leakedCallRepeats, parseLeakedCalls, stripLeakedCalls } from './leaked-calls'
+import { leakedCallRepeats, MAX_LEAKED_CALLS, parseLeakedCalls, stripLeakedCalls } from './leaked-calls'
 import { clipMessage } from './outbound-window'
 
 /*
@@ -66,6 +66,24 @@ describe('panggilan DSML yang bocor ke teks', () => {
 		expect(stripLeakedCalls(`Awal.\n\n${GOOD_BLOCK}\n\nAkhir.`)).toBe('Awal.\n\nAkhir.')
 		expect(stripFallbackCalls(`Awal.\n\n${GOOD_BLOCK}`)).toBe('Awal.')
 		expect(stripLeakedCalls('Tanpa panggilan | sama sekali.')).toBe('Tanpa panggilan | sama sekali.')
+	})
+
+	/* Uji ulang 28 Sep, UC4: blok-blok bocor yang berbeda satu sama lain, puluhan jumlahnya. */
+	test('puluhan panggilan berbeda: dibatasi, dan alirannya dihentikan', () => {
+		const many = Array.from({ length: 30 }, (_, index) =>
+			GOOD_BLOCK.replace('Pendahuluan', `Bagian ${index}`),
+		).join('\n')
+		expect(parseLeakedCalls(many)).toHaveLength(MAX_LEAKED_CALLS)
+		expect(leakedCallRepeats(many)).toBe(true)
+		const few = Array.from({ length: 3 }, (_, index) => GOOD_BLOCK.replace('Pendahuluan', `B${index}`)).join(
+			'\n',
+		)
+		expect(leakedCallRepeats(few)).toBe(false)
+	})
+
+	test('tag yang terpotong di ujung aliran ikut dibuang', () => {
+		expect(stripLeakedCalls(`${GOOD_BLOCK}\n</`)).toBe('')
+		expect(stripLeakedCalls(`Awal.\n${GOOD_BLOCK}\n<｜DS`)).toBe('Awal.')
 	})
 
 	test('bilah ASCII juga dikenali', () => {

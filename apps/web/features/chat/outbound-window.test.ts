@@ -63,6 +63,17 @@ describe('fitWindow', () => {
 		expect(fitWindow(messages, 40, 0)).toEqual(messages)
 	})
 
+	/* Uji ulang 28 Sep, UC4: satu balasan dengan puluhan panggilan dari blok DSML bocor. */
+	test('satu giliran yang lebih besar dari jendela dipangkas, tidak dikirim utuh', () => {
+		const ids = Array.from({ length: 50 }, (_, index) => `r${index}`)
+		const messages = [user('buatkan laporan'), call(...ids), ...ids.map(result)]
+		const fitted = fitWindow(messages, 40, 0)
+		expect(fitted.length).toBeLessThanOrEqual(40)
+		expect(valid(fitted)).toBe(true)
+		expect(fitted[0].content.startsWith('buatkan laporan')).toBe(true)
+		expect(fitted.at(-1)?.content).toContain('more tool calls from this step were left out')
+	})
+
 	test('permintaan di dalam jendela tidak diulang', () => {
 		const messages = [user('lama'), { role: 'assistant' as const, content: 'jawab' }, ...longTask(2)]
 		const fitted = fitWindow(messages, 6, 2)
