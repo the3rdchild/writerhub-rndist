@@ -169,7 +169,7 @@ export function outlineDone(progress: OutlineProgress): boolean {
 		progress.pages && progress.forcedPageFloor && progress.forcedPageFloor > progress.pages.max
 			? progress.forcedPageFloor
 			: progress.pages?.max
-	const lengthOk = !progress.pages || (progress.pages.current >= progress.pages.min && progress.pages.current <= effectiveMax)
+	const lengthOk = !progress.pages || (progress.pages.current >= progress.pages.min && progress.pages.current <= (effectiveMax ?? Infinity))
 	return (
 		lengthOk &&
 		progress.sections.every((section) => section.state === 'written') &&
@@ -198,7 +198,7 @@ export function outlineGaps(progress: OutlineProgress): string {
 			? progress.forcedPageFloor
 			: pages?.max
 	const length =
-		pages && pages.current > effectiveMax
+		pages && pages.current > (effectiveMax ?? Infinity)
 			? `over:${pages.current}`
 			: pages && pages.current < pages.min
 				? `under:${pages.current}`
@@ -284,7 +284,7 @@ export function outlineForWriter(progress: OutlineProgress): { short: string; de
 		pages && progress.forcedPageFloor && progress.forcedPageFloor > pages.max
 			? progress.forcedPageFloor
 			: pages?.max
-	if (pages && (pages.current > effectiveMax || pages.current < pages.min)) {
+	if (pages && (pages.current > (effectiveMax ?? Infinity) || pages.current < pages.min)) {
 		short.push(`${pages.current} dari ${range(pages)} hlm`)
 		detail.push(`Panjang ${pages.current} halaman, target ${range(pages)}`)
 	}
