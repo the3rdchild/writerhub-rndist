@@ -1123,12 +1123,17 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'create_tab',
 		kind: 'write',
 		description:
-			'Create a new tab in the active document, optionally with initial content as Markdown - e.g. an appendix.',
+			'Create a new tab in the active document, optionally with initial content. Use "template" to start from a built-in template (e.g. "surat-lamaran-kerja" for a cover letter in the second tab), or "markdown" for raw Markdown content.',
 		parameters: {
 			type: 'object',
 			properties: {
 				title: { type: 'string' },
 				markdown: { type: 'string', description: 'Initial content as Markdown.' },
+				template: {
+					type: 'string',
+					description:
+						'Slug of a built-in template whose content, layout, and typography fill the new tab — e.g. "surat-lamaran-kerja".',
+				},
 			},
 		},
 	},
