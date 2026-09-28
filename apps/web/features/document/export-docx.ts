@@ -385,7 +385,9 @@ export async function exportDocx(
 		if (!stops || stops.length === 0) return undefined
 		return stops.map((s) => ({
 			type: TAB_TYPE[s.type] ?? TabStopType.LEFT,
-			position: px(s.posPt),
+			// Posisinya dalam pt, bukan px: 1 pt = 20 twip. `px()` di sini membuat
+			// tab stop 120 pt mendarat di 90 pt dan titik dua surat tidak sejajar.
+			position: Math.round(s.posPt * 20),
 		}))
 	}
 

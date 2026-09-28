@@ -1583,8 +1583,9 @@ describe('rumus matematika (OMML)', () => {
 		const paragraf = blocks(result.content)[0]
 
 		expect(blocks(result.content)).toHaveLength(1)
-		expect(paragraf?.content?.map((node) => node.type)).toEqual(['mathInline', 'text', 'text'])
-		expect(textOf(paragraf)).toBe('\t(1)')
+		// `<w:tab/>` kini node tab, bukan `\t` di teks (tab stop, surat lamaran).
+		expect(paragraf?.content?.map((node) => node.type)).toEqual(['mathInline', 'tab', 'text'])
+		expect(textOf(paragraf)).toBe('(1)')
 	})
 })
 
@@ -2026,5 +2027,17 @@ describe('model section Word (W1/W3/W4/W8)', () => {
 		expect(images).toHaveLength(1)
 		expect(images[0]?.attrs).toMatchObject({ width: 50, height: 50 })
 		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain('garis hiasan')
+	})
+})
+
+/* Surat lamaran PLN: titik dua blok data disejajarkan dengan tab stop. */
+describe('tab dan tab stop saat impor', () => {
+	test('<w:tab/> menjadi node tab, dan <w:tabs> menjadi tabStops dalam pt', async () => {
+		const pPr = '<w:tabs><w:tab w:val="left" w:pos="2400"/></w:tabs>'
+		const result = await readDocx(docx({ body: p(`${r('Nama')}<w:r><w:tab/></w:r>${r(': Ahmad')}`, pPr) }))
+		const paragraf = blocks(result.content)[0]
+
+		expect(paragraf?.content?.map((node) => node.type)).toEqual(['text', 'tab', 'text'])
+		expect(paragraf?.attrs?.tabStops).toEqual([{ posPt: 120, type: 'left' }])
 	})
 })

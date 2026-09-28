@@ -253,7 +253,13 @@ function walkInline(
 				const comments = stack && stack.length > 0 ? stack.map((id) => `w-${id}`) : undefined
 				if (text && props.vanish) skip(context, 'teks-tersembunyi')
 				if (text && !props.vanish) {
-					builder.inline.push({ type: 'text', text, marks: marksOf(props, link, context.theme, comments) })
+					/* `<w:tab/>` menjadi node tab, bukan `\t` di teks: di editor spasi itu
+					 * dilipat, dan tab stop paragraf (surat lamaran) tidak berlaku. */
+					const marks = marksOf(props, link, context.theme, comments)
+					text.split('\t').forEach((piece, index) => {
+						if (index > 0) builder.inline.push({ type: 'tab' })
+						if (piece) builder.inline.push({ type: 'text', text: piece, marks })
+					})
 					if (stack && stack.length > 0) {
 						for (const id of stack) {
 							const quotes = context.state.commentQuotes
