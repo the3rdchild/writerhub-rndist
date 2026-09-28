@@ -1,3 +1,4 @@
+import { speaksOpenRouter } from '@/lib/speaks-openrouter'
 import type { ProviderConfig } from '@/services/drafts/generation'
 
 /**
@@ -37,9 +38,9 @@ export interface SubAgentCall {
 	fetch?: typeof fetch
 }
 
-/** Hanya OpenRouter yang mengenal saklar `reasoning`; provider lain bisa menolaknya. */
+/** Hanya OpenRouter (dan proksinya) yang mengenal saklar `reasoning`; provider lain bisa menolaknya. */
 function reasoningField(baseUrl: string, reasoning: boolean): Record<string, unknown> {
-	return !reasoning && baseUrl.includes('openrouter.ai') ? { reasoning: { enabled: false } } : {}
+	return !reasoning && speaksOpenRouter(baseUrl) ? { reasoning: { enabled: false } } : {}
 }
 
 function contentOf(event: string): string {

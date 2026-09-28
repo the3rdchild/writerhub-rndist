@@ -129,7 +129,13 @@ export const env = {
 	// mode AUTH_MODE=none, yang memang tidak pernah memanggil admin-ppe.
 	AI_BASE_URL: str('AI_BASE_URL', 'https://openrouter.ai/api/v1'),
 	AI_API_KEY: str('AI_API_KEY'),
-	AI_MODEL: str('AI_MODEL', 'openai/gpt-4o-mini'),
+	AI_MODEL: str('AI_MODEL', 'deepseek/deepseek-v4-flash-0731'),
+	/**
+	 * `AI_BASE_URL` adalah proksi ke OpenRouter (mis. adapter lokal), jadi ia
+	 * juga memilih model per permintaan dan mengenal saklar `reasoning`. Tidak
+	 * perlu untuk URL openrouter.ai - yang itu dikenali dari hostnya.
+	 */
+	AI_BASE_URL_OPENROUTER: bool('AI_BASE_URL_OPENROUTER'),
 	/**
 	 * Batas waktu satu panggilan ke provider AI. Tanpa ini yang menentukan
 	 * adalah timeout bawaan runtime - batas yang tidak kita pilih, tidak sama
