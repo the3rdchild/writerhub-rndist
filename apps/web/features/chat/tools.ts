@@ -1,6 +1,7 @@
 'use client'
 
 import type { JSONContent } from '@tiptap/core'
+import { Fragment } from '@tiptap/pm/model'
 import { NodeSelection, Selection } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
 import {
@@ -35,15 +36,16 @@ import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
 import { isSectionScope, sectionRange } from '@/features/editor/section-scope'
 import { clampedAttrs, TOC_BLOCK, type TocBlockAttrs, type TocListKind } from '@/features/editor/toc-block'
 import type { CommentThread } from '@/features/sessions/types'
+import { buildSchema } from '@/features/sync/serialize'
 import { countWords } from '@/lib/utils'
 import {
 	afterBlockAt,
 	type FigurePlan,
 	type FigureSlot,
+	figureLine,
 	figureNote,
 	figureOf,
 	figuresBetween,
-	figureLine,
 	insideFigure,
 	keepFigures,
 	parseFigureLine,
@@ -52,7 +54,6 @@ import {
 	SVG_IN_PROSE,
 	svgInProse,
 } from './figures'
-import { Fragment } from '@tiptap/pm/model'
 import { insertFrontMatter } from './front-matter-insert'
 import { blockSummary, htmlCandidates } from './html-block-candidates'
 import { applyAcademicNumbering } from './numbering-apply'
@@ -1706,23 +1707,19 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			}
 
 			if (action === 'delete') {
-				// Preserve figures inside the deleted section: extract them and
-				// reinsert after the previous section (or at the start).
+				// Preserve figures inside the deleted section by replacing the whole
+				// section range with the preserved figure nodes in the same slot. This
+				// keeps them attached to the deleted block's position instead of
+				// drifting to the end of the document when the heading above is removed.
 				const inside = figuresBetween(editor.state.doc, from, to)
 				if (inside.length === 0) {
 					editor.view.dispatch(editor.state.tr.delete(from, to))
 					return { ok: true, message: 'Section deleted.' }
 				}
 
-				const prevInsert = at > 0 ? sectionEnd(editor, list, at - 1) : 0
-				const { tr } = editor.state
-				// Delete the section first, then insert preserved figures at the
-				// adjusted position (subtract deleted length if insertion point was after).
-				tr.delete(from, to)
-				let insertAt = prevInsert
-				if (insertAt > from) insertAt = insertAt - (to - from)
 				const frag = Fragment.fromArray(inside.map((f) => f.node))
-				tr.insert(insertAt, frag)
+				const { tr } = editor.state
+				tr.replaceWith(from, to, frag)
 				editor.view.dispatch(tr)
 				const preserved = inside.map((f) => figureLine(f.figure)).join('; ')
 				return {
