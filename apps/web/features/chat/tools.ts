@@ -260,7 +260,12 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 				from = text.toLowerCase().indexOf(query.toLowerCase(), from + query.length)
 			}
 
-			if (hits.length === 0) return `"${query}" does not appear in the document.`
+			if (hits.length === 0) {
+				const elsewhere = findInOtherTabs(context, query)
+				return elsewhere
+					? `"${query}" does not appear in this tab, but it is in "${elsewhere.label}". Call switch_tab "${elsewhere.id}" to edit it.`
+					: `"${query}" does not appear in the document.`
+			}
 			return `${hits.length} match(es):\n${hits.join('\n')}`
 		}
 
@@ -420,6 +425,24 @@ export function readToolLabel(editor: Editor, call: ToolCall): string {
 }
 
 /**
+ * Mencari `query` di tab lain (bukan tab aktif). Mengembalikan tab pertama
+ * yang mengandung teks itu, atau null bila tidak ada. Dipakai pesan alat tulis
+ * untuk menunjuk tab mana yang menyimpan teks yang tidak ada di tab aktif.
+ */
+export function findInOtherTabs(
+	context: { tabs: { id: string; label: string; active: boolean }[]; readTab: (tabId: string) => string | null },
+	query: string,
+): { id: string; label: string } | null {
+	const lower = query.toLowerCase()
+	for (const tab of context.tabs) {
+		if (tab.active) continue
+		const text = context.readTab(tab.id)
+		if (text && text.toLowerCase().includes(lower)) return { id: tab.id, label: tab.label }
+	}
+	return null
+}
+
+/**
  * Menaruh gambar dari sub-agent ke dalam dokumen.
  *
  * Dipisahkan dari `applyWriteTool` karena jalurnya memang berbeda: alat tulis
@@ -554,6 +577,12 @@ export interface WriteToolContext {
 	setPageSetup: (setup: PageSetup, scope: 'document' | 'tab') => void
 	setTypography: (typography: DocumentTypography, scope: 'document' | 'tab') => void
 	/**
+	 * Daftar tab dokumen aktif - dipakai pesan teks-tidak-ada-di-tab-aktif
+	 * untuk menunjuk tab lain.
+	 */
+	tabs: { id: string; label: string; active: boolean }[]
+	readTab: (tabId: string) => string | null
+	/**
 	 * Spec template yang sudah diambil saat panggilan alatnya tiba.
 	 *
 	 * Penerapan alat tulis berjalan sinkron - hasilnya dipakai langsung oleh
@@ -563,6 +592,8 @@ export interface WriteToolContext {
 	 */
 	templateSpecs: Map<string, TemplateSpec>
 	createTab: (title: string | undefined, markdown: string | undefined) => void
+	/** Berpindah ke tab lain; mengganti tab aktif di editor. */
+	switchTab: (tabId: string) => ToolOutcome
 	/** Mengganti judul dokumen aktif - nama yang tampil di atas editor. */
 	renameDocument: (title: string) => ToolOutcome
 	/** Mengganti label satu tab; `tabId` kosong berarti tab yang sedang dibuka. */
@@ -749,6 +780,8 @@ export function describeToolCall(call: ToolCall): string {
 			return 'Insert image'
 		case 'create_tab':
 			return `Create tab “${String(call.arguments.title ?? '').slice(0, 40) || 'baru'}”`
+		case 'switch_tab':
+			return `Switch to tab ${String(call.arguments.tab_id ?? '').slice(0, 12)}`
 		case 'rename_document':
 			return `Rename the document to “${String(call.arguments.title ?? '').slice(0, 40)}”`
 		case 'rename_tab':
@@ -1023,7 +1056,15 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const index = buildTextIndex(editor.state.doc)
 			const span = resolveSpan(index.text, find, 0)
 			const range = span ? textRangeToPM(index, span.offset, span.length) : null
-			if (!range) return { ok: false, message: PASSAGE_GONE }
+			if (!range) {
+				const elsewhere = findInOtherTabs(context, find)
+				return elsewhere
+					? {
+							ok: false,
+							message: `That passage is not in this tab, but it is in "${elsewhere.label}". Call switch_tab "${elsewhere.id}" first.`,
+						}
+					: { ok: false, message: PASSAGE_GONE }
+			}
 
 			if (svgInProse(replace)) return { ok: false, message: SVG_IN_PROSE }
 			if (insideFigure(editor.state.doc, range.from) || insideFigure(editor.state.doc, range.to)) {
@@ -1053,7 +1094,19 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const markdown = String(call.arguments.markdown ?? '')
 			if (!markdown.trim()) return { ok: false, message: 'Nothing to write.' }
 			const target = sectionTarget(headings(editor), call.arguments)
-			if (typeof target === 'string') return { ok: false, message: target }
+			if (typeof target === 'string') {
+				const title = cleanTitle(call.arguments.heading)
+				if (title) {
+					const elsewhere = findInOtherTabs(context, title)
+					if (elsewhere) {
+						return {
+							ok: false,
+							message: `No heading "${title}" in this tab, but it is in "${elsewhere.label}". Call switch_tab "${elsewhere.id}" first.`,
+						}
+					}
+				}
+				return { ok: false, message: target }
+			}
 			return writeSection(editor, target, markdown)
 		}
 
@@ -1747,6 +1800,12 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const markdown = typeof call.arguments.markdown === 'string' ? call.arguments.markdown : undefined
 			context.createTab(title, markdown)
 			return { ok: true, message: `Tab "${title ?? 'baru'}" created.` }
+		}
+
+		case 'switch_tab': {
+			const tabId = String(call.arguments.tab_id ?? '').trim()
+			if (!tabId) return { ok: false, message: 'A tab id is required.' }
+			return context.switchTab(tabId)
 		}
 
 		case 'rename_document': {

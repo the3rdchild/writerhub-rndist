@@ -1122,6 +1122,22 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 			},
 		},
 	},
+	{
+		name: 'switch_tab',
+		kind: 'write',
+		description:
+			'Switch the editor to another tab of the active document. The model edits the active tab only, so call this before writing to a different chapter. Call list_tabs first to get the ids.',
+		parameters: {
+			type: 'object',
+			properties: {
+				tab_id: {
+					type: 'string',
+					description: 'Tab id as returned by list_tabs.',
+				},
+			},
+			required: ['tab_id'],
+		},
+	},
 ]
 
 /** Semua alat yang bisa dipanggil model, apa pun modenya. */

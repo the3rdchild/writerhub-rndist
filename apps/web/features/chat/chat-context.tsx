@@ -596,8 +596,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const { state } = useDocument()
 	const { editor } = useEditorInstance()
 	const { setActivePanel, markRun } = usePanels()
-	const { doc, activeDocId, activeId, sessions, comments, addComment, renameDocument, renameSession } =
-		useSessions()
+	const {
+		doc,
+		activeDocId,
+		activeId,
+		sessions,
+		comments,
+		addComment,
+		renameDocument,
+		renameSession,
+		selectSession,
+	} = useSessions()
 	const { setup, setPageSetup } = usePageSetup()
 	const { furniture } = usePageFurniture()
 	const language = useDocumentLanguage()
@@ -1018,6 +1027,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		if (!tab) return { ok: false, message: `No tab with id ${target}. Call list_tabs first.` }
 		app.renameSession(target, title)
 		return { ok: true, message: `Tab renamed to "${title}".` }
+	}
+	/*
+	 * Berpindah ke tab lain: mengganti tab aktif di editor. Tab aktif menentukan
+	 * dokumen mana yang disunting alat tulis, jadi model harus memanggil ini
+	 * sebelum menulis ke bab di tab lain.
+	 */
+	const switchTabById = (tabId: string): ToolOutcome => {
+		const app = appRef.current
+		const tab = app.sessions.find((session) => session.id === tabId)
+		if (!tab) return { ok: false, message: `No tab with id ${tabId}. Call list_tabs first.` }
+		if (tab.id === app.activeId) return { ok: true, message: `Already on tab "${sessionLabel(tab)}".` }
+		selectSession(tabId)
+		return { ok: true, message: `Switched to tab "${sessionLabel(tab)}".` }
 	}
 	/*
 	 * Header/footer hidup di meta ydoc tab, bukan di dokumen editor - jadi
@@ -1728,8 +1750,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					setup: appRef.current.setup,
 					setPageSetup: appRef.current.setPageSetup,
 					setTypography: appRef.current.setTypography,
+					tabs: appRef.current.sessions.map((tab) => ({
+						id: tab.id,
+						label: sessionLabel(tab),
+						active: tab.id === appRef.current.activeId,
+					})),
+					readTab: tabText,
 					templateSpecs: templateSpecsRef.current,
 					createTab: createTabWithContent,
+					switchTab: switchTabById,
 					renameDocument: renameActiveDocument,
 					renameTab: renameTabById,
 					setFurnitureLine,
