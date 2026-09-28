@@ -131,7 +131,10 @@ describe('hentian halaman per bab', () => {
 	// Di karya ilmiah yang tingkat 1 bukan cuma BAB - Abstrak, Daftar Isi, dan
 	// Daftar Pustaka juga - dan semuanya memang berhalaman sendiri.
 	test('karya ilmiah membuka lembar baru di tiap judul tingkat 1', () => {
-		const akademik = BUILTIN_TEMPLATES.filter((template) => template.category === 'academic_id')
+		// Laporan praktikum menyambung: 9-10 bagian, target 5-8 halaman (TP-2).
+		const akademik = BUILTIN_TEMPLATES.filter(
+			(template) => template.category === 'academic_id' && template.slug !== 'laporan-praktikum',
+		)
 		expect(akademik.length).toBeGreaterThan(0)
 
 		for (const template of akademik) {
@@ -139,6 +142,10 @@ describe('hentian halaman per bab', () => {
 			expect(headingBreakLevels(typography), `${template.slug}`).toEqual([1])
 			expect(resolveHeadingStyle(typography, 2).pageBreakBefore, `${template.slug} subbab`).toBe(false)
 		}
+
+		// Laporan praktikum khusus tidak memecah halaman per heading tingkat 1.
+		const praktikum = typographyOf('laporan-praktikum')
+		expect(headingBreakLevels(praktikum), 'laporan-praktikum').toEqual([])
 	})
 
 	// Laporan panjang ikut; memo, surat, notulen, dan CV tidak - memecah CV per

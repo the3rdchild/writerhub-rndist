@@ -98,11 +98,14 @@ function itemState(docs: readonly PMNode[], label: string, kind: ItemKind): Item
  * Keadaan naskah terhadap kerangka di brief. `docs` adalah semua tab dokumen -
  * CV dan surat lamaran bisa berada di tab yang berbeda. `pageCount` hanya
  * diberikan bila panjang seluruh dokumen memang terukur (satu tab).
+ * `breakLevels` adalah tingkat heading yang tipografinya memaksa halaman baru
+ * (dari `headingBreakLevels`); dipakai menghitung batas bawah halaman wajib.
  */
 export function outlineProgress(
 	docs: readonly PMNode[],
 	brief: ResearchBrief,
 	pageCount: number | null,
+	breakLevels: readonly number[] = [],
 ): OutlineProgress | null {
 	if (brief.chapters.length === 0) return null
 
@@ -132,15 +135,33 @@ export function outlineProgress(
 
 	const target = brief.plan?.pages
 	const pages = target && pageCount !== null ? { current: pageCount, min: target[0], max: target[1] } : null
-	return { sections, items, pages }
+
+	/*
+	 * Batas bawah halaman dari pemecah wajib: kerangka tidak mencatat tingkat
+	 * tiap bab, tetapi `set_outline` menempatkannya sebagai heading tingkat 1.
+	 * Bila tingkat 1 memaksa halaman baru, setiap bab di kerangka menambah satu
+	 * halaman minimum. Tanpa target halaman atau tanpa pemecah wajib, batas
+	 * ini tidak berlaku.
+	 */
+	const floor = pages && breakLevels.includes(1) ? brief.chapters.length : null
+	const forcedPageFloor = floor && floor > 0 ? floor : null
+
+	return { sections, items, pages, forcedPageFloor }
 }
 
 const range = ({ min, max }: { min: number; max: number }) => (min === max ? `${min}` : `${min}-${max}`)
 
 export function outlineDone(progress: OutlineProgress): boolean {
-	const lengthOk =
-		!progress.pages ||
-		(progress.pages.current >= progress.pages.min && progress.pages.current <= progress.pages.max)
+	/*
+	 * Batas bawah penulis (`pages.min`) tidak pernah diubah. Bila batas wajib
+	 * (`forcedPageFloor`) di atas maksimum, batas atas efektif menjadi batas
+	 * wajib itu - panjang sampai batas wajib bukan kelebihan (TP-2).
+	 */
+	const effectiveMax =
+		progress.pages && progress.forcedPageFloor && progress.forcedPageFloor > progress.pages.max
+			? progress.forcedPageFloor
+			: progress.pages?.max
+	const lengthOk = !progress.pages || (progress.pages.current >= progress.pages.min && progress.pages.current <= effectiveMax)
 	return (
 		lengthOk &&
 		progress.sections.every((section) => section.state === 'written') &&
@@ -162,8 +183,14 @@ export function outlineGaps(progress: OutlineProgress): string {
 		.filter((item) => item.state !== 'present')
 		.map((item) => `${item.label}:${item.state}`)
 	const pages = progress.pages
+	// Batas bawah penulis tidak pernah diubah. Bila batas wajib di atas
+	// maksimum, panjang sampai batas wajib bukan kelebihan (TP-2).
+	const effectiveMax =
+		pages && progress.forcedPageFloor && progress.forcedPageFloor > pages.max
+			? progress.forcedPageFloor
+			: pages?.max
 	const length =
-		pages && pages.current > pages.max
+		pages && pages.current > effectiveMax
 			? `over:${pages.current}`
 			: pages && pages.current < pages.min
 				? `under:${pages.current}`
@@ -196,7 +223,17 @@ export function outlineForModel(progress: OutlineProgress): string {
 	if (progress.pages) {
 		const { current, max, min } = progress.pages
 		const target = range(progress.pages)
-		if (current > max)
+		const floor = progress.forcedPageFloor
+		/*
+		 * Bila target maksimum di bawah batas wajib dari pemecah halaman,
+		 * sampaikan ke model dan larang menghapus isi demi panjang - target itu
+		 * mustahil dicapai tanpa membuang bagian wajib (TP-2).
+		 */
+		if (floor && floor > max) {
+			lines.push(
+				`Length: ${current} pages. The writer asked for ${target}, but the template forces a page break at every section, so the document cannot be shorter than ${floor} pages. Do not delete or shorten required sections to fit the page target.`,
+			)
+		} else if (current > max)
 			lines.push(
 				`Length: ${current} pages, the writer asked for ${target} - shorten existing sections, do not add.`,
 			)
@@ -233,7 +270,13 @@ export function outlineForWriter(progress: OutlineProgress): { short: string; de
 		)
 	}
 	const pages = progress.pages
-	if (pages && (pages.current > pages.max || pages.current < pages.min)) {
+	// Batas bawah penulis tidak pernah diubah. Bila batas wajib di atas
+	// maksimum, panjang sampai batas wajib bukan kelebihan (TP-2).
+	const effectiveMax =
+		pages && progress.forcedPageFloor && progress.forcedPageFloor > pages.max
+			? progress.forcedPageFloor
+			: pages?.max
+	if (pages && (pages.current > effectiveMax || pages.current < pages.min)) {
 		short.push(`${pages.current} dari ${range(pages)} hlm`)
 		detail.push(`Panjang ${pages.current} halaman, target ${range(pages)}`)
 	}

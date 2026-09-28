@@ -2,10 +2,12 @@
 
 import type { Node as PMNode, Schema } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/react'
+import { headingBreakLevels } from '@writer-hub/shared'
 import type { ResearchBrief } from '@writer-hub/shared'
 import type * as Y from 'yjs'
 import type { PageSetup } from '@/features/editor/page-geometry'
 import { paginationKey } from '@/features/editor/pagination'
+import { resolveTypography } from '@/features/sessions/ydoc'
 import { buildSchema, fragmentToJSON } from '@/features/sync/serialize'
 import { type OutlineProgress, outlineProgress } from './outline-check'
 
@@ -36,6 +38,15 @@ function measuredPages(editor: Editor | null, tabCount: number, setup: PageSetup
 	return paginationKey.getState(editor.state)?.pageCount ?? null
 }
 
+/**
+ * Tingkat heading yang memaksa halaman baru di tipografi dokumen ini, dipakai
+ * menghitung batas bawah halaman wajib (TP-2). Hanya terukur bila satu tab.
+ */
+function breakLevelsOf(doc: Y.Doc, tabIds: readonly string[], tabCount: number): readonly number[] {
+	if (tabCount !== 1 || tabIds.length === 0) return []
+	return headingBreakLevels(resolveTypography(doc, tabIds[0]))
+}
+
 export function measureOutline(input: {
 	doc: Y.Doc
 	tabIds: readonly string[]
@@ -48,5 +59,6 @@ export function measureOutline(input: {
 		tabDocs(input.doc, input.tabIds),
 		input.brief,
 		measuredPages(input.editor, input.tabIds.length, input.setup),
+		breakLevelsOf(input.doc, input.tabIds, input.tabIds.length),
 	)
 }
