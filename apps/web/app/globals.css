@@ -1848,6 +1848,13 @@ a {
   font-size: 1.05em;
 }
 
+/* Karakter tab: lebar 0,5 inci baku; dengan tab stop paragraf, NodeView
+   yang menghitung lebarnya. */
+.document-body [data-tab] {
+  display: inline-block;
+  width: 0.5in;
+}
+
 /* LaTeX yang belum sah tetap ditampilkan, ditandai, bukan dihilangkan. */
 .document-body .math-error,
 .document-body .katex .katex-error {

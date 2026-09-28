@@ -17,6 +17,7 @@ import {
 	sameSheetGeometry,
 } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE, type SectionSpan, sectionSpans } from '@/features/editor/section-break'
+import type { TabStop } from '@/features/editor/tab-stops'
 import { DOCX_ALIGNMENT, docxTypographyStyles } from './docx/typography-styles'
 import { docxPositionedFurniture, docxSectionFurniture, type FurnitureContent } from './export-furniture'
 import { collectImageSources, type ExportImage, imageBox, imageLabel, loadExportImage } from './export-images'
@@ -335,6 +336,8 @@ export async function exportDocx(
 		WidthType,
 		LevelFormat,
 		ImageRun,
+		Tab,
+		TabStopType,
 	} = docx
 
 	const HEADINGS = [
@@ -352,21 +355,48 @@ export async function exportDocx(
 				const marks = marksOf(child)
 				child.text.split('\n').forEach((piece, index) => {
 					if (index > 0) runs.push(new TextRun({ break: 1 }))
-					if (piece) runs.push(new TextRun({ text: piece, ...marks }))
+					// Karakter \t di teks (impor lama) diterjemahkan ke run tab.
+					if (piece) {
+						const parts = piece.split('\t')
+						parts.forEach((part, i) => {
+							if (i > 0) runs.push(new TextRun({ children: [new Tab()] }))
+							if (part) runs.push(new TextRun({ text: part, ...marks }))
+						})
+					}
 				})
 			} else if (child.type.name === 'hardBreak') {
 				runs.push(new TextRun({ break: 1 }))
+			} else if (child.type.name === 'tab') {
+				runs.push(new TextRun({ children: [new Tab()] }))
 			}
 		})
 		return runs
 	}
 
+	const TAB_TYPE = {
+		left: TabStopType.LEFT,
+		right: TabStopType.RIGHT,
+		center: TabStopType.CENTER,
+	} as const
+
+	/** Menerjemahkan `tabStops` paragraf ke opsi tab stop docx. */
+	const tabStopsOf = (node: PMNode) => {
+		const stops = node.attrs.tabStops as TabStop[] | null | undefined
+		if (!stops || stops.length === 0) return undefined
+		return stops.map((s) => ({
+			type: TAB_TYPE[s.type] ?? TabStopType.LEFT,
+			position: px(s.posPt),
+		}))
+	}
+
 	const paragraphOf = (node: PMNode, extra: Record<string, unknown> = {}): InstanceType<typeof Paragraph> => {
 		const alignment = DOCX_ALIGNMENT[node.attrs.textAlign as string]
+		const tabStops = tabStopsOf(node)
 
 		return new Paragraph({
 			children: runsOf(node),
 			...(alignment ? { alignment } : {}),
+			...(tabStops ? { tabStops } : {}),
 			...blockKeepOf(node),
 			...spacingOf(node),
 			indent: {

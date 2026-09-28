@@ -41,6 +41,10 @@ function declarations(style: BlockStyle): string[] {
 		// Paginasi kanvas memakai daftar tingkatnya sendiri (`headingBreakLevels`);
 		// baris ini yang mengurus hasil cetak dan PDF.
 		...(style.pageBreakBefore ? ['break-before: page'] : []),
+		// Garis bawah blok (pBdr bottom): tipis, di bawah teks.
+		...(style.borderBottom
+			? [`border-bottom: ${style.borderBottom.widthPt}pt solid ${style.borderBottom.color}`]
+			: []),
 	]
 }
 

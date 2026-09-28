@@ -127,6 +127,7 @@ export function jsonToLine(blocks: JSONContent[]): PageFurnitureLine | null {
 		for (const node of content ?? []) {
 			if (node.type === 'text' && node.text) out.push(node.text)
 			else if (node.type === 'hardBreak') out.push(' ')
+			else if (node.type === 'tab') out.push(' ')
 			else if (node.type === 'image') out.push(node.attrs?.alt ? String(node.attrs.alt) : '')
 		}
 		return out.join('')

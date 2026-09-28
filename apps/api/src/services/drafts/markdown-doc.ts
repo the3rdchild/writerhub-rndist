@@ -49,6 +49,19 @@ const BULLET_ITEM = /^[-*]\s+(.*)$/
 const ORDERED_ITEM = /^\d+\.\s+(.*)$/
 /** Baris yang mengakhiri sebuah paragraf karena ia memulai blok lain. */
 const BLOCK_START = /^(?:#{1,6}\s|[-*]\s|\d+\.\s|>|```)/
+/**
+ * Marker perataan di kerangka template: `{:align=center}`, `{:align=right}`,
+ * `{:align=center}`, `{:align=justify}`, atau `{:align=left}` di baris
+ * tersendiri sebelum paragraf/heading yang diratakan. Tidak bentrok dengan
+ * Markdown biasa karena `{` di awal baris bukan penanda Markdown manapun.
+ */
+const ALIGN_HINT = /^\s*\{:align=(center|right|justify|left)\}\s*$/
+
+/*
+ * Tab stop per paragraf: `{:tabs=72pt:left,144pt:right}`.
+ * Posisi dalam pt; jenis opsional (baku: left).
+ */
+const TABS_HINT = /^\s*\{:tabs=([0-9]+pt:[a-z]+(?:,[0-9]+pt:[a-z]+)*)\}\s*$/
 
 interface InlinePattern {
 	pattern: RegExp
@@ -122,9 +135,29 @@ function markedNodes(text: string, marks: DocMark[]): DocNode[] {
 	]
 }
 
-function paragraph(text: string): DocNode {
-	const content = inlineNodes(text)
-	return content.length > 0 ? { type: 'paragraph', content } : { type: 'paragraph' }
+function paragraph(text: string, align?: string, tabStops?: DocNode[]): DocNode {
+	const content = inlineWithTabs(text)
+	const attrs: Record<string, unknown> = {}
+	if (align) attrs.textAlign = align
+	if (tabStops && tabStops.length > 0) attrs.tabStops = tabStops
+	const hasAttrs = Object.keys(attrs).length > 0
+	return content.length > 0
+		? { type: 'paragraph', ...(hasAttrs ? { attrs } : {}), content }
+		: { type: 'paragraph', ...(hasAttrs ? { attrs } : {}) }
+}
+
+/**
+ * Sama dengan `inlineNodes`, tapi `\t` di teks dipisah menjadi node `tab`
+ * agar tab stop per paragraf berfungsi di editor.
+ */
+function inlineWithTabs(text: string): DocNode[] {
+	const parts = text.split('\t')
+	const nodes: DocNode[] = []
+	for (let i = 0; i < parts.length; i++) {
+		if (i > 0) nodes.push({ type: 'tab' })
+		nodes.push(...inlineNodes(parts[i]))
+	}
+	return nodes
 }
 
 function cells(line: string): string[] {
@@ -144,7 +177,12 @@ function tableCell(type: 'tableHeader' | 'tableCell', text: string): DocNode {
 }
 
 /** Satu blok Markdown per panggilan; mengembalikan node plus baris berikutnya. */
-type BlockReader = (lines: string[], index: number) => { node: DocNode; next: number } | null
+type BlockReader = (
+	lines: string[],
+	index: number,
+	align?: string,
+	tabStops?: DocNode[],
+) => { node: DocNode; next: number } | null
 
 const readFencedCode: BlockReader = (lines, index) => {
 	const opening = lines[index].trim()
@@ -193,12 +231,16 @@ const readTable: BlockReader = (lines, index) => {
 	return { node: { type: 'table', content: rows }, next: cursor }
 }
 
-const readHeading: BlockReader = (lines, index) => {
+const readHeading: BlockReader = (lines, index, align) => {
 	const match = HEADING.exec(lines[index].trim())
 	if (!match) return null
 
 	return {
-		node: { type: 'heading', attrs: { level: match[1].length }, content: inlineNodes(match[2]) },
+		node: {
+			type: 'heading',
+			attrs: { level: match[1].length, ...(align ? { textAlign: align } : {}) },
+			content: inlineNodes(match[2]),
+		},
 		next: index + 1,
 	}
 }
@@ -240,7 +282,7 @@ const readBlockquote: BlockReader = (lines, index) => {
 	return { node: { type: 'blockquote', content: [paragraph(quoted.join(' '))] }, next: cursor }
 }
 
-const readParagraph: BlockReader = (lines, index) => {
+const readParagraph: BlockReader = (lines, index, align, tabStops) => {
 	const collected: string[] = [lines[index].trim()]
 	let cursor = index + 1
 
@@ -251,14 +293,16 @@ const readParagraph: BlockReader = (lines, index) => {
 			isTableRow(lines[cursor]) ||
 			BLOCK_START.test(line) ||
 			HORIZONTAL_RULE.test(line) ||
-			isPageBreakLine(line)
+			isPageBreakLine(line) ||
+			ALIGN_HINT.test(lines[cursor]) ||
+			TABS_HINT.test(lines[cursor])
 		)
 			break
 		collected.push(line)
 		cursor += 1
 	}
 
-	return { node: paragraph(collected.join(' ')), next: cursor }
+	return { node: paragraph(collected.join(' '), align, tabStops), next: cursor }
 }
 
 const BLOCK_READERS: BlockReader[] = [
@@ -467,6 +511,8 @@ export function markdownToDoc(markdown: string, options: MarkdownDocOptions = {}
 	const lines = markdown.replace(/\r\n/g, '\n').split('\n')
 	const content: DocNode[] = []
 	let index = 0
+	let pendingAlign: string | undefined
+	let pendingTabs: DocNode[] | undefined
 
 	while (index < lines.length) {
 		if (!lines[index].trim()) {
@@ -474,11 +520,32 @@ export function markdownToDoc(markdown: string, options: MarkdownDocOptions = {}
 			continue
 		}
 
+		// Marker perataan: `{:align=center}` menunggu paragraf/heading berikutnya.
+		const hint = ALIGN_HINT.exec(lines[index])
+		if (hint) {
+			pendingAlign = hint[1]
+			index += 1
+			continue
+		}
+
+		// Marker tab stop: `{:tabs=72pt:left,144pt:right}`.
+		const tabHint = TABS_HINT.exec(lines[index])
+		if (tabHint) {
+			pendingTabs = tabHint[1].split(',').map((entry) => {
+				const [posStr, type] = entry.split(':')
+				return { posPt: Number.parseInt(posStr, 10), type: type as 'left' | 'right' | 'center' }
+			})
+			index += 1
+			continue
+		}
+
 		for (const read of BLOCK_READERS) {
-			const result = read(lines, index)
+			const result = read(lines, index, pendingAlign, pendingTabs)
 			if (!result) continue
 			content.push(result.node)
 			index = result.next
+			pendingAlign = undefined
+			pendingTabs = undefined
 			break
 		}
 	}
