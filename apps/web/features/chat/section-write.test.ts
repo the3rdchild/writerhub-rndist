@@ -663,20 +663,41 @@ describe('write_section replace_subsections mengganti seluruh subbab (ED-5)', ()
 	})
 })
 
-describe('docIsScaffold: kerangka kosong diganti flyer (UC5)', () => {
-	test('semua heading kosong: true', () => {
-		expect(docIsScaffold(doc(h(1, 'Judul'), p(''), h(1, 'Kontak'), p('')))).toBe(true)
-		expect(
-			docIsScaffold(doc(h(1, 'Flyer'), h(2, 'Judul'), p(''), h(2, 'Isi'), p(''), h(1, 'Kontak'), p(''))),
-		).toBe(true)
+describe('docIsScaffold: kerangka dibandingkan dengan template asal (UC5)', () => {
+	/** Template Flyer A4: H1 + H2 dengan placeholder kosong. */
+	const flyerTemplate = () =>
+		doc(h(1, 'Flyer'), h(2, 'Judul'), p(''), h(2, 'Isi'), p(''), h(1, 'Kontak'), p(''))
+
+	test('dokumen sama persis dengan template: true', () => {
+		expect(docIsScaffold(flyerTemplate(), flyerTemplate())).toBe(true)
 	})
 
-	test('ada heading yang berisi: false', () => {
-		expect(docIsScaffold(doc(h(1, 'Judul'), p('Isi.'), h(1, 'Kontak'), p('')))).toBe(false)
-		expect(docIsScaffold(doc(h(1, 'Judul'), p(''), h(2, 'Sub'), p('isi'), h(1, 'Kontak'), p('')))).toBe(false)
+	test('dokumen dengan teks yang berbeda dari template: false', () => {
+		const changed = doc(h(1, 'Flyer'), h(2, 'Judul'), p('Judul Baru'), h(2, 'Isi'), p(''), h(1, 'Kontak'), p(''))
+		expect(docIsScaffold(changed, flyerTemplate())).toBe(false)
 	})
 
-	test('tidak ada heading: false', () => {
-		expect(docIsScaffold(doc(p('Hanya paragraf.')))).toBe(false)
+	test('dokumen dengan heading utama yang berbeda: false', () => {
+		const changed = doc(h(1, 'Flyer Lain'), h(2, 'Judul'), p(''), h(2, 'Isi'), p(''), h(1, 'Kontak'), p(''))
+		expect(docIsScaffold(changed, flyerTemplate())).toBe(false)
+	})
+
+	test('dokumen hanya H2 tanpa H1: false', () => {
+		expect(docIsScaffold(doc(h(2, 'Catatan rapat'), p('Isi penting')), flyerTemplate())).toBe(false)
+	})
+
+	test('paragraf sebelum heading pertama yang berbeda: false', () => {
+		const changed = doc(p('Paragraf pembuka'), h(1, 'Flyer'), h(2, 'Judul'), p(''), h(2, 'Isi'), p(''), h(1, 'Kontak'), p(''))
+		expect(docIsScaffold(changed, flyerTemplate())).toBe(false)
+	})
+
+	test('paragraf sebelum heading pertama yang kosong: true', () => {
+		const changed = doc(p(''), h(1, 'Flyer'), h(2, 'Judul'), p(''), h(2, 'Isi'), p(''), h(1, 'Kontak'), p(''))
+		expect(docIsScaffold(changed, flyerTemplate())).toBe(true)
+	})
+
+	test('tanpa template: false (tidak menggantikan apa pun)', () => {
+		expect(docIsScaffold(flyerTemplate(), null)).toBe(false)
+		expect(docIsScaffold(flyerTemplate(), undefined)).toBe(false)
 	})
 })
