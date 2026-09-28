@@ -1910,23 +1910,19 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			}
 
 			if (action === 'delete') {
-				// Preserve figures inside the deleted section: extract them and
-				// reinsert after the previous section (or at the start).
+				// Preserve figures inside the deleted section by replacing the whole
+				// section range with the preserved figure nodes in the same slot. This
+				// keeps them attached to the deleted block's position instead of
+				// drifting to the end of the document when the heading above is removed.
 				const inside = figuresBetween(editor.state.doc, from, to)
 				if (inside.length === 0) {
 					editor.view.dispatch(editor.state.tr.delete(from, to))
 					return { ok: true, message: 'Section deleted.' }
 				}
 
-				const prevInsert = at > 0 ? sectionEnd(editor, list, at - 1) : 0
-				const { tr } = editor.state
-				// Delete the section first, then insert preserved figures at the
-				// adjusted position (subtract deleted length if insertion point was after).
-				tr.delete(from, to)
-				let insertAt = prevInsert
-				if (insertAt > from) insertAt = insertAt - (to - from)
 				const frag = Fragment.fromArray(inside.map((f) => f.node))
-				tr.insert(insertAt, frag)
+				const { tr } = editor.state
+				tr.replaceWith(from, to, frag)
 				editor.view.dispatch(tr)
 				const preserved = inside.map((f) => figureLine(f.figure)).join('; ')
 				return {
