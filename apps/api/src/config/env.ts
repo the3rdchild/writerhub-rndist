@@ -143,9 +143,16 @@ export const env = {
 	 *
 	 * Longgar dengan sengaja: satu giliran chat yang menulis panjang memang
 	 * bisa berjalan menit-menitan, dan memotongnya di tengah lebih buruk
-	 * daripada menunggu.
+	 * daripada menunggu. Ini batas total satu giliran; provider yang diam
+	 * diputus lebih cepat oleh `AI_IDLE_TIMEOUT_MS`.
 	 */
-	AI_REQUEST_TIMEOUT_MS: num('AI_REQUEST_TIMEOUT_MS', 120_000),
+	AI_REQUEST_TIMEOUT_MS: num('AI_REQUEST_TIMEOUT_MS', 600_000),
+	/**
+	 * Jeda terlama tanpa satu potongan pun dari provider, termasuk menunggu
+	 * header. Potongan penalaran dan komentar keep-alive ikut dihitung, jadi
+	 * model yang masih berpikir tidak diputus (lihat `chat/deadline.ts`).
+	 */
+	AI_IDLE_TIMEOUT_MS: num('AI_IDLE_TIMEOUT_MS', 90_000),
 
 	// ── Riset web (Tavily) ──────────────────────────────────────────────────
 	TAVILY_API_KEY: str('TAVILY_API_KEY'),
