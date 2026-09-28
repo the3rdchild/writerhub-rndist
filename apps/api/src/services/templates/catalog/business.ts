@@ -80,7 +80,10 @@ const TIMES_12 = { family: '"Times New Roman", Times, serif', sizePt: 12 }
 const SURAT_LAMARAN_TYPOGRAPHY: DocumentTypography = {
 	baseFont: TIMES_12,
 	lineHeight: 1.15,
-	paragraph: { align: 'justify', spaceBeforePt: 0, spaceAfterPt: 0 },
+	/* Satu baris kosong antarblok, seperti contoh PLN. Baris di dalam blok
+	 * (tujuan surat, data pelamar, tanda tangan) dipisah pindah baris, bukan
+	 * paragraf, jadi jarak ini tidak merenggangkannya. */
+	paragraph: { align: 'justify', spaceBeforePt: 0, spaceAfterPt: 12 },
 }
 
 /** Margin kiri 3 cm, sisi lain 2,5 cm untuk laporan kajian kebijakan. */
@@ -476,12 +479,17 @@ Jabatan
 		category: 'business',
 		locale: 'id',
 		position: 6,
+		/*
+		 * Baris yang diakhiri \\ disambung dengan pindah baris (markdown-doc.ts):
+		 * tiap blok surat satu paragraf. Tab stop 144 pt (empat tab bawaan, seperti
+		 * contoh PLN) muat untuk label terpanjang, "Tempat, Tanggal Lahir".
+		 */
 		markdown: `{:align=right}
 [Kota], [Tanggal Bulan Tahun]
 
-Kepada Yth.
-[Jabatan Penerima]
-[Nama Perusahaan]
+Kepada Yth.\\
+[Jabatan Penerima]\\
+[Nama Perusahaan]\\
 [Alamat Perusahaan]
 
 Hal: Lamaran Pekerjaan [Posisi]
@@ -490,12 +498,12 @@ Dengan hormat,
 
 Saya yang bertanda tangan di bawah ini:
 
-{:tabs=90pt:left}
-Nama\t: [Nama Lengkap]
-Tempat, Tanggal Lahir\t: [Tempat], [Tanggal Lahir]
-Alamat\t: [Alamat Lengkap]
-No. HP\t: [Nomor HP]
-Email\t: [Alamat Email]
+{:tabs=144pt:left}
+Nama\t: [Nama Lengkap]\\
+Tempat, Tanggal Lahir\t: [Tempat], [Tanggal Lahir]\\
+Alamat\t: [Alamat Lengkap]\\
+No. HP\t: [Nomor HP]\\
+Email\t: [Alamat Email]\\
 Pendidikan Terakhir\t: [Pendidikan Terakhir]
 
 Saya bermaksud melamar posisi [Posisi] di [Nama Perusahaan]. [Alasan singkat mengapa tertarik dengan posisi tersebut dan ringkasan kualifikasi yang relevan.]
@@ -510,10 +518,10 @@ Bersama surat ini saya melampirkan:
 
 Demikian surat lamaran ini saya buat dengan sebenar-benarnya. Atas perhatian Bapak/Ibu, saya ucapkan terima kasih.
 
-Hormat saya,
-
-
-
+Hormat saya,\\
+\\
+\\
+\\
 **[Nama Lengkap]**
 `,
 		spec: {
@@ -538,6 +546,7 @@ Hormat saya,
 				'Write in formal, courteous Indonesian (bahasa baku); keep it to one page.',
 				'Do not add any heading or title — this letter has no printed headings.',
 				'Fill every placeholder in square brackets using replace_text; do not leave any.',
+				'The recipient block, the applicant data block and the signature are each one paragraph with line breaks; replace only the bracketed text and keep the breaks and tabs.',
 				'The applicant data block uses tab stops to align colons; keep them aligned.',
 				'The attachment list is numbered and must include all five items.',
 			],
@@ -767,10 +776,13 @@ Hormat saya,
 		category: 'business',
 		locale: 'id',
 		position: 10,
-		markdown: `# [Judul Kajian Kebijakan]
+		markdown: `{:align=center}
+# [Judul Kajian Kebijakan]
 
+{:align=center}
 [Instansi/Penyusun]
 
+{:align=center}
 [Kota], [Tahun]
 
 # Ringkasan Eksekutif

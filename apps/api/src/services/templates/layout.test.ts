@@ -6,6 +6,7 @@ import {
 	type TemplateSpec,
 } from '@writer-hub/shared'
 import { BUILTIN_TEMPLATES } from './catalog'
+import { compileTemplateContent } from './compile'
 import { templateDocumentLayout, templateTabLayout } from './layout'
 
 const pageSetup: TemplateSpec['layout']['pageSetup'] = {
@@ -171,5 +172,37 @@ describe('hentian halaman per bab', () => {
 			lineHeight: 1.5,
 		}
 		expect(headingBreakLevels(polos)).toEqual([])
+	})
+})
+
+/* Surat lamaran (uji UC7 28 Sep): blok-blok surat sempat melebur jadi satu kalimat. */
+describe('surat lamaran kerja', () => {
+	const surat = BUILTIN_TEMPLATES.find((template) => template.slug === 'surat-lamaran-kerja')
+	const blocks = surat ? compileTemplateContent(surat).content : []
+	const types = (node: { content?: { type: string }[] }) => (node.content ?? []).map((child) => child.type)
+
+	test('blok tujuan dan tanda tangan satu paragraf dengan pindah baris', () => {
+		const tujuan = blocks.find((node) => JSON.stringify(node).includes('Kepada Yth.'))
+		expect(types(tujuan ?? {}).filter((type) => type === 'hardBreak')).toHaveLength(3)
+		const ttd = blocks.at(-1)
+		expect(JSON.stringify(ttd)).toContain('Hormat saya,')
+		expect(types(ttd ?? {}).filter((type) => type === 'hardBreak').length).toBeGreaterThanOrEqual(3)
+	})
+
+	test('blok data: enam baris, satu tab per baris, tab stop muat untuk label terpanjang', () => {
+		const data = blocks.find((node) => node.attrs?.tabStops)
+		expect(types(data ?? {}).filter((type) => type === 'tab')).toHaveLength(6)
+		// "Tempat, Tanggal Lahir" dalam Times 12 pt ±115 pt: tab stop di bawah itu melompat ke kelipatan berikutnya.
+		const stops = (data?.attrs?.tabStops ?? []) as { posPt: number }[]
+		expect(stops[0]?.posPt ?? 0).toBeGreaterThanOrEqual(130)
+	})
+})
+
+describe('template desain satu halaman', () => {
+	test('flyer dan poster meminta desain disisipkan sebagai tulisan pertama (UC5)', () => {
+		for (const slug of ['flyer-a4', 'flyer-a5', 'poster-a3']) {
+			const rules = BUILTIN_TEMPLATES.find((template) => template.slug === slug)?.spec.aiRules ?? []
+			expect(rules.some((rule) => rule.includes('very first edit'))).toBe(true)
+		}
 	})
 })
