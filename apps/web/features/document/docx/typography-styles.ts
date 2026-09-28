@@ -66,6 +66,18 @@ function paragraphOf(style: BlockStyle) {
 			firstLine: Math.max(0, pt(style.firstLinePt)),
 			hanging: Math.max(0, pt(-style.firstLinePt)),
 		},
+		// Garis bawah blok: diterjemahkan ke pBdr bottom seperti Template_cv.docx.
+		...(style.borderBottom
+			? {
+					border: {
+						bottom: {
+							style: 'single' as const,
+							size: Math.max(1, Math.round(style.borderBottom.widthPt * 8)),
+							color: style.borderBottom.color.replace('#', ''),
+						},
+					},
+				}
+			: {}),
 	}
 }
 

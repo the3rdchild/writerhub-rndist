@@ -120,6 +120,8 @@ function runsOfNode(docx: DocxModule, node: JSONContent, hideNumbers: boolean): 
 			runs.push(...tokenRunsOf(docx, child.text, marks, hideNumbers))
 		} else if (child.type === 'hardBreak') {
 			runs.push(new docx.TextRun({ break: 1 }))
+		} else if (child.type === 'tab') {
+			runs.push(new docx.TextRun({ children: [new docx.Tab()] }))
 		} else if (child.type === 'image') {
 			const image = imageRunOf(docx, child)
 			if (image) runs.push(image)
