@@ -343,7 +343,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'write_section',
 		kind: 'write',
 		description:
-			'Write the body of a section that already has a heading - a template placeholder, or an outline you set up earlier - replacing whatever is under that heading now. This is the way to fill a planned document section by section. The heading itself stays. Subsections you repeat as Markdown headings in the content are filled in place; new ones are added after them; subsections you leave out stay as they are. Figures under the heading are never lost: repeat the [Figure: …] line read_section shows for each where it belongs; one you leave out stays at the end of the section, and [Delete figure: …] removes it. Use insert_content only for sections that do not exist yet, and replace_text for small edits inside a paragraph.',
+			'Write the body of a section that already has a heading - a template placeholder, or an outline you set up earlier - replacing whatever is under that heading now. This is the way to fill a planned document section by section. The heading itself stays. Subsections you repeat as Markdown headings in the content are filled in place; new ones are added after them; subsections you leave out stay as they are - the result lists the ones left out. Pass replace_subsections: true to replace the whole subsection set: the ones you do not mention are removed, so only the subsections in your Markdown remain. Figures under the heading are never lost: repeat the [Figure: …] line read_section shows for each where it belongs; one you leave out stays at the end of the section, and [Delete figure: …] removes it. Use insert_content only for sections that do not exist yet, and replace_text for small edits inside a paragraph.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -358,6 +358,11 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 				markdown: {
 					type: 'string',
 					description: 'The section content as Markdown, without the section heading itself.',
+				},
+				replace_subsections: {
+					type: 'boolean',
+					description:
+						'True to replace every subsection under the heading: subsections missing from your Markdown are removed, so only the ones you write remain. Default false leaves them in place.',
 				},
 			},
 			required: ['markdown'],

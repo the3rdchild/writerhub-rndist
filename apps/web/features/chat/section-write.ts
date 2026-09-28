@@ -279,7 +279,14 @@ export interface SectionEdit {
 }
 
 export type SectionWritePlan =
-	| { ok: true; edits: SectionEdit[]; filled: string[]; added: string[] }
+	| {
+			ok: true
+			edits: SectionEdit[]
+			filled: string[]
+			added: string[]
+			/** Subbab yang ada tetapi tidak disebut di Markdown. */
+			untouched: string[]
+	  }
 	| { ok: false; message: string }
 
 /**
@@ -288,12 +295,20 @@ export type SectionWritePlan =
  * Markdown dipecah per judul. Bagian sebelum judul pertama menjadi isi heading
  * sasaran. Judul yang sama dengan subjudul yang sudah ada mengisi subjudul itu
  * di tempatnya - kerangka template tidak digandakan. Judul baru disisipkan
- * sesudah subjudul terakhir yang cocok. Subjudul yang tidak disebut dibiarkan.
+ * sesudah subjudul terakhir yang cocok. Subjudul yang tidak disebut dibiarkan
+ * - kecuali `replaceSubsections` true, yang menghapusnya beserta isinya.
+ *
+ * `untouched` selalu berisi subbab yang ada tetapi tidak disebut, apa pun pilihan.
  *
  * Suntingannya diurutkan dari posisi terbesar, supaya menerapkannya satu per
  * satu tidak menggeser posisi suntingan berikutnya.
  */
-export function planSectionWrite(doc: PMNode, at: number, markdown: string): SectionWritePlan {
+export function planSectionWrite(
+	doc: PMNode,
+	at: number,
+	markdown: string,
+	options: { replaceSubsections?: boolean } = {},
+): SectionWritePlan {
 	const list = docHeadings(doc)
 	const head = list[at]
 	if (!head) return { ok: false, message: `No heading with index ${at}. Call get_outline first.` }
@@ -360,6 +375,20 @@ export function planSectionWrite(doc: PMNode, at: number, markdown: string): Sec
 		added.push(title)
 	}
 
+	// Subbab yang ada tapi tidak disebut di Markdown.
+	const untouchedHeadings = subtree.filter((heading) => !used.has(heading))
+	const untouched = untouchedHeadings.map((heading) => heading.text)
+
+	if (options.replaceSubsections) {
+		// Hapus setiap subbab yang tidak disebut beserta isinya - dari heading
+		// sampai subbab berikutnya atau akhir subtree. Pemenggal halaman di
+		// batas bawah tetap tinggal milik heading sasaran.
+		for (const heading of untouchedHeadings) {
+			const removeTo = subtreeEnd(doc, list, heading.index)
+			edits.push({ from: heading.pos, to: removeTo, markdown: '' })
+		}
+	}
+
 	if (!edits.some((edit) => edit.markdown.trim()))
 		return { ok: false, message: 'Nothing to write: the content is empty.' }
 	/*
@@ -370,7 +399,7 @@ export function planSectionWrite(doc: PMNode, at: number, markdown: string): Sec
 	 */
 	const order = new Map(edits.map((edit, index) => [edit, index]))
 	edits.sort((a, b) => b.from - a.from || (order.get(b) ?? 0) - (order.get(a) ?? 0))
-	return { ok: true, edits, filled, added }
+	return { ok: true, edits, filled, added, untouched }
 }
 
 /**
