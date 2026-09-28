@@ -11,7 +11,10 @@ describe('katalog template bawaan', () => {
 	})
 
 	test('setiap struktur punya minimal satu bagian wajib', () => {
+		// Surat lamaran tidak punya heading; strukturnya sengaja kosong.
+		const tanpaStruktur = new Set(['surat-lamaran-kerja'])
 		for (const template of BUILTIN_TEMPLATES) {
+			if (tanpaStruktur.has(template.slug)) continue
 			expect(
 				template.spec.structure.some((item) => item.required),
 				`${template.slug} tanpa bagian required`,
