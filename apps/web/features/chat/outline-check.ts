@@ -161,18 +161,15 @@ const range = ({ min, max }: { min: number; max: number }) => (min === max ? `${
 
 export function outlineDone(progress: OutlineProgress): boolean {
 	/*
-	 * Panjang di bawah batas wajib (`forcedPageFloor`) tidak dihitung sebagai
-	 * kekurangan: model tidak bisa mencapai target dengan menghapus isi yang
-	 * sebenarnya diperlukan (TP-2). Di atas maksimum tetap belum selesai.
+	 * Batas bawah penulis (`pages.min`) tidak pernah diubah. Bila batas wajib
+	 * (`forcedPageFloor`) di atas maksimum, batas atas efektif menjadi batas
+	 * wajib itu - panjang sampai batas wajib bukan kelebihan (TP-2).
 	 */
-	const lengthOk = !progress.pages
-		? true
-		: (() => {
-				const effectiveMin = progress.forcedPageFloor
-					? Math.min(progress.pages.min, progress.forcedPageFloor)
-					: progress.pages.min
-				return progress.pages.current >= effectiveMin && progress.pages.current <= progress.pages.max
-			})()
+	const effectiveMax =
+		progress.pages && progress.forcedPageFloor && progress.forcedPageFloor > progress.pages.max
+			? progress.forcedPageFloor
+			: progress.pages?.max
+	const lengthOk = !progress.pages || (progress.pages.current >= progress.pages.min && progress.pages.current <= effectiveMax)
 	return (
 		lengthOk &&
 		progress.sections.every((section) => section.state === 'written') &&
@@ -194,15 +191,16 @@ export function outlineGaps(progress: OutlineProgress): string {
 		.filter((item) => item.state !== 'present')
 		.map((item) => `${item.label}:${item.state}`)
 	const pages = progress.pages
-	// Di bawah batas wajib bukan kekurangan - model tidak boleh menghapus isi
-	// demi mengejar target yang pemecah halaman jadikan mustahil (TP-2).
-	// Minimum efektif turun ke batas wajib bila ia di bawah target.
-	const floor = progress.forcedPageFloor
-	const underThreshold = pages ? (floor ? Math.min(pages.min, floor) : pages.min) : 0
+	// Batas bawah penulis tidak pernah diubah. Bila batas wajib di atas
+	// maksimum, panjang sampai batas wajib bukan kelebihan (TP-2).
+	const effectiveMax =
+		pages && progress.forcedPageFloor && progress.forcedPageFloor > pages.max
+			? progress.forcedPageFloor
+			: pages?.max
 	const length =
-		pages && pages.current > pages.max
+		pages && pages.current > effectiveMax
 			? `over:${pages.current}`
-			: pages && pages.current < underThreshold
+			: pages && pages.current < pages.min
 				? `under:${pages.current}`
 				: ''
 	return [...sections, ...items, length].join('|')
@@ -243,10 +241,6 @@ export function outlineForModel(progress: OutlineProgress): string {
 			lines.push(
 				`Length: ${current} pages. The writer asked for ${target}, but the template forces a page break at every section, so the document cannot be shorter than ${floor} pages. Do not delete or shorten required sections to fit the page target.`,
 			)
-		} else if (floor && current < floor) {
-			lines.push(
-				`Length: ${current} pages, the writer asked for ${target}. The template forces at least ${floor} pages, so this is not too short - do not add filler.`,
-			)
 		} else if (current > max)
 			lines.push(
 				`Length: ${current} pages, the writer asked for ${target} - shorten existing sections, do not add.`,
@@ -284,10 +278,13 @@ export function outlineForWriter(progress: OutlineProgress): { short: string; de
 		)
 	}
 	const pages = progress.pages
-	// Di bawah batas wajib bukan kekurangan (TP-2).
-	const floor = progress.forcedPageFloor
-	const underThreshold = pages ? (floor ? Math.min(pages.min, floor) : pages.min) : 0
-	if (pages && (pages.current > pages.max || pages.current < underThreshold)) {
+	// Batas bawah penulis tidak pernah diubah. Bila batas wajib di atas
+	// maksimum, panjang sampai batas wajib bukan kelebihan (TP-2).
+	const effectiveMax =
+		pages && progress.forcedPageFloor && progress.forcedPageFloor > pages.max
+			? progress.forcedPageFloor
+			: pages?.max
+	if (pages && (pages.current > effectiveMax || pages.current < pages.min)) {
 		short.push(`${pages.current} dari ${range(pages)} hlm`)
 		detail.push(`Panjang ${pages.current} halaman, target ${range(pages)}`)
 	}

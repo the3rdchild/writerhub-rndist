@@ -2,6 +2,7 @@
 
 import type { Node as PMNode, Schema } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/react'
+import { headingBreakLevels } from '@writer-hub/shared'
 import type { ResearchBrief } from '@writer-hub/shared'
 import { headingBreakLevels } from '@writer-hub/shared'
 import type * as Y from 'yjs'
