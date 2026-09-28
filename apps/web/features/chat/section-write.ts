@@ -379,6 +379,13 @@ export function planSectionWrite(
 	const head = list[at]
 	if (!head) return { ok: false, message: `No heading with index ${at}. Call get_outline first.` }
 
+	/*
+	 * `edits` harus dideklarasikan sebelum blok `newHeading` di bawah,
+	 * karena blok itu menambah edit pengganti heading. Sebelumnya blok itu
+	 * dipanggil sebelum deklarasi, sehingga setiap `write_section` dengan
+	 * `new_heading` melempar `ReferenceError` dan typecheck web gagal (TS2448).
+	 */
+	const edits: SectionEdit[] = []
 	// If caller requests a new heading text, schedule a replacement of the
 	// heading node itself by inserting a zero-length edit at the heading
 	// position. The writer must explicitly request this via `newHeading`.
@@ -412,7 +419,6 @@ export function planSectionWrite(
 	}
 	segments.push({ ...current, body: lines.slice(cut).join('\n') })
 
-	const edits: SectionEdit[] = []
 	const filled: string[] = []
 	const added: string[] = []
 	const used = new Set<DocHeading>()

@@ -1,6 +1,7 @@
 'use client'
 
 import type { JSONContent } from '@tiptap/core'
+import { Fragment } from '@tiptap/pm/model'
 import { NodeSelection, Selection } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
 import {
@@ -41,10 +42,10 @@ import {
 	afterBlockAt,
 	type FigurePlan,
 	type FigureSlot,
+	figureLine,
 	figureNote,
 	figureOf,
 	figuresBetween,
-	figureLine,
 	insideFigure,
 	keepFigures,
 	parseFigureLine,
@@ -53,7 +54,6 @@ import {
 	SVG_IN_PROSE,
 	svgInProse,
 } from './figures'
-import { Fragment } from '@tiptap/pm/model'
 import { insertFrontMatter } from './front-matter-insert'
 import { blockSummary, htmlCandidates } from './html-block-candidates'
 import { applyAcademicNumbering } from './numbering-apply'
@@ -161,7 +161,7 @@ function writeSection(
 	editor: Editor,
 	at: number,
 	markdown: string,
-	options: { replaceSubsections?: boolean } = {},
+	options: { replaceSubsections?: boolean; newHeading?: string } = {},
 ): ToolOutcome {
 	const title = headings(editor)[at]?.text ?? ''
 	if (GENERATED_SECTION.test(title)) {
@@ -1226,7 +1226,30 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			if (typeof call.arguments.new_heading === 'string' && call.arguments.new_heading.trim()) {
 				options.newHeading = String(call.arguments.new_heading).trim()
 			}
-			return writeSection(editor, target, markdown, options)
+			const outcome = writeSection(editor, target, markdown, options)
+			if (!outcome.ok) return outcome
+			/*
+			 * Pengingat heading: bila heading tingkat 1 bagian yang ditulis masih
+			 * sama persis dengan heading tingkat 1 di template asal, dan model
+			 * tidak meminta `new_heading`, beri tahu. Template CV memakai heading
+			 * "[Nama Lengkap]" yang seharusnya diganti isinya, bukan dibiarkan
+			 * (uji 28 Sep, UC7: heading bawaan masih tercetak di atas nama asli).
+			 */
+			const slug = context.appliedFormat()
+			const spec = slug ? context.templateSpecs.get(slug) : undefined
+			const templateH1 = spec?.structure?.filter((item) => item.level === 1).map((item) => item.heading)
+			const headingInfo = headings(editor)[target]
+			if (
+				!options.newHeading &&
+				headingInfo?.level === 1 &&
+				templateH1?.some((h) => h === headingInfo.text)
+			) {
+				return {
+					...outcome,
+					message: `${outcome.message} The heading "${headingInfo.text}" is a placeholder from the template; pass new_heading to replace it.`,
+				}
+			}
+			return outcome
 		}
 
 		case 'insert_math': {
