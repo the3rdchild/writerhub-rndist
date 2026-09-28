@@ -7,6 +7,7 @@ import {
 	chapterNumber,
 	chapterSlot,
 	docHeadings,
+	docIsScaffold,
 	dropLeadingTitle,
 	emptyChapterFor,
 	planSectionWrite,
@@ -615,5 +616,23 @@ describe('write_section replace_subsections mengganti seluruh subbab (ED-5)', ()
 			'H1 BAB II TINJAUAN PUSTAKA',
 			'P [tinjauan]',
 		])
+	})
+})
+
+describe('docIsScaffold: kerangka kosong diganti flyer (UC5)', () => {
+	test('semua heading kosong: true', () => {
+		expect(docIsScaffold(doc(h(1, 'Judul'), p(''), h(1, 'Kontak'), p('')))).toBe(true)
+		expect(
+			docIsScaffold(doc(h(1, 'Flyer'), h(2, 'Judul'), p(''), h(2, 'Isi'), p(''), h(1, 'Kontak'), p(''))),
+		).toBe(true)
+	})
+
+	test('ada heading yang berisi: false', () => {
+		expect(docIsScaffold(doc(h(1, 'Judul'), p('Isi.'), h(1, 'Kontak'), p('')))).toBe(false)
+		expect(docIsScaffold(doc(h(1, 'Judul'), p(''), h(2, 'Sub'), p('isi'), h(1, 'Kontak'), p('')))).toBe(false)
+	})
+
+	test('tidak ada heading: false', () => {
+		expect(docIsScaffold(doc(p('Hanya paragraf.')))).toBe(false)
 	})
 })
