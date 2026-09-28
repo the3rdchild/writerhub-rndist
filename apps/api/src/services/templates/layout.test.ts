@@ -128,10 +128,16 @@ describe('hentian halaman per bab', () => {
 		return typography
 	}
 
-	// Di karya ilmiah yang tingkat 1 bukan cuma BAB - Abstrak, Daftar Isi, dan
-	// Daftar Pustaka juga - dan semuanya memang berhalaman sendiri.
+	// Di karya ilmiah yang tingkat 1 bukan cuma BAB - Abstrak, Daftar Isi,
+	// dan Daftar Pustaka juga - dan semuanya memang berhalaman sendiri.
+	// Pengecualian: laporan praktikum dan makalah pendek yang menyambung
+	// (uji 28 Sep, UC8: 10 bagian berhalaman sendiri membuat target 5-8
+	// mustahil, dan model menghapus isi demi mengejarnya - TP-2).
 	test('karya ilmiah membuka lembar baru di tiap judul tingkat 1', () => {
-		const akademik = BUILTIN_TEMPLATES.filter((template) => template.category === 'academic_id')
+		const menyambung = new Set(['laporan-praktikum'])
+		const akademik = BUILTIN_TEMPLATES.filter(
+			(template) => template.category === 'academic_id' && !menyambung.has(template.slug),
+		)
 		expect(akademik.length).toBeGreaterThan(0)
 
 		for (const template of akademik) {
@@ -153,6 +159,12 @@ describe('hentian halaman per bab', () => {
 		for (const slug of menyambung) {
 			expect(headingBreakLevels(typographyOf(slug)), slug).toEqual([])
 		}
+	})
+
+	// Laporan praktikum menyambung: 9 bagian tingkat 1, target 5-8 hlm.
+	// Bila tiap bagiannya berhalaman sendiri, minimumnya 9 - mustahil (TP-2).
+	test('laporan praktikum menyambung, bukan tiap bagiannya berhalaman sendiri', () => {
+		expect(headingBreakLevels(typographyOf('laporan-praktikum'))).toEqual([])
 	})
 
 	// Paper dua kolom mengalir menerus; halaman baru tiap bagian merusaknya.
