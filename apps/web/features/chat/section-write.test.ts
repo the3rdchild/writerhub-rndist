@@ -616,4 +616,48 @@ describe('write_section replace_subsections mengganti seluruh subbab (ED-5)', ()
 			'P [tinjauan]',
 		])
 	})
+
+	test('replace_subsections: subbab bersarang yang sama-sama dibuang tidak merusak isi lain', () => {
+		const root = doc(
+			h(1, 'BAB II'),
+			h(2, '2.1 Lama'),
+			p('isi 2.1'),
+			h(3, '2.1.1 Lama'),
+			p('isi 2.1.1'),
+			h(2, '2.2 Tetap'),
+			p('isi 2.2'),
+			h(1, 'BAB III'),
+			p('isi bab tiga'),
+		)
+		const plan = planSectionWrite(root, 0, '## 2.2 Tetap\n\nIsi baru 2.2.', {
+			replaceSubsections: true,
+		})
+		if (!plan.ok) throw new Error(plan.message)
+		const tr = EditorState.create({ doc: root }).tr
+		for (const edit of plan.edits) {
+			tr.replaceWith(edit.from, edit.to, edit.markdown ? blocksOf(edit.markdown) : [])
+		}
+		const texts: string[] = []
+		tr.doc.forEach((node) => {
+			texts.push(node.textContent)
+		})
+		expect(texts).toEqual(['BAB II', '2.2 Tetap', 'Isi baru 2.2.', 'BAB III', 'isi bab tiga'])
+	})
+
+	test('replace_subsections: subbab yang memuat subbab yang disebut tidak dihapus', () => {
+		const root = doc(
+			h(1, 'BAB II'),
+			h(2, '2.1 Induk'),
+			p('isi'),
+			h(3, '2.1.1 Anak'),
+			p('lama'),
+			h(1, 'BAB III'),
+		)
+		const plan = planSectionWrite(root, 0, '### 2.1.1 Anak\n\nBaru.', {
+			replaceSubsections: true,
+		})
+		if (!plan.ok) throw new Error(plan.message)
+		expect(plan.edits.some((edit) => edit.markdown === '' && edit.from <= 10)).toBe(false)
+		expect(plan.untouched).toContain('2.1 Induk')
+	})
 })
