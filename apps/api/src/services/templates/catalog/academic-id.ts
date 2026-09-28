@@ -42,6 +42,22 @@ const ACADEMIC_ID_TYPOGRAPHY_DOUBLE: DocumentTypography = {
 }
 
 /**
+ * Karya ilmiah pendek yang menyambung: laporan praktikum, makalah kuliah.
+ * Tipografi dasarnya sama, tetapi heading tingkat 1 tidak membuka lembar
+ * baru. Laporan praktikum punya 9-10 bagian tingkat 1; bila tiap bagiannya
+ * berhalaman sendiri, minimumnya sudah 10 halaman padahal targetnya 5-8.
+ * Model lalu mengejar target mustahil itu dengan menghapus isi - uji 28
+ * Sep, UC8: 123 `write_section` dan 47 penghapusan bagian.
+ */
+const ACADEMIC_ID_TYPOGRAPHY_CONTINUOUS: DocumentTypography = {
+	...ACADEMIC_ID_TYPOGRAPHY,
+	headings: {
+		...ACADEMIC_ID_TYPOGRAPHY.headings,
+		1: { ...ACADEMIC_ID_TYPOGRAPHY.headings?.[1], pageBreakBefore: false },
+	},
+}
+
+/**
  * Proposal TA I Capstone Design Teknik Elektro Unpad. Berbeda dari tipografi
  * akademik lain di berkas ini, angkanya **tertulis di pedomannya sendiri**:
  * "Huruf: Times New Roman, Spasi: Double, Spacing Before 0 pt After 0 pt,
@@ -634,7 +650,7 @@ Tanggal Praktikum
 					pageColor: null,
 					pageless: false,
 				},
-				typography: ACADEMIC_ID_TYPOGRAPHY,
+				typography: ACADEMIC_ID_TYPOGRAPHY_CONTINUOUS,
 			},
 			format: {
 				citationStyle: 'vancouver',

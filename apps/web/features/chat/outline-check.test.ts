@@ -162,6 +162,52 @@ describe('panjang terhadap target (AC-7)', () => {
 	})
 })
 
+describe('batas bawah halaman dari pemecah wajib (TP-2)', () => {
+	// 9 bagian seperti Laporan Praktikum, target 5-8. Bila setiap heading
+	// tingkat 1 berhalaman sendiri, minimum 9 - mustahil mencapai target 8.
+	const chapters = Array.from({ length: 9 }, (_, i) => chapter(`Bagian ${i + 1}`))
+	// Dokumen dengan semua heading berisi, supaya hanya panjang yang dinilai.
+	const fullDoc = () => doc(...chapters.flatMap((c) => [heading(1, c.title), paragraph('isi')]))
+	const floor = (pages: number) => outlineProgress([fullDoc()], brief(chapters, [5, 8]), pages, [1])
+
+	test('batas bawah dihitung dari jumlah bab di tingkat yang memecah', () => {
+		expect(floor(9)?.forcedPageFloor).toBe(9)
+		expect(floor(6)?.forcedPageFloor).toBe(9)
+	})
+
+	test('bila tidak ada pemecah wajib, batas bawah null', () => {
+		const noBreak = outlineProgress([fullDoc()], brief(chapters, [5, 8]), 6, [])
+		expect(noBreak?.forcedPageFloor).toBeNull()
+	})
+
+	test('panjang di atas batas wajib tetapi di dalam maksimum: selesai', () => {
+		// 8 halaman, target 5-8, batas wajib 9: di bawah batas tapi tidak dihitung.
+		expect(outlineDone(floor(8) as never)).toBe(true)
+	})
+
+	test('panjang di bawah batas wajib: tidak dihitung kekurangan', () => {
+		// 7 halaman, batas wajib 9: tidak under (model tidak boleh menambah filler).
+		expect(outlineGaps(floor(7) as never)).not.toContain('under')
+	})
+
+	test('panjang di atas maksimum tetap dihitung kelebihan', () => {
+		expect(outlineGaps(floor(12) as never)).toContain('over:12')
+		expect(outlineDone(floor(12) as never)).toBe(false)
+	})
+
+	test('model diberi tahu target mustahil dan dilarang menghapus isi', () => {
+		const model = outlineForModel(floor(9) as never)
+		expect(model).toContain('cannot be shorter than 9 pages')
+		expect(model).toContain('Do not delete or shorten required sections')
+	})
+
+	test('ringkasan penulis tidak menampilkan kekurangan di bawah batas', () => {
+		// 7 halaman, target 5-8, batas wajib 9: 7 di bawah 9 tapi bukan kekurangan.
+		const writer = outlineForWriter(floor(7) as never)
+		expect(writer.short).not.toContain('hlm')
+	})
+})
+
 describe('laporan untuk model dan penulis', () => {
 	const progress = outlineProgress(
 		[doc(heading(1, 'Pendahuluan'), paragraph('isi'), paragraph('Tabel 1. Data'), heading(1, 'Metode'))],
