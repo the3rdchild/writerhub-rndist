@@ -674,3 +674,48 @@ describe('write_section replace_subsections mengganti seluruh subbab (ED-5)', ()
 		expect(subsectionNotes(plan, false)[0]).toContain('left out "2.1 Lama", "2.1.1 Lama"')
 	})
 })
+
+describe('write_section new_heading: ganti teks heading, tingkat tetap', () => {
+	const cv = () =>
+		doc(
+			h(1, '[Nama Lengkap]'),
+			p('[Posisi yang Dilamar]'),
+			h(2, 'Ringkasan'),
+			p('[Ringkasan singkat]'),
+			h(2, 'Pengalaman Kerja'),
+			p('[Pengalaman]'),
+		)
+
+	test('heading diganti, tingkat tetap, isinya tertulis di bawahnya', () => {
+		const root = cv()
+		const plan = planSectionWrite(root, 0, 'Mahardika Pratama', { newHeading: 'Mahardika Pratama' })
+		if (!plan.ok) throw new Error(plan.message)
+		// Edit heading ada, menggantikan head.pos..head.end
+		const headingEdit = plan.edits.find((e) => e.from === 0 && e.to > 0)
+		expect(headingEdit).toBeDefined()
+		expect(headingEdit?.markdown).toBe('# Mahardika Pratama')
+		// Contoh dokumen hasil: heading baru, paragraf posisi tetap
+		expect(outline(applyEdits(root, plan.edits))[0]).toBe('H1 Mahardika Pratama')
+	})
+
+	test('heading tingkat 2 diganti dengan tetap di tingkat 2', () => {
+		const root = cv()
+		const plan = planSectionWrite(root, 2, 'Isi ringkasan.', { newHeading: 'Profil Singkat' })
+		if (!plan.ok) throw new Error(plan.message)
+		const headingEdit = plan.edits.find((e) => e.markdown.startsWith('## '))
+		expect(headingEdit).toBeDefined()
+		expect(headingEdit?.markdown).toBe('## Profil Singkat')
+		expect(outline(applyEdits(root, plan.edits))).toContain('H2 Profil Singkat')
+		expect(outline(applyEdits(root, plan.edits))).toContain('P Isi ringkasan.')
+	})
+
+	test('tanpa new_heading: perilaku tidak berubah, heading tetap', () => {
+		const root = cv()
+		const plan = planSectionWrite(root, 2, 'Pengalaman terbaru.')
+		if (!plan.ok) throw new Error(plan.message)
+		// Heading tidak diganti: tidak ada edit yang memuat "# " di posisi heading
+		expect(plan.edits.some((e) => e.markdown.startsWith('# '))).toBe(false)
+		expect(outline(applyEdits(root, plan.edits))).toContain('H1 [Nama Lengkap]')
+		expect(outline(applyEdits(root, plan.edits))).toContain('P Pengalaman terbaru.')
+	})
+})

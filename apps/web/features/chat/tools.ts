@@ -156,7 +156,7 @@ function writeSection(
 	editor: Editor,
 	at: number,
 	markdown: string,
-	options: { replaceSubsections?: boolean } = {},
+	options: { replaceSubsections?: boolean; newHeading?: string } = {},
 ): ToolOutcome {
 	const title = headings(editor)[at]?.text ?? ''
 	if (GENERATED_SECTION.test(title)) {
@@ -1082,10 +1082,41 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const markdown = String(call.arguments.markdown ?? '')
 			if (!markdown.trim()) return { ok: false, message: 'Nothing to write.' }
 			const target = sectionTarget(headings(editor), call.arguments)
-			if (typeof target === 'string') return { ok: false, message: target }
-			return writeSection(editor, target, markdown, {
-				replaceSubsections: call.arguments.replace_subsections === true,
-			})
+			if (typeof target === 'string') {
+				return { ok: false, message: target }
+			}
+			// Support optional `new_heading` parameter: pass through to writeSection
+			const options = { replaceSubsections: call.arguments.replace_subsections === true } as {
+				replaceSubsections?: boolean
+				newHeading?: string | undefined
+			}
+			if (typeof call.arguments.new_heading === 'string' && call.arguments.new_heading.trim()) {
+				options.newHeading = String(call.arguments.new_heading).trim()
+			}
+			const outcome = writeSection(editor, target, markdown, options)
+			if (!outcome.ok) return outcome
+			/*
+			 * Pengingat heading: bila heading tingkat 1 bagian yang ditulis masih
+			 * sama persis dengan heading tingkat 1 di template asal, dan model
+			 * tidak meminta `new_heading`, beri tahu. Template CV memakai heading
+			 * "[Nama Lengkap]" yang seharusnya diganti isinya, bukan dibiarkan
+			 * (uji 28 Sep, UC7: heading bawaan masih tercetak di atas nama asli).
+			 */
+			const slug = context.appliedFormat()
+			const spec = slug ? context.templateSpecs.get(slug) : undefined
+			const templateH1 = spec?.structure?.filter((item) => item.level === 1).map((item) => item.heading)
+			const headingInfo = headings(editor)[target]
+			if (
+				!options.newHeading &&
+				headingInfo?.level === 1 &&
+				templateH1?.some((h) => h === headingInfo.text)
+			) {
+				return {
+					...outcome,
+					message: `${outcome.message} The heading "${headingInfo.text}" is a placeholder from the template; pass new_heading to replace it.`,
+				}
+			}
+			return outcome
 		}
 
 		case 'insert_math': {
