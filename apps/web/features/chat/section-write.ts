@@ -395,12 +395,20 @@ export function planSectionWrite(
 	const untouched = untouchedHeadings.map((heading) => heading.text)
 
 	if (options.replaceSubsections) {
-		// Hapus setiap subbab yang tidak disebut beserta isinya - dari heading
-		// sampai subbab berikutnya atau akhir subtree. Pemenggal halaman di
-		// batas bawah tetap tinggal milik heading sasaran.
+		// Subbab yang dibuang diproses berurutan sesuai dokumen. Subbab yang
+		// sudah tercakup rentang hapus induknya dilewati. Subbab yang rentangnya
+		// memuat subbab yang disebut tidak dihapus, dan dilaporkan sebagai
+		// tertinggal (tetap ada di `untouched`).
+		let coveredTo = -1
 		for (const heading of untouchedHeadings) {
+			if (heading.pos < coveredTo) continue
 			const removeTo = subtreeEnd(doc, list, heading.index)
+			const containsMentioned = subtree.some(
+				(h) => used.has(h) && h.pos > heading.pos && h.pos < removeTo,
+			)
+			if (containsMentioned) continue
 			edits.push({ from: heading.pos, to: removeTo, markdown: '' })
+			coveredTo = removeTo
 		}
 	}
 
