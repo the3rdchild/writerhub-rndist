@@ -269,7 +269,7 @@ Buatkan outline dulu untuk saya review. Jangan menulis apa pun ke dokumen sebelu
 		id: 'uc4',
 		folder: 'UC4-Kajian-MBG',
 		title: `Membuat Laporan Formal Kajian Penghentian MBG`,
-		template: 'Laporan Kuartalan',
+		template: 'Laporan Kajian Kebijakan',
 		research: true,
 		requirements: `Laporan kajian kebijakan, 8-12 halaman, bahasa Indonesia baku.
 
