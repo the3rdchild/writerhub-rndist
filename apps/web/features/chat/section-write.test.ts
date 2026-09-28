@@ -7,6 +7,7 @@ import {
 	chapterNumber,
 	chapterSlot,
 	docHeadings,
+	docIsScaffold,
 	dropLeadingTitle,
 	emptyChapterFor,
 	planSectionWrite,
@@ -522,5 +523,23 @@ describe('bab bernomor menurut urutannya (ED-3)', () => {
 		expect(chapterSlot(doc(h(1, 'Pendahuluan'), p('x')), '# BAB II\n\ny')).toBeNull()
 		expect(chapterSlot(skripsi(), '## 3.2 Sampel\n\nIsi.')).toBeNull()
 		expect(chapterSlot(skripsi(), 'Paragraf biasa.')).toBeNull()
+	})
+})
+
+describe('docIsScaffold: kerangka kosong diganti flyer (UC5)', () => {
+	test('semua heading kosong: true', () => {
+		expect(docIsScaffold(doc(h(1, 'Judul'), p(''), h(1, 'Kontak'), p('')))).toBe(true)
+		expect(
+			docIsScaffold(doc(h(1, 'Flyer'), h(2, 'Judul'), p(''), h(2, 'Isi'), p(''), h(1, 'Kontak'), p(''))),
+		).toBe(true)
+	})
+
+	test('ada heading yang berisi: false', () => {
+		expect(docIsScaffold(doc(h(1, 'Judul'), p('Isi.'), h(1, 'Kontak'), p('')))).toBe(false)
+		expect(docIsScaffold(doc(h(1, 'Judul'), p(''), h(2, 'Sub'), p('isi'), h(1, 'Kontak'), p('')))).toBe(false)
+	})
+
+	test('tidak ada heading: false', () => {
+		expect(docIsScaffold(doc(p('Hanya paragraf.')))).toBe(false)
 	})
 })

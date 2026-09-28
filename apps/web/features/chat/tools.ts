@@ -59,6 +59,7 @@ import {
 	chapterSlot,
 	type DocHeading,
 	docHeadings,
+	docIsScaffold,
 	dropLeadingTitle,
 	emptyChapterFor,
 	planSectionWrite,
@@ -1349,28 +1350,36 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const at = figurePlacement(editor, call.arguments)
 			if (typeof at === 'string') return { ok: false, message: at }
 			/*
-			 * Hasil rantainya dilaporkan apa adanya. Sebelumnya alat ini selalu
-			 * menjawab "ok", jadi sisipan yang gagal tetap muncul di lini masa
-			 * sebagai "Applied" - dan model melanjutkan seolah sampulnya ada.
+			 * `fit: 'page'` ke dokumen yang hanya kerangka kosong menggantikan
+			 * kerangkanya, bukan mendampingi. UC5: flyer A4 disisipkan ke
+			 * template yang berisi heading kosong; tanpa ini, heading tetap ada
+			 * dan memicu halaman kedua kosong.
 			 */
-			const inserted =
-				at === null
-					? insertChain(editor)
-							.insertHtmlBlock({ html, fit, ...(height ? { height } : {}) })
-							.run()
-					: insertFigure(
-							editor,
-							{
-								type: HTML_BLOCK,
-								attrs: { ...DEFAULT_HTML_BLOCK_ATTRS, html, fit, ...(height ? { height } : {}) },
-							},
-							at,
-						)
+			const replacement = fit === 'page' && at === null && docIsScaffold(editor.state.doc)
+			const attrs = { ...DEFAULT_HTML_BLOCK_ATTRS, html, fit, ...(height ? { height } : {}) }
+			let inserted: boolean
+			if (replacement) {
+				editor
+					.chain()
+					.deleteRange({ from: 0, to: editor.state.doc.content.size })
+					.insertContentAt(0, { type: HTML_BLOCK, attrs })
+					.run()
+				inserted = true
+			} else {
+				inserted =
+					at === null
+						? insertChain(editor)
+								.insertHtmlBlock({ html, fit, ...(height ? { height } : {}) })
+								.run()
+						: insertFigure(editor, { type: HTML_BLOCK, attrs }, at)
+			}
 			if (!inserted) return { ok: false, message: 'The design block could not be inserted here.' }
 
 			return {
 				ok: true,
-				message: `${fit === 'page' ? 'Full-page HTML design inserted.' : 'HTML design block inserted.'}${PLACED(at)}`,
+				message: `${fit === 'page' ? 'Full-page HTML design inserted.' : 'HTML design block inserted.'}${
+					replacement ? ' It replaced the empty template scaffold.' : PLACED(at)
+				}`,
 			}
 		}
 

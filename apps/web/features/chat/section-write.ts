@@ -272,6 +272,21 @@ export function sectionIsEmpty(doc: PMNode, at: number): boolean {
 	return list[at] !== undefined && !bodyBetween(doc, list[at].end, subtreeEnd(doc, list, at))
 }
 
+/**
+ * Seluruh dokumen hanya kerangka kosong: ada heading, dan setiap heading beserta
+ * subbagiannya belum berisi. Dipakai `insert_html_block` dengan `fit: 'page'`
+ * supaya kerangka template digantikan, bukan didampingi, oleh desain sehalaman.
+ */
+export function docIsScaffold(doc: PMNode): boolean {
+	const list = docHeadings(doc)
+	if (list.length === 0) return false
+	const top = list.filter((heading) => heading.level === 1)
+	for (const heading of top) {
+		if (!sectionIsEmpty(doc, heading.index)) return false
+	}
+	return true
+}
+
 export interface SectionEdit {
 	from: number
 	to: number
