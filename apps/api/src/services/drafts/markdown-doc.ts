@@ -146,18 +146,38 @@ function paragraph(text: string, align?: string, tabStops?: DocNode[]): DocNode 
 		: { type: 'paragraph', ...(hasAttrs ? { attrs } : {}) }
 }
 
+/** Penanda pindah baris di dalam paragraf, dari baris kerangka yang diakhiri `\`. */
+const LINE_BREAK = '\n'
+
 /**
  * Sama dengan `inlineNodes`, tapi `\t` di teks dipisah menjadi node `tab`
- * agar tab stop per paragraf berfungsi di editor.
+ * agar tab stop per paragraf berfungsi di editor, dan `\n` menjadi pindah baris.
  */
 function inlineWithTabs(text: string): DocNode[] {
-	const parts = text.split('\t')
 	const nodes: DocNode[] = []
-	for (let i = 0; i < parts.length; i++) {
-		if (i > 0) nodes.push({ type: 'tab' })
-		nodes.push(...inlineNodes(parts[i]))
-	}
+	text.split(LINE_BREAK).forEach((line, lineIndex) => {
+		if (lineIndex > 0) nodes.push({ type: 'hardBreak' })
+		line.split('\t').forEach((part, partIndex) => {
+			if (partIndex > 0) nodes.push({ type: 'tab' })
+			nodes.push(...inlineNodes(part))
+		})
+	})
 	return nodes
+}
+
+/**
+ * Baris kerangka yang diakhiri `\` disambung ke baris berikutnya dengan pindah
+ * baris, bukan spasi - seperti hard break Markdown. Surat memakainya: blok
+ * tujuan, blok data pelamar, dan ruang tanda tangan masing-masing satu
+ * paragraf dengan baris-baris di dalamnya. Tanpa ini, baris berurutan melebur
+ * jadi satu kalimat ("Kepada Yth. [Jabatan] [Perusahaan] …").
+ */
+function joinLines(lines: readonly string[]): string {
+	return lines.reduce((joined, line, index) => {
+		if (index === 0) return line
+		const previous = lines[index - 1]
+		return previous.endsWith('\\') ? `${joined.slice(0, -1)}${LINE_BREAK}${line}` : `${joined} ${line}`
+	}, '')
 }
 
 function cells(line: string): string[] {
@@ -302,7 +322,7 @@ const readParagraph: BlockReader = (lines, index, align, tabStops) => {
 		cursor += 1
 	}
 
-	return { node: paragraph(collected.join(' '), align, tabStops), next: cursor }
+	return { node: paragraph(joinLines(collected), align, tabStops), next: cursor }
 }
 
 const BLOCK_READERS: BlockReader[] = [

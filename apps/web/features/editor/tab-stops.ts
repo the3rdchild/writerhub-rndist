@@ -1,6 +1,7 @@
 'use client'
 
 import { Extension } from '@tiptap/core'
+import { tabLayoutPlugin } from './tab-layout'
 
 /**
  * Dukungan tab stop per paragraf.
@@ -11,6 +12,9 @@ import { Extension } from '@tiptap/core'
  * Dipakai blok data pelamar di surat lamaran: titik dua sejajar lewat tab stop
  * kanan sebelumnya, bukan tabel tanpa garis.
  */
+
+/** Pemilik tombol Tab sendiri: daftar dan tabel. */
+const TAB_OWNERS = ['listItem', 'taskItem', 'tableCell', 'tableHeader']
 
 export type TabStopType = 'left' | 'right' | 'center'
 
@@ -36,6 +40,7 @@ declare module '@tiptap/core' {
 
 export const TabStops = Extension.create({
 	name: 'tabStops',
+	priority: 110,
 
 	addGlobalAttributes() {
 		return [
@@ -83,19 +88,28 @@ export const TabStops = Extension.create({
 
 	addKeyboardShortcuts() {
 		return {
-			// Tombol Tab di paragraf biasa menyisipkan node tab.
-			// Di daftar, perilaku indentasi yang sudah ada tidak berubah
-			// karena ListItem menangani Tab sendiri.
+			/*
+			 * Seperti Word: Tab di tengah baris paragraf menyisipkan karakter tab,
+			 * supaya blok data surat ("Nama⇥: …") bisa diketik. Di awal paragraf
+			 * Tab tetap menambah indentasi (`indent.ts`), dan di daftar serta
+			 * tabel pemiliknya sendiri yang menangani - Tab pindah sel, atau
+			 * menurunkan butir. Prioritasnya di atas `blockIndent` supaya aturan
+			 * ini diperiksa lebih dulu; `false` menyerahkan tombolnya ke sana.
+			 */
 			Tab: ({ editor }) => {
-				const { state } = editor
-				const { $from } = state.selection
-				// Jangan intercept di daftar (indentasi).
-				for (let depth = $from.depth; depth >= 0; depth -= 1) {
-					const node = $from.node(depth)
-					if (node.type.name === 'listItem') return false
+				const { selection } = editor.state
+				const { $from } = selection
+				if (!selection.empty || $from.parent.type.name !== 'paragraph' || $from.parentOffset === 0)
+					return false
+				for (let depth = $from.depth; depth > 0; depth -= 1) {
+					if (TAB_OWNERS.includes($from.node(depth).type.name)) return false
 				}
 				return editor.commands.insertContent({ type: 'tab' })
 			},
 		}
+	},
+
+	addProseMirrorPlugins() {
+		return [tabLayoutPlugin()]
 	},
 })

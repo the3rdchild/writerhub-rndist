@@ -373,3 +373,39 @@ describe('kebiasaan LaTeX dan penanda bersarang dari model', () => {
 		])
 	})
 })
+
+describe('penanda kerangka template (perataan, tab stop, pindah baris)', () => {
+	test('{:align=…} berlaku untuk paragraf atau heading sesudahnya saja', () => {
+		const doc = markdownToDoc('{:align=right}\n[Kota], [Tanggal]\n\nIsi biasa.')
+		expect(doc.content[0].attrs).toEqual({ textAlign: 'right' })
+		expect(doc.content[1].attrs).toBeUndefined()
+	})
+
+	test('{:tabs=…} memberi tab stop, dan \\t menjadi node tab', () => {
+		const doc = markdownToDoc('{:tabs=120pt:left}\nNama\t: [Nama Lengkap]')
+		expect(doc.content[0].attrs).toEqual({ tabStops: [{ posPt: 120, type: 'left' }] })
+		expect(doc.content[0].content?.map((node) => node.type)).toEqual(['text', 'tab', 'text'])
+	})
+
+	/* Surat lamaran: tanpa ini blok tujuan dan blok data melebur jadi satu kalimat. */
+	test('baris yang diakhiri \\ disambung dengan pindah baris, bukan spasi', () => {
+		const doc = markdownToDoc('Kepada Yth.\\\n[Jabatan Penerima]\\\n[Nama Perusahaan]\nlanjut kalimat')
+		expect(doc.content).toHaveLength(1)
+		const nodes = doc.content[0].content ?? []
+		expect(nodes.map((node) => node.type)).toEqual(['text', 'hardBreak', 'text', 'hardBreak', 'text'])
+		expect(nodes.at(-1)?.text).toBe('[Nama Perusahaan] lanjut kalimat')
+	})
+
+	test('blok data: pindah baris dan tab dalam satu paragraf bertab stop', () => {
+		const doc = markdownToDoc('{:tabs=120pt:left}\nNama\t: [Nama]\\\nAlamat\t: [Alamat]')
+		expect(doc.content[0].content?.map((node) => node.type)).toEqual([
+			'text',
+			'tab',
+			'text',
+			'hardBreak',
+			'text',
+			'tab',
+			'text',
+		])
+	})
+})
