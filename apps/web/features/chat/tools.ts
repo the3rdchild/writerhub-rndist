@@ -42,6 +42,8 @@ import {
 	type FigureSlot,
 	figureNote,
 	figureOf,
+	figuresBetween,
+	figureLine,
 	insideFigure,
 	keepFigures,
 	parseFigureLine,
@@ -50,6 +52,7 @@ import {
 	SVG_IN_PROSE,
 	svgInProse,
 } from './figures'
+import { Fragment } from '@tiptap/pm/model'
 import { insertFrontMatter } from './front-matter-insert'
 import { blockSummary, htmlCandidates } from './html-block-candidates'
 import { applyAcademicNumbering } from './numbering-apply'
@@ -1703,8 +1706,29 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			}
 
 			if (action === 'delete') {
-				editor.view.dispatch(editor.state.tr.delete(from, to))
-				return { ok: true, message: 'Section deleted.' }
+				// Preserve figures inside the deleted section: extract them and
+				// reinsert after the previous section (or at the start).
+				const inside = figuresBetween(editor.state.doc, from, to)
+				if (inside.length === 0) {
+					editor.view.dispatch(editor.state.tr.delete(from, to))
+					return { ok: true, message: 'Section deleted.' }
+				}
+
+				const prevInsert = at > 0 ? sectionEnd(editor, list, at - 1) : 0
+				const { tr } = editor.state
+				// Delete the section first, then insert preserved figures at the
+				// adjusted position (subtract deleted length if insertion point was after).
+				tr.delete(from, to)
+				let insertAt = prevInsert
+				if (insertAt > from) insertAt = insertAt - (to - from)
+				const frag = Fragment.fromArray(inside.map((f) => f.node))
+				tr.insert(insertAt, frag)
+				editor.view.dispatch(tr)
+				const preserved = inside.map((f) => figureLine(f.figure)).join('; ')
+				return {
+					ok: true,
+					message: `Section deleted. Preserved figures: ${preserved}. Figures can only be removed with write_section using a [Delete figure: …] line.`,
+				}
 			}
 
 			if (action === 'move_before') {
