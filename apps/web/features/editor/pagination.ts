@@ -223,7 +223,10 @@ function measureBlocks(view: EditorView): Measurement[] {
 			opensChapter: (node.type.name === 'heading' && Number(node.attrs.level) === 1) || undefined,
 			trailingPageFit: isTrailingPageFit || undefined,
 		})
-		prevWasPageFit = false
+		/* Blok HTML tidak memaginasi dirinya sendiri, jadi ia diukur di jalur
+		 * biasa ini - di sinilah tandanya harus dipasang. Dulu selalu `false`,
+		 * dan paragraf kosong sesudah flyer tetap melahirkan lembar kedua (UC5). */
+		prevWasPageFit = node.type.name === HTML_BLOCK && node.attrs.fit === 'page'
 	})
 
 	return measurements
