@@ -928,6 +928,22 @@ a {
     width: 100%;
     height: 100%;
   }
+
+  /*
+   * Paragraf kosong sesudah blok satu halaman tidak boleh melahirkan lembar
+   * baru (EX-2). Blok `page: flyer` mengisi tepat satu lembar; paragraf
+   * kosong sesudahnya jatuh ke `@page` bawaan, yang selalu memulai lembar
+   * baru karena nama halamannya berganti. Paragraf itu hanya perkakas
+   * menyunting, jadi disembunyikan di kertas.
+   *
+   * Paragraf berisi teks tetap dicetak - penulis yang mengetik sesudah
+   * rancangan memang mengharapkan halaman baru. `:has(br:only-child)`
+   * hanya memilih paragraf yang isinya satu `<br>` - itulah tanda
+   * paragraf kosong di ProseMirror.
+   */
+  .document-body > [data-html-block-fit='page'] + p:has(br:only-child) {
+    display: none;
+  }
 }
 
 .document-body ul,
