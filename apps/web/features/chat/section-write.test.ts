@@ -524,3 +524,96 @@ describe('bab bernomor menurut urutannya (ED-3)', () => {
 		expect(chapterSlot(skripsi(), 'Paragraf biasa.')).toBeNull()
 	})
 })
+
+describe('write_section menyebut subbab yang ditinggalkan (ED-5)', () => {
+	test('subbab yang tidak disebut tercantum di hasil', () => {
+		const plan = planSectionWrite(skripsi(), 0, '## 1.1 Latar Belakang\n\nIsi latar.')
+		if (!plan.ok) throw new Error(plan.message)
+		expect(plan.untouched).toEqual(['1.2 Rumusan Masalah'])
+		expect(outline(applyEdits(skripsi(), plan.edits)).slice(0, 6)).toEqual([
+			'H1 BAB I PENDAHULUAN',
+			'P [pengantar bab]',
+			'H2 1.1 Latar Belakang',
+			'P Isi latar.',
+			'H2 1.2 Rumusan Masalah',
+			'P [rumusan]',
+		])
+	})
+
+	test('semua subbab disebut: untouched kosong', () => {
+		const plan = planSectionWrite(
+			skripsi(),
+			0,
+			'## 1.1 Latar Belakang\n\nIsi latar.\n\n## 1.2 Rumusan Masalah\n\nIsi rumusan.',
+		)
+		if (!plan.ok) throw new Error(plan.message)
+		expect(plan.untouched).toEqual([])
+	})
+})
+
+describe('write_section replace_subsections mengganti seluruh subbab (ED-5)', () => {
+	test('subbab yang tidak disebut dihapus beserta isinya', () => {
+		const plan = planSectionWrite(skripsi(), 0, '## 1.1 Latar Belakang\n\nIsi latar baru.', {
+			replaceSubsections: true,
+		})
+		if (!plan.ok) throw new Error(plan.message)
+		expect(plan.filled).toEqual(['1.1 Latar Belakang'])
+		expect(plan.untouched).toEqual(['1.2 Rumusan Masalah'])
+		expect(outline(applyEdits(skripsi(), plan.edits))).toEqual([
+			'H1 BAB I PENDAHULUAN',
+			'P [pengantar bab]',
+			'H2 1.1 Latar Belakang',
+			'P Isi latar baru.',
+			'BREAK',
+			'H1 BAB II TINJAUAN PUSTAKA',
+			'P [tinjauan]',
+		])
+	})
+
+	test('subbab baru menggantikan seluruh set: yang lama hilang, yang baru muncul', () => {
+		const plan = planSectionWrite(
+			skripsi(),
+			0,
+			'## Latar Belakang\n\nIsi latar.\n\n## Rumusan\n\nIsi rumusan.',
+			{ replaceSubsections: true },
+		)
+		if (!plan.ok) throw new Error(plan.message)
+		expect(plan.added).toEqual(['Latar Belakang', 'Rumusan'])
+		expect(plan.untouched).toEqual(['1.1 Latar Belakang', '1.2 Rumusan Masalah'])
+		expect(outline(applyEdits(skripsi(), plan.edits))).toEqual([
+			'H1 BAB I PENDAHULUAN',
+			'P [pengantar bab]',
+			'H2 Latar Belakang',
+			'P Isi latar.',
+			'H2 Rumusan',
+			'P Isi rumusan.',
+			'BREAK',
+			'H1 BAB II TINJAUAN PUSTAKA',
+			'P [tinjauan]',
+		])
+	})
+
+	test('mengisi yang ada, menambah yang baru, menghapus yang tidak disebut', () => {
+		const plan = planSectionWrite(
+			skripsi(),
+			0,
+			'## 1.1 Latar Belakang\n\nIsi latar.\n\n## 1.3 Tujuan\n\nIsi tujuan.',
+			{ replaceSubsections: true },
+		)
+		if (!plan.ok) throw new Error(plan.message)
+		expect(plan.filled).toEqual(['1.1 Latar Belakang'])
+		expect(plan.added).toEqual(['1.3 Tujuan'])
+		expect(plan.untouched).toEqual(['1.2 Rumusan Masalah'])
+		expect(outline(applyEdits(skripsi(), plan.edits))).toEqual([
+			'H1 BAB I PENDAHULUAN',
+			'P [pengantar bab]',
+			'H2 1.1 Latar Belakang',
+			'P Isi latar.',
+			'H2 1.3 Tujuan',
+			'P Isi tujuan.',
+			'BREAK',
+			'H1 BAB II TINJAUAN PUSTAKA',
+			'P [tinjauan]',
+		])
+	})
+})
