@@ -1,6 +1,6 @@
 'use client'
 
-import { generateJSON } from '@tiptap/core'
+import { generateJSON, type JSONContent } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import type { BriefKey, ProviderErrorCode, TemplateSpec } from '@writer-hub/shared'
 import {
@@ -730,6 +730,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const templateSpecsRef = useRef(new Map<string, TemplateSpec>())
 
 	/**
+	 * Isi template (ProseMirror JSON) yang sudah diambil. Dipakai
+	 * `insert_html_block` dengan `fit: 'page'` untuk membandingkan dokumen
+	 * dengan kerangka template asal (UC5).
+	 */
+	const templateContentsRef = useRef(new Map<string, JSONContent>())
+
+	/**
 	 * Mengambil spec untuk tiap `apply_template_format` yang slug-nya belum
 	 * pernah diambil. Kegagalan sengaja didiamkan di sini: alat tulisnya yang
 	 * melaporkan "template tidak dikenal" ke model, lengkap dengan slug yang
@@ -751,6 +758,40 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			}),
 		)
 	}, [])
+
+	/**
+	 * Mengambil isi template (ProseMirror JSON) untuk slug yang belum pernah
+	 * diambil. Dipakai `insert_html_block` dengan `fit: 'page'` (UC5).
+	 * Kegagalan didiamkan: `docIsScaffold` tanpa isi template tidak
+	 * menggantikan apa pun.
+	 */
+	const loadTemplateContents = useCallback(async (calls: ToolCall[]) => {
+		const slugs = new Set<string>()
+		// `apply_template_format` membawa slug-nya sendiri.
+		for (const call of calls) {
+			if (call.name === 'apply_template_format') {
+				const slug = String(call.arguments.template ?? '').trim()
+				if (slug) slugs.add(slug)
+			}
+		}
+		// `insert_html_block` dengan `fit: 'page'` memakai template dokumen.
+		const hasPageFit = calls.some(
+			(call) => call.name === 'insert_html_block' && call.arguments.fit === 'page',
+		)
+		if (hasPageFit) {
+			const slug = appliedFormatOf()
+			if (slug) slugs.add(slug)
+		}
+
+		const pending = [...slugs].filter((slug) => !templateContentsRef.current.has(slug))
+		await Promise.all(
+			pending.map(async (slug) => {
+				try {
+					templateContentsRef.current.set(slug, (await getTemplate(slug)).content)
+				} catch {}
+			}),
+		)
+	}, [appliedFormatOf])
 	const commit = useCallback((next: ChatTurn[]) => {
 		messagesRef.current = next
 		setMessages(next)
@@ -1270,8 +1311,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					})),
 			].map(({ call, content }) => ({ role: 'tool', content, toolCallId: call.id, taskId }))
 
-			// Spec template diambil di sini, selagi masih boleh menunggu.
+			// Spec dan isi template diambil di sini, selagi masih boleh menunggu.
 			await loadTemplateSpecs(writes)
+			await loadTemplateContents(writes)
 
 			const assistant: ChatTurn = {
 				role: 'assistant',
@@ -1463,7 +1505,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				budgetSpent,
 			)
 		},
-		[loadTemplateSpecs, currentOutline],
+		[loadTemplateSpecs, loadTemplateContents, currentOutline],
 	)
 	/*
 	 * Satu giliran, dengan satu kesempatan mengulang diam-diam.
@@ -1729,6 +1771,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					setPageSetup: appRef.current.setPageSetup,
 					setTypography: appRef.current.setTypography,
 					templateSpecs: templateSpecsRef.current,
+				templateContents: templateContentsRef.current,
 					createTab: createTabWithContent,
 					renameDocument: renameActiveDocument,
 					renameTab: renameTabById,

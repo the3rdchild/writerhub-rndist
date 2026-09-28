@@ -33,6 +33,7 @@ import type {
 import { clampMargins, INCH, PAGE_SIZES, type PageSetup, pageGeometry } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
 import { isSectionScope, sectionRange } from '@/features/editor/section-scope'
+import { buildSchema } from '@/features/sync/serialize'
 import { clampedAttrs, TOC_BLOCK, type TocBlockAttrs, type TocListKind } from '@/features/editor/toc-block'
 import type { CommentThread } from '@/features/sessions/types'
 import { countWords } from '@/lib/utils'
@@ -563,6 +564,12 @@ export interface WriteToolContext {
 	 * dan yang tersisa di sini tinggal membacanya.
 	 */
 	templateSpecs: Map<string, TemplateSpec>
+	/**
+	 * Isi template (ProseMirror JSON) yang sudah diambil saat panggilan alatnya
+	 * tiba. Dipakai `insert_html_block` dengan `fit: 'page'` untuk membandingkan
+	 * dokumen dengan kerangka template asal.
+	 */
+	templateContents: Map<string, JSONContent>
 	createTab: (title: string | undefined, markdown: string | undefined) => void
 	/** Mengganti judul dokumen aktif - nama yang tampil di atas editor. */
 	renameDocument: (title: string) => ToolOutcome
@@ -1350,12 +1357,16 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const at = figurePlacement(editor, call.arguments)
 			if (typeof at === 'string') return { ok: false, message: at }
 			/*
-			 * `fit: 'page'` ke dokumen yang hanya kerangka kosong menggantikan
+			 * `fit: 'page'` ke dokumen yang hanya kerangka template menggantikan
 			 * kerangkanya, bukan mendampingi. UC5: flyer A4 disisipkan ke
 			 * template yang berisi heading kosong; tanpa ini, heading tetap ada
-			 * dan memicu halaman kedua kosong.
+			 * dan memicu halaman kedua kosong. Kerangka dibandingkan dengan isi
+			 * template asal, bukan sekadar "heading kosong".
 			 */
-			const replacement = fit === 'page' && at === null && docIsScaffold(editor.state.doc)
+			const slug = context.appliedFormat()
+			const templateJson = slug ? context.templateContents.get(slug) : undefined
+			const templateNode = templateJson ? buildSchema().nodeFromJSON(templateJson) : null
+			const replacement = fit === 'page' && at === null && docIsScaffold(editor.state.doc, templateNode)
 			const attrs = { ...DEFAULT_HTML_BLOCK_ATTRS, html, fit, ...(height ? { height } : {}) }
 			let inserted: boolean
 			if (replacement) {

@@ -273,18 +273,44 @@ export function sectionIsEmpty(doc: PMNode, at: number): boolean {
 }
 
 /**
- * Seluruh dokumen hanya kerangka kosong: ada heading, dan setiap heading beserta
- * subbagiannya belum berisi. Dipakai `insert_html_block` dengan `fit: 'page'`
- * supaya kerangka template digantikan, bukan didampingi, oleh desain sehalaman.
+ * Menormalkan teks blok: spasi berlebar dipipihkan, tepi dipangkas. Dipakai
+ * membandingkan isi dokumen dengan isi template asal.
  */
-export function docIsScaffold(doc: PMNode): boolean {
-	const list = docHeadings(doc)
-	if (list.length === 0) return false
-	const top = list.filter((heading) => heading.level === 1)
-	for (const heading of top) {
-		if (!sectionIsEmpty(doc, heading.index)) return false
-	}
-	return true
+function normText(text: string): string {
+	return text.replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Teks tiap blok di dokumen, berurutan: paragraf, heading, sel tabel, dll.
+ * Blok gambar, diagram, dan blok HTML tidak menghasilkan teks - pemanggil
+ * memeriksa keberadaannya terpisah.
+ */
+function blockTexts(doc: PMNode): string[] {
+	const texts: string[] = []
+	doc.forEach((node) => {
+		if (node.isTextblock) texts.push(normText(node.textContent))
+		else if (node.type.name === 'table' || node.type.name === 'html_block' || node.type.name === 'diagram')
+			texts.push('\u0000') // penanda: blok non-teks
+		else node.forEach((child) => {
+			if (child.isTextblock) texts.push(normText(child.textContent))
+		})
+	})
+	return texts
+}
+
+/**
+ * Dokumen dianggap kerangka hanya bila setiap blok teks di dalamnya, termasuk
+ * yang sebelum heading pertama dan di semua tingkat heading, kosong atau teksnya
+ * sama persis dengan salah satu blok teks di isi template asal (setelah spasi
+ * dinormalisasi). Tabel, gambar, blok HTML, dan diagram berarti bukan kerangka.
+ * Bila isi template tidak tersedia, jangan menggantikan apa pun.
+ */
+export function docIsScaffold(doc: PMNode, template?: PMNode | null): boolean {
+	if (!template) return false
+	const docTexts = blockTexts(doc)
+	const tplTexts = new Set(blockTexts(template))
+	if (tplTexts.size === 0) return false
+	return docTexts.every((text) => text === '' || text === '\u0000' || tplTexts.has(text))
 }
 
 export interface SectionEdit {
