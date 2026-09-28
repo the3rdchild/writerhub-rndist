@@ -25,7 +25,16 @@ const PARAMETER = new RegExp(
 /** Akhir isi satu blok: tag DSML pertama yang bukan parameter - penutup, atau pembungkus berikutnya. */
 const INVOKE_END = new RegExp(`<\\/?${BAR}DSML${BAR}(?!parameter)`)
 const ANY_TAG = new RegExp(`<\\/?${BAR}DSML${BAR}`)
+const PARTIAL_TAG = new RegExp(`<\\/?(?:${BAR}(?:D(?:S(?:M(?:L${BAR}?)?)?)?)?)?\\s*$`)
 const WRAPPER_END = new RegExp(`<\\/${BAR}DSML${BAR}(?:tool_calls|function_calls|invoke)>`, 'g')
+
+/**
+ * Batas panggilan bocor per balasan. Panggilan sungguhan jarang lebih dari
+ * beberapa per langkah; puluhan blok DSML berarti model berputar - di uji
+ * ulang 28 Sep (UC4) blok-blok itu berbeda satu sama lain, jadi penangkap
+ * ulangan persis tidak menghentikannya, dan satu giliran melampaui 40 pesan.
+ */
+export const MAX_LEAKED_CALLS = 8
 
 export interface LeakedCall {
 	call: ToolCall
@@ -76,6 +85,7 @@ export function parseLeakedCalls(content: string): LeakedCall[] {
 	const found: LeakedCall[] = []
 	const stamp = Date.now().toString(36)
 	for (const block of blocks(content)) {
+		if (found.length >= MAX_LEAKED_CALLS) break
 		const key = `${block.name}\u0000${block.body.trim()}`
 		if (seen.has(key)) continue
 		seen.add(key)
@@ -93,6 +103,7 @@ export function parseLeakedCalls(content: string): LeakedCall[] {
  */
 export function leakedCallRepeats(content: string): boolean {
 	const openers = [...content.matchAll(INVOKE)].map((match) => match.index ?? 0)
+	if (openers.length > MAX_LEAKED_CALLS) return true
 	if (openers.length < 3) return false
 	const complete = openers.slice(0, -1).map((at, index) => content.slice(at, openers[index + 1]).trim())
 	return new Set(complete).size < complete.length
@@ -106,7 +117,13 @@ export function stripLeakedCalls(content: string): string {
 	let lastClose = -1
 	for (const match of content.matchAll(WRAPPER_END)) lastClose = (match.index ?? 0) + match[0].length
 	if (lastClose > start && !ANY_TAG.test(content.slice(lastClose))) end = lastClose
-	return `${content.slice(0, start)}${content.slice(end)}`.replace(/\n{3,}/g, '\n\n').trim()
+	return (
+		`${content.slice(0, start)}${content.slice(end)}`
+			// Tag yang terpotong di ujung aliran yang dihentikan: "</", "<｜DS".
+			.replace(PARTIAL_TAG, '')
+			.replace(/\n{3,}/g, '\n\n')
+			.trim()
+	)
 }
 
 /** Hasil alat untuk panggilan bocor yang argumennya rusak. */

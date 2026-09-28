@@ -45,6 +45,31 @@ export const TRIMMED_NOTE =
 	'\n\n[System] Earlier steps of this request were left out of the history to save space; their edits are already in the document. Call get_outline before continuing if you need to know what is there.'
 
 /**
+ * Satu pesan asisten dengan hasil alatnya, dipangkas supaya muat `room` pesan.
+ *
+ * Satuan yang lebih besar dari jendela dulu dikirim utuh - memotongnya merusak
+ * pasangan panggilan dan hasil - dan server menolak seluruh permintaan karena
+ * lebih dari 40 pesan (uji ulang 28 Sep, UC4: puluhan panggilan dari blok DSML
+ * yang bocor dalam satu balasan). Panggilan terakhir dibuang bersama hasilnya,
+ * jadi yang tersisa tetap berpasangan.
+ */
+function shrinkUnit(items: readonly ChatMessage[], room: number): ChatMessage[] {
+	const [assistant, ...results] = items
+	if (items.length <= room || !assistant.toolCalls?.length) return [...items]
+	const kept = assistant.toolCalls.slice(0, Math.max(1, room - 1))
+	const ids = new Set(kept.map((call) => call.id))
+	const keptResults = results.filter((result) => result.toolCallId && ids.has(result.toolCallId))
+	const last = keptResults.at(-1)
+	if (last) {
+		keptResults[keptResults.length - 1] = {
+			...last,
+			content: `${last.content}\n\n[System] ${assistant.toolCalls.length - kept.length} more tool calls from this step were left out of the history to fit it.`,
+		}
+	}
+	return [{ ...assistant, toolCalls: kept }, ...keptResults]
+}
+
+/**
  * Riwayat dipangkas ke `limit` pesan dari yang tertua, per satuan utuh: satu
  * pesan pengguna, atau satu pesan asisten beserta seluruh hasil alatnya.
  *
@@ -71,8 +96,11 @@ export function fitWindow(messages: readonly ChatMessage[], limit: number, reque
 		first -= 1
 		size += units[first].items.length
 	}
-	// Satu satuan yang lebih besar dari jendela tetap dikirim utuh; memotongnya merusak percakapan.
-	if (first === units.length) first = units.length - 1
+	// Satu satuan yang lebih besar dari jendela dipangkas panggilannya - lihat `shrinkUnit`.
+	if (first === units.length) {
+		first = units.length - 1
+		units[first] = { ...units[first], items: shrinkUnit(units[first].items, limit - 1) }
+	}
 
 	const kept = units.slice(first).flatMap((unit) => unit.items)
 	const windowStart = units[first].start
