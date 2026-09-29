@@ -612,6 +612,9 @@ interface ChatContextValue {
 /** Jeda sebelum percobaan ulang otomatis - cukup untuk gangguan sekejap lewat. */
 const AUTO_RETRY_DELAY_MS = 1_500
 
+/** Langkah pembuka percobaan ulang - lihat `markResumedRef`. */
+const RESUMED_LABEL = 'Melanjutkan sesi'
+
 const ChatContext = createContext<ChatContextValue | null>(null)
 
 export function ChatProvider({ children }: { children: ReactNode }) {
@@ -710,6 +713,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 	/** Ada percobaan ulang otomatis yang sedang menunggu gilirannya. */
 	const retryPendingRef = useRef(false)
+	const markResumedRef = useRef<(why: string) => void>(() => {})
 	const startTurnRef = useRef<((history: ChatTurn[], taskId: string, autoRetried?: boolean) => void) | null>(
 		null,
 	)
@@ -913,6 +917,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		const id = `step_${now.toString(36)}_${flatSteps(closed).length}`
 		setPartsBoth(appendStep(closed, { id, label, status: 'running', startedAt: now, detail }))
 		return id
+	}
+
+	/**
+	 * Penanda bahwa langkah berikutnya menyambung giliran sebelumnya, bukan
+	 * mengulang dari awal. Lewat ref, seperti `startTurnRef`: `startTurn` dan
+	 * `retry` memanggilnya tanpa ikut dibuat ulang setiap render.
+	 */
+	markResumedRef.current = (why: string) => {
+		pushStep(RESUMED_LABEL)
+		patchRunningStep({
+			status: 'done',
+			endedAt: Date.now(),
+			detail: `${why}. Langkah yang sudah selesai tidak diulang; AI meneruskan dari langkah terakhir.`,
+		})
 	}
 
 	const appendText = (delta: string) => {
@@ -1410,7 +1428,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					patchRunningStep({
 						status: 'done',
 						endedAt: Date.now(),
-						detail: 'Model masih meminta bacaan setelah anggaran habis; permintaannya tidak dijalankan.',
+						detail:
+							'Jatah baca permintaan ini habis sementara AI masih ingin membaca. Tekan Lanjutkan untuk memberi jatah baru.',
 					})
 				}
 				/*
@@ -1420,6 +1439,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				 * ditutup (`startTurn`).
 				 */
 				if (writes.length === 0 && !ask) {
+					/* Jatah baca habis sementara model masih ingin membaca: tugasnya
+					 * belum selesai, dan penulis yang memutuskan lanjut (`read_budget`). */
+					if (reads.length > 0 && sealed) {
+						const finalTurn: ChatTurn = { ...assistant, parts: visibleParts(finishParts()), usage }
+						commit([...history, finalTurn, ...immediateResults])
+						stallPendingRef.current = { reason: 'read_budget', taskId }
+						return
+					}
 					if (calls.length === 0 && !visible.trim()) {
 						// Balasan kosong tidak disimpan: percobaan berikutnya mengulang dari langkah yang sama.
 						finishParts()
@@ -1590,6 +1617,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		(history: ChatTurn[], taskId: string, autoRetried = false) => {
 			const controller = new AbortController()
 			abortRef.current = controller
+			/*
+			 * Percobaan ulang menyambung giliran yang sama, tapi di layar ia
+			 * dulu tampak seperti mulai dari nol: "Menghubungi provider…" dan
+			 * "Berpikir…" lagi di bawah langkah yang gagal (uji 29 Sep, tiga
+			 * kali "Berpikir" 598 detik berturut-turut).
+			 */
+			if (autoRetried) markResumedRef.current('Dicoba ulang otomatis')
 
 			runTurn(history, 0, controller, taskId)
 				.catch((cause: unknown) => {
@@ -1642,6 +1676,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		setStall(null)
 		setInterruption(null)
 		setStreaming('')
+		markResumedRef.current('Dicoba ulang oleh penulis')
 		startTurnRef.current?.(messagesRef.current, currentTaskIdRef.current ?? newTaskId(), false)
 	}, [])
 
@@ -1701,7 +1736,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		 * yang salah tetap menyunting, tapi kekurangan kerangkanya tidak berubah. */
 		const gaps = reason === 'unfinished' && outline ? outlineGaps(outline) : undefined
 		const stuck = gaps !== undefined && previous.reason === 'unfinished' && previous.gaps === gaps
-		if (!stuck && mayAutoContinue(auto, progressed, previous.reason === reason)) {
+		if (!stuck && mayAutoContinue(auto, progressed, previous.reason === reason, reason)) {
 			continuesRef.current = { taskId, auto: auto + 1, reason, gaps }
 			continueTask(reason, 'auto')
 			return
