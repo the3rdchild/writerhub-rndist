@@ -29,6 +29,11 @@ export interface ChatContext {
 	 * target. Dihitung klien - hanya ia yang memegang semua tab naskah.
 	 */
 	outline?: string
+	/**
+	 * Daftar tugas dari alat `plan` beserta status tiap butirnya. Ikut di setiap
+	 * giliran supaya model tidak lupa rencananya sendiri di tengah tugas panjang.
+	 */
+	todos?: string
 }
 
 export interface ChatRequest {
@@ -72,4 +77,5 @@ export const CHAT_CONTEXT_LIMITS = {
 	message: 64_000,
 	page: 1_000,
 	outline: 3_000,
+	todos: 2_000,
 } as const

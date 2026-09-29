@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { ChatBody } from './dto'
-import { buildMessages } from './messages'
+import { buildMessages, contextMessage } from './messages'
 
 function body(over: Partial<ChatBody> = {}): ChatBody {
 	return {
@@ -89,5 +89,13 @@ describe('penyusunan pesan provider', () => {
 				{ id: 'call_1', type: 'function', function: { name: 'web_search', arguments: '{"q":"a"}' } },
 			],
 		})
+	})
+})
+
+describe('daftar tugas di konteks editor', () => {
+	test('ikut sebagai baris sendiri; tanpa daftar tidak ada barisnya', () => {
+		const withTodos = contextMessage({ title: 'Skripsi', todos: '1 of 3 done.\n[x] 1. Baca kerangka' })
+		expect(withTodos?.content).toContain('Your task list (plan):\n1 of 3 done.')
+		expect(contextMessage({ title: 'Skripsi' })?.content).not.toContain('task list')
 	})
 })

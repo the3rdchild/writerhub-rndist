@@ -14,6 +14,7 @@ import { MessageBubble } from './message-bubble'
 import { ResumeChip } from './resume-chip'
 import { ContinueMarker, StallCard } from './stall-card'
 import { TaskSeparator } from './step-timeline'
+import { TodosPanel } from './todos-panel'
 import { TurnError } from './turn-error'
 
 /**
@@ -37,6 +38,7 @@ export function AiChatPanel() {
 		dismissStall,
 		resumable,
 		resumeTask,
+		todos,
 		attachment,
 		attach,
 		clearAttachment,
@@ -269,6 +271,9 @@ export function AiChatPanel() {
 				</div>
 			) : (
 				<div className="flex shrink-0 flex-col gap-2 px-4 py-3">
+					{todos && todos.items.length > 0 && (
+						<TodosPanel key={todos.taskId} todos={todos} running={isRunning} />
+					)}
 					{resumable && (
 						<ResumeChip
 							key={resumable.taskId}

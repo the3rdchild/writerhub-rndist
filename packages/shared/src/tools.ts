@@ -136,14 +136,21 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'plan',
 		kind: 'read',
 		description:
-			'Write down a step-by-step plan before a multi-step task. The plan is shown to the user in the progress timeline and its steps get checked off as you complete them.',
+			'Your task list, shown to the writer as a Todos panel above the chat box. For any task of three or more steps - writing a document or several sections, research then writing - call it first with every step not-started except the first, in-progress. Call it again with the FULL list, updated, whenever a step starts or finishes; it needs no approval, so send it alongside your other tool calls in the same turn. Keep exactly one step in-progress. Mark a step completed only once it is really done - the list shows the writer where the work stands. Skip it for small edits.',
 		parameters: {
 			type: 'object',
 			properties: {
 				steps: {
 					type: 'array',
-					items: { type: 'string' },
-					description: 'The planned steps, in order.',
+					description: 'Every step of the task, in order, each with its current status.',
+					items: {
+						type: 'object',
+						properties: {
+							title: { type: 'string', description: "The step, a short phrase in the writer's language." },
+							status: { type: 'string', enum: ['not-started', 'in-progress', 'completed'] },
+						},
+						required: ['title', 'status'],
+					},
 				},
 			},
 			required: ['steps'],

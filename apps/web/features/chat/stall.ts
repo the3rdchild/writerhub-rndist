@@ -30,7 +30,15 @@ import { TOC_BLOCK } from '@/features/editor/toc-block'
  * lewat kartunya sejak pertama (seperti "Continue to iterate?" di VS Code).
  */
 
-export type StallReason = 'wave_limit' | 'promised' | 'truncated' | 'empty' | 'unfinished' | 'read_budget'
+export type StallReason =
+	| 'wave_limit'
+	| 'promised'
+	| 'truncated'
+	| 'empty'
+	| 'unfinished'
+	| 'read_budget'
+	/** Tugas ditutup dengan butir daftar tugas (`plan`) yang masih terbuka; diingatkan sekali, tanpa kartu. */
+	| 'todos_open'
 
 /** Sebab yang selalu menunggu penulis, tanpa lanjutan otomatis. */
 export const ASKS_BEFORE_CONTINUING: ReadonlySet<StallReason> = new Set(['read_budget'])
@@ -173,6 +181,7 @@ const LEAD: Record<ContinueReason, string> = {
 	unfinished: 'You ended the request, but the outline you recorded is not finished yet.',
 	read_budget:
 		'You used up the reading budget for this request while still asking to read. The writer gives you a fresh budget.',
+	todos_open: 'You ended the request, but your task list still has steps that are not completed.',
 }
 
 /**
@@ -196,13 +205,15 @@ export function continueNudge(reason: ContinueReason, empty: readonly string[], 
 			? 'Carry on from where it stopped, in smaller pieces: one section per call (write_section for a heading that exists, insert_content for a new one).'
 			: reason === 'read_budget'
 				? 'Carry on with the same request. Read only what you still need - what you already read is above - and move on to writing.'
-				: reason === 'incomplete' || reason === 'unfinished'
-					? outline
-						? `Finish what the outline still lacks, in document order, one section per call. ${outline}`
-						: listed.length > 0
-							? `Write the level-1 sections that still have no body text, in document order, each with write_section on its heading: ${sections}. Follow the plan, depth and style of what is already written.`
-							: 'Check what the earlier request still lacks and finish it.'
-					: 'Carry on with the same request from where you stopped.'
+				: reason === 'todos_open'
+					? 'For each open step: if it is done, mark it completed; if it still needs doing, do it now; if it is no longer needed, drop it. Send the updated list with plan.'
+					: reason === 'incomplete' || reason === 'unfinished'
+						? outline
+							? `Finish what the outline still lacks, in document order, one section per call. ${outline}`
+							: listed.length > 0
+								? `Write the level-1 sections that still have no body text, in document order, each with write_section on its heading: ${sections}. Follow the plan, depth and style of what is already written.`
+								: 'Check what the earlier request still lacks and finish it.'
+						: 'Carry on with the same request from where you stopped.'
 	const reference =
 		reason === 'incomplete' || reason === 'unfinished'
 			? ''
@@ -247,5 +258,9 @@ export const STALL_TEXT: Record<StallReason, { title: string; hint: string }> = 
 	read_budget: {
 		title: 'AI sudah membaca sebanyak batas satu permintaan dan masih ingin membaca lagi.',
 		hint: 'Lanjutkan memberi jatah baca baru untuk tugas yang sama.',
+	},
+	todos_open: {
+		title: 'AI menutup tugas dengan daftar tugas yang belum tuntas.',
+		hint: '',
 	},
 }

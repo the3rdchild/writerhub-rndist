@@ -113,6 +113,7 @@ import {
 	promisesMore,
 	type StallReason,
 } from './stall'
+import { hasOpenTodos, parseTodos, type Todo, todoCounts, todosForModel } from './todos'
 import {
 	applyInOrder,
 	applyWriteTool,
@@ -184,6 +185,12 @@ export interface ChatTurn extends ChatMessage {
  * kotak chat. Tombolnya sendiri yang memutuskan muncul atau tidak: ia yang
  * membaca bab kosong dari naskah yang terus berubah.
  */
+/** Daftar tugas satu tugas chat; lihat `todos.ts`. */
+export interface ChatTodos {
+	taskId: string
+	items: Todo[]
+}
+
 export interface ChatResume {
 	taskId: string
 	/** Dihentikan penulis, atau kartu macetnya ditutup - bukan selesai sendiri. */
@@ -567,6 +574,8 @@ interface ChatContextValue {
 	dismissStall: () => void
 	/** Tugas terakhir yang bisa diteruskan dari tombol di atas kotak chat. */
 	resumable: ChatResume | null
+	/** Daftar tugas AI (alat `plan`) untuk panel Todos di atas kotak chat; `null` tanpa daftar. */
+	todos: ChatTodos | null
 	/** Meneruskan tugas terakhir; `false` bila tidak ada yang bisa diteruskan. */
 	resumeTask: () => boolean
 
@@ -690,6 +699,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	 */
 	const [stall, setStall] = useState<ChatStall | null>(null)
 	const stallPendingRef = useRef<{ reason: StallReason; taskId: string } | null>(null)
+	const [todos, setTodos] = useState<ChatTodos | null>(null)
+	const todosRef = useRef<ChatTodos | null>(null)
+	const setTodosBoth = (next: ChatTodos | null) => {
+		todosRef.current = next
+		setTodos(next)
+	}
+	/** Tugas yang sudah diingatkan soal daftar tugasnya - pengingatnya hanya sekali. */
+	const todosRemindedRef = useRef<string | null>(null)
 	const continuesRef = useRef<{
 		taskId: string | undefined
 		auto: number
@@ -883,6 +900,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			document: documentText,
 			page: withAppliedFormat(pageSummary(appRef.current.setup), appliedFormatOf()),
 			outline: outline ? outlineForModel(outline).slice(0, CHAT_CONTEXT_LIMITS.outline) : undefined,
+			todos: todosRef.current?.items.length
+				? todosForModel(todosRef.current.items).slice(0, CHAT_CONTEXT_LIMITS.todos)
+				: undefined,
 		}
 	}, [appliedFormatOf, currentOutline])
 
@@ -975,9 +995,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		setPartsBoth(closed)
 		return closed.length > 0 ? closed : undefined
 	}
-	const planRef = useRef<{ stepId: string; next: number } | null>(null)
-
-	const recordPlan = (items: string[]) => {
+	/**
+	 * Daftar tugas dari `plan`. Panggilan pertama dalam satu tugas dicatat
+	 * sebagai langkah "Rencana n langkah" di kartu langkah; panggilan
+	 * berikutnya hanya memperbarui daftarnya - panel Todos yang menampilkan
+	 * progresnya, kartu langkah tidak ikut dipenuhi pembaruan.
+	 */
+	const recordTodos = (items: Todo[], taskId: string) => {
+		const first = todosRef.current?.taskId !== taskId
+		setTodosBoth({ taskId, items })
+		if (!first) return
 		const stepId = pushStep(`Rencana ${items.length} langkah`)
 		setPartsBoth(
 			mapSteps(partsRef.current, (step) =>
@@ -986,30 +1013,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 							...step,
 							status: 'done',
 							endedAt: Date.now(),
-							checklist: items.map((text) => ({ text, done: false })),
+							checklist: items.map((todo) => ({ text: todo.text, done: todo.status === 'completed' })),
 						}
 					: step,
 			),
 		)
-		planRef.current = { stepId, next: 0 }
-	}
-
-	const advancePlan = () => {
-		const plan = planRef.current
-		if (!plan) return
-		setPartsBoth(
-			mapSteps(partsRef.current, (step) =>
-				step.id === plan.stepId && step.checklist
-					? {
-							...step,
-							checklist: step.checklist.map((item, index) =>
-								index === plan.next ? { ...item, done: true } : item,
-							),
-						}
-					: step,
-			),
-		)
-		plan.next += 1
 	}
 	const tabText = (tabId: string): string | null => {
 		try {
@@ -1460,6 +1468,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						const outline = currentOutline()
 						if (outline && !outlineDone(outline)) stallPendingRef.current = { reason: 'unfinished', taskId }
 					}
+					/* Tugas ditutup dengan butir daftar tugas yang masih terbuka: diingatkan
+					 * sekali - kerjakan, tandai selesai, atau buang dari daftar. */
+					const openTodos = todosRef.current
+					if (
+						!stallPendingRef.current &&
+						openTodos?.taskId === taskId &&
+						hasOpenTodos(openTodos.items) &&
+						todosRemindedRef.current !== taskId
+					) {
+						stallPendingRef.current = { reason: 'todos_open', taskId }
+					}
 					// Tugas selesai: penomoran halaman karya ilmiah, bila memang waktunya.
 					if (!stallPendingRef.current) {
 						const numbered = autoNumber(history, taskId)
@@ -1479,13 +1498,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			const readContext = editor ? buildReadContext(editor) : null
 			for (const call of reads) {
 				if (call.name === 'plan') {
-					const items = Array.isArray(call.arguments.steps)
-						? call.arguments.steps.map(String).filter(Boolean)
-						: []
-					if (items.length > 0) recordPlan(items)
+					const items = parseTodos(call.arguments)
+					if (items.length > 0) recordTodos(items, taskId)
+					const { done, total } = todoCounts(items)
 					results.push({
 						role: 'tool',
-						content: 'Plan recorded and shown to the user.',
+						content:
+							items.length > 0
+								? `Task list shown to the writer: ${done} of ${total} done.`
+								: 'No steps could be read. Send steps as [{"title": "...", "status": "not-started" | "in-progress" | "completed"}].',
 						toolCallId: call.id,
 						taskId,
 					})
@@ -1525,7 +1546,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						detail: `${JSON.stringify(call.arguments)}\n→ ${summarizeToolResult(remote.text)}`,
 						sources: remote.sources,
 					})
-					advancePlan()
 					results.push({ role: 'tool', content: remote.text, toolCallId: call.id, taskId })
 					continue
 				}
@@ -1547,7 +1567,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					endedAt: Date.now(),
 					detail: `${JSON.stringify(call.arguments)}\n→ ${summarizeToolResult(content)}`,
 				})
-				advancePlan()
 				results.push({ role: 'tool', content, toolCallId: call.id, taskId })
 			}
 			if (budgetSpent && reads.length > 0) {
@@ -1726,6 +1745,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	 */
 	handleStallRef.current = (reason, taskId) => {
 		if (taskId !== currentTaskIdRef.current) return
+		if (reason === 'todos_open') {
+			todosRemindedRef.current = taskId
+			continueTask(reason, 'auto')
+			return
+		}
 		const previous =
 			continuesRef.current.taskId === taskId ? continuesRef.current : { auto: 0, reason: undefined }
 		const auto = previous.auto
@@ -1804,7 +1828,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			setStall(null)
 			setInterruption(null)
 			setPartsBoth([])
-			if (!resume) planRef.current = null
+			if (!resume) setTodosBoth(null)
 			writeWavesRef.current = { taskId, count: 0 }
 			continuesRef.current = { taskId, auto: 0 }
 
@@ -2246,6 +2270,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		setCurrentTaskId(newTaskId())
 		setStall(null)
 		setInterruption(null)
+		todosRef.current = null
+		setTodos(null)
 	}, [])
 
 	const reset = useCallback(() => {
@@ -2260,6 +2286,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		writeWavesRef.current = { taskId: undefined, count: 0 }
 		continuesRef.current = { taskId: undefined, auto: 0 }
 		setInterruption(null)
+		todosRef.current = null
+		setTodos(null)
 	}, [stop, commit])
 	/** Hasil alat per aksi yang sudah diputuskan - diterapkan, gagal, atau dilewati. */
 	const actionResults = useMemo(
@@ -2312,6 +2340,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			dismissStall,
 			resumable,
 			resumeTask,
+			todos,
 			attachment,
 			attach: setAttachment,
 			clearAttachment: () => setAttachment(null),
@@ -2356,6 +2385,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			dismissStall,
 			resumable,
 			resumeTask,
+			todos,
 			attachment,
 			includeDocument,
 			send,

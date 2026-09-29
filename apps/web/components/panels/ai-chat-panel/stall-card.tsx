@@ -81,6 +81,7 @@ const MARKER: Record<ContinueReason, string> = {
 	incomplete: 'bagian yang masih kosong',
 	unfinished: 'kerangka belum lengkap',
 	read_budget: 'jatah baca baru',
+	todos_open: 'daftar tugas belum tuntas',
 }
 
 /** Dorongan `[Continue]` di percakapan: penanda kecil, bukan gelembung pesan penulis. */
