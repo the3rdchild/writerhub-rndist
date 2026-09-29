@@ -100,26 +100,38 @@ export function StepTimeline({ steps, live }: { steps: ChatStep[]; live?: boolea
 		>
 			{steps.map((step) => (
 				<div key={step.id}>
-					<button
-						type="button"
-						onClick={() => setOpen(open === step.id ? null : step.id)}
-						className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-[var(--overlay-hover)]"
-					>
-						<StepIcon status={step.status} />
-						<span
-							className={cn(
-								'min-w-0 flex-1 truncate text-xs',
-								step.status === 'running' ? 'text-foreground' : 'text-muted',
-							)}
+					{/*
+					 * Judul langkah menempel di atas kartu selama isinya digulir -
+					 * penalaran panjang di bawah "Berpikir…" tetap terbaca milik
+					 * langkah mana - dan ikut tergulir keluar begitu bloknya habis,
+					 * karena lengketnya terbatas pada blok langkah itu sendiri.
+					 * Latarnya pekat di pembungkus; efek hover yang tembus pandang
+					 * tetap di tombolnya.
+					 */}
+					<div className="sticky -top-2 z-10 bg-surface-raised">
+						<button
+							type="button"
+							onClick={() => setOpen(open === step.id ? null : step.id)}
+							className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-[var(--overlay-hover)]"
 						>
-							{live && step.status === 'running' && step.label === THINKING_LABEL ? (
-								<ThinkingWord />
-							) : (
-								step.label
-							)}
-						</span>
-						<span className="shrink-0 text-[10px] tabular-nums text-faint">{formatDuration(step, now)}</span>
-					</button>
+							<StepIcon status={step.status} />
+							<span
+								className={cn(
+									'min-w-0 flex-1 truncate text-xs',
+									step.status === 'running' ? 'text-foreground' : 'text-muted',
+								)}
+							>
+								{live && step.status === 'running' && step.label === THINKING_LABEL ? (
+									<ThinkingWord />
+								) : (
+									step.label
+								)}
+							</span>
+							<span className="shrink-0 text-[10px] tabular-nums text-faint">
+								{formatDuration(step, now)}
+							</span>
+						</button>
+					</div>
 					{step.sources && step.sources.length > 0 && <ResearchSourcesCard sources={step.sources} />}
 					{open === step.id && step.checklist && (
 						<div className="mx-1.5 mb-1 flex flex-col gap-0.5 rounded-md bg-surface-inset px-2 py-1.5">
