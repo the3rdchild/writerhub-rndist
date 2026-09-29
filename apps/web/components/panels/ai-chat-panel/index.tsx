@@ -253,11 +253,11 @@ export function AiChatPanel() {
 						<button
 							type="button"
 							onClick={jumpToLatest}
-							className="pointer-events-auto -translate-y-2 flex items-center gap-1 rounded-full bg-surface-raised px-3 py-1.5 text-xs text-subtle shadow-sm transition-colors hover:bg-[var(--overlay-hover)]"
+							className="pointer-events-auto -translate-y-2 flex h-8 w-8 items-center justify-center rounded-full border border-foreground/10 bg-surface-raised text-subtle shadow-sm transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 							aria-label="Jump to latest"
+							title="Jump to latest"
 						>
-							<ArrowDown className="h-3 w-3" />
-							Latest
+							<ArrowDown className="h-4 w-4" />
 						</button>
 					</div>
 				)}

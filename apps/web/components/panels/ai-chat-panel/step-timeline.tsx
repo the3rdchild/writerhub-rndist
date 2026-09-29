@@ -1,6 +1,6 @@
 'use client'
 import { Ban, Check, Loader2, TriangleAlert } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ChatStep } from '@/features/chat/chat-context'
 import { nextThinkingWord, THINKING_LABEL, THINKING_WORD_INTERVAL_MS } from '@/features/chat/thinking-words'
 import { cn } from '@/lib/utils'
@@ -47,9 +47,23 @@ function ThinkingWord() {
 	return <>{word}</>
 }
 
+/** Jarak dari dasar yang masih dihitung "di dasar" - sama dengan panel chat. */
+const FOLLOW_THRESHOLD_PX = 24
+
+/**
+ * Daftar langkah satu giliran.
+ *
+ * Tingginya dibatasi 350px dengan gulirannya sendiri (permintaan pengguna
+ * 29 Sep): giliran panjang dulu menumpuk puluhan langkah ke panel chat, dan
+ * jawaban AI tenggelam di bawahnya. Selama berjalan, daftar menempel ke
+ * langkah terbaru - kecuali penulis sedang menggulir ke atas untuk membaca,
+ * sama seperti panel chat itu sendiri.
+ */
 export function StepTimeline({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
 	const [open, setOpen] = useState<string | null>(null)
 	const [now, setNow] = useState(() => Date.now())
+	const scrollRef = useRef<HTMLDivElement>(null)
+	const followingRef = useRef(true)
 	useEffect(
 		function tickElapsedTimer() {
 			if (!live) return
@@ -58,9 +72,27 @@ export function StepTimeline({ steps, live }: { steps: ChatStep[]; live?: boolea
 		},
 		[live],
 	)
+	useEffect(
+		function followLatestStep() {
+			const element = scrollRef.current
+			if (live && element && followingRef.current) element.scrollTop = element.scrollHeight
+		},
+		[live, steps],
+	)
+	const onScroll = () => {
+		const element = scrollRef.current
+		if (!element) return
+		followingRef.current =
+			element.scrollHeight - element.scrollTop - element.clientHeight <= FOLLOW_THRESHOLD_PX
+	}
 
 	return (
-		<div className="flex flex-col gap-0.5 rounded-xl bg-surface-raised p-2">
+		<div
+			ref={scrollRef}
+			onScroll={onScroll}
+			data-step-timeline
+			className="flex max-h-[350px] flex-col gap-0.5 overflow-y-auto overscroll-contain rounded-xl bg-surface-raised p-2"
+		>
 			{steps.map((step) => (
 				<div key={step.id}>
 					<button

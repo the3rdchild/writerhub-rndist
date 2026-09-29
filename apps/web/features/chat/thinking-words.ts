@@ -5,29 +5,23 @@ export const THINKING_LABEL = 'Berpikir…'
  * Kata pengganti "Berpikir…" selama langkahnya masih berjalan.
  *
  * Hanya tampilan: langkah yang tersimpan tetap berlabel `THINKING_LABEL`,
- * jadi riwayat obrolan tidak berisi "Kerfuffling…".
+ * jadi riwayat obrolan tidak berisi "Cogitating…". Daftarnya pilihan pengguna
+ * (29 Sep), menggantikan kata-kata lelucon yang lama.
  */
 export const THINKING_WORDS = [
-	'Drafting…',
-	'Big brain time…',
-	'Buffering…',
-	'Blaming the deadline…',
-	'Doing my own research…',
-	'Flibbertigibbeting…',
-	'Discombobulating…',
-	'Bamboozling…',
-	'Lollygagging…',
-	'Dillydallying…',
-	'Shenaniganing…',
-	'Hullabalooing…',
-	'Kerfuffling…',
-	'Sharpening pencils…',
-	'Inking the quill…',
-	'Consulting the thesaurus…',
-	'Cooking…',
-	'Main character thinking…',
-	'Touching grass (mentally)…',
-	'Reticulating splines…',
+	'Accomplishing…',
+	'Actioning…',
+	'Actualizing…',
+	'Baking…',
+	'Brewing…',
+	'Calculating…',
+	'Cerebrating…',
+	'Churning…',
+	'Clauding…',
+	'Coalescing…',
+	'Cogitating…',
+	'Computing…',
+	'Conjuring…',
 ] as const
 
 /** Jeda antarkata; cukup lama untuk dibaca, cukup cepat untuk terasa hidup. */
