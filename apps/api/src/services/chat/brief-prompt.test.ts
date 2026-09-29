@@ -4,6 +4,7 @@ import {
 	ASK_AND_BRIEF_GUIDANCE,
 	buildSystemPrompt,
 	documentBriefPrompt,
+	LANGUAGE_RULE,
 	researchBriefPrompt,
 } from './prompts'
 
@@ -147,4 +148,18 @@ test('isian berisi "Buatkan saya" bukan fakta, melainkan diserahkan ke AI', () =
 
 test('rencana bab tidak mengalahkan naskah', () => {
 	expect(researchBriefPrompt(skripsi)).toContain('the document is the authority on what is')
+})
+
+describe('aturan bahasa', () => {
+	test('satu bahasa sepanjang percakapan, termasuk kartu pertanyaan; bahasa lain hanya bila diminta atau dibutuhkan', () => {
+		const prompt = buildSystemPrompt({ research: false, memory: null, withTools: true })
+		expect(prompt).toContain(LANGUAGE_RULE)
+		expect(LANGUAGE_RULE).toContain('questions and their options')
+		expect(LANGUAGE_RULE).toContain('never mix in words from other languages')
+		expect(LANGUAGE_RULE).toContain('a translation shown with its source')
+	})
+
+	test('aturan bahasa ikut juga saat alat mati', () => {
+		expect(buildSystemPrompt({ research: false, memory: null, withTools: false })).toContain(LANGUAGE_RULE)
+	})
 })
