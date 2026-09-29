@@ -1,5 +1,5 @@
 /** Label fase berpikir yang tersimpan di langkah; riwayat tetap membacanya begini. */
-export const THINKING_LABEL = 'Berpikir…'
+export const THINKING_LABEL = 'Thinking…'
 
 /**
  * Kata pengganti "Berpikir…" selama langkahnya masih berjalan.
@@ -14,14 +14,39 @@ export const THINKING_WORDS = [
 	'Actualizing…',
 	'Baking…',
 	'Brewing…',
+	'Berpikir…',
 	'Calculating…',
-	'Cerebrating…',
-	'Churning…',
-	'Clauding…',
 	'Coalescing…',
 	'Cogitating…',
+	'Grübeln…',
+	'Réfléchir…',
 	'Computing…',
 	'Conjuring…',
+	'Drafting…',
+	'正在想……',
+	'Cogito ergo sum…',
+	'Big brain time…',
+	'考え中…',
+	'Buffering…',
+	'-··· · ·-· ·--· ·· -·- ·· ·-·',
+	'02 05 18 16 11 09 18 ...',
+	'喵喵喵喵...',
+	'熊猫头',
+	'Blaming the deadline…',
+	'Doing my own research…',
+	'Flibbertigibbeting…',
+	'Discombobulating…',
+	'Bamboozling…',
+	'Hubing...',
+	'Hullabalooing…',
+	'Kerfuffling…',
+	'Sharpening pencils…',
+	'Inking the quill…',
+	'Cooking…',
+	'Main character thinking…',
+	'Touching grass (mentally)…',
+	'Reticulating splines…',
+	'Writing…',
 ] as const
 
 /** Jeda antarkata; cukup lama untuk dibaca, cukup cepat untuk terasa hidup. */
