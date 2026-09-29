@@ -56,6 +56,47 @@ describe('panggilan sub-agent yang dialirkan', () => {
 		expect(seen.body?.reasoning).toEqual({ enabled: false })
 	})
 
+	test('model yang mewajibkan penalaran: ditolak sekali, diulang tanpa saklar, lalu diingat', async () => {
+		const config = { ...OPENROUTER, model: 'z-ai/glm-5.3-flash-uji' }
+		const bodies: Array<Record<string, unknown>> = []
+		const fetcher = (async (_url: string, init?: RequestInit) => {
+			const body = JSON.parse(String(init?.body)) as Record<string, unknown>
+			bodies.push(body)
+			return 'reasoning' in body
+				? new Response(
+						JSON.stringify({
+							error: {
+								message:
+									'all providers failed :: openrouter#3: 400 Reasoning is mandatory for this endpoint and cannot be disabled.',
+							},
+						}),
+						// Adapter lokal meneruskan 400 dari OpenRouter sebagai 502.
+						{ status: 502 },
+					)
+				: streamed([{ after: 0, text: sse('<svg>', '</svg>') }])
+		}) as unknown as typeof fetch
+
+		expect(await streamCompletion(config, [], { ...LIMITS, fetch: fetcher })).toEqual({
+			ok: true,
+			content: '<svg></svg>',
+		})
+		expect(bodies.map((body) => 'reasoning' in body)).toEqual([true, false])
+
+		await streamCompletion(config, [], { ...LIMITS, fetch: fetcher })
+		expect(bodies.map((body) => 'reasoning' in body)).toEqual([true, false, false])
+	})
+
+	test('penolakan 400 lain tetap penolakan, tanpa percobaan ulang', async () => {
+		let calls = 0
+		const fetcher = (async () => {
+			calls += 1
+			return new Response('Bad request', { status: 400 })
+		}) as unknown as typeof fetch
+		const reply = await streamCompletion({ ...OPENROUTER, model: 'lain' }, [], { ...LIMITS, fetch: fetcher })
+		expect(reply).toEqual({ ok: false, failure: 'rejected', detail: 'HTTP 400' })
+		expect(calls).toBe(1)
+	})
+
 	test('provider lain tidak menerima saklar yang tidak ia kenal', async () => {
 		const seen: { body?: Record<string, unknown> } = {}
 		await streamCompletion(OTHER, [], {

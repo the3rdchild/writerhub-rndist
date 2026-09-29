@@ -38,9 +38,20 @@ export interface SubAgentCall {
 	fetch?: typeof fetch
 }
 
+/*
+ * Model yang menolak penalaran dimatikan ("Reasoning is mandatory for this
+ * endpoint and cannot be disabled" - GLM-5.3 Flash lewat OpenRouter, 29 Sep).
+ * Dulu setiap gambar di model itu gagal dua kali lalu model utama menggambar
+ * sendiri; kini ditolak sekali, diulang tanpa saklarnya, dan diingat sampai
+ * proses berakhir.
+ */
+const REASONING_MANDATORY = /reasoning is mandatory|cannot be disabled/i
+const needsReasoning = new Set<string>()
+
 /** Hanya OpenRouter (dan proksinya) yang mengenal saklar `reasoning`; provider lain bisa menolaknya. */
-function reasoningField(baseUrl: string, reasoning: boolean): Record<string, unknown> {
-	return !reasoning && speaksOpenRouter(baseUrl) ? { reasoning: { enabled: false } } : {}
+function reasoningField(baseUrl: string, model: string, reasoning: boolean): Record<string, unknown> {
+	if (reasoning || needsReasoning.has(model)) return {}
+	return speaksOpenRouter(baseUrl) ? { reasoning: { enabled: false } } : {}
 }
 
 function contentOf(event: string): string {
@@ -94,11 +105,19 @@ export async function streamCompletion(
 				temperature: call.temperature,
 				messages,
 				stream: true,
-				...reasoningField(baseUrl, call.reasoning),
+				...reasoningField(baseUrl, model, call.reasoning),
 			}),
 			signal: controller.signal,
 		})
 		if (!response.ok || !response.body) {
+			// Adapter lokal meneruskan 400 dari OpenRouter sebagai 502; pesannya yang menentukan.
+			const detail = await response.text().catch(() => '')
+			if (!call.reasoning && !needsReasoning.has(model) && REASONING_MANDATORY.test(detail)) {
+				needsReasoning.add(model)
+				clearTimeout(total)
+				clearTimeout(idle)
+				return streamCompletion({ baseUrl, apiKey, model }, messages, call)
+			}
 			return { ok: false, failure: 'rejected', detail: `HTTP ${response.status}` }
 		}
 
