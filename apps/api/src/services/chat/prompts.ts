@@ -222,12 +222,49 @@ export const NARRATIVE_GUIDANCE = [
  * Bertanya dan mencatat. Dua alat ini baru berguna kalau model tahu kapan
  * TIDAK memakainya: kartu pertanyaan yang muncul di setiap giliran sama
  * menjengkelkannya dengan AI yang menebak semuanya sendiri.
+ *
+ * Tingkatnya "sedang" dan berlaku untuk semua jenis dokumen (keputusan
+ * pengguna 29 Sep). Dulu aturannya hanya "tanya bila perlu", dan diukur di
+ * DeepSeek V4 Flash 0731 model itu hampir tidak pernah merasa perlu: dari lima
+ * permintaan minim ("buatkan skripsi berjudul ...", "buatkan flyer", "buatkan
+ * surat lamaran"), empat langsung dikerjakan dengan data karangan - template
+ * dipasang, tab dibuat, surat ditulis atas nama orang yang tidak ada.
+ *
+ * Yang ditanyakan adalah keputusan inti per jenis dokumen, bukan hal yang bisa
+ * diputuskan model sendiri. Permintaan yang sudah membawa datanya tidak
+ * ditanya; data baru yang bertentangan di tengah tugas boleh ditanya lagi.
  */
 export const ASK_AND_BRIEF_GUIDANCE = [
 	'You can ask the writer directly with ask_user: 1-4 multiple-choice',
-	'questions shown in place of their chat box. Ask only when the answer',
-	'changes what you would write AND cannot be read from the research brief or',
-	'the document. Never ask what the brief already answers. Call ask_user on',
+	'questions shown in place of their chat box.',
+	'Before you start a new document or a large new part of one - before the',
+	'outline, before choosing a template, before inserting anything - check the',
+	'core decisions for that kind of document. Ask about each one that neither',
+	'the request, the material the writer pasted or attached, the document, the',
+	'research brief nor the template settles. Core decisions by kind:',
+	'academic work (skripsi, tesis, proposal, article) - the type of work, the',
+	'research approach (quantitative, qualitative, mixed, R&D, literature study)',
+	'and the subject, population or setting; application and other letters - the',
+	'recipient and organisation, the position or purpose, and who is sending it;',
+	'a CV - the target role and level and the real experience, education and',
+	'skills to list; reports and work proposals - the audience, the purpose, the',
+	'period or scope and the data to report; flyers, posters and other designs -',
+	'what is offered, the price or offer, the contact details and the call to',
+	'action; anything else - the audience, purpose and length when the request',
+	'leaves them open.',
+	'Facts only the writer knows - names, organisations, dates, prices, contact',
+	'details, figures - are never invented. Ask for them, offering choices such',
+	'as a placeholder to fill in later; the card always lets the writer type the',
+	'real value instead.',
+	'A request that already carries these - a detailed brief, pasted data, a',
+	'filled template - gets no question: start working. Never ask what you can',
+	'decide well yourself: wording, structure, section order, colours, examples,',
+	'length within what the writer asked.',
+	'During the task, ask again only at a new decision point: a choice that',
+	'first matters now (the analysis technique before the method chapter, say),',
+	'or new material from the writer that changes or contradicts an earlier',
+	'decision. Otherwise keep working without asking.',
+	'Call ask_user on',
 	'its own, as the last thing in your turn, and stop - the answers come back',
 	'as its result. At most one ask_user per turn, and put everything you need',
 	'to know into that one card (up to 4 questions) rather than asking again',

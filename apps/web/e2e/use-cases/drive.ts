@@ -23,8 +23,12 @@ import { docxFacts, pdfFacts } from './measure'
  *   Penggerak tidak pernah menekan "Apply all" sendiri: aksi menggambar masih
  *   berjalan saat kartunya tampil tertunda, dan klik tambahan dulu memulai
  *   penerapan kedua (uji-asap 27 Sep: 174 permintaan gambar untuk 2 diagram).
- * - Kartu pertanyaan dijawab dengan pilihan pertama; permintaan metadata
- *   dilewati - prompt uji sudah memuat semua yang dibutuhkan.
+ * - Kartu pertanyaan dijawab dalam "mode isi otomatis": pilihan yang
+ *   menyerahkan keputusan ke AI (rekomendasi, contoh, terserah) didahulukan,
+ *   selain itu pilihan pertama. Sejak 29 Sep AI bertanya lebih sering (tingkat
+ *   sedang), dan pilihan pertama bisa berarti "pakai placeholder" - naskah uji
+ *   lalu berisi kurung siku, bukan isi. Permintaan metadata dilewati - prompt
+ *   uji sudah memuat semua yang dibutuhkan.
  * - Rem biaya membaca saldo OpenRouter sendiri, di proses yang sama.
  */
 
@@ -59,6 +63,9 @@ const SPEND_CHECK_MS = 60_000
 /** Aksi tertunda tanpa apa pun yang berjalan selama ini dianggap macet, bukan sibuk. */
 const STUCK_PENDING_MS = 5 * 60_000
 const USAGE_READ_MS = 30_000
+
+/** Pilihan kartu pertanyaan yang menyerahkan keputusan ke AI. */
+const DELEGATE = /rekomendasi|terserah|serahkan|putuskan|pilihkan|buatkan|contoh|asumsi|karang/i
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -210,7 +217,7 @@ class CaseRun {
 		this.log('send', { text })
 	}
 
-	/** Kartu pertanyaan dijawab seperti penulis yang terburu-buru: pilihan pertama. */
+	/** Kartu pertanyaan dijawab seperti penulis yang menyerahkan detailnya ke AI (lihat `DELEGATE`). */
 	async answer(kind: 'question' | 'metadata'): Promise<void> {
 		this.questions += 1
 		const { page } = this
@@ -220,8 +227,11 @@ class CaseRun {
 			return
 		}
 		for (let step = 0; step < 6; step++) {
-			const option = page.locator('fieldset[aria-label] button[aria-pressed]').first()
-			if ((await option.count()) === 0) break
+			const options = page.locator('fieldset[aria-label]').first().locator('button[aria-pressed]')
+			if ((await options.count()) === 0) break
+			const labels = await options.allInnerTexts()
+			const delegated = labels.findIndex((label) => DELEGATE.test(label) && !/placeholder|\[/i.test(label))
+			const option = options.nth(Math.max(delegated, 0))
 			const question = await page.locator('fieldset[aria-label]').first().getAttribute('aria-label')
 			if ((await option.getAttribute('aria-pressed')) !== 'true') await option.click()
 			this.log('ask', { kind, question, answer: (await option.innerText()).split('\n')[0] })
