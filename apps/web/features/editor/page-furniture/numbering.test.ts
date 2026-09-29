@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { formatPageNumber } from '@writer-hub/shared'
-import { CONTINUE_NUMBERING, formatSheetNumbers, type NumberedSheet } from './numbering'
+import { CONTINUE_NUMBERING, formatSheetNumbers, type NumberedSheet, numberPositionOf } from './numbering'
 
 describe('formatPageNumber', () => {
 	test('desimal', () => {
@@ -85,5 +85,21 @@ describe('formatSheetNumbers', () => {
 	test('tanpa show dianggap tampil — dokumen lama tetap sah', () => {
 		const sheets = [sheet(0, 0, { format: 'decimal', restart: 1 })]
 		expect(formatSheetNumbers(sheets)).toEqual(['1'])
+	})
+})
+
+describe('numberPositionOf - letak nomor per lembar', () => {
+	const rule = { format: 'decimal' as const, restart: 'continue' as const, position: 'top-right' as const }
+
+	test('pembuka bab memakai letak pembukanya, lembar lain letak biasanya', () => {
+		const numbering = { ...rule, openingPosition: 'bottom-center' as const }
+		expect(numberPositionOf({ pageNumbering: numbering, opensChapter: true })).toBe('bottom-center')
+		expect(numberPositionOf({ pageNumbering: numbering })).toBe('top-right')
+	})
+
+	test('tanpa letak pembuka, pembuka bab ikut letak biasa; tanpa letak sama sekali, null', () => {
+		expect(numberPositionOf({ pageNumbering: rule, opensChapter: true })).toBe('top-right')
+		expect(numberPositionOf({ pageNumbering: { format: 'decimal', restart: 'continue' } })).toBeNull()
+		expect(numberPositionOf({ pageNumbering: null })).toBeNull()
 	})
 })

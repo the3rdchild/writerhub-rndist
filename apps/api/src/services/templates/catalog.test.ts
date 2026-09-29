@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { EDITOR_TOOLS } from '@writer-hub/shared'
+import { ACADEMIC_NUMBERING, EDITOR_TOOLS } from '@writer-hub/shared'
 import { BUILTIN_TEMPLATES } from './catalog'
 import { compileTemplateContent } from './compile'
+import { templateDocumentLayout, templateTabLayout } from './layout'
 
 describe('katalog template bawaan', () => {
 	test('setiap slug unik', () => {
@@ -10,7 +11,10 @@ describe('katalog template bawaan', () => {
 	})
 
 	test('setiap struktur punya minimal satu bagian wajib', () => {
+		// Surat lamaran tidak punya heading; strukturnya sengaja kosong.
+		const tanpaStruktur = new Set(['surat-lamaran-kerja'])
 		for (const template of BUILTIN_TEMPLATES) {
+			if (tanpaStruktur.has(template.slug)) continue
 			expect(
 				template.spec.structure.some((item) => item.required),
 				`${template.slug} tanpa bagian required`,
@@ -100,14 +104,62 @@ describe('isian metadata template', () => {
 		}
 	})
 
-	test('tiap teks contoh muncul TEPAT SEKALI di kerangkanya', () => {
+	/*
+	 * Minimal sekali, bukan tepat sekali: judul dan nama penyusun sengaja
+	 * muncul di sampul dan di halaman pengesahan. Yang dijaga tetap sama -
+	 * teks contoh yang dijanjikan formulir benar-benar ada di kerangka.
+	 */
+	test('tiap teks contoh ada di kerangkanya', () => {
 		for (const template of withFields) {
 			const body = textsOf(compileTemplateContent(template)).join('\n')
 			for (const field of template.spec.metadataFields ?? []) {
 				if (!field.placeholder) continue
-				const hits = body.split(field.placeholder).length - 1
-				expect(hits, `${template.slug}: teks contoh "${field.placeholder}" muncul ${hits}x`).toBe(1)
+				// Baris sampul yang kapital memuat versi kapitalnya - itu pun terganti.
+				const hits =
+					body.split(field.placeholder).length - 1 + body.split(field.placeholder.toUpperCase()).length - 1
+				expect(hits, `${template.slug}: teks contoh "${field.placeholder}" tidak ada`).toBeGreaterThan(0)
 			}
+		}
+	})
+
+	test('karya akademik dibuka sampul lalu halaman pengesahan, masing-masing satu halaman', () => {
+		const academic = BUILTIN_TEMPLATES.filter((template) => template.spec.frontMatter)
+		expect(academic.map((template) => template.slug).sort()).toEqual([
+			'disertasi-s3',
+			'proposal-penelitian',
+			'skripsi-s1',
+			'tesis-s2',
+		])
+		for (const template of academic) {
+			const content = compileTemplateContent(template).content
+			const texts = content.map((node) => textsOf(node).join(''))
+			const breaks = content.flatMap((node, index) => (node.type === 'pageBreak' ? [index] : []))
+			expect(breaks.length, `${template.slug}: pemenggal sampul`).toBeGreaterThan(0)
+			expect(texts[breaks[0] + 1], template.slug).toBe('HALAMAN PENGESAHAN')
+			// Tanpa logo dan tanpa kampus tertentu.
+			expect(texts.join(' ')).not.toMatch(/padjadjaran|unpad/i)
+		}
+	})
+
+	test('karya akademik lahir bernomor: romawi di depan, angka mulai BAB I lewat pemisah bagian', () => {
+		const academic = BUILTIN_TEMPLATES.filter((template) => template.spec.frontMatter)
+		for (const template of academic) {
+			const content = compileTemplateContent(template).content
+			const breaks = content.flatMap((node, index) => (node.type === 'sectionBreak' ? [index] : []))
+			expect(breaks, `${template.slug}: satu pemisah bagian`).toHaveLength(1)
+			const next = content[breaks[0] + 1]
+			expect(next?.type, template.slug).toBe('heading')
+			expect(textsOf(next).join(''), template.slug).toMatch(/^(bab\s+(1|i)\b|pendahuluan)/i)
+			expect(content[breaks[0] - 1]?.type, `${template.slug}: tanpa pemenggal ganda`).not.toBe('pageBreak')
+			expect(breaks[0] > 0).toBe(true)
+
+			const pageSetup = next && content[breaks[0]].attrs?.pageSetup
+			expect(pageSetup, template.slug).toEqual({ pageNumbering: ACADEMIC_NUMBERING.body })
+			expect(templateDocumentLayout(template.spec).pageSetup.pageNumbering).toEqual(ACADEMIC_NUMBERING.front)
+			expect(templateTabLayout(template.spec)?.furniture?.footer?.first).toEqual({
+				text: '',
+				align: 'center',
+			})
 		}
 	})
 

@@ -17,8 +17,10 @@ import {
 	sameSheetGeometry,
 } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE, type SectionSpan, sectionSpans } from '@/features/editor/section-break'
+import type { TabStop } from '@/features/editor/tab-stops'
 import { DOCX_ALIGNMENT, docxTypographyStyles } from './docx/typography-styles'
-import { docxSectionFurniture, type FurnitureContent } from './export-furniture'
+import { docxPositionedFurniture, docxSectionFurniture, type FurnitureContent } from './export-furniture'
+import { collectImageSources, type ExportImage, imageBox, imageLabel, loadExportImage } from './export-images'
 
 const TWIPS_PER_PX = 15
 
@@ -29,6 +31,8 @@ const DEFAULT_COLUMN_GAP_PX = 24
 const CSS_LINE_TO_WORD = 1 / 1.15
 
 type BorderStyleValue = 'single' | 'dashed' | 'dotted' | 'double'
+
+const NO_BORDER = { style: 'none', size: 0, color: 'auto' } as const
 
 const BORDER_STYLES: Record<string, BorderStyleValue> = {
 	solid: 'single',
@@ -62,8 +66,8 @@ function cellBordersOf(cell: PMNode) {
 	return { top: border, bottom: border, left: border, right: border }
 }
 
-/** CSS padding shorthand (px values) → docx cell margins in twips. */
-function cellMarginsOf(cell: PMNode) {
+/** CSS padding shorthand (px values) → [top, right, bottom, left] in px. */
+function cellPaddingOf(cell: PMNode): [number, number, number, number] | null {
 	const padding = cell.attrs.cellPadding as string | null | undefined
 	if (!padding) return null
 	const parts = padding
@@ -72,7 +76,24 @@ function cellMarginsOf(cell: PMNode) {
 		.map((part) => Math.round(Number.parseFloat(part) || 0))
 	if (parts.length === 0) return null
 	const [top = 0, right = top, bottom = top, left = right] = parts
+	return [top, right, bottom, left]
+}
+
+/** CSS padding shorthand (px values) → docx cell margins in twips. */
+function cellMarginsOf(cell: PMNode) {
+	const padding = cellPaddingOf(cell)
+	if (!padding) return null
+	const [top, right, bottom, left] = padding
 	return { top: px(top), right: px(right), bottom: px(bottom), left: px(left) }
+}
+
+/** Margin kiri/kanan sel bawaan Word: 0,08 inci (108 twips). */
+const WORD_CELL_MARGIN_PX = 108 / TWIPS_PER_PX
+
+/** Lebar yang dimakan padding kiri dan kanan sel, dalam px. */
+function cellInsetOf(cell: PMNode): number {
+	const padding = cellPaddingOf(cell)
+	return padding ? padding[1] + padding[3] : 2 * WORD_CELL_MARGIN_PX
 }
 
 const VERTICAL_ALIGN: Record<string, 'top' | 'center' | 'bottom'> = {
@@ -315,6 +336,8 @@ export async function exportDocx(
 		WidthType,
 		LevelFormat,
 		ImageRun,
+		Tab,
+		TabStopType,
 	} = docx
 
 	const HEADINGS = [
@@ -332,21 +355,50 @@ export async function exportDocx(
 				const marks = marksOf(child)
 				child.text.split('\n').forEach((piece, index) => {
 					if (index > 0) runs.push(new TextRun({ break: 1 }))
-					if (piece) runs.push(new TextRun({ text: piece, ...marks }))
+					// Karakter \t di teks (impor lama) diterjemahkan ke run tab.
+					if (piece) {
+						const parts = piece.split('\t')
+						parts.forEach((part, i) => {
+							if (i > 0) runs.push(new TextRun({ children: [new Tab()] }))
+							if (part) runs.push(new TextRun({ text: part, ...marks }))
+						})
+					}
 				})
 			} else if (child.type.name === 'hardBreak') {
 				runs.push(new TextRun({ break: 1 }))
+			} else if (child.type.name === 'tab') {
+				runs.push(new TextRun({ children: [new Tab()] }))
 			}
 		})
 		return runs
 	}
 
+	const TAB_TYPE = {
+		left: TabStopType.LEFT,
+		right: TabStopType.RIGHT,
+		center: TabStopType.CENTER,
+	} as const
+
+	/** Menerjemahkan `tabStops` paragraf ke opsi tab stop docx. */
+	const tabStopsOf = (node: PMNode) => {
+		const stops = node.attrs.tabStops as TabStop[] | null | undefined
+		if (!stops || stops.length === 0) return undefined
+		return stops.map((s) => ({
+			type: TAB_TYPE[s.type] ?? TabStopType.LEFT,
+			// Posisinya dalam pt, bukan px: 1 pt = 20 twip. `px()` di sini membuat
+			// tab stop 120 pt mendarat di 90 pt dan titik dua surat tidak sejajar.
+			position: Math.round(s.posPt * 20),
+		}))
+	}
+
 	const paragraphOf = (node: PMNode, extra: Record<string, unknown> = {}): InstanceType<typeof Paragraph> => {
 		const alignment = DOCX_ALIGNMENT[node.attrs.textAlign as string]
+		const tabStops = tabStopsOf(node)
 
 		return new Paragraph({
 			children: runsOf(node),
 			...(alignment ? { alignment } : {}),
+			...(tabStops ? { tabStops } : {}),
 			...blockKeepOf(node),
 			...spacingOf(node),
 			indent: {
@@ -360,10 +412,25 @@ export async function exportDocx(
 	}
 
 	const cellOf = (cell: PMNode, width?: number) => {
-		const children: InstanceType<typeof Paragraph>[] = []
-		cell.forEach((block) => {
-			if (block.isTextblock) children.push(paragraphOf(block))
-		})
+		/*
+		 * Isi sel dibangun lewat `blockOf`, jalur yang sama dengan badan naskah.
+		 * Dulu hanya blok teks yang diambil, jadi daftar, tabel bersarang, dan
+		 * gambar di dalam sel hilang dari berkas walau tampil di layar dan PDF
+		 * (UC9: grafik batang di sel terakhir Tabel 1.1), dan diagram tercetak
+		 * sebagai sumber SVG-nya. Selama isinya dibangun, lebar area teks adalah
+		 * lebar sel tanpa padding, supaya gambar dan tabel bersarang mengecil ke
+		 * selnya, bukan ke lebar halaman.
+		 */
+		const children: InstanceType<typeof Paragraph | typeof Table>[] = []
+		const outerWidth = sectionContentWidth
+		if (width && width > 0) sectionContentWidth = Math.max(1, width - cellInsetOf(cell))
+		try {
+			cell.forEach((block) => {
+				children.push(...(blockOf(block) as typeof children))
+			})
+		} finally {
+			sectionContentWidth = outerWidth
+		}
 		if (children.length === 0) children.push(new Paragraph({}))
 
 		const rowSpan = Math.max(1, Number(cell.attrs.rowspan) || 1)
@@ -399,6 +466,9 @@ export async function exportDocx(
 	 * supaya dua diagram yang sama cukup digambar sekali.
 	 */
 	const mermaidImages = new Map<string, { png: Uint8Array; width: number; height: number }>()
+
+	/** Isi berkas gambar naskah, berkunci `src`; `null` untuk yang gagal diambil. */
+	const imageFiles = new Map<string, ExportImage | null>()
 
 	const tableOf = (node: PMNode) => {
 		const widths = tableColumnWidths(node, sectionContentWidth)
@@ -444,18 +514,31 @@ export async function exportDocx(
 					: { size: 100, type: WidthType.PERCENTAGE },
 			columnWidths: widths.map(px),
 			...(indentLeft > 0 ? { indent: { size: px(indentLeft), type: WidthType.DXA } } : {}),
-			...(tableBorder
+			/* Tabel polos (sampul, blok tanda tangan) harus tetap polos di Word:
+			 * tanpa penanda ini docx memberi garis bawaan ke setiap tabel. */
+			...(node.attrs.borderStyle === 'none'
 				? {
 						borders: {
-							top: tableBorder,
-							bottom: tableBorder,
-							left: tableBorder,
-							right: tableBorder,
-							insideHorizontal: tableBorder,
-							insideVertical: tableBorder,
+							top: NO_BORDER,
+							bottom: NO_BORDER,
+							left: NO_BORDER,
+							right: NO_BORDER,
+							insideHorizontal: NO_BORDER,
+							insideVertical: NO_BORDER,
 						},
 					}
-				: {}),
+				: tableBorder
+					? {
+							borders: {
+								top: tableBorder,
+								bottom: tableBorder,
+								left: tableBorder,
+								right: tableBorder,
+								insideHorizontal: tableBorder,
+								insideVertical: tableBorder,
+							},
+						}
+					: {}),
 		})
 	}
 
@@ -685,6 +768,55 @@ export async function exportDocx(
 					.map((line) => new Paragraph({ children: [new TextRun({ text: line, font: CODE_FONT })] }))
 			}
 
+			/*
+			 * Gambar naskah. Letaknya mengikuti layar: rata kiri/tengah/kanan,
+			 * atau digeser dari kiri sejauh `offsetX`. Gambar yang gagal diambil
+			 * (CORS, tautan mati, format tak terbaca) meninggalkan penanda di
+			 * tempatnya, supaya penulis tahu ada yang tidak ikut.
+			 */
+			case 'image': {
+				const offsetX = Number(node.attrs.offsetX)
+				const shifted = Number.isFinite(offsetX) && node.attrs.offsetX !== null
+				const alignment = shifted ? undefined : DOCX_ALIGNMENT[node.attrs.align as string]
+				const placement = {
+					...(alignment ? { alignment } : {}),
+					...(shifted && offsetX > 0 ? { indent: { left: px(offsetX) } } : {}),
+				}
+
+				const image = imageFiles.get(String(node.attrs.src ?? ''))
+				if (!image) {
+					return [
+						new Paragraph({
+							...placement,
+							children: [
+								new TextRun({
+									text: `[Gambar tidak ikut diekspor: ${imageLabel(node.attrs)}]`,
+									italics: true,
+									color: '808080',
+								}),
+							],
+						}),
+					]
+				}
+
+				const room = sectionContentWidth - (shifted ? Math.max(0, offsetX) : 0)
+				const box = imageBox(node.attrs, image, room)
+				const alt = String(node.attrs.alt ?? '').trim()
+				return [
+					new Paragraph({
+						...placement,
+						children: [
+							new ImageRun({
+								data: image.data,
+								type: image.type,
+								transformation: box,
+								...(alt ? { altText: { name: alt, description: alt } } : {}),
+							}),
+						],
+					}),
+				]
+			}
+
 			case 'tocBlock': {
 				const snapshot = String(node.attrs.snapshot ?? '')
 				/*
@@ -707,7 +839,11 @@ export async function exportDocx(
 				return node.textContent ? [new Paragraph({ text: node.textContent })] : []
 		}
 	}
-	const sectionProperties = (span: SectionSpan | null) => {
+	/*
+	 * `continued`: bagian Word hasil pemecahan per bab (lihat di bawah) - ia
+	 * melanjutkan hitungan bagian induknya, jadi tidak membawa `start`.
+	 */
+	const sectionProperties = (span: SectionSpan | null, continued = false) => {
 		const geo = span ? pageGeometry(span.setup) : geometry
 		const columns = span?.columns
 		const upright = span
@@ -723,8 +859,14 @@ export async function exportDocx(
 					'upper-alpha': docx.NumberFormat.UPPER_LETTER,
 				}[numbering.format]
 			: undefined
+		/*
+		 * Mulai 1 di bagian PERTAMA sama dengan tanpa `start` - Word memulai dari
+		 * 1. Di bagian lain tidak: tanpa `start` Word melanjutkan hitungan, dan
+		 * BAB I sesudah bagian depan romawi terbaca halaman 8, bukan 1.
+		 */
+		const first = span === null || span.pos === 0
 		const startAt =
-			numbering && typeof numbering.restart === 'number' && numbering.restart !== 1
+			!continued && numbering && typeof numbering.restart === 'number' && !(first && numbering.restart === 1)
 				? numbering.restart
 				: undefined
 
@@ -780,43 +922,111 @@ export async function exportDocx(
 		properties: ReturnType<typeof sectionProperties>
 		children: unknown[]
 		span: SectionSpan | null
+		/** Blok pertamanya judul bab: halaman pertamanya halaman pembuka bab. */
+		opensChapter: boolean
 	}[] = []
 	let current: unknown[] = []
 	let spanIndex = 0
+	/*
+	 * Nomor yang letaknya berbeda di halaman pembuka bab (tengah bawah) dan di
+	 * halaman lain (kanan atas) hanya bisa dinyatakan Word lewat "halaman
+	 * pertama berbeda" - yang berlaku per section. Karena itu bagian seperti
+	 * itu dipecah menjadi satu section Word per bab, masing-masing melanjutkan
+	 * hitungan bagian induknya.
+	 */
+	const splitsChapters = (span: SectionSpan | undefined) => {
+		const numbering = span?.setup.pageNumbering
+		return Boolean(numbering?.openingPosition && numbering.openingPosition !== (numbering.position ?? null))
+	}
+	const chapterBreaks = typography?.headings?.[1]?.pageBreakBefore === true
+	let continued = false
+	let opensChapter = false
+	/* Paragraf pemenggal terakhir: pemenggal tepat sebelum judul bab dibuang
+	 * saat bagiannya dipecah, karena section baru sudah membuka halaman baru. */
+	let lastBreak: unknown = null
+	/* Apakah node sebelumnya adalah blok HTML `fit: 'page'`; dipakai untuk
+	 * melewatkan paragraf kosong sesudahnya (EX-2). */
+	let prevWasPageFit = false
 
 	const contentWidthOf = (span: SectionSpan | undefined) =>
 		span ? pageGeometry(span.setup).contentWidth : geometry.contentWidth
 
 	sectionContentWidth = contentWidthOf(spans[0])
 
-	// Semua diagram diratakan sekaligus, sebelum satu pun blok dibangun.
-	await Promise.all(
-		[...collectDiagramSvgs(root)].map(async (svg) => {
+	// Semua diagram diratakan dan semua gambar diambil sekaligus, sebelum satu
+	// pun blok dibangun.
+	await Promise.all([
+		...[...collectDiagramSvgs(root)].map(async (svg) => {
 			const raster = await rasterizeSvg(svg)
 			if (!raster) return
 			const png = pngFromDataUrl(raster.png)
 			if (png) mermaidImages.set(svg, { png, width: raster.width, height: raster.height })
 		}),
-	)
+		...collectImageSources(root).map(async (src) => {
+			imageFiles.set(src, await loadExportImage(src))
+		}),
+	])
 
 	root.forEach((node) => {
 		if (node.type.name === SECTION_BREAK_NODE && spans.length > 0) {
 			sections.push({
-				properties: sectionProperties(spans[spanIndex] ?? null),
+				properties: sectionProperties(spans[spanIndex] ?? null, continued),
 				children: current,
 				span: spans[spanIndex] ?? null,
+				opensChapter,
 			})
 			spanIndex += 1
 			current = []
+			continued = false
+			opensChapter = false
+			lastBreak = null
 			sectionContentWidth = contentWidthOf(spans[spanIndex])
+			prevWasPageFit = false
 			return
 		}
-		current.push(...blockOf(node))
+
+		/*
+		 * Paragraf kosong sesudah blok `fit: 'page'` dilewati di DOCX (EX-2):
+		 * blok itu sudah memulai halaman baru lewat `pageBreakBefore`, dan
+		 * paragraf kosong sesudahnya hanya menambah halaman kosong di Word.
+		 * Paragraf berisi teks tetap diekspor.
+		 */
+		if (prevWasPageFit && node.type.name === 'paragraph' && node.content.size === 0) {
+			prevWasPageFit = false
+			return
+		}
+
+		const chapter =
+			node.type.name === 'heading' &&
+			Number(node.attrs.level) === 1 &&
+			(chapterBreaks || node.attrs.pageBreakBefore === true || lastBreak !== null || current.length === 0)
+		if (chapter && splitsChapters(spans[spanIndex])) {
+			if (current.at(-1) === lastBreak && lastBreak !== null) current.pop()
+			if (current.length > 0) {
+				sections.push({
+					properties: sectionProperties(spans[spanIndex] ?? null, continued),
+					children: current,
+					span: spans[spanIndex] ?? null,
+					opensChapter,
+				})
+				current = []
+				continued = true
+			}
+			opensChapter = true
+		} else if (chapter && current.length === 0) {
+			opensChapter = true
+		}
+
+		const blocks = blockOf(node)
+		current.push(...blocks)
+		lastBreak = node.type.name === PAGE_BREAK_NODE ? (blocks[0] ?? null) : null
+		prevWasPageFit = node.type.name === HTML_BLOCK && node.attrs.fit === 'page'
 	})
 	sections.push({
-		properties: sectionProperties(spans[spanIndex] ?? null),
+		properties: sectionProperties(spans[spanIndex] ?? null, continued),
 		children: current,
 		span: spans[spanIndex] ?? null,
+		opensChapter,
 	})
 
 	// Perabot halaman dipasang di section pertama; section berikutnya mewarisi
@@ -849,6 +1059,23 @@ export async function exportDocx(
 		effectiveHidden = hidden
 	}
 
+	/*
+	 * Bagian yang aturan penomorannya menyebut letak (romawi tengah bawah,
+	 * angka kanan atas...) menulis header/footer-nya sendiri; sisanya tetap
+	 * lewat perabot tab seperti sebelumnya.
+	 */
+	const positioned = sections.map((section, index) => {
+		const numbering = section.span?.setup.pageNumbering
+		if (!numbering?.position && !numbering?.openingPosition) return null
+		const cover = index === 0 && furnitureBase.titlePage === true
+		return docxPositionedFurniture(docx, furniture, furnitureContent, {
+			position: numbering.position ?? null,
+			opening: section.opensChapter && !cover ? (numbering.openingPosition ?? null) : null,
+			cover,
+			hidden: numbering.show === false,
+		})
+	})
+
 	const document = new Document({
 		title,
 		...(typography ? { styles: docxTypographyStyles(typography) } : {}),
@@ -856,23 +1083,34 @@ export async function exportDocx(
 		numbering: {
 			config: [...orderedConfigs].map(([reference, levels]) => ({ reference, levels })),
 		},
-		sections: sections.map((section, index) => ({
-			properties:
-				index === 0 && furnitureBase.titlePage
-					? { ...section.properties, titlePage: true }
-					: section.properties,
-			...(index === 0 && furnitureBase.headers
-				? { headers: furnitureBase.headers }
-				: overrides[index]?.headers
-					? { headers: overrides[index]?.headers }
-					: {}),
-			...(index === 0 && furnitureBase.footers
-				? { footers: furnitureBase.footers }
-				: overrides[index]?.footers
-					? { footers: overrides[index]?.footers }
-					: {}),
-			children: section.children as never,
-		})) as never,
+		sections: sections.map((section, index) => {
+			const own = positioned[index]
+			if (own) {
+				return {
+					properties: own.titlePage ? { ...section.properties, titlePage: true } : section.properties,
+					headers: own.headers,
+					footers: own.footers,
+					children: section.children as never,
+				}
+			}
+			return {
+				properties:
+					index === 0 && furnitureBase.titlePage
+						? { ...section.properties, titlePage: true }
+						: section.properties,
+				...(index === 0 && furnitureBase.headers
+					? { headers: furnitureBase.headers }
+					: overrides[index]?.headers
+						? { headers: overrides[index]?.headers }
+						: {}),
+				...(index === 0 && furnitureBase.footers
+					? { footers: furnitureBase.footers }
+					: overrides[index]?.footers
+						? { footers: overrides[index]?.footers }
+						: {}),
+				children: section.children as never,
+			}
+		}) as never,
 	})
 
 	return Packer.toBlob(document)

@@ -8,6 +8,7 @@ import { replaceTextRange } from '@/features/editor/apply-text'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { looksLikeMarkdown, markdownToHtml, toEditorContent } from '@/features/editor/markdown'
 import { cn } from '@/lib/utils'
+import { AskSummary } from './ask-summary'
 import { StepSummary } from './step-summary'
 import { StepTimeline } from './step-timeline'
 import { ActionGroup } from './tool-actions'
@@ -17,6 +18,7 @@ export function MessageBubble({
 	content,
 	pending,
 	actions,
+	asks,
 	parts,
 	usage,
 	expired,
@@ -25,6 +27,7 @@ export function MessageBubble({
 	content: string
 	pending?: boolean
 	actions?: ToolCall[]
+	asks?: ToolCall[]
 	parts?: TurnPart[]
 	usage?: ChatUsage
 	expired?: boolean
@@ -70,6 +73,7 @@ export function MessageBubble({
 		!prose &&
 		proposals.length === 0 &&
 		!(actions && actions.length > 0) &&
+		!(asks && asks.length > 0) &&
 		!(parts && parts.length > 0)
 
 	return (
@@ -109,6 +113,10 @@ export function MessageBubble({
 				))}
 
 			{actions && actions.length > 0 && <ActionGroup actions={actions} expired={expired} />}
+
+			{asks?.map((call) => (
+				<AskSummary key={call.id} call={call} expired={expired} />
+			))}
 		</div>
 	)
 }

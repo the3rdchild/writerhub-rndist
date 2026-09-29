@@ -33,7 +33,7 @@ export function providerFailure(status: number, detail: string): DraftFailure {
 	const code = providerCodeFromStatus(status)
 
 	if (code === 'quota_exceeded') {
-		return new DraftFailure(code, `Kuota provider AI habis (429).${suffix}`)
+		return new DraftFailure(code, `Kuota atau saldo provider AI habis (${status}).${suffix}`)
 	}
 	if (status === 401 || status === 403) {
 		return new DraftFailure(code, `Kredensial provider AI ditolak (${status}).${suffix}`.trimEnd())

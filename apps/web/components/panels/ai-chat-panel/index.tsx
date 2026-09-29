@@ -6,9 +6,13 @@ import { useChat } from '@/features/chat/chat-context'
 import { applyCommand, type ChatCommand, matchCommands } from '@/features/chat/commands'
 import { useSelectionScope } from '@/features/editor/selection'
 import { cn } from '@/lib/utils'
+import { BriefContextRow } from '../brief-panel'
 import { ChatCommandMenu } from '../chat-command-menu'
+import { AskCard } from './ask-card'
 import { ComposerToolbar } from './composer-toolbar'
 import { MessageBubble } from './message-bubble'
+import { ResumeChip } from './resume-chip'
+import { ContinueMarker, StallCard } from './stall-card'
 import { TaskSeparator } from './step-timeline'
 import { TurnError } from './turn-error'
 
@@ -28,6 +32,11 @@ export function AiChatPanel() {
 		isRunning,
 		error,
 		retry,
+		stall,
+		continueStalled,
+		dismissStall,
+		resumable,
+		resumeTask,
 		attachment,
 		attach,
 		clearAttachment,
@@ -38,6 +47,7 @@ export function AiChatPanel() {
 		reset,
 		startNewTopic,
 		currentTaskId,
+		pendingAsk,
 		autoApply,
 		setAutoApply,
 		research,
@@ -128,6 +138,13 @@ export function AiChatPanel() {
 
 	const pickCommand = (command: ChatCommand) => {
 		if (command.enablesResearch) setResearch(true)
+		// `/lanjut` meneruskan tugas terakhir; tanpa tugas yang bisa diteruskan ia menjadi awal kalimat biasa.
+		if (command.resumes && resumeTask()) {
+			setDraft('')
+			setActiveCommand(0)
+			setFollowingBoth(true)
+			return
+		}
 		setDraft(applyCommand(command))
 		setActiveCommand(0)
 		draftRef.current?.focus()
@@ -167,6 +184,7 @@ export function AiChatPanel() {
 
 	return (
 		<>
+			<BriefContextRow />
 			<div
 				ref={scrollRef}
 				onScroll={onScroll}
@@ -189,14 +207,19 @@ export function AiChatPanel() {
 					return (
 						<Fragment key={`${index}-${message.content.slice(0, 24)}`}>
 							{newTaskBoundary && <TaskSeparator />}
-							<MessageBubble
-								role={message.role}
-								content={message.content}
-								actions={message.actions}
-								parts={message.parts}
-								usage={message.usage}
-								expired={!!message.taskId && message.taskId !== currentTaskId}
-							/>
+							{message.continuation ? (
+								<ContinueMarker continuation={message.continuation} />
+							) : (
+								<MessageBubble
+									role={message.role}
+									content={message.content}
+									actions={message.actions}
+									asks={message.asks}
+									parts={message.parts}
+									usage={message.usage}
+									expired={!!message.taskId && message.taskId !== currentTaskId}
+								/>
+							)}
 						</Fragment>
 					)
 				})}
@@ -210,6 +233,14 @@ export function AiChatPanel() {
 				{streaming !== null && <MessageBubble role="assistant" content={streaming} parts={parts} pending />}
 
 				{error && <TurnError error={error} onRetry={retry} disabled={isRunning} />}
+				{stall && !error && !isRunning && (
+					<StallCard
+						stall={stall}
+						onContinue={continueStalled}
+						onDismiss={dismissStall}
+						disabled={isRunning}
+					/>
+				)}
 
 				{/*
 				 * Jalan kembali ke dasar, karena melepas ikatan otomatis berarti
@@ -232,79 +263,95 @@ export function AiChatPanel() {
 				)}
 			</div>
 
-			<div className="flex shrink-0 flex-col gap-2 px-4 py-3">
-				{attachment && (
-					<div className="flex items-start gap-2 rounded-xl bg-[var(--overlay-hover)] px-3 py-2">
-						<span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-accent">
-							Selection
-						</span>
-						<p className="min-w-0 flex-1 line-clamp-2 text-xs leading-relaxed text-muted">
-							{attachment.text}
-						</p>
-						<button
-							type="button"
-							onClick={dismissAttachment}
-							aria-label="Remove selection"
-							className="shrink-0 text-subtle transition-colors hover:text-foreground"
-						>
-							<X className="h-3.5 w-3.5" />
-						</button>
-					</div>
-				)}
+			{pendingAsk ? (
+				<div className="flex shrink-0 flex-col px-4 py-3">
+					<AskCard key={pendingAsk.id} call={pendingAsk} />
+				</div>
+			) : (
+				<div className="flex shrink-0 flex-col gap-2 px-4 py-3">
+					{resumable && (
+						<ResumeChip
+							key={resumable.taskId}
+							resume={resumable}
+							onResume={() => {
+								resumeTask()
+								setFollowingBoth(true)
+							}}
+						/>
+					)}
+					{attachment && (
+						<div className="flex items-start gap-2 rounded-xl bg-[var(--overlay-hover)] px-3 py-2">
+							<span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-accent">
+								Selection
+							</span>
+							<p className="min-w-0 flex-1 line-clamp-2 text-xs leading-relaxed text-muted">
+								{attachment.text}
+							</p>
+							<button
+								type="button"
+								onClick={dismissAttachment}
+								aria-label="Remove selection"
+								className="shrink-0 text-subtle transition-colors hover:text-foreground"
+							>
+								<X className="h-3.5 w-3.5" />
+							</button>
+						</div>
+					)}
 
-				<ComposerToolbar />
+					<ComposerToolbar />
 
-				<ChatCommandMenu
-					commands={commands}
-					active={Math.min(activeCommand, Math.max(commands.length - 1, 0))}
-					onPick={pickCommand}
-					onHover={setActiveCommand}
-				/>
-
-				<div className="flex items-end gap-2 rounded-2xl bg-surface-raised p-2">
-					<textarea
-						ref={draftRef}
-						value={draft}
-						onChange={(event) => {
-							setDraft(event.target.value)
-							setActiveCommand(0)
-						}}
-						onKeyDown={onDraftKeyDown}
-						rows={2}
-						placeholder="Ask anything about this draft… atau ketik / untuk perintah"
-						aria-label="Message"
-						className="min-h-0 flex-1 resize-none bg-transparent px-2 py-1 text-sm text-foreground outline-none placeholder:text-faint"
+					<ChatCommandMenu
+						commands={commands}
+						active={Math.min(activeCommand, Math.max(commands.length - 1, 0))}
+						onPick={pickCommand}
+						onHover={setActiveCommand}
 					/>
 
-					{isRunning ? (
-						<button
-							type="button"
-							onClick={stop}
-							aria-label="Stop"
-							title="Stop"
-							className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--overlay-active)] text-foreground"
-						>
-							<Square className="h-3.5 w-3.5" />
-						</button>
-					) : (
-						<button
-							type="button"
-							onClick={submit}
-							disabled={!draft.trim()}
-							aria-label="Send"
-							title="Send"
-							className={cn(
-								'flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors',
-								draft.trim()
-									? 'bg-accent text-accent-foreground hover:bg-accent-hover'
-									: 'cursor-not-allowed bg-accent/30 text-white/50',
-							)}
-						>
-							<ArrowUp className="h-4 w-4" />
-						</button>
-					)}
+					<div className="flex items-end gap-2 rounded-2xl bg-surface-raised p-2">
+						<textarea
+							ref={draftRef}
+							value={draft}
+							onChange={(event) => {
+								setDraft(event.target.value)
+								setActiveCommand(0)
+							}}
+							onKeyDown={onDraftKeyDown}
+							rows={2}
+							placeholder="Ask anything about this draft… atau ketik / untuk perintah"
+							aria-label="Message"
+							className="min-h-0 flex-1 resize-none bg-transparent px-2 py-1 text-sm text-foreground outline-none placeholder:text-faint"
+						/>
+
+						{isRunning ? (
+							<button
+								type="button"
+								onClick={stop}
+								aria-label="Stop"
+								title="Stop"
+								className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--overlay-active)] text-foreground"
+							>
+								<Square className="h-3.5 w-3.5" />
+							</button>
+						) : (
+							<button
+								type="button"
+								onClick={submit}
+								disabled={!draft.trim()}
+								aria-label="Send"
+								title="Send"
+								className={cn(
+									'flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors',
+									draft.trim()
+										? 'bg-accent text-accent-foreground hover:bg-accent-hover'
+										: 'cursor-not-allowed bg-accent/30 text-white/50',
+								)}
+							>
+								<ArrowUp className="h-4 w-4" />
+							</button>
+						)}
+					</div>
 				</div>
-			</div>
+			)}
 		</>
 	)
 }

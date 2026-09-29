@@ -323,3 +323,89 @@ describe('dokumen HTML utuh diratakan', () => {
 		expect(singleHtmlBlock('<div class="flyer">isi</div>')).toBe('<div class="flyer">isi</div>')
 	})
 })
+
+/* Keluaran DeepSeek V4 Flash untuk lembar pengesahan, 26 Sep. */
+describe('entitas HTML dan backslash-escape', () => {
+	const texts = (markdown: string) =>
+		markdownToDoc(markdown).content.map((node) => node.content?.map((child) => child.text).join(''))
+
+	test('entitas diterjemahkan dan garis isian kehilangan backslash-nya', () => {
+		expect(texts('&emsp; NIP.\n\n&nbsp;\n\n( \\_\\_\\_ ) &emsp; ( \\_\\_\\_ )')).toEqual([
+			'\u2003 NIP.',
+			'\u00a0',
+			'( ___ ) \u2003 ( ___ )',
+		])
+	})
+
+	test('penanda yang di-escape atau ditulis sebagai entitas tidak memformat', () => {
+		const [paragraph] = markdownToDoc('\\*bukan miring\\* dan &#42;juga bukan&#42;').content
+		expect(paragraph.content).toEqual([{ type: 'text', text: '*bukan miring* dan *juga bukan*' }])
+	})
+
+	test('escape entitas tetap harfiah', () => {
+		expect(texts('\\&amp; tetap tertulis')).toEqual(['&amp; tetap tertulis'])
+	})
+
+	test('isi kode ditulis apa adanya', () => {
+		const [paragraph] = markdownToDoc('Pakai `&nbsp; \\_` di HTML').content
+		expect(paragraph.content?.[1]).toEqual({ type: 'text', text: '&nbsp; \\_', marks: [{ type: 'code' }] })
+	})
+
+	test('judul dokumen ikut bersih', () => {
+		expect(headingTitle('# Bab \\#1 &mdash; Pendahuluan')).toBe('Bab #1 — Pendahuluan')
+	})
+})
+
+describe('kebiasaan LaTeX dan penanda bersarang dari model', () => {
+	test('\\pagebreak di baris sendiri menjadi node pindah halaman', () => {
+		expect(markdownToDoc('Penutup bab.\n\\pagebreak\n# BAB II').content.map((node) => node.type)).toEqual([
+			'paragraph',
+			'pageBreak',
+			'heading',
+		])
+	})
+
+	test('miring di dalam tebal', () => {
+		const [paragraph] = markdownToDoc('**3.3.1 Variabel (X): *Brainrot***').content
+		expect(paragraph.content).toEqual([
+			{ type: 'text', text: '3.3.1 Variabel (X): ', marks: [{ type: 'bold' }] },
+			{ type: 'text', text: 'Brainrot', marks: [{ type: 'bold' }, { type: 'italic' }] },
+		])
+	})
+})
+
+describe('penanda kerangka template (perataan, tab stop, pindah baris)', () => {
+	test('{:align=…} berlaku untuk paragraf atau heading sesudahnya saja', () => {
+		const doc = markdownToDoc('{:align=right}\n[Kota], [Tanggal]\n\nIsi biasa.')
+		expect(doc.content[0].attrs).toEqual({ textAlign: 'right' })
+		expect(doc.content[1].attrs).toBeUndefined()
+	})
+
+	test('{:tabs=…} memberi tab stop, dan \\t menjadi node tab', () => {
+		const doc = markdownToDoc('{:tabs=120pt:left}\nNama\t: [Nama Lengkap]')
+		expect(doc.content[0].attrs).toEqual({ tabStops: [{ posPt: 120, type: 'left' }] })
+		expect(doc.content[0].content?.map((node) => node.type)).toEqual(['text', 'tab', 'text'])
+	})
+
+	/* Surat lamaran: tanpa ini blok tujuan dan blok data melebur jadi satu kalimat. */
+	test('baris yang diakhiri \\ disambung dengan pindah baris, bukan spasi', () => {
+		const doc = markdownToDoc('Kepada Yth.\\\n[Jabatan Penerima]\\\n[Nama Perusahaan]\nlanjut kalimat')
+		expect(doc.content).toHaveLength(1)
+		const nodes = doc.content[0].content ?? []
+		expect(nodes.map((node) => node.type)).toEqual(['text', 'hardBreak', 'text', 'hardBreak', 'text'])
+		expect(nodes.at(-1)?.text).toBe('[Nama Perusahaan] lanjut kalimat')
+	})
+
+	test('blok data: pindah baris dan tab dalam satu paragraf bertab stop', () => {
+		const doc = markdownToDoc('{:tabs=120pt:left}\nNama\t: [Nama]\\\nAlamat\t: [Alamat]')
+		expect(doc.content[0].content?.map((node) => node.type)).toEqual([
+			'text',
+			'tab',
+			'text',
+			'hardBreak',
+			'text',
+			'tab',
+			'text',
+		])
+	})
+})

@@ -1,18 +1,29 @@
 'use client'
 
-import { formatPageNumber, type PageNumberFormat, type PageNumbering } from '@writer-hub/shared'
+import {
+	formatPageNumber,
+	PAGE_NUMBER_POSITIONS,
+	type PageNumberFormat,
+	type PageNumbering,
+	type PageNumberPosition,
+} from '@writer-hub/shared'
 import { useEffect, useRef, useState } from 'react'
+import { applyAcademicNumbering } from '@/features/chat/numbering-apply'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import {
 	readFurnitureFragmentVariants,
+	removeFurnitureFragments,
 	setFurnitureVariantEnabled,
+	setPageFurnitureForTab,
 } from '@/features/editor/page-furniture/page-furniture-ydoc'
 import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
-import { sectionSpans } from '@/features/editor/section-break'
+import { SECTION_BREAK_NODE, sectionSpans } from '@/features/editor/section-break'
 import { isSectionScope, sectionRange } from '@/features/editor/section-scope'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useSessions } from '@/features/sessions/session-context'
+import { setNumberingPreset } from '@/features/sessions/ydoc'
 import { useSettings } from '@/features/settings/settings-context'
+import { cn } from '@/lib/utils'
 
 /**
  * Dialog "Page numbers" — deret angkanya, terpisah dari wadahnya.
@@ -33,8 +44,99 @@ const FORMATS: { id: PageNumberFormat; label: string; sample: string }[] = [
 
 /* "Whole document" sengaja tidak ada: di produk ini satu dokumen memuat 1..n
  * tab, jadi yang sedang disunting selalu TAB ini — menyebutnya "seluruh
- * dokumen" justru menjanjikan lebih dari yang dilakukannya. */
-type Scope = 'tab' | 'from_here' | 'this_page'
+ * dokumen" justru menjanjikan lebih dari yang dilakukannya.
+ *
+ * "This section" mengubah bagian tempat kursor berada tanpa pemisah baru.
+ * Tanpanya, membuka dialog dengan kursor di BAB I menampilkan aturan BAB I,
+ * dan Apply dengan cakupan bawaan "This tab" menimpakannya ke bagian depan -
+ * romawinya hilang. */
+type Scope = 'tab' | 'section' | 'from_here' | 'this_page'
+
+const POSITION_LABEL: Record<PageNumberPosition, string> = {
+	'top-left': 'Top left',
+	'top-center': 'Top center',
+	'top-right': 'Top right',
+	'bottom-left': 'Bottom left',
+	'bottom-center': 'Bottom center',
+	'bottom-right': 'Bottom right',
+}
+
+/**
+ * Letak nomor di halaman, dipilih langsung di gambar halaman kecil. `null`
+ * berarti nomor tidak digambar aturan ini sendiri: ia datang dari token
+ * {page} di header/footer, atau dari lencana sudut.
+ */
+function PositionPicker({
+	label,
+	value,
+	onChange,
+	offLabel,
+	sample,
+	disabled = false,
+}: {
+	label: string
+	value: PageNumberPosition | null
+	onChange: (value: PageNumberPosition | null) => void
+	offLabel: string
+	sample: string
+	disabled?: boolean
+}) {
+	return (
+		<fieldset className={cn('flex items-center gap-3 text-xs', disabled && 'opacity-50')} disabled={disabled}>
+			<legend className="sr-only">{label}</legend>
+			<div className="relative grid h-24 w-[4.5rem] shrink-0 grid-cols-3 grid-rows-[auto_1fr_auto] rounded border border-line bg-surface p-1">
+				{PAGE_NUMBER_POSITIONS.map((position) => {
+					const selected = value === position
+					return (
+						<button
+							key={position}
+							type="button"
+							aria-label={`${label}: ${POSITION_LABEL[position]}`}
+							aria-pressed={selected}
+							title={POSITION_LABEL[position]}
+							onClick={() => onChange(position)}
+							className={cn(
+								'flex h-4 items-center justify-center rounded-sm transition-colors',
+								position.startsWith('top') ? 'row-start-1' : 'row-start-3',
+								position.endsWith('left')
+									? 'col-start-1'
+									: position.endsWith('center')
+										? 'col-start-2'
+										: 'col-start-3',
+								selected
+									? 'bg-accent text-accent-foreground'
+									: 'text-faint hover:bg-[var(--overlay-hover)] hover:text-foreground',
+							)}
+						>
+							<span className="text-[9px] leading-none">{selected ? sample : '·'}</span>
+						</button>
+					)
+				})}
+				<div
+					className="col-span-3 row-start-2 mx-1 my-1 rounded-sm bg-[var(--overlay-hover)]"
+					aria-hidden="true"
+				/>
+			</div>
+			<div className="flex min-w-0 flex-col gap-1">
+				<span className="font-medium text-muted">{label}</span>
+				<span className="text-foreground">{value ? POSITION_LABEL[value] : offLabel}</span>
+				<button
+					type="button"
+					aria-pressed={value === null}
+					onClick={() => onChange(null)}
+					className={cn(
+						'self-start rounded-md border px-2 py-0.5 transition-colors',
+						value === null
+							? 'border-accent/60 text-foreground'
+							: 'border-line text-subtle hover:text-foreground',
+					)}
+				>
+					{offLabel}
+				</button>
+			</div>
+		</fieldset>
+	)
+}
 
 export function PageNumbersDialog() {
 	const { pageNumbersOpen, setPageNumbersOpen } = useSettings()
@@ -44,12 +146,18 @@ export function PageNumbersDialog() {
 	const { furniture } = usePageFurniture()
 	const overlayRef = useRef<HTMLDivElement>(null)
 
+	/** Pemisah bagian tempat kursor berada, atau `null` untuk bagian pertama (aturan tab). */
+	function sectionAtCursor(): { pos: number; numbering: PageNumbering | undefined } | null {
+		if (!editor || editor.isDestroyed) return null
+		const spans = sectionSpans(editor.state.doc, setup)
+		const span = [...spans].reverse().find((s) => s.pos <= editor.state.selection.from) ?? spans[0]
+		if (!span || span.pos === 0 || spans.indexOf(span) === 0) return null
+		return { pos: span.pos, numbering: span.setup.pageNumbering }
+	}
+
 	function numberingAtCursor(): PageNumbering {
-		if (editor && !editor.isDestroyed) {
-			const spans = sectionSpans(editor.state.doc, setup)
-			const span = [...spans].reverse().find((s) => s.pos <= editor.state.selection.from) ?? spans[0]
-			if (span?.setup.pageNumbering) return span.setup.pageNumbering
-		}
+		const section = sectionAtCursor()
+		if (section?.numbering) return section.numbering
 		return setup.pageNumbering ?? { format: 'decimal', restart: 'continue' }
 	}
 
@@ -70,7 +178,7 @@ export function PageNumbersDialog() {
 			const current = numberingAtCursor()
 			setNumbering(current)
 			setRestartAt(typeof current.restart === 'number' ? current.restart : 1)
-			setScope('tab')
+			setScope(sectionAtCursor() ? 'section' : 'tab')
 			setError(null)
 			setFirstPageSeparate(
 				readFurnitureFragmentVariants(doc, activeTabId ?? '').some((entry) => entry.variant === 'first') ||
@@ -99,6 +207,35 @@ export function PageNumbersDialog() {
 	if (!pageNumbersOpen) return null
 
 	const activeTab = sessions.find((s) => s.id === activeId)
+
+	/* Pola karya ilmiah sekali tekan - bahan yang sama dengan pemasangan otomatis AI. */
+	const applyAcademic = () => {
+		if (!editor || editor.isDestroyed || !activeTabId) return
+		const outcome = applyAcademicNumbering({
+			editor,
+			setup,
+			setPageSetup,
+			setFirstPageSeparate: (separate) => {
+				setFurnitureVariantEnabled(doc, activeTabId, 'first', separate, furniture)
+				return { ok: true, message: '' }
+			},
+			furniture: () => furniture,
+			setFurnitureLine: (slot, variant, line) => {
+				if (line) return { ok: false, message: '' }
+				removeFurnitureFragments(doc, activeTabId, [{ slot, variant }])
+				const lines = { ...(furniture?.[slot] ?? {}) }
+				delete lines[variant]
+				setPageFurnitureForTab(doc, activeTabId, { ...(furniture ?? {}), [slot]: lines })
+				return { ok: true, message: '' }
+			},
+		})
+		if (!outcome.ok) {
+			setError('Belum ada judul tingkat 1 "BAB I" atau "PENDAHULUAN" - tempat angka 1 dimulai.')
+			return
+		}
+		setNumberingPreset(doc, activeTabId, outcome.front ? 'academic' : 'academic-body')
+		setPageNumbersOpen(false)
+	}
 	const sectionScopesAvailable = editor !== null && !editor.isDestroyed && !setup.pageless
 
 	const apply = () => {
@@ -106,10 +243,28 @@ export function PageNumbersDialog() {
 			format: numbering.format,
 			restart: numbering.restart === 'continue' ? 'continue' : Math.max(0, Math.floor(restartAt)),
 			show: numbering.show !== false,
+			// Letak nomor (penomoran karya ilmiah) tidak diatur dialog ini, jadi ikut apa adanya.
+			...(numbering.position ? { position: numbering.position } : {}),
+			...(numbering.openingPosition ? { openingPosition: numbering.openingPosition } : {}),
 		}
 
 		if (scope === 'tab') {
 			setPageSetup({ ...setup, pageNumbering: next }, 'tab')
+			setPageNumbersOpen(false)
+			return
+		}
+
+		if (scope === 'section') {
+			const section = sectionAtCursor()
+			const node = section && editor ? editor.state.doc.nodeAt(section.pos) : null
+			if (!section || !editor || node?.type.name !== SECTION_BREAK_NODE) {
+				setPageSetup({ ...setup, pageNumbering: next }, 'tab')
+			} else {
+				const pageSetup = { ...((node.attrs.pageSetup as object | null) ?? {}), pageNumbering: next }
+				editor.view.dispatch(
+					editor.state.tr.setNodeMarkup(section.pos, undefined, { ...node.attrs, pageSetup }),
+				)
+			}
 			setPageNumbersOpen(false)
 			return
 		}
@@ -149,6 +304,9 @@ export function PageNumbersDialog() {
 						<option value="tab">
 							{activeTab ? `This tab: ${activeTab.title || 'Untitled'}` : 'This tab'}
 						</option>
+						<option value="section" disabled={!sectionScopesAvailable}>
+							This section (where the cursor is)
+						</option>
 						<option value="from_here" disabled={!sectionScopesAvailable}>
 							This point forward
 						</option>
@@ -156,6 +314,11 @@ export function PageNumbersDialog() {
 							This page only
 						</option>
 					</select>
+					{scope === 'section' && (
+						<span className="text-[11px] leading-relaxed text-subtle">
+							Mengubah aturan bagian tempat kursor berada, tanpa pemisah bagian baru.
+						</span>
+					)}
 					{isSectionScope(scope) && (
 						<span className="text-[11px] leading-relaxed text-subtle">
 							{scope === 'this_page'
@@ -182,7 +345,7 @@ export function PageNumbersDialog() {
 				</label>
 
 				<div className="flex flex-col gap-1">
-					<span className="text-xs font-medium text-muted">Position</span>
+					<span className="text-xs font-medium text-muted">First page</span>
 					<label className="flex items-center gap-2 text-sm text-foreground">
 						<input
 							type="checkbox"
@@ -222,6 +385,40 @@ export function PageNumbersDialog() {
 					</select>
 				</label>
 
+				<div className="flex flex-col gap-3">
+					<PositionPicker
+						label="Number position"
+						value={numbering.position ?? null}
+						sample={formatPageNumber(3, numbering.format)}
+						offLabel="From header/footer"
+						onChange={(position) =>
+							setNumbering((current) => {
+								const { position: _old, openingPosition, ...rest } = current
+								return position
+									? { ...rest, position, ...(openingPosition ? { openingPosition } : {}) }
+									: rest
+							})
+						}
+					/>
+					<PositionPicker
+						label="Chapter-opening pages"
+						value={numbering.openingPosition ?? null}
+						sample={formatPageNumber(1, numbering.format)}
+						offLabel="Same as other pages"
+						disabled={!numbering.position}
+						onChange={(openingPosition) =>
+							setNumbering((current) => {
+								const { openingPosition: _old, ...rest } = current
+								return openingPosition ? { ...rest, openingPosition } : rest
+							})
+						}
+					/>
+					<span className="text-[11px] leading-relaxed text-subtle">
+						Letak yang dipilih digambar aturan ini sendiri - di layar, DOCX, dan cetak - tanpa token{' '}
+						{'{page}'} di header/footer. Halaman pembuka bab: halaman yang dimulai judul tingkat 1 (BAB).
+					</span>
+				</div>
+
 				<div className="flex flex-col gap-1.5">
 					<label className="flex items-center gap-2 text-sm text-foreground">
 						<input
@@ -257,11 +454,24 @@ export function PageNumbersDialog() {
 					</label>
 				</div>
 
+				<div className="flex flex-col gap-1.5 rounded-xl border border-line bg-surface px-3 py-2.5 text-[11px] leading-relaxed">
+					<span className="text-subtle">
+						Karya ilmiah: sampul tanpa nomor, bagian depan <em>i, ii, iii</em> di tengah bawah, lalu mulai BAB
+						I angka dari 1 - tengah bawah di halaman pembuka bab, kanan atas di halaman lain.
+					</span>
+					<button
+						type="button"
+						onClick={applyAcademic}
+						disabled={!sectionScopesAvailable}
+						className="self-start rounded-lg border border-line bg-surface-raised px-2.5 py-1 font-medium text-foreground transition-colors hover:border-accent/60 disabled:opacity-50"
+					>
+						Terapkan pola karya ilmiah
+					</button>
+				</div>
+
 				<span className="text-[11px] leading-relaxed text-subtle">
-					Halaman depan romawi lalu isi arab: setel <em>i, ii, iii</em> untuk bagian pertama, taruh kursor di
-					awal BAB 1, lalu pilih “This point forward” dengan format <em>1, 2, 3</em> — start at 1. Untuk
-					membuang nomor dari sederet halaman, matikan <em>Show page numbers</em> dengan cakupan yang sesuai;
-					halamannya tetap terhitung, hanya angkanya tidak digambar.
+					Untuk membuang nomor dari sederet halaman, matikan <em>Show page numbers</em> dengan cakupan yang
+					sesuai; halamannya tetap terhitung, hanya angkanya tidak digambar.
 				</span>
 
 				{error && <span className="text-[11px] text-yellow-500">{error}</span>}

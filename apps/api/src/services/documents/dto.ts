@@ -1,8 +1,9 @@
-import type { DocumentMetadata, TabLayout } from '@writer-hub/shared'
+import type { DocumentMetadata, ResearchBrief, TabLayout } from '@writer-hub/shared'
 import { z } from 'zod'
 import type { DocumentTab } from '@/db/schemas'
 import type { TabSummary } from '@/services/tabs/dto'
 import { tabLayoutOverrideSchema, tabLayoutSchema } from '@/services/tabs/dto'
+import { researchBriefSchema } from './brief'
 
 export type { TabSummary }
 
@@ -24,6 +25,8 @@ export const createDocumentBodySchema = z.object({
 	tabLayout: tabLayoutOverrideSchema.nullish(),
 	/** Metadata template; ikut mengganti teks contoh di kerangka saat dibuat. */
 	metadata: documentMetadataSchema.optional(),
+	/** Brief penelitian dokumen lokal yang baru pertama kali disimpan ke server. */
+	brief: researchBriefSchema.optional(),
 })
 
 export type CreateDocumentBody = z.infer<typeof createDocumentBodySchema>
@@ -39,6 +42,7 @@ export const updateDocumentBodySchema = z.object({
 	 * lahir.
 	 */
 	metadata: documentMetadataSchema.nullish(),
+	brief: researchBriefSchema.nullish(),
 })
 
 export type UpdateDocumentBody = z.infer<typeof updateDocumentBodySchema>
@@ -50,6 +54,7 @@ export interface DocumentSummary {
 	templateSlug: string | null
 	layout: TabLayout | null
 	metadata: DocumentMetadata | null
+	brief: ResearchBrief | null
 	tabCount: number
 	updatedAt: number
 	createdAt: number

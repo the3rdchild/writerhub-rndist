@@ -95,3 +95,8 @@ function stable(value: unknown): string {
 export function layoutSyncKey(layout: TabLayout | TabLayoutOverride | null): string {
 	return layout ? stable(layout) : ''
 }
+
+/** Kunci yang sama untuk nilai tingkat dokumen lain - brief penelitian. */
+export function syncKey(value: unknown): string {
+	return value ? stable(value) : ''
+}

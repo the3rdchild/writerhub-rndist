@@ -1,5 +1,6 @@
 'use client'
 
+import type { PageNumberPosition } from '@writer-hub/shared'
 import type { CSSProperties } from 'react'
 import type { PageMargins } from '@/features/editor/page-geometry'
 import {
@@ -150,5 +151,35 @@ export function SheetFurniture({
 				totalPages={totalPages}
 			/>
 		</>
+	)
+}
+
+/**
+ * Nomor halaman yang digambar aturan penomoran bagiannya sendiri, di margin
+ * atas atau bawah - tempat yang sama dengan header/footer, dengan rupa yang
+ * sama, supaya tidak terbaca sebagai lencana tambahan.
+ */
+export function SheetPageNumber({
+	position,
+	margins,
+	headerMargin,
+	footerMargin,
+	pageNumber,
+}: {
+	position: PageNumberPosition
+	margins: PageMargins
+	headerMargin: number
+	footerMargin: number
+	pageNumber: string
+}) {
+	const [edge, align] = position.split('-') as ['top' | 'bottom', 'left' | 'center' | 'right']
+	return (
+		<div
+			className="furniture-box pointer-events-none absolute text-[10px] leading-4 text-faint"
+			style={{ ...boxOf(margins, edge, headerMargin, footerMargin), textAlign: align }}
+			data-page-number={position}
+		>
+			{pageNumber}
+		</div>
 	)
 }

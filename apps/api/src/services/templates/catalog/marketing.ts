@@ -56,6 +56,15 @@ const MARKETING_TYPOGRAPHY_RELEASE: DocumentTypography = {
 	},
 }
 
+/**
+ * Desain satu halaman menggantikan kerangka template hanya bila kerangka itu
+ * belum disentuh. Di uji UC5 (28 Sep) model tiga kali menulis judul ke heading
+ * template lebih dulu, lalu menyisipkan desainnya: kerangka tertinggal dan
+ * tercetak sebagai halaman tambahan.
+ */
+const DESIGN_FIRST_RULE =
+	'If you make this as a one-page HTML design (insert_html_block with fit "page"), insert it as your very first edit, before writing anything into the template headings. It then replaces the empty template; writing into the headings first keeps them, and they print as extra pages.'
+
 export const MARKETING_TEMPLATES: BuiltinTemplateDefinition[] = [
 	{
 		slug: 'flyer-a5',
@@ -106,6 +115,7 @@ export const MARKETING_TEMPLATES: BuiltinTemplateDefinition[] = [
 				'Write short, punchy copy; no paragraph longer than two sentences.',
 				'Keep exactly three benefits, phrased as outcomes for the reader.',
 				'End with a single clear call to action and reachable contact details.',
+				DESIGN_FIRST_RULE,
 			],
 		},
 	},
@@ -163,6 +173,7 @@ export const MARKETING_TEMPLATES: BuiltinTemplateDefinition[] = [
 				'Write short, punchy copy; let the main visual carry the page.',
 				'Keep exactly three benefits, phrased as outcomes for the reader.',
 				'End with a single clear call to action and reachable contact details.',
+				DESIGN_FIRST_RULE,
 			],
 		},
 	},
@@ -277,6 +288,7 @@ export const MARKETING_TEMPLATES: BuiltinTemplateDefinition[] = [
 				'Write for reading at a distance: big claims, few words.',
 				'Detail Acara always answers when, where, and how much.',
 				'Keep one contact channel and one QR placeholder, not a list of everything.',
+				DESIGN_FIRST_RULE,
 			],
 		},
 	},

@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import { getSchema } from '@tiptap/core'
+import type { Node as PMNode } from '@tiptap/pm/model'
 import { EditorState, NodeSelection, TextSelection } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
+import { buildSchema } from '@/features/sync/serialize'
 import { HtmlBlock } from './html-block'
-import { escapeNodeSelection } from './insert-point'
+import { escapeNodeSelection, positionAfterTable } from './insert-point'
 
 const schema = getSchema([StarterKit, HtmlBlock])
 
@@ -62,5 +64,52 @@ describe('kursor sesudah blok atom', () => {
 
 		escapeNodeSelection(tr)
 		expect(tr.selection.from).toBe(3)
+	})
+})
+
+describe('kursor di dalam tabel (EX-1)', () => {
+	const full = buildSchema()
+	const paragraph = (text: string) => full.node('paragraph', null, [full.text(text)])
+	const cell = (content: PMNode) => full.node('tableCell', null, [content])
+	const table = (...cells: PMNode[]) => full.node('table', null, [full.node('tableRow', null, cells)])
+
+	/** Kursor di akhir paragraf yang teksnya persis itu. */
+	function cursorAtEndOf(doc: PMNode, text: string): TextSelection {
+		let at = -1
+		doc.descendants((node, pos) => {
+			if (at < 0 && node.type.name === 'paragraph' && node.textContent === text)
+				at = pos + 1 + node.content.size
+		})
+		return TextSelection.create(doc, at)
+	}
+
+	test('kursor tertinggal di sel terakhir: diagram mendarat sesudah tabelnya', () => {
+		// Keadaan sesudah insert_content menulis "Tabel 1.1" beserta tabelnya.
+		const doc = full.node('doc', null, [
+			paragraph('Tabel 1.1'),
+			table(cell(paragraph('a')), cell(paragraph('b'))),
+		])
+		const at = positionAfterTable(cursorAtEndOf(doc, 'b'))
+		expect(at).toBe(doc.content.size)
+
+		const tr = EditorState.create({ schema: full, doc }).tr
+		tr.insert(at ?? 0, full.node('codeBlock', { language: 'diagram' }, [full.text('<svg/>')]))
+		expect(tr.doc.childCount).toBe(3)
+		expect(tr.doc.child(1).type.name).toBe('table')
+		expect(tr.doc.child(1).textContent).toBe('ab')
+		expect(tr.doc.lastChild?.type.name).toBe('codeBlock')
+	})
+
+	test('tabel bersarang: keluar dari tabel terluar, bukan hanya dari yang dalam', () => {
+		const inner = table(cell(paragraph('dalam')))
+		const doc = full.node('doc', null, [table(cell(paragraph('luar')), cell(inner)), paragraph('sesudah')])
+
+		expect(positionAfterTable(cursorAtEndOf(doc, 'dalam'))).toBe(doc.firstChild?.nodeSize)
+	})
+
+	test('kursor di luar tabel: tidak ada yang dipindahkan', () => {
+		const doc = full.node('doc', null, [table(cell(paragraph('sel'))), paragraph('naskah')])
+
+		expect(positionAfterTable(cursorAtEndOf(doc, 'naskah'))).toBeNull()
 	})
 })

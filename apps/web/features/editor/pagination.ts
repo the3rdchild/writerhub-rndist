@@ -5,6 +5,7 @@ import { TableMap } from '@tiptap/pm/tables'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import type { PageNumbering } from '@writer-hub/shared'
 import { COLUMN_BREAK_NODE } from './column-break'
+import { HTML_BLOCK } from './html-block'
 import { PAGE_BREAK_NODE } from './page-break'
 import {
 	PAGE_GAP,
@@ -46,6 +47,11 @@ export interface Measurement {
 	 * blockquote, callout). Penyesuaian margin dan label section ditempelkan ke
 	 * kontainernya, bukan ke tiap anak. */
 	container?: number
+	/** Judul tingkat satu di tingkat teratas: lembar yang dibukanya adalah halaman pembuka bab. */
+	opensChapter?: boolean
+	/** Paragraf kosong yang langsung mengikuti blok `fit: 'page'`; tidak boleh
+	 * melahirkan lembar baru di kanvas (EX-2). */
+	trailingPageFit?: boolean
 }
 
 /*
@@ -65,7 +71,7 @@ interface PaginationState {
 	sheets: SheetGeometry[]
 	marginAdjustments: MarginAdjustment[]
 	blockPages: BlockPage[]
-	blockSections: { pos: number; section: number }[]
+	blockSections: BlockSection[]
 	pageless: boolean
 	breakBeforeLevels: number[]
 }
@@ -87,7 +93,7 @@ export interface PaginationMeta {
 	sheets?: SheetGeometry[]
 	marginAdjustments?: MarginAdjustment[]
 	blockPages?: BlockPage[]
-	blockSections?: { pos: number; section: number }[]
+	blockSections?: BlockSection[]
 	geometry?: PageGeometry
 	setup?: PageSetup
 	pageless?: boolean
@@ -119,12 +125,31 @@ function measureBlocks(view: EditorView): Measurement[] {
 	}
 	const regions = setup ? columnRegions(view.state.doc, setup) : []
 
+	/*
+	 * Node sebelumnya dipakai untuk menandai paragraf kosong yang mengikuti
+	 * blok `fit: 'page'` - ia tidak boleh melahirkan lembar baru di kanvas
+	 * (EX-2). `trailingPageFit` hanya true bila node sebelumnya adalah blok HTML
+	 * mode halaman dan node ini paragraf kosong.
+	 */
+	let prevWasPageFit = false
+
 	view.state.doc.forEach((node, offset) => {
 		cumulative += inserted.get(offset) ?? 0
 
+		/*
+		 * Paragraf kosong sesudah blok `fit: 'page'` ditandai di sini supaya
+		 * `computeSpacers` tahu untuk tidak mendorong lembar baru karenanya.
+		 * Diperiksa sebelum logika pengukuran manapun berjalan, supaya semua
+		 * jalur (region, selfPaginate, split, biasa) lewat titik yang sama.
+		 */
+		const isTrailingPageFit = prevWasPageFit && node.type.name === 'paragraph' && node.content.size === 0
+
 		const region = regions.find((entry) => offset >= entry.from && offset < entry.to)
 		if (region) {
-			if (offset !== region.from) return
+			if (offset !== region.from) {
+				prevWasPageFit = false
+				return
+			}
 
 			const placeholder = view.dom.querySelector(`[${REGION_SPACE_ATTRIBUTE}="${region.from}"]`)
 			if (placeholder instanceof HTMLElement) {
@@ -140,16 +165,21 @@ function measureBlocks(view: EditorView): Measurement[] {
 					selfPaginate: true,
 					internal,
 				})
+				prevWasPageFit = false
 				return
 			}
 		}
 
 		const dom = view.nodeDOM(offset)
-		if (!(dom instanceof HTMLElement)) return
+		if (!(dom instanceof HTMLElement)) {
+			prevWasPageFit = false
+			return
+		}
 		const top = dom.offsetTop - cumulative
 
 		if (node.type.name === 'table') {
 			cumulative = measureTable(view, node, offset, top, dom, cumulative, inserted, measurements)
+			prevWasPageFit = false
 			return
 		}
 
@@ -168,11 +198,13 @@ function measureBlocks(view: EditorView): Measurement[] {
 				selfPaginate: true,
 				internal,
 			})
+			prevWasPageFit = node.type.name === HTML_BLOCK && node.attrs.fit === 'page'
 			return
 		}
 
 		if (SPLIT_CONTAINERS.has(node.type.name)) {
 			cumulative = measureContainerChildren(view, node, offset, top, dom, cumulative, inserted, measurements)
+			prevWasPageFit = false
 			return
 		}
 
@@ -188,7 +220,13 @@ function measureBlocks(view: EditorView): Measurement[] {
 			isSectionBreak: node.type.name === SECTION_BREAK_NODE || undefined,
 			kind: 'block',
 			keepWithNext: KEEP_WITH_NEXT.has(node.type.name) || undefined,
+			opensChapter: (node.type.name === 'heading' && Number(node.attrs.level) === 1) || undefined,
+			trailingPageFit: isTrailingPageFit || undefined,
 		})
+		/* Blok HTML tidak memaginasi dirinya sendiri, jadi ia diukur di jalur
+		 * biasa ini - di sinilah tandanya harus dipasang. Dulu selalu `false`,
+		 * dan paragraf kosong sesudah flyer tetap melahirkan lembar kedua (UC5). */
+		prevWasPageFit = node.type.name === HTML_BLOCK && node.attrs.fit === 'page'
 	})
 
 	return measurements
@@ -387,6 +425,17 @@ export function computeSpacers(
 		{ ...geometry, index: 0, top: 0, sectionIndex: 0, pageNumbering: baseNumbering ?? null },
 	]
 	const contentTop = (sheet: SheetGeometry) => sheet.top + sheet.margins.top - baseMargins.top
+	/*
+	 * Lembar terakhir yang sudah berisi blok. Judul tingkat satu yang menjadi
+	 * blok pertama lembarnya menandai lembar itu halaman pembuka bab - tempat
+	 * pedoman karya ilmiah menaruh nomor di tengah bawah.
+	 */
+	let filledSheet = -1
+	const place = (block: Measurement) => {
+		const page = sheets.length - 1
+		if (block.opensChapter && filledSheet !== page) sheets[page].opensChapter = true
+		filledSheet = page
+	}
 	const pushSheet = (): SheetGeometry => {
 		const last = sheets[sheets.length - 1]
 		const next: SheetGeometry = {
@@ -395,6 +444,8 @@ export function computeSpacers(
 			top: last.top + last.height + PAGE_GAP,
 			sectionIndex: pendingSection?.index ?? last.sectionIndex ?? 0,
 			pageNumbering: pendingSection ? pendingSection.pageNumbering : (last.pageNumbering ?? null),
+			// Disebar dari lembar sebelumnya - tanda pembuka bab tidak ikut diwarisi.
+			opensChapter: undefined,
 		}
 		sheets.push(next)
 		pendingGeometry = null
@@ -516,11 +567,29 @@ export function computeSpacers(
 			}
 
 			blockPages.push({ pos: block.pos, page: sheets.length - 1 })
+			place(block)
 			const canvasBottom = block.bottom + cumulative + baseMargins.top
 			while (nextContentTop() < canvasBottom - 0.5) pushSheet()
 			cumulative += block.internal ?? 0
 			pageStart = contentTop(sheets[sheets.length - 1]) - cumulative
 
+			forceNext = false
+			continue
+		}
+
+		/*
+		 * Paragraf kosong sesudah blok `fit: 'page'` tidak boleh melahirkan
+		 * lembar baru di kanvas (EX-2). Blok sebelumnya mengisi tepat satu
+		 * lembar, jadi paragraf ini pasti meluap - tetapi isinya kosong, jadi
+		 * luapannya tidak terlihat. Ia ditaruh di lembar yang sama tanpa
+		 * mendorong lembar baru, supaya penulis masih bisa mengetik di situ.
+		 *
+		 * Paragraf yang sudah berisi teks tidak membawa bendera ini (lihat
+		 * `measureBlocks`), jadi ia tetap membuka halaman baru seperti biasa.
+		 */
+		if (block.trailingPageFit) {
+			if (block.kind === 'block') blockPages.push({ pos: block.pos, page: sheets.length - 1 })
+			place(block)
 			forceNext = false
 			continue
 		}
@@ -541,6 +610,7 @@ export function computeSpacers(
 			pageStart = block.top - headerHeight
 		}
 		if (block.kind === 'block') blockPages.push({ pos: block.pos, page: sheets.length - 1 })
+		place(block)
 
 		/*
 		 * Permintaan lembar baru sudah dipenuhi oleh blok ini; tanpa reset,
@@ -613,7 +683,11 @@ export function sameSheets(a: readonly SheetGeometry[], b: readonly SheetGeometr
 				 * disembunyikan" — `true` dan kosong sama-sama berarti tampil, supaya
 				 * dokumen lama tanpa medan `show` tidak memicu pemancaran semu.
 				 */
-				(sheet.pageNumbering?.show === false) === (other.pageNumbering?.show === false)
+				(sheet.pageNumbering?.show === false) === (other.pageNumbering?.show === false) &&
+				// Letak nomor dan halaman pembuka bab juga tidak menggeser geometri apa pun.
+				(sheet.pageNumbering?.position ?? null) === (other.pageNumbering?.position ?? null) &&
+				(sheet.pageNumbering?.openingPosition ?? null) === (other.pageNumbering?.openingPosition ?? null) &&
+				Boolean(sheet.opensChapter) === Boolean(other.opensChapter)
 			)
 		})
 	)
@@ -651,10 +725,29 @@ export function marginAdjustments(
 	return adjustments
 }
 
+/**
+ * Nama halaman cetak sebuah blok: indeks section-nya, ditambah akhiran bila
+ * lembarnya butuh aturan `@page` sendiri.
+ *
+ * - `o` - lembar pembuka bab di bagian yang nomornya berpindah tempat di
+ *   halaman pembuka (tengah bawah) dibanding halaman lain (kanan atas).
+ * - `f` - lembar pertama bagian yang mulai ulang dari angka selain 1.
+ *
+ * Peramban tidak bisa memilih "halaman pertama tiap bab" lewat CSS (`@page
+ * nama:first` hanya berlaku untuk halaman pertama dokumen), jadi lembar-lembar
+ * itu diberi nama halaman sendiri. Pergantian nama memaksa pemenggalan persis
+ * di batas lembar layar - yang di situ memang sudah ada pemenggalannya.
+ */
+export interface BlockSection {
+	pos: number
+	section: number
+	variant?: 'o' | 'f' | 'fo'
+}
+
 export function blockSections(
 	blockPositions: readonly number[],
 	sections: readonly { pos: number; name: number }[],
-): { pos: number; section: number }[] {
+): BlockSection[] {
 	return blockPositions.map((pos) => {
 		let section = 0
 		for (const entry of sections) {
@@ -663,6 +756,69 @@ export function blockSections(
 		}
 		return { pos, section }
 	})
+}
+
+/**
+ * Pemisah bagian (yang memulai halaman baru) memakai nama halaman blok DI
+ * DEPANNYA. Ia penutup bagian sebelumnya: dengan nama bagian berikutnya,
+ * peramban memenggal sebelum pemisah (nama berganti) DAN sesudahnya
+ * (`break-after: page`), dan di antaranya lahir halaman kosong. Dengan nama
+ * sebelumnya, kedua pemenggalan jatuh di titik yang sama dan menjadi satu.
+ */
+export function breaksKeepPreviousName(
+	entries: readonly BlockSection[],
+	breaks: ReadonlySet<number>,
+): BlockSection[] {
+	return entries.map((entry, index) => {
+		const previous = entries[index - 1]
+		if (!breaks.has(entry.pos) || !previous) return entry
+		return {
+			pos: entry.pos,
+			section: previous.section,
+			...(previous.variant ? { variant: previous.variant } : {}),
+		}
+	})
+}
+
+/**
+ * Menambahkan akhiran nama halaman cetak (lihat `BlockSection`) dari lembar
+ * tempat tiap blok jatuh. Kosong bila tidak ada blok yang membutuhkannya -
+ * dokumen biasa tidak mendapat dekorasi apa pun.
+ */
+export function withPrintVariants(
+	entries: readonly BlockSection[],
+	blockPages: readonly BlockPage[],
+	sheets: readonly SheetGeometry[],
+	rules: readonly (PageNumbering | null | undefined)[],
+): BlockSection[] {
+	const pageAt = new Map(blockPages.map((entry) => [entry.pos, entry.page]))
+	/* Kontainer (daftar, kutipan) tidak tercatat sendiri: lembarnya lembar anak pertamanya. */
+	const sheetOf = (pos: number): number | null =>
+		pageAt.get(pos) ?? blockPages.find((entry) => entry.pos > pos)?.page ?? null
+
+	const firstSheet = new Map<number, number>()
+	for (const entry of entries) {
+		const sheet = sheetOf(entry.pos)
+		if (sheet !== null && !firstSheet.has(entry.section)) firstSheet.set(entry.section, sheet)
+	}
+
+	let any = false
+	const result = entries.map((entry): BlockSection => {
+		const rule = rules[entry.section]
+		const sheet = sheetOf(entry.pos)
+		if (!rule || sheet === null) return entry
+		const opening =
+			sheets[sheet]?.opensChapter === true &&
+			rule.openingPosition !== undefined &&
+			rule.openingPosition !== (rule.position ?? null)
+		const first =
+			typeof rule.restart === 'number' && rule.restart !== 1 && firstSheet.get(entry.section) === sheet
+		const variant = first && opening ? 'fo' : first ? 'f' : opening ? 'o' : undefined
+		if (!variant) return entry
+		any = true
+		return { ...entry, variant }
+	})
+	return any ? result : []
 }
 
 /*
@@ -683,13 +839,15 @@ function outerBlockPositions(blocks: readonly Measurement[]): number[] {
 	return positions
 }
 
-function sameBlockSections(
-	a: readonly { pos: number; section: number }[],
-	b: readonly { pos: number; section: number }[],
-): boolean {
+function sameBlockSections(a: readonly BlockSection[], b: readonly BlockSection[]): boolean {
 	return (
 		a.length === b.length &&
-		a.every((entry, index) => entry.pos === b[index].pos && entry.section === b[index].section)
+		a.every(
+			(entry, index) =>
+				entry.pos === b[index].pos &&
+				entry.section === b[index].section &&
+				entry.variant === b[index].variant,
+		)
 	)
 }
 
@@ -715,7 +873,7 @@ function buildDecorations(
 	doc: PMNode,
 	spacers: readonly Spacer[],
 	adjustments: readonly MarginAdjustment[] = [],
-	sections: readonly { pos: number; section: number }[] = [],
+	sections: readonly BlockSection[] = [],
 ): DecorationSet {
 	const decorations: Decoration[] = []
 	for (const entry of sections) {
@@ -723,7 +881,7 @@ function buildDecorations(
 		if (!node) continue
 		decorations.push(
 			Decoration.node(entry.pos, entry.pos + node.nodeSize, {
-				class: `document-section-${entry.section}`,
+				class: `document-section-${entry.section}${entry.variant ?? ''}`,
 			}),
 		)
 	}
@@ -976,19 +1134,32 @@ export const Pagination = Extension.create<PaginationOptions>({
 							if (index > 0 && !continuous[index]) printSetups.push(span.setup)
 							pageNames.push(printSetups.length - 1)
 						})
-						const sectionsOfBlocks =
-							spans.length > 1
-								? blockSections(
-										targets,
-										spans.map((span, index) => ({ pos: span.pos, name: pageNames[index] })),
-									)
-								: []
+						const named = blockSections(
+							targets,
+							spans.map((span, index) => ({ pos: span.pos, name: pageNames[index] })),
+						)
+						const varied = withPrintVariants(
+							named,
+							blockPages,
+							sheets,
+							printSetups.map((setup) => setup.pageNumbering),
+						)
+						const pageBreaking = new Set(
+							spans.slice(1).flatMap((span, index) => (continuous[index + 1] ? [] : [span.pos])),
+						)
+						const sectionsOfBlocks = breaksKeepPreviousName(
+							varied.length > 0 ? varied : spans.length > 1 ? named : [],
+							pageBreaking,
+						)
 						if (
 							!sameSpacers(spacers, state.spacers) ||
 							pageCount !== state.pageCount ||
 							!sameAdjustments(adjustments, state.marginAdjustments) ||
 							!sameBlockPages(blockPages, state.blockPages) ||
-							!sameBlockSections(sectionsOfBlocks, state.blockSections)
+							!sameBlockSections(sectionsOfBlocks, state.blockSections) ||
+							/* Penomoran yang berganti tanpa menggeser apa pun (desimal → romawi)
+							 * tetap harus sampai ke state: daftar isi membaca nomornya dari sini. */
+							!sameSheets(sheets, state.sheets)
 						) {
 							const transaction = view.state.tr.setMeta(paginationKey, {
 								spacers,

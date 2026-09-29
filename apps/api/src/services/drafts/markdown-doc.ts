@@ -1,3 +1,4 @@
+import { decodeEntities, isPageBreakLine, protectEscapes, restoreEscapes } from '@writer-hub/shared'
 import { type DesignCanvas, repairDesignHtml } from './design-repair'
 /**
  * Menerjemahkan Markdown menjadi dokumen ProseMirror - bentuk yang disimpan
@@ -48,6 +49,19 @@ const BULLET_ITEM = /^[-*]\s+(.*)$/
 const ORDERED_ITEM = /^\d+\.\s+(.*)$/
 /** Baris yang mengakhiri sebuah paragraf karena ia memulai blok lain. */
 const BLOCK_START = /^(?:#{1,6}\s|[-*]\s|\d+\.\s|>|```)/
+/**
+ * Marker perataan di kerangka template: `{:align=center}`, `{:align=right}`,
+ * `{:align=center}`, `{:align=justify}`, atau `{:align=left}` di baris
+ * tersendiri sebelum paragraf/heading yang diratakan. Tidak bentrok dengan
+ * Markdown biasa karena `{` di awal baris bukan penanda Markdown manapun.
+ */
+const ALIGN_HINT = /^\s*\{:align=(center|right|justify|left)\}\s*$/
+
+/*
+ * Tab stop per paragraf: `{:tabs=72pt:left,144pt:right}`.
+ * Posisi dalam pt; jenis opsional (baku: left).
+ */
+const TABS_HINT = /^\s*\{:tabs=([0-9]+pt:[a-z]+(?:,[0-9]+pt:[a-z]+)*)\}\s*$/
 
 interface InlinePattern {
 	pattern: RegExp
@@ -66,7 +80,7 @@ const INLINE_PATTERNS: InlinePattern[] = [
 	},
 	// Tebal dicari sebelum miring dan isinya boleh memuat bintang, supaya
 	// "**tebal dan *miring* sekaligus**" tidak terbaca sebagai miring tunggal.
-	{ pattern: /\*\*([^\n]+?)\*\*/, mark: () => ({ type: 'bold' }), inner: (m) => m[1] },
+	{ pattern: /\*\*((?:[^*\n]|\*[^*\n]+\*)+?)\*\*/, mark: () => ({ type: 'bold' }), inner: (m) => m[1] },
 	{ pattern: /__([^\n]+?)__/, mark: () => ({ type: 'bold' }), inner: (m) => m[1] },
 	{ pattern: /(?<!\*)\*(?!\*)([^*\n]+?)\*(?!\*)/, mark: () => ({ type: 'italic' }), inner: (m) => m[1] },
 	{
@@ -76,15 +90,30 @@ const INLINE_PATTERNS: InlinePattern[] = [
 	},
 ]
 
+/*
+ * Entitas diterjemahkan dan escape dikembalikan di sini, sesudah penanda
+ * inline selesai dicari: `&#42;` dan `\*` adalah bintang harfiah, bukan
+ * pembuka miring. Isi kode tidak mengenal keduanya - ditulis apa adanya.
+ */
 function textNode(text: string, marks: DocMark[]): DocNode {
-	return marks.length > 0 ? { type: 'text', text, marks } : { type: 'text', text }
+	const code = marks.some((mark) => mark.type === 'code')
+	const value = code ? restoreEscapes(text, (char) => `\\${char}`) : restoreEscapes(decodeEntities(text))
+	return marks.length > 0 ? { type: 'text', text: value, marks } : { type: 'text', text: value }
+}
+
+/**
+ * Teks inline Markdown menjadi node teks bertanda. Backslash-escape diamankan
+ * dulu supaya `\_\_\_` (garis isian) tidak terbaca sebagai penanda miring.
+ */
+export function inlineNodes(text: string, marks: DocMark[] = []): DocNode[] {
+	return markedNodes(protectEscapes(text), marks)
 }
 
 /**
  * Penanda paling kiri yang menang, lalu sisanya diproses ulang - dengan begitu
  * `**tebal *miring* **` bersarang tanpa perlu parser bertingkat.
  */
-export function inlineNodes(text: string, marks: DocMark[] = []): DocNode[] {
+function markedNodes(text: string, marks: DocMark[]): DocNode[] {
 	let earliest: { match: RegExpExecArray; spec: InlinePattern } | null = null
 	for (const spec of INLINE_PATTERNS) {
 		const match = spec.pattern.exec(text)
@@ -100,15 +129,55 @@ export function inlineNodes(text: string, marks: DocMark[] = []): DocNode[] {
 	const nested = [...marks, spec.mark(match)]
 
 	return [
-		...inlineNodes(before, marks),
-		...(spec.literal ? (inner ? [textNode(inner, nested)] : []) : inlineNodes(inner, nested)),
-		...inlineNodes(after, marks),
+		...markedNodes(before, marks),
+		...(spec.literal ? (inner ? [textNode(inner, nested)] : []) : markedNodes(inner, nested)),
+		...markedNodes(after, marks),
 	]
 }
 
-function paragraph(text: string): DocNode {
-	const content = inlineNodes(text)
-	return content.length > 0 ? { type: 'paragraph', content } : { type: 'paragraph' }
+function paragraph(text: string, align?: string, tabStops?: DocNode[]): DocNode {
+	const content = inlineWithTabs(text)
+	const attrs: Record<string, unknown> = {}
+	if (align) attrs.textAlign = align
+	if (tabStops && tabStops.length > 0) attrs.tabStops = tabStops
+	const hasAttrs = Object.keys(attrs).length > 0
+	return content.length > 0
+		? { type: 'paragraph', ...(hasAttrs ? { attrs } : {}), content }
+		: { type: 'paragraph', ...(hasAttrs ? { attrs } : {}) }
+}
+
+/** Penanda pindah baris di dalam paragraf, dari baris kerangka yang diakhiri `\`. */
+const LINE_BREAK = '\n'
+
+/**
+ * Sama dengan `inlineNodes`, tapi `\t` di teks dipisah menjadi node `tab`
+ * agar tab stop per paragraf berfungsi di editor, dan `\n` menjadi pindah baris.
+ */
+function inlineWithTabs(text: string): DocNode[] {
+	const nodes: DocNode[] = []
+	text.split(LINE_BREAK).forEach((line, lineIndex) => {
+		if (lineIndex > 0) nodes.push({ type: 'hardBreak' })
+		line.split('\t').forEach((part, partIndex) => {
+			if (partIndex > 0) nodes.push({ type: 'tab' })
+			nodes.push(...inlineNodes(part))
+		})
+	})
+	return nodes
+}
+
+/**
+ * Baris kerangka yang diakhiri `\` disambung ke baris berikutnya dengan pindah
+ * baris, bukan spasi - seperti hard break Markdown. Surat memakainya: blok
+ * tujuan, blok data pelamar, dan ruang tanda tangan masing-masing satu
+ * paragraf dengan baris-baris di dalamnya. Tanpa ini, baris berurutan melebur
+ * jadi satu kalimat ("Kepada Yth. [Jabatan] [Perusahaan] …").
+ */
+function joinLines(lines: readonly string[]): string {
+	return lines.reduce((joined, line, index) => {
+		if (index === 0) return line
+		const previous = lines[index - 1]
+		return previous.endsWith('\\') ? `${joined.slice(0, -1)}${LINE_BREAK}${line}` : `${joined} ${line}`
+	}, '')
 }
 
 function cells(line: string): string[] {
@@ -128,7 +197,12 @@ function tableCell(type: 'tableHeader' | 'tableCell', text: string): DocNode {
 }
 
 /** Satu blok Markdown per panggilan; mengembalikan node plus baris berikutnya. */
-type BlockReader = (lines: string[], index: number) => { node: DocNode; next: number } | null
+type BlockReader = (
+	lines: string[],
+	index: number,
+	align?: string,
+	tabStops?: DocNode[],
+) => { node: DocNode; next: number } | null
 
 const readFencedCode: BlockReader = (lines, index) => {
 	const opening = lines[index].trim()
@@ -177,15 +251,22 @@ const readTable: BlockReader = (lines, index) => {
 	return { node: { type: 'table', content: rows }, next: cursor }
 }
 
-const readHeading: BlockReader = (lines, index) => {
+const readHeading: BlockReader = (lines, index, align) => {
 	const match = HEADING.exec(lines[index].trim())
 	if (!match) return null
 
 	return {
-		node: { type: 'heading', attrs: { level: match[1].length }, content: inlineNodes(match[2]) },
+		node: {
+			type: 'heading',
+			attrs: { level: match[1].length, ...(align ? { textAlign: align } : {}) },
+			content: inlineNodes(match[2]),
+		},
 		next: index + 1,
 	}
 }
+
+const readPageBreak: BlockReader = (lines, index) =>
+	isPageBreakLine(lines[index]) ? { node: { type: 'pageBreak' }, next: index + 1 } : null
 
 const readHorizontalRule: BlockReader = (lines, index) =>
 	HORIZONTAL_RULE.test(lines[index].trim()) ? { node: { type: 'horizontalRule' }, next: index + 1 } : null
@@ -221,23 +302,33 @@ const readBlockquote: BlockReader = (lines, index) => {
 	return { node: { type: 'blockquote', content: [paragraph(quoted.join(' '))] }, next: cursor }
 }
 
-const readParagraph: BlockReader = (lines, index) => {
+const readParagraph: BlockReader = (lines, index, align, tabStops) => {
 	const collected: string[] = [lines[index].trim()]
 	let cursor = index + 1
 
 	while (cursor < lines.length) {
 		const line = lines[cursor].trim()
-		if (!line || isTableRow(lines[cursor]) || BLOCK_START.test(line) || HORIZONTAL_RULE.test(line)) break
+		if (
+			!line ||
+			isTableRow(lines[cursor]) ||
+			BLOCK_START.test(line) ||
+			HORIZONTAL_RULE.test(line) ||
+			isPageBreakLine(line) ||
+			ALIGN_HINT.test(lines[cursor]) ||
+			TABS_HINT.test(lines[cursor])
+		)
+			break
 		collected.push(line)
 		cursor += 1
 	}
 
-	return { node: paragraph(collected.join(' ')), next: cursor }
+	return { node: paragraph(joinLines(collected), align, tabStops), next: cursor }
 }
 
 const BLOCK_READERS: BlockReader[] = [
 	readFencedCode,
 	readTable,
+	readPageBreak,
 	readHorizontalRule,
 	readHeading,
 	readList,
@@ -440,6 +531,8 @@ export function markdownToDoc(markdown: string, options: MarkdownDocOptions = {}
 	const lines = markdown.replace(/\r\n/g, '\n').split('\n')
 	const content: DocNode[] = []
 	let index = 0
+	let pendingAlign: string | undefined
+	let pendingTabs: DocNode[] | undefined
 
 	while (index < lines.length) {
 		if (!lines[index].trim()) {
@@ -447,11 +540,32 @@ export function markdownToDoc(markdown: string, options: MarkdownDocOptions = {}
 			continue
 		}
 
+		// Marker perataan: `{:align=center}` menunggu paragraf/heading berikutnya.
+		const hint = ALIGN_HINT.exec(lines[index])
+		if (hint) {
+			pendingAlign = hint[1]
+			index += 1
+			continue
+		}
+
+		// Marker tab stop: `{:tabs=72pt:left,144pt:right}`.
+		const tabHint = TABS_HINT.exec(lines[index])
+		if (tabHint) {
+			pendingTabs = tabHint[1].split(',').map((entry) => {
+				const [posStr, type] = entry.split(':')
+				return { posPt: Number.parseInt(posStr, 10), type: type as 'left' | 'right' | 'center' }
+			})
+			index += 1
+			continue
+		}
+
 		for (const read of BLOCK_READERS) {
-			const result = read(lines, index)
+			const result = read(lines, index, pendingAlign, pendingTabs)
 			if (!result) continue
 			content.push(result.node)
 			index = result.next
+			pendingAlign = undefined
+			pendingTabs = undefined
 			break
 		}
 	}

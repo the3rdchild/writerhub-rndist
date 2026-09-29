@@ -4,12 +4,14 @@ import { formatSheetNumbers } from './page-furniture/numbering'
 import { DEFAULT_PAGE_SETUP, pageGeometry, sameSheetGeometry } from './page-geometry'
 import {
 	blockSections,
+	breaksKeepPreviousName,
 	computeSpacers,
 	type Measurement,
 	pageBlockRange,
 	pageOfPos,
 	type SheetGeometry,
 	sameSheets,
+	withPrintVariants,
 } from './pagination'
 
 const geometry = pageGeometry() // A4, margin 1 inci
@@ -832,5 +834,106 @@ describe('section menerus tidak menghapus mulai-ulang lembar berjalan (W1)', () 
 		)
 
 		expect(formatSheetNumbers(sheets)).toEqual(['32', '33'])
+	})
+})
+
+describe('halaman pembuka bab', () => {
+	const block = (
+		pos: number,
+		top: number,
+		height: number,
+		extra: Partial<Measurement> = {},
+	): Measurement => ({
+		pos,
+		top,
+		bottom: top + height,
+		isBreak: false,
+		kind: 'block',
+		...extra,
+	})
+
+	test('lembar yang dibuka judul tingkat satu ditandai; lembar lanjutannya tidak', () => {
+		const blocks = [
+			block(0, 0, 40, { opensChapter: true }),
+			block(1, 40, contentHeight),
+			block(2, 40 + contentHeight, 40, { opensChapter: true, breakBefore: true }),
+			block(3, 80 + contentHeight, 40),
+		]
+		const { sheets } = computeSpacers(blocks, geometry)
+		expect(sheets.map((sheet) => Boolean(sheet.opensChapter))).toEqual([true, false, true])
+	})
+
+	test('judul di tengah lembar tidak menjadikan lembarnya pembuka bab', () => {
+		const blocks = [block(0, 0, 40), block(1, 40, 40, { opensChapter: true })]
+		expect(computeSpacers(blocks, geometry).sheets[0].opensChapter).toBeFalsy()
+	})
+})
+
+describe('nama halaman cetak per lembar', () => {
+	const rule = {
+		format: 'decimal' as const,
+		restart: 1,
+		position: 'top-right' as const,
+		openingPosition: 'bottom-center' as const,
+	}
+	const sheet = (index: number, opensChapter = false): SheetGeometry => ({
+		...geometry,
+		index,
+		top: index * pageStride,
+		opensChapter,
+	})
+
+	test('blok di lembar pembuka bab mendapat akhiran o; kontainer ikut lembar anak pertamanya', () => {
+		const entries = [
+			{ pos: 0, section: 0 },
+			{ pos: 10, section: 0 },
+			{ pos: 20, section: 0 },
+		]
+		const pages = [
+			{ pos: 0, page: 0 },
+			{ pos: 10, page: 1 },
+			{ pos: 21, page: 2 },
+		]
+		const result = withPrintVariants(entries, pages, [sheet(0, true), sheet(1), sheet(2, true)], [rule])
+		expect(result.map((entry) => entry.variant)).toEqual(['o', undefined, 'o'])
+	})
+
+	test('tanpa letak pembuka yang berbeda tidak ada dekorasi sama sekali', () => {
+		const same = { ...rule, openingPosition: 'top-right' as const }
+		expect(
+			withPrintVariants([{ pos: 0, section: 0 }], [{ pos: 0, page: 0 }], [sheet(0, true)], [same]),
+		).toEqual([])
+	})
+
+	test('lembar pertama bagian yang mulai dari angka selain 1 mendapat akhiran f', () => {
+		const fromFive = { format: 'decimal' as const, restart: 5 }
+		const result = withPrintVariants(
+			[
+				{ pos: 0, section: 1 },
+				{ pos: 5, section: 1 },
+			],
+			[
+				{ pos: 0, page: 3 },
+				{ pos: 5, page: 4 },
+			],
+			[sheet(0), sheet(1), sheet(2), sheet(3), sheet(4)],
+			[null, fromFive],
+		)
+		expect(result.map((entry) => entry.variant)).toEqual(['f', undefined])
+	})
+})
+
+describe('pemisah bagian di kertas cetak', () => {
+	test('memakai nama halaman blok di depannya, bukan bagian sesudahnya', () => {
+		const entries = [
+			{ pos: 0, section: 0 },
+			{ pos: 10, section: 1 },
+			{ pos: 12, section: 1, variant: 'o' as const },
+		]
+		expect(breaksKeepPreviousName(entries, new Set([10]))).toEqual([
+			{ pos: 0, section: 0 },
+			{ pos: 10, section: 0 },
+			{ pos: 12, section: 1, variant: 'o' },
+		])
 	})
 })

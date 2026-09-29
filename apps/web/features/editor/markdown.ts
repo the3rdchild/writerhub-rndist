@@ -1,9 +1,31 @@
+import { isPageBreakLine, protectEscapes, restoreEscapes, startsEntity } from '@writer-hub/shared'
 import { latexToMarkdown, looksLikeLatexDocument } from './latex-document'
 import { wholeParagraphLatex } from './math'
 
 function escapeHtml(value: string): string {
 	return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
+
+/**
+ * Seperti `escapeHtml`, tapi `&` yang membuka entitas dibiarkan: `&emsp;`
+ * yang ditulis model untuk merapikan blok tanda tangan harus menjadi spasi,
+ * bukan tulisan "&emsp;". Aman - referensi entitas tidak pernah membentuk tag.
+ */
+function escapeText(value: string): string {
+	return value
+		.replace(/&/g, (amp, offset: number) => (startsEntity(value, offset) ? amp : '&amp;'))
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+}
+
+const CODE_SPAN = /(`[^`]+`)/
+
+/**
+ * Komentar HTML tidak terlihat di Markdown mana pun. Model memakainya sebagai
+ * penanda - `<!--diagram:infografis-->` dari `insert_html_block` - dan tanpa
+ * dibuang ia tercetak di tengah naskah (uji use case 27 Sep, UC1).
+ */
+const HTML_COMMENT = / ?<!--[\s\S]*?-->/g
 
 function escapeAttribute(value: string): string {
 	return escapeHtml(value).replace(/"/g, '&quot;')
@@ -15,13 +37,15 @@ function inline(text: string): string {
 	const formulas: string[] = []
 
 	const stash = (latex: string, display: boolean): string => {
-		const trimmed = latex.trim()
+		// `\$` di dalam rumus adalah LaTeX, bukan escape Markdown - backslash-nya kembali.
+		const trimmed = restoreEscapes(latex, (char) => `\\${char}`).trim()
 		if (!trimmed) return ''
 		const tag = display ? 'div' : 'span'
 		formulas.push(`<${tag} data-latex="${escapeAttribute(trimmed)}"></${tag}>`)
 		return `${MATH_PLACEHOLDER}${formulas.length - 1}\u0000`
 	}
-	const guarded = text
+	// `\$` tidak pernah membuka rumus, jadi ia diamankan sebelum rumus dicari.
+	const guarded = protectEscapes(text, '$')
 		.replace(
 			/\\begin\{((?:equation|align|gather|multline)\*?)\}([\s\S]*?)\\end\{\1\}/g,
 			(whole, _name, body: string) => stash(body, true) || whole,
@@ -34,13 +58,26 @@ function inline(text: string): string {
 			return stash(trimmed, whole.startsWith('$$')) || whole
 		})
 
-	const rendered = escapeHtml(guarded)
+	/*
+	 * Isi kode tidak mengenal escape maupun entitas: `\_` dan `&nbsp;` di
+	 * dalam backtick ditulis apa adanya. Di luar kode, backslash-escape
+	 * diamankan dulu supaya `\*` tidak menjadi penanda miring.
+	 */
+	const rendered = guarded
+		.split(CODE_SPAN)
+		.map((part, index) =>
+			index % 2 === 1
+				? escapeHtml(restoreEscapes(part, (char) => `\\${char}`))
+				: escapeText(protectEscapes(part.replace(HTML_COMMENT, ''))),
+		)
+		.join('')
 		.replace(/`([^`]+)`/g, '<code>$1</code>')
-		.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+		// Isi tebal boleh memuat miring utuh: "**a. Rentang (*attention span*)**".
+		.replace(/\*\*((?:[^*]|\*[^*]+\*)+?)\*\*/g, '<strong>$1</strong>')
 		.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
 		.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2">$1</a>')
 
-	return rendered.replace(
+	return restoreEscapes(rendered, escapeHtml).replace(
 		new RegExp(`${MATH_PLACEHOLDER}(\\d+)\\u0000`, 'g'),
 		(_whole, index: string) => formulas[Number(index)] ?? '',
 	)
@@ -67,7 +104,10 @@ export function looksLikeMarkdown(text: string): boolean {
 		/\*\*[^*\n]+\*\*|`[^`\n]+`/.test(text) ||
 		/```/.test(text) ||
 		/\$\$?[^\s$][^$\n]*[^\s$]\$\$?|\$[^\s$]\$/.test(text) ||
-		/\\\[[\s\S]*?\\\]|\\\([^)\n]*?\\\)|\\begin\{(?:equation|align|gather|multline)\*?\}/.test(text)
+		/\\\[[\s\S]*?\\\]|\\\([^)\n]*?\\\)|\\begin\{(?:equation|align|gather|multline)\*?\}/.test(text) ||
+		// Backslash-escape dan entitas HTML: tanpa konversi keduanya tertulis mentah.
+		/\\[_*#`~|<>+.!{}&$-]/.test(text) ||
+		/&(?:#\d{1,7}|#x[0-9a-f]{1,6}|[a-z][a-z0-9]{1,31});/i.test(text)
 	)
 }
 
@@ -80,11 +120,14 @@ export function markdownToHtml(markdown: string): string {
 		const line = lines[index]
 		const trimmed = line.trim()
 
-		if (!trimmed) {
+		if (!trimmed || trimmed.replace(HTML_COMMENT, '').trim() === '') {
 			index += 1
 			continue
 		}
 		if (trimmed.startsWith('```')) {
+			// Nama bahasa pagar ikut: ```mermaid tanpa itu tercetak sebagai kode,
+			// bukan digambar (uji 28 Sep, UC4). Hanya karakter nama bahasa yang lolos.
+			const language = /^```\s*([a-z0-9_+#-]{1,30})\s*$/i.exec(trimmed)?.[1]?.toLowerCase()
 			const body: string[] = []
 			index += 1
 			while (index < lines.length && !lines[index].trim().startsWith('```')) {
@@ -92,7 +135,8 @@ export function markdownToHtml(markdown: string): string {
 				index += 1
 			}
 			index += 1 // pagar penutup
-			out.push(`<pre><code>${escapeHtml(body.join('\n'))}</code></pre>`)
+			const attribute = language ? ` class="language-${language}"` : ''
+			out.push(`<pre><code${attribute}>${escapeHtml(body.join('\n'))}</code></pre>`)
 			continue
 		}
 		if (isTableRow(line) && index + 1 < lines.length && TABLE_DIVIDER.test(lines[index + 1])) {
@@ -114,6 +158,11 @@ export function markdownToHtml(markdown: string): string {
 				.join('')
 
 			out.push(`<table><tbody><tr>${head}</tr>${body}</tbody></table>`)
+			continue
+		}
+		if (isPageBreakLine(trimmed)) {
+			out.push('<div data-page-break=""></div>')
+			index += 1
 			continue
 		}
 		if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
@@ -166,6 +215,7 @@ export function markdownToHtml(markdown: string): string {
 			const current = lines[index].trim()
 			if (
 				!current ||
+				isPageBreakLine(current) ||
 				isTableRow(lines[index]) ||
 				/^(#{1,6}\s|[-*]\s|\d+\.\s|>|```)/.test(current) ||
 				/^(?:-{3,}|\*{3,}|_{3,})$/.test(current)
@@ -182,7 +232,13 @@ export function markdownToHtml(markdown: string): string {
 	return out.join('')
 }
 
+/**
+ * Teks dari AI menjadi isi editor. Paragraf yang dipisah baris kosong ikut
+ * lewat Markdown walau tanpa penanda lain: dibiarkan mentah, TipTap
+ * menyisipkannya sebagai satu untai teks, dan "Puji syukur…" plus paragraf
+ * kedua menjadi satu paragraf - atau satu heading - berisi baris baru.
+ */
 export function toEditorContent(text: string): string {
 	const source = looksLikeLatexDocument(text) ? latexToMarkdown(text) : text
-	return looksLikeMarkdown(source) ? markdownToHtml(source) : source
+	return looksLikeMarkdown(source) || /\n\s*\n/.test(source.trim()) ? markdownToHtml(source) : source
 }

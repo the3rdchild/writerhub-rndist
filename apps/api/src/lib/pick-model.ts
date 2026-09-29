@@ -1,10 +1,12 @@
 import { DEFAULT_CHAT_MODEL, isKnownChatModel } from '@writer-hub/shared'
+import { speaksOpenRouter } from './speaks-openrouter'
 
 /**
  * Model mana yang benar-benar dipakai untuk satu permintaan.
  *
  * Pilihan pemanggil hanya dihormati kalau ia model yang kami kenal DAN
- * sambungannya memang bisa mengarahkan per permintaan. Di luar OpenRouter,
+ * sambungannya memang bisa mengarahkan per permintaan (OpenRouter atau proksinya,
+ * lihat `speaksOpenRouter`). Di luar itu,
  * `baseUrl` menunjuk ke satu penyebaran dengan satu model; mengirim nama lain
  * ke sana bukan berarti mendapat model itu, melainkan galat - atau lebih buruk,
  * model yang sama dengan tagihan yang salah.
@@ -19,5 +21,5 @@ import { DEFAULT_CHAT_MODEL, isKnownChatModel } from '@writer-hub/shared'
 export function pickModel(requested: string | undefined, fallback: string, baseUrl: string): string {
 	if (!requested || !isKnownChatModel(requested) || requested === DEFAULT_CHAT_MODEL) return fallback
 
-	return baseUrl.includes('openrouter.ai') ? requested : fallback
+	return speaksOpenRouter(baseUrl) ? requested : fallback
 }

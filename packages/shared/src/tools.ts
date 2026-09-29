@@ -1,8 +1,23 @@
+import { BRIEF_FIELDS, CHAPTER_STATUSES } from './brief'
 import { fontChoicePrompt } from './fonts'
 import { RESEARCH_TOOLS } from './research-tools'
 import { SKILL_TOOLS } from './skills'
 
-export type ToolKind = 'read' | 'write'
+/**
+ * `read` berjalan seketika dan hasilnya langsung kembali ke model. `write`
+ * menunggu penulis menerapkannya. `ask` menghentikan giliran sampai penulis
+ * menjawab - ia tidak menyentuh naskah, tapi juga tidak bisa dijawab siapa pun
+ * selain penulis.
+ */
+export type ToolKind = 'read' | 'write' | 'ask'
+
+/** Isian brief yang boleh disebut model - catatan penulis bukan salah satunya. */
+const AI_BRIEF_KEYS = BRIEF_FIELDS.filter((field) => !field.userOnly).map((field) => field.key)
+
+/* Kosakata pilihan panel, supaya model mencatat "Kuantitatif", bukan "kuantitatif (survei)". */
+const BRIEF_CHOICES = BRIEF_FIELDS.filter((field) => field.tab === 'research' && field.options)
+	.map((field) => `${field.key}: ${field.options?.join(' / ')}`)
+	.join('; ')
 
 export interface ToolDefinition {
 	name: string
@@ -14,6 +29,19 @@ export interface ToolDefinition {
 		required?: string[]
 	}
 }
+
+/**
+ * Letak gambar yang disisipkan: sesudah paragraf yang memuat teks ini.
+ *
+ * Tanpa ini gambar jatuh di kursor, dan di uji-asap UC9 keterangan "Gambar 1.1"
+ * berdiri tanpa grafiknya: model tidak punya cara menaruh grafik tepat di
+ * sebelah keterangannya, lalu berputar 60 menit mencobanya (AC-10).
+ */
+const AFTER_TEXT = {
+	type: 'string',
+	description:
+		'Put it right after the paragraph holding this exact text - usually its caption, e.g. "Gambar 1. Tren transaksi". Without it, it goes in at the cursor.',
+} as const
 
 export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 	{
@@ -27,7 +55,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'read_section',
 		kind: 'read',
 		description:
-			'Read the text under one heading, up to the next heading of the same or higher level. Prefer this over asking for the whole document. Omit heading_index to read the document from the top instead - that is the right call when get_outline reports no headings at all, which happens whenever the document is one design, one diagram or one table rather than prose.',
+			'Read the text under one heading, up to the next heading of the same or higher level. Figures - diagrams, images, design blocks - are already rendered and show as one line each, like [Figure: diagram "Title"]. Prefer this over asking for the whole document. Omit heading_index to read the document from the top instead - that is the right call when get_outline reports no headings at all, which happens whenever the document is one design, one diagram or one table rather than prose.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -136,10 +164,160 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 	},
 
 	{
+		name: 'ask_user',
+		kind: 'ask',
+		description:
+			"Ask the writer 1-4 multiple-choice questions and wait for the answers. They appear in place of the writer's chat box; the writer can always type their own answer or skip. Use it before starting a new document or a large new part when a core decision or a fact only the writer knows is missing from the request, the pasted material, the document and the research brief - never for what you can decide yourself. Write every question, header and option wholly in the writer's language, without English or other foreign words mixed in. Every question needs real choices: for anything the writer must word themselves - a title, research questions, objectives - use request_brief instead, and never add an option like \"write my own\". Call it alone, as the last thing in your turn. The answers come back as this tool's result.",
+		parameters: {
+			type: 'object',
+			properties: {
+				questions: {
+					type: 'array',
+					description: '1 to 4 questions, asked together.',
+					items: {
+						type: 'object',
+						properties: {
+							question: {
+								type: 'string',
+								description: "The full question in the writer's language, ending with a question mark.",
+							},
+							header: {
+								type: 'string',
+								description:
+									'A very short label for the question (at most 12 characters), e.g. "Pendekatan".',
+							},
+							options: {
+								type: 'array',
+								description: '2 to 5 distinct choices. Do not add an "other" choice - it is always offered.',
+								items: {
+									type: 'object',
+									properties: {
+										label: { type: 'string', description: 'The choice itself, 1-5 words.' },
+										description: { type: 'string', description: 'What choosing it means, one line.' },
+									},
+									required: ['label'],
+								},
+							},
+							multi_select: { type: 'boolean', description: 'Allow more than one choice.' },
+							brief_field: {
+								type: 'string',
+								enum: AI_BRIEF_KEYS,
+								description:
+									"When the answer is a fact for the research brief, name its field and the answer is saved there as the writer's own decision.",
+							},
+						},
+						required: ['question', 'options'],
+					},
+				},
+			},
+			required: ['questions'],
+		},
+	},
+	{
+		name: 'request_brief',
+		kind: 'ask',
+		description:
+			'Ask the writer to fill in research brief fields that need their own words - a title, research questions, objectives, focus - by opening the Metadata panel beside the chat with those fields highlighted. Use it instead of ask_user when the answer is long free text. Waits until the writer is done; the filled values come back as its result.',
+		parameters: {
+			type: 'object',
+			properties: {
+				fields: { type: 'array', items: { type: 'string', enum: AI_BRIEF_KEYS } },
+				message: {
+					type: 'string',
+					description: "One short sentence in the writer's language saying why you need them.",
+				},
+			},
+			required: ['fields'],
+		},
+	},
+	{
+		name: 'update_brief',
+		kind: 'read',
+		description: `Record what you learned about this research in the brief shown in the Metadata panel. A decision field is only recorded with evidence - the writer's or the document's exact words in quotes, e.g. "skripsi saya"; without a real quote the update is rejected and you should ask instead. Derived fields (chapter summaries, keywords) you may refresh freely. A field the writer filled becomes a proposal they approve. For choice fields use the panel's wording when it fits - ${BRIEF_CHOICES}. The result lists what was saved, proposed and rejected.`,
+		parameters: {
+			type: 'object',
+			properties: {
+				fields: {
+					type: 'array',
+					items: {
+						type: 'object',
+						properties: {
+							key: { type: 'string', enum: AI_BRIEF_KEYS },
+							value: { type: 'string' },
+							evidence: {
+								type: 'string',
+								description:
+									"Exact quote from the document or from the writer's messages that states this. Required for decisions.",
+							},
+						},
+						required: ['key', 'value'],
+					},
+				},
+				chapters: {
+					type: 'array',
+					description: 'Chapter summaries, one entry per chapter, titled exactly as its heading.',
+					items: {
+						type: 'object',
+						properties: {
+							title: { type: 'string', description: 'The chapter heading, e.g. "BAB I Pendahuluan".' },
+							summary: { type: 'string', description: 'What the chapter covers, 1-3 sentences.' },
+							status: { type: 'string', enum: CHAPTER_STATUSES },
+						},
+						required: ['title', 'summary'],
+					},
+				},
+			},
+		},
+	},
+	{
+		name: 'set_outline',
+		kind: 'read',
+		description:
+			"Record the outline of the document you are going to write, for any kind of document. Call it in the same turn you propose an outline, and again whenever the writer changes it. It is kept with the document and shown to you on every later turn - also after the writer's approval starts a new request - and the app checks the document against it, telling you which sections are still empty, which promised tables and figures are missing, and how the length compares with the target. It replaces the previous outline.",
+		parameters: {
+			type: 'object',
+			properties: {
+				sections: {
+					type: 'array',
+					description:
+						'Every top-level section in order, titled exactly as its heading will be written in the document.',
+					items: {
+						type: 'object',
+						properties: {
+							title: { type: 'string', description: 'The heading, e.g. "BAB I PENDAHULUAN" or "Metode".' },
+							summary: { type: 'string', description: 'What the section will cover, one sentence.' },
+							items: {
+								type: 'array',
+								items: { type: 'string' },
+								description:
+									'The numbered tables and figures this section promises, label first: "Tabel 1: statistik adopsi dompet digital", "Gambar 2: infografis statistik kunci". Its caption in the document must start with the same label.',
+							},
+						},
+						required: ['title'],
+					},
+				},
+				pages: {
+					type: 'object',
+					description: 'The length the writer asked for, in pages. Leave it out when they did not ask.',
+					properties: { min: { type: 'number' }, max: { type: 'number' } },
+					required: ['min', 'max'],
+				},
+				notes: {
+					type: 'array',
+					items: { type: 'string' },
+					description:
+						'The facts and sources from your research that the writing will rely on, one per line: the figure or claim, then its source and year. Recorded here, they survive into the writing turns, so you do not search again.',
+				},
+			},
+			required: ['sections'],
+		},
+	},
+
+	{
 		name: 'insert_content',
 		kind: 'write',
 		description:
-			'Insert new content into the document, written as Markdown: # headings, | … | tables, - lists. They become real editor nodes. Mathematics goes in $…$; everything else must be Markdown, never LaTeX markup like \\section or \\begin{tabular}.',
+			'Insert new content into the document, written as Markdown: # headings, | … | tables, - lists. They become real editor nodes. Mathematics goes in $…$; everything else must be Markdown, never LaTeX markup like \\section or \\begin{tabular}. A line holding only \\pagebreak starts a new page. When the document already has sections, say where the content belongs with after_heading instead of relying on the cursor. A numbered chapter (BAB IV …) goes in its numbered place by itself.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -150,7 +328,46 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 				position: {
 					type: 'string',
 					enum: ['cursor', 'end'],
-					description: 'Where it goes. Defaults to the cursor.',
+					description: 'Where it goes. Defaults to the cursor. Ignored when after_heading is given.',
+				},
+				after_heading: {
+					type: 'string',
+					description:
+						'Insert at the end of the section under this heading, exactly as get_outline lists it - e.g. "KATA PENGANTAR" to place "Daftar Isi" after it.',
+				},
+			},
+			required: ['markdown'],
+		},
+	},
+	{
+		name: 'write_section',
+		kind: 'write',
+		description:
+			'Write the body of a section that already has a heading - a template placeholder, or an outline you set up earlier - replacing whatever is under that heading now. This is the way to fill a planned document section by section. The heading itself stays unless you pass new_heading. Subsections you repeat as Markdown headings in the content are filled in place; new ones are added after them; subsections you leave out stay as they are - the result lists the ones left out. Pass replace_subsections: true to replace the whole subsection set: the ones you do not mention are removed, so only the subsections in your Markdown remain. Figures under the heading are never lost: repeat the [Figure: …] line read_section shows for each where it belongs; one you leave out stays at the end of the section, and [Delete figure: …] removes it. Use insert_content only for sections that do not exist yet, and replace_text for small edits inside a paragraph.',
+		parameters: {
+			type: 'object',
+			properties: {
+				heading: {
+					type: 'string',
+					description: 'The section heading exactly as get_outline lists it, e.g. "BAB I PENDAHULUAN".',
+				},
+				new_heading: {
+					type: 'string',
+					description:
+						'Optional: replace the section heading text (keeps original level). Use this for template placeholder headings that name a field, not a section title - e.g. "[Nama Lengkap]", "Headline Utama", "Judul Artikel". Write the actual value into new_heading so it replaces the heading itself, rather than leaving the placeholder heading and writing the value below it.',
+				},
+				heading_index: {
+					type: 'number',
+					description: 'Index from get_outline. Needed only when two headings have the same text.',
+				},
+				markdown: {
+					type: 'string',
+					description: 'The section content as Markdown, without the section heading itself.',
+				},
+				replace_subsections: {
+					type: 'boolean',
+					description:
+						'True to replace every subsection under the heading: subsections missing from your Markdown are removed, so only the ones you write remain. Default false leaves them in place.',
 				},
 			},
 			required: ['markdown'],
@@ -160,7 +377,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'replace_text',
 		kind: 'write',
 		description:
-			'Replace an exact passage with new text. The find value must match the document character for character - use find_text or read_section first to copy it exactly.',
+			'Replace an exact passage with new text - for edits inside a paragraph or a few paragraphs. The find value must match the document character for character - use find_text or read_section first to copy it exactly. A [Figure: …] line is not text: find the text before or after it. To rewrite a whole section under its heading, use write_section instead.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -298,10 +515,32 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'set_page_numbering',
 		kind: 'write',
 		description:
-			'Change how page numbers are counted and drawn: their format (1/i/I/a/A), where the count restarts, and whether they are shown at all. It only rules the digits - the number appears on the sheet through the {page} token of a header or footer, so call set_header_footer too when the document has none yet. Scope "tab" rules the whole tab; "from_here" and "this_page" insert section breaks so one part can run i, ii, iii while the rest runs 1, 2, 3 - that is how Indonesian academic front matter is numbered. To leave the cover unnumbered use show_on_first_page false, which gives the first page its own empty header/footer.',
+			'Change how page numbers are counted and drawn: their format (1/i/I/a/A), where the count restarts, whether they are shown, and where they sit. For a skripsi, tesis, disertasi or proposal use preset "academic" - ONE call sets the whole Indonesian academic scheme: unnumbered cover counted as i, front matter i, ii, iii at the bottom center, and arabic numbers restarting at 1 from BAB I (bottom center on chapter-opening pages, top right elsewhere). The app also applies it by itself once an academic document has front matter and BAB I, so only call it when the writer asks or the numbering is wrong. Otherwise: from_heading starts a new numbering section at that heading (e.g. restart arabic at an appendix); position/opening_position draw the number at a fixed spot without any header/footer. Without a position the number appears through the {page} token of a header or footer (set_header_footer). Scope "tab" rules the whole tab; "from_here"/"this_page" follow the cursor, which you do not control - prefer from_heading. show_on_first_page false gives the first page its own empty header/footer, so a cover carries no number.',
 		parameters: {
 			type: 'object',
 			properties: {
+				preset: {
+					type: 'string',
+					enum: ['academic'],
+					description:
+						'The complete Indonesian academic scheme in one call; every other argument is ignored.',
+				},
+				from_heading: {
+					type: 'string',
+					description:
+						'Start this numbering at the page where this heading begins, exactly as get_outline lists it. Inserts a section break before it.',
+				},
+				position: {
+					type: 'string',
+					enum: ['top-left', 'top-center', 'top-right', 'bottom-left', 'bottom-center', 'bottom-right'],
+					description: 'Where the number sits on the pages of this scope.',
+				},
+				opening_position: {
+					type: 'string',
+					enum: ['top-left', 'top-center', 'top-right', 'bottom-left', 'bottom-center', 'bottom-right'],
+					description:
+						'Where the number sits on chapter-opening pages (pages that start with a level-1 heading).',
+				},
 				format: {
 					type: 'string',
 					enum: ['decimal', 'lower-roman', 'upper-roman', 'lower-alpha', 'upper-alpha'],
@@ -348,6 +587,11 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 				min_level: { type: 'number', description: 'Highest heading level included, 1-9.' },
 				max_level: { type: 'number', description: 'Deepest heading level included, 1-9.' },
 				indent_cm: { type: 'number', description: 'Indent per level, in centimeters.' },
+				after_heading: {
+					type: 'string',
+					description:
+						'The heading the block goes directly under. Defaults to the "Daftar Isi" / "Daftar Gambar" / "Daftar Tabel" heading; the call fails when there is none, so insert that heading first.',
+				},
 			},
 		},
 	},
@@ -382,6 +626,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		parameters: {
 			type: 'object',
 			properties: {
+				after_text: AFTER_TEXT,
 				source: { type: 'string', description: 'Mermaid source, e.g. "graph TD; A-->B".' },
 			},
 			required: ['source'],
@@ -395,6 +640,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		parameters: {
 			type: 'object',
 			properties: {
+				after_text: AFTER_TEXT,
 				source: {
 					type: 'string',
 					description:
@@ -412,6 +658,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		parameters: {
 			type: 'object',
 			properties: {
+				after_text: AFTER_TEXT,
 				type: {
 					type: 'string',
 					enum: [
@@ -484,8 +731,34 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 					description:
 						'Template slug from the catalog, e.g. "skripsi-s1", "tesis-s2", "disertasi-s3", "proposal-penelitian", "laporan-kerja-praktik", "makalah-kuliah", "artikel-jurnal-nasional", "ieee-conference", "apa7-student", "proposal-proyek", "laporan-bulanan", "sop", "flyer-a4", "poster-a3".',
 				},
+				reapply: {
+					type: 'boolean',
+					description:
+						'Only when the writer explicitly asks to reset the document to this format again. A format already applied is otherwise refused.',
+				},
 			},
 			required: ['template'],
+		},
+	},
+	{
+		name: 'insert_template_part',
+		kind: 'write',
+		description:
+			"Insert the standard cover page and/or approval page (Halaman Pengesahan) of an Indonesian skripsi, tesis, disertasi or research proposal, one fixed page each, at the start of the document. They are filled from the writer's identity data; anything missing stays a [bracketed] placeholder for the writer. ALWAYS use this for those pages - never design a cover with insert_html_block and never type one out yourself. Does nothing for a page the document already has.",
+		parameters: {
+			type: 'object',
+			properties: {
+				part: {
+					type: 'string',
+					enum: ['both', 'cover', 'approval'],
+					description: 'Which page(s). Defaults to both.',
+				},
+				kind: {
+					type: 'string',
+					enum: ['skripsi', 'tesis', 'disertasi', 'proposal'],
+					description: "Type of work. Defaults to the document's template, then to the research brief.",
+				},
+			},
 		},
 	},
 	{
@@ -495,6 +768,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		parameters: {
 			type: 'object',
 			properties: {
+				after_text: AFTER_TEXT,
 				html: {
 					type: 'string',
 					description: 'HTML fragment for the body: markup plus inline <style>. No scripts, no remote URLs.',
@@ -570,7 +844,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'convert_to_html_block',
 		kind: 'write',
 		description:
-			'Turn HTML that is already sitting in the document as ordinary text or as a code block into a real rendered design block. Use this whenever the writer asks to render, preview or "make a flyer out of" markup that is already there - NEVER read the markup and re-send it through insert_html_block, which costs a full rewrite of a design you already have. It takes no HTML: it finds the markup in the document and converts it in place. Answers with what it converted, or tells you no HTML-looking block was found.',
+			'Turn HTML that is already sitting in the document as ordinary text or as a code block into a real rendered design block. Diagrams from draw_diagram are already rendered figures, never candidates. Use this whenever the writer asks to render, preview or "make a flyer out of" markup that is already there - NEVER read the markup and re-send it through insert_html_block, which costs a full rewrite of a design you already have. It takes no HTML: it finds the markup in the document and converts it in place. Answers with what it converted, or tells you no HTML-looking block was found.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -808,6 +1082,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		parameters: {
 			type: 'object',
 			properties: {
+				after_text: AFTER_TEXT,
 				src: { type: 'string', description: 'Public image URL.' },
 				alt: { type: 'string' },
 			},
@@ -848,13 +1123,34 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'create_tab',
 		kind: 'write',
 		description:
-			'Create a new tab in the active document, optionally with initial content as Markdown - e.g. an appendix.',
+			'Create a new tab in the active document, optionally with initial content. Use "template" to start from a built-in template (e.g. "surat-lamaran-kerja" for a cover letter in the second tab), or "markdown" for raw Markdown content.',
 		parameters: {
 			type: 'object',
 			properties: {
 				title: { type: 'string' },
 				markdown: { type: 'string', description: 'Initial content as Markdown.' },
+				template: {
+					type: 'string',
+					description:
+						'Slug of a built-in template whose content, layout, and typography fill the new tab — e.g. "surat-lamaran-kerja".',
+				},
 			},
+		},
+	},
+	{
+		name: 'switch_tab',
+		kind: 'write',
+		description:
+			'Switch the editor to another tab of the active document. The model edits the active tab only, so call this before writing to a different chapter. Call list_tabs first to get the ids.',
+		parameters: {
+			type: 'object',
+			properties: {
+				tab_id: {
+					type: 'string',
+					description: 'Tab id as returned by list_tabs.',
+				},
+			},
+			required: ['tab_id'],
 		},
 	},
 ]
@@ -870,6 +1166,10 @@ export function findTool(name: string): ToolDefinition | undefined {
 
 export function isReadTool(name: string): boolean {
 	return BY_NAME.get(name)?.kind === 'read'
+}
+
+export function isAskTool(name: string): boolean {
+	return BY_NAME.get(name)?.kind === 'ask'
 }
 
 export interface ToolCall {

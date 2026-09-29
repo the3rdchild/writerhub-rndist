@@ -5,6 +5,7 @@ import JobSubmissionService from '@/services/job-submission.service'
 import { chartProblems } from './chart-check'
 import { type DiagramDrawBody, diagramDrawSchema } from './dto'
 import { buildDiagramMessages, repairMessage } from './prompt'
+import { type SubAgentFailure, type SubAgentReply, streamCompletion } from './provider-call'
 import { extractSvg, structuralProblems, svgReceipt } from './svg-output'
 
 const SKILLS_DIR = new URL('../../../../../packages/shared/skills/', import.meta.url)
@@ -14,10 +15,33 @@ const SKILL = 'diagram-design'
 const TEMPERATURE = 0.2
 
 /**
- * Satu gambar tidak pernah selama satu draf. Batas ini ada supaya permintaan
- * yang menggantung tidak menahan koneksinya, bukan sebagai target.
+ * Batas satu panggilan: jeda tanpa satu potongan pun, dan panjang totalnya.
+ *
+ * Tanpa penalaran, Flash menggambar dalam 13-105 detik (diukur 28 Sep; yang
+ * lambat karena OpenRouter merutekan ke penyedia yang lebih pelan). Batas lama
+ * 90 detik untuk seluruh panggilan memotong 15 dari 46 gambar.
  */
-const REQUEST_TIMEOUT_MS = 90_000
+const IDLE_MS = 60_000
+const CALL_MS = 150_000
+
+/**
+ * Penalaran dimatikan. Diukur 28 Sep dengan Flash: bar chart 48 detik dengan
+ * penalaran (86% token keluaran) dan 15 detik tanpanya; ERD dan flowchart
+ * dengan penalaran - bahkan `effort: low` - tidak selesai dalam 280 detik,
+ * sedangkan tanpanya selesai dalam 13-104 detik dan lolos semua pemeriksaan.
+ */
+const REASONING = false
+
+type DrawFailure = SubAgentFailure | 'unusable'
+type DrawResult = { svg: string } | { failure: DrawFailure; detail: string }
+
+/** Status dan kalimat untuk tiap jenis kegagalan; kalimatnya sampai ke model. */
+const FAILURE: Record<DrawFailure, { status: 422 | 502 | 504; message: (detail: string) => string }> = {
+	timeout: { status: 504, message: (detail) => `Sub-agent penggambar tidak selesai (${detail}).` },
+	rejected: { status: 502, message: (detail) => `Provider menolak permintaan gambar (${detail}).` },
+	empty: { status: 502, message: () => 'Sub-agent tidak mengembalikan apa pun.' },
+	unusable: { status: 422, message: (detail) => `Gambarnya tidak lolos pemeriksaan: ${detail}.` },
+}
 
 /**
  * Sub-agent penggambar diagram.
@@ -47,16 +71,14 @@ export default class DiagramsService extends JobSubmissionService {
 				return this.error({ errors: [`Tipe diagram "${parsed.data.type}" tidak dikenal.`], status: 404 })
 			}
 
-			const svg = await this.drawWithRepair(config, parsed.data, sources)
-			if (!svg) {
-				return this.error({
-					errors: ['Sub-agent tidak menghasilkan gambar yang bisa dipakai.'],
-					status: 502,
-				})
+			const drawn = await this.drawWithRepair(config, parsed.data, sources)
+			if ('failure' in drawn) {
+				const failure = FAILURE[drawn.failure]
+				return this.error({ errors: [failure.message(drawn.detail)], status: failure.status })
 			}
 
-			const receipt = svgReceipt(svg)
-			return this.success({ data: { svg, ...receipt } })
+			const receipt = svgReceipt(drawn.svg)
+			return this.success({ data: { svg: drawn.svg, ...receipt } })
 		} catch (error) {
 			return this.failFromError(error)
 		}
@@ -85,60 +107,56 @@ export default class DiagramsService extends JobSubmissionService {
 		config: ProviderConfig,
 		body: DiagramDrawBody,
 		sources: { skill: string; grammar: string },
-	): Promise<string | null> {
+	): Promise<DrawResult> {
 		const messages = buildDiagramMessages(body, sources)
 
-		const first = extractSvg(await this.callProvider(config, messages))
-		if (!first) return null
+		const reply = await this.callProvider(config, messages)
+		if (!reply.ok) return { failure: reply.failure, detail: reply.detail }
+		const first = extractSvg(reply.content)
+		if (!first) return { failure: 'unusable', detail: 'the reply held no <svg> element' }
 
 		const problems = [...structuralProblems(first), ...chartProblems(first, body.type)]
-		if (problems.length === 0) return first
+		if (problems.length === 0) return { svg: first }
 
-		const repaired = extractSvg(
-			await this.callProvider(config, [
-				...messages,
-				{ role: 'assistant', content: first },
-				repairMessage(first, problems),
-			]),
-		)
-		if (!repaired) return null
-
-		/*
-		 * Perbaikan yang masih cacat tetap dikembalikan kalau cacatnya bukan soal
-		 * ukuran: penyaring di klien akan membuang bentuk terlarangnya, dan
-		 * gambar yang kehilangan satu ikon masih lebih berguna daripada tidak ada
-		 * gambar sama sekali. Yang tidak bisa ditolong penyaring adalah viewBox -
-		 * tanpa itu gambarnya tidak bisa diukur, jadi ia ditolak di sini.
-		 */
 		/*
 		 * Cacat sisa yang bisa ditolong penyaring di klien tetap lolos - gambar
 		 * yang kehilangan satu ikon masih berguna. Dua yang tidak bisa ditolong
-		 * siapa pun ditolak di sini: viewBox yang tidak terbaca membuat gambarnya
-		 * tidak bisa diukur, dan chart yang skalanya salah adalah data yang salah
+		 * siapa pun ditolak: viewBox yang tidak terbaca membuat gambarnya tidak
+		 * bisa diukur, dan chart yang skalanya salah adalah data yang salah
 		 * dengan tampilan yang meyakinkan. Lebih baik tidak ada gambar.
 		 */
+		const fatal = (svg: string, found: string[]) =>
+			found.some((problem) => problem.includes('viewBox') || problem.includes('scale')) ||
+			chartProblems(svg, body.type).length > 0
+
+		const retry = await this.callProvider(config, [
+			...messages,
+			{ role: 'assistant', content: first },
+			repairMessage(first, problems),
+		])
+		const repaired = retry.ok ? extractSvg(retry.content) : null
+		// Perbaikan yang tidak datang: gambar pertama tetap dipakai bila cacatnya bisa ditolong.
+		if (!repaired) {
+			if (!fatal(first, problems)) return { svg: first }
+			const missing = retry.ok ? '' : ` (the fix did not arrive: ${retry.detail})`
+			return { failure: 'unusable', detail: `${problems.join('; ')}${missing}` }
+		}
+
 		const remaining = [...structuralProblems(repaired), ...chartProblems(repaired, body.type)]
-		return remaining.some((problem) => problem.includes('viewBox') || problem.includes('scale')) ||
-			chartProblems(repaired, body.type).length > 0
-			? null
-			: repaired
+		return fatal(repaired, remaining)
+			? { failure: 'unusable', detail: remaining.join('; ') }
+			: { svg: repaired }
 	}
 
-	private async callProvider(
-		{ baseUrl, apiKey, model }: ProviderConfig,
+	private callProvider(
+		config: ProviderConfig,
 		messages: Array<{ role: string; content: string }>,
-	): Promise<string> {
-		const response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-			body: JSON.stringify({ model, temperature: TEMPERATURE, messages }),
-			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+	): Promise<SubAgentReply> {
+		return streamCompletion(config, messages, {
+			temperature: TEMPERATURE,
+			reasoning: REASONING,
+			idleMs: IDLE_MS,
+			totalMs: CALL_MS,
 		})
-
-		if (!response.ok) return ''
-		const payload = (await response.json().catch(() => null)) as {
-			choices?: Array<{ message?: { content?: string } }>
-		} | null
-		return payload?.choices?.[0]?.message?.content ?? ''
 	}
 }

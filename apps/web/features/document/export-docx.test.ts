@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
-import type { DocumentTypography } from '@writer-hub/shared'
+import { ACADEMIC_NUMBERING, type DocumentTypography } from '@writer-hub/shared'
 import { strFromU8, unzipSync } from 'fflate'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import { DEFAULT_PAGE_SETUP, type PageSetup, pageGeometry } from '@/features/editor/page-geometry'
+import { DEFAULT_TYPOGRAPHY } from '@/features/editor/typography'
 import { buildSchema } from '@/features/sync/serialize'
 import { exportDocx, mergeTabContents } from './export-docx'
 
@@ -328,6 +329,228 @@ describe('penggabungan sel di DOCX', () => {
 	})
 })
 
+describe('isi sel selain paragraf di DOCX (EX-1)', () => {
+	const PNG_1PX =
+		'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+	const EMU_PER_PX = 9525
+
+	const text = (value: string): JSONContent => ({
+		type: 'paragraph',
+		content: [{ type: 'text', text: value }],
+	})
+	const cell = (...content: JSONContent[]): JSONContent => ({ type: 'tableCell', content })
+	const table = (...rows: JSONContent[][]): JSONContent => ({
+		type: 'table',
+		content: rows.map((cells) => ({ type: 'tableRow', content: cells })),
+	})
+	const list = (type: 'bulletList' | 'orderedList', ...items: string[]): JSONContent => ({
+		type,
+		content: items.map((item) => ({ type: 'listItem', content: [text(item)] })),
+	})
+
+	/** Lebar isi satu sel dari tabel dua kolom tanpa colwidth, dalam px. */
+	const halfCellWidth = pageGeometry(DEFAULT_PAGE_SETUP).contentWidth / 2 - (2 * 108) / 15
+
+	async function xmlOf(content: JSONContent[]): Promise<string> {
+		const doc = buildSchema().nodeFromJSON({ type: 'doc', content })
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+			setup: DEFAULT_PAGE_SETUP,
+		})
+		return strFromU8(unzipSync(new Uint8Array(await blob.arrayBuffer()))['word/document.xml'])
+	}
+
+	/** Penanda itu berada di dalam sel tabel: `<w:tc>` terakhir sebelumnya belum ditutup. */
+	const insideCell = (xml: string, marker: string) => {
+		const at = xml.indexOf(marker)
+		return at >= 0 && xml.lastIndexOf('<w:tc>', at) > xml.lastIndexOf('</w:tc>', at)
+	}
+
+	/** XML paragraf Word yang memuat penanda itu. */
+	const paragraphWith = (xml: string, marker: string) => {
+		const at = xml.indexOf(marker)
+		return xml.slice(xml.lastIndexOf('<w:p>', at), xml.indexOf('</w:p>', at))
+	}
+
+	test('daftar berpoin dan bernomor di dalam sel ikut sebagai butir Word', async () => {
+		const xml = await xmlOf([
+			table([
+				cell(text('Temuan'), list('bulletList', 'butir berpoin')),
+				cell(list('orderedList', 'butir bernomor')),
+			]),
+		])
+
+		for (const marker of ['butir berpoin', 'butir bernomor']) {
+			expect(insideCell(xml, marker)).toBe(true)
+			expect(paragraphWith(xml, marker)).toContain('<w:numPr>')
+		}
+		expect(insideCell(xml, 'Temuan')).toBe(true)
+	})
+
+	test('gambar di dalam sel ikut, dan diperkecil selebar selnya', async () => {
+		const xml = await xmlOf([
+			table([
+				cell(text('Grafik')),
+				cell(text('penanda-gambar'), {
+					type: 'htmlBlock',
+					attrs: {
+						html: '<div>grafik batang</div>',
+						height: 400,
+						snapshot: PNG_1PX,
+						snapshotWidth: 1600,
+						snapshotHeight: 800,
+					},
+				}),
+			]),
+		])
+
+		expect(insideCell(xml, '<w:drawing>')).toBe(true)
+		const width = Number(/<wp:extent cx="(\d+)"/.exec(xml)?.[1])
+		expect(width).toBeGreaterThan(0)
+		expect(width).toBeLessThanOrEqual(Math.round(halfCellWidth) * EMU_PER_PX)
+	})
+
+	test('tabel bersarang ikut, selebar selnya, dan sel luarnya tetap ditutup paragraf', async () => {
+		const xml = await xmlOf([
+			table([cell(text('kiri')), cell(table([cell(text('dalam-a')), cell(text('dalam-b'))]))]),
+		])
+
+		expect(xml.match(/<w:tbl>/g)?.length).toBe(2)
+		expect(insideCell(xml, 'dalam-b')).toBe(true)
+		// Word menolak sel yang berakhir dengan tabel tanpa paragraf sesudahnya.
+		expect(xml).not.toContain('</w:tbl></w:tc>')
+
+		const grids = [...xml.matchAll(/<w:tblGrid>([\s\S]*?)<\/w:tblGrid>/g)].map((grid) =>
+			[...grid[1].matchAll(/w:w="(\d+)"/g)].reduce((sum, match) => sum + Number(match[1]), 0),
+		)
+		const inner = Math.min(...grids)
+		// Tiap kolom dibulatkan ke twip sendiri-sendiri: selisih 1 per kolom.
+		expect(inner).toBeLessThanOrEqual(Math.round(halfCellWidth * 15) + 2)
+	})
+
+	test('blok kode di dalam sel memakai huruf mesin ketik, satu paragraf per baris', async () => {
+		const xml = await xmlOf([
+			table([
+				cell({
+					type: 'codeBlock',
+					attrs: { language: 'python' },
+					content: [{ type: 'text', text: 'baris_satu = 1\nbaris_dua = 2' }],
+				}),
+			]),
+		])
+
+		expect(paragraphWith(xml, 'baris_satu')).toContain('Consolas')
+		expect(paragraphWith(xml, 'baris_satu')).not.toContain('baris_dua')
+		expect(insideCell(xml, 'baris_dua')).toBe(true)
+	})
+
+	test('sel berisi paragraf saja tetap seperti sebelumnya', async () => {
+		const xml = await xmlOf([table([cell(text('polos'))])])
+
+		expect(insideCell(xml, 'polos')).toBe(true)
+		expect(paragraphWith(xml, 'polos')).not.toContain('<w:numPr>')
+		expect(xml).not.toContain('<w:drawing>')
+	})
+})
+
+describe('gambar naskah di DOCX (EX-7)', () => {
+	/** PNG 1x1 yang sah; ukuran di halaman datang dari atribut node. */
+	const PNG_1PX =
+		'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+	const EMU_PER_PX = 9525
+	const contentWidth = pageGeometry(DEFAULT_PAGE_SETUP).contentWidth
+
+	const image = (attrs: Record<string, unknown>): JSONContent => ({
+		type: 'image',
+		attrs: { src: PNG_1PX, ...attrs },
+	})
+
+	async function docxOf(content: JSONContent[]) {
+		const doc = buildSchema().nodeFromJSON({ type: 'doc', content })
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+			setup: DEFAULT_PAGE_SETUP,
+		})
+		const files = unzipSync(new Uint8Array(await blob.arrayBuffer()))
+		return { files, xml: strFromU8(files['word/document.xml']) }
+	}
+
+	/** Ukuran gambar pertama di berkas, dalam px. */
+	const extentOf = (xml: string) => {
+		const match = /<wp:extent cx="(\d+)" cy="(\d+)"/.exec(xml)
+		return match ? { width: Number(match[1]) / EMU_PER_PX, height: Number(match[2]) / EMU_PER_PX } : null
+	}
+
+	/** XML paragraf Word yang memuat penanda itu. */
+	const paragraphWith = (xml: string, marker: string) => {
+		const at = xml.indexOf(marker)
+		return xml.slice(xml.lastIndexOf('<w:p>', at), xml.indexOf('</w:p>', at))
+	}
+
+	test('gambar di badan naskah ikut, dengan ukuran dari layar', async () => {
+		const { files, xml } = await docxOf([image({ width: 300, height: 150 })])
+
+		expect(xml).toContain('<w:drawing>')
+		expect(Object.keys(files).some((name) => name.startsWith('word/media/'))).toBe(true)
+		expect(extentOf(xml)).toEqual({ width: 300, height: 150 })
+	})
+
+	test('lebar persen bentuk lama dihitung dari area teks, dengan rasio hakiki', async () => {
+		const { xml } = await docxOf([image({ width: 50 })])
+		const half = Math.round(contentWidth / 2)
+
+		expect(extentOf(xml)).toEqual({ width: half, height: half })
+	})
+
+	test('perataan dan teks alt ikut', async () => {
+		const { xml } = await docxOf([
+			image({ width: 200, height: 100, align: 'center', alt: 'Grafik penjualan' }),
+		])
+
+		expect(paragraphWith(xml, '<w:drawing>')).toContain('<w:jc w:val="center"/>')
+		expect(xml).toContain('descr="Grafik penjualan"')
+	})
+
+	test('gambar di dalam sel ikut, dan tidak lebih lebar dari selnya', async () => {
+		const cell = (content: JSONContent): JSONContent => ({ type: 'tableCell', content: [content] })
+		const { xml } = await docxOf([
+			{
+				type: 'table',
+				content: [
+					{
+						type: 'tableRow',
+						content: [
+							cell({ type: 'paragraph', content: [{ type: 'text', text: 'Grafik' }] }),
+							cell(image({ width: 2000, height: 1000 })),
+						],
+					},
+				],
+			},
+		])
+		const at = xml.indexOf('<w:drawing>')
+
+		expect(at).toBeGreaterThan(0)
+		expect(xml.lastIndexOf('<w:tc>', at)).toBeGreaterThan(xml.lastIndexOf('</w:tc>', at))
+		const size = extentOf(xml)
+		expect(size?.width).toBeLessThan(contentWidth / 2)
+		expect((size?.width ?? 0) / (size?.height ?? 1)).toBeCloseTo(2, 1)
+	})
+
+	test('gambar yang gagal diambil meninggalkan penanda, ekspornya tetap jadi', async () => {
+		const { xml } = await docxOf([
+			{ type: 'paragraph', content: [{ type: 'text', text: 'sebelum' }] },
+			image({ src: 'data:image/png;base64,', alt: 'Peta lokasi' }),
+			{ type: 'paragraph', content: [{ type: 'text', text: 'sesudah' }] },
+		])
+
+		expect(xml).not.toContain('<w:drawing>')
+		expect(xml).toContain('[Gambar tidak ikut diekspor: Peta lokasi]')
+		expect(xml).toContain('sesudah')
+	})
+})
+
 describe('baris baru di dalam satu simpul teks', () => {
 	test('jadi <w:br/>, bukan spasi', async () => {
 		const doc = buildSchema().nodeFromJSON({
@@ -407,6 +630,11 @@ describe('blok HTML di berkas DOCX', () => {
 	const PNG_1PX =
 		'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
+	const paragraph = (text: string): JSONContent => ({
+		type: 'paragraph',
+		content: [{ type: 'text', text }],
+	})
+
 	async function docxFiles(attrs: Record<string, unknown>) {
 		const doc = buildSchema().nodeFromJSON({
 			type: 'doc',
@@ -473,6 +701,69 @@ describe('blok HTML di berkas DOCX', () => {
 			snapshotHeight: 1123,
 		})
 		expect(strFromU8(files['word/document.xml'])).toContain('<w:pageBreakBefore/>')
+	})
+
+	/*
+	 * Paragraf kosong sesudah blok `fit: 'page'` tidak boleh ikut ke DOCX
+	 * (EX-2). Blok itu sudah memulai halaman baru lewat `pageBreakBefore`;
+	 * paragraf kosong sesudahnya hanya menambah halaman kosong di Word.
+	 * Paragraf berisi teks tetap diekspor.
+	 */
+	test('paragraf kosong setelah blok mode halaman dilewati (EX-2)', async () => {
+		const doc = buildSchema().nodeFromJSON({
+			type: 'doc',
+			content: [
+				{
+					type: 'htmlBlock',
+					attrs: {
+						html: '<h1>Flyer</h1>',
+						fit: 'page',
+						height: 600,
+						snapshot: PNG_1PX,
+						snapshotWidth: 794,
+						snapshotHeight: 1123,
+					},
+				},
+				{ type: 'paragraph' },
+			],
+		})
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+		})
+		const xml = strFromU8(unzipSync(new Uint8Array(await blob.arrayBuffer()))['word/document.xml'])
+
+		// Gambar blok ada, tetapi tidak ada paragraf kosong sesudahnya.
+		expect(xml).toContain('<w:drawing>')
+		// Hanya satu paragraf di seluruh dokumen: paragraf yang membawa gambar.
+		expect(xml.match(/<w:p[ >]/g) ?? []).toHaveLength(1)
+	})
+
+	test('paragraf berisi teks setelah blok mode halaman tetap diekspor (EX-2)', async () => {
+		const doc = buildSchema().nodeFromJSON({
+			type: 'doc',
+			content: [
+				{
+					type: 'htmlBlock',
+					attrs: {
+						html: '<h1>Flyer</h1>',
+						fit: 'page',
+						height: 600,
+						snapshot: PNG_1PX,
+						snapshotWidth: 794,
+						snapshotHeight: 1123,
+					},
+				},
+				paragraph('Teks setelah flyer'),
+			],
+		})
+		const blob = await exportDocx(doc, {
+			title: 'uji',
+			geometry: pageGeometry(DEFAULT_PAGE_SETUP),
+		})
+		const xml = strFromU8(unzipSync(new Uint8Array(await blob.arrayBuffer()))['word/document.xml'])
+
+		expect(xml).toContain('Teks setelah flyer')
 	})
 
 	// Sisipan tetap seperti semula: mengalir di dalam kolom teks, diperkecil
@@ -729,5 +1020,138 @@ describe('kolom tak-sama dan pindah kolom pulang ke DOCX (W3/W4)', () => {
 		expect(columns?.count).toBe(2)
 		expect(columns?.widths).toHaveLength(2)
 		expect((columns.widths as number[])[0] / (columns.widths as number[])[1]).toBeCloseTo(130 / 448, 1)
+	})
+})
+
+/* Sampul dan halaman pengesahan baku memakai tabel polos; di Word ia harus
+ * tetap tanpa garis, bukan mendapat kisi bawaan docx. */
+describe('tabel polos di DOCX', () => {
+	test('borderStyle none menjadi garis "none" di setiap sisi', async () => {
+		const { FRONT_MATTER, frontMatterNodes } = await import('@writer-hub/shared')
+		const content = frontMatterNodes('approval', FRONT_MATTER.skripsi) as JSONContent[]
+		const doc = buildSchema().nodeFromJSON({ type: 'doc', content })
+		const blob = await exportDocx(doc, { title: 'uji', geometry: pageGeometry(DEFAULT_PAGE_SETUP) })
+		const xml = strFromU8(unzipSync(new Uint8Array(await blob.arrayBuffer()))['word/document.xml'])
+		const borders = /<w:tblBorders>([\s\S]*?)<\/w:tblBorders>/.exec(xml)?.[1] ?? ''
+		for (const side of ['top', 'bottom', 'left', 'right', 'insideH', 'insideV']) {
+			expect(borders).toMatch(new RegExp(`<w:${side} w:val="none"`))
+		}
+		expect(xml).toContain('HALAMAN PENGESAHAN')
+	})
+})
+
+describe('penomoran karya ilmiah di DOCX', () => {
+	const text = (value: string): JSONContent => ({
+		type: 'paragraph',
+		content: [{ type: 'text', text: value }],
+	})
+	const h1 = (value: string): JSONContent => ({
+		type: 'heading',
+		attrs: { level: 1 },
+		content: [{ type: 'text', text: value }],
+	})
+
+	/** Tiap section: format & start penomorannya, titlePg, dan isi part header/footer per jenis. */
+	async function sectionsOf() {
+		const setup: PageSetup = { ...DEFAULT_PAGE_SETUP, pageNumbering: ACADEMIC_NUMBERING.front }
+		const blob = await exportDocx(
+			buildSchema().nodeFromJSON({
+				type: 'doc',
+				content: [
+					text('SKRIPSI'),
+					{ type: PAGE_BREAK_NODE },
+					h1('KATA PENGANTAR'),
+					text('Puji syukur.'),
+					{
+						type: 'sectionBreak',
+						attrs: {
+							pageSetup: { pageNumbering: ACADEMIC_NUMBERING.body },
+							columns: null,
+							continuous: false,
+						},
+					},
+					h1('BAB I PENDAHULUAN'),
+					text('Isi bab satu.'),
+					{ type: PAGE_BREAK_NODE },
+					h1('BAB II TINJAUAN PUSTAKA'),
+					text('Isi bab dua.'),
+				],
+			}),
+			{
+				title: 'uji',
+				geometry: pageGeometry(setup),
+				setup,
+				furniture: { footer: { first: { text: '', align: 'center' } } },
+				typography: {
+					...DEFAULT_TYPOGRAPHY,
+					headings: { ...DEFAULT_TYPOGRAPHY.headings, 1: { pageBreakBefore: true } },
+				},
+			},
+		)
+		const files = unzipSync(new Uint8Array(await blob.arrayBuffer()))
+		const xml = strFromU8(files['word/document.xml'])
+		const rels = strFromU8(files['word/_rels/document.xml.rels'])
+		const target = (id: string) => new RegExp(`Id="${id}"[^>]*Target="([^"]+)"`).exec(rels)?.[1] ?? ''
+		const part = (id: string) => strFromU8(files[`word/${target(id)}`])
+		/** "PAGE@right" - letak field PAGE di part itu, atau "-" bila tanpa nomor. */
+		const numberIn = (partXml: string) =>
+			/PAGE/.test(partXml) ? `PAGE@${/<w:jc w:val="(\w+)"/.exec(partXml)?.[1] ?? '?'}` : '-'
+
+		return [...xml.matchAll(/<w:sectPr[\s\S]*?<\/w:sectPr>/g)].map(([sectPr]) => {
+			const parts: Record<string, string> = {}
+			for (const [, kind, type, id] of sectPr.matchAll(
+				/<w:(header|footer)Reference w:type="(\w+)" r:id="(\w+)"/g,
+			)) {
+				parts[`${kind}.${type}`] = numberIn(part(id))
+			}
+			return {
+				pgNumType: /<w:pgNumType[^>]*\/>/.exec(sectPr)?.[0] ?? null,
+				titlePg: /<w:titlePg/.test(sectPr),
+				parts,
+			}
+		})
+	}
+
+	test('bagian depan satu section; badan naskah satu section per bab', async () => {
+		const sections = await sectionsOf()
+		expect(sections).toHaveLength(3)
+		expect(sections[0].pgNumType).toContain('lowerRoman')
+		// BAB I mulai 1 - tanpa `start`, Word melanjutkan hitungan romawi.
+		expect(sections[1].pgNumType).toMatch(/w:start="1"/)
+		expect(sections[2].pgNumType ?? '').not.toMatch(/w:start/)
+		expect(sections.every((section) => section.titlePg)).toBe(true)
+	})
+
+	test('sampul tanpa nomor, bagian depan tengah bawah, bab: pembuka tengah bawah, lainnya kanan atas', async () => {
+		const [front, bab1, bab2] = await sectionsOf()
+		expect(front.parts['footer.first']).toBe('-')
+		expect(front.parts['footer.default']).toBe('PAGE@center')
+		expect(front.parts['header.default']).toBe('-')
+		for (const bab of [bab1, bab2]) {
+			expect(bab.parts['footer.first']).toBe('PAGE@center')
+			expect(bab.parts['header.first']).toBe('-')
+			expect(bab.parts['header.default']).toBe('PAGE@right')
+			expect(bab.parts['footer.default']).toBe('-')
+		}
+	})
+})
+
+/* Surat lamaran: titik dua blok data sejajar lewat tab stop di Word juga. */
+describe('tab stop di DOCX', () => {
+	test('posisi tab stop dalam twip dari pt (1 pt = 20 twip), dan tab jadi <w:tab/>', async () => {
+		const doc = buildSchema().nodeFromJSON({
+			type: 'doc',
+			content: [
+				{
+					type: 'paragraph',
+					attrs: { tabStops: [{ posPt: 120, type: 'left' }] },
+					content: [{ type: 'text', text: 'Nama' }, { type: 'tab' }, { type: 'text', text: ': A' }],
+				},
+			],
+		})
+		const blob = await exportDocx(doc, { title: 'uji', geometry: pageGeometry(DEFAULT_PAGE_SETUP) })
+		const xml = strFromU8(unzipSync(new Uint8Array(await blob.arrayBuffer()))['word/document.xml'])
+		expect(xml).toMatch(/<w:tab w:val="left" w:pos="2400"\/>/)
+		expect(xml).toContain('<w:tab/>')
 	})
 })

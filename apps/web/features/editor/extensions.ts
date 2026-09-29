@@ -24,6 +24,7 @@ import { SuggestionHighlight } from '@/features/document/suggestion-highlight'
 import { BlockKeep } from '@/features/editor/block-keep'
 import { BlockSpacing } from '@/features/editor/block-spacing'
 import { Callout } from '@/features/editor/callout'
+import { ClickPastNodeSelection } from '@/features/editor/click-past-node-selection'
 import { CodeBlock } from '@/features/editor/code-block'
 import { ColumnBreak } from '@/features/editor/column-break'
 import { ColumnExtension } from '@/features/editor/columns'
@@ -49,6 +50,8 @@ import { SectionBreak } from '@/features/editor/section-break'
 import { SelectionHighlight } from '@/features/editor/selection-highlight'
 import type { SlashCommandOptions } from '@/features/editor/slash-command'
 import { SlashCommand } from '@/features/editor/slash-command'
+import { Tab } from '@/features/editor/tab-node'
+import { TabStops } from '@/features/editor/tab-stops'
 import { TableHeaderRepeat } from '@/features/editor/table-header-repeat'
 import { TableIndent } from '@/features/editor/table-indent'
 import { TableOfContentsConfigured } from '@/features/editor/table-of-contents'
@@ -113,6 +116,8 @@ export function buildEditorExtensions({
 		TextAlign.configure({ types: ['heading', 'paragraph'] }),
 		TextStyleKit.configure({ lineHeight: false }),
 		EditShortcuts,
+		TabStops,
+		Tab,
 		Highlight.configure({ multicolor: true }),
 		Subscript,
 		Superscript,
@@ -139,6 +144,7 @@ export function buildEditorExtensions({
 		AnalysisHighlight,
 		AnalysisDiffHighlight,
 		SelectionHighlight,
+		ClickPastNodeSelection,
 		BlockIndentExtension,
 		BlockSpacing,
 		BlockKeep,

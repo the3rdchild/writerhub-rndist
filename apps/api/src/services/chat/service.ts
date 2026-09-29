@@ -1,14 +1,15 @@
 import type { StyleMemory } from '@writer-hub/shared'
-import { toProviderTools } from '@writer-hub/shared'
+import { isBriefEmpty, toProviderTools } from '@writer-hub/shared'
 import { env } from '@/config/env'
 import type { Template } from '@/db/schemas'
 import { pickModel } from '@/lib/pick-model'
 import type { ResolvedProvider } from '@/lib/provider-resolver'
 import { findTemplateBySlug } from '@/repository/template'
 import JobSubmissionService from '@/services/job-submission.service'
+import { fetchWithDeadline } from './deadline'
 import { type ChatBody, chatBodySchema } from './dto'
 import { buildMessages } from './messages'
-import { documentBriefPrompt } from './prompts'
+import { documentBriefPrompt, researchBriefPrompt } from './prompts'
 import { openChatStream } from './stream'
 
 const TEMPERATURE = 0.4
@@ -50,7 +51,15 @@ export default class ChatService extends JobSubmissionService {
 			/* Templatenya memberi tahu model bagaimana menulis; metadata memberi
 			 * tahu tentang apa. Label isiannya datang dari template yang sama, jadi
 			 * satu pencarian melayani keduanya. */
-			const documentBrief = documentBriefPrompt(template?.spec.metadataFields, parsed.data.metadata)
+			const brief = parsed.data.brief
+			const documentBrief = [
+				documentBriefPrompt(template?.spec.metadataFields, parsed.data.metadata, {
+					briefCovers: brief !== undefined && !isBriefEmpty(brief),
+				}),
+				researchBriefPrompt(brief),
+			]
+				.filter(Boolean)
+				.join('\n\n')
 			const call = (withTools: boolean) =>
 				this.callProvider(config, parsed.data, withTools, memory, template?.spec.aiRules, documentBrief)
 
@@ -92,27 +101,26 @@ export default class ChatService extends JobSubmissionService {
 		templateRules?: string[],
 		documentBrief?: string,
 	): Promise<Response> {
-		return fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
-			method: 'POST',
-			headers: {
-				authorization: `Bearer ${apiKey}`,
-				'content-type': 'application/json',
+		return fetchWithDeadline(
+			`${baseUrl.replace(/\/$/, '')}/chat/completions`,
+			{
+				method: 'POST',
+				headers: {
+					authorization: `Bearer ${apiKey}`,
+					'content-type': 'application/json',
+				},
+				body: JSON.stringify({
+					model,
+					stream: true,
+					temperature: TEMPERATURE,
+					messages: buildMessages(body, withTools, memory, templateRules, documentBrief),
+					...(withTools ? { tools: toProviderTools({ research: body.research }), tool_choice: 'auto' } : {}),
+				}),
+				// Penulis menutup percakapannya; batas waktu provider ada di `fetchWithDeadline`.
+				signal: this.context.req.raw.signal,
 			},
-			body: JSON.stringify({
-				model,
-				stream: true,
-				temperature: TEMPERATURE,
-				messages: buildMessages(body, withTools, memory, templateRules, documentBrief),
-				...(withTools ? { tools: toProviderTools({ research: body.research }), tool_choice: 'auto' } : {}),
-			}),
-			/*
-			 * Dua sebab berhenti sekaligus: penulis menutup percakapannya, atau
-			 * provider tidak juga menjawab. Yang kedua dulu tidak ada - batas
-			 * waktunya milik runtime, dan `DOMException`-nya bocor sampai ke
-			 * layar sebagai "The operation timed out."
-			 */
-			signal: AbortSignal.any([this.context.req.raw.signal, AbortSignal.timeout(env.AI_REQUEST_TIMEOUT_MS)]),
-		})
+			{ idleMs: env.AI_IDLE_TIMEOUT_MS, totalMs: env.AI_REQUEST_TIMEOUT_MS },
+		)
 	}
 
 	/**

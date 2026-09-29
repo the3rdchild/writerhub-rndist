@@ -25,6 +25,27 @@ export interface PartialToolCall {
 
 export const PING_INTERVAL_MS = 15_000
 
+/*
+ * Penolakan yang memang soal tool calling: model tanpa dukungan alat, atau
+ * rute OpenRouter yang tidak punya endpoint beralat. Hanya ini yang layak
+ * dicoba ulang tanpa alat.
+ *
+ * Dulu setiap 4xx dianggap begitu. Percakapan yang cacat ("messages with role
+ * 'tool' must be a response to a preceding message with 'tool_calls'"), saldo
+ * habis (402), atau rate limit (429) ikut membuat klien mematikan alat untuk
+ * sisa sesi - dan chat yang tidak bisa menyunting lagi tampak berhenti di
+ * tengah jalan.
+ */
+const TOOLS_REJECTED =
+	/(does not|doesn't|do not|not)\s+support\w*\s+(the\s+)?(tool|function)|(tool|function)[\s_-]*(use|calling|calls|choice)?\s+(is\s+|are\s+)?(not|un)\s?supported|no endpoints? found that supports? tool|unsupported\s+(parameter|field)?\s*:?\s*['"`]?(tools|tool_choice|functions)/i
+
+export function rejectsTools(status: number, detail: string): boolean {
+	if (status < 400 || status >= 500 || status === 401 || status === 402 || status === 403 || status === 429) {
+		return false
+	}
+	return TOOLS_REJECTED.test(detail)
+}
+
 export interface ChatStreamOptions {
 	/** Ganti dash prosa keluaran AI dengan koma (penjaga gaya anti-mesin). */
 	dashGuard?: boolean
@@ -50,21 +71,27 @@ export function openChatStream(
 			try {
 				send({ type: 'status', phase: 'connecting' })
 				let upstream = await call(wantsTools)
-				if (wantsTools && !upstream.ok && upstream.status >= 400 && upstream.status < 500) {
-					send({ type: 'status', phase: 'retrying', detail: 'Provider menolak tool calling' })
-					send({ type: 'tools_unsupported' })
-					upstream = await call(false)
+				// Badan galat hanya bisa dibaca sekali; ia dipakai lagi untuk pesan galatnya.
+				let detail: string | null = null
+				if (wantsTools && !upstream.ok) {
+					detail = await upstream.text().catch(() => '')
+					if (rejectsTools(upstream.status, detail)) {
+						send({ type: 'status', phase: 'retrying', detail: 'Provider menolak tool calling' })
+						send({ type: 'tools_unsupported' })
+						upstream = await call(false)
+						detail = null
+					}
 				}
 
 				if (!upstream.ok || !upstream.body) {
-					const detail = await upstream.text().catch(() => '')
-					send({ type: 'error', ...chatProviderFailure(upstream.status, detail) })
+					const text = detail ?? (await upstream.text().catch(() => ''))
+					send({ type: 'error', ...chatProviderFailure(upstream.status, text) })
 					return
 				}
 
 				send({ type: 'status', phase: 'thinking' })
-				await pumpUpstream(upstream.body, send, options)
-				send({ type: 'done' })
+				const finish = await pumpUpstream(upstream.body, send, options)
+				send({ type: 'done', ...(finish ? { finish } : {}) })
 			} catch (error) {
 				// Dulu di sini `error.message` diteruskan apa adanya - dan karena
 				// `DOMException` lolos cek `instanceof Error`, "The operation timed
@@ -83,7 +110,8 @@ async function pumpUpstream(
 	body: ByteSource,
 	send: (event: ChatStreamEvent) => void,
 	options: ChatStreamOptions = {},
-): Promise<void> {
+): Promise<string | undefined> {
+	let finish: string | undefined
 	const decoder = new TextDecoder()
 	const reader = body.getReader()
 	let buffer = ''
@@ -138,6 +166,8 @@ async function pumpUpstream(
 				try {
 					const parsed = JSON.parse(payload)
 					const delta = parsed?.choices?.[0]?.delta
+					const reason = parsed?.choices?.[0]?.finish_reason
+					if (typeof reason === 'string' && reason) finish = reason
 
 					const text = delta?.content
 					if (typeof text === 'string' && text.length > 0) {
@@ -195,4 +225,5 @@ async function pumpUpstream(
 	} finally {
 		reader.releaseLock()
 	}
+	return finish
 }

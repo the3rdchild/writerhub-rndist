@@ -73,6 +73,14 @@ describe('teks biasa dibiarkan apa adanya', () => {
 		expect(looksLikeMarkdown('Ini **penting** sekali.')).toBe(true)
 		expect(markdownToHtml('Ini **penting** sekali.')).toBe('<p>Ini <strong>penting</strong> sekali.</p>')
 	})
+
+	// Dibiarkan mentah, dua paragraf menjadi satu untai teks berisi baris baru (T3).
+	test('tapi paragraf yang dipisah baris kosong menjadi paragraf sendiri-sendiri', () => {
+		expect(toEditorContent('Puji syukur penulis panjatkan.\n\nParagraf kedua.')).toBe(
+			'<p>Puji syukur penulis panjatkan.</p><p>Paragraf kedua.</p>',
+		)
+		expect(toEditorContent('Satu baris.\nBaris lanjutan.')).toBe('Satu baris.\nBaris lanjutan.')
+	})
 })
 
 describe('garis mendatar', () => {
@@ -154,5 +162,102 @@ describe('pembatas LaTeX', () => {
 		expect(looksLikeMarkdown('\\(x^2\\)')).toBe(true)
 		expect(looksLikeMarkdown('\\[x^2\\]')).toBe(true)
 		expect(looksLikeMarkdown('\\begin{equation}x\\end{equation}')).toBe(true)
+	})
+})
+
+/* Keluaran DeepSeek V4 Flash untuk lembar pengesahan, 26 Sep: entitas dan
+ * garis bawah yang di-escape tertulis mentah di naskah. */
+describe('entitas HTML dan backslash-escape', () => {
+	const SIGNATURE = [
+		'## Lembar Pengesahan',
+		'',
+		'&emsp; &emsp; &emsp; NIP.',
+		'',
+		'&nbsp;',
+		'',
+		'Pembimbing I &emsp; &emsp; Pembimbing II',
+		'',
+		'( \\_\\_\\_\\_ ) &emsp; ( \\_\\_\\_\\_ )',
+	].join('\n')
+
+	test('entitas diserahkan ke peramban, tidak di-escape menjadi teks', () => {
+		const html = markdownToHtml(SIGNATURE)
+		expect(html).toContain('<p>&emsp; &emsp; &emsp; NIP.</p>')
+		expect(html).toContain('<p>&nbsp;</p>')
+		expect(html).not.toContain('&amp;emsp;')
+	})
+
+	test('garis isian yang di-escape menjadi garis bawah, tanpa backslash', () => {
+		expect(markdownToHtml(SIGNATURE)).toContain('<p>( ____ ) &emsp; ( ____ )</p>')
+	})
+
+	test('penanda yang di-escape tidak memformat', () => {
+		expect(markdownToHtml('\\*bukan miring\\* dan \\*\\*bukan tebal\\*\\*')).toBe(
+			'<p>*bukan miring* dan **bukan tebal**</p>',
+		)
+	})
+
+	test('entitas tidak pernah membuka jalan bagi tag', () => {
+		expect(markdownToHtml('&lt;script&gt; <b>x</b> R&D')).toBe(
+			'<p>&lt;script&gt; &lt;b&gt;x&lt;/b&gt; R&amp;D</p>',
+		)
+	})
+
+	test('isi kode ditulis apa adanya', () => {
+		expect(markdownToHtml('Pakai `&nbsp; \\_` di HTML')).toBe(
+			'<p>Pakai <code>&amp;nbsp; \\_</code> di HTML</p>',
+		)
+	})
+
+	test('dolar yang di-escape bukan rumus, dolar di dalam rumus tetap LaTeX', () => {
+		expect(markdownToHtml('Harga \\$5 sampai \\$10')).toBe('<p>Harga $5 sampai $10</p>')
+		expect(markdownToHtml('Nilai $a\\$b$ saja')).toContain('data-latex="a\\$b"')
+	})
+
+	test('teks polos berisi entitas atau escape ikut dikonversi', () => {
+		expect(looksLikeMarkdown('Ttd &emsp; NIP.')).toBe(true)
+		expect(looksLikeMarkdown('( \\_\\_\\_ )')).toBe(true)
+		expect(toEditorContent('( \\_\\_\\_ )')).toBe('<p>( ___ )</p>')
+		expect(looksLikeMarkdown('Riset dan pengembangan (R&D)')).toBe(false)
+	})
+})
+
+/* Keluaran DeepSeek V4 Flash untuk skripsi lengkap, 26 Sep. */
+describe('kebiasaan LaTeX dan penanda bersarang dari model', () => {
+	test('\\pagebreak di baris sendiri menjadi pindah halaman, bukan teks', () => {
+		const html = markdownToHtml('Penutup bab.\n\\pagebreak\n\n# BAB II TINJAUAN PUSTAKA')
+		expect(html).toBe('<p>Penutup bab.</p><div data-page-break=""></div><h1>BAB II TINJAUAN PUSTAKA</h1>')
+		expect(markdownToHtml('\\newpage')).toBe('<div data-page-break=""></div>')
+	})
+
+	test('\\pagebreak di tengah kalimat tetap teks', () => {
+		expect(markdownToHtml('Perintah \\pagebreak di LaTeX **penting**')).not.toContain('data-page-break')
+	})
+
+	test('miring di dalam tebal', () => {
+		expect(markdownToHtml('**a. Daya Ingat (*Short-Term Memory*)**')).toBe(
+			'<p><strong>a. Daya Ingat (<em>Short-Term Memory</em>)</strong></p>',
+		)
+		expect(markdownToHtml('**3.3.1 Variabel (X): *Brainrot***')).toBe(
+			'<p><strong>3.3.1 Variabel (X): <em>Brainrot</em></strong></p>',
+		)
+	})
+})
+
+/* Uji use case 28 Sep, UC4: bar chart ditulis model sebagai pagar ```mermaid. */
+describe('pagar kode membawa bahasanya', () => {
+	test('mermaid menjadi blok berbahasa mermaid, jadi digambar', () => {
+		expect(markdownToHtml('```mermaid\nflowchart TD\n  A-->B\n```')).toBe(
+			'<pre><code class="language-mermaid">flowchart TD\n  A--&gt;B</code></pre>',
+		)
+	})
+
+	test('tanpa bahasa tetap blok kode polos', () => {
+		expect(markdownToHtml('```\nx = 1\n```')).toBe('<pre><code>x = 1</code></pre>')
+	})
+
+	test('nama bahasa yang aneh tidak masuk ke atribut', () => {
+		expect(markdownToHtml('```js" onclick="x\ny\n```')).toBe('<pre><code>y</code></pre>')
+		expect(markdownToHtml('```Python\nprint(1)\n```')).toContain('class="language-python"')
 	})
 })

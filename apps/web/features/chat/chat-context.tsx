@@ -1,21 +1,41 @@
 'use client'
 
-import { generateJSON } from '@tiptap/core'
+import { generateJSON, type JSONContent } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
-import type { ProviderErrorCode, TemplateSpec } from '@writer-hub/shared'
+import type { BriefKey, DocumentTypography, ProviderErrorCode, TemplateSpec } from '@writer-hub/shared'
 import {
+	type BriefChapterUpdate,
+	type BriefFieldUpdate,
+	briefField,
+	CHAPTER_STATUSES,
 	CHAT_CONTEXT_LIMITS,
+	type ChapterStatus,
 	type ChatMessage,
 	type ChatStreamPhase,
 	type ChatUsage,
 	DEFAULT_CHAT_MODEL,
+	isAskTool,
+	isDelegation,
 	isReadTool,
+	type OutlineReport,
+	type OutlineUpdate,
+	readPageRange,
 	type ToolCall,
+	type WorkKind,
+	workKindOf,
 } from '@writer-hub/shared'
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import { usePanels } from '@/features/analysis/panel-context'
+import { useBrief } from '@/features/brief/brief-context'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentLanguage } from '@/features/document/use-language'
+import {
+	BODY_NUMBERING,
+	firstChapterPos,
+	hasFrontMatter,
+	numberingCustomized,
+	opensWithCover,
+} from '@/features/editor/academic-numbering'
 import { type DiagramPalette, isCompletePalette, reskinSvg } from '@/features/editor/diagram-skin'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { buildEditorExtensions } from '@/features/editor/extensions'
@@ -34,12 +54,20 @@ import {
 	setPageFurnitureForTab,
 } from '@/features/editor/page-furniture/page-furniture-ydoc'
 import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furniture'
+import type { PageSetup } from '@/features/editor/page-geometry'
 import { paginationKey } from '@/features/editor/pagination'
-import { editorPlainText } from '@/features/editor/text-content'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useTypography } from '@/features/editor/use-typography'
 import { sessionLabel, useSessions } from '@/features/sessions/session-context'
-import { createTab as createTabInDoc } from '@/features/sessions/ydoc'
+import {
+	createTab as createTabInDoc,
+	readAppliedFormat,
+	readNumberingPreset,
+	setAppliedFormat,
+	setNumberingPreset,
+	setPageSetupForTab,
+	setTypographyForTab,
+} from '@/features/sessions/ydoc'
 import { buildSchema, fragmentToJSON, jsonToFragment } from '@/features/sync/serialize'
 import { useSync } from '@/features/sync/sync-context'
 import { getTemplate } from '@/features/templates/api'
@@ -49,13 +77,46 @@ import { snapshotLocalVersion } from '@/features/versions/local-snapshot'
 import { useInvalidateVersions } from '@/features/versions/use-versions'
 import { usePersistentState } from '@/lib/use-persistent-state'
 import { parseFallbackCalls, streamChat, stripFallbackCalls } from './api'
-import { diagramReceipt, drawDiagram } from './diagram-api'
+import {
+	type AskAnswer,
+	answerWords,
+	askResultText,
+	briefAnswerValue,
+	parseAskQuestions,
+	requestedBriefFields,
+	requestMessage,
+	responseValue,
+} from './ask'
+import { diagramFailureResult, diagramReceipt, drawDiagram } from './diagram-api'
 import { stitchDiagrams } from './diagram-embed'
 import { diagramBlocks, diagramTypeOf, findDiagramBlock, needsDrawing } from './diagram-target'
 import { chatFailureHint, toChatTurnError } from './failure'
+import { readableText } from './figures'
+import { LEAKED_BROKEN_RESULT, leakedCallRepeats, parseLeakedCalls, stripLeakedCalls } from './leaked-calls'
+import { applyAcademicNumbering, type NumberingContext } from './numbering-apply'
+import { clipMessage, fitWindow, withToolResults } from './outbound-window'
+import {
+	type OutlineProgress,
+	outlineDone,
+	outlineForModel,
+	outlineForWriter,
+	outlineGaps,
+} from './outline-check'
+import { measureOutline } from './outline-measure'
 import { isRemoteReadTool, remoteToolLabel, runRemoteReadTool } from './remote-tools'
 import {
+	type ContinueReason,
+	continueNudge,
+	emptySections,
+	isContinuePrompt,
+	mayAutoContinue,
+	promisesMore,
+	type StallReason,
+} from './stall'
+import {
+	applyInOrder,
 	applyWriteTool,
+	figurePlacement,
 	insertDiagramBlock,
 	pageSummary,
 	type ReadToolContext,
@@ -92,6 +153,14 @@ export interface ChatAttachment {
 
 export interface ChatTurn extends ChatMessage {
 	actions?: ToolCall[]
+	/**
+	 * Pertanyaan kepada penulis (`ask_user`, `request_brief`). Terpisah dari
+	 * `actions` karena tidak ada yang bisa "diterapkan" - hanya dijawab - tapi
+	 * sama-sama menahan giliran sampai diputuskan.
+	 */
+	asks?: ToolCall[]
+	/** Di giliran hasil alat: jawaban penulis, untuk ringkasan tanya-jawab di percakapan. */
+	answer?: AskAnswer
 	taskId?: string
 	/**
 	 * Bagian giliran ini sesuai urutan datangnya. `content` tetap ada dan tetap
@@ -101,6 +170,50 @@ export interface ChatTurn extends ChatMessage {
 	parts?: TurnPart[]
 	usage?: ChatUsage
 	intermediate?: boolean
+	/**
+	 * Pesan pengguna yang bukan ketikan penulis: dorongan `[Continue]` yang
+	 * melanjutkan tugas yang berhenti di tengah - otomatis, atau lewat tombol
+	 * "Lanjutkan". Digambar sebagai penanda, bukan gelembung.
+	 */
+	continuation?: { mode: 'auto' | 'manual'; reason: ContinueReason }
+}
+
+/**
+ * Tugas terakhir yang masih bisa diteruskan lewat tombol "Lanjutkan" di atas
+ * kotak chat. Tombolnya sendiri yang memutuskan muncul atau tidak: ia yang
+ * membaca bab kosong dari naskah yang terus berubah.
+ */
+export interface ChatResume {
+	taskId: string
+	/** Dihentikan penulis, atau kartu macetnya ditutup - bukan selesai sendiri. */
+	interrupted: 'stopped' | StallReason | null
+	/** Tugas ini menulis isi naskah: bab yang masih kosong layak ditawarkan. */
+	wrote: boolean
+}
+
+/*
+ * Alat yang menulis isi naskah. Tugas yang hanya merapikan format atau
+ * mengganti kata tidak menawarkan "bab masih kosong" - di dokumen template,
+ * semua bab kosong sejak awal.
+ */
+const CONTENT_TOOLS = new Set([
+	'insert_content',
+	'write_section',
+	'insert_table',
+	'insert_html_block',
+	'restructure_section',
+])
+
+/** Tugas yang berhenti sebelum selesai dan sudah tidak dilanjutkan sendiri. */
+export interface ChatStall {
+	reason: StallReason
+	/** Berapa kali tugas ini sudah dilanjutkan otomatis sebelum berhenti di sini. */
+	autoContinues: number
+	/** Bagian tingkat satu naskah, dan yang masih tanpa isi. */
+	total: number
+	empty: string[]
+	/** Yang masih kurang menurut kerangka dari `set_outline`, untuk penulis. */
+	outline?: string[]
 }
 
 const MAX_TOOL_ROUNDS = 12
@@ -109,10 +222,20 @@ const MAX_READ_CALLS = 48
 const BUDGET_NOTICE =
 	'\n\n[System] Read budget for this turn is exhausted. Answer now with what you already have, or propose write tools. Further read tools will not be executed.'
 
+/*
+ * Gelombang suntingan beruntun sebelum aplikasi berhenti menyambung giliran
+ * sendiri. Dulu gelombang terakhir membawa pesan "Wrap up" ke model, yang
+ * secara harfiah menyuruhnya berhenti - model lalu menulis "karena batasan
+ * sistem saya tidak bisa melanjutkan". Kini model tidak diberi tahu apa-apa:
+ * tugasnya dijeda, lalu dilanjutkan (lihat `stall.ts`).
+ */
 const MAX_WRITE_WAVES = 8
 
-const WRITE_WAVE_NOTICE =
-	'\n\n[System] This is the last batch of edits that will be carried out automatically for this request. Wrap up: summarize what changed and what is left for the writer to decide.'
+/** Hasil alat untuk aksi yang dilewati penulis; kartunya berbunyi "Skipped". */
+const SKIPPED_RESULT = 'The writer skipped this action. It was not applied to the document.'
+
+const BROKEN_ARGS_RESULT =
+	'Not carried out: the arguments of this call were cut off or were not valid JSON (a reply that hits the output length limit ends mid-call). Send it again in smaller pieces: one section per call.'
 
 const PHASE_LABEL: Record<ChatStreamPhase, string> = {
 	connecting: 'Menghubungi provider…',
@@ -130,16 +253,24 @@ function newTaskId(): string {
 
 export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string | undefined): ChatMessage[] {
 	const outbound: ChatMessage[] = []
+	// Indeks permintaan tugas berjalan: ia ikut di depan jendela, sepanjang apa pun tugasnya.
+	let request: number | undefined
 	for (const turn of history) {
 		if (turn.taskId === currentTaskId) {
 			const {
 				actions: _actions,
+				asks: _asks,
+				answer: _answer,
 				taskId: _taskId,
 				parts: _parts,
 				usage: _usage,
 				intermediate: _intermediate,
+				continuation: _continuation,
 				...message
 			} = turn
+			// Giliran yang dihentikan sebelum sempat menulis apa pun: tidak ada yang dikirim.
+			if (message.role === 'assistant' && !message.content && !message.toolCalls?.length) continue
+			if (request === undefined && message.role === 'user') request = outbound.length
 			outbound.push(message)
 			continue
 		}
@@ -150,20 +281,239 @@ export function buildOutboundMessages(history: ChatTurn[], currentTaskId: string
 		}
 		outbound.push({ role: turn.role, content: turn.content })
 	}
-	if (outbound.length > CHAT_CONTEXT_LIMITS.messages) {
-		let start = outbound.length - CHAT_CONTEXT_LIMITS.messages
-		while (start < outbound.length - 1 && outbound[start].role !== 'user') start++
-		return outbound.slice(start)
-	}
-	return outbound
+	// Balasan lama yang tersimpan sebelum DSML dibersihkan tetap dibersihkan di sini.
+	return fitWindow(withToolResults(outbound), CHAT_CONTEXT_LIMITS.messages, request).map((message) =>
+		clipMessage(
+			message.role === 'assistant' ? { ...message, content: stripLeakedCalls(message.content) } : message,
+			CHAT_CONTEXT_LIMITS.message,
+		),
+	)
 }
 
 export function actionsSettled(history: ChatTurn[], owner: ChatTurn): boolean {
 	const decided = new Set(history.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId))
-	return (owner.actions ?? []).every((action) => decided.has(action.id))
+	return [...(owner.actions ?? []), ...(owner.asks ?? [])].every((action) => decided.has(action.id))
+}
+
+/** `set_outline`: kerangka ke brief, lalu laporan singkat untuk model. */
+export function recordOutline(
+	brief: { applyOutline: (outline: OutlineUpdate) => OutlineReport | null },
+	call: ToolCall,
+): string {
+	const outline = outlineFromArgs(call.arguments)
+	if (outline.sections.length === 0) return 'Nothing recorded: the outline needs at least one section.'
+	const report = brief.applyOutline(outline)
+	if (!report) return 'No document is open, so nothing was recorded.'
+
+	const pages = outline.pages && readPageRange(outline.pages)
+	return [
+		`Outline recorded: ${report.sections} sections, ${report.items} promised tables/figures${pages ? `, target ${pages[0]}-${pages[1]} pages` : ''}${outline.notes ? `, ${outline.notes.length} research notes` : ''}.`,
+		report.kept.length > 0 &&
+			`The writer's own chapters not in this outline were kept: ${report.kept.join(', ')}.`,
+		'From now on the editor context checks the document against it on every turn.',
+	]
+		.filter(Boolean)
+		.join(' ')
+}
+
+/** Tugas ini menulis isi naskah: ada aksi isi yang diterapkan, bukan dilewati penulis. */
+export function wroteContent(history: readonly ChatTurn[], taskId: string): boolean {
+	const ids = new Set(
+		history.flatMap((turn) =>
+			turn.taskId === taskId
+				? (turn.actions ?? []).filter((call) => CONTENT_TOOLS.has(call.name)).map((call) => call.id)
+				: [],
+		),
+	)
+	return history.some(
+		(turn) =>
+			turn.role === 'tool' &&
+			turn.toolCallId !== undefined &&
+			ids.has(turn.toolCallId) &&
+			!turn.content.startsWith('The writer skipped'),
+	)
+}
+
+/**
+ * Kerangka dicatat (`set_outline`) di tugas ini atau tepat sebelumnya - tugas
+ * menulis dari outline yang baru disetujui. Hanya tugas seperti itu yang
+ * dilanjutkan sendiri sampai kerangkanya terpenuhi: permintaan kecil di lain
+ * waktu ("tambahkan satu tabel") tidak boleh berubah menjadi menulis seluruh
+ * sisa kerangka.
+ */
+export function followsOutline(history: readonly ChatTurn[], taskId: string): boolean {
+	const order: string[] = []
+	for (const turn of history) if (turn.taskId && !order.includes(turn.taskId)) order.push(turn.taskId)
+	const at = order.indexOf(taskId)
+	if (at === -1) return false
+	const recent = new Set(order.slice(Math.max(0, at - 1), at + 1))
+	return history.some(
+		(turn) =>
+			turn.role === 'assistant' &&
+			turn.taskId !== undefined &&
+			recent.has(turn.taskId) &&
+			(turn.toolCalls ?? []).some((call) => call.name === 'set_outline'),
+	)
+}
+
+/**
+ * Aksi yang boleh mulai diterapkan: belum berjalan, dan belum diputuskan
+ * (tidak ada hasil alatnya di riwayat - diterapkan, dilewati, atau gagal).
+ */
+export function unclaimedActions(
+	calls: readonly ToolCall[],
+	running: ReadonlySet<string>,
+	history: readonly ChatTurn[],
+): ToolCall[] {
+	const decided = new Set(
+		history.flatMap((turn) => (turn.role === 'tool' && turn.toolCallId ? [turn.toolCallId] : [])),
+	)
+	return calls.filter((call) => !running.has(call.id) && !decided.has(call.id))
+}
+
+/** Tugas ini berhasil menyisipkan sampul lewat `insert_template_part`. */
+export function coverInserted(history: readonly ChatTurn[], taskId: string): boolean {
+	const ids = new Set(
+		history.flatMap((turn) =>
+			turn.taskId === taskId
+				? (turn.actions ?? []).filter((call) => call.name === 'insert_template_part').map((call) => call.id)
+				: [],
+		),
+	)
+	return history.some(
+		(turn) =>
+			turn.role === 'tool' &&
+			turn.toolCallId !== undefined &&
+			ids.has(turn.toolCallId) &&
+			turn.content.includes('Inserted the cover'),
+	)
+}
+
+/**
+ * Bisakah "lanjut" dari penulis meneruskan tugas ini alih-alih memulai yang
+ * baru? Hanya kalau model sudah pernah menjawab di dalamnya dan tidak ada aksi
+ * atau pertanyaan yang masih menunggu - panggilan alat tanpa hasil tidak
+ * boleh ikut terkirim.
+ */
+export function resumableTask(history: ChatTurn[], taskId: string | undefined): boolean {
+	if (!taskId) return false
+	const owners = history.filter((turn) => turn.role === 'assistant' && turn.taskId === taskId)
+	return owners.length > 0 && owners.every((owner) => actionsSettled(history, owner))
+}
+
+/** Model sudah pernah menjawab di tugas ini - bukan dihentikan sebelum giliran pertamanya tersimpan. */
+function answeredTask(history: readonly ChatTurn[], taskId: string): boolean {
+	return history.some((turn) => turn.role === 'assistant' && turn.taskId === taskId)
+}
+
+/**
+ * Pertanyaan yang sedang menunggu penulis - kalau ada, kartunya menggantikan
+ * kotak chat. Hanya giliran pertanyaan terakhir dari tugas yang sedang
+ * berjalan yang dihitung: pertanyaan dari tugas lama sudah tidak punya giliran
+ * untuk dilanjutkan.
+ */
+export function pendingAskOf(
+	history: readonly ChatTurn[],
+	currentTaskId: string | undefined,
+): ToolCall | null {
+	const settled = new Set(history.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId))
+	for (let index = history.length - 1; index >= 0; index--) {
+		const turn = history[index]
+		if (turn.role !== 'assistant' || !turn.asks?.length) continue
+		if (turn.taskId !== currentTaskId) return null
+		return turn.asks.find((call) => !settled.has(call.id)) ?? null
+	}
+	return null
+}
+
+const EXTRA_ASK_RESULT =
+	'Not shown: only one question card is shown at a time. Ask this again, if it still matters, after the writer answers the first.'
+
+/**
+ * Argumen `update_brief` dari model, dibaca dengan curiga - yang tidak
+ * berbentuk seperti isian atau bab dibuang di sini, bukan di aturan brief.
+ */
+export function briefUpdateFromArgs(args: Record<string, unknown>): {
+	fields: BriefFieldUpdate[]
+	chapters: BriefChapterUpdate[]
+} {
+	const list = (value: unknown): Record<string, unknown>[] =>
+		Array.isArray(value)
+			? value.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+			: []
+	const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+
+	return {
+		fields: list(args.fields).map((field) => ({
+			key: text(field.key),
+			value: text(field.value),
+			...(text(field.evidence) ? { evidence: text(field.evidence) } : {}),
+		})),
+		chapters: list(args.chapters).map((chapter) => ({
+			title: text(chapter.title),
+			summary: text(chapter.summary),
+			...(CHAPTER_STATUSES.includes(chapter.status as ChapterStatus)
+				? { status: chapter.status as ChapterStatus }
+				: {}),
+		})),
+	}
+}
+
+/**
+ * Argumen `set_outline` dari model. Rentang halaman diterima sebagai
+ * `{min, max}` sesuai skemanya, tapi juga sebagai `[8, 12]` atau "8-12" -
+ * bentuk yang sering ditulis model walau skemanya berkata lain.
+ */
+export function outlineFromArgs(args: Record<string, unknown>): OutlineUpdate {
+	const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+	/* Janji tabel/gambar kadang datang sebagai objek `{label, description}`,
+	 * bukan teks (uji 27 Sep, UC3) - labelnya yang dipakai, bukan dibuang. */
+	const item = (value: unknown): string => {
+		if (!value || typeof value !== 'object') return text(value)
+		const entry = value as Record<string, unknown>
+		return text(entry.label) || text(entry.title) || text(entry.name) || text(entry.caption)
+	}
+	const sections = (Array.isArray(args.sections) ? args.sections : [])
+		.filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object')
+		.map((section) => ({
+			title: text(section.title),
+			summary: text(section.summary),
+			items: Array.isArray(section.items) ? section.items.map(item).filter(Boolean) : [],
+		}))
+
+	const raw = args.pages
+	let pages: [number, number] | undefined
+	if (Array.isArray(raw) && raw.length === 2) pages = [Number(raw[0]), Number(raw[1])]
+	else if (raw && typeof raw === 'object') {
+		const range = raw as Record<string, unknown>
+		pages = [Number(range.min), Number(range.max ?? range.min)]
+	} else if (typeof raw === 'string') {
+		const match = /(\d+)\s*(?:-|–|sampai|to)?\s*(\d+)?/.exec(raw)
+		if (match) pages = [Number(match[1]), Number(match[2] ?? match[1])]
+	}
+	const notes = Array.isArray(args.notes) ? args.notes.map(text).filter(Boolean) : undefined
+
+	return { sections, ...(pages ? { pages } : {}), ...(notes ? { notes } : {}) }
 }
 
 const OUTLINE_SNIPPET_CHARS = 600
+
+/**
+ * Konteks halaman memberi tahu model bahwa formatnya sudah diterapkan, jadi
+ * ia tidak menghabiskan satu putaran untuk mencobanya lagi.
+ */
+export function withAppliedFormat(page: string, applied: string | null): string {
+	if (!applied) return page
+	return `${page} The ${applied} format is already applied (the writer may have adjusted it since): do not call apply_template_format again unless the writer explicitly asks to reset the format.`
+}
+
+/**
+ * Teks naskah untuk menghitung kata sebuah aksi, tanpa sumber SVG diagram:
+ * mengubah satu diagram tidak boleh tercatat "−449 kata".
+ */
+function proseText(editor: Editor): string {
+	return readableText(editor.state.doc, 0, editor.state.doc.content.size, 'omit')
+}
 
 function editorOutlineSummary(editor: Editor): string | undefined {
 	const doc = editor.state.doc
@@ -178,7 +528,7 @@ function editorOutlineSummary(editor: Editor): string | undefined {
 		return true
 	})
 
-	const plain = editorPlainText(editor)
+	const plain = readableText(editor.state.doc)
 	const hasText = plain.trim().length > 0
 	if (!hasText && headingCount === 0) return undefined
 
@@ -210,6 +560,14 @@ interface ChatContextValue {
 	error: ChatError | null
 	/** Melanjutkan giliran terakhir dari langkah yang sudah tersimpan. */
 	retry: () => void
+	/** Tugas yang berhenti di tengah dan menunggu penulis menekan "Lanjutkan". */
+	stall: ChatStall | null
+	continueStalled: () => void
+	dismissStall: () => void
+	/** Tugas terakhir yang bisa diteruskan dari tombol di atas kotak chat. */
+	resumable: ChatResume | null
+	/** Meneruskan tugas terakhir; `false` bila tidak ada yang bisa diteruskan. */
+	resumeTask: () => boolean
 
 	attachment: ChatAttachment | null
 	attach: (attachment: ChatAttachment) => void
@@ -222,6 +580,11 @@ interface ChatContextValue {
 	reset: () => void
 	startNewTopic: () => void
 	currentTaskId: string | undefined
+	/** Pertanyaan AI yang menunggu jawaban; kartunya menggantikan kotak chat. */
+	pendingAsk: ToolCall | null
+	answerAsk: (call: ToolCall, answer: AskAnswer) => void
+	/** Jawaban penulis untuk satu pertanyaan yang sudah diputuskan. */
+	askAnswer: (id: string) => AskAnswer | undefined
 	applyAction: (call: ToolCall) => Promise<ToolOutcome>
 	applyActions: (calls: ToolCall[]) => void
 	/** Besaran perubahan satu aksi, kalau ia memang menyentuh naskah. */
@@ -229,6 +592,14 @@ interface ChatContextValue {
 	skipAction: (call: ToolCall) => void
 	isActionApplied: (id: string) => boolean
 	isActionSettled: (id: string) => boolean
+	/** Aksi yang sedang diterapkan - menggambar bisa berjalan puluhan detik. */
+	isActionRunning: (id: string) => boolean
+	/**
+	 * Hasil aksi yang diputuskan tapi tidak mendarat - gambar yang gagal
+	 * digambar, teks yang tidak ditemukan. Undefined bila diterapkan atau
+	 * dilewati penulis. Tanpa ini kartu gambar yang gagal berbunyi "Skipped".
+	 */
+	actionFailure: (id: string) => string | undefined
 	autoApply: boolean
 	setAutoApply: (value: boolean) => void
 	research: boolean
@@ -246,8 +617,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const { state } = useDocument()
 	const { editor } = useEditorInstance()
 	const { setActivePanel, markRun } = usePanels()
-	const { doc, activeDocId, activeId, sessions, comments, addComment, renameDocument, renameSession } =
-		useSessions()
+	const {
+		doc,
+		activeDocId,
+		activeId,
+		sessions,
+		comments,
+		addComment,
+		renameDocument,
+		renameSession,
+		selectSession,
+	} = useSessions()
 	const { setup, setPageSetup } = usePageSetup()
 	const { furniture } = usePageFurniture()
 	const language = useDocumentLanguage()
@@ -286,6 +666,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const activeMetadata = useActiveDocumentMetadata()
 	const metadataRef = useRef(activeMetadata)
 	metadataRef.current = activeMetadata
+	/* Brief penelitian ikut di setiap permintaan, dan alat `update_brief` serta
+	 * jawaban kartu pertanyaan menulis ke sana - dibaca lewat ref karena
+	 * `runTurn` hidup lebih lama dari satu render. */
+	const briefApi = useBrief()
+	const briefRef = useRef(briefApi)
+	briefRef.current = briefApi
 	const applyActionsRef = useRef<((calls: ToolCall[]) => void) | null>(null)
 	const pendingAutoApplyRef = useRef<ToolCall[] | null>(null)
 	const messagesRef = useRef<ChatTurn[]>(messages)
@@ -293,6 +679,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		taskId: undefined,
 		count: 0,
 	})
+	/*
+	 * Tugas yang berhenti di tengah. `stallPendingRef` diisi `runTurn` di akhir
+	 * giliran dan dibaca sesudah gilirannya ditutup; `continuesRef` menghitung
+	 * lanjutan otomatis per tugas.
+	 */
+	const [stall, setStall] = useState<ChatStall | null>(null)
+	const stallPendingRef = useRef<{ reason: StallReason; taskId: string } | null>(null)
+	const continuesRef = useRef<{
+		taskId: string | undefined
+		auto: number
+		reason?: StallReason
+		/** Sidik kekurangan kerangka saat lanjutan 'unfinished' terakhir - `outlineGaps`. */
+		gaps?: string
+	}>({
+		taskId: undefined,
+		auto: 0,
+	})
+	const handleStallRef = useRef<((reason: StallReason, taskId: string) => void) | null>(null)
+	/* Tugas yang dihentikan penulis, atau yang kartu macetnya ia tutup. */
+	const [interruption, setInterruption] = useState<{
+		taskId: string
+		reason: 'stopped' | StallReason
+	} | null>(null)
 	const [parts, setParts] = useState<TurnPart[]>([])
 	const partsRef = useRef<TurnPart[]>([])
 
@@ -351,6 +760,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const templateSpecsRef = useRef(new Map<string, TemplateSpec>())
 
 	/**
+	 * Isi template (ProseMirror JSON) yang sudah diambil. Dipakai
+	 * `insert_html_block` dengan `fit: 'page'` untuk membandingkan dokumen
+	 * dengan kerangka template asal (UC5).
+	 */
+	const templateContentsRef = useRef(new Map<string, JSONContent>())
+
+	/**
 	 * Mengambil spec untuk tiap `apply_template_format` yang slug-nya belum
 	 * pernah diambil. Kegagalan sengaja didiamkan di sini: alat tulisnya yang
 	 * melaporkan "template tidak dikenal" ke model, lengkap dengan slug yang
@@ -359,7 +775,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const loadTemplateSpecs = useCallback(async (calls: ToolCall[]) => {
 		const pending = new Set(
 			calls
-				.filter((call) => call.name === 'apply_template_format')
+				.filter((call) => call.name === 'apply_template_format' || call.name === 'create_tab')
 				.map((call) => String(call.arguments.template ?? '').trim())
 				.filter((slug) => slug !== '' && !templateSpecsRef.current.has(slug)),
 		)
@@ -372,17 +788,80 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			}),
 		)
 	}, [])
+
+	/* Dokumen dari galeri sudah lahir dengan format templatenya. Hanya membaca
+	 * ref, jadi aman dipanggil dari callback yang ter-memo. */
+	const appliedFormatOf = useCallback((): string | null => {
+		const app = appRef.current
+		const recorded = app.activeDocId ? readAppliedFormat(app.doc, app.activeDocId) : null
+		return recorded ?? templateRef.current?.slug ?? null
+	}, [])
+
 	const commit = useCallback((next: ChatTurn[]) => {
 		messagesRef.current = next
 		setMessages(next)
 	}, [])
+
+	/**
+	 * Mengambil isi template (ProseMirror JSON) untuk slug yang belum pernah
+	 * diambil. Dipakai `insert_html_block` dengan `fit: 'page'` (UC5).
+	 * Kegagalan didiamkan: `docIsScaffold` tanpa isi template tidak
+	 * menggantikan apa pun.
+	 */
+	const loadTemplateContents = useCallback(
+		async (calls: ToolCall[]) => {
+			const slugs = new Set<string>()
+			// `apply_template_format` dan `create_tab` membawa slug-nya sendiri.
+			for (const call of calls) {
+				if (call.name === 'apply_template_format' || call.name === 'create_tab') {
+					const slug = String(call.arguments.template ?? '').trim()
+					if (slug) slugs.add(slug)
+				}
+			}
+			// `insert_html_block` dengan `fit: 'page'` memakai template dokumen.
+			const hasPageFit = calls.some(
+				(call) => call.name === 'insert_html_block' && call.arguments.fit === 'page',
+			)
+			if (hasPageFit) {
+				const slug = appliedFormatOf()
+				if (slug) slugs.add(slug)
+			}
+
+			const pending = [...slugs].filter((slug) => !templateContentsRef.current.has(slug))
+			await Promise.all(
+				pending.map(async (slug) => {
+					try {
+						templateContentsRef.current.set(slug, (await getTemplate(slug)).content)
+					} catch {}
+				}),
+			)
+		},
+		[appliedFormatOf],
+	)
+
+	/*
+	 * Naskah terhadap kerangka dari `set_outline`, dibaca dari semua tab dan
+	 * brief SAAT INI - bukan dari state render terakhir.
+	 */
+	const currentOutline = useCallback((): OutlineProgress | null => {
+		const app = appRef.current
+		if (!briefRef.current.docId) return null
+		return measureOutline({
+			doc: app.doc,
+			tabIds: app.sessions.map((tab) => tab.id),
+			brief: briefRef.current.snapshot(),
+			editor: editorRef.current,
+			setup: app.setup,
+		})
+	}, [])
+
 	const buildContext = useCallback(() => {
 		const { attachment: current, includeDocument: whole, state: document } = contextRef.current
 		const editor = editorRef.current
 		let documentText: string | undefined
 		if (editor && !editor.isDestroyed) {
 			documentText = whole
-				? editorPlainText(editor).slice(0, CHAT_CONTEXT_LIMITS.document)
+				? readableText(editor.state.doc).slice(0, CHAT_CONTEXT_LIMITS.document)
 				: editorOutlineSummary(editor)
 		} else {
 			const text = whole
@@ -391,24 +870,31 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			documentText = text || undefined
 		}
 
+		const outline = currentOutline()
 		return {
 			title: document.title || undefined,
 			selection: current?.text,
 			surrounding: current?.surrounding,
 			document: documentText,
-			page: pageSummary(appRef.current.setup),
+			page: withAppliedFormat(pageSummary(appRef.current.setup), appliedFormatOf()),
+			outline: outline ? outlineForModel(outline).slice(0, CHAT_CONTEXT_LIMITS.outline) : undefined,
 		}
-	}, [])
+	}, [appliedFormatOf, currentOutline])
 
 	const stop = useCallback(() => {
 		// Percobaan ulang yang masih menunggu ikut dibatalkan; tanpa ini
 		// percakapan yang sudah dihentikan penulis hidup lagi sedetik kemudian.
+		const running = abortRef.current !== null || retryPendingRef.current
+		const taskId = currentTaskIdRef.current
+		if (running && taskId) setInterruption({ taskId, reason: 'stopped' })
 		if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
 		retryTimerRef.current = null
 		retryPendingRef.current = false
+		stallPendingRef.current = null
 		abortRef.current?.abort()
 		abortRef.current = null
 		setStreaming(null)
+		setStall(null)
 	}, [])
 
 	const setPartsBoth = (next: TurnPart[]) => {
@@ -506,6 +992,60 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		)
 		plan.next += 1
 	}
+	const tabText = (tabId: string): string | null => {
+		try {
+			const json = fragmentToJSON(appRef.current.doc, tabId)
+			return readableText(buildSchema().nodeFromJSON(json))
+		} catch {
+			return null
+		}
+	}
+
+	/**
+	 * `update_brief`: tulisan AI ke brief, disaring aturan brief. Bukti sebuah
+	 * keputusan dicari di seluruh tab dokumen dan di semua yang pernah dikatakan
+	 * penulis - pesan dan jawaban kartu pertanyaannya.
+	 */
+	const runBriefUpdate = (call: ToolCall, history: readonly ChatTurn[]): string => {
+		// Dorongan `[Continue]` bukan kata-kata penulis.
+		const said = history.flatMap((turn) =>
+			turn.role === 'user' && !turn.continuation
+				? [turn.content]
+				: turn.role === 'tool' && turn.answer
+					? answerWords(turn.answer)
+					: [],
+		)
+		const manuscript = appRef.current.sessions.map((tab) => tabText(tab.id) ?? '')
+		const report = briefRef.current.applyAiUpdate(briefUpdateFromArgs(call.arguments), [
+			...manuscript,
+			...said,
+		])
+		if (!report) return 'No document is open, so nothing was recorded.'
+
+		const lines = [
+			report.applied.length > 0 && `Saved: ${report.applied.join(', ')}.`,
+			report.proposed.length > 0 &&
+				`Proposed to the writer, awaiting their approval: ${report.proposed.join(', ')}.`,
+			report.skipped.length > 0 && `Unchanged: ${report.skipped.join(', ')}.`,
+			report.rejected.length > 0 &&
+				`Rejected: ${report.rejected.map((entry) => `${entry.target} (${entry.reason})`).join('; ')}.`,
+		].filter(Boolean)
+		return lines.length > 0 ? lines.join('\n') : 'Nothing to record.'
+	}
+
+	/*
+	 * `request_brief` membuka panel Metadata sendiri - satu-satunya saat panel
+	 * itu muncul tanpa diminta, karena isian panjang memang tidak muat di kartu.
+	 */
+	const announceAsk = (call: ToolCall | undefined) => {
+		if (call?.name !== 'request_brief') return
+		const message = requestMessage(call.arguments)
+		briefRef.current.openPanel({
+			highlight: requestedBriefFields(call.arguments),
+			...(message ? { message } : {}),
+		})
+	}
+
 	const buildReadContext = (editor: Editor): ReadToolContext => {
 		const app = appRef.current
 		const template = templateRef.current
@@ -518,28 +1058,37 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				label: sessionLabel(tab),
 				active: tab.id === app.activeId,
 			})),
-			readTab: (tabId) => {
-				try {
-					const json = fragmentToJSON(app.doc, tabId)
-					const node = buildSchema().nodeFromJSON(json)
-					return node.textBetween(0, node.content.size, '\n', ' ')
-				} catch {
-					return null
-				}
-			},
+			readTab: tabText,
 			comments: app.comments,
 			template: template ? { name: template.name, slug: template.slug, spec: template.spec } : null,
 			furniture: app.furniture,
 		}
 	}
-	const createTabWithContent = (title: string | undefined, markdown: string | undefined) => {
+	const createTabWithContent = (
+		title: string | undefined,
+		markdown: string | undefined,
+		content?: JSONContent,
+		layout?: { pageSetup?: PageSetup; typography?: DocumentTypography },
+	): string | undefined => {
 		const app = appRef.current
 		if (!app.activeDocId) return
 		const id = createTabInDoc(app.doc, app.activeDocId, title ?? 'Untitled document')
-		if (markdown?.trim()) {
+		if (content) {
+			jsonToFragment(app.doc, id, content)
+		} else if (markdown?.trim()) {
 			const json = generateJSON(toEditorContent(markdown), buildEditorExtensions())
 			jsonToFragment(app.doc, id, json)
 		}
+		/*
+		 * Tata letak ditulis langsung ke ydoc tab baru (bukan lewat
+		 * usePageSetup('tab') yang membaca activeTabId dari state React —
+		 * state itu belum tersebar di siklus ini).
+		 */
+		if (layout?.pageSetup) setPageSetupForTab(app.doc, id, layout.pageSetup)
+		if (layout?.typography) setTypographyForTab(app.doc, id, layout.typography)
+		// Tab baru langsung dibuka.
+		selectSession(id)
+		return id
 	}
 
 	const renameActiveDocument = (title: string): ToolOutcome => {
@@ -563,6 +1112,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		app.renameSession(target, title)
 		return { ok: true, message: `Tab renamed to "${title}".` }
 	}
+	/*
+	 * Berpindah ke tab lain: mengganti tab aktif di editor. Tab aktif menentukan
+	 * dokumen mana yang disunting alat tulis, jadi model harus memanggil ini
+	 * sebelum menulis ke bab di tab lain.
+	 */
+	const switchTabById = (tabId: string): ToolOutcome => {
+		const app = appRef.current
+		const tab = app.sessions.find((session) => session.id === tabId)
+		if (!tab) return { ok: false, message: `No tab with id ${tabId}. Call list_tabs first.` }
+		if (tab.id === app.activeId) return { ok: true, message: `Already on tab "${sessionLabel(tab)}".` }
+		selectSession(tabId)
+		return { ok: true, message: `Switched to tab "${sessionLabel(tab)}".` }
+	}
+	/* Dibaca lewat ref oleh `runWriteTool` yang ter-memo: keduanya dibuat ulang
+	 * setiap render, dan closure lama memegang `selectSession` yang basi. */
+	const tabToolsRef = useRef({ tabText, switchTabById })
+	tabToolsRef.current = { tabText, switchTabById }
 	/*
 	 * Header/footer hidup di meta ydoc tab, bukan di dokumen editor - jadi
 	 * penulisannya lewat konteks alat, bukan lewat `editor`. Fragmen kaya
@@ -597,12 +1163,82 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			: { ok: true, message: `${slot === 'header' ? 'Header' : 'Footer'} cleared${where}.` }
 	}
 
+	/*
+	 * Isian sampul: identitas dari metadata template (nama, NIM, pembimbing),
+	 * judul dan jenis karya dari brief. Jenis karya: template dulu - dokumen
+	 * skripsi tetap skripsi - lalu brief, lalu skripsi.
+	 */
+
+	const frontMatterSource = (): { kind: WorkKind; values: Record<string, string> } => {
+		const brief = briefRef.current.snapshot()
+		const identity = metadataRef.current ?? {}
+		const kind =
+			templateRef.current?.spec.frontMatter ?? workKindOf(brief.entries.jenisKarya?.value) ?? 'skripsi'
+		const title = brief.entries.judul?.value ?? identity.judul ?? ''
+		return { kind, values: { ...identity, ...(title ? { judul: title } : {}) } }
+	}
+
 	const setFirstPageSeparate = (separate: boolean): ToolOutcome => {
 		const app = appRef.current
 		const tabId = app.activeId
 		if (!tabId) return { ok: false, message: 'No tab is open.' }
 		setFurnitureVariantEnabled(app.doc, tabId, 'first', separate, app.furniture)
 		return { ok: true, message: 'First page updated.' }
+	}
+
+	/*
+	 * Penomoran halaman karya ilmiah, dipasang sendiri begitu dokumen akademik
+	 * punya BAB I - romawi di bagian depan, angka mulai BAB I (lihat
+	 * `academic-numbering.ts`). Sekali per tab: sesudahnya penulis bebas
+	 * mengubahnya. Satu-satunya lanjutan: tab yang tadinya hanya punya badan
+	 * naskah mendapat romawi untuk bagian depannya begitu bagian itu ditulis,
+	 * selama penomorannya masih seperti yang dipasang.
+	 */
+	const numberingContext = (editor: Editor): NumberingContext => ({
+		editor,
+		setup: appRef.current.setup,
+		setPageSetup: appRef.current.setPageSetup,
+		setFirstPageSeparate,
+		furniture: () => appRef.current.furniture,
+		setFurnitureLine,
+	})
+
+	const autoNumber = (history: readonly ChatTurn[], taskId: string): string | null => {
+		const editor = editorRef.current
+		const app = appRef.current
+		if (!editor || editor.isDestroyed || !app.activeId || app.setup.pageless) return null
+		const brief = briefRef.current.docId ? briefRef.current.snapshot() : null
+		const academic =
+			templateRef.current?.spec.frontMatter !== undefined ||
+			workKindOf(brief?.entries.jenisKarya?.value) !== null
+		if (!academic) return null
+
+		const doc = editor.state.doc
+		const chapter = firstChapterPos(doc)
+		if (chapter === null) return null
+		const front = hasFrontMatter(doc, chapter)
+		const preset = readNumberingPreset(app.doc, app.activeId)
+
+		if (preset === 'academic') {
+			// Sampul yang baru disisipkan tugas ini: halaman pertamanya tanpa nomor.
+			if (coverInserted(history, taskId) && opensWithCover(doc)) setFirstPageSeparate(true)
+			return null
+		}
+		if (preset === 'academic-body') {
+			const untouched =
+				JSON.stringify(app.setup.pageNumbering ?? null) === JSON.stringify(BODY_NUMBERING) &&
+				!numberingCustomized(doc, undefined)
+			if (!front || !untouched) return null
+		} else if (numberingCustomized(doc, app.setup.pageNumbering)) {
+			return null
+		}
+
+		const outcome = applyAcademicNumbering(numberingContext(editor))
+		if (!outcome.ok) return null
+		setNumberingPreset(app.doc, app.activeId, outcome.front ? 'academic' : 'academic-body')
+		return outcome.front
+			? 'Bagian depan bernomor romawi (i, ii, …) di tengah bawah; mulai BAB I angka dari 1 - tengah bawah di halaman pembuka bab, kanan atas di halaman lainnya.'
+			: 'Angka dari 1 - tengah bawah di halaman pembuka bab, kanan atas di halaman lainnya. Bagian depan akan bernomor romawi begitu ditulis.'
 	}
 
 	const runTurn = useCallback(
@@ -616,8 +1252,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		): Promise<void> => {
 			let answer = ''
 			const calls: ToolCall[] = []
+			const malformed = new Set<string>()
+			/** Panggilan DSML yang bocor ke teks dengan argumen rusak - lihat `leaked-calls.ts`. */
+			const leakedBroken = new Set<string>()
 			let usage: ChatUsage | undefined
 			let reasoning = ''
+			let finish: string | undefined
+			/*
+			 * Aliran sendiri, bukan `controller` giliran: aliran yang dihentikan
+			 * karena model berputar mengulang panggilan DSML yang sama bukan
+			 * pembatalan oleh penulis - gilirannya tetap diselesaikan dengan
+			 * panggilan yang sempat terbaca.
+			 */
+			const stream = new AbortController()
+			const relayAbort = () => stream.abort()
+			controller.signal.addEventListener('abort', relayAbort)
+			let looping = false
+			let leakChecked = 0
 
 			try {
 				await streamChat(
@@ -629,14 +1280,30 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						model: modelRef.current,
 						templateSlug: templateRef.current?.slug,
 						metadata: metadataRef.current ?? undefined,
+						brief: briefRef.current.docId ? briefRef.current.snapshot() : undefined,
 					},
 					{
 						onDelta: (delta) => {
 							answer += delta
 							setStreaming(answer)
 							appendText(delta)
+							const opener = answer.lastIndexOf('DSML')
+							if (opener > leakChecked) {
+								leakChecked = opener
+								if (leakedCallRepeats(answer)) {
+									looping = true
+									finish = 'repetition'
+									stream.abort()
+								}
+							}
 						},
-						onToolCall: (call) => calls.push(call),
+						onToolCall: (call, broken) => {
+							calls.push(call)
+							if (broken) malformed.add(call.id)
+						},
+						onDone: (reason) => {
+							finish = reason
+						},
 						onToolsUnsupported: () => {
 							toolsRef.current = false
 						},
@@ -649,10 +1316,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 							usage = report
 						},
 					},
-					controller.signal,
+					stream.signal,
 				)
 			} catch (cause) {
-				if (controller.signal.aborted) {
+				// Dihentikan di sini karena berputar, bukan gagal: lanjut dengan yang sempat terbaca.
+				if (looping && !controller.signal.aborted) {
+					// sengaja kosong
+				} else if (controller.signal.aborted) {
 					const cancelled = closeAll('cancelled', partsRef.current)
 					setPartsBoth(cancelled)
 					const partial = stripFallbackCalls(answer)
@@ -671,16 +1341,48 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				} else {
 					setPartsBoth(closeAll('failed', partsRef.current))
 				}
-				throw cause
+				if (!looping || controller.signal.aborted) throw cause
+			} finally {
+				controller.signal.removeEventListener('abort', relayAbort)
 			}
 			calls.push(...parseFallbackCalls(answer))
+			for (const { call, broken } of parseLeakedCalls(answer)) {
+				calls.push(call)
+				if (broken) {
+					malformed.add(call.id)
+					leakedBroken.add(call.id)
+				}
+			}
 
 			const visible = stripFallbackCalls(answer)
-			const reads = calls.filter((call) => isReadTool(call.name))
-			const writes = calls.filter((call) => !isReadTool(call.name))
+			/*
+			 * Panggilan yang argumennya terpotong - jawaban yang menabrak batas
+			 * panjang keluaran berhenti di tengah JSON - tidak dijalankan dengan
+			 * argumen kosong. Ia langsung dijawab, dan model diminta mengirim ulang
+			 * dalam potongan yang lebih kecil.
+			 */
+			const usable = calls.filter((call) => !malformed.has(call.id))
+			const reads = usable.filter((call) => isReadTool(call.name))
+			const writes = usable.filter((call) => !isReadTool(call.name) && !isAskTool(call.name))
+			/*
+			 * Satu kartu pertanyaan dalam satu waktu. Pertanyaan tambahan dalam
+			 * putaran yang sama langsung dijawab "tidak ditampilkan" - setiap
+			 * panggilan alat wajib punya hasil sebelum model bicara lagi.
+			 */
+			const [ask, ...extraAsks] = usable.filter((call) => isAskTool(call.name))
+			const immediateResults: ChatTurn[] = [
+				...extraAsks.map((call) => ({ call, content: EXTRA_ASK_RESULT })),
+				...calls
+					.filter((call) => malformed.has(call.id))
+					.map((call) => ({
+						call,
+						content: leakedBroken.has(call.id) ? LEAKED_BROKEN_RESULT : BROKEN_ARGS_RESULT,
+					})),
+			].map(({ call, content }) => ({ role: 'tool', content, toolCallId: call.id, taskId }))
 
-			// Spec template diambil di sini, selagi masih boleh menunggu.
+			// Spec dan isi template diambil di sini, selagi masih boleh menunggu.
 			await loadTemplateSpecs(writes)
+			await loadTemplateContents(writes)
 
 			const assistant: ChatTurn = {
 				role: 'assistant',
@@ -695,11 +1397,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 							}))
 						: undefined,
 				actions: writes.length > 0 ? writes : undefined,
+				asks: ask ? [ask] : undefined,
 			}
 
 			const editor = editorRef.current
 			const budgetSpent = round >= MAX_TOOL_ROUNDS || readsUsed >= MAX_READ_CALLS
-			if (reads.length === 0 || sealed) {
+			const broken = malformed.size > 0
+			if ((reads.length === 0 && !broken) || sealed) {
 				if (reads.length > 0 && sealed) {
 					pushStep('Penelusuran ditutup')
 					patchRunningStep({
@@ -708,12 +1412,42 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						detail: 'Model masih meminta bacaan setelah anggaran habis; permintaannya tidak dijalankan.',
 					})
 				}
+				/*
+				 * Giliran yang berakhir tanpa suntingan dan tanpa pertanyaan: entah
+				 * tugasnya selesai, entah model berhenti di tengah. Yang kedua
+				 * ditandai di sini dan ditangani sesudah gilirannya benar-benar
+				 * ditutup (`startTurn`).
+				 */
+				if (writes.length === 0 && !ask) {
+					if (calls.length === 0 && !visible.trim()) {
+						// Balasan kosong tidak disimpan: percobaan berikutnya mengulang dari langkah yang sama.
+						finishParts()
+						stallPendingRef.current = { reason: 'empty', taskId }
+						return
+					}
+					if (finish === 'length') stallPendingRef.current = { reason: 'truncated', taskId }
+					else if (promisesMore(visible)) stallPendingRef.current = { reason: 'promised', taskId }
+					else if (wroteContent(history, taskId) && followsOutline(history, taskId)) {
+						// "Selesai" dari model belum tentu selesai: kerangkanya yang menentukan.
+						const outline = currentOutline()
+						if (outline && !outlineDone(outline)) stallPendingRef.current = { reason: 'unfinished', taskId }
+					}
+					// Tugas selesai: penomoran halaman karya ilmiah, bila memang waktunya.
+					if (!stallPendingRef.current) {
+						const numbered = autoNumber(history, taskId)
+						if (numbered) {
+							pushStep('Penomoran halaman dipasang', numbered)
+							patchRunningStep({ status: 'done', endedAt: Date.now() })
+						}
+					}
+				}
 				const finalTurn: ChatTurn = { ...assistant, parts: visibleParts(finishParts()), usage }
-				commit([...history, finalTurn])
+				commit([...history, finalTurn, ...immediateResults])
 				if (writes.length > 0 && autoApplyRef.current) pendingAutoApplyRef.current = writes
+				announceAsk(ask)
 				return
 			}
-			const results: ChatTurn[] = []
+			const results: ChatTurn[] = [...immediateResults]
 			const readContext = editor ? buildReadContext(editor) : null
 			for (const call of reads) {
 				if (call.name === 'plan') {
@@ -727,6 +1461,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						toolCallId: call.id,
 						taskId,
 					})
+					continue
+				}
+				if (call.name === 'update_brief') {
+					pushStep('Memperbarui metadata')
+					const content = runBriefUpdate(call, history)
+					patchRunningStep({ status: 'done', endedAt: Date.now(), detail: content })
+					results.push({ role: 'tool', content, toolCallId: call.id, taskId })
+					continue
+				}
+				if (call.name === 'set_outline') {
+					pushStep('Mencatat kerangka tulisan')
+					const content = recordOutline(briefRef.current, call)
+					patchRunningStep({ status: 'done', endedAt: Date.now(), detail: content })
+					results.push({ role: 'tool', content, toolCallId: call.id, taskId })
 					continue
 				}
 				if (call.name === 'think') {
@@ -774,7 +1522,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				advancePlan()
 				results.push({ role: 'tool', content, toolCallId: call.id, taskId })
 			}
-			if (budgetSpent && results.length > 0) {
+			if (budgetSpent && reads.length > 0) {
 				const last = results[results.length - 1]
 				results[results.length - 1] = { ...last, content: last.content + BUDGET_NOTICE }
 				pushStep('Anggaran penelusuran habis')
@@ -794,7 +1542,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			const step: ChatTurn = {
 				...assistant,
 				parts: roundParts,
-				intermediate: !visible && writes.length === 0 && roundParts === undefined,
+				intermediate: !visible && writes.length === 0 && !ask && roundParts === undefined,
+			}
+			/*
+			 * Bacaan di putaran yang sama tetap dijalankan - hasilnya harus ada
+			 * sebelum model bicara lagi - tapi putarannya berhenti di sini. Model
+			 * baru mendapat giliran lagi sesudah penulis menjawab, atau sesudah
+			 * suntingan di putaran yang sama diputuskan (`settleActions`).
+			 *
+			 * Suntingan ikut menahan putaran: dulu putaran ini langsung dikirim
+			 * lagi, dengan panggilan tulis yang belum punya hasil. Provider
+			 * menolaknya dengan 400, server membacanya sebagai "tool calling tidak
+			 * didukung", dan sisa sesi berjalan tanpa alat - chat berhenti
+			 * menyunting di tengah jalan.
+			 */
+			if (ask || writes.length > 0) {
+				commit([...history, step, ...results])
+				if (writes.length > 0 && autoApplyRef.current) pendingAutoApplyRef.current = writes
+				announceAsk(ask)
+				return
 			}
 			commit([...history, step, ...results])
 			setPartsBoth([])
@@ -808,7 +1574,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				budgetSpent,
 			)
 		},
-		[loadTemplateSpecs],
+		[loadTemplateSpecs, loadTemplateContents, currentOutline],
 	)
 	/*
 	 * Satu giliran, dengan satu kesempatan mengulang diam-diam.
@@ -854,6 +1620,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					const pending = pendingAutoApplyRef.current
 					pendingAutoApplyRef.current = null
 					if (pending && !controller.signal.aborted) applyActionsRef.current?.(pending)
+					const stalled = stallPendingRef.current
+					stallPendingRef.current = null
+					if (stalled && !controller.signal.aborted) handleStallRef.current?.(stalled.reason, stalled.taskId)
 				})
 		},
 		[runTurn],
@@ -869,23 +1638,139 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		if (abortRef.current || messagesRef.current.length === 0) return
 
 		setError(null)
+		setStall(null)
+		setInterruption(null)
 		setStreaming('')
 		startTurnRef.current?.(messagesRef.current, currentTaskIdRef.current ?? newTaskId(), false)
 	}, [])
+
+	/**
+	 * Meneruskan tugas yang berhenti di tengah, dengan `taskId` yang sama -
+	 * model tetap melihat seluruh langkahnya - dan rangkaian gelombang
+	 * suntingan yang baru. Balasan kosong cukup diulang; sebab lain mendapat
+	 * dorongan `[Continue]` yang menyebut bagian naskah yang masih kosong.
+	 */
+	const continueTask = useCallback(
+		(reason: ContinueReason | 'empty', mode: 'auto' | 'manual') => {
+			const taskId = currentTaskIdRef.current
+			if (abortRef.current || !taskId) return
+
+			setStall(null)
+			setInterruption(null)
+			setError(null)
+			let history = messagesRef.current
+			if (reason !== 'empty') {
+				const editor = editorRef.current
+				const empty = editor && !editor.isDestroyed ? emptySections(editor.state.doc).empty : []
+				const outline = currentOutline()
+				const lacking = outline && !outlineDone(outline) ? outlineForModel(outline) : undefined
+				history = [
+					...history,
+					{
+						role: 'user',
+						content: continueNudge(reason, empty, lacking),
+						taskId,
+						continuation: { mode, reason },
+					},
+				]
+				commit(history)
+			}
+			writeWavesRef.current = { taskId, count: 0 }
+			setStreaming('')
+			setPartsBoth([])
+			startTurn(history, taskId)
+		},
+		[commit, startTurn, currentOutline],
+	)
+
+	/*
+	 * Tugas yang berhenti di tengah dilanjutkan sendiri selama masih ada
+	 * jatahnya dan lanjutan sebelumnya menghasilkan sesuatu; sesudah itu kartu
+	 * "Lanjutkan" yang menunggu penulis.
+	 */
+	handleStallRef.current = (reason, taskId) => {
+		if (taskId !== currentTaskIdRef.current) return
+		const previous =
+			continuesRef.current.taskId === taskId ? continuesRef.current : { auto: 0, reason: undefined }
+		const auto = previous.auto
+		const waves = writeWavesRef.current
+		const progressed = waves.taskId === taskId && waves.count > 0
+		const outline = currentOutline()
+		/* Suntingan saja belum kemajuan: model yang menyisipkan grafik di tempat
+		 * yang salah tetap menyunting, tapi kekurangan kerangkanya tidak berubah. */
+		const gaps = reason === 'unfinished' && outline ? outlineGaps(outline) : undefined
+		const stuck = gaps !== undefined && previous.reason === 'unfinished' && previous.gaps === gaps
+		if (!stuck && mayAutoContinue(auto, progressed, previous.reason === reason)) {
+			continuesRef.current = { taskId, auto: auto + 1, reason, gaps }
+			continueTask(reason, 'auto')
+			return
+		}
+		const editor = editorRef.current
+		const sections = editor && !editor.isDestroyed ? emptySections(editor.state.doc) : { total: 0, empty: [] }
+		const lacking = outline && !outlineDone(outline) ? outlineForWriter(outline).detail : undefined
+		setStall({ reason, autoContinues: auto, ...sections, ...(lacking ? { outline: lacking } : {}) })
+	}
+
+	const continueStalled = useCallback(() => {
+		if (!stall) return
+		// Penulis sendiri yang meminta: jatah lanjutan otomatisnya dibuka lagi.
+		continuesRef.current = { taskId: currentTaskIdRef.current, auto: 0 }
+		continueTask(stall.reason, 'manual')
+	}, [stall, continueTask])
+
+	// Kartu yang ditutup tidak hilang begitu saja: tombol di atas kotak chat menggantikannya.
+	const dismissStall = useCallback(() => {
+		const taskId = currentTaskIdRef.current
+		if (stall && taskId) setInterruption({ taskId, reason: stall.reason })
+		setStall(null)
+	}, [stall])
+
+	/**
+	 * Tombol "Lanjutkan" di atas kotak chat, dan `/lanjut`. Tugas yang
+	 * dihentikan atau terjeda diteruskan dengan sebabnya sendiri; selebihnya
+	 * sebagai "bab masih kosong".
+	 */
+	const resumeTask = useCallback((): boolean => {
+		if (stall) {
+			continueStalled()
+			return true
+		}
+		const taskId = currentTaskIdRef.current
+		if (abortRef.current || !taskId) return false
+		const reason = interruption?.taskId === taskId ? interruption.reason : 'incomplete'
+		// Dihentikan sebelum AI sempat menjawab: permintaannya cukup dikirim ulang.
+		const unanswered = reason === 'stopped' && !answeredTask(messagesRef.current, taskId)
+		if (!unanswered && !resumableTask(messagesRef.current, taskId)) return false
+		// Penulis sendiri yang meminta: jatah lanjutan otomatisnya dibuka lagi.
+		continuesRef.current = { taskId, auto: 0 }
+		continueTask(unanswered ? 'empty' : reason, 'manual')
+		return true
+	}, [stall, continueStalled, interruption, continueTask])
 
 	const send = useCallback(
 		(prompt: string) => {
 			const trimmed = prompt.trim()
 			if (!trimmed || abortRef.current) return
-			const taskId = newTaskId()
+			/*
+			 * "lanjut" meneruskan tugas yang sedang berjalan. Sebagai tugas baru,
+			 * seluruh langkah sebelumnya terpangkas dari riwayat dan model
+			 * membalas dengan menu "Apa yang ingin Anda kerjakan?".
+			 */
+			const previous = currentTaskIdRef.current
+			const resume = isContinuePrompt(trimmed) && resumableTask(messagesRef.current, previous)
+			const taskId = resume && previous ? previous : newTaskId()
 			const history: ChatTurn[] = [...messagesRef.current, { role: 'user', content: trimmed, taskId }]
 			commit(history)
 			setCurrentTaskId(taskId)
+			currentTaskIdRef.current = taskId
 			setStreaming('')
 			setError(null)
+			setStall(null)
+			setInterruption(null)
 			setPartsBoth([])
-			planRef.current = null
+			if (!resume) planRef.current = null
 			writeWavesRef.current = { taskId, count: 0 }
+			continuesRef.current = { taskId, auto: 0 }
 
 			startTurn(history, taskId)
 		},
@@ -942,7 +1827,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 			// Diukur mengapit penerapannya, bukan dari argumen alat: yang dihitung
 			// harus perubahan yang benar-benar mendarat di naskah.
-			const before = editorPlainText(editor)
+			const before = proseText(editor)
 
 			const outcome = applyWriteTool(
 				{
@@ -954,19 +1839,38 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					setup: appRef.current.setup,
 					setPageSetup: appRef.current.setPageSetup,
 					setTypography: appRef.current.setTypography,
+					tabs: appRef.current.sessions.map((tab) => ({
+						id: tab.id,
+						label: sessionLabel(tab),
+						active: tab.id === appRef.current.activeId,
+					})),
+					readTab: (tabId) => tabToolsRef.current.tabText(tabId),
 					templateSpecs: templateSpecsRef.current,
+					templateContents: templateContentsRef.current,
 					createTab: createTabWithContent,
+					switchTab: (tabId) => tabToolsRef.current.switchTabById(tabId),
 					renameDocument: renameActiveDocument,
 					renameTab: renameTabById,
 					setFurnitureLine,
 					setFirstPageSeparate,
+					frontMatter: frontMatterSource,
+					appliedFormat: appliedFormatOf,
+					markFormatApplied: (slug) => {
+						const app = appRef.current
+						if (app.activeDocId) setAppliedFormat(app.doc, app.activeDocId, slug)
+					},
+					furniture: () => appRef.current.furniture,
+					markNumberingPreset: (preset) => {
+						const app = appRef.current
+						if (app.activeId) setNumberingPreset(app.doc, app.activeId, preset)
+					},
 				},
 				call,
 			)
 
 			if (outcome.ok) {
 				setAppliedActionIds((current) => new Set(current).add(call.id))
-				const delta = wordDelta(before, editorPlainText(editor))
+				const delta = wordDelta(before, proseText(editor))
 				if (delta.added > 0 || delta.removed > 0) {
 					actionWordsRef.current = { ...actionWordsRef.current, [call.id]: delta }
 					setActionWords(actionWordsRef.current)
@@ -977,13 +1881,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		[appliedActionIds, addComment, setActivePanel, markRun, state.text, language.code],
 	)
 	const settleActions = useCallback(
-		(entries: { call: ToolCall; content: string }[]) => {
+		(entries: { call: ToolCall; content: string; answer?: AskAnswer }[]) => {
 			const current = messagesRef.current
 			const settled = new Set(current.filter((turn) => turn.role === 'tool').map((turn) => turn.toolCallId))
 			const fresh = entries.filter((entry) => !settled.has(entry.call.id))
 			if (fresh.length === 0) return
+			const id = fresh[0].call.id
 			const owner = current.find(
-				(turn) => turn.role === 'assistant' && turn.actions?.some((action) => action.id === fresh[0].call.id),
+				(turn) =>
+					turn.role === 'assistant' &&
+					(turn.actions?.some((action) => action.id === id) || turn.asks?.some((call) => call.id === id)),
 			)
 			const taskId = owner?.taskId
 
@@ -992,6 +1899,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				content: entry.content,
 				toolCallId: entry.call.id,
 				taskId,
+				...(entry.answer ? { answer: entry.answer } : {}),
 			}))
 			const complete =
 				owner !== undefined && taskId !== undefined && actionsSettled([...current, ...results], owner)
@@ -1003,13 +1911,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					.filter((delta): delta is WordDelta => delta !== undefined)
 				if (deltas.length > 0) void snapshotAiResult(sumWordDeltas(deltas))
 			}
+			// Hanya suntingan yang dihitung: menjawab kartu pertanyaan bukan rangkaian otomatis.
 			const waves = writeWavesRef.current
-			const count = waves.taskId === taskId ? waves.count + 1 : 1
-			const resumable = complete && taskId === currentTaskId && !abortRef.current && count <= MAX_WRITE_WAVES
-			if (resumable && count === MAX_WRITE_WAVES) {
-				const last = results[results.length - 1]
-				results[results.length - 1] = { ...last, content: last.content + WRITE_WAVE_NOTICE }
-			}
+			const previous = waves.taskId === taskId ? waves.count : 0
+			const count = owner?.actions?.length ? previous + 1 : previous
+			const resumable = complete && taskId === currentTaskId && !abortRef.current
 
 			const next = [...current, ...results]
 			commit(next)
@@ -1017,6 +1923,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			if (!resumable || taskId === undefined) return
 			writeWavesRef.current = { taskId, count }
 
+			if (count >= MAX_WRITE_WAVES) {
+				handleStallRef.current?.('wave_limit', taskId)
+				return
+			}
 			setStreaming('')
 			setPartsBoth([])
 			startTurn(next, taskId)
@@ -1053,6 +1963,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			}
 		}
 
+		// Letak yang salah ditolak sebelum menggambar: menggambar itu yang mahal.
+		if (!redraw) {
+			const placement = figurePlacement(editor, call.arguments)
+			if (typeof placement === 'string') return { ok: false, message: placement }
+		}
+
 		const label = redraw
 			? `Menggambar ulang "${target?.title || 'diagram'}"`
 			: `Menggambar diagram ${String(call.arguments.type ?? '')}`.trim()
@@ -1068,17 +1984,28 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 		if ('error' in drawn) {
 			finishStep(stepId, { status: 'failed', detail: drawn.error })
-			return { ok: false, message: `The drawing sub-agent failed: ${drawn.error}` }
+			return { ok: false, message: diagramFailureResult(drawn) }
 		}
 
+		// Dihitung ulang: naskah bisa berubah selama sub-agent menggambar.
+		const placement = redraw ? null : figurePlacement(editor, call.arguments)
+		const at = typeof placement === 'number' ? placement : null
 		if (redraw && target) replaceDiagramBlock(editor, target.pos, drawn.svg)
-		else insertDiagramBlock(editor, drawn.svg)
+		else insertDiagramBlock(editor, drawn.svg, at)
+		// Tanpa ini kartunya berakhir "Skipped" padahal diagramnya sudah ada di naskah.
+		setAppliedActionIds((current) => new Set(current).add(call.id))
 
 		finishStep(stepId, {
 			status: 'done',
 			detail: `${drawn.title}${drawn.size ? ` · ${drawn.size.width}x${drawn.size.height}` : ''}`,
 		})
-		return { ok: true, message: diagramReceipt(drawn, redraw) }
+		const moved =
+			typeof placement === 'string'
+				? ' The text you named disappeared while it was being drawn, so it went in at the cursor.'
+				: at !== null
+					? ' It sits right after the text you named.'
+					: ''
+		return { ok: true, message: `${diagramReceipt(drawn, redraw)}${moved}` }
 	}, [])
 
 	/**
@@ -1097,6 +2024,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				spec?: string
 				palette?: Partial<DiagramPalette>
 			}>
+
+			const editor = editorRef.current
+			const placement = editor ? figurePlacement(editor, call.arguments) : null
+			if (typeof placement === 'string') return { ok: false, message: placement }
 
 			const drawn = new Map<string, string>()
 			const failed: string[] = []
@@ -1149,47 +2080,136 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		[runDrawTool, runHtmlWithDiagrams],
 	)
 
+	/*
+	 * Aksi yang sedang diterapkan. Menggambar menunggu sub-agent sampai
+	 * puluhan detik, dan selama itu kartunya masih "tertunda": "Apply all" yang
+	 * diklik lagi - atau Auto-apply yang berjalan bersamaan dengan klik penulis -
+	 * dulu memulai penerapan kedua untuk aksi yang sama. Uji 27 Sep: 174
+	 * permintaan gambar untuk 2 diagram dalam setengah jam. Setiap aksi kini
+	 * diklaim sekali; yang sedang berjalan atau sudah diputuskan dilewati.
+	 */
+	const inFlightRef = useRef(new Set<string>())
+	const [runningActionIds, setRunningActionIds] = useState<Set<string>>(() => new Set())
+	const claimActions = useCallback((calls: ToolCall[]): ToolCall[] => {
+		const fresh = unclaimedActions(calls, inFlightRef.current, messagesRef.current)
+		for (const call of fresh) inFlightRef.current.add(call.id)
+		if (fresh.length > 0) setRunningActionIds(new Set(inFlightRef.current))
+		return fresh
+	}, [])
+	const releaseActions = useCallback((calls: ToolCall[]) => {
+		for (const call of calls) inFlightRef.current.delete(call.id)
+		setRunningActionIds(new Set(inFlightRef.current))
+	}, [])
+
 	const applyAction = useCallback(
 		async (call: ToolCall): Promise<ToolOutcome> => {
-			const outcome = needsDrawing(call.name, call.arguments) ? await runAsyncTool(call) : runWriteTool(call)
-			settleActions([{ call, content: outcome.message }])
-			return outcome
+			if (claimActions([call]).length === 0) {
+				return { ok: false, message: 'Aksi ini sedang atau sudah diterapkan.' }
+			}
+			try {
+				const outcome = needsDrawing(call.name, call.arguments)
+					? await runAsyncTool(call)
+					: runWriteTool(call)
+				settleActions([{ call, content: outcome.message }])
+				return outcome
+			} finally {
+				releaseActions([call])
+			}
 		},
-		[runAsyncTool, runWriteTool, settleActions],
+		[runAsyncTool, runWriteTool, settleActions, claimActions, releaseActions],
 	)
 
 	const applyActions = useCallback(
 		(calls: ToolCall[]) => {
+			const fresh = claimActions(calls)
+			if (fresh.length === 0) return
 			/*
 			 * Berurutan, bukan berbarengan. Aksi menggambar menyisipkan blok ke
 			 * dokumen yang sama, dan dua penyisipan yang berlomba menghitung
 			 * posisinya dari keadaan yang sudah berubah.
 			 */
 			void (async () => {
-				const entries: { call: ToolCall; content: string }[] = []
-				for (const call of calls) {
-					const outcome = needsDrawing(call.name, call.arguments)
-						? await runAsyncTool(call)
-						: runWriteTool(call)
-					entries.push({ call, content: outcome.message })
+				try {
+					const entries = await applyInOrder(fresh, (call) =>
+						needsDrawing(call.name, call.arguments) ? runAsyncTool(call) : runWriteTool(call),
+					)
+					settleActions(entries)
+				} finally {
+					// Sesudah dicatat sebagai diputuskan, jadi tidak ada celah untuk klik kedua.
+					releaseActions(fresh)
 				}
-				settleActions(entries)
 			})()
 		},
-		[runAsyncTool, runWriteTool, settleActions],
+		[runAsyncTool, runWriteTool, settleActions, claimActions, releaseActions],
 	)
 	applyActionsRef.current = applyActions
 
 	const skipAction = useCallback(
 		(call: ToolCall) => {
-			settleActions([
-				{ call, content: 'The writer skipped this action. It was not applied to the document.' },
-			])
+			settleActions([{ call, content: SKIPPED_RESULT }])
 		},
 		[settleActions],
 	)
+	/**
+	 * Jawaban penulis atas kartu pertanyaan. Jawaban yang ditujukan ke satu
+	 * isian brief dicatat sebagai keputusan penulis sendiri - ia yang memilihnya -
+	 * lalu gilirannya dilanjutkan dengan jawaban itu sebagai hasil alat.
+	 */
+	const answerAsk = useCallback(
+		(call: ToolCall, answer: AskAnswer) => {
+			const saved: BriefKey[] = []
+			const unfit: BriefKey[] = []
+			const delegated: BriefKey[] = []
+			let final = answer
+
+			if (!answer.skipped && call.name === 'ask_user') {
+				const questions = parseAskQuestions(call.arguments)
+				answer.responses?.forEach((response, index) => {
+					const question = questions[index]
+					if (!question?.briefField || !responseValue(response)) return
+					if (isDelegation(responseValue(response))) {
+						delegated.push(question.briefField)
+						return
+					}
+					const value = briefAnswerValue(question, response)
+					if (value === null) {
+						unfit.push(question.briefField)
+						return
+					}
+					briefRef.current.saveWriterAnswer(question.briefField, value)
+					saved.push(question.briefField)
+				})
+			}
+
+			if (call.name === 'request_brief') {
+				// Yang dikembalikan ke model adalah isi brief SAAT penulis selesai,
+				// bukan apa yang diminta - penulis boleh mengisi sebagian saja.
+				const brief = briefRef.current.snapshot()
+				const keys = requestedBriefFields(call.arguments)
+				if (!answer.skipped) {
+					final = {
+						filled: keys
+							.filter((key) => brief.entries[key])
+							.map((key) => ({
+								key,
+								label: briefField(key)?.label ?? key,
+								value: brief.entries[key]?.value ?? '',
+							})),
+						empty: keys.filter((key) => !brief.entries[key]),
+					}
+				}
+				briefRef.current.clearRequest()
+			}
+
+			settleActions([{ call, content: askResultText(call, final, saved, unfit, delegated), answer: final }])
+		},
+		[settleActions],
+	)
+
 	const startNewTopic = useCallback(() => {
 		setCurrentTaskId(newTaskId())
+		setStall(null)
+		setInterruption(null)
 	}, [])
 
 	const reset = useCallback(() => {
@@ -1202,16 +2222,46 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		setCurrentTaskId(undefined)
 		setPartsBoth([])
 		writeWavesRef.current = { taskId: undefined, count: 0 }
+		continuesRef.current = { taskId: undefined, auto: 0 }
+		setInterruption(null)
 	}, [stop, commit])
-	const settledActionIds = useMemo(
+	/** Hasil alat per aksi yang sudah diputuskan - diterapkan, gagal, atau dilewati. */
+	const actionResults = useMemo(
 		() =>
-			new Set(
+			new Map(
 				messages
 					.filter((turn) => turn.role === 'tool' && turn.toolCallId)
-					.map((turn) => turn.toolCallId as string),
+					.map((turn) => [turn.toolCallId as string, turn.content]),
 			),
 		[messages],
 	)
+	const answers = useMemo(
+		() =>
+			new Map(
+				messages
+					.filter((turn) => turn.role === 'tool' && turn.toolCallId && turn.answer)
+					.map((turn) => [turn.toolCallId as string, turn.answer as AskAnswer]),
+			),
+		[messages],
+	)
+	// Selama model masih bekerja tidak ada yang menunggu penulis.
+	const pendingAsk = useMemo(
+		() => (streaming === null ? pendingAskOf(messages, currentTaskId) : null),
+		[messages, currentTaskId, streaming],
+	)
+	const resumable = useMemo<ChatResume | null>(() => {
+		if (streaming !== null || stall || error || pendingAsk || !currentTaskId) return null
+		const interrupted = interruption?.taskId === currentTaskId ? interruption.reason : null
+		const unanswered = interrupted === 'stopped' && !answeredTask(messages, currentTaskId)
+		if (!unanswered && !resumableTask(messages, currentTaskId)) return null
+		const wrote = messages.some(
+			(turn) =>
+				turn.taskId === currentTaskId &&
+				turn.actions?.some((action) => CONTENT_TOOLS.has(action.name) && appliedActionIds.has(action.id)),
+		)
+		if (!interrupted && !wrote) return null
+		return { taskId: currentTaskId, interrupted, wrote }
+	}, [streaming, stall, error, pendingAsk, currentTaskId, messages, appliedActionIds, interruption])
 
 	const value = useMemo<ChatContextValue>(
 		() => ({
@@ -1221,6 +2271,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			isRunning: streaming !== null,
 			error,
 			retry,
+			stall,
+			continueStalled,
+			dismissStall,
+			resumable,
+			resumeTask,
 			attachment,
 			attach: setAttachment,
 			clearAttachment: () => setAttachment(null),
@@ -1231,12 +2286,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			reset,
 			startNewTopic,
 			currentTaskId,
+			pendingAsk,
+			answerAsk,
+			askAnswer: (id: string) => answers.get(id),
 			applyAction,
 			applyActions,
 			actionWords: (id: string) => actionWords[id],
 			skipAction,
 			isActionApplied: (id: string) => appliedActionIds.has(id),
-			isActionSettled: (id: string) => settledActionIds.has(id),
+			isActionSettled: (id: string) => actionResults.has(id),
+			actionFailure: (id: string) => {
+				const result = actionResults.get(id)
+				return result !== undefined && result !== SKIPPED_RESULT && !appliedActionIds.has(id)
+					? result
+					: undefined
+			},
+			isActionRunning: (id: string) => runningActionIds.has(id),
 			autoApply,
 			setAutoApply,
 			research,
@@ -1250,6 +2315,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			parts,
 			error,
 			retry,
+			stall,
+			continueStalled,
+			dismissStall,
+			resumable,
+			resumeTask,
 			attachment,
 			includeDocument,
 			send,
@@ -1257,12 +2327,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			reset,
 			startNewTopic,
 			currentTaskId,
+			pendingAsk,
+			answerAsk,
+			answers,
 			applyAction,
 			applyActions,
 			actionWords,
 			skipAction,
 			appliedActionIds,
-			settledActionIds,
+			actionResults,
+			runningActionIds,
 			autoApply,
 			setAutoApply,
 			research,

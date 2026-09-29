@@ -1,4 +1,9 @@
-import type { TabLayout, TabLayoutOverride, TemplateSpec } from '@writer-hub/shared'
+import {
+	ACADEMIC_NUMBERING,
+	type TabLayout,
+	type TabLayoutOverride,
+	type TemplateSpec,
+} from '@writer-hub/shared'
 
 /**
  * Menerjemahkan tata letak sebuah template menjadi dua baris basis data yang
@@ -16,13 +21,29 @@ import type { TabLayout, TabLayoutOverride, TemplateSpec } from '@writer-hub/sha
  * tingkat dokumen yang diwarisi setiap tab, dan editor membacanya dari sana.
  */
 
+/*
+ * Karya akademik lahir sudah bernomor menurut pedoman: bagian depan romawi
+ * (aturan tab), badan naskah angka mulai BAB I (pemisah bagian yang disisipkan
+ * `compileTemplateContent`), dan sampul tanpa nomor lewat halaman pertama
+ * yang punya footer kosong sendiri.
+ */
 export function templateDocumentLayout(spec: TemplateSpec): TabLayout {
+	const pageSetup =
+		spec.frontMatter && !spec.layout.pageSetup.pageNumbering
+			? { ...spec.layout.pageSetup, pageNumbering: ACADEMIC_NUMBERING.front }
+			: spec.layout.pageSetup
 	return {
-		pageSetup: spec.layout.pageSetup,
+		pageSetup,
 		...(spec.layout.typography ? { typography: spec.layout.typography } : {}),
 	}
 }
 
 export function templateTabLayout(spec: TemplateSpec): TabLayoutOverride | null {
-	return spec.layout.furniture ? { furniture: spec.layout.furniture } : null
+	const furniture = spec.frontMatter
+		? {
+				...spec.layout.furniture,
+				footer: { ...spec.layout.furniture?.footer, first: { text: '', align: 'center' as const } },
+			}
+		: spec.layout.furniture
+	return furniture ? { furniture } : null
 }

@@ -39,7 +39,8 @@ const UNREACHABLE = /fetch failed|unable to connect|econnrefused|enotfound|eai_a
  * Kode status HTTP dari provider menjadi sebab.
  */
 export function providerCodeFromStatus(status: number): ProviderErrorCode {
-	if (status === 429) return 'quota_exceeded'
+	// 402: saldo provider habis (OpenRouter, DeepInfra) - bukan kunci yang salah.
+	if (status === 429 || status === 402) return 'quota_exceeded'
 	return 'provider_rejected'
 }
 

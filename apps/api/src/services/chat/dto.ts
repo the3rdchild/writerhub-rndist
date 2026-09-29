@@ -1,5 +1,6 @@
 import { CHAT_CONTEXT_LIMITS } from '@writer-hub/shared'
 import { z } from 'zod'
+import { researchBriefSchema } from '@/services/documents/brief'
 export const MAX_CHAT_MESSAGES = CHAT_CONTEXT_LIMITS.messages
 
 export const chatBodySchema = z.object({
@@ -21,6 +22,10 @@ export const chatBodySchema = z.object({
 			surrounding: z.string().max(CHAT_CONTEXT_LIMITS.surrounding).optional(),
 			document: z.string().max(CHAT_CONTEXT_LIMITS.document).optional(),
 			title: z.string().max(500).optional(),
+			/* Dulu tidak terdaftar, dan zod membuang kunci yang tidak dikenal:
+			 * baris "Page:" tidak pernah sampai ke model. */
+			page: z.string().max(CHAT_CONTEXT_LIMITS.page).optional(),
+			outline: z.string().max(CHAT_CONTEXT_LIMITS.outline).optional(),
 		})
 		.optional(),
 	tools: z.boolean().optional().default(true),
@@ -35,6 +40,12 @@ export const chatBodySchema = z.object({
 	 * instruksi; lihat `documentBriefPrompt`.
 	 */
 	metadata: z.record(z.string().max(64), z.string().max(4000)).optional(),
+	/**
+	 * Brief penelitian dari panel Metadata. Seperti metadata, ia datang dari
+	 * klien - sumber utamanya Y.Doc lokal, jadi membacanya dari basis data
+	 * justru akan memberi model versi yang lebih basi.
+	 */
+	brief: researchBriefSchema.optional(),
 })
 
 export type ChatBody = z.infer<typeof chatBodySchema>

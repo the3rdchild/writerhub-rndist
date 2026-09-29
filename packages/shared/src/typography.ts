@@ -39,6 +39,13 @@ export interface FontChoice {
  * Seluruh medannya wajib karena ini hasil resolusi, bukan yang ditulis
  * template.
  */
+export interface BorderBottom {
+	/** Lebar garis dalam pt. */
+	widthPt: number
+	/** Warna garis sebagai #hex, misalnya "#000000". */
+	color: string
+}
+
 export interface BlockStyle {
 	sizePt: number
 	bold: boolean
@@ -60,6 +67,12 @@ export interface BlockStyle {
 	 * ditambahkan penulis besok, yang tidak akan pernah membawa atribut apa pun.
 	 */
 	pageBreakBefore: boolean
+	/**
+	 * Garis tipis di bawah teks blok. Dipakai judul bagian CV (mis. "RINGKASAN")
+	 * yang memakai pBdr bottom, bukan garis pemisah terpisah. Sama seperti
+	 * `pageBreakBefore`, ini aturan per tingkat judul dari template.
+	 */
+	borderBottom?: BorderBottom
 }
 
 /** Yang boleh ditulis sebuah template; sisanya diisi `resolveBlockStyle`. */

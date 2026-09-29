@@ -1,22 +1,30 @@
 'use client'
 
+import type { JSONContent } from '@tiptap/core'
+import { Fragment } from '@tiptap/pm/model'
+import { NodeSelection, Selection } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
-import type {
-	AnalysisFeature,
-	DocumentTypography,
-	PageNumberFormat,
-	PageNumbering,
-	TemplateSpec,
-	ToolCall,
+import {
+	type AnalysisFeature,
+	type DocumentTypography,
+	PAGE_NUMBER_POSITIONS,
+	type PageNumberFormat,
+	type PageNumbering,
+	type PageNumberPosition,
+	type TemplateSpec,
+	type ToolCall,
+	type WorkKind,
 } from '@writer-hub/shared'
 import type { PanelId } from '@/features/analysis/panel-context'
 import { COMMENT_MARK } from '@/features/comments/comment-mark'
+import { resolveSpan } from '@/features/document/suggestions'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
-import { replaceTextRange } from '@/features/editor/apply-text'
+import { placeSectionNumbering } from '@/features/editor/academic-numbering'
 import { DEFAULT_HTML_BLOCK_ATTRS, HTML_BLOCK } from '@/features/editor/html-block'
-import { escapeNodeSelection } from '@/features/editor/insert-point'
+import { escapeNodeSelection, positionAfterTable } from '@/features/editor/insert-point'
 import { toEditorContent } from '@/features/editor/markdown'
 import { MATH_BLOCK, MATH_INLINE, stripDelimiters } from '@/features/editor/math'
+import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import type {
 	FurnitureSlot,
 	FurnitureVariant,
@@ -26,11 +34,43 @@ import type {
 import { clampMargins, INCH, PAGE_SIZES, type PageSetup, pageGeometry } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
 import { isSectionScope, sectionRange } from '@/features/editor/section-scope'
-import { editorPlainText } from '@/features/editor/text-content'
-import { TOC_BLOCK, type TocBlockAttrs, type TocListKind } from '@/features/editor/toc-block'
+import { clampedAttrs, TOC_BLOCK, type TocBlockAttrs, type TocListKind } from '@/features/editor/toc-block'
 import type { CommentThread } from '@/features/sessions/types'
+import { buildSchema } from '@/features/sync/serialize'
 import { countWords } from '@/lib/utils'
+import {
+	afterBlockAt,
+	type FigurePlan,
+	type FigureSlot,
+	figureLine,
+	figureNote,
+	figureOf,
+	figuresBetween,
+	insideFigure,
+	keepFigures,
+	parseFigureLine,
+	placeFigures,
+	readableText,
+	SVG_IN_PROSE,
+	svgInProse,
+} from './figures'
+import { insertFrontMatter } from './front-matter-insert'
 import { blockSummary, htmlCandidates } from './html-block-candidates'
+import { applyAcademicNumbering } from './numbering-apply'
+import { setBlockStyle } from './paragraph-style'
+import { promoteSectionTitles } from './section-titles'
+import {
+	chapterSlot,
+	type DocHeading,
+	docHeadings,
+	docIsScaffold,
+	dropLeadingTitle,
+	emptyChapterFor,
+	planSectionWrite,
+	planTextReplace,
+	sameTitle,
+	sectionIsEmpty,
+} from './section-write'
 
 /**
  * Rantai untuk alat yang menyisipkan sesuatu di kursor - lihat
@@ -46,37 +86,130 @@ function insertChain(editor: Editor) {
 		})
 }
 
-interface Heading {
-	index: number
-	level: number
-	text: string
-	pos: number
+function headings(editor: Editor): DocHeading[] {
+	return docHeadings(editor.state.doc)
 }
 
-function headings(editor: Editor): Heading[] {
-	const found: Heading[] = []
-
-	editor.state.doc.descendants((node, pos) => {
-		if (node.type.name === 'heading') {
-			found.push({
-				index: found.length,
-				level: node.attrs.level ?? 1,
-				text: node.textContent.trim(),
-				pos,
-			})
-		}
-		return false
-	})
-
-	return found
-}
-
-function sectionEnd(editor: Editor, list: Heading[], at: number): number {
+function sectionEnd(editor: Editor, list: DocHeading[], at: number): number {
 	const current = list[at]
 	for (let index = at + 1; index < list.length; index += 1) {
 		if (list[index].level <= current.level) return list[index].pos
 	}
 	return editor.state.doc.content.size
+}
+
+/*
+ * Aksi dalam satu gelombang diterapkan berurutan terhadap naskah terkini,
+ * tetapi `find`-nya ditulis model sebelum aksi sebelumnya mengubah teks itu.
+ * Pesannya menyebut sebab itu supaya model membaca ulang, bukan menyerah.
+ */
+const PASSAGE_GONE =
+	'That passage is no longer in the document - an earlier edit in this batch may have changed it. Read the section again (read_section or find_text) and retry with its current text.'
+
+/** Bagian yang isinya dibuat aplikasi (insert_toc), bukan ditulis. */
+const GENERATED_SECTION = /^daftar\s+(isi|tabel|gambar)\b|^(table of contents|list of (figures|tables))$/i
+
+/** Heading sasaran `write_section`: dari indeks outline, atau dari judulnya bila unik. */
+function sectionTarget(list: readonly DocHeading[], args: Record<string, unknown>): number | string {
+	const title = cleanTitle(args.heading)
+	const asked = args.heading_index
+	if (asked !== undefined && asked !== null) {
+		const at = Number(asked)
+		if (!Number.isInteger(at) || !list[at])
+			return `No heading with index ${asked}. Call get_outline and use an index it lists.`
+		if (title && !sameTitle(list[at].text, title)) {
+			return `Heading ${at} is "${list[at].text}", not "${title}". Call get_outline and use a matching index.`
+		}
+		return at
+	}
+	if (!title) return 'Name the section: pass heading exactly as get_outline lists it.'
+	const matches = list.filter((heading) => sameTitle(heading.text, title))
+	if (matches.length === 0) {
+		return `No heading "${title}" in the document. Call get_outline and use a heading exactly as listed; a section that does not exist yet goes in with insert_content.`
+	}
+	if (matches.length > 1) {
+		return `"${title}" appears ${matches.length} times (indexes ${matches.map((heading) => heading.index).join(', ')}). Pass heading_index to choose one.`
+	}
+	return matches[0].index
+}
+
+const quoted = (titles: readonly string[]) => titles.map((text) => `"${text}"`).join(', ')
+
+/**
+ * Nasib subbab yang tidak disebut, untuk hasil alat. Dengan `replace_subsections`
+ * tidak semuanya terhapus: yang memuat subbab yang ditulis dipertahankan, dan
+ * menyebutnya "replaced" membuat model mengira subbab itu sudah hilang.
+ */
+export function subsectionNotes(
+	plan: { untouched: readonly string[]; removed: readonly string[] },
+	replace: boolean,
+): string[] {
+	if (!replace) {
+		return plan.untouched.length > 0
+			? [`left out ${quoted(plan.untouched)} (pass replace_subsections: true to replace them)`]
+			: []
+	}
+	const kept = plan.untouched.filter((title) => !plan.removed.includes(title))
+	return [
+		plan.removed.length > 0 && `replaced ${quoted(plan.removed)}`,
+		kept.length > 0 && `kept ${quoted(kept)} because they hold subsections you wrote`,
+	].filter((note): note is string => Boolean(note))
+}
+
+/** Menulis isi satu bagian menurut `planSectionWrite`, dalam satu transaksi. */
+function writeSection(
+	editor: Editor,
+	at: number,
+	markdown: string,
+	options: { replaceSubsections?: boolean; newHeading?: string } = {},
+): ToolOutcome {
+	const title = headings(editor)[at]?.text ?? ''
+	if (GENERATED_SECTION.test(title)) {
+		return { ok: false, message: `"${title}" is generated by insert_toc; do not write it by hand.` }
+	}
+	if (svgInProse(markdown)) return { ok: false, message: SVG_IN_PROSE }
+	const plan = planSectionWrite(editor.state.doc, at, markdown, options)
+	if (!plan.ok) return plan
+
+	// Gambar di isi lama tidak ikut terhapus - lihat `figures.ts`.
+	const counter = { next: 0 }
+	const kept: FigurePlan[] = []
+	const slots: FigureSlot[] = []
+	const chain = editor.chain()
+	for (const edit of plan.edits) {
+		const figures = keepFigures(editor.state.doc, edit.from, edit.to, edit.markdown, counter)
+		kept.push(figures)
+		slots.push(...figures.slots)
+		chain.insertContentAt({ from: edit.from, to: edit.to }, toEditorContent(figures.markdown))
+	}
+	chain
+		.command(({ tr }) => {
+			placeFigures(tr, slots)
+			return true
+		})
+		.run()
+
+	const notes = [
+		plan.filled.length > 0 && `filled ${plan.filled.map((text) => `"${text}"`).join(', ')}`,
+		plan.added.length > 0 && `added ${plan.added.map((text) => `"${text}"`).join(', ')}`,
+		...subsectionNotes(plan, options.replaceSubsections === true),
+	].filter(Boolean)
+	return {
+		ok: true,
+		message: `Wrote the section "${title}"${notes.length > 0 ? `; ${notes.join('; ')}` : ''}.${figureNote(kept)}`,
+	}
+}
+
+/** Baris `[Figure: …]` di sisipan baru tidak menunjuk gambar mana pun - dibuang, bukan dicetak. */
+function withoutFigureLines(markdown: string): string {
+	let fenced = false
+	return markdown
+		.split('\n')
+		.filter((line) => {
+			if (line.trim().startsWith('```')) fenced = !fenced
+			return fenced || !parseFigureLine(line)
+		})
+		.join('\n')
 }
 
 const SNIPPET_RADIUS = 80
@@ -132,7 +265,7 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 			 * lalu gilirannya mati tanpa menyunting apa pun.
 			 */
 			if (asked === undefined || asked === null) {
-				const whole = editor.state.doc.textBetween(0, editor.state.doc.content.size, '\n', ' ')
+				const whole = readableText(editor.state.doc)
 				return whole.length > MAX_SECTION_CHARS ? `${whole.slice(0, MAX_SECTION_CHARS)}\n…(truncated)` : whole
 			}
 
@@ -141,7 +274,7 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 				return `No heading with index ${call.arguments.heading_index}. Call get_outline first, or omit heading_index to read from the top.`
 			}
 
-			const text = editor.state.doc.textBetween(list[at].pos, sectionEnd(editor, list, at), '\n', ' ')
+			const text = readableText(editor.state.doc, list[at].pos, sectionEnd(editor, list, at))
 			return text.length > MAX_SECTION_CHARS ? `${text.slice(0, MAX_SECTION_CHARS)}\n…(truncated)` : text
 		}
 
@@ -149,7 +282,8 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 			const query = String(call.arguments.query ?? '')
 			if (!query) return 'Empty query.'
 
-			const { text } = buildTextIndex(editor.state.doc)
+			// Teks yang sama dengan `read_section`: sumber SVG diagram bukan naskah.
+			const text = readableText(editor.state.doc)
 			const hits: string[] = []
 			let from = text.toLowerCase().indexOf(query.toLowerCase())
 
@@ -160,22 +294,37 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 				from = text.toLowerCase().indexOf(query.toLowerCase(), from + query.length)
 			}
 
-			if (hits.length === 0) return `"${query}" does not appear in the document.`
+			if (hits.length === 0) {
+				const elsewhere = findInOtherTabs(context, query)
+				return elsewhere
+					? `"${query}" does not appear in this tab, but it is in "${elsewhere.label}". Call switch_tab "${elsewhere.id}" to edit it.`
+					: `"${query}" does not appear in the document.`
+			}
 			return `${hits.length} match(es):\n${hits.join('\n')}`
 		}
 
 		case 'get_document_stats': {
-			const plain = editorPlainText(editor)
+			// Sumber SVG diagram bukan kata: dua ratus baris `<rect …>` terhitung
+			// ribuan kata dan membuat naskah tampak jauh lebih panjang dari aslinya.
+			const plain = readableText(editor.state.doc, 0, editor.state.doc.content.size, 'omit')
 			const perLevel = new Map<number, number>()
 			let tables = 0
 			let images = 0
+			let diagrams = 0
+			let designs = 0
 			let formulas = 0
 			editor.state.doc.descendants((node) => {
+				const figure = figureOf(node)
+				if (figure) {
+					if (figure.kind === 'image') images += 1
+					else if (figure.kind.endsWith('diagram')) diagrams += 1
+					else designs += 1
+					return false
+				}
 				if (node.type.name === 'heading') {
 					const level = (node.attrs.level as number) ?? 1
 					perLevel.set(level, (perLevel.get(level) ?? 0) + 1)
 				} else if (node.type.name === 'table') tables += 1
-				else if (node.type.name === 'image') images += 1
 				else if (node.type.name === MATH_BLOCK || node.type.name === MATH_INLINE) formulas += 1
 				return true
 			})
@@ -193,14 +342,14 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 				`Characters: ${plain.length}`,
 				`Pages: ${context.pageCount}`,
 				`Headings: ${headingSummary}`,
-				`Tables: ${tables}, images: ${images}, formulas: ${formulas}`,
+				`Tables: ${tables}, images: ${images}, diagrams: ${diagrams}, design blocks: ${designs}, formulas: ${formulas}`,
 			].join('\n')
 		}
 
 		case 'get_selection': {
 			const { from, to, empty } = editor.state.selection
 			if (empty) return 'No text is currently selected.'
-			const text = editor.state.doc.textBetween(from, to, '\n', ' ')
+			const text = readableText(editor.state.doc, from, to)
 			return `Selection (${from}..${to}):\n${text}`
 		}
 
@@ -300,9 +449,89 @@ export function readToolLabel(editor: Editor, call: ToolCall): string {
 		}
 		case 'get_comments':
 			return 'Membaca komentar terbuka'
+		case 'update_brief':
+			return 'Memperbarui metadata'
+		case 'set_outline':
+			return 'Mencatat kerangka tulisan'
 		default:
 			return `Menjalankan ${call.name}`
 	}
+}
+
+/**
+ * Mencari `query` di tab lain (bukan tab aktif). Mengembalikan tab pertama
+ * yang mengandung teks itu, atau null bila tidak ada. Dipakai pesan alat tulis
+ * untuk menunjuk tab mana yang menyimpan teks yang tidak ada di tab aktif.
+ */
+export function findInOtherTabs(
+	context: {
+		tabs: { id: string; label: string; active: boolean }[]
+		readTab: (tabId: string) => string | null
+	},
+	query: string,
+): { id: string; label: string } | null {
+	const lower = query.toLowerCase()
+	for (const tab of context.tabs) {
+		if (tab.active) continue
+		const text = context.readTab(tab.id)
+		if (text?.toLowerCase().includes(lower)) return { id: tab.id, label: tab.label }
+	}
+	return null
+}
+
+/**
+ * Membelah daftar aksi di `switch_tab` pertama. Aksi sebelumnya dijalankan
+ * normal; `switch_tab` dijalankan; sisanya tidak dijalankan dan masing-masing
+ * dijawab dengan pesan "Not run".
+ *
+ * `switch_tab` mengganti tab aktif lewat state React, yang tidak sinkron dengan
+ * `applyActions`. Tanpa pembelahan ini, `write_section` yang menyertai
+ * `switch_tab` menulis ke tab LAMA - sebelum pergantian terjadi (UC7).
+ */
+export function splitAtSwitchTab(calls: readonly ToolCall[]): {
+	before: ToolCall[]
+	switchCall: ToolCall | null
+	after: ToolCall[]
+} {
+	const index = calls.findIndex((call) => call.name === 'switch_tab')
+	if (index === -1) return { before: [...calls], switchCall: null, after: [] }
+	return {
+		before: calls.slice(0, index),
+		switchCall: calls[index],
+		after: calls.slice(index + 1),
+	}
+}
+
+/** Pesan untuk aksi yang tidak dijalankan karena `switch_tab` mendahuluinya. */
+export const SWITCH_TAB_DEFERRED =
+	'Not run: the tab switch takes effect before your next step. Send this again now that the tab is open.'
+
+/**
+ * Menerapkan rangkaian aksi berurutan, dengan aturan `switch_tab`: sesudah
+ * `switch_tab` berhasil, sisa rangkaian dijawab `SWITCH_TAB_DEFERRED`, karena
+ * pergantian tab lewat state React belum terjadi dan aksi berikutnya akan
+ * menulis ke tab lama (UC7). `switch_tab` yang gagal tidak mengganti apa pun,
+ * jadi sisanya tetap berjalan. Setiap panggilan mendapat tepat satu hasil.
+ */
+export async function applyInOrder(
+	calls: readonly ToolCall[],
+	run: (call: ToolCall) => ToolOutcome | Promise<ToolOutcome>,
+): Promise<{ call: ToolCall; content: string }[]> {
+	const entries: { call: ToolCall; content: string }[] = []
+	let rest = calls
+	while (rest.length > 0) {
+		const { before, switchCall, after } = splitAtSwitchTab(rest)
+		for (const call of before) entries.push({ call, content: (await run(call)).message })
+		if (!switchCall) break
+		const outcome = await run(switchCall)
+		entries.push({ call: switchCall, content: outcome.message })
+		if (outcome.ok) {
+			for (const call of after) entries.push({ call, content: SWITCH_TAB_DEFERRED })
+			break
+		}
+		rest = after
+	}
+	return entries
 }
 
 /**
@@ -314,15 +543,50 @@ export function readToolLabel(editor: Editor, call: ToolCall): string {
  * jadi penulis bisa menyuntingnya persis seperti diagram yang ditulis model
  * sendiri.
  */
-export function insertDiagramBlock(editor: Editor, svg: string): void {
-	insertChain(editor)
-		.insertContent({
-			type: 'codeBlock',
-			attrs: { language: 'diagram' },
-			content: [{ type: 'text', text: svg }],
-		})
-		.run()
+/**
+ * Letak gambar menurut `after_text`: posisi sesudah paragrafnya, null bila
+ * tidak diminta (di kursor), atau kalimat galat bila teksnya tidak ada.
+ */
+export function figurePlacement(editor: Editor, args: Record<string, unknown>): number | null | string {
+	const text = typeof args.after_text === 'string' ? args.after_text.trim() : ''
+	if (!text) return null
+	const index = buildTextIndex(editor.state.doc)
+	const span = resolveSpan(index.text, text, 0)
+	const range = span ? textRangeToPM(index, span.offset, span.length) : null
+	if (!range) {
+		return `Not carried out: "${text}" is not in the document. Quote the caption exactly as read_section shows it, or write the caption first.`
+	}
+	return afterBlockAt(editor.state.doc, range.to)
 }
+
+/** Menyisipkan satu blok gambar di `at`, atau di kursor bila `at` null. */
+function insertFigure(editor: Editor, content: JSONContent, at: number | null): boolean {
+	if (at === null) return insertChain(editor).insertContent(content).run()
+	return editor.chain().insertContentAt(at, content).run()
+}
+
+/**
+ * Menaruh gambar dari sub-agent ke dalam dokumen.
+ *
+ * Dipisahkan dari `applyWriteTool` karena jalurnya memang berbeda: alat tulis
+ * lain selesai seketika, yang ini baru punya isi sesudah satu panggilan
+ * jaringan. Yang disimpan tetap sumbernya - blok kode berbahasa `diagram` -
+ * jadi penulis bisa menyuntingnya persis seperti diagram yang ditulis model
+ * sendiri.
+ *
+ * Diagram tidak pernah masuk ke sel tabel: tanpa letak yang diminta, kursor
+ * yang tertinggal di sel terakhir sesudah tabel disisipkan diganti posisi
+ * sesudah tabelnya.
+ */
+export function insertDiagramBlock(editor: Editor, svg: string, at: number | null = null): void {
+	insertFigure(
+		editor,
+		{ type: 'codeBlock', attrs: { language: 'diagram' }, content: [{ type: 'text', text: svg }] },
+		at ?? positionAfterTable(editor.state.selection),
+	)
+}
+
+const PLACED = (at: number | null) => (at === null ? '' : ' It sits right after the text you named.')
 
 /**
  * Menimpa isi satu blok diagram di tempatnya.
@@ -418,6 +682,12 @@ export interface WriteToolContext {
 	setPageSetup: (setup: PageSetup, scope: 'document' | 'tab') => void
 	setTypography: (typography: DocumentTypography, scope: 'document' | 'tab') => void
 	/**
+	 * Daftar tab dokumen aktif - dipakai pesan teks-tidak-ada-di-tab-aktif
+	 * untuk menunjuk tab lain.
+	 */
+	tabs: { id: string; label: string; active: boolean }[]
+	readTab: (tabId: string) => string | null
+	/**
 	 * Spec template yang sudah diambil saat panggilan alatnya tiba.
 	 *
 	 * Penerapan alat tulis berjalan sinkron - hasilnya dipakai langsung oleh
@@ -426,7 +696,20 @@ export interface WriteToolContext {
 	 * dan yang tersisa di sini tinggal membacanya.
 	 */
 	templateSpecs: Map<string, TemplateSpec>
-	createTab: (title: string | undefined, markdown: string | undefined) => void
+	/**
+	 * Isi template (ProseMirror JSON) yang sudah diambil saat panggilan alatnya
+	 * tiba. Dipakai `insert_html_block` dengan `fit: 'page'` untuk membandingkan
+	 * dokumen dengan kerangka template asal.
+	 */
+	templateContents: Map<string, JSONContent>
+	createTab: (
+		title: string | undefined,
+		markdown: string | undefined,
+		content?: JSONContent,
+		layout?: { pageSetup?: PageSetup; typography?: DocumentTypography },
+	) => string | undefined
+	/** Berpindah ke tab lain; mengganti tab aktif di editor. */
+	switchTab: (tabId: string) => ToolOutcome
 	/** Mengganti judul dokumen aktif - nama yang tampil di atas editor. */
 	renameDocument: (title: string) => ToolOutcome
 	/** Mengganti label satu tab; `tabId` kosong berarti tab yang sedang dibuka. */
@@ -444,6 +727,19 @@ export interface WriteToolContext {
 	) => ToolOutcome
 	/** Halaman pertama memakai perabotnya sendiri (kosong) - sampul tanpa nomor. */
 	setFirstPageSeparate: (separate: boolean) => ToolOutcome
+	/**
+	 * Jenis karya dan isian sampul dokumen aktif: identitas template, judul dan
+	 * jenis karya dari brief. Dibaca saat alatnya dijalankan, bukan saat
+	 * diusulkan - penulis boleh melengkapi metadata sebelum menerapkannya.
+	 */
+	frontMatter: () => { kind: WorkKind; values: Record<string, string> }
+	/** Format template yang sudah diterapkan ke dokumen ini, bila ada. */
+	appliedFormat: () => string | null
+	markFormatApplied: (slug: string) => void
+	/** Header/footer tab aktif saat ini. */
+	furniture: () => PageFurniture | null
+	/** Penomoran karya ilmiah sudah dipasang - pemasangan otomatis tidak mengulanginya. */
+	markNumberingPreset: (preset: 'academic' | 'academic-body') => void
 }
 
 export interface ToolOutcome {
@@ -461,6 +757,12 @@ export function describeToolCall(call: ToolCall): string {
 		}
 		case 'replace_text':
 			return `Replace “${String(call.arguments.find ?? '').slice(0, 48)}…”`
+		case 'write_section': {
+			const heading = cleanTitle(call.arguments.heading).slice(0, 48)
+			return heading
+				? `Write the section “${heading}”`
+				: `Write section ${call.arguments.heading_index ?? '?'}`
+		}
 		case 'insert_math':
 			return `Insert formula ${String(call.arguments.latex ?? '').slice(0, 40)}`
 		case 'insert_page_break':
@@ -491,14 +793,18 @@ export function describeToolCall(call: ToolCall): string {
 			return text ? `Set ${slot}${where} - “${text.slice(0, 40)}”` : `Clear the ${slot}${where}`
 		}
 		case 'set_page_numbering': {
+			if (call.arguments.preset === 'academic')
+				return 'Set academic page numbering (i, ii… then 1, 2… from BAB I)'
 			const parts = [
 				call.arguments.format ? String(call.arguments.format) : null,
 				typeof call.arguments.start_at === 'number' ? `start at ${call.arguments.start_at}` : null,
 				call.arguments.show === false ? 'hidden' : null,
 				call.arguments.show_on_first_page === false ? 'not on the first page' : null,
+				typeof call.arguments.position === 'string' ? String(call.arguments.position) : null,
 			].filter(Boolean)
-			const where =
-				call.arguments.scope === 'this_page'
+			const where = call.arguments.from_heading
+				? ` from "${String(call.arguments.from_heading).slice(0, 40)}"`
+				: call.arguments.scope === 'this_page'
 					? ' for this page'
 					: call.arguments.scope === 'from_here'
 						? ' from here on'
@@ -588,12 +894,31 @@ export function describeToolCall(call: ToolCall): string {
 			return `${String(call.arguments.action ?? '')} section ${call.arguments.heading_index ?? '?'}`
 		case 'insert_image':
 			return 'Insert image'
-		case 'create_tab':
-			return `Create tab “${String(call.arguments.title ?? '').slice(0, 40) || 'baru'}”`
+		case 'create_tab': {
+			const tmpl = String(call.arguments.template ?? '').trim()
+			const from = tmpl ? ` from “${tmpl}”` : ''
+			return `Create tab “${String(call.arguments.title ?? '').slice(0, 40) || 'baru'}”${from}`
+		}
+		case 'switch_tab':
+			return `Switch to tab ${String(call.arguments.tab_id ?? '').slice(0, 12)}`
 		case 'rename_document':
 			return `Rename the document to “${String(call.arguments.title ?? '').slice(0, 40)}”`
 		case 'rename_tab':
 			return `Rename ${call.arguments.tab_id ? `tab ${String(call.arguments.tab_id).slice(0, 12)}` : 'this tab'} to “${String(call.arguments.title ?? '').slice(0, 40)}”`
+		/* Pertanyaan tidak pernah menjadi kartu aksi - chat menggambarnya sendiri -
+		 * tapi ringkasan langkah dan riwayat tetap butuh kalimatnya. */
+		case 'ask_user': {
+			const count = Array.isArray(call.arguments.questions) ? call.arguments.questions.length : 0
+			return `Ask the writer ${count === 1 ? 'a question' : `${count} questions`}`
+		}
+		case 'request_brief':
+			return 'Ask the writer to fill in the research brief'
+		case 'insert_template_part':
+			return call.arguments.part === 'cover'
+				? 'Insert the cover page'
+				: call.arguments.part === 'approval'
+					? 'Insert the approval page'
+					: 'Insert the cover and approval pages'
 		default:
 			return call.name
 	}
@@ -608,6 +933,18 @@ function cleanTitle(value: unknown): string {
 		.replace(/\s+/g, ' ')
 		.trim()
 		.slice(0, MAX_TITLE_CHARS)
+}
+
+/** Letak nomor dari argumen alat; yang tidak disebut ikut aturan sebelumnya. */
+function positionsOf(
+	args: Record<string, unknown>,
+	base: PageNumbering,
+): { position?: PageNumberPosition; openingPosition?: PageNumberPosition } {
+	const placed = (value: unknown): PageNumberPosition | undefined =>
+		PAGE_NUMBER_POSITIONS.includes(value as PageNumberPosition) ? (value as PageNumberPosition) : undefined
+	const position = placed(args.position) ?? base.position
+	const openingPosition = placed(args.opening_position) ?? base.openingPosition
+	return { ...(position ? { position } : {}), ...(openingPosition ? { openingPosition } : {}) }
 }
 
 function scopeLabel(call: ToolCall): string {
@@ -711,12 +1048,114 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 
 	switch (call.name) {
 		case 'insert_content': {
-			const markdown = String(call.arguments.markdown ?? '')
+			const markdown = withoutFigureLines(String(call.arguments.markdown ?? ''))
 			if (!markdown.trim()) return { ok: false, message: 'Nothing to insert.' }
+			if (svgInProse(markdown)) return { ok: false, message: SVG_IN_PROSE }
 
-			const chain = insertChain(editor)
-			if (call.arguments.position === 'end') chain.setTextSelection(editor.state.doc.content.size)
-			chain.insertContent(toEditorContent(markdown)).run()
+			/*
+			 * Sisipan di kursor adalah tebakan: kursor berada di mana pun sisipan
+			 * terakhir berakhir. Naskah panjang ditulis tidak berurutan - halaman
+			 * judul, lalu bab, lalu daftar pustaka, lalu kembali ke kata
+			 * pengantar - jadi `after_heading` menaruhnya di akhir bagian yang
+			 * disebut, di mana pun kursornya.
+			 */
+			const section = cleanTitle(call.arguments.after_heading)
+			if (section) {
+				const list = headings(editor)
+				const at = list.findIndex((heading) => sameTitle(heading.text, section))
+				if (at === -1) {
+					return {
+						ok: false,
+						message: `No heading "${section}" in the document. Call get_outline and use a heading exactly as listed.`,
+					}
+				}
+				/* Pindah halaman yang menutup bagian itu tetap menutupnya: sisipan
+				 * jatuh sebelum pemenggal, bukan sesudahnya - kalau tidak, pemenggal
+				 * bawaan sisipan bertemu pemenggal lama dan lahirlah halaman kosong. */
+				let end = sectionEnd(editor, list, at)
+				for (;;) {
+					const before = editor.state.doc.resolve(end).nodeBefore
+					if (before?.type.name !== PAGE_BREAK_NODE) break
+					end -= before.nodeSize
+				}
+				// Judul bagian itu sendiri yang diulang di awal hanya menjadi duplikat.
+				const body = dropLeadingTitle(markdown, list[at].text)
+				if (!body.trim()) return { ok: false, message: 'Nothing to insert besides the heading itself.' }
+				// Bagian yang masih kosong diisi, bukan ditambahi di bawah paragraf kosong template.
+				if (sectionIsEmpty(editor.state.doc, at)) return writeSection(editor, at, body)
+				editor
+					.chain()
+					.insertContentAt(end, toEditorContent(promoteSectionTitles(body)))
+					.run()
+				return { ok: true, message: `Inserted at the end of "${list[at].text}".` }
+			}
+
+			/* Bab yang sudah ada dan masih kosong diisi di tempatnya, bukan
+			 * digandakan di kursor atau di akhir dokumen - lihat `emptyChapterFor`. */
+			const chapter = emptyChapterFor(editor.state.doc, markdown)
+			if (chapter !== null) {
+				const outcome = writeSection(editor, chapter, markdown)
+				return outcome.ok
+					? {
+							ok: true,
+							message: `The document already had an empty "${headings(editor)[chapter].text}" section; wrote the content there instead of adding a second heading. ${outcome.message}`,
+						}
+					: outcome
+			}
+
+			/* Bab bernomor punya tempat yang pasti menurut nomornya - lihat `chapterSlot`. */
+			const slot = chapterSlot(editor.state.doc, promoteSectionTitles(markdown))
+			if (slot?.kind === 'existing') {
+				if (!slot.empty) {
+					return {
+						ok: false,
+						message: `Not carried out: the document already has "${slot.title}" (index ${slot.index}) with content. Rewrite it with write_section, or give the new chapter the next free number.`,
+					}
+				}
+				if (!slot.body.trim()) return { ok: false, message: 'Nothing to insert besides the chapter heading.' }
+				const outcome = writeSection(editor, slot.index, slot.body)
+				return outcome.ok
+					? {
+							ok: true,
+							message: `The document already had an empty "${slot.title}"; wrote the content there instead of adding a second chapter with that number. ${outcome.message}`,
+						}
+					: outcome
+			}
+			if (slot) {
+				editor.chain().insertContentAt(slot.pos, toEditorContent(slot.markdown)).run()
+				return {
+					ok: true,
+					message: `Inserted ${slot.side} "${slot.neighbour}", where the chapter number puts it.`,
+				}
+			}
+
+			/*
+			 * "Akhir dokumen" adalah sesudah blok terakhir, bukan kursor di teks
+			 * terakhir: kalau naskah berakhir dengan daftar bernomor, kursor itu
+			 * ada di butir terakhirnya, dan KATA PENGANTAR yang disisipkan di sana
+			 * menjadi butir daftar di bawah Saran BAB V. Sisipan berjudul di
+			 * dalam daftar atau kutipan keluar ke sesudah bloknya, dengan alasan
+			 * yang sama.
+			 */
+			const html = toEditorContent(promoteSectionTitles(markdown))
+			if (call.arguments.position === 'end') {
+				// Paragraf kosong penutup dokumen tetap penutup - sisipan jatuh
+				// sebelumnya, bukan meninggalkannya sebagai celah di antara bagian.
+				const { doc } = editor.state
+				const last = doc.lastChild
+				const trailingEmpty = last?.type.name === 'paragraph' && last.content.size === 0
+				editor
+					.chain()
+					.insertContentAt(doc.content.size - (trailingEmpty ? last.nodeSize : 0), html)
+					.run()
+				return { ok: true, message: 'Inserted at the end of the document.' }
+			}
+			const { $from } = editor.state.selection
+			if ($from.depth > 1 && /^\s*#{1,6}\s/m.test(markdown)) {
+				editor.chain().insertContentAt($from.after(1), html).run()
+				return { ok: true, message: 'Inserted after the list the cursor was in.' }
+			}
+			insertChain(editor).insertContent(html).run()
 
 			return { ok: true, message: 'Inserted.' }
 		}
@@ -725,10 +1164,100 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const find = String(call.arguments.find ?? '')
 			const replace = String(call.arguments.replace ?? '')
 			if (!find) return { ok: false, message: 'Nothing to find.' }
-			const ok = replaceTextRange(editor, { offset: 0, length: 0, expected: find }, replace)
-			return ok
-				? { ok: true, message: 'Replaced.' }
-				: { ok: false, message: 'That passage is no longer in the document.' }
+			if (find.split('\n').some((line) => parseFigureLine(line))) {
+				return {
+					ok: false,
+					message:
+						'Not carried out: find includes a [Figure: …] line, and a figure is not text. Replace the text before or after it on its own, or rewrite the section with write_section and keep the figure line there.',
+				}
+			}
+
+			const index = buildTextIndex(editor.state.doc)
+			const span = resolveSpan(index.text, find, 0)
+			const range = span ? textRangeToPM(index, span.offset, span.length) : null
+			if (!range) {
+				const elsewhere = findInOtherTabs(context, find)
+				return elsewhere
+					? {
+							ok: false,
+							message: `That passage is not in this tab, but it is in "${elsewhere.label}". Call switch_tab "${elsewhere.id}" first.`,
+						}
+					: { ok: false, message: PASSAGE_GONE }
+			}
+
+			if (svgInProse(replace)) return { ok: false, message: SVG_IN_PROSE }
+			if (insideFigure(editor.state.doc, range.from) || insideFigure(editor.state.doc, range.to)) {
+				return {
+					ok: false,
+					message:
+						'Not carried out: that passage is inside a figure, not in the text. Change a diagram with redraw_diagram.',
+				}
+			}
+
+			// Heading yang tersentuh tetap heading - lihat `planTextReplace`.
+			const plan = planTextReplace(editor.state.doc, range.from, range.to, replace)
+			if (!plan.ok) return plan
+			const figures = keepFigures(editor.state.doc, plan.from, plan.to, plan.markdown)
+			editor
+				.chain()
+				.insertContentAt({ from: plan.from, to: plan.to }, toEditorContent(figures.markdown))
+				.command(({ tr }) => {
+					placeFigures(tr, figures.slots)
+					return true
+				})
+				.run()
+			return { ok: true, message: `Replaced.${figureNote([figures])}` }
+		}
+
+		case 'write_section': {
+			const markdown = String(call.arguments.markdown ?? '')
+			if (!markdown.trim()) return { ok: false, message: 'Nothing to write.' }
+			const target = sectionTarget(headings(editor), call.arguments)
+			if (typeof target === 'string') {
+				const title = cleanTitle(call.arguments.heading)
+				if (title) {
+					const elsewhere = findInOtherTabs(context, title)
+					if (elsewhere) {
+						return {
+							ok: false,
+							message: `No heading "${title}" in this tab, but it is in "${elsewhere.label}". Call switch_tab "${elsewhere.id}" first.`,
+						}
+					}
+				}
+				return { ok: false, message: target }
+			}
+			// Support optional `new_heading` parameter: pass through to writeSection
+			const options = { replaceSubsections: call.arguments.replace_subsections === true } as {
+				replaceSubsections?: boolean
+				newHeading?: string | undefined
+			}
+			if (typeof call.arguments.new_heading === 'string' && call.arguments.new_heading.trim()) {
+				options.newHeading = String(call.arguments.new_heading).trim()
+			}
+			const outcome = writeSection(editor, target, markdown, options)
+			if (!outcome.ok) return outcome
+			/*
+			 * Pengingat heading: bila heading tingkat 1 bagian yang ditulis masih
+			 * sama persis dengan heading tingkat 1 di template asal, dan model
+			 * tidak meminta `new_heading`, beri tahu. Template CV memakai heading
+			 * "[Nama Lengkap]" yang seharusnya diganti isinya, bukan dibiarkan
+			 * (uji 28 Sep, UC7: heading bawaan masih tercetak di atas nama asli).
+			 */
+			const slug = context.appliedFormat()
+			const spec = slug ? context.templateSpecs.get(slug) : undefined
+			const templateH1 = spec?.structure?.filter((item) => item.level === 1).map((item) => item.heading)
+			const headingInfo = headings(editor)[target]
+			if (
+				!options.newHeading &&
+				headingInfo?.level === 1 &&
+				templateH1?.some((h) => h === headingInfo.text)
+			) {
+				return {
+					...outcome,
+					message: `${outcome.message} The heading "${headingInfo.text}" is a placeholder from the template; pass new_heading to replace it.`,
+				}
+			}
+			return outcome
 		}
 
 		case 'insert_math': {
@@ -751,7 +1280,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 
 			const index = buildTextIndex(editor.state.doc)
 			const at = index.text.indexOf(quote)
-			if (at === -1) return { ok: false, message: 'That passage is no longer in the document.' }
+			if (at === -1) return { ok: false, message: PASSAGE_GONE }
 
 			const range = textRangeToPM(index, at, quote.length)
 			if (!range) return { ok: false, message: 'Could not anchor the comment.' }
@@ -827,6 +1356,12 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 		case 'set_page_numbering': {
 			const args = call.arguments
 
+			if (args.preset === 'academic') {
+				const outcome = applyAcademicNumbering(context)
+				if (outcome.ok) context.markNumberingPreset(outcome.front ? 'academic' : 'academic-body')
+				return { ok: outcome.ok, message: outcome.message }
+			}
+
 			/* Sampul tanpa nomor adalah sumbunya sendiri: ia berlaku untuk tab utuh
 			 * dan tidak menyentuh deret angkanya, jadi diterapkan lebih dulu dan
 			 * boleh berdiri sendiri tanpa argumen penomoran lain. */
@@ -856,6 +1391,27 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 							? Math.max(0, Math.floor(startAt))
 							: base.restart,
 				show: typeof args.show === 'boolean' ? args.show : base.show !== false,
+				...positionsOf(args, base),
+			}
+
+			/*
+			 * Mulai dari sebuah judul, bukan dari kursor: model tidak memegang
+			 * kursor, dan "from_here" dulu menaruh pergantian romawi-ke-angka di
+			 * mana pun sisipan terakhirnya berakhir.
+			 */
+			const fromHeading = cleanTitle(args.from_heading)
+			if (fromHeading) {
+				const target = headings(editor).find((heading) => sameTitle(heading.text, fromHeading))
+				if (!target) {
+					return {
+						ok: false,
+						message: `No heading "${fromHeading}" in the document. Call get_outline and use a heading exactly as listed.`,
+					}
+				}
+				const { tr, schema } = editor.state
+				placeSectionNumbering(tr, schema, target.pos, next)
+				editor.view.dispatch(tr)
+				return { ok: true, message: `Page numbering changed from "${target.text}" onwards.${firstPage}` }
 			}
 
 			if (isSectionScope(args.scope)) {
@@ -891,10 +1447,39 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			return { ok: true, message: 'Section break inserted.' }
 		}
 
+		case 'insert_template_part': {
+			const { kind: fallback, values } = context.frontMatter()
+			const kind = WORK_KINDS.includes(call.arguments.kind as WorkKind)
+				? (call.arguments.kind as WorkKind)
+				: fallback
+			const request =
+				call.arguments.part === 'cover' || call.arguments.part === 'approval' ? call.arguments.part : 'both'
+			const { tr, schema } = editor.state
+			const outcome = insertFrontMatter(tr, schema, request, kind, values)
+			if (outcome.ok) editor.view.dispatch(tr)
+			return outcome
+		}
+
 		case 'insert_toc': {
 			const attrs = tocAttrsFromArgs(call.arguments)
-			insertChain(editor).insertToc(attrs).run()
-			return { ok: true, message: 'Table of contents inserted.' }
+			const kind = attrs.listKind ?? 'isi'
+			const placement = tocPlacement(editor, kind, cleanTitle(call.arguments.after_heading))
+			if ('error' in placement) return { ok: false, message: placement.error }
+
+			editor
+				.chain()
+				.insertContentAt(placement.at, { type: TOC_BLOCK, attrs: clampedAttrs({ ...attrs, listKind: kind }) })
+				.run()
+			/* Blok yang baru disisipkan tidak dibiarkan terpilih: ketikan penulis
+			 * berikutnya akan menggantikannya (lihat click-past-node-selection.ts). */
+			const { state } = editor
+			if (state.selection instanceof NodeSelection) {
+				// Blok teks sesudahnya - pemenggal halaman di sana pun blok yang bisa terpilih.
+				const $after = state.doc.resolve(state.selection.to)
+				const text = Selection.findFrom($after, 1, true) ?? Selection.findFrom($after, -1, true)
+				if (text) editor.view.dispatch(state.tr.setSelection(text))
+			}
+			return { ok: true, message: `${TOC_TITLE_LABEL[kind]} inserted under "${placement.heading}".` }
 		}
 
 		case 'set_toc_options': {
@@ -920,8 +1505,19 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const slug = String(call.arguments.template ?? '').trim()
 			const spec = slug ? context.templateSpecs.get(slug) : undefined
 			if (!spec) return { ok: false, message: `Template "${slug}" tidak dikenal.` }
+			/*
+			 * Sekali saja. Penulis boleh mengatur ulang margin atau hurufnya
+			 * sesudah itu, dan penerapan ulang diam-diam menimpa semuanya.
+			 */
+			if (context.appliedFormat() === slug && call.arguments.reapply !== true) {
+				return {
+					ok: false,
+					message: `The ${slug} format is already applied to this document, and the writer may have adjusted margins or fonts since. Not applied again - carry on with the writing. Re-apply only when the writer explicitly asks to reset the format, with reapply: true.`,
+				}
+			}
 
 			const { pageSetup, typography } = spec.layout
+			context.markFormatApplied(slug)
 			context.setPageSetup(pageSetup, 'document')
 			if (typography) context.setTypography(typography, 'document')
 
@@ -953,29 +1549,60 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 
 			const fit = call.arguments.fit === 'page' ? 'page' : 'embed'
 			const height = Number(call.arguments.height)
+			const at = figurePlacement(editor, call.arguments)
+			if (typeof at === 'string') return { ok: false, message: at }
 			/*
-			 * Hasil rantainya dilaporkan apa adanya. Sebelumnya alat ini selalu
-			 * menjawab "ok", jadi sisipan yang gagal tetap muncul di lini masa
-			 * sebagai "Applied" - dan model melanjutkan seolah sampulnya ada.
+			 * `fit: 'page'` ke dokumen yang hanya kerangka template menggantikan
+			 * kerangkanya, bukan mendampingi. UC5: flyer A4 disisipkan ke
+			 * template yang berisi heading kosong; tanpa ini, heading tetap ada
+			 * dan memicu halaman kedua kosong. Kerangka dibandingkan dengan isi
+			 * template asal, bukan sekadar "heading kosong".
 			 */
-			const inserted = insertChain(editor)
-				.insertHtmlBlock({ html, fit, ...(height ? { height } : {}) })
-				.run()
+			const slug = context.appliedFormat()
+			const templateJson = slug ? context.templateContents.get(slug) : undefined
+			const templateNode = templateJson ? buildSchema().nodeFromJSON(templateJson) : null
+			const replacement = fit === 'page' && at === null && docIsScaffold(editor.state.doc, templateNode)
+			const attrs = { ...DEFAULT_HTML_BLOCK_ATTRS, html, fit, ...(height ? { height } : {}) }
+			let inserted: boolean
+			if (replacement) {
+				editor
+					.chain()
+					.deleteRange({ from: 0, to: editor.state.doc.content.size })
+					.insertContentAt(0, { type: HTML_BLOCK, attrs })
+					.run()
+				inserted = true
+			} else {
+				inserted =
+					at === null
+						? insertChain(editor)
+								.insertHtmlBlock({ html, fit, ...(height ? { height } : {}) })
+								.run()
+						: insertFigure(editor, { type: HTML_BLOCK, attrs }, at)
+			}
 			if (!inserted) return { ok: false, message: 'The design block could not be inserted here.' }
 
 			return {
 				ok: true,
-				message: fit === 'page' ? 'Full-page HTML design inserted.' : 'HTML design block inserted.',
+				message: `${fit === 'page' ? 'Full-page HTML design inserted.' : 'HTML design block inserted.'}${
+					replacement ? ' It replaced the empty template scaffold.' : PLACED(at)
+				}`,
 			}
 		}
 
 		case 'convert_to_html_block': {
 			const candidates = htmlCandidates(editor.state.doc)
 			if (candidates.length === 0) {
+				let diagrams = 0
+				editor.state.doc.descendants((node) => {
+					if (node.type.name === 'codeBlock' && figureOf(node)) diagrams += 1
+					return !figureOf(node)
+				})
 				return {
 					ok: false,
 					message:
-						'No HTML-looking block found in this document. Use insert_html_block to create a new design.',
+						diagrams > 0
+							? 'No unrendered HTML in this document. The diagrams in it are already rendered figures and need no conversion; change one with redraw_diagram.'
+							: 'No HTML-looking block found in this document. Use insert_html_block to create a new design.',
 				}
 			}
 
@@ -1010,14 +1637,14 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 		case 'insert_mermaid': {
 			const source = String(call.arguments.source ?? '').trim()
 			if (!source) return { ok: false, message: 'Nothing to insert.' }
-			insertChain(editor)
-				.insertContent({
-					type: 'codeBlock',
-					attrs: { language: 'mermaid' },
-					content: [{ type: 'text', text: source }],
-				})
-				.run()
-			return { ok: true, message: 'Diagram inserted.' }
+			const at = figurePlacement(editor, call.arguments)
+			if (typeof at === 'string') return { ok: false, message: at }
+			insertFigure(
+				editor,
+				{ type: 'codeBlock', attrs: { language: 'mermaid' }, content: [{ type: 'text', text: source }] },
+				at,
+			)
+			return { ok: true, message: `Diagram inserted.${PLACED(at)}` }
 		}
 
 		/*
@@ -1032,14 +1659,10 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 		case 'insert_diagram': {
 			const source = String(call.arguments.source ?? '').trim()
 			if (!source) return { ok: false, message: 'Nothing to insert.' }
-			insertChain(editor)
-				.insertContent({
-					type: 'codeBlock',
-					attrs: { language: 'diagram' },
-					content: [{ type: 'text', text: source }],
-				})
-				.run()
-			return { ok: true, message: 'Diagram inserted.' }
+			const at = figurePlacement(editor, call.arguments)
+			if (typeof at === 'string') return { ok: false, message: at }
+			insertDiagramBlock(editor, source, at)
+			return { ok: true, message: `Diagram inserted.${PLACED(at)}` }
 		}
 
 		case 'insert_table': {
@@ -1054,30 +1677,15 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const find = String(call.arguments.find ?? '')
 			if (!find) return { ok: false, message: 'Nothing to find.' }
 			const range = findExactRange(editor, find)
-			if (!range) return { ok: false, message: 'That passage is no longer in the document.' }
+			if (!range) return { ok: false, message: PASSAGE_GONE }
 
 			const isHeading = call.arguments.style === 'heading'
 			const level = Math.max(1, Math.min(9, Number(call.arguments.level) || 1))
 			const typeName = isHeading ? 'heading' : 'paragraph'
 
 			const { tr, schema } = editor.state
-			const seen: number[] = []
-			editor.state.doc.nodesBetween(range.from, range.to, (node, pos) => {
-				if (node.isTextblock) {
-					seen.push(pos)
-					return false
-				}
-				return true
-			})
-			for (const pos of seen) {
-				const node = tr.doc.nodeAt(pos)
-				if (!node) continue
-				tr.setNodeMarkup(pos, schema.nodes[typeName], {
-					...node.attrs,
-					...(isHeading ? { level } : {}),
-				})
-			}
-			if (seen.length === 0) return { ok: false, message: 'No paragraph covers that passage.' }
+			const changed = setBlockStyle(tr, range, schema.nodes[typeName], isHeading ? { level } : {})
+			if (changed === 0) return { ok: false, message: 'No paragraph covers that passage.' }
 			editor.view.dispatch(tr)
 			return { ok: true, message: isHeading ? `Heading ${level} applied.` : 'Paragraph style applied.' }
 		}
@@ -1086,7 +1694,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const find = String(call.arguments.find ?? '')
 			if (!find) return { ok: false, message: 'Nothing to find.' }
 			const range = findExactRange(editor, find)
-			if (!range) return { ok: false, message: 'That passage is no longer in the document.' }
+			if (!range) return { ok: false, message: PASSAGE_GONE }
 
 			const { tr, schema } = editor.state
 			const marks: [string, Record<string, unknown>?][] = []
@@ -1115,7 +1723,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 				return { ok: false, message: `Unknown alignment: ${align}` }
 			}
 			const range = layoutRange(editor, call)
-			if (!range) return { ok: false, message: 'That passage is no longer in the document.' }
+			if (!range) return { ok: false, message: PASSAGE_GONE }
 
 			const ok = editor.chain().focus().setTextSelection(range).setTextAlign(align).run()
 			return ok
@@ -1125,7 +1733,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 
 		case 'set_indent': {
 			const range = layoutRange(editor, call)
-			if (!range) return { ok: false, message: 'That passage is no longer in the document.' }
+			if (!range) return { ok: false, message: PASSAGE_GONE }
 
 			const patch: { left?: number; right?: number; firstLine?: number } = {}
 			if (call.arguments.left_cm !== undefined) patch.left = Number(call.arguments.left_cm) * PX_PER_CM
@@ -1146,7 +1754,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 
 		case 'set_spacing': {
 			const range = layoutRange(editor, call)
-			if (!range) return { ok: false, message: 'That passage is no longer in the document.' }
+			if (!range) return { ok: false, message: PASSAGE_GONE }
 
 			const lineHeight = call.arguments.line_height
 			const before = call.arguments.space_before_pt
@@ -1178,7 +1786,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 
 		case 'set_font': {
 			const range = layoutRange(editor, call)
-			if (!range) return { ok: false, message: 'That passage is no longer in the document.' }
+			if (!range) return { ok: false, message: PASSAGE_GONE }
 
 			const family = typeof call.arguments.family === 'string' ? call.arguments.family.trim() : ''
 			const size = call.arguments.size_pt
@@ -1204,7 +1812,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const find = String(call.arguments.find ?? '')
 			if (!find) return { ok: false, message: 'Nothing to find.' }
 			const range = findExactRange(editor, find)
-			if (!range) return { ok: false, message: 'That passage is no longer in the document.' }
+			if (!range) return { ok: false, message: PASSAGE_GONE }
 
 			const kind = String(call.arguments.kind ?? '')
 			const chain = editor.chain().focus().setTextSelection(range)
@@ -1252,7 +1860,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			}
 
 			const range = layoutRange(editor, call)
-			if (!range) return { ok: false, message: 'That passage is no longer in the document.' }
+			if (!range) return { ok: false, message: PASSAGE_GONE }
 
 			const chain = editor.chain().focus().setTextSelection(range)
 			const ok = count === 1 ? chain.unsetColumns().run() : chain.setColumns(count).run()
@@ -1268,7 +1876,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			if (!body.trim()) return { ok: false, message: 'The footnote has no text.' }
 
 			const range = findExactRange(editor, quote)
-			if (!range) return { ok: false, message: 'That passage is no longer in the document.' }
+			if (!range) return { ok: false, message: PASSAGE_GONE }
 
 			const footnoteType = editor.state.schema.nodes.footnote
 			if (!footnoteType) return { ok: false, message: 'This editor has no footnotes.' }
@@ -1310,8 +1918,25 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			}
 
 			if (action === 'delete') {
-				editor.view.dispatch(editor.state.tr.delete(from, to))
-				return { ok: true, message: 'Section deleted.' }
+				// Preserve figures inside the deleted section by replacing the whole
+				// section range with the preserved figure nodes in the same slot. This
+				// keeps them attached to the deleted block's position instead of
+				// drifting to the end of the document when the heading above is removed.
+				const inside = figuresBetween(editor.state.doc, from, to)
+				if (inside.length === 0) {
+					editor.view.dispatch(editor.state.tr.delete(from, to))
+					return { ok: true, message: 'Section deleted.' }
+				}
+
+				const frag = Fragment.fromArray(inside.map((f) => f.node))
+				const { tr } = editor.state
+				tr.replaceWith(from, to, frag)
+				editor.view.dispatch(tr)
+				const preserved = inside.map((f) => figureLine(f.figure)).join('; ')
+				return {
+					ok: true,
+					message: `Section deleted. Preserved figures: ${preserved}. Figures can only be removed with write_section using a [Delete figure: …] line.`,
+				}
 			}
 
 			if (action === 'move_before') {
@@ -1341,17 +1966,46 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const verdict = publicImageUrl(src)
 			if (verdict) return { ok: false, message: verdict }
 
-			insertChain(editor)
-				.setImage({ src, alt: String(call.arguments.alt ?? '') || null })
-				.run()
-			return { ok: true, message: 'Image inserted.' }
+			const at = figurePlacement(editor, call.arguments)
+			if (typeof at === 'string') return { ok: false, message: at }
+			const alt = String(call.arguments.alt ?? '') || null
+			if (at === null) insertChain(editor).setImage({ src, alt }).run()
+			else insertFigure(editor, { type: 'image', attrs: { src, alt } }, at)
+			return { ok: true, message: `Image inserted.${PLACED(at)}` }
 		}
 
 		case 'create_tab': {
 			const title = typeof call.arguments.title === 'string' ? call.arguments.title : undefined
+			const templateSlug = String(call.arguments.template ?? '').trim()
 			const markdown = typeof call.arguments.markdown === 'string' ? call.arguments.markdown : undefined
+
+			// Template diutamakan: isinya, tata letak, dan tipografinya dipasang
+			// ke tab baru. Tanpa template, perilaku lama (markdown mentah).
+			if (templateSlug) {
+				const spec = context.templateSpecs.get(templateSlug)
+				const templateJson = context.templateContents.get(templateSlug)
+				if (!spec || !templateJson) {
+					return { ok: false, message: `Template "${templateSlug}" tidak dikenal.` }
+				}
+				/*
+				 * Tata letak dan tipografi template ditulis langsung ke ydoc
+				 * tab baru, bukan lewat context.setPageSetup('tab'):
+				 * selectSession mengubah state React yang belum tersebar saat
+				 * handler ini berjalan, jadi setPageSetup('tab') akan menimpa
+				 * tab LAMA, bukan tab baru.
+				 */
+				context.createTab(title, undefined, templateJson, spec.layout)
+				return { ok: true, message: `Tab "${title ?? 'baru'}" created from template "${templateSlug}".` }
+			}
+
 			context.createTab(title, markdown)
 			return { ok: true, message: `Tab "${title ?? 'baru'}" created.` }
+		}
+
+		case 'switch_tab': {
+			const tabId = String(call.arguments.tab_id ?? '').trim()
+			if (!tabId) return { ok: false, message: 'A tab id is required.' }
+			return context.switchTab(tabId)
 		}
 
 		case 'rename_document': {
@@ -1370,6 +2024,62 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 		default:
 			return { ok: false, message: `Unknown tool: ${call.name}` }
 	}
+}
+
+const WORK_KINDS: readonly WorkKind[] = ['skripsi', 'tesis', 'disertasi', 'proposal']
+
+const TOC_TITLE_LABEL: Record<TocListKind, string> = {
+	isi: 'Table of contents',
+	gambar: 'List of figures',
+	tabel: 'List of tables',
+}
+
+/* Judul yang lazim di atas tiap jenis daftar, Indonesia dan Inggris. */
+const TOC_HEADINGS: Record<TocListKind, RegExp> = {
+	isi: /^(daftar isi|table of contents|contents)$/i,
+	gambar: /^(daftar gambar|list of figures)$/i,
+	tabel: /^(daftar tabel|list of tables)$/i,
+}
+
+/**
+ * Tempat daftar isi: tepat di bawah judulnya ("Daftar Isi"), bukan di kursor.
+ *
+ * Model menulis naskah panjang dalam beberapa gelombang dan baru ingat daftar
+ * isi di tengah jalan; dulu blok itu mendarat di mana pun kursor berada -
+ * pernah di tengah BAB V. Tanpa judul yang bisa dijadikan patokan, lebih baik
+ * menolak dan menyuruh model membuat judulnya di tempat yang benar daripada
+ * menebak.
+ */
+function tocPlacement(
+	editor: Editor,
+	kind: TocListKind,
+	afterHeading: string,
+): { at: number; heading: string } | { error: string } {
+	let existing = false
+	editor.state.doc.descendants((node) => {
+		if (node.type.name === TOC_BLOCK && (node.attrs.listKind ?? 'isi') === kind) existing = true
+		return !existing
+	})
+	if (existing) {
+		return {
+			error: `The document already has a ${TOC_TITLE_LABEL[kind].toLowerCase()} block. Change it with set_toc_options instead of inserting another.`,
+		}
+	}
+
+	const list = headings(editor)
+	const anchor = afterHeading
+		? list.find((heading) => sameTitle(heading.text, afterHeading))
+		: list.find((heading) => TOC_HEADINGS[kind].test(heading.text.replace(/\s+/g, ' ').trim()))
+	if (!anchor) {
+		return {
+			error: afterHeading
+				? `No heading "${afterHeading}" in the document. Call get_outline and use a heading exactly as listed.`
+				: `No "Daftar ${kind === 'isi' ? 'Isi' : kind === 'gambar' ? 'Gambar' : 'Tabel'}" heading to place it under. Insert that heading where the list belongs first (insert_content with after_heading), then call insert_toc again - it goes directly under the heading.`,
+		}
+	}
+
+	const node = editor.state.doc.nodeAt(anchor.pos)
+	return { at: anchor.pos + (node?.nodeSize ?? 0), heading: anchor.text }
 }
 
 function tocAttrsFromArgs(args: Record<string, unknown>): Partial<TocBlockAttrs> {

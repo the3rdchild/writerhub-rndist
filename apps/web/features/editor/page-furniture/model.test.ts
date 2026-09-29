@@ -55,3 +55,13 @@ describe('normalisasi bentuk bebas', () => {
 		expect(hasFurniture(null)).toBe(false)
 	})
 })
+
+describe('baris kosong halaman pertama', () => {
+	test('dipertahankan untuk varian first - sampul tanpa nomor - dan dibuang untuk yang lain', () => {
+		expect(
+			normalizePageFurniture({
+				footer: { first: { text: '', align: 'center' }, default: { text: '', align: 'center' } },
+			}),
+		).toEqual({ footer: { first: { text: '', align: 'center' } } })
+	})
+})

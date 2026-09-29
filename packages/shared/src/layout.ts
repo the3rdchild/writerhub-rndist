@@ -130,6 +130,24 @@ export interface Watermark {
 
 export type PageNumberFormat = 'decimal' | 'lower-roman' | 'upper-roman' | 'lower-alpha' | 'upper-alpha'
 
+/** Letak nomor halaman yang digambar aturan penomoran sendiri, di margin atas atau bawah. */
+export type PageNumberPosition =
+	| 'top-left'
+	| 'top-center'
+	| 'top-right'
+	| 'bottom-left'
+	| 'bottom-center'
+	| 'bottom-right'
+
+export const PAGE_NUMBER_POSITIONS: readonly PageNumberPosition[] = [
+	'top-left',
+	'top-center',
+	'top-right',
+	'bottom-left',
+	'bottom-center',
+	'bottom-right',
+]
+
 export interface PageNumbering {
 	format: PageNumberFormat
 	/** Lanjut mengalir dari bagian sebelumnya, atau mulai ulang dari N. */
@@ -144,6 +162,22 @@ export interface PageNumbering {
 	 * Word: halaman tanpa nomor tetap terhitung.
 	 */
 	show?: boolean
+	/**
+	 * Letak nomor di halaman bagian ini, digambar aturan ini sendiri - bukan
+	 * lewat token `{page}` di header/footer. Kosong berarti perilaku lama:
+	 * nomor datang dari header/footer, atau dari lencana sudut.
+	 *
+	 * Ada karena header/footer berlaku untuk seluruh tab, sedangkan pedoman
+	 * karya ilmiah menaruh nomor di tempat berbeda per bagian: romawi di tengah
+	 * bawah, lalu angka di kanan atas.
+	 */
+	position?: PageNumberPosition
+	/**
+	 * Letak nomor di halaman pembuka bab - lembar yang dimulai judul tingkat
+	 * satu. Pedoman umum: "halaman yang memuat judul bab bernomor di tengah
+	 * bawah". Kosong berarti sama dengan `position`.
+	 */
+	openingPosition?: PageNumberPosition
 }
 
 const ROMAN_PAIRS: [number, string][] = [

@@ -6,6 +6,7 @@ import {
 	type TemplateSpec,
 } from '@writer-hub/shared'
 import { BUILTIN_TEMPLATES } from './catalog'
+import { compileTemplateContent } from './compile'
 import { templateDocumentLayout, templateTabLayout } from './layout'
 
 const pageSetup: TemplateSpec['layout']['pageSetup'] = {
@@ -128,10 +129,16 @@ describe('hentian halaman per bab', () => {
 		return typography
 	}
 
-	// Di karya ilmiah yang tingkat 1 bukan cuma BAB - Abstrak, Daftar Isi, dan
-	// Daftar Pustaka juga - dan semuanya memang berhalaman sendiri.
+	// Di karya ilmiah yang tingkat 1 bukan cuma BAB - Abstrak, Daftar Isi,
+	// dan Daftar Pustaka juga - dan semuanya memang berhalaman sendiri.
+	// Pengecualian: laporan praktikum dan makalah pendek yang menyambung
+	// (uji 28 Sep, UC8: 10 bagian berhalaman sendiri membuat target 5-8
+	// mustahil, dan model menghapus isi demi mengejarnya - TP-2).
 	test('karya ilmiah membuka lembar baru di tiap judul tingkat 1', () => {
-		const akademik = BUILTIN_TEMPLATES.filter((template) => template.category === 'academic_id')
+		// Laporan praktikum menyambung: 9-10 bagian, target 5-8 halaman (TP-2).
+		const akademik = BUILTIN_TEMPLATES.filter(
+			(template) => template.category === 'academic_id' && template.slug !== 'laporan-praktikum',
+		)
 		expect(akademik.length).toBeGreaterThan(0)
 
 		for (const template of akademik) {
@@ -139,6 +146,10 @@ describe('hentian halaman per bab', () => {
 			expect(headingBreakLevels(typography), `${template.slug}`).toEqual([1])
 			expect(resolveHeadingStyle(typography, 2).pageBreakBefore, `${template.slug} subbab`).toBe(false)
 		}
+
+		// Laporan praktikum khusus tidak memecah halaman per heading tingkat 1.
+		const praktikum = typographyOf('laporan-praktikum')
+		expect(headingBreakLevels(praktikum), 'laporan-praktikum').toEqual([])
 	})
 
 	// Laporan panjang ikut; memo, surat, notulen, dan CV tidak - memecah CV per
@@ -153,6 +164,12 @@ describe('hentian halaman per bab', () => {
 		for (const slug of menyambung) {
 			expect(headingBreakLevels(typographyOf(slug)), slug).toEqual([])
 		}
+	})
+
+	// Laporan praktikum menyambung: 9 bagian tingkat 1, target 5-8 hlm.
+	// Bila tiap bagiannya berhalaman sendiri, minimumnya 9 - mustahil (TP-2).
+	test('laporan praktikum menyambung, bukan tiap bagiannya berhalaman sendiri', () => {
+		expect(headingBreakLevels(typographyOf('laporan-praktikum'))).toEqual([])
 	})
 
 	// Paper dua kolom mengalir menerus; halaman baru tiap bagian merusaknya.
@@ -171,5 +188,37 @@ describe('hentian halaman per bab', () => {
 			lineHeight: 1.5,
 		}
 		expect(headingBreakLevels(polos)).toEqual([])
+	})
+})
+
+/* Surat lamaran (uji UC7 28 Sep): blok-blok surat sempat melebur jadi satu kalimat. */
+describe('surat lamaran kerja', () => {
+	const surat = BUILTIN_TEMPLATES.find((template) => template.slug === 'surat-lamaran-kerja')
+	const blocks = surat ? compileTemplateContent(surat).content : []
+	const types = (node: { content?: { type: string }[] }) => (node.content ?? []).map((child) => child.type)
+
+	test('blok tujuan dan tanda tangan satu paragraf dengan pindah baris', () => {
+		const tujuan = blocks.find((node) => JSON.stringify(node).includes('Kepada Yth.'))
+		expect(types(tujuan ?? {}).filter((type) => type === 'hardBreak')).toHaveLength(3)
+		const ttd = blocks.at(-1)
+		expect(JSON.stringify(ttd)).toContain('Hormat saya,')
+		expect(types(ttd ?? {}).filter((type) => type === 'hardBreak').length).toBeGreaterThanOrEqual(3)
+	})
+
+	test('blok data: enam baris, satu tab per baris, tab stop muat untuk label terpanjang', () => {
+		const data = blocks.find((node) => node.attrs?.tabStops)
+		expect(types(data ?? {}).filter((type) => type === 'tab')).toHaveLength(6)
+		// "Tempat, Tanggal Lahir" dalam Times 12 pt ±115 pt: tab stop di bawah itu melompat ke kelipatan berikutnya.
+		const stops = (data?.attrs?.tabStops ?? []) as { posPt: number }[]
+		expect(stops[0]?.posPt ?? 0).toBeGreaterThanOrEqual(130)
+	})
+})
+
+describe('template desain satu halaman', () => {
+	test('flyer dan poster meminta desain disisipkan sebagai tulisan pertama (UC5)', () => {
+		for (const slug of ['flyer-a4', 'flyer-a5', 'poster-a3']) {
+			const rules = BUILTIN_TEMPLATES.find((template) => template.slug === slug)?.spec.aiRules ?? []
+			expect(rules.some((rule) => rule.includes('very first edit'))).toBe(true)
+		}
 	})
 })

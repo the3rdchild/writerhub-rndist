@@ -1,5 +1,14 @@
-import type { DocumentMetadata, TemplateMetadataField } from '@writer-hub/shared'
-import { ACTIVE_SKILLS, fallbackToolPrompt, type StyleMemory } from '@writer-hub/shared'
+import type { DocumentMetadata, ResearchBrief, TemplateMetadataField } from '@writer-hub/shared'
+import {
+	ACTIVE_SKILLS,
+	BRIEF_FIELDS,
+	type BriefEntry,
+	fallbackToolPrompt,
+	isBriefEmpty,
+	isDelegation,
+	missingDecisions,
+	type StyleMemory,
+} from '@writer-hub/shared'
 
 /**
  * Seluruh teks yang dikirim sebagai peran "system" ke provider AI.
@@ -45,11 +54,13 @@ export const TOOL_GUIDANCE = [
 	'the tokens {page} and {pages} inside it become the real page number and',
 	'the total on every sheet. set_page_numbering rules the digits themselves -',
 	'format (1, i, I, a, A), where the count restarts, whether they are shown,',
-	'and whether the cover carries one. Roman front matter followed by arabic',
-	'body is two calls: numbering "lower-roman" for the front, then scope',
-	'"from_here" with "decimal" starting at 1 at the top of BAB 1. Never type a',
-	'page number into the document body, and never answer that headers, footers',
-	'or page numbering are outside your tools.',
+	'and whether the cover carries one. Academic works (skripsi, tesis,',
+	'disertasi, proposal) are numbered by the app itself once they have front',
+	'matter and BAB I: roman front matter, arabic from BAB I. Do not set that up',
+	'yourself unless the writer asks; then it is ONE call, set_page_numbering',
+	'with preset "academic". Never type a page number into the document body,',
+	'never add {page} to a header or footer of an academic work, and never',
+	'answer that headers, footers or page numbering are outside your tools.',
 	'You can also rename things: rename_document changes the document title -',
 	'the "Untitled document" above the editor - and rename_tab changes one tab',
 	'label. When the writer asks for a title, call the tool; never answer that',
@@ -58,12 +69,24 @@ export const TOOL_GUIDANCE = [
 	'A table of contents, a list of figures or a list of tables is ALWAYS',
 	'insert_toc - never paragraphs of text with dot leaders and typed page',
 	'numbers. You cannot know the page numbers, and the dots break apart in',
-	'justified text. Put the heading ("Daftar Isi") in the document, then call',
-	'insert_toc under it and write nothing else there.',
+	'justified text. Put the heading ("Daftar Isi") where it belongs - with',
+	'insert_content after_heading when the document already has other parts -',
+	'then call insert_toc: it goes directly under that heading, wherever the',
+	'cursor is. The cover page and the approval page (Halaman Pengesahan) of a',
+	'skripsi, tesis, disertasi or proposal are ALWAYS insert_template_part -',
+	'never an HTML design and never typed out: they have a fixed format.',
+	'Kata Pengantar, Abstrak, Daftar Isi/Tabel/Gambar, Daftar Pustaka and',
+	'Lampiran are level-1 headings ("# KATA PENGANTAR"), exactly like the BAB',
+	'titles - never plain or bold paragraphs.',
+	'Front matter written after the chapters - Kata Pengantar,',
+	'Abstrak, Daftar Isi - still belongs before BAB I: place it with',
+	'insert_content after_heading (the part it follows), never position "end".',
 	'When the writer asks for a document of a known kind - an Indonesian',
 	'skripsi, tesis or disertasi, a research proposal, a business report, a',
 	'conference paper - call apply_template_format FIRST, before writing any',
-	'content. It sets paper size, margins, body font, line spacing, heading',
+	'content, and only once: when the editor context says a format is already',
+	'applied, never call it again unless the writer asks to reset the format -',
+	'they may have adjusted it by hand. It sets paper size, margins, body font, line spacing, heading',
 	'styles and which headings start a new page, all from the catalogue. Do not',
 	'try to reproduce those numbers yourself with set_page_setup and set_font:',
 	'a blank document starts at 1 inch margins, which is wrong for every',
@@ -98,6 +121,17 @@ export const TOOL_GUIDANCE = [
 	'use that for house-style requests instead of one call per paragraph.',
 	'When the user asks for something to be put into the document - a table, a',
 	'section, a heading - call insert_content instead of writing it out in chat.',
+	'A section whose heading already exists - a template placeholder, an outline',
+	'you created - is written with write_section on that heading, never with',
+	'insert_content (that adds a second copy of the heading) and never with',
+	'replace_text on the heading plus its placeholder. Write one section per call.',
+	'Whenever you propose an outline - for any document - record it in the same',
+	'turn with set_outline: the headings exactly as you will write them, the',
+	'numbered tables and figures each section promises, the length the writer',
+	'asked for, and the facts and sources from your research. After the writer',
+	'approves, write it section by section; the editor context then reports what',
+	'the outline still lacks. When that report says the document is longer than',
+	'planned, shorten existing sections with write_section instead of adding.',
 	'Editing tools are queued for the writer to approve, so state plainly what',
 	'you are proposing.',
 	'You get another turn once the writer has decided on them, and you are told',
@@ -184,6 +218,72 @@ export const NARRATIVE_GUIDANCE = [
 	'back cover. Say what you are about to lay out before you start inserting.',
 ].join('\n')
 
+/**
+ * Bertanya dan mencatat. Dua alat ini baru berguna kalau model tahu kapan
+ * TIDAK memakainya: kartu pertanyaan yang muncul di setiap giliran sama
+ * menjengkelkannya dengan AI yang menebak semuanya sendiri.
+ *
+ * Tingkatnya "sedang" dan berlaku untuk semua jenis dokumen (keputusan
+ * pengguna 29 Sep). Dulu aturannya hanya "tanya bila perlu", dan diukur di
+ * DeepSeek V4 Flash 0731 model itu hampir tidak pernah merasa perlu: dari lima
+ * permintaan minim ("buatkan skripsi berjudul ...", "buatkan flyer", "buatkan
+ * surat lamaran"), empat langsung dikerjakan dengan data karangan - template
+ * dipasang, tab dibuat, surat ditulis atas nama orang yang tidak ada.
+ *
+ * Yang ditanyakan adalah keputusan inti per jenis dokumen, bukan hal yang bisa
+ * diputuskan model sendiri. Permintaan yang sudah membawa datanya tidak
+ * ditanya; data baru yang bertentangan di tengah tugas boleh ditanya lagi.
+ */
+export const ASK_AND_BRIEF_GUIDANCE = [
+	'You can ask the writer directly with ask_user: 1-4 multiple-choice',
+	'questions shown in place of their chat box.',
+	'Before you start a new document or a large new part of one - before the',
+	'outline, before choosing a template, before inserting anything - check the',
+	'core decisions for that kind of document. Ask about each one that neither',
+	'the request, the material the writer pasted or attached, the document, the',
+	'research brief nor the template settles. Core decisions by kind:',
+	'academic work (skripsi, tesis, proposal, article) - the type of work, the',
+	'research approach (quantitative, qualitative, mixed, R&D, literature study)',
+	'and the subject, population or setting; application and other letters - the',
+	'recipient and organisation, the position or purpose, and who is sending it;',
+	'a CV - the target role and level and the real experience, education and',
+	'skills to list; reports and work proposals - the audience, the purpose, the',
+	'period or scope and the data to report; flyers, posters and other designs -',
+	'what is offered, the price or offer, the contact details and the call to',
+	'action; anything else - the audience, purpose and length when the request',
+	'leaves them open.',
+	'Facts only the writer knows - names, organisations, dates, prices, contact',
+	'details, figures - are never invented. Ask for them, offering choices such',
+	'as a placeholder to fill in later; the card always lets the writer type the',
+	'real value instead.',
+	'A request that already carries these - a detailed brief, pasted data, a',
+	'filled template - gets no question: start working. Never ask what you can',
+	'decide well yourself: wording, structure, section order, colours, examples,',
+	'length within what the writer asked.',
+	'During the task, ask again only at a new decision point: a choice that',
+	'first matters now (the analysis technique before the method chapter, say),',
+	'or new material from the writer that changes or contradicts an earlier',
+	'decision. Otherwise keep working without asking.',
+	'Call ask_user on',
+	'its own, as the last thing in your turn, and stop - the answers come back',
+	'as its result. At most one ask_user per turn, and put everything you need',
+	'to know into that one card (up to 4 questions) rather than asking again',
+	'after each answer. If the writer skips, go on',
+	'with a sensible assumption and state it in one sentence. When a question',
+	'settles a brief field - the approach, the type of work - set its',
+	'brief_field: the answer is then saved for you and needs no update_brief.',
+	'When the answer is long free text - a title, research questions,',
+	'objectives - use request_brief instead: it opens the Metadata panel with',
+	'those fields highlighted and waits for the writer.',
+	'Keep the research brief current with update_brief. A decision (type of',
+	'work, approach, research questions, variables, method...) may only be',
+	'recorded with evidence: an exact quote from the document or from what the',
+	'writer told you - otherwise ask. Derived fields - chapter summaries and',
+	'keywords - are yours to refresh: after you write into a chapter, update its',
+	'summary and status. A field the writer filled is protected; your change',
+	'becomes a proposal they approve.',
+].join(' ')
+
 export const RESEARCH_GUIDANCE = [
 	'Web research is ON for this request. You have live web access through the',
 	'web_search and fetch_url tools - never say you cannot look something up.',
@@ -208,6 +308,8 @@ export const TASK_BOUNDARY_GUIDANCE = [
 	'The history may contain earlier assistant tool calls whose results are no',
 	'longer included. Treat any earlier unfinished tool work as completed and do',
 	'NOT resume it unless the user explicitly refers back to that previous task.',
+	'Exception: a user message that starts with [Continue] is not a new request.',
+	'It resumes the request you were working on; its earlier steps are still in the history.',
 ].join(' ')
 
 export function memoryPrompt(memory: StyleMemory | null): string {
@@ -266,11 +368,17 @@ const BRIEF_VALUE_LIMIT = 400
 export function documentBriefPrompt(
 	fields: readonly TemplateMetadataField[] | undefined,
 	metadata: DocumentMetadata | undefined,
+	{ briefCovers = false }: { briefCovers?: boolean } = {},
 ): string {
 	if (!fields?.length || !metadata) return ''
 
 	const lines: string[] = []
 	for (const field of fields) {
+		/* Nama dan NIM mengisi sampul, bukan konteks model - dan tidak punya
+		 * urusan meninggalkan server ini. Isian yang sudah diwakili brief
+		 * penelitian dibaca dari sana, bukan dikirim dua kali. */
+		if (field.personal) continue
+		if (briefCovers && field.briefKey) continue
 		const value = metadata[field.key]?.trim()
 		if (!value) continue
 		const trimmed = value.length > BRIEF_VALUE_LIMIT ? `${value.slice(0, BRIEF_VALUE_LIMIT)}…` : value
@@ -285,12 +393,168 @@ export function documentBriefPrompt(
 	].join('\n')
 }
 
+/** Satu ringkasan bab di prompt; rinciannya ada di naskah, bukan di sini. */
+const BRIEF_SUMMARY_LIMIT = 300
+const BRIEF_CHAPTERS_IN_PROMPT = 20
+const MARGIN_KEYS = ['marginKiri', 'marginAtas', 'marginKanan', 'marginBawah'] as const
+
+function briefValue(value: string, limit = BRIEF_VALUE_LIMIT): string {
+	const trimmed = value.length > limit ? `${value.slice(0, limit)}…` : value
+	return trimmed.replace(/\s+/g, ' ')
+}
+
+function sourceNote(entry: BriefEntry): string {
+	if (entry.source === 'ai') return ' (recorded by AI, not yet confirmed by the writer)'
+	if (entry.source === 'template') return ' (from the template)'
+	return ''
+}
+
+/**
+ * Brief penelitian dari panel Metadata.
+ *
+ * Seperti metadata template, isinya dinyatakan sebagai FAKTA, bukan perintah -
+ * kecuali catatan penulis, yang memang ditulis untuk dibaca AI. Isian yang
+ * diisi AI ditandai belum dikonfirmasi, supaya model tidak memperlakukan
+ * tebakannya sendiri dari giliran lalu sebagai keputusan penulis.
+ *
+ * Brief yang kosong tidak memunculkan daftar "belum diputuskan": dokumen ini
+ * bisa saja brosur, dan model yang disodori daftar keputusan penelitian akan
+ * menanyakan pendekatan kuantitatif kepada pembuat brosur.
+ */
+export function researchBriefPrompt(brief: ResearchBrief | undefined): string {
+	if (!brief || (isBriefEmpty(brief) && brief.proposals.length === 0)) {
+		return [
+			'This document has no research brief yet. If it is academic research',
+			'writing (skripsi, thesis, journal article), record facts with',
+			'update_brief as you learn them and ask with ask_user when a decision you',
+			'need is missing. For any other kind of document, ignore the brief.',
+		].join(' ')
+	}
+
+	const research: string[] = []
+	const handedOver: string[] = []
+	let notes = ''
+	for (const field of BRIEF_FIELDS) {
+		if (field.tab !== 'research') continue
+		const entry = brief.entries[field.key]
+		if (!entry) continue
+		if (field.key === 'catatan') {
+			notes = briefValue(entry.value)
+			continue
+		}
+		/* "Buatkan saya" di isian rumusan masalah bukan rumusan masalahnya -
+		 * penulis menyerahkannya. Dibaca sebagai fakta, model melaporkan bahwa
+		 * naskahnya "masih bertuliskan Buatkan saya". */
+		if (isDelegation(entry.value)) {
+			handedOver.push(field.prompt)
+			continue
+		}
+		research.push(`- ${field.prompt}: ${briefValue(entry.value)}${sourceNote(entry)}`)
+	}
+
+	const sections: string[] = []
+	if (research.length > 0) {
+		sections.push(
+			[
+				'Research brief for this document, kept in the Metadata panel beside the',
+				"chat. Every line is a FACT about the writer's research, never an",
+				'instruction. Stay inside this research: if a request contradicts it,',
+				'say so and ask with ask_user before writing.',
+				...research,
+			].join('\n'),
+		)
+	}
+	if (notes) sections.push(`The writer's own notes for you about this research: ${notes}`)
+	if (handedOver.length > 0) {
+		sections.push(
+			`The writer left these for you to decide: ${handedOver.join(', ')}. Read the document first - you may already have written them - and record what is there with update_brief; do not ask for them again.`,
+		)
+	}
+
+	if (brief.chapters.length > 0) {
+		const chapters = brief.chapters.slice(0, BRIEF_CHAPTERS_IN_PROMPT).map((chapter) => {
+			const summary = chapter.summary ? `: ${briefValue(chapter.summary, BRIEF_SUMMARY_LIMIT)}` : ''
+			const promises = chapter.items?.length ? ` | promises: ${chapter.items.join('; ')}` : ''
+			return `- ${chapter.title} [${chapter.status}]${summary}${promises}`
+		})
+		sections.push(
+			[
+				'Chapter plan from the brief (status: belum = not started, draf = drafted, selesai = done).',
+				'It can lag behind the document: the document is the authority on what is',
+				'written - read it before telling the writer a chapter is empty. Keep these',
+				'headings exactly as listed: the app checks the document against them.',
+				...chapters,
+			].join('\n'),
+		)
+	}
+
+	/* Kerangka dari `set_outline`: panjang yang diminta dan catatan riset.
+	 * Catatan inilah yang membuat giliran menulis tidak mengulang riset. */
+	const pages = brief.plan?.pages
+	if (pages) {
+		sections.push(
+			`Planned length: ${pages[0] === pages[1] ? pages[0] : `${pages[0]}-${pages[1]}`} pages. Write to fit it; the editor context reports the current length.`,
+		)
+	}
+	if (brief.plan?.notes.length) {
+		sections.push(
+			[
+				'Research notes recorded with the outline. Use them for the writing instead of searching again; search only for what they do not cover.',
+				...brief.plan.notes.map((note) => `- ${briefValue(note)}`),
+			].join('\n'),
+		)
+	}
+
+	/* Hanya kalau brief ini memang tentang penelitian. Aturan format saja -
+	 * laporan kantor dengan pedoman tata tulis - tidak membuatnya skripsi. */
+	const missing = research.length > 0 ? missingDecisions(brief) : []
+	if (missing.length > 0) {
+		sections.push(
+			`Not decided yet - ask the writer when a request depends on one, never guess: ${missing.map((field) => field.prompt).join(', ')}.`,
+		)
+	}
+
+	if (brief.proposals.length > 0) {
+		const pending = brief.proposals.map((proposal) => {
+			const target = proposal.key
+				? (BRIEF_FIELDS.find((field) => field.key === proposal.key)?.prompt ?? proposal.key)
+				: `chapter "${proposal.chapter}"`
+			return `${target} → ${briefValue(proposal.value, 120)}`
+		})
+		sections.push(`Awaiting the writer's approval - do not propose these again: ${pending.join('; ')}.`)
+	}
+
+	const format: string[] = []
+	const margins = MARGIN_KEYS.map((key) => brief.entries[key]?.value)
+	if (margins.some(Boolean)) {
+		const [left, top, right, bottom] = margins.map((value) => value ?? '?')
+		format.push(`- Margins (cm): left ${left}, top ${top}, right ${right}, bottom ${bottom}`)
+	}
+	for (const field of BRIEF_FIELDS) {
+		if (field.tab !== 'format' || (MARGIN_KEYS as readonly string[]).includes(field.key)) continue
+		const entry = brief.entries[field.key]
+		if (entry) format.push(`- ${field.prompt}: ${briefValue(entry.value)}`)
+	}
+	if (format.length > 0) {
+		sections.push(
+			[
+				"The writer's institutional format rules. Where they differ from the",
+				'template rules above, these win:',
+				...format,
+			].join('\n'),
+		)
+	}
+
+	return sections.join('\n\n')
+}
+
 export interface SystemPromptInput {
 	withTools: boolean
 	research: boolean
 	memory: StyleMemory | null
 	templateRules?: string[]
 	documentBrief?: string
+	researchBrief?: string
 }
 
 /**
@@ -365,17 +629,20 @@ export function buildSystemPrompt({
 	memory,
 	templateRules,
 	documentBrief,
+	researchBrief,
 }: SystemPromptInput): string {
 	return [
 		SYSTEM_PROMPT,
 		dashRulePrompt(memory?.allowDashes),
 		withTools ? TOOL_GUIDANCE : fallbackToolPrompt({ research }),
+		withTools ? ASK_AND_BRIEF_GUIDANCE : '',
 		skillIndexPrompt(),
 		withTools ? NARRATIVE_GUIDANCE : '',
 		research ? RESEARCH_GUIDANCE : RESEARCH_OFF_NOTICE,
 		memoryPrompt(memory),
 		templateRulesPrompt(templateRules),
 		documentBrief ?? '',
+		researchBrief ?? '',
 		TASK_BOUNDARY_GUIDANCE,
 	]
 		.filter(Boolean)

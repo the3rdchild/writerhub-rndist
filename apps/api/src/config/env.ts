@@ -129,7 +129,13 @@ export const env = {
 	// mode AUTH_MODE=none, yang memang tidak pernah memanggil admin-ppe.
 	AI_BASE_URL: str('AI_BASE_URL', 'https://openrouter.ai/api/v1'),
 	AI_API_KEY: str('AI_API_KEY'),
-	AI_MODEL: str('AI_MODEL', 'openai/gpt-4o-mini'),
+	AI_MODEL: str('AI_MODEL', 'deepseek/deepseek-v4-flash-0731'),
+	/**
+	 * `AI_BASE_URL` adalah proksi ke OpenRouter (mis. adapter lokal), jadi ia
+	 * juga memilih model per permintaan dan mengenal saklar `reasoning`. Tidak
+	 * perlu untuk URL openrouter.ai - yang itu dikenali dari hostnya.
+	 */
+	AI_BASE_URL_OPENROUTER: bool('AI_BASE_URL_OPENROUTER'),
 	/**
 	 * Batas waktu satu panggilan ke provider AI. Tanpa ini yang menentukan
 	 * adalah timeout bawaan runtime - batas yang tidak kita pilih, tidak sama
@@ -137,9 +143,16 @@ export const env = {
 	 *
 	 * Longgar dengan sengaja: satu giliran chat yang menulis panjang memang
 	 * bisa berjalan menit-menitan, dan memotongnya di tengah lebih buruk
-	 * daripada menunggu.
+	 * daripada menunggu. Ini batas total satu giliran; provider yang diam
+	 * diputus lebih cepat oleh `AI_IDLE_TIMEOUT_MS`.
 	 */
-	AI_REQUEST_TIMEOUT_MS: num('AI_REQUEST_TIMEOUT_MS', 120_000),
+	AI_REQUEST_TIMEOUT_MS: num('AI_REQUEST_TIMEOUT_MS', 600_000),
+	/**
+	 * Jeda terlama tanpa satu potongan pun dari provider, termasuk menunggu
+	 * header. Potongan penalaran dan komentar keep-alive ikut dihitung, jadi
+	 * model yang masih berpikir tidak diputus (lihat `chat/deadline.ts`).
+	 */
+	AI_IDLE_TIMEOUT_MS: num('AI_IDLE_TIMEOUT_MS', 90_000),
 
 	// ── Riset web (Tavily) ──────────────────────────────────────────────────
 	TAVILY_API_KEY: str('TAVILY_API_KEY'),

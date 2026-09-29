@@ -43,6 +43,7 @@ describe('registri alat editor', () => {
 			'restructure_section',
 			'insert_image',
 			'create_tab',
+			'switch_tab',
 			'rename_document',
 			'rename_tab',
 		]
@@ -93,6 +94,7 @@ describe('registri alat editor', () => {
 			insert_image: ['src'],
 			rename_document: ['title'],
 			rename_tab: ['title'],
+			switch_tab: ['tab_id'],
 		}
 
 		for (const [name, keys] of Object.entries(required)) {

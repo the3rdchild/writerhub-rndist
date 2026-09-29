@@ -1,11 +1,13 @@
 'use client'
 
-import type {
-	DocumentTypography,
-	PageNumberFormat,
-	PageNumbering,
-	Watermark,
-	WatermarkAnchor,
+import {
+	type DocumentTypography,
+	PAGE_NUMBER_POSITIONS,
+	type PageNumberFormat,
+	type PageNumbering,
+	type PageNumberPosition,
+	type Watermark,
+	type WatermarkAnchor,
 } from '@writer-hub/shared'
 import * as Y from 'yjs'
 import type { PageSetup } from '@/features/editor/page-geometry'
@@ -139,7 +141,15 @@ function readDocMeta(meta: Y.Map<Y.Map<unknown>>, id: string): DocMeta {
 
 function normalizeNumbering(raw: unknown): PageNumbering | undefined {
 	if (!raw || typeof raw !== 'object') return undefined
-	const { format, restart, show } = raw as { format?: unknown; restart?: unknown; show?: unknown }
+	const { format, restart, show, position, openingPosition } = raw as {
+		format?: unknown
+		restart?: unknown
+		show?: unknown
+		position?: unknown
+		openingPosition?: unknown
+	}
+	const placed = (value: unknown): value is PageNumberPosition =>
+		typeof value === 'string' && PAGE_NUMBER_POSITIONS.includes(value as PageNumberPosition)
 	const FORMATS: PageNumberFormat[] = ['decimal', 'lower-roman', 'upper-roman', 'lower-alpha', 'upper-alpha']
 	if (typeof format !== 'string' || !FORMATS.includes(format as PageNumberFormat)) return undefined
 	return {
@@ -155,6 +165,8 @@ function normalizeNumbering(raw: unknown): PageNumbering | undefined {
 		 * berarti tampil, dan menuliskannya hanya menambah kebisingan.
 		 */
 		...(show === false ? { show: false } : {}),
+		...(placed(position) ? { position } : {}),
+		...(placed(openingPosition) ? { openingPosition } : {}),
 	}
 }
 
@@ -573,4 +585,42 @@ export function duplicateTab(doc: Y.Doc, id: string): string | null {
 	}, LOCAL_ORIGIN)
 
 	return copyId
+}
+
+const APPLIED_FORMAT = 'appliedFormat'
+
+/**
+ * Template format yang sudah diterapkan ke dokumen lewat `apply_template_format`.
+ *
+ * Tanpa catatan ini AI menerapkannya ulang di setiap permintaan yang menyebut
+ * "skripsi" - menimpa margin dan huruf yang sudah diatur ulang penulis, dan
+ * membakar satu putaran penuh tiap kali.
+ */
+export function readAppliedFormat(doc: Y.Doc, docId: string): string | null {
+	const value = docsRoot(doc).meta.get(docId)?.get(APPLIED_FORMAT)
+	return typeof value === 'string' && value ? value : null
+}
+
+export function setAppliedFormat(doc: Y.Doc, docId: string, slug: string): void {
+	const entry = docsRoot(doc).meta.get(docId)
+	if (!entry || entry.get(APPLIED_FORMAT) === slug) return
+	doc.transact(() => entry.set(APPLIED_FORMAT, slug), LOCAL_ORIGIN)
+}
+
+/*
+ * Tab yang penomoran halaman karya ilmiahnya sudah dipasang otomatis. Seperti
+ * `appliedFormat`: pemasangan otomatis terjadi sekali, lalu penulis bebas
+ * mengubah atau membuangnya tanpa dipasang ulang di giliran AI berikutnya.
+ */
+const NUMBERING_PRESET = 'numberingPreset'
+
+export function readNumberingPreset(doc: Y.Doc, tabId: string): string | null {
+	const value = tabsRoot(doc).meta.get(tabId)?.get(NUMBERING_PRESET)
+	return typeof value === 'string' && value ? value : null
+}
+
+export function setNumberingPreset(doc: Y.Doc, tabId: string, preset: string): void {
+	const entry = tabsRoot(doc).meta.get(tabId)
+	if (!entry || entry.get(NUMBERING_PRESET) === preset) return
+	doc.transact(() => entry.set(NUMBERING_PRESET, preset), LOCAL_ORIGIN)
 }

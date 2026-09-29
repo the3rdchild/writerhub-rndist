@@ -16,6 +16,15 @@ export interface ParagraphProps {
 	numId?: number
 	numLevel?: number
 	pageBreakBefore?: boolean
+	/** Tab stop per paragraf dari `<w:tabs>`. */
+	tabStops?: TabStopRead[]
+}
+
+export interface TabStopRead {
+	/** Posisi dalam twips. */
+	pos: number
+	/** Jenis: left, right, center (lainnya dipetakan ke left). */
+	type: 'left' | 'right' | 'center'
 }
 
 export interface RunProps {
@@ -112,6 +121,22 @@ export function readParagraphProps(pPr: Element | null): ParagraphProps {
 
 	const pageBreak = onOff(child(pPr, 'pageBreakBefore'))
 	if (pageBreak !== undefined) props.pageBreakBefore = pageBreak
+
+	// Tab stop: `<w:tabs><w:tab w:val="left" w:pos="720"/></w:tabs>`
+	const tabsEl = child(pPr, 'tabs')
+	if (tabsEl) {
+		const stops: TabStopRead[] = []
+		for (const tabEl of children(tabsEl, 'tab')) {
+			const rawPos = attr(tabEl, 'pos')
+			const pos = rawPos !== undefined ? Number.parseInt(rawPos, 10) : NaN
+			if (!Number.isFinite(pos)) continue
+			const rawType = attr(tabEl, 'val') ?? 'left'
+			const type: TabStopRead['type'] =
+				rawType === 'right' ? 'right' : rawType === 'center' ? 'center' : 'left'
+			stops.push({ pos, type })
+		}
+		if (stops.length > 0) props.tabStops = stops
+	}
 
 	return props
 }

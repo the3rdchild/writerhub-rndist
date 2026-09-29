@@ -134,6 +134,8 @@ export interface SheetGeometry extends PageGeometry {
 	sectionIndex?: number
 	/** Aturan penomoran yang berlaku untuk lembar ini (sudah dievaluasi per section). */
 	pageNumbering?: PageNumbering | null
+	/** Blok pertama lembar ini judul tingkat satu: halaman pembuka bab. */
+	opensChapter?: boolean
 }
 
 export function clampMargins(

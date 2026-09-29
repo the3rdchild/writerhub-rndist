@@ -4,13 +4,15 @@ import type { ToolCall } from '@writer-hub/shared'
 import { Check, SkipForward, Wand2 } from 'lucide-react'
 import { useState } from 'react'
 import { useChat } from '@/features/chat/chat-context'
+import { needsDrawing } from '@/features/chat/diagram-target'
 import { describeToolCall } from '@/features/chat/tools'
 import { formatWordDelta } from '@/features/chat/word-delta'
 import { cn } from '@/lib/utils'
 
 export function ActionGroup({ actions, expired }: { actions: ToolCall[]; expired?: boolean }) {
-	const { applyActions, isActionSettled } = useChat()
-	const pending = actions.filter((call) => !isActionSettled(call.id))
+	const { applyActions, isActionSettled, isActionRunning } = useChat()
+	// Yang sedang berjalan bukan lagi tertunda: menerapkannya lagi berarti menggandakannya.
+	const pending = actions.filter((call) => !isActionSettled(call.id) && !isActionRunning(call.id))
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -32,7 +34,15 @@ export function ActionGroup({ actions, expired }: { actions: ToolCall[]; expired
 }
 
 export function ActionCard({ call, expired }: { call: ToolCall; expired?: boolean }) {
-	const { applyAction, skipAction, isActionApplied, isActionSettled, actionWords } = useChat()
+	const {
+		applyAction,
+		skipAction,
+		isActionApplied,
+		isActionSettled,
+		isActionRunning,
+		actionFailure,
+		actionWords,
+	} = useChat()
 	const applied = isActionApplied(call.id)
 	/*
 	 * Hanya aksi yang benar-benar menyentuh naskah yang punya angka. Atur
@@ -42,6 +52,7 @@ export function ActionCard({ call, expired }: { call: ToolCall; expired?: boolea
 	const words = actionWords(call.id)
 	const delta = words ? formatWordDelta(words) : null
 	const settled = isActionSettled(call.id)
+	const failure = actionFailure(call.id)
 	const [outcome, setOutcome] = useState<{ ok: boolean; message: string } | null>(null)
 	const [confirming, setConfirming] = useState(false)
 
@@ -50,17 +61,20 @@ export function ActionCard({ call, expired }: { call: ToolCall; expired?: boolea
 	 * tombolnya dikunci, karena aksi yang sama yang diterapkan dua kali
 	 * menghasilkan dua diagram.
 	 */
-	const [running, setRunning] = useState(false)
+	const [clicked, setClicked] = useState(false)
+	// Diterapkan dari kartu ini, dari "Apply all", atau oleh Auto-apply.
+	const running = clicked || isActionRunning(call.id)
+	const drawing = needsDrawing(call.name, call.arguments)
 
 	const onClick = () => {
 		if (expired && !confirming && !applied) {
 			setConfirming(true)
 			return
 		}
-		setRunning(true)
+		setClicked(true)
 		applyAction(call)
 			.then(setOutcome)
-			.finally(() => setRunning(false))
+			.finally(() => setClicked(false))
 	}
 
 	return (
@@ -82,6 +96,10 @@ export function ActionCard({ call, expired }: { call: ToolCall; expired?: boolea
 					{outcome.message}
 					{delta && <span className="text-faint"> · {delta}</span>}
 				</p>
+			) : failure ? (
+				<p className="text-[11px] text-yellow-400">
+					{failure.length > 240 ? `${failure.slice(0, 239)}…` : failure}
+				</p>
 			) : settled ? (
 				<p className="text-[11px] text-subtle">Skipped</p>
 			) : (
@@ -98,7 +116,15 @@ export function ActionCard({ call, expired }: { call: ToolCall; expired?: boolea
 						)}
 					>
 						<Check className="h-3.5 w-3.5" />
-						{running ? 'Menggambar…' : expired ? (confirming ? 'Confirm?' : 'Apply') : 'Apply'}
+						{running
+							? drawing
+								? 'Menggambar…'
+								: 'Menerapkan…'
+							: expired
+								? confirming
+									? 'Confirm?'
+									: 'Apply'
+								: 'Apply'}
 					</button>
 					<button
 						type="button"

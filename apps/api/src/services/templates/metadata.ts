@@ -41,6 +41,11 @@ function usableReplacements(
 		const value = metadata[field.key]?.trim()
 		if (!value || !field.placeholder) continue
 		replacements.push({ from: field.placeholder, to: value })
+		/* Sampul menulis sebagian isian dengan huruf besar ("[NAMA PENYUSUN]",
+		 * "PROGRAM STUDI [PROGRAM STUDI]"); versi kapitalnya diganti nilai yang
+		 * juga dikapitalkan, bukan dibiarkan sebagai teks contoh. */
+		const upper = field.placeholder.toUpperCase()
+		if (upper !== field.placeholder) replacements.push({ from: upper, to: value.toUpperCase() })
 	}
 
 	/*

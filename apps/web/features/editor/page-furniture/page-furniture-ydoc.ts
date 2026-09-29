@@ -91,7 +91,14 @@ export function readFurnitureContentJson(
 		const [slot, variant] = key.split(':')
 		if (!FURNITURE_SLOTS.includes(slot as FurnitureSlot)) continue
 		if (!FURNITURE_VARIANTS.includes(variant as FurnitureVariant)) continue
-		const blocks = fragmentToJSON(value)
+		/*
+		 * Fragmen halaman pertama yang kosong tetap ikut: kehadirannya sendiri
+		 * yang berarti "halaman pertama tanpa header/footer" - sampul tanpa
+		 * nomor. Dulu ia dibuang di sini, dan DOCX-nya menomori sampul yang di
+		 * layar kosong.
+		 */
+		let blocks = fragmentToJSON(value)
+		if (blocks.length === 0 && variant === 'first') blocks = [{ type: 'paragraph' }]
 		if (blocks.length === 0) continue
 		const slotMap = out[slot as FurnitureSlot] ?? {}
 		slotMap[variant as FurnitureVariant] = blocks

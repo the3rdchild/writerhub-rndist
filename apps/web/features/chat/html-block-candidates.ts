@@ -1,4 +1,5 @@
 import type { Node as PMNode } from '@tiptap/pm/model'
+import { figureOf } from './figures'
 
 /**
  * Mencari HTML yang terlanjur mendarat sebagai naskah biasa, supaya bisa
@@ -58,6 +59,10 @@ export function htmlCandidates(doc: PMNode): HtmlCandidate[] {
 
 	for (const block of blocks) {
 		if (block.node.type.name !== 'codeBlock') continue
+		// Diagram berbahasa `diagram` juga berisi `<svg>…</svg>`, tapi ia sudah
+		// tampil sebagai gambar. Menghitungnya membuat `get_outline` menyuruh
+		// model "merender" diagram jadi blok HTML - dan blok itu hilang dari DOCX.
+		if (figureOf(block.node)) continue
 		const text = block.node.textContent
 		if (!looksLikeHtml(text)) continue
 		found.push({ from: block.from, to: block.to, html: text.trim(), source: 'codeBlock' })
@@ -103,13 +108,26 @@ export function htmlCandidates(doc: PMNode): HtmlCandidate[] {
  */
 export function blockSummary(doc: PMNode): string {
 	const counts = new Map<string, number>()
+	let figures = 0
 	doc.forEach((node) => {
-		const name = node.type.name === 'htmlBlock' ? `htmlBlock (${node.attrs.fit ?? 'embed'})` : node.type.name
+		const figure = figureOf(node)
+		if (figure) figures += 1
+		const name =
+			node.type.name === 'htmlBlock'
+				? `htmlBlock (${node.attrs.fit ?? 'embed'})`
+				: figure && node.type.name === 'codeBlock'
+					? figure.kind
+					: node.type.name
 		counts.set(name, (counts.get(name) ?? 0) + 1)
 	})
 	if (counts.size === 0) return ''
 
 	const lines = [`Blocks: ${[...counts].map(([name, total]) => `${total} ${name}`).join(', ')}`]
+	if (figures > 0) {
+		lines.push(
+			'Diagrams, images and design blocks are already rendered figures. read_section shows each as one [Figure: …] line; keep that line where the figure belongs when you rewrite a section.',
+		)
+	}
 
 	const loose = htmlCandidates(doc).filter((candidate) => candidate.source !== 'codeBlock')
 	const fenced = htmlCandidates(doc).filter((candidate) => candidate.source === 'codeBlock')

@@ -107,6 +107,14 @@ function paragraphAttrs(props: ParagraphProps): Record<string, unknown> {
 	attrs.spaceBefore = twipsToPx(props.spaceBefore ?? 0)
 	attrs.spaceAfter = twipsToPx(props.spaceAfter ?? 0)
 
+	// Tab stop: pos disimpan dalam twips; kita simpan dalam pt (1 pt = 20 twips).
+	if (props.tabStops && props.tabStops.length > 0) {
+		attrs.tabStops = props.tabStops.map((s) => ({
+			posPt: Math.round(s.pos / 20),
+			type: s.type,
+		}))
+	}
+
 	return attrs
 }
 
@@ -245,7 +253,13 @@ function walkInline(
 				const comments = stack && stack.length > 0 ? stack.map((id) => `w-${id}`) : undefined
 				if (text && props.vanish) skip(context, 'teks-tersembunyi')
 				if (text && !props.vanish) {
-					builder.inline.push({ type: 'text', text, marks: marksOf(props, link, context.theme, comments) })
+					/* `<w:tab/>` menjadi node tab, bukan `\t` di teks: di editor spasi itu
+					 * dilipat, dan tab stop paragraf (surat lamaran) tidak berlaku. */
+					const marks = marksOf(props, link, context.theme, comments)
+					text.split('\t').forEach((piece, index) => {
+						if (index > 0) builder.inline.push({ type: 'tab' })
+						if (piece) builder.inline.push({ type: 'text', text: piece, marks })
+					})
 					if (stack && stack.length > 0) {
 						for (const id of stack) {
 							const quotes = context.state.commentQuotes

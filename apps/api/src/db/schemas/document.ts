@@ -1,4 +1,4 @@
-import type { DocumentMetadata, TabLayout } from '@writer-hub/shared'
+import type { DocumentMetadata, ResearchBrief, TabLayout } from '@writer-hub/shared'
 import { index, jsonb, pgTable, text, uuid, varchar } from 'drizzle-orm/pg-core'
 import { timestamps } from '@/db/utils/common-table'
 import { projects } from './project'
@@ -24,6 +24,12 @@ export const documents = pgTable(
 		 * dan itulah alasan utama metadata ini ada.
 		 */
 		metadata: jsonb('metadata').$type<DocumentMetadata>(),
+		/**
+		 * Brief penelitian - panel Metadata di samping AI Chat. Sumber utamanya
+		 * Y.Doc lokal (dokumen boleh lahir dan hidup tanpa pernah tersinkron);
+		 * salinan di sini membuatnya ikut saat dokumen dibuka di perangkat lain.
+		 */
+		brief: jsonb('brief').$type<ResearchBrief>(),
 
 		updated_at: timestamps.updatedAt,
 		created_at: timestamps.createdAt,

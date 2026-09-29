@@ -1,4 +1,4 @@
-import type { DocumentTypography } from '@writer-hub/shared'
+import { type DocumentTypography, frontMatterFields } from '@writer-hub/shared'
 import type { BuiltinTemplateDefinition } from './definition'
 
 /** Margin skripsi Indonesia: kiri 4 cm untuk jilid, sisanya 3 cm. */
@@ -42,6 +42,22 @@ const ACADEMIC_ID_TYPOGRAPHY_DOUBLE: DocumentTypography = {
 }
 
 /**
+ * Karya ilmiah pendek yang menyambung: laporan praktikum, makalah kuliah.
+ * Tipografi dasarnya sama, tetapi heading tingkat 1 tidak membuka lembar
+ * baru. Laporan praktikum punya 9-10 bagian tingkat 1; bila tiap bagiannya
+ * berhalaman sendiri, minimumnya sudah 10 halaman padahal targetnya 5-8.
+ * Model lalu mengejar target mustahil itu dengan menghapus isi - uji 28
+ * Sep, UC8: 123 `write_section` dan 47 penghapusan bagian.
+ */
+const ACADEMIC_ID_TYPOGRAPHY_CONTINUOUS: DocumentTypography = {
+	...ACADEMIC_ID_TYPOGRAPHY,
+	headings: {
+		...ACADEMIC_ID_TYPOGRAPHY.headings,
+		1: { ...ACADEMIC_ID_TYPOGRAPHY.headings?.[1], pageBreakBefore: false },
+	},
+}
+
+/**
  * Proposal TA I Capstone Design Teknik Elektro Unpad. Berbeda dari tipografi
  * akademik lain di berkas ini, angkanya **tertulis di pedomannya sendiri**:
  * "Huruf: Times New Roman, Spasi: Double, Spacing Before 0 pt After 0 pt,
@@ -68,15 +84,7 @@ export const ACADEMIC_ID_TEMPLATES: BuiltinTemplateDefinition[] = [
 		category: 'academic_id',
 		locale: 'id',
 		position: 0,
-		markdown: `# Judul Skripsi
-
-**Nama Mahasiswa** - NIM 1234567890
-Program Studi - Fakultas - Universitas
-Tahun
-
-# Halaman Pengesahan
-
-# Pernyataan Orisinalitas
+		markdown: `# Pernyataan Orisinalitas
 
 # Abstrak
 
@@ -169,25 +177,15 @@ Tahun
 				'BAB I must contain Latar Belakang, Rumusan Masalah, Tujuan Penelitian, Manfaat Penelitian, and Batasan Masalah as subsections.',
 				'The abstract is one paragraph of 150-250 words, followed by keywords.',
 			],
+			frontMatter: 'skripsi',
 			/*
-			 * Isian sampul plus dua isian yang tidak menyentuh naskah sama sekali
-			 * (`topik`, `metodologi`): keduanya ada semata supaya AI tahu skripsi
-			 * ini tentang apa sejak dokumennya masih kosong - yaitu justru saat
-			 * naskahnya belum bisa memberi tahu apa pun.
+			 * Isian sampul dan halaman pengesahan, plus dua isian yang tidak
+			 * menyentuh naskah sama sekali (`topik`, `metodologi`): keduanya ada
+			 * semata supaya AI tahu skripsi ini tentang apa sejak dokumennya masih
+			 * kosong - yaitu justru saat naskahnya belum bisa memberi tahu apa pun.
 			 */
 			metadataFields: [
-				{
-					key: 'judul',
-					label: 'Judul skripsi',
-					placeholder: 'Judul Skripsi',
-					example: 'Rancang Bangun Sistem Prediksi Kualitas Uap Panas Bumi',
-				},
-				{ key: 'nama', label: 'Nama mahasiswa', placeholder: 'Nama Mahasiswa' },
-				{ key: 'nim', label: 'NIM', placeholder: '1234567890' },
-				{ key: 'prodi', label: 'Program studi', placeholder: 'Program Studi' },
-				{ key: 'fakultas', label: 'Fakultas', placeholder: 'Fakultas' },
-				{ key: 'universitas', label: 'Universitas', placeholder: 'Universitas' },
-				{ key: 'tahun', label: 'Tahun', placeholder: 'Tahun', example: '2026' },
+				...frontMatterFields('Judul skripsi'),
 				{
 					key: 'abstrak',
 					label: 'Abstrak',
@@ -199,16 +197,19 @@ Tahun
 					key: 'kataKunci',
 					label: 'Kata kunci',
 					placeholder: 'kata kunci 1, kata kunci 2, kata kunci 3',
+					briefKey: 'kataKunci',
 				},
 				{
 					key: 'topik',
 					label: 'Bidang dan objek penelitian',
+					briefKey: 'bidang',
 					hint: 'Tidak ditulis ke naskah - hanya menjelaskan dokumen ini kepada AI.',
 					example: 'Instrumentasi pembangkit listrik tenaga panas bumi',
 				},
 				{
 					key: 'metodologi',
 					label: 'Metode yang dipakai',
+					briefKey: 'metode',
 					hint: 'Tidak ditulis ke naskah - hanya menjelaskan dokumen ini kepada AI.',
 					example: 'Kuantitatif, regresi deret waktu atas data sensor',
 				},
@@ -226,15 +227,7 @@ Tahun
 		category: 'academic_id',
 		locale: 'id',
 		position: 1,
-		markdown: `# Judul Tesis
-
-**Nama Mahasiswa** - NIM 1234567890
-Program Studi - Program Pascasarjana - Universitas
-Tahun
-
-# Halaman Pengesahan
-
-# Pernyataan Orisinalitas
+		markdown: `# Pernyataan Orisinalitas
 
 # Abstrak
 
@@ -328,6 +321,8 @@ Tahun
 				'The abstract is one paragraph of 200-300 words, followed by keywords.',
 				'Keep Kerangka Teori separate from Tinjauan Pustaka: review first, theory second.',
 			],
+			frontMatter: 'tesis',
+			metadataFields: frontMatterFields('Judul tesis'),
 			caveats: [
 				'Nomor halaman romawi (i, ii, iii) di bagian awal belum otomatis - atur manual.',
 				'Nomor halaman di daftar isi adalah potretan saat diekspor, bukan field yang bisa disegarkan Word.',
@@ -341,15 +336,7 @@ Tahun
 		category: 'academic_id',
 		locale: 'id',
 		position: 2,
-		markdown: `# Judul Disertasi
-
-**Nama Mahasiswa** - NIM 1234567890
-Program Studi - Program Pascasarjana - Universitas
-Tahun
-
-# Halaman Pengesahan
-
-# Pernyataan Orisinalitas
+		markdown: `# Pernyataan Orisinalitas
 
 # Abstrak
 
@@ -449,6 +436,8 @@ Tahun
 				'The Ringkasan Disertasi summarizes the problem, approach, and main contribution in one or two pages.',
 				'The abstract is one paragraph of 250-350 words, followed by keywords.',
 			],
+			frontMatter: 'disertasi',
+			metadataFields: frontMatterFields('Judul disertasi'),
 			caveats: [
 				'Nomor halaman romawi (i, ii, iii) di bagian awal belum otomatis - atur manual.',
 				'Nomor halaman di daftar isi adalah potretan saat diekspor, bukan field yang bisa disegarkan Word.',
@@ -462,13 +451,7 @@ Tahun
 		category: 'academic_id',
 		locale: 'id',
 		position: 3,
-		markdown: `# Judul Proposal Penelitian
-
-**Nama Peneliti** - NIM 1234567890
-Program Studi - Fakultas - Universitas
-Tahun
-
-# BAB I Pendahuluan
+		markdown: `# BAB I Pendahuluan
 
 ## Latar Belakang
 
@@ -533,6 +516,8 @@ Tahun
 				'Keep the Jadwal Penelitian as a Markdown table mapping activities to months.',
 				'Do not add chapters beyond BAB III; results chapters belong to the thesis, not the proposal.',
 			],
+			frontMatter: 'proposal',
+			metadataFields: frontMatterFields('Judul proposal'),
 		},
 	},
 	{
@@ -665,7 +650,7 @@ Tanggal Praktikum
 					pageColor: null,
 					pageless: false,
 				},
-				typography: ACADEMIC_ID_TYPOGRAPHY,
+				typography: ACADEMIC_ID_TYPOGRAPHY_CONTINUOUS,
 			},
 			format: {
 				citationStyle: 'vancouver',

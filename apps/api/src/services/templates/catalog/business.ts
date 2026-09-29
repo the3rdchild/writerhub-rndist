@@ -10,9 +10,6 @@ const MARGIN_2 = { top: 76, right: 76, bottom: 76, left: 76 }
 /** Margin seragam 3 cm untuk surat resmi. */
 const MARGIN_3 = { top: 113, right: 113, bottom: 113, left: 113 }
 
-/** Margin seragam 1,5 cm untuk CV ATS. */
-const MARGIN_1_5 = { top: 57, right: 57, bottom: 57, left: 57 }
-
 const ARIAL_11 = { family: 'Arial, Helvetica, sans-serif', sizePt: 11 }
 
 /**
@@ -46,6 +43,64 @@ const BUSINESS_REPORT_TYPOGRAPHY: DocumentTypography = {
 	headings: {
 		...BUSINESS_TYPOGRAPHY.headings,
 		1: { ...BUSINESS_TYPOGRAPHY.headings?.[1], pageBreakBefore: true },
+	},
+}
+
+/** Margin 2,54 cm untuk CV dan surat. */
+const MARGIN_2_54 = { top: 96, right: 96, bottom: 96, left: 96 }
+
+/**
+ * Tipografi CV ATS: Arial 11 pt, spasi 1,15, tanpa jarak antarparagraf.
+ * H1 tengah 16 pt; H2 14 pt tebal dengan garis bawah; H3 12 pt tebal.
+ */
+const CV_ATS_TYPOGRAPHY: DocumentTypography = {
+	baseFont: ARIAL_11,
+	lineHeight: 1.15,
+	paragraph: { spaceBeforePt: 0, spaceAfterPt: 0 },
+	headings: {
+		1: { sizePt: 16, bold: true, align: 'center', spaceBeforePt: 0, spaceAfterPt: 4 },
+		2: {
+			sizePt: 14,
+			bold: true,
+			spaceBeforePt: 12,
+			spaceAfterPt: 4,
+			borderBottom: { widthPt: 0.75, color: '#000000' },
+		},
+		3: { sizePt: 12, bold: true, spaceBeforePt: 8, spaceAfterPt: 2 },
+	},
+}
+
+/** Times New Roman 12 pt untuk surat lamaran. */
+const TIMES_12 = { family: '"Times New Roman", Times, serif', sizePt: 12 }
+
+/**
+ * Tipografi surat lamaran: TNR 12 pt, rata kiri-kanan, spasi 1,15, tanpa jarak
+ * antarparagraf. Tanpa heading yang tercetak — semua isi paragraf biasa.
+ */
+const SURAT_LAMARAN_TYPOGRAPHY: DocumentTypography = {
+	baseFont: TIMES_12,
+	lineHeight: 1.15,
+	/* Satu baris kosong antarblok, seperti contoh PLN. Baris di dalam blok
+	 * (tujuan surat, data pelamar, tanda tangan) dipisah pindah baris, bukan
+	 * paragraf, jadi jarak ini tidak merenggangkannya. */
+	paragraph: { align: 'justify', spaceBeforePt: 0, spaceAfterPt: 12 },
+}
+
+/** Margin kiri 3 cm, sisi lain 2,5 cm untuk laporan kajian kebijakan. */
+const MARGIN_KAJIAN = { top: 94, right: 94, bottom: 94, left: 113 }
+
+/**
+ * Tipografi laporan kajian kebijakan: TNR 12 pt, spasi 1,5, rata kiri-kanan.
+ * Heading 1 membuka halaman baru.
+ */
+const KAJIAN_TYPOGRAPHY: DocumentTypography = {
+	baseFont: TIMES_12,
+	lineHeight: 1.5,
+	paragraph: { align: 'justify', spaceBeforePt: 0, spaceAfterPt: 6 },
+	headings: {
+		1: { sizePt: 14, bold: true, align: 'center', spaceBeforePt: 0, spaceAfterPt: 6, pageBreakBefore: true },
+		2: { sizePt: 12, bold: true, spaceBeforePt: 12, spaceAfterPt: 4 },
+		3: { sizePt: 12, bold: true, italic: true, spaceBeforePt: 8, spaceAfterPt: 3 },
 	},
 }
 
@@ -420,102 +475,145 @@ Jabatan
 	{
 		slug: 'surat-lamaran-kerja',
 		name: 'Surat Lamaran Kerja',
-		description: 'Surat lamaran dengan data pelamar, isi, dan daftar lampiran berkas.',
+		description: 'Surat lamaran formal dengan blok data berurut, tab stop, dan daftar lampiran.',
 		category: 'business',
 		locale: 'id',
 		position: 6,
-		markdown: `# Surat Lamaran Kerja
+		/*
+		 * Baris yang diakhiri \\ disambung dengan pindah baris (markdown-doc.ts):
+		 * tiap blok surat satu paragraf. Tab stop 144 pt (empat tab bawaan, seperti
+		 * contoh PLN) muat untuk label terpanjang, "Tempat, Tanggal Lahir".
+		 */
+		markdown: `{:align=right}
+[Kota], [Tanggal Bulan Tahun]
 
-**Nama:** 
-**Tempat, Tanggal Lahir:** 
-**Alamat:** 
-**Telepon:** 
-**Email:** 
+Kepada Yth.\\
+[Jabatan Penerima]\\
+[Nama Perusahaan]\\
+[Alamat Perusahaan]
 
-Kepada Yth.
-Bapak/Ibu Pimpinan HRD
-Nama Perusahaan
-Alamat
+Hal: Lamaran Pekerjaan [Posisi]
 
 Dengan hormat,
 
-*Sampaikan posisi yang dilamar, alasan melamar, dan ringkasan pengalaman yang relevan.*
+Saya yang bertanda tangan di bawah ini:
 
-## Lampiran Berkas
+{:tabs=144pt:left}
+Nama\t: [Nama Lengkap]\\
+Tempat, Tanggal Lahir\t: [Tempat], [Tanggal Lahir]\\
+Alamat\t: [Alamat Lengkap]\\
+No. HP\t: [Nomor HP]\\
+Email\t: [Alamat Email]\\
+Pendidikan Terakhir\t: [Pendidikan Terakhir]
 
-1. Daftar Riwayat Hidup
-2. Ijazah dan transkrip nilai
-3. Sertifikat pendukung
+Saya bermaksud melamar posisi [Posisi] di [Nama Perusahaan]. [Alasan singkat mengapa tertarik dengan posisi tersebut dan ringkasan kualifikasi yang relevan.]
 
-Hormat saya,
+Bersama surat ini saya melampirkan:
 
-**Nama Lengkap**
+1. Daftar Riwayat Hidup (CV)
+2. Fotokopi KTP
+3. Fotokopi Ijazah dan Transkrip Nilai yang Dilegalisasi
+4. Pas Foto 3x4 (2 lembar)
+5. [Dokumen pendukung lain]
+
+Demikian surat lamaran ini saya buat dengan sebenar-benarnya. Atas perhatian Bapak/Ibu, saya ucapkan terima kasih.
+
+Hormat saya,\\
+\\
+\\
+\\
+**[Nama Lengkap]**
 `,
 		spec: {
 			layout: {
 				pageSetup: {
 					size: 'a4',
 					orientation: 'portrait',
-					margins: MARGIN_2_5,
+					margins: MARGIN_2_54,
 					pageColor: null,
 					pageless: false,
 				},
-				typography: BUSINESS_TYPOGRAPHY,
+				typography: SURAT_LAMARAN_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
 				headingScheme: 'plain',
 				language: 'id',
 			},
-			structure: [
-				{ heading: 'Surat Lamaran Kerja', level: 1, required: true },
-				{ heading: 'Lampiran Berkas', level: 2, required: true },
-			],
+			structure: [],
 			aiRules: [
 				'This document is an Indonesian job application letter (surat lamaran kerja).',
 				'Write in formal, courteous Indonesian (bahasa baku); keep it to one page.',
-				'The body states the applied position, the reason for applying, and a brief experience summary.',
-				'Keep the applicant data block at the top and the attachment list numbered.',
+				'Do not add any heading or title — this letter has no printed headings.',
+				"Fill every placeholder in square brackets using replace_text with the writer's real details; ask with ask_user for any the request does not give, and keep a placeholder only when the writer chooses to fill it in later.",
+				'The recipient block, the applicant data block and the signature are each one paragraph with line breaks; replace only the bracketed text and keep the breaks and tabs.',
+				'The applicant data block uses tab stops to align colons; keep them aligned.',
+				'The attachment list is numbered and must include all five items.',
 			],
 		},
 	},
 	{
 		slug: 'cv-ats',
 		name: 'CV / Resume (ATS)',
-		description: 'CV satu kolom ramah ATS: ringkasan, pengalaman, pendidikan, keahlian.',
+		description: 'CV satu kolom ramah ATS dengan garis bawah judul bagian dan entri pengalaman.',
 		category: 'business',
 		locale: 'id',
 		position: 7,
-		markdown: `# Nama Lengkap
+		markdown: `# [Nama Lengkap]
 
-Alamat | Telepon | Email | LinkedIn
+{:align=center}
+[Posisi yang Dilamar]
 
-## Ringkasan
+{:align=center}
+[Kota] | [Nomor HP] | [Email] | [LinkedIn]
 
-## Pengalaman Kerja
+## RINGKASAN
 
-**Jabatan** - Nama Perusahaan (Tahun - Tahun)
+[Ringkasan profil profesional singkat dalam 2-3 kalimat.]
 
-- Pencapaian atau tanggung jawab utama
+## PENGALAMAN KERJA
 
-## Pendidikan
+### [Nama Perusahaan] – [Kota]
 
-**Gelar** - Nama Institusi (Tahun - Tahun)
+{:align=right}
+([Bulan Tahun]–[Bulan Tahun/sekarang])
 
-## Keahlian
+**[Jabatan] ([Status Kerja])**
 
-## Sertifikasi
+- [Pencapaian atau tanggung jawab utama]
+- [Pencapaian atau tanggung jawab utama]
+
+## PENDIDIKAN
+
+**[Nama Institusi]**
+
+{:align=right}
+([Tahun]–[Tahun])
+
+[Program Studi] – IPK [x]
+
+## KEAHLIAN
+
+**Hard Skills**
+[Keahlian teknis], [Keahlian teknis], [Keahlian teknis]
+
+**Soft Skills**
+[Keahlian non-teknis], [Keahlian non-teknis], [Keahlian non-teknis]
+
+## SERTIFIKASI
+
+- [Nama Sertifikasi] – [Penerbit], [Tahun]
 `,
 		spec: {
 			layout: {
 				pageSetup: {
 					size: 'a4',
 					orientation: 'portrait',
-					margins: MARGIN_1_5,
+					margins: MARGIN_2_54,
 					pageColor: null,
 					pageless: false,
 				},
-				typography: BUSINESS_TYPOGRAPHY,
+				typography: CV_ATS_TYPOGRAPHY,
 			},
 			format: {
 				citationStyle: 'none',
@@ -523,18 +621,21 @@ Alamat | Telepon | Email | LinkedIn
 				language: 'id',
 			},
 			structure: [
-				{ heading: 'Nama Lengkap', level: 1, required: true, hint: 'Dengan baris kontak' },
-				{ heading: 'Ringkasan', level: 2, required: true },
-				{ heading: 'Pengalaman Kerja', level: 2, required: true },
-				{ heading: 'Pendidikan', level: 2, required: true },
-				{ heading: 'Keahlian', level: 2, required: true },
-				{ heading: 'Sertifikasi', level: 2, required: false },
+				{ heading: '[Nama Lengkap]', level: 1, required: true, hint: 'Replace with applicant name' },
+				{ heading: 'RINGKASAN', level: 2, required: true },
+				{ heading: 'PENGALAMAN KERJA', level: 2, required: true },
+				{ heading: 'PENDIDIKAN', level: 2, required: true },
+				{ heading: 'KEAHLIAN', level: 2, required: true },
+				{ heading: 'SERTIFIKASI', level: 2, required: false },
 			],
 			aiRules: [
 				'This document is an Indonesian ATS-friendly CV: one column, no tables, no graphics.',
+				"Fill every placeholder in square brackets with the writer's real details; ask with ask_user for any the request does not give, and keep a placeholder only when the writer chooses to fill it in later.",
+				'The H1 heading "[Nama Lengkap]" is a placeholder — replace it with the actual name using new_heading.',
 				'Write achievement-oriented bullet points starting with action verbs.',
 				'Keep reverse-chronological order: newest experience and education first.',
-				'Use standard section names; ATS parsers look for them.',
+				'Use UPPERCASE section names (RINGKASAN, PENGALAMAN KERJA, etc.) as they are standard for ATS parsers.',
+				'To start the cover letter in a second tab, use create_tab with template: "surat-lamaran-kerja".',
 			],
 			caveats: ['Sengaja satu kolom tanpa tabel atau grafis agar terbaca sistem ATS.'],
 		},
@@ -665,6 +766,119 @@ Alamat | Telepon | Email | LinkedIn
 				'Write persuasively but back every claim with a number or an assumption.',
 				'Keep Masalah dan Solusi paired: each stated problem has its solution beside it.',
 				'Proyeksi Keuangan states assumptions explicitly, not just totals.',
+			],
+		},
+	},
+	{
+		slug: 'laporan-kajian-kebijakan',
+		name: 'Laporan Kajian Kebijakan',
+		description: 'Laporan kajian kebijakan formal: ringkasan eksekutif, analisis, rekomendasi.',
+		category: 'business',
+		locale: 'id',
+		position: 10,
+		markdown: `{:align=center}
+# [Judul Kajian Kebijakan]
+
+{:align=center}
+[Instansi/Penyusun]
+
+{:align=center}
+[Kota], [Tahun]
+
+# Ringkasan Eksekutif
+
+# Daftar Isi
+
+# BAB I Pendahuluan
+
+## Latar Belakang
+
+## Rumusan Masalah
+
+## Tujuan Kajian
+
+## Ruang Lingkup
+
+## Metodologi dan Sumber Data
+
+# BAB II Gambaran Kebijakan
+
+## Dasar Hukum dan Kelembagaan
+
+## Tujuan dan Sasaran
+
+## Anggaran
+
+## Jangkauan dan Pelaksanaan
+
+# BAB III Analisis
+
+## Temuan di Lapangan
+
+## Analisis Alternatif Kebijakan
+
+## Analisis Risiko
+
+# BAB IV Rekomendasi
+
+# BAB V Kesimpulan
+
+# Daftar Pustaka
+
+# Lampiran
+`,
+		spec: {
+			layout: {
+				pageSetup: {
+					size: 'a4',
+					orientation: 'portrait',
+					margins: MARGIN_KAJIAN,
+					pageColor: null,
+					pageless: false,
+				},
+				typography: KAJIAN_TYPOGRAPHY,
+			},
+			format: {
+				citationStyle: 'apa7',
+				headingScheme: 'plain',
+				language: 'id',
+			},
+			structure: [
+				{ heading: '[Judul Kajian Kebijakan]', level: 1, required: true, hint: 'Replace with actual title' },
+				{ heading: 'Ringkasan Eksekutif', level: 1, required: true },
+				{ heading: 'Daftar Isi', level: 1, required: true },
+				{ heading: 'BAB I Pendahuluan', level: 1, required: true },
+				{ heading: 'Latar Belakang', level: 2, required: true },
+				{ heading: 'Rumusan Masalah', level: 2, required: true },
+				{ heading: 'Tujuan Kajian', level: 2, required: true },
+				{ heading: 'Ruang Lingkup', level: 2, required: true },
+				{ heading: 'Metodologi dan Sumber Data', level: 2, required: true },
+				{ heading: 'BAB II Gambaran Kebijakan', level: 1, required: true },
+				{ heading: 'Dasar Hukum dan Kelembagaan', level: 2, required: true },
+				{ heading: 'Tujuan dan Sasaran', level: 2, required: true },
+				{ heading: 'Anggaran', level: 2, required: true },
+				{ heading: 'Jangkauan dan Pelaksanaan', level: 2, required: true },
+				{ heading: 'BAB III Analisis', level: 1, required: true },
+				{ heading: 'Temuan di Lapangan', level: 2, required: true },
+				{ heading: 'Analisis Alternatif Kebijakan', level: 2, required: true },
+				{ heading: 'Analisis Risiko', level: 2, required: true },
+				{ heading: 'BAB IV Rekomendasi', level: 1, required: true },
+				{ heading: 'BAB V Kesimpulan', level: 1, required: true },
+				{ heading: 'Daftar Pustaka', level: 1, required: true },
+				{ heading: 'Lampiran', level: 1, required: false },
+			],
+			aiRules: [
+				'This document is an Indonesian policy analysis report (laporan kajian kebijakan).',
+				"Fill every placeholder in square brackets with the writer's real details; ask with ask_user for any the request does not give, and keep a placeholder only when the writer chooses to fill it in later.",
+				'Every fact and figure must have a source.',
+				'Daftar Pustaka uses APA 7th edition format.',
+				'Tables and figures must be numbered, titled, and sourced (e.g., Tabel 1, Gambar 1).',
+				'Recommendations in BAB IV must follow the evidence presented in BAB III.',
+				'Present pro and contra arguments in a balanced manner.',
+				'Each BAB (chapter) starts on a new page.',
+			],
+			caveats: [
+				'Acuan yang diberikan adalah salinan bab buku ajar, bukan template resmi. Struktur mengikuti format kajian kebijakan yang lazim di Indonesia.',
 			],
 		},
 	},

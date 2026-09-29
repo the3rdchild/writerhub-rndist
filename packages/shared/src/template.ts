@@ -4,6 +4,8 @@
  * prompt.
  */
 
+import type { BriefKey } from './brief'
+import type { WorkKind } from './front-matter'
 import type { PageFurniture, PageSetup } from './layout'
 import type { DocumentTypography } from './typography'
 
@@ -50,6 +52,18 @@ export interface TemplateMetadataField {
 	hint?: string
 	/** Contoh nilai, ditampilkan sebagai placeholder kolom isian. */
 	example?: string
+	/**
+	 * Data pribadi penulis - nama, NIM. Mengisi sampul, tapi tidak pernah
+	 * dikirim ke provider AI: ia tidak membantu model tetap di jalur
+	 * penelitiannya, dan tidak ada alasan membawanya keluar dari sini.
+	 */
+	personal?: boolean
+	/**
+	 * Isian brief penelitian yang mewakili isian ini sesudah dokumen lahir.
+	 * Nilainya menyemai brief sekali, lalu brief-lah yang dibaca AI dan
+	 * disunting di panel Metadata - bukan dua salinan yang bisa berselisih.
+	 */
+	briefKey?: BriefKey
 }
 
 /**
@@ -93,6 +107,12 @@ export interface TemplateSpec {
 	 * menampilkan tombol metadata sama sekali.
 	 */
 	metadataFields?: TemplateMetadataField[]
+	/**
+	 * Karya akademik yang membuka dengan halaman sampul dan halaman pengesahan
+	 * baku (`front-matter.ts`). Kompilasi template menaruh keduanya di depan
+	 * kerangka, dan alat `insert_template_part` memakai bentuk yang sama.
+	 */
+	frontMatter?: WorkKind
 	/** Catatan jujur untuk kartu galeri: bagian format yang belum otomatis. */
 	caveats?: string[]
 }

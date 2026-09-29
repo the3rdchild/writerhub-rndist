@@ -12,6 +12,7 @@ export function contextMessage(context: ChatContext | undefined): ChatMessage | 
 	const parts: string[] = []
 	if (context.title) parts.push(`Document title: ${context.title}`)
 	if (context.page) parts.push(`Page: ${context.page}`)
+	if (context.outline) parts.push(`Outline check: ${context.outline}`)
 	if (context.document) {
 		parts.push(`Document content (outline + opening, or full text if requested):\n${context.document}`)
 	} else if (context.surrounding) parts.push(`Surrounding text:\n${context.surrounding}`)
