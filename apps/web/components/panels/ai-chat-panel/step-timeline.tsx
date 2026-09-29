@@ -80,7 +80,8 @@ export function StepTimeline({ steps, live }: { steps: ChatStep[]; live?: boolea
 	useEffect(
 		function followLatestStep() {
 			const element = scrollRef.current
-			if (live && element && followingRef.current) element.scrollTop = element.scrollHeight
+			if (!live || !element || !followingRef.current || steps.length === 0) return
+			element.scrollTop = element.scrollHeight
 		},
 		[live, steps],
 	)
