@@ -545,7 +545,7 @@ Hormat saya,\\
 				'This document is an Indonesian job application letter (surat lamaran kerja).',
 				'Write in formal, courteous Indonesian (bahasa baku); keep it to one page.',
 				'Do not add any heading or title — this letter has no printed headings.',
-				'Fill every placeholder in square brackets using replace_text; do not leave any.',
+				"Fill every placeholder in square brackets using replace_text with the writer's real details; ask with ask_user for any the request does not give, and keep a placeholder only when the writer chooses to fill it in later.",
 				'The recipient block, the applicant data block and the signature are each one paragraph with line breaks; replace only the bracketed text and keep the breaks and tabs.',
 				'The applicant data block uses tab stops to align colons; keep them aligned.',
 				'The attachment list is numbered and must include all five items.',
@@ -630,7 +630,7 @@ Hormat saya,\\
 			],
 			aiRules: [
 				'This document is an Indonesian ATS-friendly CV: one column, no tables, no graphics.',
-				'Fill every placeholder in square brackets; do not leave any unfilled.',
+				"Fill every placeholder in square brackets with the writer's real details; ask with ask_user for any the request does not give, and keep a placeholder only when the writer chooses to fill it in later.",
 				'The H1 heading "[Nama Lengkap]" is a placeholder — replace it with the actual name using new_heading.',
 				'Write achievement-oriented bullet points starting with action verbs.',
 				'Keep reverse-chronological order: newest experience and education first.',
@@ -869,7 +869,7 @@ Hormat saya,\\
 			],
 			aiRules: [
 				'This document is an Indonesian policy analysis report (laporan kajian kebijakan).',
-				'Fill every placeholder in square brackets; do not leave any unfilled.',
+				"Fill every placeholder in square brackets with the writer's real details; ask with ask_user for any the request does not give, and keep a placeholder only when the writer chooses to fill it in later.",
 				'Every fact and figure must have a source.',
 				'Daftar Pustaka uses APA 7th edition format.',
 				'Tables and figures must be numbered, titled, and sourced (e.g., Tabel 1, Gambar 1).',

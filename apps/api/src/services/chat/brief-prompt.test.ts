@@ -114,6 +114,25 @@ test('panduan bertanya hanya ikut saat alat aktif', () => {
 	expect(buildSystemPrompt({ ...base, withTools: false })).not.toContain(ASK_AND_BRIEF_GUIDANCE)
 })
 
+describe('kebijakan bertanya tingkat sedang', () => {
+	test('keputusan inti disebut untuk setiap jenis dokumen, bukan hanya karya akademik', () => {
+		for (const kind of ['academic work', 'letters', 'a CV', 'reports', 'flyers', 'anything else']) {
+			expect(ASK_AND_BRIEF_GUIDANCE).toContain(kind)
+		}
+	})
+
+	test('fakta milik penulis ditanyakan, tidak dikarang', () => {
+		expect(ASK_AND_BRIEF_GUIDANCE).toContain('Facts only the writer knows')
+		expect(ASK_AND_BRIEF_GUIDANCE).toContain('are never invented')
+	})
+
+	test('permintaan yang sudah lengkap tidak ditanya; data baru boleh ditanya lagi', () => {
+		expect(ASK_AND_BRIEF_GUIDANCE).toContain('gets no question: start working')
+		expect(ASK_AND_BRIEF_GUIDANCE).toContain('ask again only at a new decision point')
+		expect(ASK_AND_BRIEF_GUIDANCE).toContain('changes or contradicts an earlier')
+	})
+})
+
 test('isian berisi "Buatkan saya" bukan fakta, melainkan diserahkan ke AI', () => {
 	const prompt = researchBriefPrompt({
 		...EMPTY_BRIEF,
