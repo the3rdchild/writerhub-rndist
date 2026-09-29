@@ -72,6 +72,11 @@ export function StepTimeline({ steps, live }: { steps: ChatStep[]; live?: boolea
 		},
 		[live],
 	)
+	useEffect(function startAtLatestStep() {
+		// Yang terbaru di bawah; langkah sebelumnya dibaca dengan menggulir ke atas.
+		const element = scrollRef.current
+		if (element) element.scrollTop = element.scrollHeight
+	}, [])
 	useEffect(
 		function followLatestStep() {
 			const element = scrollRef.current
