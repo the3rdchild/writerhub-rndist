@@ -2,6 +2,7 @@
 import { Ban, Check, Loader2, TriangleAlert } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ChatStep } from '@/features/chat/chat-context'
+import { nextThinkingWord, THINKING_LABEL, THINKING_WORD_INTERVAL_MS } from '@/features/chat/thinking-words'
 import { cn } from '@/lib/utils'
 import { ResearchSourcesCard } from '../research-sources-card'
 
@@ -33,6 +34,19 @@ export function StepIcon({ status }: { status: ChatStep['status'] }) {
 	}
 }
 
+/** Pengganti "Berpikir…" yang berganti acak selama langkahnya berjalan. */
+function ThinkingWord() {
+	const [word, setWord] = useState(() => nextThinkingWord())
+	useEffect(function rotateThinkingWord() {
+		const timer = setInterval(
+			() => setWord((current) => nextThinkingWord(current)),
+			THINKING_WORD_INTERVAL_MS,
+		)
+		return () => clearInterval(timer)
+	}, [])
+	return <>{word}</>
+}
+
 export function StepTimeline({ steps, live }: { steps: ChatStep[]; live?: boolean }) {
 	const [open, setOpen] = useState<string | null>(null)
 	const [now, setNow] = useState(() => Date.now())
@@ -61,7 +75,11 @@ export function StepTimeline({ steps, live }: { steps: ChatStep[]; live?: boolea
 								step.status === 'running' ? 'text-foreground' : 'text-muted',
 							)}
 						>
-							{step.label}
+							{live && step.status === 'running' && step.label === THINKING_LABEL ? (
+								<ThinkingWord />
+							) : (
+								step.label
+							)}
 						</span>
 						<span className="shrink-0 text-[10px] tabular-nums text-faint">{formatDuration(step, now)}</span>
 					</button>

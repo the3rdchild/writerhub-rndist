@@ -139,6 +139,7 @@ import {
 	type TurnPart,
 	visibleParts,
 } from './turn-parts'
+import { THINKING_LABEL } from './thinking-words'
 import { formatWordDelta, sumWordDeltas, type WordDelta, wordDelta } from './word-delta'
 
 export type { ChatStep, TurnPart } from './turn-parts'
@@ -239,7 +240,7 @@ const BROKEN_ARGS_RESULT =
 
 const PHASE_LABEL: Record<ChatStreamPhase, string> = {
 	connecting: 'Menghubungi provider…',
-	thinking: 'Berpikir…',
+	thinking: THINKING_LABEL,
 	reading: 'Menyiapkan pembacaan dokumen…',
 	writing: 'Menyusun jawaban…',
 	retrying: 'Mencoba ulang tanpa tool calling…',
