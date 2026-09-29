@@ -820,7 +820,7 @@ export function describeToolCall(call: ToolCall): string {
 			return `Start a new section${parts.length > 0 ? ` - ${parts.join(', ')}` : ''}`
 		}
 		case 'insert_toc': {
-			const kind = call.arguments.list_kind
+			const kind = tocListKind(call.arguments)
 			return kind === 'gambar'
 				? 'Insert list of figures'
 				: kind === 'tabel'
@@ -1462,7 +1462,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 
 		case 'insert_toc': {
 			const attrs = tocAttrsFromArgs(call.arguments)
-			const kind = attrs.listKind ?? 'isi'
+			const kind = tocListKind(call.arguments)
 			const placement = tocPlacement(editor, kind, cleanTitle(call.arguments.after_heading))
 			if ('error' in placement) return { ok: false, message: placement.error }
 
@@ -2042,6 +2042,23 @@ const TOC_HEADINGS: Record<TocListKind, RegExp> = {
 }
 
 /**
+ * Jenis daftar yang dimaksud satu panggilan `insert_toc`.
+ *
+ * Judul tempatnya menang atas `list_kind`. Uji 29 Sep: model menyisipkan
+ * daftar di bawah "Daftar Tabel" dan "Daftar Gambar" tanpa `list_kind`,
+ * mendapat jenis bawaan "isi", lalu ditolak sebagai daftar isi kedua - dua
+ * kali, sebelum ia menebak sendiri jenis yang benar.
+ */
+export function tocListKind(args: Record<string, unknown>): TocListKind {
+	const heading = cleanTitle(args.after_heading).replace(/\s+/g, ' ').trim()
+	if (heading) {
+		for (const kind of ['gambar', 'tabel', 'isi'] as const) if (TOC_HEADINGS[kind].test(heading)) return kind
+	}
+	const given = args.list_kind ?? args.listKind
+	return given === 'gambar' || given === 'tabel' ? given : 'isi'
+}
+
+/**
  * Tempat daftar isi: tepat di bawah judulnya ("Daftar Isi"), bukan di kursor.
  *
  * Model menulis naskah panjang dalam beberapa gelombang dan baru ingat daftar
@@ -2061,8 +2078,12 @@ function tocPlacement(
 		return !existing
 	})
 	if (existing) {
+		const other =
+			kind === 'isi'
+				? ' A list of tables or figures is a different block: call insert_toc with list_kind "tabel" or "gambar" (after_heading "Daftar Tabel" / "Daftar Gambar").'
+				: ''
 		return {
-			error: `The document already has a ${TOC_TITLE_LABEL[kind].toLowerCase()} block. Change it with set_toc_options instead of inserting another.`,
+			error: `The document already has a ${TOC_TITLE_LABEL[kind].toLowerCase()} block. Change it with set_toc_options instead of inserting another.${other}`,
 		}
 	}
 
