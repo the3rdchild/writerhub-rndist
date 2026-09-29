@@ -18,9 +18,33 @@ import {
  * keduanya sama-sama sulit diikuti.
  */
 
+/**
+ * Satu bahasa, kecuali diminta.
+ *
+ * Dulu hanya "Answer in the same language the user writes in." DeepSeek V4
+ * Flash 0731 tetap berpindah di tengah percakapan (uji 29 Sep, UC5): outline
+ * berbahasa Indonesia mulai memuat "fondo" dan "bijv.", lalu kartu pertanyaan
+ * dan balasan sesudahnya seluruhnya berbahasa Belanda; di kartu `ask_user`
+ * muncul "Multinacional", "Gun placeholder", "I have real data". Aturannya
+ * kini menyebut semua yang dibaca penulis dan kapan bahasa lain memang boleh
+ * (keputusan pengguna 29 Sep): diminta, atau dibutuhkan isinya - terjemahan,
+ * istilah, nama.
+ */
+export const LANGUAGE_RULE = [
+	'Talk to the writer - replies, questions and their options, plans, notes -',
+	'in the language they write in, Bahasa Indonesia when unsure, and keep to it',
+	'for the whole conversation: never mix in words from other languages.',
+	'In Indonesian use standard KBBI spelling - telepon, alamat, direktur,',
+	'diskon, wawancara - never look-alike words from other languages.',
+	'Write document content in the language the writer asks for or the',
+	'document already uses. Use another language only when the writer asks for',
+	'it or the content needs it: a translation shown with its source, a quoted',
+	'term, a name, an established technical term.',
+].join(' ')
+
 export const SYSTEM_PROMPT = [
 	'You are a writing assistant embedded in a document editor.',
-	'Answer in the same language the user writes in.',
+	LANGUAGE_RULE,
 	'Be concise and concrete; skip pleasantries and restating the question.',
 	'When you propose replacement text for the document, put exactly that text',
 	'in a fenced code block and nothing else inside the fence, so the editor can',
