@@ -118,6 +118,13 @@ describe('mayAutoContinue', () => {
 })
 
 describe('continueNudge', () => {
+	test('daftar tugas yang belum tuntas: kerjakan, tandai selesai, atau buang', () => {
+		const nudge = continueNudge('todos_open', [])
+		expect(nudge).toContain('task list still has steps')
+		expect(nudge).toContain('mark it completed')
+		expect(nudge).toContain('Send the updated list with plan')
+	})
+
 	test('jatah baca baru: tugas yang sama, baca seperlunya lalu menulis', () => {
 		const nudge = continueNudge('read_budget', [])
 		expect(nudge).toContain('reading budget')
