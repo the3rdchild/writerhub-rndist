@@ -207,6 +207,12 @@ Yang perlu diketahui pemanggil:
   diminta ke model - dan sengaja berhenti di 95% selama naskahnya masih mengalir. Model tidak
   tahu panjang keluarannya sendiri, jadi tidak ada angka yang lebih pasti dari itu. Kirim
   `words` supaya pembaginya adalah panjang yang memang diminta, bukan bawaan.
+- **Berkas yang diminta lewat `output` dirender sesudah naskahnya jadi.** Selama itu statusnya
+  `queued`, lalu `rendering`, sebelum kembali `ready` dengan `downloads`/`renderErrors`.
+  Selama `queued`, jawabannya membawa `queuePosition` (1 berarti berikutnya dikerjakan). Dengan
+  itu UI pemanggil bisa menampilkan "antrean ke-N" dan membedakan render yang menunggu giliran
+  dari yang macet. Halaman `/d/<documentId>` sendiri tidak menunggu render: dokumennya sudah
+  utuh begitu naskahnya tersimpan.
 - **Kegagalan selalu punya sebab yang bisa diperiksa program.** Status `failed` membawa
   `errorCode` (`provider_unreachable`, `provider_rejected`, `quota_exceeded`, `timeout`,
   `empty_response`, `save_failed`, `unknown`) di samping `error` yang bisa dibaca manusia.
