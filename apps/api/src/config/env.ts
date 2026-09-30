@@ -49,6 +49,36 @@ export const env = {
 	PP_AUTH_CHECK_URL: str('PP_AUTH_CHECK_URL'),
 	API_KEYS: str('API_KEYS'),
 	RANSEL_AI_API_KEY: str('RANSEL_AI_API_KEY'),
+	/**
+	 * Umur hasil tanya ke pp-backend per token, dalam detik: verifikasi
+	 * `/auth/check` dan paket `/users/extended-package`. Tanpa cache, setiap
+	 * permintaan WritingHub menjadi satu permintaan ke pp-backend. Pada uji
+	 * beban, pp-backend yang melambat ke 3 dtk membuat p95 WritingHub menjadi
+	 * 12 dtk. Batas atasnya juga lamanya token yang sudah dicabut masih
+	 * diterima. `0` mematikan cache.
+	 */
+	PP_AUTH_CACHE_TTL_S: num('PP_AUTH_CACHE_TTL_S', 60),
+	/**
+	 * Sesudah `PP_AUTH_CACHE_TTL_S` lewat, hasil lama masih dipakai selama
+	 * sekian detik sementara pp-backend ditanya ulang di latar. Dengan begitu
+	 * pengguna aktif tidak pernah menunggu pp-backend yang lambat. Token yang
+	 * ditolak saat ditanya ulang langsung dibuang. Jendela ini hanya berlaku
+	 * penuh saat pp-backend tidak terjangkau, dan pengguna yang sudah
+	 * terverifikasi tetap terlayani selama itu. `0` mematikannya.
+	 */
+	PP_AUTH_STALE_S: num('PP_AUTH_STALE_S', 300),
+	/**
+	 * Batas waktu satu panggilan ke pp-backend. Tanpa batas ini, pp-backend
+	 * yang menggantung membuat semua permintaan ikut menggantung. Lewat batas,
+	 * permintaannya dibalas 503.
+	 *
+	 * Sengaja cukup longgar: berkat cache, yang menunggu pp-backend hanya
+	 * permintaan pertama sebuah token dan pemeriksaan ulang di latar. Batas
+	 * yang terlalu ketat justru menolak pengguna saat pp-backend lambat tetapi
+	 * masih menjawab. Kegagalan beruntun ditangani pemutus sirkuit
+	 * (`lib/pp-backend-breaker.ts`).
+	 */
+	PP_AUTH_TIMEOUT_MS: num('PP_AUTH_TIMEOUT_MS', 5000),
 
 	// ── admin-ppe: provider LLM & kuota ─────────────────────────────────────
 	PP_EXTENDED_ADMIN_URL: str('PP_EXTENDED_ADMIN_URL'),

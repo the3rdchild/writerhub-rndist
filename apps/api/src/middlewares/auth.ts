@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import { createMiddleware } from 'hono/factory'
 import { env, isLocalAuth } from '@/config/env'
 import { verifyPpBearerToken } from '@/lib/pp-auth'
+import { getPpUserIdFromToken } from '@/lib/pp-backend-client'
 
 const PP_TIMESTAMP_SKEW_MS = 5 * 60 * 1000
 const API_KEY = env.API_KEYS?.trim()
@@ -63,13 +64,22 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 		}
 
 		const authHeader = c.req.header('authorization') ?? ''
-		await verifyPpBearerToken(authHeader)
-		const ppUserId = c.req.header('x-pp-user-id')?.trim()
+		// `x-pp-user-id` dikirim backend PPE yang memanggil langsung (misalnya
+		// serah-terima draf). Proxy apps/web tidak mengirimnya, jadi untuk
+		// permintaan dari browser identitasnya diambil dari paket pemilik
+		// token. Pencarian itu berjalan bersamaan dengan verifikasi supaya
+		// cache yang masih kosong tidak menambah dua hop berurutan.
+		const headerUserId = c.req.header('x-pp-user-id')?.trim()
+		const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
+		const [token, ppUserId] = await Promise.all([
+			verifyPpBearerToken(authHeader),
+			headerUserId ? Promise.resolve(headerUserId) : getPpUserIdFromToken(bearer),
+		])
 		if (ppUserId) {
 			c.set('userId', ppUserId)
 			c.set('identityOrigin', 'ppe')
 		}
-		if (authHeader.startsWith('Bearer ')) c.set('bearerToken', authHeader.slice(7).trim())
+		c.set('bearerToken', token)
 	} else if (client === 'ransel-ai') {
 		if (!ranselAiApiKey) {
 			return fail('Authentication required', ['Please provide your API key to continue.'], 401)

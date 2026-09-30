@@ -153,6 +153,18 @@ mengubah env, tanpa menulis ulang apa pun.
 `apps/api` melindungi endpoint dengan tanda tangan HMAC (`x-pp-api-key` = HMAC-SHA256 atas
 timestamp memakai `PP_API_KEY`) plus verifikasi bearer token user ke pp-extended.
 
+Pemilik data ditentukan oleh `x-pp-user-id` bila pemanggil mengirimnya (backend PPE). Bila tidak,
+misalnya permintaan dari browser lewat proxy `apps/web`, pemiliknya adalah `user_id` dari
+`/users/extended-package` untuk token tersebut.
+
+Hasil `/auth/check` dan paket per token disimpan di memori selama `PP_AUTH_CACHE_TTL_S` (bawaan
+60 dtk). Setelah itu hasil lama masih melayani sementara pp-backend ditanya ulang di latar, jadi
+pengguna aktif tidak pernah menunggu pp-backend. Token yang dicabut ditolak begitu jawaban ulang
+itu tiba. Selama pp-backend tidak terjangkau, pengguna yang sudah terverifikasi tetap dilayani
+paling lama `PP_AUTH_STALE_S` (bawaan 300 dtk). Panggilan ke pp-backend diputus setelah
+`PP_AUTH_TIMEOUT_MS` (bawaan 5 dtk) dan dibalas 503. Sesudah 5 kegagalan beruntun, pp-backend
+dilewati selama 10 dtk supaya permintaan yang menunggunya tidak menumpuk.
+
 Secret itu **tidak boleh sampai ke browser**. Karena itu `apps/web` tidak pernah memanggil
 `apps/api` secara langsung: browser memanggil route handler same-origin di `/api/*`, dan route
 itulah yang menandatangani serta meneruskan permintaan
