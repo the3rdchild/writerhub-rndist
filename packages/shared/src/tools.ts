@@ -136,14 +136,21 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'plan',
 		kind: 'read',
 		description:
-			'Write down a step-by-step plan before a multi-step task. The plan is shown to the user in the progress timeline and its steps get checked off as you complete them.',
+			'Your task list, shown to the writer as a Todos panel above the chat box. For any task of three or more steps - writing a document or several sections, research then writing - call it first with every step not-started except the first, in-progress. Call it again with the FULL list, updated, whenever a step starts or finishes; it needs no approval, so send it alongside your other tool calls in the same turn. Keep exactly one step in-progress. Mark a step completed only once it is really done - the list shows the writer where the work stands. Skip it for small edits.',
 		parameters: {
 			type: 'object',
 			properties: {
 				steps: {
 					type: 'array',
-					items: { type: 'string' },
-					description: 'The planned steps, in order.',
+					description: 'Every step of the task, in order, each with its current status.',
+					items: {
+						type: 'object',
+						properties: {
+							title: { type: 'string', description: "The step, a short phrase in the writer's language." },
+							status: { type: 'string', enum: ['not-started', 'in-progress', 'completed'] },
+						},
+						required: ['title', 'status'],
+					},
 				},
 			},
 			required: ['steps'],
@@ -576,7 +583,7 @@ export const EDITOR_TOOLS: readonly ToolDefinition[] = [
 		name: 'insert_toc',
 		kind: 'write',
 		description:
-			'Insert a table-of-contents block. This is the ONLY correct way to produce a table of contents, a list of figures or a list of tables: the block builds its own entries, dot leaders and page numbers from the document and keeps them in step as the document grows. NEVER type a table of contents as ordinary paragraphs with dots and numbers - those are plain text, the page numbers are guesses that go stale immediately, and justified academic body text stretches the dots until the numbers scatter into the middle of the line. list_kind "isi" lists headings; "gambar"/"tabel" list figure/table captions (heading levels 7-9). Levels, leader and indent follow the writer\'s settings unless given.',
+			'Insert a table-of-contents block. This is the ONLY correct way to produce a table of contents, a list of figures or a list of tables: the block builds its own entries, dot leaders and page numbers from the document and keeps them in step as the document grows. NEVER type a table of contents as ordinary paragraphs with dots and numbers - those are plain text, the page numbers are guesses that go stale immediately, and justified academic body text stretches the dots until the numbers scatter into the middle of the line. list_kind "isi" lists headings; "gambar"/"tabel" list figure/table captions (heading levels 7-9). Each is its own block: Daftar Isi, Daftar Tabel and Daftar Gambar each get one call with its own list_kind. Levels, leader and indent follow the writer\'s settings unless given.',
 		parameters: {
 			type: 'object',
 			properties: {

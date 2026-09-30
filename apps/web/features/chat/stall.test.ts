@@ -110,9 +110,28 @@ describe('mayAutoContinue', () => {
 		expect(mayAutoContinue(1, true, true)).toBe(true)
 		expect(mayAutoContinue(MAX_AUTO_CONTINUES, true, false)).toBe(false)
 	})
+
+	test('jatah baca yang habis selalu menunggu penulis, bahkan pada lanjutan pertama', () => {
+		expect(mayAutoContinue(0, true, false, 'read_budget')).toBe(false)
+		expect(mayAutoContinue(0, true, false, 'promised')).toBe(true)
+	})
 })
 
 describe('continueNudge', () => {
+	test('daftar tugas yang belum tuntas: kerjakan, tandai selesai, atau buang', () => {
+		const nudge = continueNudge('todos_open', [])
+		expect(nudge).toContain('task list still has steps')
+		expect(nudge).toContain('mark it completed')
+		expect(nudge).toContain('Send the updated list with plan')
+	})
+
+	test('jatah baca baru: tugas yang sama, baca seperlunya lalu menulis', () => {
+		const nudge = continueNudge('read_budget', [])
+		expect(nudge).toContain('reading budget')
+		expect(nudge).toContain('Read only what you still need')
+		expect(nudge).toContain('Do not start over')
+	})
+
 	test('menyebut bagian kosong sebagai acuan dan cara berhenti', () => {
 		const nudge = continueNudge('wave_limit', ['BAB IV HASIL', 'BAB V PENUTUP'])
 		expect(nudge.startsWith('[Continue]')).toBe(true)

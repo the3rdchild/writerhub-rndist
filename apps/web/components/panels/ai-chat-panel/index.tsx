@@ -14,6 +14,7 @@ import { MessageBubble } from './message-bubble'
 import { ResumeChip } from './resume-chip'
 import { ContinueMarker, StallCard } from './stall-card'
 import { TaskSeparator } from './step-timeline'
+import { TodosPanel } from './todos-panel'
 import { TurnError } from './turn-error'
 
 /**
@@ -37,6 +38,7 @@ export function AiChatPanel() {
 		dismissStall,
 		resumable,
 		resumeTask,
+		todos,
 		attachment,
 		attach,
 		clearAttachment,
@@ -253,11 +255,11 @@ export function AiChatPanel() {
 						<button
 							type="button"
 							onClick={jumpToLatest}
-							className="pointer-events-auto -translate-y-2 flex items-center gap-1 rounded-full bg-surface-raised px-3 py-1.5 text-xs text-subtle shadow-sm transition-colors hover:bg-[var(--overlay-hover)]"
+							className="pointer-events-auto -translate-y-2 flex h-8 w-8 items-center justify-center rounded-full border border-foreground/10 bg-surface-raised text-subtle shadow-sm transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 							aria-label="Jump to latest"
+							title="Jump to latest"
 						>
-							<ArrowDown className="h-3 w-3" />
-							Latest
+							<ArrowDown className="h-4 w-4" />
 						</button>
 					</div>
 				)}
@@ -269,6 +271,9 @@ export function AiChatPanel() {
 				</div>
 			) : (
 				<div className="flex shrink-0 flex-col gap-2 px-4 py-3">
+					{todos && todos.items.length > 0 && (
+						<TodosPanel key={todos.taskId} todos={todos} running={isRunning} />
+					)}
 					{resumable && (
 						<ResumeChip
 							key={resumable.taskId}

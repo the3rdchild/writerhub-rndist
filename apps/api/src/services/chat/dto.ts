@@ -26,6 +26,7 @@ export const chatBodySchema = z.object({
 			 * baris "Page:" tidak pernah sampai ke model. */
 			page: z.string().max(CHAT_CONTEXT_LIMITS.page).optional(),
 			outline: z.string().max(CHAT_CONTEXT_LIMITS.outline).optional(),
+			todos: z.string().max(CHAT_CONTEXT_LIMITS.todos).optional(),
 		})
 		.optional(),
 	tools: z.boolean().optional().default(true),

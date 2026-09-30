@@ -1,33 +1,51 @@
 /** Label fase berpikir yang tersimpan di langkah; riwayat tetap membacanya begini. */
-export const THINKING_LABEL = 'Berpikir…'
+export const THINKING_LABEL = 'Thinking…'
 
 /**
  * Kata pengganti "Berpikir…" selama langkahnya masih berjalan.
  *
  * Hanya tampilan: langkah yang tersimpan tetap berlabel `THINKING_LABEL`,
- * jadi riwayat obrolan tidak berisi "Kerfuffling…".
+ * jadi riwayat obrolan tidak berisi "Cogitating…". Daftarnya pilihan pengguna
+ * (29 Sep), menggantikan kata-kata lelucon yang lama.
  */
 export const THINKING_WORDS = [
+	'Accomplishing…',
+	'Actioning…',
+	'Actualizing…',
+	'Baking…',
+	'Brewing…',
+	'Berpikir…',
+	'Calculating…',
+	'Coalescing…',
+	'Cogitating…',
+	'Grübeln…',
+	'Réfléchir…',
+	'Computing…',
+	'Conjuring…',
 	'Drafting…',
+	'正在想……',
+	'Cogito ergo sum…',
 	'Big brain time…',
+	'考え中…',
 	'Buffering…',
+	'-··· · ·-· ·--· ·· -·- ·· ·-·',
+	'02 05 18 16 11 09 18 ...',
+	'喵喵喵喵...',
+	'熊猫头',
 	'Blaming the deadline…',
 	'Doing my own research…',
 	'Flibbertigibbeting…',
 	'Discombobulating…',
 	'Bamboozling…',
-	'Lollygagging…',
-	'Dillydallying…',
-	'Shenaniganing…',
+	'Hubing...',
 	'Hullabalooing…',
 	'Kerfuffling…',
 	'Sharpening pencils…',
 	'Inking the quill…',
-	'Consulting the thesaurus…',
 	'Cooking…',
-	'Main character thinking…',
 	'Touching grass (mentally)…',
 	'Reticulating splines…',
+	'Writing…',
 ] as const
 
 /** Jeda antarkata; cukup lama untuk dibaca, cukup cepat untuk terasa hidup. */
