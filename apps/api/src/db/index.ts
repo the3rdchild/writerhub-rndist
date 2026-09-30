@@ -3,7 +3,10 @@ import postgres from 'postgres'
 import { env } from '@/config/env'
 import * as schema from './schemas'
 
-const queryClient = postgres(env.DATABASE_URL)
+// `max` ditulis eksplisit: bawaan postgres-js (10) sudah penuh pada uji beban
+// 1.200 penulis, dan jumlah totalnya harus muat di `max_connections` Postgres
+// (lihat DB_POOL_MAX di config/env.ts).
+const queryClient = postgres(env.DATABASE_URL, { max: env.DB_POOL_MAX })
 
 const db = drizzle({ client: queryClient, schema })
 

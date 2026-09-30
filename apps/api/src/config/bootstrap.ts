@@ -1,5 +1,6 @@
 import app from '@/app'
 import { env } from '@/config/env'
+import { isPrimaryApiProcess } from '@/config/processes'
 import { RedisClient } from '@/config/redis'
 import { checkDatabaseConnection, disconnectDatabase } from '@/db'
 import QueueClient from '@/lib/queue'
@@ -15,12 +16,14 @@ export async function bootstrap(): Promise<void> {
 	if (!(await checkDatabaseConnection())) throw new Error('PostgreSQL connection failed')
 	if (!(await RedisClient.checkConnection())) throw new Error('Redis connection failed')
 
-	await seedBuiltinTemplatesSafely()
+	if (isPrimaryApiProcess()) await seedBuiltinTemplatesSafely()
 
 	const server = Bun.serve({
 		hostname: '0.0.0.0',
 		port: env.PORT,
 		idleTimeout: 0, // SSE stream bisa berjalan lama (mode advanced ~60s)
+		// Beberapa proses berbagi port ini bila API_PROCESSES > 1 (config/processes.ts).
+		reusePort: env.API_PROCESSES > 1,
 		fetch: (request) => app.fetch(request),
 	})
 

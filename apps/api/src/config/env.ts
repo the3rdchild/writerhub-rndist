@@ -41,6 +41,15 @@ export const env = {
 	// Alamat apps/web sebagaimana dibuka pengguna - dipakai menyusun tautan
 	// dokumen yang dikembalikan ke klien eksternal (lihat services/drafts).
 	WEB_URL: str('WEB_URL', 'http://localhost:8090'),
+	/**
+	 * Jumlah proses API di satu kontainer, berbagi port lewat `reusePort`
+	 * (lihat `src/index.ts`). Bun menjalankan JS di satu thread, jadi satu
+	 * proses mentok di ±1,25 core: pada uji beban 30 Sep, API jebol di ±765
+	 * req/dtk sementara core lain menganggur. Semua state bersama ada di
+	 * Postgres/Redis, jadi proses tambahan aman. Cache di memori (auth,
+	 * identitas) dimiliki tiap proses.
+	 */
+	API_PROCESSES: num('API_PROCESSES', 1),
 
 	// ── Autentikasi ─────────────────────────────────────────────────────────
 	AUTH_MODE: oneOf<AuthMode>('AUTH_MODE', ['pp', 'none'], 'pp'),
@@ -89,6 +98,18 @@ export const env = {
 	REDIS_HOST: str('REDIS_HOST', 'localhost'),
 	REDIS_PORT: num('REDIS_PORT', 6379),
 	REDIS_PASSWORD: str('REDIS_PASSWORD'),
+	/**
+	 * Koneksi Postgres maksimal per proses API. Selaraskan dengan
+	 * `max_connections` Postgres: totalnya adalah nilai ini × `API_PROCESSES`
+	 * × jumlah replika, ditambah worker.
+	 */
+	DB_POOL_MAX: num('DB_POOL_MAX', 10),
+	/**
+	 * Umur id identitas di memori, dalam detik. Tanpa cache, setiap
+	 * permintaan (termasuk GET) menjalankan upsert ke tabel `identity`: satu
+	 * tulis Postgres per permintaan.
+	 */
+	IDENTITY_CACHE_TTL_S: num('IDENTITY_CACHE_TTL_S', 600),
 
 	// ── Penyimpanan dokumen ─────────────────────────────────────────────────
 	STORAGE_DRIVER: oneOf<StorageDriver>('STORAGE_DRIVER', ['s3', 'local'], 's3'),
