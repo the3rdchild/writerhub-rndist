@@ -68,13 +68,45 @@ export async function callUpstream({
 	if (contentType) requestHeaders.set('content-type', contentType)
 	if (stream) requestHeaders.set('accept', 'text/event-stream')
 
-	return fetch(`${API_URL}${path}`, {
+	const response = await fetch(`${API_URL}${path}`, {
 		method,
 		headers: requestHeaders,
 		body,
 		cache: 'no-store',
 		signal,
 		duplex: body ? 'half' : undefined,
+	})
+
+	return stream ? response : bufferResponse(response)
+}
+
+/**
+ * Salinan `Response` upstream dengan badan yang sudah utuh di memori.
+ *
+ * Meneruskan `Response` hasil `fetch` apa adanya membuat server web bocor
+ * memori saat Next standalone berjalan di Bun: badan yang dialirkan dari fetch
+ * ke respons route handler tertahan dan tidak pernah dilepas lagi. Pada uji
+ * beban 30 Sep, 18 ribu permintaan `/api/templates` (164 KB) menambah ±2 GB,
+ * dan autosave menambah ±200 KB per siklus. Build yang sama di Node tidak
+ * bocor, dan menyangga badannya di sini menutup kebocoran itu di Bun.
+ *
+ * Jalur SSE (`stream: true`) tidak bisa disangga, jadi tetap dialirkan.
+ *
+ * `content-encoding` dan `content-length` dibuang karena `fetch` sudah
+ * mengurai badannya: yang disalin adalah byte hasil urai, sehingga kedua header
+ * aslinya tidak lagi benar.
+ */
+async function bufferResponse(response: Response): Promise<Response> {
+	const body = await response.arrayBuffer()
+	const headers = new Headers(response.headers)
+	headers.delete('content-encoding')
+	headers.delete('content-length')
+	headers.delete('transfer-encoding')
+
+	return new Response(body.byteLength > 0 ? body : null, {
+		status: response.status,
+		statusText: response.statusText,
+		headers,
 	})
 }
 
