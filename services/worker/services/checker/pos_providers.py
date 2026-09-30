@@ -15,6 +15,7 @@ Kontrak tag() sama persis buat semua provider:
 import json
 import logging
 import re
+import threading
 
 import requests
 
@@ -34,6 +35,64 @@ class PosProvider:
 
     def tag(self, text: str) -> PosTags:
         raise NotImplementedError
+
+
+class SpacyPosProvider(PosProvider):
+    """spaCy en_core_web_sm di dalam proses: milidetik per job, tanpa biaya AI.
+
+    Uji beban 30 Sep: tanpa provider ini, grammar `standard` jatuh ke
+    AiPosProvider, dan 32 dari 36 panggilan POS time-out (10 dtk). Setiap job
+    jadi minimal ±10 dtk, dan saran berbasis POS hilang tanpa tanda apa pun.
+
+    Aturan POS (structure.py, advanced.py) memang ditulis untuk tokenisasi
+    spaCy, misalnya token "n't" yang terpisah dari kata kerjanya.
+
+    Model dimuat malas sekali saja. Parser, NER dan lemmatizer dimatikan
+    karena yang dipakai hanya `tag_` (Penn Treebank).
+    """
+
+    name = "spacy"
+    _MODEL = "en_core_web_sm"
+    _DISABLED = ["parser", "ner", "lemmatizer"]
+
+    def __init__(self) -> None:
+        self._nlp = None
+        self._load_failed = False
+        self._load_lock = threading.Lock()
+        # Pipeline spaCy tidak dijamin aman dipakai lintas benang, dan worker
+        # menjalankan beberapa job grammar bersamaan (WORKER_CONCURRENCY).
+        # Tagging hanya milidetik, jadi kunci ini murah.
+        self._tag_lock = threading.Lock()
+
+    def _load(self):
+        if self._nlp is not None or self._load_failed:
+            return self._nlp
+        with self._load_lock:
+            if self._nlp is None and not self._load_failed:
+                try:
+                    import spacy
+
+                    self._nlp = spacy.load(self._MODEL, disable=self._DISABLED)
+                    logger.info("[pos] spaCy %s dimuat", self._MODEL)
+                except Exception as e:  # paket atau model tidak terpasang
+                    logger.warning("[pos] spaCy tidak tersedia: %s", e)
+                    self._load_failed = True
+        return self._nlp
+
+    def is_available(self) -> bool:
+        return self._load() is not None
+
+    def tag(self, text: str) -> PosTags:
+        nlp = self._load()
+        if nlp is None or not text:
+            return []
+        try:
+            with self._tag_lock:
+                doc = nlp(text)
+        except Exception as e:  # mis. teks melebihi nlp.max_length
+            logger.warning("[pos] spaCy gagal men-tag: %s", e)
+            return []
+        return [(t.text, t.tag_, t.idx, len(t.text)) for t in doc if not t.is_space]
 
 
 class AiPosProvider(PosProvider):
@@ -105,7 +164,7 @@ class AiPosProvider(PosProvider):
         return [(w, tags[i].strip(), off, ln) for i, (w, off, ln) in enumerate(tokens)]
 
 
-_PROVIDERS: list[PosProvider] = [AiPosProvider()]
+_PROVIDERS: list[PosProvider] = [SpacyPosProvider(), AiPosProvider()]
 _resolved: PosProvider | None = None
 _resolved_done = False
 
