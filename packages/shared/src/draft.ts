@@ -128,6 +128,9 @@ export interface DraftHandoff {
 	 * tetap `ready` dan unduhannya tetap ada.
 	 */
 	warnings?: string[]
-	/** Posisi dalam antrean, hanya selama `queued`. */
+	/**
+	 * Posisi di antrean render, hanya selama `queued`; 1 berarti berikutnya
+	 * dikerjakan. Tidak ada di jeda singkat saat worker baru mengambil job-nya.
+	 */
 	queuePosition?: number
 }

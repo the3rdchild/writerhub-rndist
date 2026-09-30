@@ -83,6 +83,8 @@ export async function enqueueDraftRender(documentId: string, outputs: readonly D
 /** Bagian serah-terima yang berasal dari render, digabung oleh `toHandoff`. */
 export interface RenderHandoffPart {
 	status?: 'queued' | 'rendering'
+	/** Posisi di antrean render selama `queued`; 1 berarti berikutnya dikerjakan. */
+	queuePosition?: number
 	downloads?: DraftDownload[]
 	renderErrors?: DraftRenderError[]
 	warnings?: string[]
@@ -119,6 +121,10 @@ export async function renderHandoff(
 		}
 
 		// Sengaja tanpa `renderErrors`: belum ada yang gagal, hanya belum jadi.
+		if (record.status === 'queued') {
+			const queuePosition = await queuePositionOf(documentId)
+			return { status: 'queued', downloads: [], ...(queuePosition ? { queuePosition } : {}) }
+		}
 		return { status: record.status, downloads: [] }
 	}
 
@@ -142,6 +148,23 @@ export async function renderHandoff(
 		downloads,
 		renderErrors: renderErrorsOf(record, outputs),
 		...(record.warnings?.length ? { warnings: record.warnings } : {}),
+	}
+}
+
+/**
+ * Posisi dokumen ini di antrean render, supaya pemanggil yang hanya memegang
+ * `statusUrl` bisa membedakan "masih menunggu giliran ke-N" dari "macet".
+ *
+ * Tidak ada posisi (undefined) di jeda singkat antara worker mengambil job dan
+ * mencatatnya `rendering`, atau bila Redis gagal. Keduanya tidak boleh
+ * menggagalkan jawaban status.
+ */
+async function queuePositionOf(documentId: string): Promise<number | undefined> {
+	try {
+		return (await QueueClient.renderQueuePosition(documentId)) ?? undefined
+	} catch (error) {
+		log.warn({ err: error, documentId }, 'Gagal membaca posisi antrean render')
+		return undefined
 	}
 }
 

@@ -375,6 +375,7 @@ export default class DraftsService extends JobSubmissionService {
 			...(state.status === 'generating' ? { progress: toProgress(state) } : {}),
 			...(state.error ? { error: state.error } : {}),
 			...(state.errorCode ? { errorCode: state.errorCode } : {}),
+			...(render.queuePosition ? { queuePosition: render.queuePosition } : {}),
 			...(render.downloads ? { downloads: render.downloads } : {}),
 			...(render.renderErrors ? { renderErrors: render.renderErrors } : {}),
 			...(warnings.length > 0 ? { warnings } : {}),
