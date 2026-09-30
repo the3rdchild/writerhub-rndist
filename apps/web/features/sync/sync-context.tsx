@@ -21,7 +21,7 @@ import {
 	updateDocument,
 	updateTab as updateTabApi,
 } from '@/features/documents/api'
-import type { DocumentDetail } from '@/features/documents/types'
+import type { DocumentDetail, DocumentSummary } from '@/features/documents/types'
 import { DOCUMENTS_QUERY_KEY, useDocuments } from '@/features/documents/use-documents'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { MAX_DOCUMENTS, useSessions } from '@/features/sessions/session-context'
@@ -89,6 +89,11 @@ function isGone(error: unknown): boolean {
 	return error instanceof ApiError && error.status === 404
 }
 
+/** Ringkasan dokumen (bentuk entri daftar) dari jawaban detailnya. */
+function documentSummaryOf({ tabs: _tabs, ...summary }: DocumentDetail): DocumentSummary {
+	return summary
+}
+
 /** Status gagal simpan yang sesuai dengan penyebabnya. */
 function failedStatus(error: unknown): TransientStatus {
 	return error instanceof ApiError && error.status === 413 ? 'too-large' : 'error'
@@ -142,6 +147,30 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	const invalidateDocuments = useCallback(
 		() => queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_KEY }),
 		[queryClient],
+	)
+	/**
+	 * Memperbarui satu dokumen di cache daftar tanpa mengambil ulang seluruh
+	 * daftar. Dipakai autosave: yang berubah di daftar hanya `updatedAt` (dan
+	 * judul/tata letak/brief bila ikut dikirim), dan semuanya sudah diketahui
+	 * dari jawaban simpanannya. Sebelumnya setiap autosave mengambil ulang
+	 * seluruh daftar dokumen: pada uji beban 30 Sep, 420 KB per simpanan untuk
+	 * pengguna dengan 1.000 dokumen. Dokumen yang tidak ada di cache (belum
+	 * pernah dimuat) jatuh ke pengambilan ulang biasa.
+	 */
+	const patchCachedDocument = useCallback(
+		(documentId: string, patch: Partial<DocumentSummary>) => {
+			let found = false
+			queryClient.setQueryData<DocumentSummary[]>(DOCUMENTS_QUERY_KEY, (list) => {
+				const index = list?.findIndex((entry) => entry.id === documentId) ?? -1
+				if (!list || index < 0) return list
+				found = true
+				const next = [...list]
+				next[index] = { ...list[index], ...patch }
+				return next.sort((a, b) => b.updatedAt - a.updatedAt)
+			})
+			if (!found) void invalidateDocuments()
+		},
+		[queryClient, invalidateDocuments],
 	)
 	/** Melepas tautan satu tab; tab lain dari dokumen yang sama tetap terhubung. */
 	const unlinkTab = useCallback(
@@ -244,6 +273,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				)
 				if (!savedTab) return false
 				backupComments(linkage.serverId, meta.comments)
+				/** Jawaban PUT dokumen terakhir; ringkasannya menggantikan entri di cache daftar. */
+				let savedDocument: DocumentDetail | null = null
 				if (
 					docTitle !== undefined &&
 					linkage.lastDocTitle !== undefined &&
@@ -253,6 +284,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 						unlinkDocument(linkage.documentId),
 					)
 					if (!savedTitle) return false
+					savedDocument = savedTitle
 				}
 				const docLayout = parentId ? readDocLayout(doc, parentId) : null
 				const docLayoutKey = layoutSyncKey(docLayout)
@@ -261,6 +293,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 						unlinkDocument(linkage.documentId),
 					)
 					if (!savedLayout) return false
+					savedDocument = savedLayout
 				}
 				const docBrief = parentId ? readDocBrief(doc, parentId) : null
 				const docBriefKey = briefSyncKey(docBrief)
@@ -269,6 +302,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 						unlinkDocument(linkage.documentId),
 					)
 					if (!savedBrief) return false
+					savedDocument = savedBrief
 				}
 				const synced: SyncLinkage = {
 					...linkage,
@@ -286,14 +320,17 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				} else {
 					setStatus(tabId, 'dirty')
 				}
-				void invalidateDocuments()
+				patchCachedDocument(
+					linkage.documentId,
+					savedDocument ? documentSummaryOf(savedDocument) : { updatedAt: savedTab.updatedAt },
+				)
 				return true
 			} catch (error) {
 				setStatus(tabId, failedStatus(error))
 				return false
 			}
 		},
-		[doc, serializeTab, setStatus, setStore, invalidateDocuments, unlinkTab, unlinkDocument],
+		[doc, serializeTab, setStatus, setStore, patchCachedDocument, unlinkTab, unlinkDocument],
 	)
 
 	const pushRef = useRef(pushToServer)
