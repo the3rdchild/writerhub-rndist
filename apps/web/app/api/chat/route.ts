@@ -17,12 +17,13 @@ export async function POST(request: Request): Promise<Response> {
 
 		if (!upstream.ok || !upstream.body) {
 			const detail = await upstream.text().catch(() => '')
+			const retryAfter = upstream.headers.get('retry-after')
 			return Response.json(
 				{
 					message: 'Gagal memulai percakapan',
-					errors: [detail || `Upstream membalas ${upstream.status}`],
+					errors: upstreamErrors(detail, upstream.status),
 				},
-				{ status: upstream.status || 502 },
+				{ status: upstream.status || 502, headers: retryAfter ? { 'retry-after': retryAfter } : undefined },
 			)
 		}
 
@@ -37,4 +38,24 @@ export async function POST(request: Request): Promise<Response> {
 	} catch (error) {
 		return configErrorResponse(error)
 	}
+}
+
+/**
+ * Pesan galat dari badan jawaban API. API membalas `{ message, errors }`, dan
+ * meneruskannya sebagai teks mentah membuat panel chat menampilkan JSON
+ * (misalnya jawaban 429 batas laju).
+ */
+function upstreamErrors(detail: string, status: number): string[] {
+	try {
+		const body = JSON.parse(detail) as { message?: unknown; errors?: unknown }
+		if (
+			Array.isArray(body.errors) &&
+			body.errors.every((item) => typeof item === 'string') &&
+			body.errors.length
+		) {
+			return body.errors
+		}
+		if (typeof body.message === 'string' && body.message) return [body.message]
+	} catch {}
+	return [detail || `Upstream membalas ${status}`]
 }

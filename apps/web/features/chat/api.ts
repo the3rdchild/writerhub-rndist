@@ -77,6 +77,17 @@ export async function streamChat(
 		 * permintaannya yang tidak lolos validasi. Saran "periksa kunci API"
 		 * menyesatkan di sini (uji 27 Sep, UC3: satu pesan >64 ribu karakter).
 		 */
+		// 429 dengan Retry-After datang dari batas laju WritingHub sendiri, dan
+		// pesannya sudah menyebut berapa lama menunggu. Tanpa header itu, 429
+		// berasal dari kuota admin-ppe.
+		if (response.status === 429) {
+			const limited = response.headers.has('retry-after')
+			throw new ChatTurnError(
+				detail || 'Terlalu banyak permintaan. Coba lagi sebentar lagi.',
+				limited ? 'unknown' : 'quota_exceeded',
+				false,
+			)
+		}
 		if (response.status === 400 || response.status === 413 || response.status === 422) {
 			throw new ChatTurnError(
 				`Permintaan ditolak sebelum sampai ke model${detail ? `: ${detail}` : ''}.`,

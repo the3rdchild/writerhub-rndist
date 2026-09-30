@@ -134,4 +134,32 @@ describe('galat validasi dari server sendiri', () => {
 		expect(error.message).toContain('ditolak sebelum sampai ke model')
 		expect(chatFailureHint(error.code) ?? '').not.toContain('kunci API')
 	})
+
+	test('batas laju (429 + Retry-After) menampilkan pesan server tanpa saran menyesatkan', async () => {
+		const message = 'Batas 60 permintaan chat per menit tercapai. Coba lagi dalam 12 detik.'
+		globalThis.fetch = (async () =>
+			new Response(JSON.stringify({ errors: [message] }), {
+				status: 429,
+				headers: { 'content-type': 'application/json', 'retry-after': '12' },
+			})) as unknown as typeof fetch
+		const failure = (await streamChat({ messages: [{ role: 'user', content: 'hai' }] }, () => {}).catch(
+			(error: unknown) => error,
+		)) as ChatTurnError
+
+		expect(failure.message).toBe(message)
+		expect(failure.retryable).toBe(false)
+		expect(chatFailureHint(failure.code)).toBeNull()
+	})
+
+	test('429 tanpa Retry-After tetap dibaca sebagai kuota habis', async () => {
+		globalThis.fetch = (async () =>
+			new Response(JSON.stringify({ errors: ['Kuota bulan ini habis'] }), {
+				status: 429,
+			})) as unknown as typeof fetch
+		const failure = (await streamChat({ messages: [{ role: 'user', content: 'hai' }] }, () => {}).catch(
+			(error: unknown) => error,
+		)) as ChatTurnError
+
+		expect(failure.code).toBe('quota_exceeded')
+	})
 })

@@ -53,7 +53,13 @@ const TITLE_SYNC_MS = 1_200
 const MAX_SESSIONS = 50
 export const SYNC_ORIGIN = 'sync'
 
-export type SyncStatus = 'local' | 'synced' | 'dirty' | 'saving' | 'error'
+/**
+ * `too-large`: server menolak naskahnya karena melewati batas ukuran (413).
+ * Dipisah dari `error` supaya penulis tahu penyebabnya, dan tahu bahwa
+ * mencoba lagi tanpa memperkecil naskah tidak akan berhasil.
+ */
+export type SyncStatus = 'local' | 'synced' | 'dirty' | 'saving' | 'error' | 'too-large'
+type TransientStatus = Exclude<SyncStatus, 'local' | 'synced'>
 
 export interface SyncLinkage {
 	serverId: string
@@ -83,6 +89,11 @@ function isGone(error: unknown): boolean {
 	return error instanceof ApiError && error.status === 404
 }
 
+/** Status gagal simpan yang sesuai dengan penyebabnya. */
+function failedStatus(error: unknown): TransientStatus {
+	return error instanceof ApiError && error.status === 413 ? 'too-large' : 'error'
+}
+
 interface SaveTimers {
 	idle?: ReturnType<typeof setTimeout>
 	max?: ReturnType<typeof setTimeout>
@@ -97,7 +108,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	const [store, setStore, storeHydrated] = usePersistentState<{
 		linkage: Record<string, SyncLinkage>
 	}>(SYNC_STORAGE_KEY, { linkage: {} })
-	const [transient, setTransient] = useState<Record<string, 'dirty' | 'saving' | 'error'>>({})
+	const [transient, setTransient] = useState<Record<string, TransientStatus>>({})
 
 	const timers = useRef(new Map<string, SaveTimers>())
 	const titleTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
@@ -111,7 +122,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	const linkageRef = useRef(store.linkage)
 	linkageRef.current = store.linkage
 
-	const setStatus = useCallback((tabId: string, status: 'dirty' | 'saving' | 'error' | null) => {
+	const setStatus = useCallback((tabId: string, status: TransientStatus | null) => {
 		setTransient((current) => {
 			const next = { ...current }
 			if (status === null) delete next[tabId]
@@ -277,8 +288,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				}
 				void invalidateDocuments()
 				return true
-			} catch {
-				setStatus(tabId, 'error')
+			} catch (error) {
+				setStatus(tabId, failedStatus(error))
 				return false
 			}
 		},
@@ -502,8 +513,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				setStatus(tabId, null)
 				void invalidateDocuments()
 				return true
-			} catch {
-				setStatus(tabId, 'error')
+			} catch (error) {
+				setStatus(tabId, failedStatus(error))
 				return false
 			}
 		},
@@ -669,9 +680,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				}
 				void invalidateDocuments()
 				return true
-			} catch {
+			} catch (error) {
 				for (const tabId of dok.tabOrder) {
-					if (!linkageRef.current[tabId]) setStatus(tabId, 'error')
+					if (!linkageRef.current[tabId]) setStatus(tabId, failedStatus(error))
 				}
 				return false
 			}

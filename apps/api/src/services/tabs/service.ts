@@ -115,7 +115,11 @@ export default class TabsService extends BaseService {
 			await snapshotIntervalTab(tab.id, body.data.content ?? tab.content, this.ownerId())
 			await touchDocument(tab.document_id)
 
-			return this.success({ data: this.toDetail(tab) })
+			// Ringkasan, bukan detail: autosave mengirim naskah utuh, dan
+			// menggemakannya kembali menggandakan lalu lintas setiap simpanan
+			// (naskah 20 MB berbalas 20 MB pada uji beban). Pemanggil sudah
+			// memegang naskahnya sendiri.
+			return this.success({ data: this.toSummary(tab) })
 		} catch (error) {
 			return this.failFromError(error)
 		}
