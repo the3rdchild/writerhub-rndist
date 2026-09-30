@@ -1,11 +1,11 @@
 'use client'
 
-import type { TemplateSummary } from '@writer-hub/shared'
+import type { TemplateCard as TemplateCardData } from '@writer-hub/shared'
 import { contentToPreviewHtml } from '@/features/templates/preview-html'
 import { TemplatePreview } from './template-preview'
 
 interface TemplateCardProps {
-	template: TemplateSummary
+	template: TemplateCardData
 	selected: boolean
 	onSelect: () => void
 }
@@ -21,8 +21,8 @@ export function TemplateCard({ template, selected, onSelect }: TemplateCardProps
 		>
 			<div className="flex justify-center border-b border-line bg-[var(--overlay-hover)] px-4 pt-4">
 				<TemplatePreview
-					pageSetup={template.spec.layout.pageSetup}
-					html={contentToPreviewHtml(template.content)}
+					pageSetup={template.pageSetup}
+					html={contentToPreviewHtml(template.preview)}
 					width={150}
 					className="rounded-t-sm"
 				/>

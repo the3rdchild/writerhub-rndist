@@ -7,7 +7,12 @@ export function useDocuments() {
 	return useQuery({
 		queryKey: DOCUMENTS_QUERY_KEY,
 		queryFn: () => listDocuments(),
-		staleTime: 0,
+		// Daftar dipakai banyak komponen sekaligus (navigasi, library, sync,
+		// template), dan dengan staleTime 0 setiap pemasangan dan setiap fokus
+		// jendela mengambil ulang seluruhnya. Perubahan dari perangkat ini
+		// sudah memperbarui cache secara langsung (sync-context), jadi 30 dtk
+		// hanya menunda perubahan dari tempat lain.
+		staleTime: 30_000,
 	})
 }
 

@@ -1,15 +1,37 @@
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import db from '@/db'
 import type { NewDocument } from '@/db/schemas'
 import { documents, documentTabs, projects } from '@/db/schemas'
 
 const tabCountFor = () => db.$count(documentTabs, eq(documentTabs.document_id, documents.id))
 
-export async function findDocumentsByOwner(ownerId: string, projectId?: string) {
+/** Posisi akhir satu halaman daftar dokumen; urutannya (updated_at, id) menurun. */
+export interface DocumentCursor {
+	updatedAt: Date
+	id: string
+}
+
+/**
+ * Dokumen milik satu identitas, terbaru lebih dulu.
+ *
+ * Tanpa `page`, seluruh daftar dikembalikan seperti sebelumnya. Dengan
+ * `page`, hasilnya `limit + 1` baris sesudah `after`: baris kelebihan
+ * menandakan masih ada halaman berikutnya, dan pemanggil yang membuangnya.
+ */
+export async function findDocumentsByOwner(
+	ownerId: string,
+	projectId?: string,
+	page?: { limit: number; after?: DocumentCursor },
+) {
 	const conditions = [eq(projects.owner_id, ownerId)]
 	if (projectId) conditions.push(eq(documents.project_id, projectId))
+	if (page?.after) {
+		conditions.push(
+			sql`(${documents.updated_at}, ${documents.id}) < (${page.after.updatedAt.toISOString()}::timestamptz, ${page.after.id}::uuid)`,
+		)
+	}
 
-	return db
+	const query = db
 		.select({
 			id: documents.id,
 			title: documents.title,
@@ -25,7 +47,9 @@ export async function findDocumentsByOwner(ownerId: string, projectId?: string) 
 		.from(documents)
 		.innerJoin(projects, eq(documents.project_id, projects.id))
 		.where(and(...conditions))
-		.orderBy(desc(documents.updated_at))
+
+	if (!page) return query.orderBy(desc(documents.updated_at))
+	return query.orderBy(desc(documents.updated_at), desc(documents.id)).limit(page.limit + 1)
 }
 
 export async function findDocumentById(id: string, ownerId: string) {

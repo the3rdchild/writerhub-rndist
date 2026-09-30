@@ -21,7 +21,7 @@ import {
 	updateDocument,
 	updateTab as updateTabApi,
 } from '@/features/documents/api'
-import type { DocumentDetail } from '@/features/documents/types'
+import type { DocumentDetail, DocumentSummary } from '@/features/documents/types'
 import { DOCUMENTS_QUERY_KEY, useDocuments } from '@/features/documents/use-documents'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { MAX_DOCUMENTS, useSessions } from '@/features/sessions/session-context'
@@ -53,7 +53,13 @@ const TITLE_SYNC_MS = 1_200
 const MAX_SESSIONS = 50
 export const SYNC_ORIGIN = 'sync'
 
-export type SyncStatus = 'local' | 'synced' | 'dirty' | 'saving' | 'error'
+/**
+ * `too-large`: server menolak naskahnya karena melewati batas ukuran (413).
+ * Dipisah dari `error` supaya penulis tahu penyebabnya, dan tahu bahwa
+ * mencoba lagi tanpa memperkecil naskah tidak akan berhasil.
+ */
+export type SyncStatus = 'local' | 'synced' | 'dirty' | 'saving' | 'error' | 'too-large'
+type TransientStatus = Exclude<SyncStatus, 'local' | 'synced'>
 
 export interface SyncLinkage {
 	serverId: string
@@ -83,6 +89,16 @@ function isGone(error: unknown): boolean {
 	return error instanceof ApiError && error.status === 404
 }
 
+/** Ringkasan dokumen (bentuk entri daftar) dari jawaban detailnya. */
+function documentSummaryOf({ tabs: _tabs, ...summary }: DocumentDetail): DocumentSummary {
+	return summary
+}
+
+/** Status gagal simpan yang sesuai dengan penyebabnya. */
+function failedStatus(error: unknown): TransientStatus {
+	return error instanceof ApiError && error.status === 413 ? 'too-large' : 'error'
+}
+
 interface SaveTimers {
 	idle?: ReturnType<typeof setTimeout>
 	max?: ReturnType<typeof setTimeout>
@@ -97,7 +113,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	const [store, setStore, storeHydrated] = usePersistentState<{
 		linkage: Record<string, SyncLinkage>
 	}>(SYNC_STORAGE_KEY, { linkage: {} })
-	const [transient, setTransient] = useState<Record<string, 'dirty' | 'saving' | 'error'>>({})
+	const [transient, setTransient] = useState<Record<string, TransientStatus>>({})
 
 	const timers = useRef(new Map<string, SaveTimers>())
 	const titleTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
@@ -111,7 +127,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	const linkageRef = useRef(store.linkage)
 	linkageRef.current = store.linkage
 
-	const setStatus = useCallback((tabId: string, status: 'dirty' | 'saving' | 'error' | null) => {
+	const setStatus = useCallback((tabId: string, status: TransientStatus | null) => {
 		setTransient((current) => {
 			const next = { ...current }
 			if (status === null) delete next[tabId]
@@ -131,6 +147,30 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	const invalidateDocuments = useCallback(
 		() => queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_KEY }),
 		[queryClient],
+	)
+	/**
+	 * Memperbarui satu dokumen di cache daftar tanpa mengambil ulang seluruh
+	 * daftar. Dipakai autosave: yang berubah di daftar hanya `updatedAt` (dan
+	 * judul/tata letak/brief bila ikut dikirim), dan semuanya sudah diketahui
+	 * dari jawaban simpanannya. Sebelumnya setiap autosave mengambil ulang
+	 * seluruh daftar dokumen: pada uji beban 30 Sep, 420 KB per simpanan untuk
+	 * pengguna dengan 1.000 dokumen. Dokumen yang tidak ada di cache (belum
+	 * pernah dimuat) jatuh ke pengambilan ulang biasa.
+	 */
+	const patchCachedDocument = useCallback(
+		(documentId: string, patch: Partial<DocumentSummary>) => {
+			let found = false
+			queryClient.setQueryData<DocumentSummary[]>(DOCUMENTS_QUERY_KEY, (list) => {
+				const index = list?.findIndex((entry) => entry.id === documentId) ?? -1
+				if (!list || index < 0) return list
+				found = true
+				const next = [...list]
+				next[index] = { ...list[index], ...patch }
+				return next.sort((a, b) => b.updatedAt - a.updatedAt)
+			})
+			if (!found) void invalidateDocuments()
+		},
+		[queryClient, invalidateDocuments],
 	)
 	/** Melepas tautan satu tab; tab lain dari dokumen yang sama tetap terhubung. */
 	const unlinkTab = useCallback(
@@ -233,6 +273,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				)
 				if (!savedTab) return false
 				backupComments(linkage.serverId, meta.comments)
+				/** Jawaban PUT dokumen terakhir; ringkasannya menggantikan entri di cache daftar. */
+				let savedDocument: DocumentDetail | null = null
 				if (
 					docTitle !== undefined &&
 					linkage.lastDocTitle !== undefined &&
@@ -242,6 +284,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 						unlinkDocument(linkage.documentId),
 					)
 					if (!savedTitle) return false
+					savedDocument = savedTitle
 				}
 				const docLayout = parentId ? readDocLayout(doc, parentId) : null
 				const docLayoutKey = layoutSyncKey(docLayout)
@@ -250,6 +293,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 						unlinkDocument(linkage.documentId),
 					)
 					if (!savedLayout) return false
+					savedDocument = savedLayout
 				}
 				const docBrief = parentId ? readDocBrief(doc, parentId) : null
 				const docBriefKey = briefSyncKey(docBrief)
@@ -258,6 +302,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 						unlinkDocument(linkage.documentId),
 					)
 					if (!savedBrief) return false
+					savedDocument = savedBrief
 				}
 				const synced: SyncLinkage = {
 					...linkage,
@@ -275,14 +320,17 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				} else {
 					setStatus(tabId, 'dirty')
 				}
-				void invalidateDocuments()
+				patchCachedDocument(
+					linkage.documentId,
+					savedDocument ? documentSummaryOf(savedDocument) : { updatedAt: savedTab.updatedAt },
+				)
 				return true
-			} catch {
-				setStatus(tabId, 'error')
+			} catch (error) {
+				setStatus(tabId, failedStatus(error))
 				return false
 			}
 		},
-		[doc, serializeTab, setStatus, setStore, invalidateDocuments, unlinkTab, unlinkDocument],
+		[doc, serializeTab, setStatus, setStore, patchCachedDocument, unlinkTab, unlinkDocument],
 	)
 
 	const pushRef = useRef(pushToServer)
@@ -502,8 +550,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				setStatus(tabId, null)
 				void invalidateDocuments()
 				return true
-			} catch {
-				setStatus(tabId, 'error')
+			} catch (error) {
+				setStatus(tabId, failedStatus(error))
 				return false
 			}
 		},
@@ -669,9 +717,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				}
 				void invalidateDocuments()
 				return true
-			} catch {
+			} catch (error) {
 				for (const tabId of dok.tabOrder) {
-					if (!linkageRef.current[tabId]) setStatus(tabId, 'error')
+					if (!linkageRef.current[tabId]) setStatus(tabId, failedStatus(error))
 				}
 				return false
 			}

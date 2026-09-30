@@ -4,6 +4,7 @@ import { env } from '@/config/env'
 import type { Template } from '@/db/schemas'
 import { pickModel } from '@/lib/pick-model'
 import type { ResolvedProvider } from '@/lib/provider-resolver'
+import { openRouterRouting } from '@/lib/speaks-openrouter'
 import { findTemplateBySlug } from '@/repository/template'
 import JobSubmissionService from '@/services/job-submission.service'
 import { fetchWithDeadline } from './deadline'
@@ -115,6 +116,7 @@ export default class ChatService extends JobSubmissionService {
 					temperature: TEMPERATURE,
 					messages: buildMessages(body, withTools, memory, templateRules, documentBrief),
 					...(withTools ? { tools: toProviderTools({ research: body.research }), tool_choice: 'auto' } : {}),
+					...openRouterRouting(baseUrl),
 				}),
 				// Penulis menutup percakapannya; batas waktu provider ada di `fetchWithDeadline`.
 				signal: this.context.req.raw.signal,

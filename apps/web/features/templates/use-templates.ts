@@ -1,18 +1,18 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import type { DocumentMetadata, TemplateSummary } from '@writer-hub/shared'
+import type { DocumentMetadata, TemplateCard, TemplateSummary } from '@writer-hub/shared'
 import { useDocuments } from '@/features/documents/use-documents'
 import { useSessions } from '@/features/sessions/session-context'
 import { useSync } from '@/features/sync/sync-context'
-import { getTemplate, listTemplates } from './api'
+import { getTemplate, listTemplateCards } from './api'
 
 export const TEMPLATES_QUERY_KEY = ['templates'] as const
 
-export function useTemplates(category?: string) {
-	return useQuery<TemplateSummary[]>({
-		queryKey: [...TEMPLATES_QUERY_KEY, category ?? 'all'],
-		queryFn: () => listTemplates(category),
+export function useTemplateCards(category?: string) {
+	return useQuery<TemplateCard[]>({
+		queryKey: [...TEMPLATES_QUERY_KEY, 'cards', category ?? 'all'],
+		queryFn: () => listTemplateCards(category),
 	})
 }
 

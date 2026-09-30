@@ -98,3 +98,33 @@ describe('penjaga dash pada aliran chat', () => {
 		expect(text).toBe('Cepat — sangat cepat.')
 	})
 })
+
+describe('laporan usage', () => {
+	test('token yang dilayani cache prompt ikut dilaporkan', async () => {
+		const usage = {
+			choices: [],
+			usage: {
+				prompt_tokens: 16_679,
+				completion_tokens: 8,
+				prompt_tokens_details: { cached_tokens: 16_384 },
+			},
+		}
+		const call = async () => fakeBody([`${sse('Halo')}data: ${JSON.stringify(usage)}\n\n`])
+		const events = await collect(openChatStream(call, false))
+
+		expect(events).toContainEqual({
+			type: 'usage',
+			promptTokens: 16_679,
+			completionTokens: 8,
+			cachedTokens: 16_384,
+		})
+	})
+
+	test('provider tanpa cache tidak memunculkan medan cachedTokens', async () => {
+		const usage = { choices: [], usage: { prompt_tokens: 10, completion_tokens: 2 } }
+		const call = async () => fakeBody([`data: ${JSON.stringify(usage)}\n\n`])
+		const events = await collect(openChatStream(call, false))
+
+		expect(events).toContainEqual({ type: 'usage', promptTokens: 10, completionTokens: 2 })
+	})
+})

@@ -37,7 +37,7 @@ app.use(
 		allowHeaders: ['Content-Type', 'Authorization', 'Cookie', ...Object.values(AUTH_HEADERS)],
 		...(isProduction && {
 			allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-			exposeHeaders: ['Content-Length', 'Set-Cookie'],
+			exposeHeaders: ['Content-Length', 'Set-Cookie', 'Retry-After', 'X-Next-Cursor'],
 			maxAge: 600,
 		}),
 	}),

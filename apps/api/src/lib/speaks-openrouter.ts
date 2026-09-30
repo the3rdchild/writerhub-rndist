@@ -15,3 +15,18 @@ export function speaksOpenRouter(baseUrl: string): boolean {
 
 	return env.AI_BASE_URL_OPENROUTER && baseUrl === env.AI_BASE_URL
 }
+
+/**
+ * Preferensi provider OpenRouter dari `AI_PROVIDER_ORDER`, siap disebar ke
+ * badan permintaan. Kosong bila tidak disetel atau `baseUrl` bukan OpenRouter,
+ * karena provider lain bisa menolak medan yang tidak dikenalnya.
+ */
+export function openRouterRouting(baseUrl: string): {
+	provider?: { order: string[]; allow_fallbacks: true }
+} {
+	const order = env.AI_PROVIDER_ORDER.split(',')
+		.map((slug) => slug.trim())
+		.filter(Boolean)
+	if (order.length === 0 || !speaksOpenRouter(baseUrl)) return {}
+	return { provider: { order, allow_fallbacks: true } }
+}

@@ -1,14 +1,16 @@
 import { AppError } from '@/lib/error'
 import { findTemplateBySlug, findTemplates } from '@/repository/template'
 import BaseService from '@/services/base.service'
-import { toTemplate } from './dto'
+import { toTemplate, toTemplateCard } from './dto'
 
 export default class TemplatesService extends BaseService {
 	async list(): Promise<Response> {
 		try {
 			const category = this.context.req.query('category') || undefined
 			const rows = await findTemplates(category)
-			return this.success({ data: rows.map(toTemplate) })
+			// `view=card` untuk galeri; tanpa itu bentuk lengkap, seperti sebelumnya.
+			const card = this.context.req.query('view') === 'card'
+			return this.success({ data: card ? rows.map(toTemplateCard) : rows.map(toTemplate) })
 		} catch (error) {
 			return this.failFromError(error)
 		}

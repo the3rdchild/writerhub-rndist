@@ -1,6 +1,7 @@
 import type { Document, NewDocument, Template } from '@/db/schemas'
 import { AppError } from '@/lib/error'
 import {
+	type DocumentCursor,
 	deleteDocument,
 	findDocumentById,
 	findDocumentsByOwner,
@@ -14,19 +15,42 @@ import BaseService from '@/services/base.service'
 import { snapshotIntervalTab } from '@/services/tabs/service'
 import { templateDocumentLayout, templateTabLayout } from '@/services/templates/layout'
 import { applyTemplateMetadata } from '@/services/templates/metadata'
+import {
+	DEFAULT_DOCUMENT_PAGE,
+	decodeDocumentCursor,
+	encodeDocumentCursor,
+	MAX_DOCUMENT_PAGE,
+} from './cursor'
 import type { DocumentDetail, DocumentSummary, TabRow, TabSummary } from './dto'
 import { createDocumentBodySchema, updateDocumentBodySchema } from './dto'
 
 const EMPTY_CONTENT: Record<string, unknown> = { type: 'doc', content: [] }
 
 export default class DocumentsService extends BaseService {
+	/**
+	 * Daftar dokumen, terbaru lebih dulu.
+	 *
+	 * Tanpa `limit`/`cursor` jawabannya seluruh daftar, sama seperti
+	 * sebelumnya. Dengan salah satunya, jawabannya satu halaman, dan kursor
+	 * halaman berikutnya dikirim di header `X-Next-Cursor` (tidak ada berarti
+	 * sudah habis). Badannya tetap larik biasa, jadi bentuk kawatnya tidak
+	 * berubah untuk pemanggil lama.
+	 */
 	async list(): Promise<Response> {
 		try {
+			const page = this.pageQuery()
 			const rows = await findDocumentsByOwner(
 				await this.identityId(),
 				this.optionalUuidQuery('projectId', 'ID proyek'),
+				page ?? undefined,
 			)
-			const result: DocumentSummary[] = rows.map((row) => ({
+			const visible = page ? rows.slice(0, page.limit) : rows
+			const last = visible.at(-1)
+			if (page && rows.length > page.limit && last) {
+				this.context.header('X-Next-Cursor', encodeDocumentCursor({ updatedAt: last.updatedAt, id: last.id }))
+			}
+
+			const result: DocumentSummary[] = visible.map((row) => ({
 				id: row.id,
 				title: row.title,
 				projectId: row.projectId,
@@ -42,6 +66,21 @@ export default class DocumentsService extends BaseService {
 		} catch (error) {
 			return this.failFromError(error)
 		}
+	}
+	private pageQuery(): { limit: number; after?: DocumentCursor } | null {
+		const rawLimit = this.context.req.query('limit')
+		const rawCursor = this.context.req.query('cursor')
+		if (!rawLimit && !rawCursor) return null
+
+		const limit = rawLimit ? Number(rawLimit) : DEFAULT_DOCUMENT_PAGE
+		if (!Number.isInteger(limit) || limit < 1 || limit > MAX_DOCUMENT_PAGE) {
+			throw AppError.badRequest(`limit harus bilangan bulat 1-${MAX_DOCUMENT_PAGE}`)
+		}
+		if (!rawCursor) return { limit }
+
+		const after = decodeDocumentCursor(rawCursor)
+		if (!after) throw AppError.badRequest('cursor tidak sah')
+		return { limit, after }
 	}
 	async getById(): Promise<Response> {
 		try {

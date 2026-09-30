@@ -204,6 +204,12 @@ async function pumpUpstream(
 							type: 'usage',
 							promptTokens: usage.prompt_tokens,
 							completionTokens: usage.completion_tokens,
+							// Dilaporkan provider yang punya cache prompt (lewat OpenRouter
+							// selalu ada). Dasar untuk memantau berapa prompt yang tidak
+							// perlu diproses ulang.
+							...(typeof usage.prompt_tokens_details?.cached_tokens === 'number'
+								? { cachedTokens: usage.prompt_tokens_details.cached_tokens }
+								: {}),
 						})
 					}
 				} catch {}

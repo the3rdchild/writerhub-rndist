@@ -55,8 +55,9 @@ export function getTab(tabId: string): Promise<TabDetail> {
 	return apiFetch<TabDetail>(`/tabs/${encodeURIComponent(tabId)}`)
 }
 
-export function updateTab(tabId: string, input: UpdateTabInput): Promise<TabDetail> {
-	return apiFetch<TabDetail>(`/tabs/${encodeURIComponent(tabId)}`, {
+/** Jawabannya ringkasan tab, tanpa naskah: server tidak lagi menggemakannya. */
+export function updateTab(tabId: string, input: UpdateTabInput): Promise<TabSummary> {
+	return apiFetch<TabSummary>(`/tabs/${encodeURIComponent(tabId)}`, {
 		method: 'PUT',
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify(input),

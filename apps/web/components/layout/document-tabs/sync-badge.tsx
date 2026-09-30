@@ -10,6 +10,11 @@ import { cn } from '@/lib/utils'
 const BADGES: Record<SyncStatus, { title: string; className: string; Icon: typeof Cloud }> = {
 	saving: { title: 'Menyimpan ke cloud…', className: 'text-subtle', Icon: Loader2 },
 	error: { title: 'Gagal menyimpan ke cloud', className: 'text-red-400', Icon: CloudAlert },
+	'too-large': {
+		title: 'Naskah terlalu besar untuk disimpan ke cloud. Perkecil atau hapus sebagian gambar.',
+		className: 'text-red-400',
+		Icon: CloudAlert,
+	},
 	synced: { title: 'Tersimpan di cloud', className: 'text-subtle', Icon: Cloud },
 	dirty: {
 		title: 'Ada perubahan yang belum tersimpan ke cloud',

@@ -93,6 +93,25 @@ export const env = {
 	PP_EXTENDED_ADMIN_URL: str('PP_EXTENDED_ADMIN_URL'),
 	PP_EXTENDED_ADMIN_HMAC_SECRET: str('PP_EXTENDED_ADMIN_HMAC_SECRET'),
 
+	// ── Batas permintaan ────────────────────────────────────────────────────
+	/**
+	 * Ukuran maksimal badan permintaan yang membawa naskah (buat dokumen,
+	 * buat/simpan tab), dalam megabyte. Tanpa batas, Bun menerima sampai
+	 * 128 MB, dan setiap simpanan juga menjadi snapshot versi. Longgar dengan
+	 * sengaja: editor menyematkan gambar unggahan (maks 5 MB per gambar) sebagai
+	 * base64 di dalam naskah, jadi batas 5 MB akan memblokir dokumen bergambar.
+	 */
+	CONTENT_MAX_MB: num('CONTENT_MAX_MB', 25),
+	/**
+	 * Batas permintaan per pengguna per menit, dihitung di Redis sehingga
+	 * berlaku lintas proses dan replika. `0` mematikannya. Satu giliran chat
+	 * bertool bisa berisi 10-20 permintaan (satu per putaran tool), jadi batas
+	 * chat sengaja paling longgar.
+	 */
+	RATE_LIMIT_CHAT_PER_MIN: num('RATE_LIMIT_CHAT_PER_MIN', 60),
+	RATE_LIMIT_GRAMMAR_PER_MIN: num('RATE_LIMIT_GRAMMAR_PER_MIN', 20),
+	RATE_LIMIT_DRAFTS_PER_MIN: num('RATE_LIMIT_DRAFTS_PER_MIN', 10),
+
 	// ── Basis data & Redis ──────────────────────────────────────────────────
 	DATABASE_URL: str('DATABASE_URL'),
 	REDIS_HOST: str('REDIS_HOST', 'localhost'),
@@ -187,6 +206,18 @@ export const env = {
 	 * perlu untuk URL openrouter.ai - yang itu dikenali dari hostnya.
 	 */
 	AI_BASE_URL_OPENROUTER: bool('AI_BASE_URL_OPENROUTER'),
+	/**
+	 * Urutan provider OpenRouter yang diutamakan untuk chat, dipisah koma
+	 * (misalnya `deepinfra,baseten`). Kosong berarti perutean bawaan
+	 * OpenRouter.
+	 *
+	 * Cache prompt hanya berlaku di dalam satu provider. Prompt chat bertool
+	 * ±16 ribu token dan ±98% di antaranya bisa dilayani cache bila provider-nya
+	 * sama, tetapi OpenRouter menyebar model ini ke belasan provider. Uji
+	 * 30 Sep: tanpa pengutamaan, sebagian besar permintaan berurutan jatuh ke
+	 * provider berbeda dan cache-nya kosong. Provider cadangan tetap diizinkan.
+	 */
+	AI_PROVIDER_ORDER: str('AI_PROVIDER_ORDER'),
 	/**
 	 * Batas waktu satu panggilan ke provider AI. Tanpa ini yang menentukan
 	 * adalah timeout bawaan runtime - batas yang tidak kita pilih, tidak sama
