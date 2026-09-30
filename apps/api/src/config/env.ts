@@ -207,6 +207,18 @@ export const env = {
 	 */
 	AI_BASE_URL_OPENROUTER: bool('AI_BASE_URL_OPENROUTER'),
 	/**
+	 * Urutan provider OpenRouter yang diutamakan untuk chat, dipisah koma
+	 * (misalnya `deepinfra,baseten`). Kosong berarti perutean bawaan
+	 * OpenRouter.
+	 *
+	 * Cache prompt hanya berlaku di dalam satu provider. Prompt chat bertool
+	 * ±16 ribu token dan ±98% di antaranya bisa dilayani cache bila provider-nya
+	 * sama, tetapi OpenRouter menyebar model ini ke belasan provider. Uji
+	 * 30 Sep: tanpa pengutamaan, sebagian besar permintaan berurutan jatuh ke
+	 * provider berbeda dan cache-nya kosong. Provider cadangan tetap diizinkan.
+	 */
+	AI_PROVIDER_ORDER: str('AI_PROVIDER_ORDER'),
+	/**
 	 * Batas waktu satu panggilan ke provider AI. Tanpa ini yang menentukan
 	 * adalah timeout bawaan runtime - batas yang tidak kita pilih, tidak sama
 	 * antar versi Bun, dan pesan galatnya bukan milik kita.

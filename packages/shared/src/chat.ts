@@ -57,7 +57,13 @@ export type ChatStreamEvent =
 	| { type: 'reasoning'; text: string }
 	| { type: 'tool_start'; id: string; name: string; arguments: string }
 	| { type: 'tool_result'; id: string; summary: string; ok: boolean }
-	| { type: 'usage'; promptTokens?: number; completionTokens?: number }
+	| {
+			type: 'usage'
+			promptTokens?: number
+			completionTokens?: number
+			/** Bagian `promptTokens` yang dilayani cache prompt provider. */
+			cachedTokens?: number
+	  }
 	| { type: 'ping' }
 	/** `finish`: alasan provider berhenti - `length` berarti jawabannya terpotong. */
 	| { type: 'done'; finish?: string }
