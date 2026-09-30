@@ -43,7 +43,6 @@ export const THINKING_WORDS = [
 	'Sharpening pencils…',
 	'Inking the quill…',
 	'Cooking…',
-	'Main character thinking…',
 	'Touching grass (mentally)…',
 	'Reticulating splines…',
 	'Writing…',
