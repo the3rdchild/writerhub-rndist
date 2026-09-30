@@ -19,10 +19,12 @@ dengan prefix ``exports/`` - privasi dijaga presigned URL, bukan ACL publik.
 
 import json
 import logging
+import queue
 import re
 import threading
 import time
 import uuid
+from concurrent.futures import Future
 
 import boto3
 import redis
@@ -37,6 +39,7 @@ from core.configs.env import (
     CDN_REGION,
     CDN_SECRET_ACCESS_KEY,
     REDIS_URL,
+    RENDER_MAX_CONCURRENCY,
     RENDER_MAX_PAGES,
     RENDER_PAGE_TIMEOUT_S,
     RENDER_QUEUE_TIMEOUT_S,
@@ -174,59 +177,163 @@ def _render_warnings(meta: dict) -> list[str]:
 def _print_pdf(document_id: str, payload: dict) -> tuple[bytes, dict]:
     """Satu kunjungan ke halaman ekspor, satu PDF beserta ukurannya yang sebenarnya.
 
-    Perambannya diluncurkan dan ditutup di dalam satu panggilan ini, bukan
-    dihangatkan lintas job. Kolam yang hangat memang menghemat 1-2 detik dari
-    render 3-8 detik, tapi ia tidak punya tempat untuk hidup di sini:
-    `core/queue/worker.py` menjalankan tiap job di **benang baru**, jadi
-    penyimpanan per-benang berumur satu job - dan benang yang ditinggalkan
-    karena lewat tenggat tidak pernah kembali untuk menutup perambannya.
-    Chromium yang bocor per job jauh lebih mahal daripada detik yang dihemat.
+    Halamannya dibuka di konteks baru milik Chromium yang sudah hangat (lihat
+    ``_BrowserSlot``), bukan di peramban yang diluncurkan khusus untuk job ini.
+    Konteks baru berarti cookie, penyimpanan dan cache yang bersih, jadi
+    isolasi antar-job tetap sama dengan peramban baru.
     """
     url = f"{RENDER_WEB_URL}/export/{document_id}?exp={payload.get('exp')}&sig={payload.get('sig')}"
-    timeout_ms = RENDER_PAGE_TIMEOUT_S * 1000
+    return _run_in_browser(lambda browser: _print_in(browser, url))
 
-    with sync_playwright() as playwright:
+
+def _print_in(browser, url: str) -> tuple[bytes, dict]:
+    timeout_ms = RENDER_PAGE_TIMEOUT_S * 1000
+    context = browser.new_context()
+    try:
+        page = context.new_page()
+        page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+        page.wait_for_selector(READY_SELECTOR, timeout=timeout_ms)
+        # Font data: URI dimuat asinkron; tanpa ini potret pertama bisa
+        # terambil sebelum fontnya siap dan hasilnya memakai font sistem.
+        # Hasilnya dibuang jadi boolean - FontFaceSet sendiri tidak bisa
+        # diserialkan menyeberangi CDP.
+        page.evaluate("document.fonts.ready.then(() => true)")
+
+        pages = page.locator("body").get_attribute(PAGES_ATTRIBUTE)
+        if pages and pages.isdigit() and int(pages) > RENDER_MAX_PAGES:
+            raise RenderFailure(
+                f"Dokumennya {pages} halaman, melebihi batas render ({RENDER_MAX_PAGES}). "
+                "Buka di WritingHub dan cetak dari sana."
+            )
+
+        # prefer_css_page_size: ukuran lembar dan marginnya milik @page yang
+        # disuntikkan DocumentPaper - flyer A4 dan paper IEEE tidak bisa lahir
+        # dari satu pasangan `format`/`margin` di sini.
+        pdf = page.pdf(print_background=True, prefer_css_page_size=True)
+
+        # Jumlah halaman dihitung dari berkasnya sendiri (T7): paginasi
+        # layar - sumber `data-export-pages` - bisa berselisih dengannya,
+        # dan selama itu mungkin, batas `RENDER_MAX_PAGES` menjaga angka
+        # yang salah untuk pemeriksaan cepatnya.
+        clipped_raw = page.locator("body").get_attribute(CLIPPED_ATTRIBUTE)
+        clipped = int(clipped_raw) if clipped_raw and clipped_raw.isdigit() else 0
+        return pdf, {"pages": _pdf_page_count(pdf), "clipped": clipped}
+    finally:
+        context.close()
+
+
+# Chromium diluncurkan ulang sesudah sekian job, supaya memori yang pelan-pelan
+# menumpuk di proses peramban yang berumur panjang tidak tumbuh tanpa batas.
+_BROWSER_RECYCLE_JOBS = 200
+
+_tasks: queue.Queue = queue.Queue()
+_slots: list[threading.Thread] = []
+_slots_lock = threading.Lock()
+
+
+def _run_in_browser(fn):
+    """Jalankan ``fn(browser)`` di salah satu benang pemilik Chromium, tunggu hasilnya.
+
+    Galat dari ``fn`` (``RenderFailure``, ``PlaywrightError``) diteruskan apa
+    adanya ke pemanggil, jadi penanganannya di ``process`` tidak berubah.
+    """
+    _ensure_slots()
+    future: Future = Future()
+    _tasks.put((fn, future))
+    return future.result()
+
+
+def _ensure_slots() -> None:
+    if _slots:
+        return
+    with _slots_lock:
+        if _slots:
+            return
+        for index in range(max(RENDER_MAX_CONCURRENCY, 1)):
+            slot = _BrowserSlot(index)
+            slot.start()
+            _slots.append(slot)
+
+
+class _BrowserSlot(threading.Thread):
+    """Satu benang yang memiliki satu Playwright dan satu Chromium lintas job.
+
+    Dulu setiap job meluncurkan Chromium sendiri, dan pada uji beban 30 Sep
+    throughput render tertahan di ±1,4 PDF/dtk. Peramban tidak bisa hidup di
+    benang job: API sync Playwright terikat pada benang yang membuatnya,
+    sedangkan ``core/queue/worker.py`` menjalankan setiap job di benang baru
+    dan meninggalkannya bila lewat tenggat. Karena itu Chromium dimiliki benang
+    tetap di sini, dan benang job hanya menitipkan pekerjaannya lewat antrean.
+    Benang job yang ditinggalkan tidak membawa pergi perambannya.
+
+    Jumlah slot sama dengan ``RENDER_MAX_CONCURRENCY``, yaitu jumlah pengambil
+    job render, sehingga tidak ada job yang menunggu slot dalam keadaan normal.
+    """
+
+    def __init__(self, index: int):
+        super().__init__(daemon=True, name=f"render-browser-{index}")
+        self._playwright = None
+        self._browser = None
+        self._jobs = 0
+
+    def run(self) -> None:
+        while True:
+            fn, future = _tasks.get()
+            if not future.set_running_or_notify_cancel():
+                continue
+            try:
+                future.set_result(fn(self._ensure_browser()))
+            except BaseException as error:  # diteruskan utuh ke benang job
+                future.set_exception(error)
+            finally:
+                self._jobs += 1
+                if self._jobs >= _BROWSER_RECYCLE_JOBS:
+                    self._close_browser()
+
+    def _ensure_browser(self):
+        if self._browser is not None and self._browser.is_connected():
+            return self._browser
+        # Peramban yang mati (crash, OOM) diganti yang baru di job berikutnya.
+        self._close_browser()
+        if self._playwright is None:
+            self._playwright = sync_playwright().start()
         # channel: yang terpasang di image hanya chrome-headless-shell, bukan
         # Chrome lengkap (lihat Dockerfile). Mesinnya sama - PDF-nya identik -
         # jadi ini soal apa yang ikut diangkut, bukan soal hasil.
         #
         # --no-sandbox: kontainer tidak punya userns untuk sandbox Chromium;
         # --disable-dev-shm-usage: /dev/shm kontainer 64 MB, terlalu kecil.
-        browser = playwright.chromium.launch(
-            channel="chromium-headless-shell",
-            args=["--no-sandbox", "--disable-dev-shm-usage"],
-        )
         try:
-            page = browser.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-            page.wait_for_selector(READY_SELECTOR, timeout=timeout_ms)
-            # Font data: URI dimuat asinkron; tanpa ini potret pertama bisa
-            # terambil sebelum fontnya siap dan hasilnya memakai font sistem.
-            # Hasilnya dibuang jadi boolean - FontFaceSet sendiri tidak bisa
-            # diserialkan menyeberangi CDP.
-            page.evaluate("document.fonts.ready.then(() => true)")
+            self._browser = self._playwright.chromium.launch(
+                channel="chromium-headless-shell",
+                args=["--no-sandbox", "--disable-dev-shm-usage"],
+            )
+        except Exception:
+            # Driver Playwright yang rusak tidak akan pulih sendiri; mulai
+            # dari nol di job berikutnya.
+            self._stop_playwright()
+            raise
+        self._jobs = 0
+        logger.info("[render] Chromium diluncurkan | slot=%s", self.name)
+        return self._browser
 
-            pages = page.locator("body").get_attribute(PAGES_ATTRIBUTE)
-            if pages and pages.isdigit() and int(pages) > RENDER_MAX_PAGES:
-                raise RenderFailure(
-                    f"Dokumennya {pages} halaman, melebihi batas render ({RENDER_MAX_PAGES}). "
-                    "Buka di WritingHub dan cetak dari sana."
-                )
-
-            # prefer_css_page_size: ukuran lembar dan marginnya milik @page yang
-            # disuntikkan DocumentPaper - flyer A4 dan paper IEEE tidak bisa lahir
-            # dari satu pasangan `format`/`margin` di sini.
-            pdf = page.pdf(print_background=True, prefer_css_page_size=True)
-
-            # Jumlah halaman dihitung dari berkasnya sendiri (T7): paginasi
-            # layar - sumber `data-export-pages` - bisa berselisih dengannya,
-            # dan selama itu mungkin, batas `RENDER_MAX_PAGES` menjaga angka
-            # yang salah untuk pemeriksaan cepatnya.
-            clipped_raw = page.locator("body").get_attribute(CLIPPED_ATTRIBUTE)
-            clipped = int(clipped_raw) if clipped_raw and clipped_raw.isdigit() else 0
-            return pdf, {"pages": _pdf_page_count(pdf), "clipped": clipped}
-        finally:
+    def _close_browser(self) -> None:
+        browser, self._browser = self._browser, None
+        if browser is None:
+            return
+        try:
             browser.close()
+        except Exception:
+            logger.warning("[render] gagal menutup Chromium | slot=%s", self.name, exc_info=True)
+
+    def _stop_playwright(self) -> None:
+        playwright, self._playwright = self._playwright, None
+        if playwright is None:
+            return
+        try:
+            playwright.stop()
+        except Exception:
+            logger.warning("[render] gagal menghentikan Playwright | slot=%s", self.name, exc_info=True)
 
 
 def _upload(key: str, body: bytes, content_type: str) -> None:
