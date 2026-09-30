@@ -154,7 +154,15 @@ export default class DraftsService extends JobSubmissionService {
 		// Naskahnya sudah ada, jadi perendernya bisa langsung dimulai - tidak
 		// ada penulisan yang harus ditunggu lebih dulu.
 		const outputs = resolveOutputs(body)
-		if (outputs.length) await enqueueDraftRender(document.id, outputs)
+		if (outputs.length) {
+			// `status()` membaca keluaran yang diminta dari simpanan permintaan.
+			// Tanpa baris ini, pemanggil yang hanya memegang `statusUrl` tidak
+			// pernah melihat `downloads`, padahal PDF-nya jadi. Yang disimpan
+			// hanya keluarannya: naskahnya bisa besar, dan tanpa `prompt`,
+			// `retry()` tetap menolak menulis ulang naskah milik pemanggil.
+			await rememberDraftRequest(document.id, { output: outputs })
+			await enqueueDraftRender(document.id, outputs)
+		}
 
 		return this.success({
 			data: await this.toHandoff(document, tab.id, { status: 'ready' }, outputs, { ignoredFields }),
