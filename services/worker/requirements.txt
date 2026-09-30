@@ -10,3 +10,7 @@ python-docx
 langdetect
 playwright
 boto3
+# POS tagger lokal untuk grammar `standard` (services/checker/pos_providers.py).
+# Modelnya dipasang sebagai paket supaya ikut terkunci bersama image dan CI.
+spacy>=3.8,<3.9
+en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl

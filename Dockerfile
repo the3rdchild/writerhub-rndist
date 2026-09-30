@@ -135,7 +135,18 @@ RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources \
 WORKDIR /app
 
 COPY services/worker/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# spaCy (POS tagger grammar `standard`) dan pustaka C-nya - thinc, blis, srsly,
+# preshed, cymem, murmurhash - datang dengan simbol debug: ±118 MB yang tidak
+# pernah dipakai saat jalan. `--strip-debug` hanya membuang bagian debug, dan
+# tagging diuji tetap berjalan sesudahnya. binutils dipasang dan dicabut di
+# layer yang sama supaya tidak ikut tersimpan.
+RUN pip install --no-cache-dir -r requirements.txt \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends binutils \
+    && cd "$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" \
+    && find spacy thinc blis srsly preshed cymem murmurhash -name '*.so' -exec strip --strip-debug {} + \
+    && apt-get purge -y --auto-remove binutils \
+    && rm -rf /var/lib/apt/lists/*
 
 # Chromium untuk perender berkas (services/render_service.py).
 #

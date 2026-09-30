@@ -41,6 +41,15 @@ export const env = {
 	// Alamat apps/web sebagaimana dibuka pengguna - dipakai menyusun tautan
 	// dokumen yang dikembalikan ke klien eksternal (lihat services/drafts).
 	WEB_URL: str('WEB_URL', 'http://localhost:8090'),
+	/**
+	 * Jumlah proses API di satu kontainer, berbagi port lewat `reusePort`
+	 * (lihat `src/index.ts`). Bun menjalankan JS di satu thread, jadi satu
+	 * proses mentok di ±1,25 core: pada uji beban 30 Sep, API jebol di ±765
+	 * req/dtk sementara core lain menganggur. Semua state bersama ada di
+	 * Postgres/Redis, jadi proses tambahan aman. Cache di memori (auth,
+	 * identitas) dimiliki tiap proses.
+	 */
+	API_PROCESSES: num('API_PROCESSES', 1),
 
 	// ── Autentikasi ─────────────────────────────────────────────────────────
 	AUTH_MODE: oneOf<AuthMode>('AUTH_MODE', ['pp', 'none'], 'pp'),
@@ -49,6 +58,36 @@ export const env = {
 	PP_AUTH_CHECK_URL: str('PP_AUTH_CHECK_URL'),
 	API_KEYS: str('API_KEYS'),
 	RANSEL_AI_API_KEY: str('RANSEL_AI_API_KEY'),
+	/**
+	 * Umur hasil tanya ke pp-backend per token, dalam detik: verifikasi
+	 * `/auth/check` dan paket `/users/extended-package`. Tanpa cache, setiap
+	 * permintaan WritingHub menjadi satu permintaan ke pp-backend. Pada uji
+	 * beban, pp-backend yang melambat ke 3 dtk membuat p95 WritingHub menjadi
+	 * 12 dtk. Batas atasnya juga lamanya token yang sudah dicabut masih
+	 * diterima. `0` mematikan cache.
+	 */
+	PP_AUTH_CACHE_TTL_S: num('PP_AUTH_CACHE_TTL_S', 60),
+	/**
+	 * Sesudah `PP_AUTH_CACHE_TTL_S` lewat, hasil lama masih dipakai selama
+	 * sekian detik sementara pp-backend ditanya ulang di latar. Dengan begitu
+	 * pengguna aktif tidak pernah menunggu pp-backend yang lambat. Token yang
+	 * ditolak saat ditanya ulang langsung dibuang. Jendela ini hanya berlaku
+	 * penuh saat pp-backend tidak terjangkau, dan pengguna yang sudah
+	 * terverifikasi tetap terlayani selama itu. `0` mematikannya.
+	 */
+	PP_AUTH_STALE_S: num('PP_AUTH_STALE_S', 300),
+	/**
+	 * Batas waktu satu panggilan ke pp-backend. Tanpa batas ini, pp-backend
+	 * yang menggantung membuat semua permintaan ikut menggantung. Lewat batas,
+	 * permintaannya dibalas 503.
+	 *
+	 * Sengaja cukup longgar: berkat cache, yang menunggu pp-backend hanya
+	 * permintaan pertama sebuah token dan pemeriksaan ulang di latar. Batas
+	 * yang terlalu ketat justru menolak pengguna saat pp-backend lambat tetapi
+	 * masih menjawab. Kegagalan beruntun ditangani pemutus sirkuit
+	 * (`lib/pp-backend-breaker.ts`).
+	 */
+	PP_AUTH_TIMEOUT_MS: num('PP_AUTH_TIMEOUT_MS', 5000),
 
 	// ── admin-ppe: provider LLM & kuota ─────────────────────────────────────
 	PP_EXTENDED_ADMIN_URL: str('PP_EXTENDED_ADMIN_URL'),
@@ -59,6 +98,18 @@ export const env = {
 	REDIS_HOST: str('REDIS_HOST', 'localhost'),
 	REDIS_PORT: num('REDIS_PORT', 6379),
 	REDIS_PASSWORD: str('REDIS_PASSWORD'),
+	/**
+	 * Koneksi Postgres maksimal per proses API. Selaraskan dengan
+	 * `max_connections` Postgres: totalnya adalah nilai ini × `API_PROCESSES`
+	 * × jumlah replika, ditambah worker.
+	 */
+	DB_POOL_MAX: num('DB_POOL_MAX', 10),
+	/**
+	 * Umur id identitas di memori, dalam detik. Tanpa cache, setiap
+	 * permintaan (termasuk GET) menjalankan upsert ke tabel `identity`: satu
+	 * tulis Postgres per permintaan.
+	 */
+	IDENTITY_CACHE_TTL_S: num('IDENTITY_CACHE_TTL_S', 600),
 
 	// ── Penyimpanan dokumen ─────────────────────────────────────────────────
 	STORAGE_DRIVER: oneOf<StorageDriver>('STORAGE_DRIVER', ['s3', 'local'], 's3'),
