@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { createDocument } from '@/features/documents/api'
 import { useSessions } from '@/features/sessions/session-context'
-import { useTemplates } from '@/features/templates/use-templates'
+import { useTemplate, useTemplateCards } from '@/features/templates/use-templates'
 import { TemplateCard } from './template-card'
 import { TemplateDetailPanel } from './template-detail-panel'
 import { TemplateMetadataDialog } from './template-metadata-dialog'
@@ -29,7 +29,7 @@ const CATEGORIES: Array<{ id: TemplateCategory | 'all'; label: string }> = [
 export function TemplateGallery() {
 	const router = useRouter()
 	const { newDocument } = useSessions()
-	const templates = useTemplates()
+	const templates = useTemplateCards()
 	const [category, setCategory] = useState<TemplateCategory | 'all'>('all')
 	const [query, setQuery] = useState('')
 	const [selectedSlug, setSelectedSlug] = useState<string | null>(null)
@@ -49,7 +49,10 @@ export function TemplateGallery() {
 		[selectedSlug],
 	)
 
-	const selected = (templates.data ?? []).find((item) => item.slug === selectedSlug)
+	/* Kartu hanya membawa pratinjau; isi lengkap, struktur, dan isian
+	 * metadatanya diambil saat template dipilih. */
+	const selectedTemplate = useTemplate(selectedSlug)
+	const selected = selectedTemplate.data?.slug === selectedSlug ? selectedTemplate.data : undefined
 
 	const visible = useMemo(() => {
 		const needle = query.trim().toLowerCase()
@@ -186,6 +189,20 @@ export function TemplateGallery() {
 						</div>
 					)}
 				</main>
+
+				{selectedSlug && !selected && (
+					<aside className="absolute inset-y-0 right-0 z-30 flex w-96 max-w-[calc(100%-2rem)] shrink-0 items-center justify-center border-l border-line bg-surface p-6 text-center shadow-2xl lg:relative lg:max-w-none lg:shadow-none">
+						{selectedTemplate.isError ? (
+							<p className="text-sm text-muted">
+								{selectedTemplate.error instanceof Error
+									? selectedTemplate.error.message
+									: 'Gagal memuat detail template.'}
+							</p>
+						) : (
+							<div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+						)}
+					</aside>
+				)}
 
 				{selected && (
 					<>

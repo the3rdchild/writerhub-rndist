@@ -1,9 +1,14 @@
-import type { TemplateSummary } from '@writer-hub/shared'
+import type { TemplateCard, TemplateSummary } from '@writer-hub/shared'
 import { apiFetch } from '@/lib/api-client'
 
-export function listTemplates(category?: string): Promise<TemplateSummary[]> {
-	const query = category ? `?category=${encodeURIComponent(category)}` : ''
-	return apiFetch<TemplateSummary[]>(`/templates${query}`)
+/**
+ * Katalog untuk kartu galeri: tanpa `spec`, dan hanya awal kerangka tiap
+ * template untuk pratinjaunya. Isi lengkapnya diambil per slug lewat
+ * `getTemplate` saat sebuah template dipilih.
+ */
+export function listTemplateCards(category?: string): Promise<TemplateCard[]> {
+	const query = new URLSearchParams({ view: 'card', ...(category ? { category } : {}) })
+	return apiFetch<TemplateCard[]>(`/templates?${query}`)
 }
 
 /**

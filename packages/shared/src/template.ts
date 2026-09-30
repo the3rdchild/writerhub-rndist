@@ -118,9 +118,9 @@ export interface TemplateSpec {
 }
 
 /**
- * Bentuk template di kawat, sama untuk daftar katalog maupun pengambilan per
- * slug. `content` selalu ikut: pratinjau kartu galeri dirender darinya, jadi
- * memisahkannya hanya akan menambah satu panggilan per kartu.
+ * Bentuk template lengkap di kawat: daftar katalog bawaan dan pengambilan per
+ * slug. Galeri memakai bentuk ringan {@link TemplateCard}, lalu mengambil
+ * bentuk ini per slug saat sebuah template dipilih.
  */
 export interface TemplateSummary {
 	slug: string
@@ -131,4 +131,23 @@ export interface TemplateSummary {
 	spec: TemplateSpec
 	/** Kerangka ProseMirror hasil kompilasi Markdown. */
 	content: Record<string, unknown>
+}
+
+/**
+ * Bentuk ringan satu template untuk kartu galeri (`GET /templates?view=card`).
+ *
+ * Kartu hanya menampilkan pratinjau halaman pertama, jadi yang dikirim cukup
+ * potongan awal kerangkanya tanpa `spec`. Galeri tetap satu panggilan untuk
+ * semua kartu, tetapi tidak lagi mengunduh seluruh katalog (±164 KB untuk 36
+ * template pada uji beban 30 Sep).
+ */
+export interface TemplateCard {
+	slug: string
+	name: string
+	description: string
+	category: TemplateCategory
+	locale: TemplateLocale
+	pageSetup: PageSetup
+	/** Potongan awal `content`, cukup untuk mengisi pratinjau halaman pertama. */
+	preview: Record<string, unknown>
 }
