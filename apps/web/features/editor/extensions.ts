@@ -10,7 +10,6 @@ import { Superscript } from '@tiptap/extension-superscript'
 import { TableKit } from '@tiptap/extension-table'
 import TextAlign from '@tiptap/extension-text-align'
 import { TextStyleKit } from '@tiptap/extension-text-style'
-import Typography from '@tiptap/extension-typography'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { Extensions } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -22,6 +21,7 @@ import { AnalysisHighlight } from '@/features/analysis/analysis-highlight'
 import { CandidatePreviewHighlight } from '@/features/analysis/candidate-preview'
 import { CommentMark } from '@/features/comments/comment-mark'
 import { SuggestionHighlight } from '@/features/document/suggestion-highlight'
+import { AutoTypography } from '@/features/editor/auto-typography'
 import { BlockKeep } from '@/features/editor/block-keep'
 import { BlockSpacing } from '@/features/editor/block-spacing'
 import { Callout } from '@/features/editor/callout'
@@ -158,7 +158,7 @@ export function buildEditorExtensions({
 		Highlight.configure({ multicolor: true }),
 		Subscript,
 		Superscript,
-		Typography,
+		AutoTypography,
 		TableKit.configure({ table: false, tableRow: false, tableCell: false, tableHeader: false }),
 		TableNodeProps.configure({ resizable: true, View: TableViewClearingWidths }),
 		TableRowProps,
