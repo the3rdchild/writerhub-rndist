@@ -253,6 +253,11 @@ function tableCuts(view: EditorView, table: PMNode, tablePos: number, element: H
  * Posisi naskah tempat baris pertama di bawah `offset` dimulai - awal potongan
  * lanjutan. Dicari biner atas `coordsAtPos`, yang tetap bekerja pada bagian
  * blok yang sedang dipangkas (tata letaknya tetap ada).
+ *
+ * Yang dibandingkan TENGAH kotak kursor, bukan puncaknya: dengan spasi baris
+ * rapat, kotak isi baris berikutnya mulai sedikit di atas titik potong
+ * (kotak-kotak itu bertumpang), sehingga puncaknya menunjuk satu baris terlalu
+ * jauh.
  */
 export function positionAtOffset(
 	view: EditorView,
@@ -265,7 +270,8 @@ export function positionAtOffset(
 	const scale = scaleOf(element)
 	const yOf = (pos: number): number => {
 		try {
-			return (view.coordsAtPos(pos, 1).top - base.top) / scale
+			const coords = view.coordsAtPos(pos, 1)
+			return ((coords.top + coords.bottom) / 2 - base.top) / scale
 		} catch {
 			return Number.NEGATIVE_INFINITY
 		}

@@ -11,6 +11,8 @@ import {
 	activeFragments,
 	buildDecorations,
 	ColumnClones,
+	caretFragment,
+	type FragmentPin,
 	mapPlans,
 	type RegionPlan,
 	sameActive,
@@ -239,8 +241,12 @@ export const columnLayoutKey = new PluginKey<ColumnLayoutState>('columnLayout')
 export interface ColumnLayoutState {
 	plans: RegionPlan[]
 	active: ActiveFragments
+	pin: FragmentPin | null
 	decorations: DecorationSet
 }
+
+/** Meta transaksi pematok potongan (lihat `FragmentPin`). */
+const PIN_META = 'columnsFragmentPin'
 
 /** Mengalirkan satu wilayah terukur menjadi rencana tampil. */
 function planRegion(view: EditorView, region: RegionMeasure): RegionPlan {
@@ -364,19 +370,24 @@ function columnLayoutPlugin(): Plugin<ColumnLayoutState> {
 		key: columnLayoutKey,
 
 		state: {
-			init: () => ({ plans: [], active: new Map(), decorations: DecorationSet.empty }),
+			init: () => ({ plans: [], active: new Map(), pin: null, decorations: DecorationSet.empty }),
 
 			apply(tr, current, _old, newState) {
 				const incoming = tr.getMeta(columnLayoutKey) as RegionPlan[] | undefined
 				const plans = incoming ?? (tr.docChanged ? mapPlans(current.plans, tr) : current.plans)
-				const active = activeFragments(plans, newState.selection)
+				/* Patokan hanya berlaku selama kepala seleksinya diam dan naskahnya tetap. */
+				const pinned = tr.getMeta(PIN_META) as FragmentPin | undefined
+				const kept =
+					current.pin && !tr.docChanged && newState.selection.head === current.pin.head ? current.pin : null
+				const pin = pinned ?? kept
+				const active = activeFragments(plans, newState.selection, pin)
 				if (incoming || !sameActive(active, current.active)) {
-					return { plans, active, decorations: buildDecorations(newState.doc, plans, active) }
+					return { plans, active, pin, decorations: buildDecorations(newState.doc, plans, active) }
 				}
 				if (tr.docChanged) {
-					return { plans, active, decorations: current.decorations.map(tr.mapping, tr.doc) }
+					return { plans, active, pin, decorations: current.decorations.map(tr.mapping, tr.doc) }
 				}
-				return current
+				return pin === current.pin ? current : { ...current, pin }
 			},
 		},
 
@@ -473,13 +484,56 @@ function columnLayoutPlugin(): Plugin<ColumnLayoutState> {
 			schedule()
 			clones.sync()
 
+			/*
+			 * Kursor yang berpindah kolom bersama blok aslinya.
+			 *
+			 * Peramban mengingat posisi x tujuan untuk panah atas/bawah dalam
+			 * koordinat halaman. Begitu blok asli pindah ke kolom lain, x itu
+			 * tidak lagi menunjuk ke dalam blok, dan panah berikutnya melompat ke
+			 * ujung baris. Menaruh ulang seleksi DOM (sekali ke tempat lain, lalu
+			 * kembali) membuat peramban mengukur ulang x dari kursor yang baru.
+			 */
+			const resetGoalColumn = () => {
+				const selection = view.dom.ownerDocument.getSelection()
+				if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) return
+				const { focusNode, focusOffset } = selection
+				if (!focusNode || !view.dom.contains(focusNode)) return
+				selection.collapse(view.dom, 0)
+				selection.collapse(focusNode, focusOffset)
+			}
+			const shownLeft = (state: ColumnLayoutState | undefined, head: number): number | null => {
+				for (const plan of state?.plans ?? []) {
+					for (const item of plan.items) {
+						if (item.fragments.length < 2 || head <= item.pos || head >= item.pos + item.nodeSize) continue
+						return item.fragments[state?.active.get(item.pos) ?? 0]?.left ?? null
+					}
+				}
+				return null
+			}
+
 			return {
 				update: (_view, previous) => {
 					const before = paginationKey.getState(previous)
 					const after = paginationKey.getState(view.state)
-					const layout = columnLayoutKey.getState(previous) !== columnLayoutKey.getState(view.state)
-					if (!previous.doc.eq(view.state.doc) || before !== after || layout) schedule()
+					const was = columnLayoutKey.getState(previous)
+					const now = columnLayoutKey.getState(view.state)
+					if (!previous.doc.eq(view.state.doc) || before !== after || was !== now) schedule()
 					clones.sync()
+
+					if (!now || view.composing) return
+					const head = view.state.selection.head
+					const from = shownLeft(was, previous.selection.head)
+					const to = shownLeft(now, head)
+					if (view.state.selection.empty && from !== null && to !== null && Math.abs(from - to) > 0.5) {
+						resetGoalColumn()
+					}
+					const pin = caretFragment(view, now.plans, now.active)
+					if (pin) {
+						queueMicrotask(() => {
+							if (view.isDestroyed || view.state.selection.head !== pin.head) return
+							view.dispatch(view.state.tr.setMeta(PIN_META, pin).setMeta('addToHistory', false))
+						})
+					}
 				},
 				destroy: () => {
 					if (frame) cancelAnimationFrame(frame)

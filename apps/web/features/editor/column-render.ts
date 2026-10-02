@@ -67,7 +67,26 @@ export interface RegionPlan {
 /** Potongan tempat blok asli ditaruh, per posisi butir yang terpotong (0 bila tidak tercatat). */
 export type ActiveFragments = ReadonlyMap<number, number>
 
-export function activeFragments(plans: readonly RegionPlan[], selection: Selection): Map<number, number> {
+/**
+ * Potongan yang dipaksakan untuk kepala seleksi tertentu.
+ *
+ * Posisi di batas dua potongan (akhir baris terakhir potongan kiri = awal
+ * baris pertama potongan kanan) tidak membawa arah; peramban menggambar
+ * kursornya di salah satu baris menurut cara kursor tiba di sana (End,
+ * panah). Bila kursor ternyata tergambar di potongan lain, potongan itu
+ * dipatok selama kepala seleksinya tidak bergerak (lihat `caretFragment`).
+ */
+export interface FragmentPin {
+	pos: number
+	index: number
+	head: number
+}
+
+export function activeFragments(
+	plans: readonly RegionPlan[],
+	selection: Selection,
+	pin: FragmentPin | null = null,
+): Map<number, number> {
 	const active = new Map<number, number>()
 	const head = selection.head
 	for (const plan of plans) {
@@ -78,10 +97,44 @@ export function activeFragments(plans: readonly RegionPlan[], selection: Selecti
 			item.fragments.forEach((fragment, candidate) => {
 				if (fragment.from <= head) index = candidate
 			})
+			if (pin && pin.pos === item.pos && pin.head === head && pin.index < item.fragments.length)
+				index = pin.index
 			if (index > 0) active.set(item.pos, index)
 		}
 	}
 	return active
+}
+
+/**
+ * Potongan tempat peramban SEBENARNYA menggambar kursor, bila berbeda dari
+ * potongan aktif - dibaca dari kotak seleksi DOM (tetap ada walau dipangkas).
+ */
+export function caretFragment(
+	view: EditorView,
+	plans: readonly RegionPlan[],
+	active: ActiveFragments,
+): FragmentPin | null {
+	const { selection } = view.state
+	if (!selection.empty || view.composing) return null
+	const head = selection.head
+	const item = plans
+		.flatMap((plan) => plan.items)
+		.find((entry) => entry.fragments.length > 1 && head > entry.pos && head < entry.pos + entry.nodeSize)
+	if (!item) return null
+	const element = view.nodeDOM(item.pos)
+	const dom = view.dom.ownerDocument.getSelection()
+	if (!(element instanceof HTMLElement) || !dom || dom.rangeCount === 0 || !element.contains(dom.focusNode))
+		return null
+	const rect = dom.getRangeAt(0).getClientRects()[0]
+	if (!rect) return null
+	const base = element.getBoundingClientRect()
+	const scale = element.offsetWidth > 0 ? base.width / element.offsetWidth || 1 : 1
+	const middle = (rect.top + rect.height / 2 - base.top) / scale
+	const index = item.fragments.findIndex(
+		(fragment) => middle >= fragment.offset && middle < fragment.offset + fragment.height,
+	)
+	if (index < 0 || index === (active.get(item.pos) ?? 0)) return null
+	return { pos: item.pos, index, head }
 }
 
 export function sameActive(a: ActiveFragments, b: ActiveFragments): boolean {

@@ -1,3 +1,4 @@
+import type { Node as PMNode } from '@tiptap/pm/model'
 import { type EditorState, Plugin, Selection, TextSelection } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
 import { positionAtOffset } from './column-measure'
@@ -182,8 +183,7 @@ function isEmptyRegionPoint(
 	return plans.some((plan) => by >= plan.top - 4 && by <= plan.top + plan.height + 4)
 }
 
-function selectionFor(view: EditorView, anchor: number, head: number): Selection {
-	const { doc } = view.state
+function selectionFor(doc: PMNode, anchor: number, head: number): Selection {
 	const clamp = (pos: number) => Math.max(0, Math.min(pos, doc.content.size))
 	const $head = doc.resolve(clamp(head))
 	if (anchor === head) return Selection.near($head)
@@ -209,8 +209,86 @@ function wordAround(view: EditorView, pos: number): { from: number; to: number }
 	return { from: base + start, to: base + end }
 }
 
+/** Meta transaksi koreksi seret (lihat `appendTransaction`). */
+const DRAG_FIX = 'columnsDragFix'
+
+/** Titik layar ini menunjuk salinan atau ruang kosong wilayah - bukan teks blok asli? */
+function isColumnPoint(view: EditorView, plans: readonly RegionPlan[], x: number, y: number): boolean {
+	const target = document.elementFromPoint(x, y)
+	if (!target || !view.dom.contains(target)) return false
+	if (target.closest(`.${CLONE_CLASS}:not(.columns-clone-header)`)) return true
+	return isEmptyRegionPoint(view, plans, target, y)
+}
+
 export function columnPointerPlugin(plansOf: (state: EditorState) => readonly RegionPlan[]): Plugin {
+	/*
+	 * Seret yang dimulai di blok asli tetap milik peramban (dan ProseMirror).
+	 * Begitu tetikus melewati salinan atau ruang kosong kolom, seleksi bawaan
+	 * peramban tidak bisa masuk ke sana - fokusnya jatuh ke tepi widget, dan
+	 * ProseMirror membacanya sebagai batas blok. Selama itu, setiap seleksi
+	 * yang dibaca dari DOM dikoreksi ke posisi di bawah tetikus.
+	 */
+	let editorView: EditorView | null = null
+	let drag: { x: number; y: number; over: boolean } | null = null
+
 	return new Plugin({
+		view(view) {
+			editorView = view
+			const down = (event: MouseEvent) => {
+				drag =
+					event.button === 0 && !event.defaultPrevented
+						? { x: event.clientX, y: event.clientY, over: false }
+						: null
+			}
+			const move = (event: MouseEvent) => {
+				if (!drag) return
+				if (!(event.buttons & 1)) {
+					drag = null
+					return
+				}
+				drag.x = event.clientX
+				drag.y = event.clientY
+				const plans = plansOf(view.state)
+				drag.over = isColumnPoint(view, plans, event.clientX, event.clientY)
+				if (!drag.over || view.isDestroyed) return
+				/* Salinan tidak bisa diseleksi (`user-select: none`), jadi seleksi
+				 * bawaan berhenti di tepinya; kepala seleksi digeser sendiri. */
+				const head = columnPositionAt(view, plans, event.clientX, event.clientY)
+				if (head === null) return
+				const selection = selectionFor(view.state.doc, view.state.selection.anchor, head)
+				if (!selection.eq(view.state.selection)) {
+					view.dispatch(view.state.tr.setSelection(selection).setMeta(DRAG_FIX, true))
+				}
+			}
+			const up = () => {
+				drag = null
+			}
+			/* Fase gelembung: `defaultPrevented` sudah menandai klik yang ditangani sendiri. */
+			view.dom.addEventListener('mousedown', down)
+			window.addEventListener('mousemove', move, true)
+			window.addEventListener('mouseup', up, true)
+			return {
+				destroy: () => {
+					view.dom.removeEventListener('mousedown', down)
+					window.removeEventListener('mousemove', move, true)
+					window.removeEventListener('mouseup', up, true)
+					editorView = null
+				},
+			}
+		},
+
+		appendTransaction(transactions, _old, state) {
+			const view = editorView
+			if (!drag?.over || !view) return null
+			if (!transactions.some((tr) => tr.selectionSet) || transactions.some((tr) => tr.getMeta(DRAG_FIX)))
+				return null
+			if (transactions.some((tr) => tr.docChanged)) return null
+			const head = columnPositionAt(view, plansOf(state), drag.x, drag.y)
+			if (head === null || head === state.selection.head) return null
+			const selection = selectionFor(state.doc, state.selection.anchor, head)
+			return selection.eq(state.selection) ? null : state.tr.setSelection(selection).setMeta(DRAG_FIX, true)
+		},
+
 		props: {
 			handleDOMEvents: {
 				/* Salinan tidak bisa disunting, jadi tautan dan kotak centang di
@@ -255,7 +333,7 @@ export function columnPointerPlugin(plansOf: (state: EditorState) => readonly Re
 							return true
 						}
 					}
-					view.dispatch(view.state.tr.setSelection(selectionFor(view, anchor, pos)))
+					view.dispatch(view.state.tr.setSelection(selectionFor(view.state.doc, anchor, pos)))
 
 					/* Seret: kepala seleksi mengikuti tetikus, di salinan maupun blok asli. */
 					const move = (next: MouseEvent) => {
@@ -265,7 +343,7 @@ export function columnPointerPlugin(plansOf: (state: EditorState) => readonly Re
 							columnPositionAt(view, currentPlans, next.clientX, next.clientY) ??
 							view.posAtCoords({ left: next.clientX, top: next.clientY })?.pos
 						if (head === undefined || head === null) return
-						const selection = selectionFor(view, anchor, head)
+						const selection = selectionFor(view.state.doc, anchor, head)
 						if (!selection.eq(view.state.selection)) view.dispatch(view.state.tr.setSelection(selection))
 					}
 					const up = () => {
