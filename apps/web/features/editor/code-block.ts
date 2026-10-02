@@ -1,5 +1,6 @@
 'use client'
 
+import type { Editor } from '@tiptap/core'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { common, createLowlight } from 'lowlight'
@@ -67,3 +68,24 @@ export const CodeBlock = CodeBlockLowlight.extend({
 	enableTabIndentation: true,
 	tabSize: 4,
 })
+
+/**
+ * Sisip blok kode dari menu: paragraf KOSONG diubah menjadi blok kode, tetapi
+ * paragraf berisi teks dibiarkan dan blok kode baru disisipkan sesudahnya.
+ * Dulu Sisip › Blok kode / Teks polos / Diagram Mermaid mengubah paragraf yang
+ * sedang ditulis menjadi kode (uji editor 2 Okt, OBJ-19).
+ */
+export function insertCodeBlock(editor: Editor, language: string): boolean {
+	const { $from } = editor.state.selection
+	const block = $from.parent
+	if (block.isTextblock && block.content.size === 0) {
+		return editor.chain().focus().setCodeBlock({ language }).run()
+	}
+	const at = $from.depth > 0 ? $from.after($from.depth) : editor.state.selection.to
+	return editor
+		.chain()
+		.focus()
+		.insertContentAt(at, { type: 'codeBlock', attrs: { language } })
+		.setTextSelection(at + 1)
+		.run()
+}

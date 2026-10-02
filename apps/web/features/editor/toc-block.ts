@@ -1,4 +1,5 @@
 import { mergeAttributes, Node } from '@tiptap/core'
+import { continueAfterSelectedBlock } from './insert-point'
 export const TOC_BLOCK = 'tocBlock'
 
 export type TocListKind = 'isi' | 'gambar' | 'tabel'
@@ -74,6 +75,10 @@ export const TocBlock = Node.create({
 					return chain()
 						.focus()
 						.insertContent({ type: TOC_BLOCK, attrs: clampedAttrs({ ...captionRange, ...attrs }) })
+						.command(({ tr }) => {
+							continueAfterSelectedBlock(tr)
+							return true
+						})
 						.run()
 				},
 		}
