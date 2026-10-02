@@ -9,7 +9,6 @@ import {
 	moveTableRow,
 	TableMap,
 } from '@tiptap/pm/tables'
-import { NO_COLOR } from '@/features/editor/custom-table'
 
 export interface CellTarget {
 	tablePos: number
@@ -271,38 +270,65 @@ export function setTableIndent(editor: Editor, tablePos: number, left: number): 
 	return true
 }
 
-export function clearCellStyling(editor: Editor): boolean {
-	const { state } = editor
-	const cellType = state.schema.nodes.tableCell
-	const headerType = state.schema.nodes.tableHeader
-	if (!cellType) return false
-
-	const positions: number[] = []
+/** Posisi sel yang dipilih (CellSelection), atau sel tempat kursor berada. */
+function selectedCellPositions(state: EditorState): number[] {
 	const { selection } = state
 	if (selection instanceof CellSelection) {
+		const positions: number[] = []
 		selection.forEachCell((_cell, pos) => positions.push(pos))
-	} else {
-		const { $from } = selection
-		for (let depth = $from.depth; depth > 0; depth -= 1) {
-			const role = $from.node(depth).type.spec.tableRole
-			if (role === 'cell' || role === 'header_cell') {
-				positions.push($from.before(depth))
-				break
-			}
-		}
+		return positions
 	}
+	const { $from } = selection
+	for (let depth = $from.depth; depth > 0; depth -= 1) {
+		const role = $from.node(depth).type.spec.tableRole
+		if (role === 'cell' || role === 'header_cell') return [$from.before(depth)]
+	}
+	return []
+}
+
+/**
+ * "Tanpa warna": latar dan bingkai sel kembali ke rupa bawaan (null), bukan
+ * `transparent`. Dulu bingkai ikut diset transparan - garis sel lenyap - dan
+ * sel kepala diturunkan jadi sel biasa (uji editor 2 Okt, TBL-10). Status
+ * kepala adalah urusan "Toggle header", bukan urusan warna.
+ */
+export function clearCellStyling(editor: Editor): boolean {
+	const { state } = editor
+	const positions = selectedCellPositions(state)
 	if (positions.length === 0) return false
 
 	const tr = state.tr
 	for (const pos of positions) {
 		const cell = tr.doc.nodeAt(pos)
 		if (!cell) continue
-		tr.setNodeMarkup(
-			pos,
-			headerType && cell.type === headerType ? cellType : cell.type,
-			{ ...cell.attrs, backgroundColor: NO_COLOR, borderColor: NO_COLOR },
-			cell.marks,
-		)
+		tr.setNodeMarkup(pos, undefined, { ...cell.attrs, backgroundColor: null, borderColor: null }, cell.marks)
+	}
+	if (!tr.docChanged) return false
+	editor.view.dispatch(tr)
+	return true
+}
+
+/**
+ * Perataan teks seluruh paragraf dan judul di sel terpilih. Atribut sel
+ * `textAlign` tidak ada di skema - ProseMirror membuangnya diam-diam, dan menu
+ * "Align cell" dulu tidak melakukan apa pun (TBL-9).
+ */
+export function alignCellText(editor: Editor, align: 'left' | 'center' | 'right'): boolean {
+	const { state } = editor
+	const positions = selectedCellPositions(state)
+	if (positions.length === 0) return false
+
+	const tr = state.tr
+	for (const pos of positions) {
+		const cell = tr.doc.nodeAt(pos)
+		if (!cell) continue
+		cell.descendants((node, offset) => {
+			if (!node.isTextblock) return true
+			if ('textAlign' in node.attrs && node.attrs.textAlign !== align) {
+				tr.setNodeAttribute(pos + 1 + offset, 'textAlign', align)
+			}
+			return false
+		})
 	}
 	if (!tr.docChanged) return false
 	editor.view.dispatch(tr)

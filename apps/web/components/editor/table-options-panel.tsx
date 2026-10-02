@@ -4,7 +4,6 @@ import type { Editor } from '@tiptap/react'
 import { ChevronDown, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { PALETTE } from '@/components/editor/color-picker'
-import { NO_COLOR } from '@/features/editor/custom-table'
 import { columnWidths, setColumnWidths } from '@/features/editor/table-ops'
 import { type TablePropsSnapshot, tablePropsAt } from '@/features/editor/table-props'
 import { cn } from '@/lib/utils'
@@ -372,7 +371,7 @@ export function TableOptionsPanel({ editor, onClose }: { editor: Editor; onClose
 							<Swatches
 								value={snap.cellBackground}
 								onPick={(color) => chain().setCellAttribute('backgroundColor', color).run()}
-								onClear={() => chain().setCellAttribute('backgroundColor', NO_COLOR).run()}
+								onClear={() => chain().setCellAttribute('backgroundColor', null).run()}
 								clearLabel="Tanpa warna"
 							/>
 						</div>

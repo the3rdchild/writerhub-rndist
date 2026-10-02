@@ -212,11 +212,11 @@ function Palette({
 			<button
 				type="button"
 				onClick={onClear}
-				title="Latar, bingkai, dan status sel kepala dilepas sekaligus"
+				title="Remove the cell background and border colors"
 				className="mt-2 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 			>
 				<Eraser className="h-3.5 w-3.5" />
-				Tanpa warna (polos)
+				No color
 			</button>
 		</div>
 	)
