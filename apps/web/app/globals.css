@@ -1748,11 +1748,16 @@ a {
   border-top: 1px dashed var(--border-strong);
 }
 
+/*
+ * Label di BAWAH garis (KOL-18). Dulu ia menjulur ke atas garis dan menutupi
+ * baris terakhir paragraf sebelumnya; sesudah pemenggal, sisa lembar (atau
+ * kolom) memang kosong, jadi di bawah garislah tempat yang tidak menimpa teks.
+ */
 .document-body .page-break::after {
   content: 'Halaman baru';
   position: absolute;
   right: 0;
-  top: -0.7em;
+  top: 2px;
   padding-left: 0.6em;
   background: var(--surface-raised);
   font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
@@ -1788,7 +1793,7 @@ a {
   content: 'Kolom baru';
   position: absolute;
   right: 0;
-  top: -0.7em;
+  top: 2px;
   padding-left: 0.6em;
   background: var(--surface-raised);
   font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
@@ -1820,17 +1825,24 @@ a {
   top: 0;
   border-top: 3px double var(--border-strong);
 }
+/*
+ * Label pembatas section duduk di MARGIN KANAN lembar, sejajar garisnya
+ * (KOL-8, KOL-18). Di atas garis ia menimpa baris terakhir paragraf
+ * sebelumnya, di bawahnya menimpa baris pertama wilayah berkolom yang dibuka
+ * pembatas menerus - margin satu-satunya tempat yang selalu kosong, dan dari
+ * sana pembatasnya tetap kelihatan.
+ */
 .document-body .section-break::after {
   content: 'Section break';
   position: absolute;
-  right: 0;
-  top: -0.7em;
-  padding-left: 0.6em;
-  background: var(--surface-raised);
+  left: calc(100% + 10px);
+  top: -6px;
+  width: 68px;
   font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
-  font-size: 10px;
-  line-height: 1.4;
+  font-size: 9px;
+  line-height: 1.25;
   color: var(--foreground-faint);
+  pointer-events: none;
 }
 .document-body .section-break.ProseMirror-selectednode::before {
   border-top-color: var(--accent);
