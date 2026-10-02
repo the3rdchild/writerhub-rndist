@@ -213,6 +213,22 @@ a {
   pointer-events: none;
 }
 
+/*
+ * Titik nol paginasi (KOL-14).
+ *
+ * Paginasi dan tata letak kolom mengukur dengan `offsetTop` terhadap badan
+ * naskah, dan menganggap y = 0 di situ adalah puncak area teks lembar pertama.
+ * Tanpa konteks format sendiri, margin atas blok pertama (judul 24pt, spasi
+ * sebelum paragraf) MERAMBAT keluar dan menggeser seluruh badan naskah ke
+ * bawah - tiap lembar lalu terisi 10-30 px melewati margin bawahnya. Di kertas
+ * peramban memaginasi sendiri, jadi aturan ini cukup untuk layar.
+ */
+@media screen {
+  .document-body {
+    display: flow-root;
+  }
+}
+
 /* ── perabot halaman (header/footer) ───────────────────────────────────── */
 
 /* Area klik-ganda untuk masuk mode sunting; menempati pita margin atas/bawah
