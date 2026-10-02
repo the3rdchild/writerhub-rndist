@@ -45,6 +45,26 @@ export interface ToolbarState {
 	hasSelection: boolean
 }
 
+/**
+ * Ukuran huruf efektif di kursor saat tidak ada mark `fontSize`, dibaca dari
+ * gaya terhitung bloknya. Dulu jatuh ke 11 pt: kotak ukuran menunjukkan "11"
+ * di judul, dan +/− melangkah dari 11 sehingga judul MENGECIL (TKS-9).
+ * Perbesaran kanvas memakai `transform: scale`, jadi gaya terhitung tidak
+ * terpengaruh olehnya.
+ */
+function computedFontSizePt(instance: Editor): number | null {
+	try {
+		const { node } = instance.view.domAtPos(instance.state.selection.from)
+		const element = node instanceof Element ? node : node.parentElement
+		if (!element) return null
+		const px = Number.parseFloat(getComputedStyle(element).fontSize)
+		if (!Number.isFinite(px) || px <= 0) return null
+		return Math.round(px * 0.75 * 2) / 2
+	} catch {
+		return null
+	}
+}
+
 /** Membaca seluruh keadaan yang ditampilkan toolbar dalam satu langganan. */
 export function useToolbarState(editor: Editor | null): ToolbarState | null {
 	return useEditorState({
@@ -72,7 +92,9 @@ export function useToolbarState(editor: Editor | null): ToolbarState | null {
 				alignJustify: instance.isActive({ textAlign: 'justify' }),
 				style: ALL_PARAGRAPH_STYLES.find((item) => item.isActive(instance))?.id ?? 'paragraph',
 				fontFamily: String(attributes.fontFamily ?? DEFAULT_FONT_FAMILY),
-				fontSize: Number.isFinite(parsedSize) ? parsedSize : DEFAULT_FONT_SIZE,
+				fontSize: Number.isFinite(parsedSize)
+					? parsedSize
+					: (computedFontSizePt(instance) ?? DEFAULT_FONT_SIZE),
 				color: attributes.color as string | undefined,
 				highlight: instance.getAttributes('highlight').color as string | undefined,
 				canUndo: safeCan(() => instance.can().undo()),
