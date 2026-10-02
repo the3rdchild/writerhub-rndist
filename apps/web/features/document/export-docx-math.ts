@@ -498,10 +498,11 @@ export class LatexToOmml {
 					return [el('m:borderBox', [el('m:e', inner)])]
 				if (notation.includes('strike')) {
 					const strikes = [
-						...(notation.includes('updiagonalstrike') ? [on('m:strikeBLTR')] : []),
-						...(notation.includes('downdiagonalstrike') ? [on('m:strikeTLBR')] : []),
+						// Urutan skema m:borderBoxPr: strikeH, strikeV, strikeBLTR, strikeTLBR.
 						...(notation.includes('horizontalstrike') ? [on('m:strikeH')] : []),
 						...(notation.includes('verticalstrike') ? [on('m:strikeV')] : []),
+						...(notation.includes('updiagonalstrike') ? [on('m:strikeBLTR')] : []),
+						...(notation.includes('downdiagonalstrike') ? [on('m:strikeTLBR')] : []),
 					]
 					return [
 						el('m:borderBox', [

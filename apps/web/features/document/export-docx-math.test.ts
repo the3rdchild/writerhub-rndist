@@ -64,6 +64,13 @@ describe('LaTeX → bentuk antara OMML', () => {
 		expect(JSON.stringify(aligned)).toContain('"aln":true')
 	})
 
+	test('kotak dan coretan menjadi m:borderBox dengan urutan properti skema', () => {
+		expect(names(ir('\\boxed{x}'))).toContain('m:borderBox')
+		const cancel = JSON.stringify(ir('\\cancel{y}'))
+		expect(cancel).toContain('m:strikeBLTR')
+		expect(cancel.indexOf('m:hideRight')).toBeLessThan(cancel.indexOf('m:strikeBLTR'))
+	})
+
 	test('teks dalam rumus menjadi run teks biasa (m:nor)', () => {
 		const items = ir('x \\text{ jika } y')
 		expect(items?.some((item) => item.t === 'r' && item.nor && item.text.includes('jika'))).toBe(true)
