@@ -4,6 +4,7 @@ import { Clipboard, FileText, Upload, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentImport } from '@/features/document/import-context'
+import { pastePlainTextFromClipboard } from '@/features/editor/clipboard'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { pageBlockRange, paginationKey } from '@/features/editor/pagination'
 import { usePageStatus } from '@/features/editor/use-page-status'
@@ -67,11 +68,13 @@ export function DocumentEditor() {
 				.run()
 	}
 
-	const pasteFromClipboard = async () => {
-		try {
-			const text = await navigator.clipboard.readText()
-			if (text) dispatch({ type: 'setText', text })
-		} catch {}
+	/*
+	 * Tempel di posisi kursor, sama dengan Ctrl+Shift+V. Dulu tombol ini
+	 * mengganti SELURUH naskah dengan isi papan klip tanpa konfirmasi, atau
+	 * hanya mengubah hitungan kata tanpa menyentuh kanvas (uji editor 2 Okt, TKS-2).
+	 */
+	const pasteFromClipboard = () => {
+		if (editor && !editor.isDestroyed) void pastePlainTextFromClipboard(editor)
 	}
 
 	return (
