@@ -26,6 +26,7 @@ import { createPortal } from 'react-dom'
 import { openTableOptions } from '@/components/editor/table-options-panel'
 import type { MenuOrigin } from '@/features/editor/table-handles'
 import {
+	alignCellText,
 	type CellTarget,
 	deleteColAt,
 	deleteRowAt,
@@ -281,18 +282,18 @@ function buildItems(editor: Editor, menu: TableMenuState, onClose: () => void): 
 		{
 			label: 'Align cell left',
 			icon: <AlignLeft className={ICON} />,
-			onClick: onCell((e) => e.chain().focus().setCellAttribute('textAlign', 'left').run()),
+			onClick: onCell((e) => alignCellText(e, 'left')),
 			separatorBefore: true,
 		},
 		{
 			label: 'Align cell center',
 			icon: <AlignCenter className={ICON} />,
-			onClick: onCell((e) => e.chain().focus().setCellAttribute('textAlign', 'center').run()),
+			onClick: onCell((e) => alignCellText(e, 'center')),
 		},
 		{
 			label: 'Align cell right',
 			icon: <AlignRight className={ICON} />,
-			onClick: onCell((e) => e.chain().focus().setCellAttribute('textAlign', 'right').run()),
+			onClick: onCell((e) => alignCellText(e, 'right')),
 		},
 
 		{

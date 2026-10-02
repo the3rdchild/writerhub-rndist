@@ -17,8 +17,10 @@ import {
 	Stamp,
 	Table as TableIcon,
 } from 'lucide-react'
-import { DropdownLabel, DropdownSeparator } from '@/components/ui/dropdown'
+import { DropdownLabel, DropdownSeparator, Submenu } from '@/components/ui/dropdown'
 import { usePanels } from '@/features/analysis/panel-context'
+import { CALLOUT_TYPES } from '@/features/editor/callout'
+import { insertCodeBlock } from '@/features/editor/code-block'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { promptForLink } from '@/features/editor/link'
 import { isInsideTable, tableRepeatsHeader } from '@/features/editor/table-header-repeat'
@@ -58,12 +60,22 @@ export function InsertMenu({ onInsertImage }: { onInsertImage: () => void }) {
 					</Item>
 					<DropdownSeparator />
 					<DropdownLabel>Blok</DropdownLabel>
-					<Item
-						icon={<Highlighter className="h-4 w-4" />}
-						onSelect={() => run(close, () => editor?.chain().focus().setCallout('info').run())}
-					>
-						Callout…
-					</Item>
+					{/* Jenis dipilih saat menyisip (TKS-14); dulu selalu info. */}
+					<Submenu label="Callout" icon={<Highlighter className="h-4 w-4" />}>
+						{() => (
+							<>
+								{CALLOUT_TYPES.map((type) => (
+									<Item
+										key={type.id}
+										icon={<span className="w-4 text-center">{type.emoji}</span>}
+										onSelect={() => run(close, () => editor?.chain().focus().setCallout(type.id).run())}
+									>
+										{type.label}
+									</Item>
+								))}
+							</>
+						)}
+					</Submenu>
 					<Item
 						icon={<Quote className="h-4 w-4" />}
 						onSelect={() => run(close, () => editor?.chain().focus().toggleBlockquote().run())}
@@ -72,25 +84,19 @@ export function InsertMenu({ onInsertImage }: { onInsertImage: () => void }) {
 					</Item>
 					<Item
 						icon={<Code className="h-4 w-4" />}
-						onSelect={() =>
-							run(close, () => editor?.chain().focus().toggleCodeBlock({ language: 'plaintext' }).run())
-						}
+						onSelect={() => run(close, () => editor && insertCodeBlock(editor, 'plaintext'))}
 					>
 						Teks polos
 					</Item>
 					<Item
 						icon={<Code2 className="h-4 w-4" />}
-						onSelect={() =>
-							run(close, () => editor?.chain().focus().toggleCodeBlock({ language: 'javascript' }).run())
-						}
+						onSelect={() => run(close, () => editor && insertCodeBlock(editor, 'javascript'))}
 					>
 						Blok kode
 					</Item>
 					<Item
 						icon={<Sigma className="h-4 w-4" />}
-						onSelect={() =>
-							run(close, () => editor?.chain().focus().toggleCodeBlock({ language: 'mermaid' }).run())
-						}
+						onSelect={() => run(close, () => editor && insertCodeBlock(editor, 'mermaid'))}
 					>
 						Diagram Mermaid…
 					</Item>

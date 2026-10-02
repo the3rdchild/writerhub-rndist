@@ -249,8 +249,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			.filter((tab): tab is TabMeta & { preview: string } => tab !== undefined)
 			.map((tab) => ({ ...tab, outlineExpanded: tabView(view, tab.id).outlineExpanded }))
 	}, [documents, activeDocId, tabs, view])
-	const pendingLoad = useRef<{ id: string; text: string } | null>(null)
 	const touchedText = useRef<string | null>(null)
+	/* State reducer dari sebelum `load` terakhir: selama itu yang masih
+	 * tampil, saran dan skor di dalamnya milik tab sebelumnya. */
+	const preLoadState = useRef<typeof state | null>(null)
+	const stateRef = useRef(state)
+	stateRef.current = state
 	useEffect(
 		function loadActiveTabIntoEditor() {
 			if (!loaded || !editor || editor.isDestroyed || !activeId) return
@@ -258,8 +262,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			const title = readDocs(doc).find((dok) => dok.id === activeDocId)?.title ?? 'Untitled document'
 			const local = tabView(view, activeId)
 
-			pendingLoad.current = { id: activeId, text }
 			touchedText.current = text
+			preLoadState.current = stateRef.current
 
 			dispatch({
 				type: 'load',
@@ -268,28 +272,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		},
 		[loaded, editor, activeId, activeDocId, doc, dispatch],
 	)
+	/*
+	 * Judul mengalir SATU arah: Y.Doc → state. Penyuntingnya (kolom judul di
+	 * bilah atas, panel tab, sinkron server) menulis lewat `renameDocument`.
+	 *
+	 * Dulu ada efek yang menulis balik `state.title` ke Y.Doc bila berbeda.
+	 * Saat halaman dimuat sebelum editor siap, judul bawaan reducer ("Untitled
+	 * document") ikut ditulis balik dan menimpa judul tersimpan - juga di
+	 * server; dan pada dokumen baru penandanya tidak pernah bersih sehingga
+	 * semua ganti judul dibuang (uji editor 2 Okt, SHL-2).
+	 */
+	const activeTitle = documents.find((dok) => dok.id === activeDocId)?.title
 	useEffect(
-		function writeBackEditorState() {
-			if (!loaded || !activeId || !activeDocId) return
-
-			const pending = pendingLoad.current
-			if (pending) {
-				if (pending.id !== activeId || state.text === pending.text) {
-					pendingLoad.current = null
-				}
-				return
-			}
-
-			const stored = readDocs(doc).find((dok) => dok.id === activeDocId)?.title
-			if (stored !== undefined && stored !== state.title) {
-				ydocRenameDocument(doc, activeDocId, state.title)
-			}
+		function followStoredTitle() {
+			if (activeTitle !== undefined) dispatch({ type: 'setTitle', title: activeTitle })
 		},
-		[loaded, activeId, activeDocId, doc, state.title, state.text],
+		[activeTitle, dispatch],
 	)
 	useEffect(
 		function touchTabAfterEdit() {
-			if (!loaded || !activeId || pendingLoad.current) return
+			if (!loaded || !activeId) return
 			if (state.text === touchedText.current) return
 
 			const timer = setTimeout(() => {
@@ -303,12 +305,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	)
 	useEffect(
 		function storeSuggestionsAndScores() {
-			if (!loaded || !activeId || pendingLoad.current) return
+			if (!loaded || !activeId || state === preLoadState.current) return
 			setView((current) =>
 				patchTabView(current, activeId, { suggestions: state.suggestions, scores: state.scores }),
 			)
 		},
-		[loaded, activeId, setView, state.suggestions, state.scores],
+		[loaded, activeId, setView, state, state.suggestions, state.scores],
 	)
 	useEffect(
 		function pruneViewsForRemovedTabs() {

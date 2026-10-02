@@ -21,6 +21,7 @@ import {
 	Search,
 	Strikethrough,
 	Table as TableIcon,
+	TableOfContents,
 	Underline as UnderlineIcon,
 	Undo2,
 } from 'lucide-react'
@@ -166,7 +167,7 @@ export function EditorToolbar({
 			<Divider />
 
 			<IconButton icon={Search} label="Cari & ganti" disabled={isOff} onClick={() => onOpenSearch?.()} />
-			<IconButton icon={List} label="Daftar isi" disabled={isOff} onClick={() => onOpenToc?.()} />
+			<IconButton icon={TableOfContents} label="Daftar isi" disabled={isOff} onClick={() => onOpenToc?.()} />
 
 			<Divider />
 

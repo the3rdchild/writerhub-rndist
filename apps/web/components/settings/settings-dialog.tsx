@@ -192,12 +192,6 @@ export function SettingsDialog() {
 							</Field>
 
 							<ToggleRow
-								label="Simpan sesi otomatis"
-								description="Simpan pekerjaan Anda ke riwayat sesi secara otomatis"
-								checked={settings.autoSave}
-								onChange={(autoSave) => update({ autoSave })}
-							/>
-							<ToggleRow
 								label="Tampilkan jumlah kata"
 								description="Tampilkan jumlah kata dan karakter di bawah editor"
 								checked={settings.showWordCount}

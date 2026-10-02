@@ -1,6 +1,7 @@
 import { mergeAttributes, Node, nodeInputRule } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { ResizableImageView } from '@/components/editor/resizable-image-view'
+import { continueAfterSelectedBlock } from './insert-point'
 
 const IMAGE_INPUT = /!\[([^\]]*)\]\((\S+?)(?:\s+["']([^"']*)["'])?\)$/
 
@@ -110,11 +111,11 @@ export const ResizableImage = Node.create<ResizableImageOptions>({
 		return {
 			setImage:
 				(options) =>
-				({ commands }) =>
-					commands.insertContent({
-						type: this.name,
-						attrs: options,
-					}),
+				({ commands, tr }) => {
+					if (!commands.insertContent({ type: this.name, attrs: options })) return false
+					continueAfterSelectedBlock(tr)
+					return true
+				},
 			setImageAlign:
 				(align) =>
 				({ commands }) =>

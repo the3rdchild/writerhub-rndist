@@ -21,8 +21,8 @@ import {
 	updateTab,
 } from '@/features/sessions/ydoc'
 import { jsonToFragment } from '@/features/sync/serialize'
-import { useDocument } from './document-context'
 import { type DocxImport, importDocx, isDocx } from './import-docx'
+import { importPdfText, isPdf } from './import-pdf'
 export type ImportKind = 'any' | 'docx' | 'text'
 
 const ACCEPT: Record<ImportKind, string> = {
@@ -71,7 +71,6 @@ function resolveImportedSetup(patch: NonNullable<DocxImport['pageSetup']>): Page
 }
 
 export function DocumentImportProvider({ children }: { children: ReactNode }) {
-	const { dispatch } = useDocument()
 	const { doc, activeDocId, selectSession } = useSessions()
 
 	const inputRef = useRef<HTMLInputElement>(null)
@@ -171,17 +170,37 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 		},
 		[importToNewTab],
 	)
+	const loadPdf = useCallback(
+		async (file: File) => {
+			setImporting(true)
+			setWarnings([])
+			try {
+				const result = await importPdfText(file)
+				if (result.paragraphs === 0) {
+					setWarnings([`No text found in ${file.name}. It may be a scanned image without a text layer.`])
+					return
+				}
+				importToNewTab(baseName(file), result.content)
+			} catch (cause) {
+				setWarnings([`${file.name}: ${cause instanceof Error ? cause.message : 'could not read the PDF'}`])
+			} finally {
+				setImporting(false)
+			}
+		},
+		[importToNewTab],
+	)
 	const importMany = useCallback(
 		async (files: File[]) => {
 			setImporting(true)
 			setWarnings([])
 
 			const sorted = [...files].sort((a, b) => a.name.localeCompare(b.name))
-			const importable = sorted.filter((file) => isDocx(file) || isPlainTextFile(file))
+			const importable = sorted.filter((file) => isDocx(file) || isPdf(file) || isPlainTextFile(file))
 			const warn: string[] = []
-			if (importable.length < sorted.length) {
+			const skipped = sorted.filter((file) => !importable.includes(file))
+			if (skipped.length > 0) {
 				warn.push(
-					'Berkas PDF dilewati pada impor banyak berkas - impor PDF satu per satu supaya hasilnya masuk ke tab yang benar.',
+					`Skipped unsupported files: ${skipped.map((file) => file.name).join(', ')}. Import supports Word (.docx), PDF, and text (.txt) files.`,
 				)
 			}
 			if (importable.length === 0) {
@@ -206,6 +225,10 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 						const result = await importDocx(file)
 						warn.push(...result.warnings.map((warning) => warning.message))
 						parsed.push({ title: baseName(file), content: result.content, pageSetup: result.pageSetup })
+					} else if (isPdf(file)) {
+						const result = await importPdfText(file)
+						if (result.paragraphs === 0) warn.push(`No text found in ${file.name} (scanned image?).`)
+						else parsed.push({ title: baseName(file), content: result.content })
 					} else {
 						parsed.push({ title: baseName(file), content: textToDocContent(await file.text()) })
 					}
@@ -258,17 +281,21 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 				return
 			}
 
+			if (isPdf(file)) {
+				void loadPdf(file)
+				return
+			}
+			/* Jenis lain dulu membuat tab kosong tanpa pesan (SHL-4: PNG, PDF). */
 			if (!isPlainTextFile(file)) {
-				if (!activeDocId) return
-				const tabId = createTab(doc, activeDocId, baseName(file))
-				selectSession(tabId)
-				dispatch({ type: 'setFile', file })
+				setWarnings([
+					`${file.name} can't be imported. Import supports Word (.docx), PDF, and text (.txt) files.`,
+				])
 				return
 			}
 
 			loadText(file)
 		},
-		[importMany, loadDocx, loadText, doc, activeDocId, selectSession, dispatch],
+		[importMany, loadDocx, loadPdf, loadText],
 	)
 
 	const value = useMemo<ImportContextValue>(

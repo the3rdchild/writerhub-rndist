@@ -1,5 +1,6 @@
 'use client'
 
+import { CellSelection } from '@tiptap/pm/tables'
 import type { Editor } from '@tiptap/react'
 import type { AnalysisFeature } from '@writer-hub/shared'
 import {
@@ -62,6 +63,9 @@ export function SelectionMenu({
 	const top = useFlippedTop(anchor, menuRef, containerRef, section)
 
 	if (!editor || !selection || !anchor || !containerRef.current) return null
+	/* Baris/kolom yang dipilih lewat pegangan tabel sudah punya menunya sendiri;
+	 * dulu kedua menu menumpuk menutupi tabel (TBL-18). */
+	if (editor.state.selection instanceof CellSelection) return null
 	return createPortal(
 		<div
 			ref={menuRef}

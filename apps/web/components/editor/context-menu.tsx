@@ -4,6 +4,7 @@ import type { Editor } from '@tiptap/react'
 import { ClipboardPaste, ClipboardType, Copy, Eraser, Scissors, Trash2 } from 'lucide-react'
 import { type JSX, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { CALLOUT_TYPES } from '@/features/editor/callout'
 import {
 	clearFormatting,
 	copySelection,
@@ -129,6 +130,16 @@ function ContextMenuPanel({
 				disabled: !menu.hasSelection,
 				onClick: () => clearFormatting(editor),
 			},
+			/* Di dalam callout: ganti jenisnya - dulu tidak ada jalan sama sekali (TKS-14). */
+			...(editor.isActive('callout')
+				? CALLOUT_TYPES.map((type, index) => ({
+						label: `Callout: ${type.label}`,
+						icon: <span className="w-4 text-center">{type.emoji}</span>,
+						separatorBefore: index === 0,
+						disabled: editor.isActive('callout', { calloutType: type.id }),
+						onClick: () => editor.chain().focus().setCalloutType(type.id).run(),
+					}))
+				: []),
 		],
 		[editor, menu.hasSelection, keys],
 	)

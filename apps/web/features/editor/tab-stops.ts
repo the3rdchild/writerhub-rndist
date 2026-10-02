@@ -13,8 +13,8 @@ import { tabLayoutPlugin } from './tab-layout'
  * kanan sebelumnya, bukan tabel tanpa garis.
  */
 
-/** Pemilik tombol Tab sendiri: daftar dan tabel. */
-const TAB_OWNERS = ['listItem', 'taskItem', 'tableCell', 'tableHeader']
+/** Pemilik tombol Tab sendiri: daftar, tabel, dan blok kode. */
+const TAB_OWNERS = ['listItem', 'taskItem', 'tableCell', 'tableHeader', 'codeBlock']
 
 export type TabStopType = 'left' | 'right' | 'center'
 

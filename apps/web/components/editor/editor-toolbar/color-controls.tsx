@@ -28,7 +28,7 @@ export function ColorControls({
 				label="Warna sorotan"
 				value={highlight}
 				clearLabel="Tanpa sorotan"
-				onSelect={(value) => editor?.chain().focus().toggleHighlight({ color: value }).run()}
+				onSelect={(value) => editor?.chain().focus().setHighlight({ color: value }).run()}
 				onClear={() => editor?.chain().focus().unsetHighlight().run()}
 			/>
 		</>

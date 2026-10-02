@@ -4,6 +4,7 @@ import { type NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer } from '@tip
 import { Copy, MoreVertical, RefreshCw, Settings2, Trash2, Type } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown'
+import { captionKind } from '@/features/editor/caption-kind'
 import { formatSheetNumbers } from '@/features/editor/page-furniture/numbering'
 import { pageGeometry } from '@/features/editor/page-geometry'
 import {
@@ -93,8 +94,16 @@ export function TocBlockView({
 			const lo = Math.min(attrs.minLevel, attrs.maxLevel)
 			const hi = Math.max(attrs.minLevel, attrs.maxLevel)
 			const wantKind = KIND_FILTER[attrs.listKind]
-			const items = readOutlineItems(editor.state.doc).filter(
-				(item) => item.kind === wantKind && item.level >= lo && item.level <= hi,
+			/*
+			 * Daftar gambar/tabel membaca SEMUA caption (tingkat 7-9) dan memilih
+			 * menurut kata pembukanya. Rentang tingkat hanya berlaku untuk daftar
+			 * isi: dengan bawaan 1-3 daftar gambar/tabel dulu selalu kosong, dan
+			 * tanpa saringan jenis isinya tercampur (OBJ-8).
+			 */
+			const items = readOutlineItems(editor.state.doc).filter((item) =>
+				attrs.listKind === 'isi'
+					? item.kind === wantKind && item.level >= lo && item.level <= hi
+					: item.kind === wantKind && captionKind(item.text) === attrs.listKind,
 			)
 			const state = paginationKey.getState(editor.state)
 			const stride = state?.geometry?.pageStride ?? pageGeometry().pageStride
@@ -309,7 +318,7 @@ export function TocBlockView({
 					{(segment.entries.length > 0 || segmentIndex === 0) && (
 						<div
 							className={cn(
-								'toc-segment rounded-lg border p-4',
+								'toc-segment relative rounded-lg border',
 								selected ? 'border-accent bg-surface-inset/60' : 'border-line bg-surface-inset/40',
 							)}
 						>
@@ -326,7 +335,9 @@ export function TocBlockView({
 							)}
 							<TocEntries entries={segment.entries} attrs={attrs} onJump={jumpTo} />
 							{entries.length === 0 && (
-								<p className="py-2 text-center text-xs italic text-subtle">{EMPTY_HINT[attrs.listKind]}</p>
+								<p className="toc-empty-hint py-2 text-center text-xs italic text-subtle">
+									{EMPTY_HINT[attrs.listKind]}
+								</p>
 							)}
 						</div>
 					)}
@@ -364,7 +375,7 @@ function TocControls({
 	return (
 		<div
 			className={cn(
-				'toc-block-controls mb-2 flex items-center gap-1 transition-opacity',
+				'toc-block-controls absolute -top-8 right-0 left-0 flex items-center gap-1 transition-opacity',
 				selected ? 'opacity-100' : 'opacity-0 focus-within:opacity-100 hover:opacity-100',
 			)}
 		>

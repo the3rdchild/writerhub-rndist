@@ -249,10 +249,21 @@ function toCode(key: string): string {
 	}
 }
 
-function parseCombo(keys: string): KeyCombo {
+/**
+ * Pecah "Mod-Shift-k" menjadi pengubah dan tombol. Tombol "-" sendiri
+ * ("Mod--") tidak boleh ikut terbelah oleh pemisahnya: dulu tombolnya jadi
+ * string kosong - Ctrl+- tidak pernah cocok dan labelnya "Ctrl++" (TKS-15).
+ */
+export function splitKeys(keys: string): { modifiers: string[]; key: string } {
+	if (keys === '-' || keys.endsWith('--')) {
+		return { modifiers: keys.slice(0, -2).split('-').filter(Boolean), key: '-' }
+	}
 	const parts = keys.split('-')
-	const key = parts[parts.length - 1]
-	const modifiers = parts.slice(0, -1)
+	return { modifiers: parts.slice(0, -1), key: parts[parts.length - 1] }
+}
+
+function parseCombo(keys: string): KeyCombo {
+	const { modifiers, key } = splitKeys(keys)
 
 	return {
 		mod: modifiers.includes('Mod'),
@@ -301,9 +312,7 @@ const SYMBOLS: Record<string, string> = {
 }
 
 export function formatKeys(keys: string, mac: boolean): string {
-	const parts = keys.split('-')
-	const key = parts[parts.length - 1]
-	const modifiers = parts.slice(0, -1)
+	const { modifiers, key } = splitKeys(keys)
 
 	const label = SYMBOLS[key] ?? (key.length === 1 ? key.toUpperCase() : key)
 

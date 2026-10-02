@@ -30,7 +30,6 @@ export interface Settings {
 	theme: Theme
 	profile: UserProfile
 	editorFontSize: FontSize
-	autoSave: boolean
 	showWordCount: boolean
 	zoom: number
 	pageSize: PageSizeId
@@ -48,7 +47,6 @@ export const DEFAULT_SETTINGS: Settings = {
 	theme: 'light',
 	profile: { name: 'UserReguler', email: 'user@example.com', role: 'Premium' },
 	editorFontSize: 'medium',
-	autoSave: true,
 	showWordCount: true,
 	zoom: 1,
 	pageSize: DEFAULT_PAGE_SIZE,
@@ -87,6 +85,8 @@ interface SettingsContextValue {
 	setSettingsOpen: (open: boolean) => void
 	shortcutsOpen: boolean
 	setShortcutsOpen: (open: boolean) => void
+	aboutOpen: boolean
+	setAboutOpen: (open: boolean) => void
 	exportOpen: boolean
 	setExportOpen: (open: boolean) => void
 	docxExportOpen: boolean
@@ -108,6 +108,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 	const [settings, setSettings] = usePersistentState<Settings>(SETTINGS_STORAGE_KEY, DEFAULT_SETTINGS)
 	const [settingsOpen, setSettingsOpen] = useState(false)
 	const [shortcutsOpen, setShortcutsOpen] = useState(false)
+	const [aboutOpen, setAboutOpen] = useState(false)
 	const [exportOpen, setExportOpen] = useState(false)
 	const [docxExportOpen, setDocxExportOpen] = useState(false)
 	const [pageSetupOpen, setPageSetupOpen] = useState(false)
@@ -157,6 +158,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 			setSettingsOpen,
 			shortcutsOpen,
 			setShortcutsOpen,
+			aboutOpen,
+			setAboutOpen,
 			exportOpen,
 			setExportOpen,
 			docxExportOpen,
@@ -175,6 +178,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 			setSettings,
 			settingsOpen,
 			shortcutsOpen,
+			aboutOpen,
 			exportOpen,
 			docxExportOpen,
 			pageSetupOpen,

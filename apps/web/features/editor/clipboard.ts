@@ -68,12 +68,19 @@ export async function pasteFromClipboard(editor: Editor): Promise<void> {
 		/* izin ditolak / peramban tanpa clipboard.read - pakai teks polos */
 	}
 
+	/*
+	 * Lewat jalur tempel ProseMirror sendiri, sama dengan Ctrl+V: ia menghormati
+	 * penanda irisan (`data-pm-slice`) dan plugin tempel (Markdown, Word). Dulu
+	 * `insertContent(html)` mengurai `<p>` sebagai blok utuh, sehingga menempel
+	 * satu kata memecah paragraf menjadi tiga (uji editor 2 Okt, TKS-8).
+	 */
+	editor.commands.focus()
 	if (html) {
-		editor.chain().focus().insertContent(html).run()
+		editor.view.pasteHTML(html)
 		return
 	}
 	const text = await readTextSafe()
-	pastePlainText(editor, text)
+	if (text) editor.view.pasteText(text)
 }
 
 /** Baca papan klip lalu tempel sebagai teks polos. */
