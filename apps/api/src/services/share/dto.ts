@@ -12,6 +12,12 @@ export const createShareBodySchema = z.object({
 
 export type CreateShareBody = z.infer<typeof createShareBodySchema>
 
+export const updateShareBodySchema = z
+	.object({ access: shareAccessSchema.optional(), role: shareRoleSchema.optional() })
+	.refine((body) => body.access !== undefined || body.role !== undefined, {
+		message: 'Isi access atau role',
+	})
+
 export interface SharedTab {
 	id: string
 	title: string

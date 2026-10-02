@@ -49,7 +49,7 @@ async function buildAuthHeaders(): Promise<Headers> {
 
 export interface UpstreamRequest {
 	path: string
-	method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
+	method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 	body?: BodyInit | null
 	contentType?: string | null
 	stream?: boolean
