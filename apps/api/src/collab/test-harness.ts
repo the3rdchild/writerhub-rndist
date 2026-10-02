@@ -70,13 +70,37 @@ export async function startApi(port: number, env: Record<string, string>): Promi
 		output,
 		async stop(signal = 'SIGTERM') {
 			if (proc.exitCode !== null) return
+			// Dengan API_PROCESSES > 1 induknya hanya meneruskan SIGTERM/SIGINT;
+			// SIGKILL ke induk meninggalkan anak-anaknya hidup sebagai yatim.
+			const children = childPids(proc.pid)
 			proc.kill(signal)
-			await Promise.race([proc.exited, Bun.sleep(15_000)])
-			if (proc.exitCode === null) {
+			if (signal === 'SIGKILL') killAll(children)
+			const exited = await Promise.race([proc.exited.then(() => true), Bun.sleep(15_000).then(() => false)])
+			if (!exited) {
 				proc.kill('SIGKILL')
+				killAll(children)
 				await proc.exited
 			}
 		},
+	}
+}
+
+function childPids(pid: number): number[] {
+	const result = Bun.spawnSync(['pgrep', '-P', String(pid)])
+	return result.stdout
+		.toString()
+		.split('\n')
+		.map((line) => Number(line.trim()))
+		.filter((child) => Number.isInteger(child) && child > 0)
+}
+
+function killAll(pids: readonly number[]): void {
+	for (const pid of pids) {
+		try {
+			process.kill(pid, 'SIGKILL')
+		} catch {
+			// sudah berhenti
+		}
 	}
 }
 

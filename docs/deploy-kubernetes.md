@@ -91,6 +91,79 @@ containers:
       timeoutSeconds: 5
 ```
 
+### Kolaborasi real-time (websocket)
+
+API melayani websocket kolaborasi di `GET /api/v1/collab/ws/<tabId>` (rancangannya: `docs/collab-realtime.md`).
+Peramban membukanya LANGSUNG ke API, bukan lewat proxy Next - route handler Next tidak bisa meng-upgrade websocket.
+
+**Rute.** Alamat yang dibuka peramban adalah `COLLAB_PUBLIC_WS_URL`, atau bila kosong `SERVICE_URL` (http→ws) +
+`/api/v1/collab/ws`. Pilih salah satu:
+
+- API sudah punya host publik (`SERVICE_URL`, yang juga dipakai URL aset): cukup pastikan ingress host itu meneruskan
+  upgrade websocket (ingress-nginx melakukannya otomatis).
+- Satu host dengan web: tambahkan aturan jalur `/api/v1/collab/ws` → service api port 8080, DI ATAS aturan `/` → web,
+  lalu set `COLLAB_PUBLIC_WS_URL=wss://<host-web>/api/v1/collab/ws`.
+
+```yaml
+# Potongan Ingress (ingress-nginx) untuk jalur kolaborasi.
+metadata:
+  annotations:
+    # Bawaan 60 dtk. Klien mengirim awareness ±15 dtk dan server mengirim ping websocket saat
+    # diam, jadi 60 dtk sebenarnya cukup; dinaikkan supaya jeda jaringan sesaat tidak memutus sesi.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  rules:
+    - host: <host>
+      http:
+        paths:
+          - path: /api/v1/collab/ws
+            pathType: Prefix
+            backend:
+              service: { name: api, port: { number: 8080 } }
+```
+
+Load balancer di depan ingress juga punya batas waktu diam; pastikan tidak di bawah 60 dtk.
+
+**Tidak perlu sticky session.** Sambungan untuk tab yang sama boleh jatuh ke replika atau proses mana pun: pembaruan dan
+kehadiran diteruskan antar-instance lewat Redis pub/sub, dan state tersimpan di Postgres.
+
+**Tiket ada di query string** (`?ticket=…`) dan bisa tercatat di log akses ingress. Umurnya 60 dtk dan hanya berlaku
+untuk satu tab; bila kebijakan log mengharuskan, matikan pencatatan query untuk jalur ini.
+
+**Variabel lingkungan api:**
+
+| Variabel | Bawaan | Catatan |
+|---|---|---|
+| `COLLAB_TICKET_SECRET` | (kosong) | Wajib untuk mengaktifkan kolaborasi; secret, SAMA di semua replika dan proses. Kosong = kolaborasi mati, tab disimpan lewat PUT seperti dulu. |
+| `COLLAB_TICKET_TTL_S` | 60 | Umur tiket untuk membuka sambungan. |
+| `COLLAB_REAUTH_S` | 3600 | Sambungan ditutup 4401 setelah selama ini supaya klien mengambil tiket baru (batas atas akses yang sudah dicabut). |
+| `COLLAB_REDIS_PREFIX` | `writer-hub:collab:` | Kanal pub/sub berlaku lintas indeks DB Redis: lingkungan yang berbagi satu Redis (staging/prod) WAJIB beda awalan. |
+| `COLLAB_PUBLIC_WS_URL` | (turunan `SERVICE_URL`) | Lihat "Rute". |
+| `COLLAB_ROOM_IDLE_S` | 30 | Room tanpa sambungan dilepas dari memori setelah sekian detik. |
+| `COLLAB_DERIVE_DEBOUNCE_MS` / `COLLAB_DERIVE_MAX_MS` | 2000 / 10000 | Seberapa cepat `document_tabs.content` (dibaca AI chat, draf, ekspor, share) mengikuti suntingan. |
+| `COLLAB_MAX_MESSAGE_MB` | 32 | Batas satu pesan websocket; harus muat naskah awal terbesar. |
+| `REDIS_DB` | 0 | Indeks DB Redis untuk kunci (antrean, cache, kunci penyemaian). |
+
+**Berhenti rapi.** Saat SIGTERM, API menutup port, menyimpan antrean tulis setiap room, lalu memutus kliennya dengan
+1012; klien menyambung ulang (jeda ≤ 2,5 dtk) ke pod lain. Beri jeda supaya endpoint pod sudah dicabut sebelum itu:
+
+```yaml
+# pod spec
+terminationGracePeriodSeconds: 30
+containers:
+  - name: api
+    lifecycle:
+      preStop:
+        exec: { command: ["sleep", "5"] }
+```
+
+**Memori.** Setiap tab yang sedang disunting menyimpan Y.Doc-nya di memori proses yang memegangnya (±2-3× ukuran naskah,
+termasuk gambar base64), dan dilepas 30 dtk setelah sepi. Batas 1Gi di atas cukup untuk pemakaian biasa; pantau bila
+banyak naskah besar disunting bersamaan.
+
+**Migrasi.** Skema kolaborasi ada di `0028_collab_realtime` (`collab_documents`, `collab_updates`).
+
 ## worker
 
 ```yaml
@@ -124,6 +197,7 @@ menjalankannya ulang.
 - **Replika vs proses.** API bisa diskalakan dengan replika, dengan `API_PROCESSES`, atau keduanya.
   Semua state bersama ada di Postgres/Redis. Cache di memori (verifikasi token, identitas) dimiliki
   tiap proses, jadi lebih banyak proses berarti lebih banyak panggilan awal ke pp-backend, tetapi
-  tetap jauh di bawah satu per permintaan.
+  tetap jauh di bawah satu per permintaan. Room kolaborasi juga per proses, dan proses yang memegang
+  tab yang sama saling meneruskan lewat Redis - tanpa sticky session.
 - **Pantau restart.** Pod web yang sering di-OOMKill adalah tanda kebocoran baru, bukan tanda
   batasnya perlu dinaikkan. Periksa dulu metrik memorinya per rute sebelum menaikkan angka.
