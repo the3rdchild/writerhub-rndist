@@ -2,14 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
 import { EditorState } from '@tiptap/pm/state'
 import { buildSchema } from '@/features/sync/serialize'
-import {
-	type ColumnItem,
-	collapsedMargin,
-	cutTableRows,
-	flowColumns,
-	migrateLegacyColumns,
-	resolveColumnSlots,
-} from './columns'
+import { type ColumnItem, cutTableRows, flowColumns, resolveColumnSlots } from './column-flow'
+import { collapsedMargin, migrateLegacyColumns } from './columns'
 import { pageGeometry } from './page-geometry'
 
 const geometry = pageGeometry() // A4, margin 1 inci

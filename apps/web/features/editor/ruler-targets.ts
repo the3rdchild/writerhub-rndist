@@ -4,7 +4,8 @@ import type { Node as PMNode } from '@tiptap/pm/model'
 import { NodeSelection } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
 import { useEffect, useState } from 'react'
-import { COLUMNS_NODE, columnGapOf, columnLayoutKey, resolveColumnSlots } from './columns'
+import { resolveColumnSlots } from './column-flow'
+import { COLUMNS_NODE, columnGapOf, columnLayoutKey } from './columns'
 import { columnWidths, locateTable } from './table-ops'
 
 export interface TableRulerTarget {
