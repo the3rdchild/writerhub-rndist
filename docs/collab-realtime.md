@@ -237,7 +237,12 @@ karena pembaruan baru diterbitkan ke Redis setelah tercatat. Pada 100 klien seba
   Editor dibuat ulang hanya saat ikatannya berganti (event `doc` → Y.Doc baru → ikatan baru). Hak sunting mengikuti
   peran sesi; untuk pemilik dianggap `editor` sebelum tiket pertama, supaya salinan lokal bisa disunting luring.
 - **Muat ulang saat luring**: salinan lokal (IndexedDB per tab+epoch) dimuat sebelum tiket diminta, jadi tab cloud
-  langsung `live`. Bila ternyata basi, server menolak (4409) dan salinannya dicadangkan.
+  langsung `live`. Bila ternyata basi, server menolak (4409) dan salinannya dicadangkan. Tab cloud yang belum pernah
+  tersambung di peramban ini dan dibuka saat luring kembali ke salinan lokal yang bisa disunting (`local`).
+- **Sambungan pertama di peramban ini**: salinan lokal tab dibandingkan dengan isi server sebelum cermin menimpanya;
+  bila berbeda (suntingan luring, PUT lama yang gagal, perangkat lain sudah menyunting), salinan itu dicadangkan
+  sebagai "Local copy kept before live sync" dengan pemberitahuan. Bila tab itu justru disemai dari salinan lokal,
+  isinya sama dan tidak ada cadangan.
 - **Tab yang ditinggalkan** dengan suntingan yang mungkin belum terkirim (luring/menyambung) tetap tersambung di latar
   tanpa kehadiran, lalu dilepas 2 dtk setelah tersinkron (paling banyak 5). Tab lain hanya tersambung saat dibuka.
 - **Kehadiran**: `@tiptap/extension-collaboration-caret` 3.29.2; kursor dan label nama berwarna (gaya di

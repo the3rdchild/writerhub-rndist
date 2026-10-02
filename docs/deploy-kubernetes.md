@@ -144,6 +144,7 @@ untuk satu tab; bila kebijakan log mengharuskan, matikan pencatatan query untuk 
 | `COLLAB_DERIVE_DEBOUNCE_MS` / `COLLAB_DERIVE_MAX_MS` | 2000 / 10000 | Seberapa cepat `document_tabs.content` (dibaca AI chat, draf, ekspor, share) mengikuti suntingan. |
 | `COLLAB_MAX_MESSAGE_MB` | 32 | Batas satu pesan websocket; harus muat naskah awal terbesar. |
 | `REDIS_DB` | 0 | Indeks DB Redis untuk kunci (antrean, cache, kunci penyemaian). |
+| `RATE_LIMIT_SHARE_TICKETS_PER_MIN` | 120 | Tiket kolaborasi lewat tautan berbagi, per tautan per menit (rute tanpa sesi). |
 
 **Berhenti rapi.** Saat SIGTERM, API menutup port, menyimpan antrean tulis setiap room, lalu memutus kliennya dengan
 1012; klien menyambung ulang (jeda ≤ 2,5 dtk) ke pod lain. Beri jeda supaya endpoint pod sudah dicabut sebelum itu:
