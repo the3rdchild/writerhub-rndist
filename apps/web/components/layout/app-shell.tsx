@@ -1,6 +1,7 @@
 'use client'
 
 import { type ReactNode, useEffect } from 'react'
+import { LinkDialog } from '@/components/editor/link-dialog'
 import { SearchOverlay } from '@/components/editor/search/search-overlay'
 import { ExportPdfDialog } from '@/components/settings/export-pdf-dialog'
 import { HeadersFootersDialog } from '@/components/settings/headers-footers-dialog'
@@ -76,6 +77,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 				<ExportDocxDialog />
 				<ShareDialog />
 				<DeleteTabDialog />
+				<LinkDialog />
 			</div>
 		</FurnitureEditProvider>
 	)
