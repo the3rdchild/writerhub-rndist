@@ -11,6 +11,7 @@ import { TableKit } from '@tiptap/extension-table'
 import TextAlign from '@tiptap/extension-text-align'
 import { TextStyleKit } from '@tiptap/extension-text-style'
 import Typography from '@tiptap/extension-typography'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { Extensions } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import type * as Y from 'yjs'
@@ -33,7 +34,8 @@ import { Footnote, FootnoteRef } from '@/features/editor/footnote'
 import { HeadingLevels } from '@/features/editor/heading-extension'
 import { HtmlBlock } from '@/features/editor/html-block'
 import { BlockIndentExtension } from '@/features/editor/indent'
-import { promptForLink } from '@/features/editor/link'
+import { openHref, promptForLink } from '@/features/editor/link'
+import { Bold, Code, Italic, Strike } from '@/features/editor/marks'
 import { MathBlock, MathInline } from '@/features/editor/math'
 import { PageBreak } from '@/features/editor/page-break'
 import {
@@ -44,6 +46,7 @@ import {
 } from '@/features/editor/page-geometry'
 import { Pagination } from '@/features/editor/pagination'
 import { PasteMarkdown } from '@/features/editor/paste-markdown'
+import { PasteWord } from '@/features/editor/paste-word'
 import { ResizableImage, type ResizableImageOptions } from '@/features/editor/resizable-image'
 import { SearchAndReplace } from '@/features/editor/search-replace'
 import { SectionBreak } from '@/features/editor/section-break'
@@ -101,8 +104,17 @@ export function buildEditorExtensions({
 			link: false,
 			codeBlock: false,
 			heading: false,
+			/* Diganti versi tanpa aturan tempel - lihat `marks.ts`. */
+			bold: false,
+			italic: false,
+			strike: false,
+			code: false,
 			undoRedo: collaboration ? false : undefined,
 		}),
+		Bold,
+		Italic,
+		Strike,
+		Code,
 		HeadingLevels,
 		Link.extend({
 			addKeyboardShortcuts() {
@@ -112,6 +124,29 @@ export function buildEditorExtensions({
 						return true
 					},
 				}
+			},
+			/* Ctrl/Cmd+klik membuka tautan di tab baru; klik biasa tetap menaruh
+			 * kursor (gelembung tautan menawarkan Open/Edit/Remove) - TKS-11. */
+			addProseMirrorPlugins() {
+				return [
+					...(this.parent?.() ?? []),
+					new Plugin({
+						key: new PluginKey('linkModClick'),
+						props: {
+							handleClick(view, pos, event) {
+								if (!(event.ctrlKey || event.metaKey) || event.button !== 0) return false
+								const marks = [
+									...view.state.doc.resolve(pos).marks(),
+									...(view.state.doc.nodeAt(pos)?.marks ?? []),
+								]
+								const href = marks.find((mark) => mark.type.name === 'link')?.attrs.href as string | undefined
+								if (!href) return false
+								openHref(href)
+								return true
+							},
+						},
+					}),
+				]
 			},
 		}).configure({ openOnClick: false, autolink: true }),
 		TextAlign.configure({ types: ['heading', 'paragraph'] }),
@@ -159,6 +194,7 @@ export function buildEditorExtensions({
 		MathInline,
 		MathBlock,
 		PasteMarkdown,
+		PasteWord,
 		SearchAndReplace,
 		// Paragraf penutup hanya untuk kanvas menyunting; halaman ekspor
 		// mematikannya (`trailingParagraph: false`).

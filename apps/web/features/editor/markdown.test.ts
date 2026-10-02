@@ -261,3 +261,28 @@ describe('pagar kode membawa bahasanya', () => {
 		expect(markdownToHtml('```Python\nprint(1)\n```')).toContain('class="language-python"')
 	})
 })
+
+describe('daftar bersarang, daftar centang, coret (TKS-12)', () => {
+	test('butir menjorok bersarang di dalam butir induknya', () => {
+		expect(markdownToHtml('- butir 1\n- butir 2\n  - butir 2a\n  - butir 2b\n- butir 3')).toBe(
+			'<ul><li><p>butir 1</p></li><li><p>butir 2</p><ul><li><p>butir 2a</p></li><li><p>butir 2b</p></li></ul></li><li><p>butir 3</p></li></ul>',
+		)
+	})
+
+	test('daftar nomor di dalam daftar butir, tiga tingkat', () => {
+		expect(markdownToHtml('- a\n  1. b\n     - c\n- d')).toBe(
+			'<ul><li><p>a</p><ol><li><p>b</p><ul><li><p>c</p></li></ul></li></ol></li><li><p>d</p></li></ul>',
+		)
+	})
+
+	test('- [ ] dan - [x] menjadi daftar centang', () => {
+		expect(markdownToHtml('- [ ] tugas\n- [x] selesai')).toBe(
+			'<ul data-type="taskList"><li data-type="taskItem" data-checked="false"><p>tugas</p></li><li data-type="taskItem" data-checked="true"><p>selesai</p></li></ul>',
+		)
+	})
+
+	test('~~teks~~ menjadi coret, dan dikenali sebagai Markdown', () => {
+		expect(markdownToHtml('ada ~~coret~~ di sini')).toBe('<p>ada <s>coret</s> di sini</p>')
+		expect(looksLikeMarkdown('ada ~~coret~~ di sini')).toBe(true)
+	})
+})
