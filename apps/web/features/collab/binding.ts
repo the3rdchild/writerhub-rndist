@@ -6,17 +6,24 @@ import type { CollabPhase, CollabSession } from './session'
 
 /**
  * Pengikatan editor untuk satu tab:
- * - `local`: tab belum di cloud, atau kolaborasi tidak tersedia - editor
- *   memakai salinan lokal seperti dulu.
+ * - `local`: tab belum di cloud, kolaborasi tidak tersedia, atau luring tanpa
+ *   salinan kolaborasi - editor memakai salinan lokal seperti dulu.
  * - `pending`: tab cloud yang sesinya belum memegang isi (menyambung,
  *   menunggu semaian, sinkron pertama). Editor menampilkan salinan lokal
  *   HANYA-BACA: suntingan di sana akan tertimpa isi server.
- * - `live`: editor terikat ke Y.Doc sesi yang tersinkron ke semua kolaborator.
+ * - `live`: editor terikat ke Y.Doc sesi. `provider` null selama belum ada
+ *   sambungan (salinan lokal dimuat saat luring) - tanpa kursor kolaborator.
  */
 export type CollabBinding =
 	| { kind: 'local' }
 	| { kind: 'pending' }
-	| { kind: 'live'; doc: Y.Doc; provider: WebsocketProvider; user: PresenceUser; readOnly: boolean }
+	| {
+			kind: 'live'
+			doc: Y.Doc
+			provider: WebsocketProvider | null
+			user: PresenceUser | null
+			readOnly: boolean
+	  }
 
 export interface Collaborator {
 	clientId: number
@@ -41,9 +48,28 @@ export const INACTIVE_PHASES: ReadonlySet<CollabPhase> = new Set([
 
 export function bindingOf(session: CollabSession | null): CollabBinding {
 	if (!session || INACTIVE_PHASES.has(session.phase)) return { kind: 'local' }
-	const { provider, user } = session
-	if (!session.contentReady || !provider || !user) return { kind: 'pending' }
-	return { kind: 'live', doc: session.doc, provider, user, readOnly: session.readOnly }
+	if (session.contentReady) {
+		return {
+			kind: 'live',
+			doc: session.doc,
+			provider: session.provider,
+			user: session.user,
+			readOnly: session.readOnly,
+		}
+	}
+	// Luring dan belum pernah memegang isi tab ini di peramban ini: tetap bisa
+	// menulis di salinan lokal seperti sebelum ada kolaborasi. Saat tersambung,
+	// salinan itu menjadi semaian - atau dicadangkan bila tab sudah disemai
+	// perangkat lain (`CollabProvider`).
+	if (session.phase === 'offline') return { kind: 'local' }
+	return { kind: 'pending' }
+}
+
+/** Kunci pengikatan: editor dibuat ulang hanya saat kunci ini berganti. */
+export function bindingKey(binding: CollabBinding): string {
+	if (binding.kind !== 'live') return binding.kind
+	// Kursor kolaborator butuh provider; ia ikut terpasang saat sambungan pertama ada.
+	return `live:${binding.doc.guid}:${binding.provider ? 'online' : 'offline'}`
 }
 
 export function phaseOf(session: CollabSession | null): CollabPhase | null {

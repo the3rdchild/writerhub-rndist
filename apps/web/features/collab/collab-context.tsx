@@ -1,7 +1,7 @@
 'use client'
 
 import type { JSONContent } from '@tiptap/core'
-import type { CollabRole } from '@writer-hub/shared'
+import { COLLAB_FRAGMENT, type CollabRole } from '@writer-hub/shared'
 import {
 	createContext,
 	type ReactNode,
@@ -17,7 +17,14 @@ import { getTab } from '@/features/documents/api'
 import { useSessions } from '@/features/sessions/session-context'
 import { tabsRoot } from '@/features/sessions/ydoc'
 import { buildSchema } from '@/features/sync/serialize'
-import { BACKUP_LABEL, backupDiscardedCopy, discardedContent } from './backup'
+import {
+	BACKUP_LABEL,
+	backupDiscardedCopy,
+	discardedContent,
+	FIRST_SYNC_LABEL,
+	fragmentContent,
+	sameContent,
+} from './backup'
 import {
 	bindingOf,
 	type CollabBinding,
@@ -59,6 +66,8 @@ interface Entry {
 	background: boolean
 	backgroundSince: number
 	retireTimer: ReturnType<typeof setTimeout> | null
+	/** Peramban ini belum pernah memegang salinan kolaborasi tab ini saat sesinya dibuat. */
+	firstBinding: boolean
 }
 
 export function CollabProvider({
@@ -132,6 +141,42 @@ export function CollabProvider({
 		[schema, notify],
 	)
 
+	/*
+	 * Saat sebuah tab pertama kali tersambung di peramban ini, salinan lokalnya
+	 * bisa berisi suntingan yang tidak pernah sampai ke server: ditulis saat
+	 * luring sebelum tab ini punya salinan kolaborasi, atau PUT lama yang gagal.
+	 * Bila isinya berbeda dari isi server (dan tab ini tidak disemai dari salinan
+	 * itu), salinannya dicadangkan sebelum cermin menimpanya.
+	 */
+	const keepDivergentLocalCopy = useCallback(
+		(entry: Entry) => {
+			const local = fragmentContent(doc.getXmlFragment(entry.localTabId), schema)
+			if (!local) return
+			const remote = fragmentContent(entry.session.doc.getXmlFragment(COLLAB_FRAGMENT), schema)
+			if (sameContent(local, remote)) return
+			void backupDiscardedCopy({
+				content: local,
+				serverTabId: entry.serverTabId,
+				localTabId: entry.localTabId,
+				canUseServer: true,
+				label: FIRST_SYNC_LABEL,
+			}).then((result) => {
+				notify(
+					result.kind === 'server'
+						? {
+								message: `This tab had changed elsewhere since this browser last saved it. The copy that was here is saved in Version history as "${FIRST_SYNC_LABEL}".`,
+							}
+						: {
+								message:
+									'This tab had changed elsewhere since this browser last saved it. The copy that was here is kept in this browser. Copy it now if you need it.',
+								copyText: result.text,
+							},
+				)
+			})
+		},
+		[doc, schema, notify],
+	)
+
 	/** Cermin ke Y.Doc besar mengikuti `doc` sesi yang memegang isi. */
 	const syncMirror = useCallback(
 		(entry: Entry) => {
@@ -189,9 +234,15 @@ export function CollabProvider({
 				background: false,
 				backgroundSince: 0,
 				retireTimer: null,
+				firstBinding: indexeddbCollabStore.storedEpoch(serverTabId) === null,
 			}
 			session.on('change', () => {
 				if (entries.current.get(localTabId) !== entry) return
+				// Sebelum cermin pertama: setelah itu salinan lokalnya sudah tertimpa.
+				if (entry.firstBinding && session.contentReady) {
+					entry.firstBinding = false
+					keepDivergentLocalCopy(entry)
+				}
 				syncMirror(entry)
 				onCollabTabRef.current(localTabId, session.contentReady && !INACTIVE_PHASES.has(session.phase))
 				// Sesi latar sudah mengirim semuanya: lepas.
@@ -205,7 +256,7 @@ export function CollabProvider({
 			void whenLoaded().then(() => session.start())
 			return entry
 		},
-		[presenceKey, seedFor, syncMirror, onDiscarded, retire, whenLoaded, bump],
+		[presenceKey, seedFor, keepDivergentLocalCopy, syncMirror, onDiscarded, retire, whenLoaded, bump],
 	)
 
 	useEffect(

@@ -8,6 +8,7 @@ import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { DocumentPaper } from '@/components/editor/document-paper'
 import { PageIndicator } from '@/components/editor/page-indicator'
+import { bindingKey } from '@/features/collab/binding'
 import { CollabNotices, CollabStatus } from '@/features/collab/collab-status'
 import { useLiveTab } from '@/features/collab/use-live-tab'
 import { buildEditorExtensions } from '@/features/editor/extensions'
@@ -79,7 +80,7 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 		schema,
 	})
 	const liveBinding = live.binding.kind === 'live' ? live.binding : null
-	const bindingKey = liveBinding ? `live:${liveBinding.doc.guid}` : 'static'
+	const boundTo = bindingKey(live.binding)
 
 	const editor = useEditor(
 		{
@@ -90,7 +91,10 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 				onPageCountChange: setPageCount,
 				onSheetsChange: setSheets,
 				collaboration: liveBinding ? { document: liveBinding.doc, field: COLLAB_FRAGMENT } : null,
-				collaborationCaret: liveBinding ? { provider: liveBinding.provider, user: liveBinding.user } : null,
+				collaborationCaret:
+					liveBinding?.provider && liveBinding.user
+						? { provider: liveBinding.provider, user: liveBinding.user }
+						: null,
 			}),
 			content: liveBinding ? undefined : selectedTab?.content,
 			editable: liveBinding ? !liveBinding.readOnly : false,
@@ -101,7 +105,7 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 				},
 			},
 		},
-		[bindingKey],
+		[boundTo],
 	)
 
 	useEffect(

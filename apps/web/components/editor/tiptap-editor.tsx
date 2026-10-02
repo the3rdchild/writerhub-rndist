@@ -6,6 +6,7 @@ import { type Editor, EditorContent, useEditor } from '@tiptap/react'
 import { COLLAB_FRAGMENT } from '@writer-hub/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAnalysisDiffHost } from '@/features/analysis/use-analysis-diff-host'
+import { bindingKey } from '@/features/collab/binding'
 import { useCollab } from '@/features/collab/collab-context'
 import { useDocument } from '@/features/document/document-context'
 import { suggestionHighlightKey } from '@/features/document/suggestion-highlight'
@@ -67,7 +68,7 @@ export function TiptapEditor({
 	const editable = binding.kind === 'local' || (live !== null && !live.readOnly)
 	// Editor dibuat ulang hanya saat ikatannya berganti: ekstensi Collaboration
 	// tidak bisa dipindah ke Y.Doc lain setelah editor dibuat.
-	const bindingKey = live ? `live:${live.doc.guid}` : binding.kind
+	const boundTo = bindingKey(binding)
 	const [popover, setPopover] = useState<PopoverPosition | null>(null)
 	const [slashState, setSlashState] = useState<SlashCommandState | null>(null)
 	const slashStateRef = useRef(setSlashState)
@@ -95,7 +96,7 @@ export function TiptapEditor({
 					: activeId
 						? { document: doc, field: activeId }
 						: null,
-				collaborationCaret: live ? { provider: live.provider, user: live.user } : null,
+				collaborationCaret: live?.provider && live.user ? { provider: live.provider, user: live.user } : null,
 				slashCommand: {
 					onOpen: (s) => slashStateRef.current(s),
 					onUpdate: (s) => slashStateRef.current(s),
@@ -113,7 +114,7 @@ export function TiptapEditor({
 				dispatch({ type: 'editText', text: editorPlainText(instance) })
 			},
 		},
-		[activeId, bindingKey],
+		[activeId, boundTo],
 	)
 	useEffect(
 		function followEditableBinding() {

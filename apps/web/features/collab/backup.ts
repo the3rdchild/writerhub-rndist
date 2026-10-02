@@ -16,10 +16,20 @@ import { apiFetch } from '@/lib/api-client'
  */
 
 export const BACKUP_LABEL = 'Unsynced copy kept before reset'
+/** Salinan lokal tab yang berbeda dari isi server saat tab itu pertama kali tersambung di peramban ini. */
+export const FIRST_SYNC_LABEL = 'Local copy kept before live sync'
 
 /** Naskah salinan yang dibuang, sebagai JSON editor; null bila kosong. */
 export function discardedContent(doc: Y.Doc, schema: Schema): JSONContent | null {
-	const raw = yFragmentToProseMirrorJSON(doc.getXmlFragment(COLLAB_FRAGMENT)) as JSONContent
+	return fragmentContent(doc.getXmlFragment(COLLAB_FRAGMENT), schema)
+}
+
+/**
+ * Isi satu fragmen sebagai JSON editor yang dinormalkan skema (bentuknya sama
+ * untuk fragmen dari mana pun, jadi bisa dibandingkan); null bila kosong.
+ */
+export function fragmentContent(fragment: Y.XmlFragment, schema: Schema): JSONContent | null {
+	const raw = yFragmentToProseMirrorJSON(fragment) as JSONContent
 	let content: JSONContent = raw
 	try {
 		// Lewat skema supaya versinya berbentuk sama dengan versi lain; bila ada
@@ -34,6 +44,24 @@ export function discardedContent(doc: Y.Doc, schema: Schema): JSONContent | null
 /** Gambar, tabel, rumus: naskah tanpa teks pun bisa berisi sesuatu yang layak dicadangkan. */
 function hasNonParagraphBlock(content: JSONContent): boolean {
 	return (content.content ?? []).some((node) => node.type !== 'paragraph' || (node.content?.length ?? 0) > 0)
+}
+
+/**
+ * Sama-tidaknya dua isi untuk keperluan cadangan. Paragraf kosong di ujung
+ * diabaikan: editor menambahkannya sendiri (paragraf penutup), jadi salinan
+ * yang isinya sama bisa berbeda di situ saja.
+ */
+export function sameContent(a: JSONContent | null, b: JSONContent | null): boolean {
+	const trimmed = (content: JSONContent | null) => {
+		const blocks = [...(content?.content ?? [])]
+		while (blocks.length > 0) {
+			const last = blocks[blocks.length - 1]
+			if (last.type !== 'paragraph' || (last.content?.length ?? 0) > 0) break
+			blocks.pop()
+		}
+		return JSON.stringify(blocks)
+	}
+	return trimmed(a) === trimmed(b)
 }
 
 export type BackupResult =
@@ -52,6 +80,7 @@ export async function backupDiscardedCopy({
 	serverTabId,
 	localTabId,
 	canUseServer,
+	label = BACKUP_LABEL,
 }: {
 	content: JSONContent
 	serverTabId: string
@@ -59,6 +88,7 @@ export async function backupDiscardedCopy({
 	localTabId: string | null
 	/** Hanya pemilik yang boleh menulis versi di server. */
 	canUseServer: boolean
+	label?: string
 }): Promise<BackupResult> {
 	const text = jsonPlainText(content, 200_000)
 	let keptLocally = false
@@ -67,7 +97,7 @@ export async function backupDiscardedCopy({
 			tabId: localTabId ?? `collab:${serverTabId}`,
 			content,
 			trigger: 'pre_restore',
-			label: BACKUP_LABEL,
+			label,
 		})
 		keptLocally = true
 	} catch {}
@@ -77,7 +107,7 @@ export async function backupDiscardedCopy({
 			await apiFetch(`/tabs/${encodeURIComponent(serverTabId)}/versions`, {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ label: BACKUP_LABEL, content }),
+				body: JSON.stringify({ label, content }),
 			})
 			return { kind: 'server' }
 		} catch {}
