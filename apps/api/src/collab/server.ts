@@ -66,6 +66,7 @@ export class CollabManager implements RoomHost {
 		registerCollabLocalHandler({
 			onReset: (tabId) => this.rooms.get(tabId)?.kill(COLLAB_CLOSE.epoch, 'reset'),
 			onGone: (tabId) => this.rooms.get(tabId)?.kill(COLLAB_CLOSE.gone, 'tab deleted'),
+			onShareChanged: (tabId, shareId) => this.rooms.get(tabId)?.dropShareConnections(shareId),
 		})
 		bus.onReconnect = () => {
 			log.warn({ rooms: this.rooms.size }, '[collab] langganan Redis pulih; room mengejar dari log')

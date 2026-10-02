@@ -26,4 +26,9 @@ describe('rute kolaborasi', () => {
 		expect(new Set(open)).toEqual(new Set(['/shared/:token/tickets', '/ws/:tabId']))
 		expect(routes().find((route) => route.path === '/tickets')?.authed).toBe(true)
 	})
+
+	test('tiket lewat tautan berbagi dibatasi lajunya per tautan', () => {
+		expect(source).toContain("collab.post('/shared/:token/tickets', shareTicketLimit,")
+		expect(source).toMatch(/return token \? `share:/)
+	})
 })

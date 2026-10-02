@@ -6,6 +6,13 @@ export const createVersionBodySchema = z.object({
 	// `interval` dan `pre_restore` tetap milik server sendiri dan tidak boleh
 	// datang dari klien.
 	trigger: z.enum(['manual', 'pre_translate', 'ai_result']).optional(),
+	/**
+	 * Isi versi dari klien, bukan isi tab di server. Dipakai kolaborasi saat
+	 * salinan lokal sebuah tab harus dibuang (state di server di-reset): isinya
+	 * disimpan sebagai versi supaya suntingan yang belum tersinkron tidak hilang
+	 * diam-diam. Tanpa ini versinya memotret isi tab saat ini.
+	 */
+	content: z.record(z.string(), z.unknown()).optional(),
 })
 
 export type CreateVersionBody = z.infer<typeof createVersionBodySchema>

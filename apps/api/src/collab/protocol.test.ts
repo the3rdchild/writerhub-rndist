@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { COLLAB_MESSAGE } from '@writer-hub/shared'
 import * as decoding from 'lib0/decoding'
 import * as encoding from 'lib0/encoding'
+import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from 'y-protocols/awareness'
 import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import {
@@ -12,6 +13,7 @@ import {
 	encodeStatus,
 	encodeSyncStep1,
 	encodeSyncUpdate,
+	rewriteAwarenessUpdate,
 } from './protocol'
 
 function docWithText(text: string): Y.Doc {
@@ -76,6 +78,7 @@ describe('pesan antar-instance', () => {
 			{ kind: 'query-awareness', origin: 'f' },
 			{ kind: 'update-ref', origin: 'g', epoch: 'e3', id: 9_007_199_254 },
 			{ kind: 'seeded-ref', origin: 'h', epoch: 'e4' },
+			{ kind: 'share-changed', origin: 'i', shareId: 's1' },
 		] as const
 		for (const message of messages) {
 			const decoded = decodeBusMessage(encodeBusMessage(message))
@@ -89,5 +92,44 @@ describe('pesan antar-instance', () => {
 	test('sampah menjadi null, bukan galat', () => {
 		expect(decodeBusMessage(new Uint8Array([200, 1, 2]))).toBeNull()
 		expect(decodeBusMessage(new Uint8Array([]))).toBeNull()
+	})
+})
+
+describe('penulisan ulang awareness', () => {
+	test('entri yang tidak diizinkan dibuang, keadaan ditulis ulang, null tetap null', () => {
+		const presence = new Awareness(new Y.Doc())
+		presence.setLocalStateField('user', { name: 'Palsu', color: '#123' })
+		const other = new Awareness(new Y.Doc())
+		other.setLocalStateField('user', { name: 'Lain' })
+		const merged = new Awareness(new Y.Doc())
+		applyAwarenessUpdate(merged, encodeAwarenessUpdate(presence, [presence.clientID]), null)
+		applyAwarenessUpdate(merged, encodeAwarenessUpdate(other, [other.clientID]), null)
+		const update = encodeAwarenessUpdate(merged, [presence.clientID, other.clientID])
+
+		const rewritten = rewriteAwarenessUpdate(
+			update,
+			(clientId) => clientId === presence.clientID,
+			(state) => ({ ...state, user: { ...(state.user as object), name: 'Tiket' } }),
+		)
+		const target = new Awareness(new Y.Doc())
+		applyAwarenessUpdate(target, rewritten as Uint8Array, null)
+		expect(target.getStates().get(presence.clientID)?.user).toEqual({ name: 'Tiket', color: '#123' })
+		expect(target.getStates().has(other.clientID)).toBe(false)
+		expect(
+			rewriteAwarenessUpdate(
+				update,
+				() => false,
+				(state) => state,
+			),
+		).toBeNull()
+
+		presence.setLocalState(null)
+		const removal = rewriteAwarenessUpdate(
+			encodeAwarenessUpdate(presence, [presence.clientID]),
+			() => true,
+			(state) => ({ ...state, dipaksa: true }),
+		)
+		applyAwarenessUpdate(target, removal as Uint8Array, null)
+		expect(target.getStates().has(presence.clientID)).toBe(false)
 	})
 })

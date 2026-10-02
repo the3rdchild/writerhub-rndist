@@ -97,6 +97,52 @@ export function decodeClientMessage(data: Uint8Array): ClientMessage {
 	}
 }
 
+// ── Awareness ──────────────────────────────────────────────────────────────
+
+/**
+ * Menyaring dan menulis ulang satu pembaruan awareness (bentuk y-protocols:
+ * varUint(n), lalu n × [varUint clientID, varUint clock, varString JSON]).
+ *
+ * y-protocols mempercayai klien sepenuhnya: siapa pun boleh mengaku bernama
+ * apa pun, dan boleh menulis keadaan milik klien lain (termasuk menghapusnya).
+ * Server memakai ini untuk membuang entri milik klien lain dan memaksakan nama
+ * dari tiket, supaya tamu tautan berbagi tidak bisa tampil sebagai pemilik.
+ *
+ * @returns pembaruan baru, atau null bila tidak ada entri yang tersisa
+ */
+export function rewriteAwarenessUpdate(
+	update: Uint8Array,
+	keep: (clientId: number) => boolean,
+	rewrite: (state: Record<string, unknown>) => Record<string, unknown>,
+): Uint8Array | null {
+	const decoder = decoding.createDecoder(update)
+	const count = decoding.readVarUint(decoder)
+	const entries: Array<{ clientId: number; clock: number; state: string }> = []
+	for (let index = 0; index < count; index += 1) {
+		const clientId = decoding.readVarUint(decoder)
+		const clock = decoding.readVarUint(decoder)
+		const raw = decoding.readVarString(decoder)
+		if (!keep(clientId)) continue
+		const parsed = JSON.parse(raw) as unknown
+		const state =
+			parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+				? JSON.stringify(rewrite(parsed as Record<string, unknown>))
+				: // null = klien itu pergi; tidak ada identitas untuk dipaksakan.
+					'null'
+		entries.push({ clientId, clock, state })
+	}
+	if (entries.length === 0) return null
+
+	const encoder = encoding.createEncoder()
+	encoding.writeVarUint(encoder, entries.length)
+	for (const entry of entries) {
+		encoding.writeVarUint(encoder, entry.clientId)
+		encoding.writeVarUint(encoder, entry.clock)
+		encoding.writeVarString(encoder, entry.state)
+	}
+	return finish(encoder)
+}
+
 // ── Pesan antar-instance lewat Redis pub/sub ───────────────────────────────
 
 export const BUS_KIND = {
@@ -108,6 +154,7 @@ export const BUS_KIND = {
 	queryAwareness: 6,
 	updateRef: 7,
 	seededRef: 8,
+	shareChanged: 9,
 } as const
 
 /*
@@ -125,6 +172,7 @@ export type BusMessage =
 	| { kind: 'reset'; origin: string }
 	| { kind: 'gone'; origin: string }
 	| { kind: 'query-awareness'; origin: string }
+	| { kind: 'share-changed'; origin: string; shareId: string }
 
 const KIND_CODE: Record<BusMessage['kind'], number> = {
 	update: BUS_KIND.update,
@@ -135,6 +183,7 @@ const KIND_CODE: Record<BusMessage['kind'], number> = {
 	reset: BUS_KIND.reset,
 	gone: BUS_KIND.gone,
 	'query-awareness': BUS_KIND.queryAwareness,
+	'share-changed': BUS_KIND.shareChanged,
 }
 
 export function encodeBusMessage(message: BusMessage): Uint8Array {
@@ -154,6 +203,9 @@ export function encodeBusMessage(message: BusMessage): Uint8Array {
 			break
 		case 'seeded-ref':
 			encoding.writeVarString(encoder, message.epoch)
+			break
+		case 'share-changed':
+			encoding.writeVarString(encoder, message.shareId)
 			break
 		case 'awareness':
 			encoding.writeVarUint8Array(encoder, message.update)
@@ -191,6 +243,8 @@ export function decodeBusMessage(data: Uint8Array): BusMessage | null {
 			}
 			case BUS_KIND.seededRef:
 				return { kind: 'seeded-ref', origin, epoch: decoding.readVarString(decoder) }
+			case BUS_KIND.shareChanged:
+				return { kind: 'share-changed', origin, shareId: decoding.readVarString(decoder) }
 			case BUS_KIND.awareness:
 				return { kind: 'awareness', origin, update: decoding.readVarUint8Array(decoder) }
 			case BUS_KIND.reset:

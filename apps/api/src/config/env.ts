@@ -111,6 +111,13 @@ export const env = {
 	RATE_LIMIT_CHAT_PER_MIN: num('RATE_LIMIT_CHAT_PER_MIN', 60),
 	RATE_LIMIT_GRAMMAR_PER_MIN: num('RATE_LIMIT_GRAMMAR_PER_MIN', 20),
 	RATE_LIMIT_DRAFTS_PER_MIN: num('RATE_LIMIT_DRAFTS_PER_MIN', 10),
+	/**
+	 * Tiket kolaborasi lewat tautan berbagi, per TAUTAN per menit. Rute itu
+	 * tanpa sesi (tokennya izinnya), jadi tidak ada pengguna untuk dihitung;
+	 * yang dibatasi adalah satu tautan. Setiap peramban meminta tiket saat
+	 * menyambung dan sekali per jam sesudahnya, jadi angka ini longgar.
+	 */
+	RATE_LIMIT_SHARE_TICKETS_PER_MIN: num('RATE_LIMIT_SHARE_TICKETS_PER_MIN', 120),
 
 	// ── Basis data & Redis ──────────────────────────────────────────────────
 	DATABASE_URL: str('DATABASE_URL'),

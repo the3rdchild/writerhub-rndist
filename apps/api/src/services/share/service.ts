@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { asc, eq } from 'drizzle-orm'
+import { notifyCollabShareChanged } from '@/collab/notify'
 import { documents, shares } from '@/db/schemas'
 import { AppError } from '@/lib/error'
 import { findDocumentById } from '@/repository/document'
@@ -42,6 +43,7 @@ export default class ShareService extends BaseService {
 						})
 						.returning()
 			if (!share) throw AppError.internalServerError('Gagal membuat share link')
+			if (existing) await this.dropCollabConnections(documentId, [existing.id])
 
 			return this.success({
 				data: this.shareResponse(share, document.title),
@@ -85,6 +87,7 @@ export default class ShareService extends BaseService {
 				.where(eq(shares.id, share.id))
 				.returning()
 			if (!updated) throw AppError.internalServerError('Gagal memperbarui share link')
+			await this.dropCollabConnections(document.id, [share.id])
 			return this.success({ data: this.shareResponse(updated, document.title) })
 		} catch (error) {
 			return this.failFromError(error)
@@ -95,7 +98,16 @@ export default class ShareService extends BaseService {
 	async revoke(): Promise<Response> {
 		try {
 			const { share } = await this.ownedShare()
-			if (share.document_id) await this.db.delete(shares).where(eq(shares.document_id, share.document_id))
+			if (share.document_id) {
+				const removed = await this.db
+					.delete(shares)
+					.where(eq(shares.document_id, share.document_id))
+					.returning({ id: shares.id })
+				await this.dropCollabConnections(
+					share.document_id,
+					removed.map((row) => row.id),
+				)
+			}
 			return this.success({ data: { revoked: true } })
 		} catch (error) {
 			return this.failFromError(error)
@@ -157,6 +169,17 @@ export default class ShareService extends BaseService {
 		} catch (error) {
 			return this.failFromError(error)
 		}
+	}
+
+	/**
+	 * Sambungan kolaborasi lewat tautan ini diputus supaya mengambil tiket
+	 * baru: peran yang diturunkan atau tautan yang dicabut berlaku seketika,
+	 * bukan setelah otorisasi ulang sejam kemudian.
+	 */
+	private async dropCollabConnections(documentId: string, shareIds: readonly string[]): Promise<void> {
+		if (shareIds.length === 0) return
+		const tabIds = (await findTabsByDocument(documentId)).map((tab) => tab.id)
+		for (const shareId of shareIds) notifyCollabShareChanged(shareId, tabIds)
 	}
 
 	private async currentShare(documentId: string) {

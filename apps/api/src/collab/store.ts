@@ -1,4 +1,7 @@
+import { COLLAB_FRAGMENT } from '@writer-hub/shared'
+import { yFragmentToProseMirrorJSON } from '@writer-hub/shared/collab-json'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import * as Y from 'yjs'
 import { isPgError, PG_ERROR } from '@/constants/postgres-error'
 import db from '@/db'
 import {
@@ -55,6 +58,28 @@ export async function loadCollabState(tabId: string): Promise<StoredCollabState 
 		},
 		{ isolationLevel: 'repeatable read', accessMode: 'read only' },
 	)
+}
+
+/**
+ * Isi tab kolaboratif menurut log Yjs, untuk jalur yang tidak boleh memakai
+ * `document_tabs.content` yang bisa tertinggal beberapa detik dari room -
+ * snapshot versi (beri nama, sebelum pulihkan). null = tab belum kolaboratif.
+ */
+export async function contentFromLog(tabId: string): Promise<Record<string, unknown> | null> {
+	const state = await loadCollabState(tabId)
+	if (!state) return null
+	const doc = new Y.Doc()
+	try {
+		doc.transact(() => {
+			for (const update of state.updates) Y.applyUpdate(doc, update)
+		})
+		return yFragmentToProseMirrorJSON(doc.getXmlFragment(COLLAB_FRAGMENT)) as unknown as Record<
+			string,
+			unknown
+		>
+	} finally {
+		doc.destroy()
+	}
 }
 
 export async function tabExists(tabId: string): Promise<boolean> {

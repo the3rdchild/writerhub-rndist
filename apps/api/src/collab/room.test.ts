@@ -9,12 +9,14 @@ import {
 } from '@writer-hub/shared'
 import * as decoding from 'lib0/decoding'
 import * as encoding from 'lib0/encoding'
+import { Awareness, encodeAwarenessUpdate } from 'y-protocols/awareness'
 import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import { CollabConnection, type CollabSocket } from './connection'
 import {
 	type BusMessage,
 	decodeBusMessage,
+	encodeAwareness,
 	encodeBusMessage,
 	encodeSeed,
 	encodeSyncStep1,
@@ -211,7 +213,11 @@ class FakeClient {
 	constructor(
 		private readonly room: CollabRoom,
 		role: CollabRole,
-		private readonly options: { epoch?: string; seedText?: string | null } = {},
+		private readonly options: {
+			epoch?: string
+			seedText?: string | null
+			claims?: Partial<CollabClaims>
+		} = {},
 	) {
 		const socket: CollabSocket = {
 			send: (data) => {
@@ -223,7 +229,7 @@ class FakeClient {
 				this.closed = { code, reason }
 			},
 		}
-		this.conn = new CollabConnection(socket, claims(role), options.epoch ?? '')
+		this.conn = new CollabConnection(socket, { ...claims(role), ...options.claims }, options.epoch ?? '')
 		this.doc.on('update', (update: Uint8Array, origin: unknown) => {
 			if (origin !== SERVER) this.toServer(encodeSyncUpdate(update))
 		})
@@ -496,6 +502,74 @@ describe('room kolaborasi', () => {
 		a.type('ke generasi lama')
 		await sleep(30)
 		expect(a.closed?.code).toBe(COLLAB_CLOSE.epoch)
+	})
+
+	test('kehadiran: nama selalu dari tiket, dan keadaan milik orang lain tidak bisa ditulis', async () => {
+		const store = new MemoryStore()
+		seedStore(store, 'awal')
+		const room = await openRoom(new MemoryBus(new Hub()), store)
+		const owner = new FakeClient(room, 'editor', {
+			claims: { sub: 'pemilik', name: 'Pemilik Asli' },
+		}).connect()
+		const guest = new FakeClient(room, 'editor', { claims: { sub: 'share:1', name: 'Guest' } }).connect()
+		await sleep(20)
+
+		// Tamu mengaku sebagai pemilik.
+		const guestPresence = new Awareness(new Y.Doc())
+		guestPresence.setLocalStateField('user', { name: 'Pemilik Asli', color: '#f00' })
+		guest.toServer(encodeAwareness(encodeAwarenessUpdate(guestPresence, [guestPresence.clientID])))
+		const ownerPresence = new Awareness(new Y.Doc())
+		ownerPresence.setLocalStateField('user', { name: 'nama apa saja', color: '#00f' })
+		owner.toServer(encodeAwareness(encodeAwarenessUpdate(ownerPresence, [ownerPresence.clientID])))
+		await sleep(20)
+		const states = room.awareness.getStates()
+		expect(states.get(guestPresence.clientID)?.user).toEqual({ name: 'Guest', color: '#f00' })
+		expect(states.get(ownerPresence.clientID)?.user).toEqual({ name: 'Pemilik Asli', color: '#00f' })
+
+		// Tamu mencoba menghapus/menimpa keadaan pemilik: diabaikan.
+		const hijack = new Awareness(new Y.Doc())
+		hijack.clientID = ownerPresence.clientID
+		// Jam lebih tinggi supaya y-protocols akan menerimanya andai tidak disaring.
+		for (let i = 0; i < 5; i += 1) hijack.setLocalState({ user: { name: 'x', color: `#00${i}` } })
+		guest.toServer(encodeAwareness(encodeAwarenessUpdate(hijack, [hijack.clientID])))
+		await sleep(20)
+		expect(room.awareness.getStates().get(ownerPresence.clientID)?.user).toEqual({
+			name: 'Pemilik Asli',
+			color: '#00f',
+		})
+
+		// Pemilik yang menyambung ulang (tiket yang sama) boleh mengambil alih keadaannya sendiri.
+		const reconnect = new FakeClient(room, 'editor', {
+			claims: { sub: 'pemilik', name: 'Pemilik Asli' },
+		}).connect()
+		await sleep(10)
+		ownerPresence.setLocalStateField('user', { name: 'Pemilik Asli', color: '#0f0' })
+		reconnect.toServer(encodeAwareness(encodeAwarenessUpdate(ownerPresence, [ownerPresence.clientID])))
+		await sleep(20)
+		expect(room.awareness.getStates().get(ownerPresence.clientID)?.user).toEqual({
+			name: 'Pemilik Asli',
+			color: '#0f0',
+		})
+		expect(reconnect.conn.awarenessClients.has(ownerPresence.clientID)).toBe(true)
+		guestPresence.destroy()
+		ownerPresence.destroy()
+		hijack.destroy()
+	})
+
+	test('tautan berbagi yang diubah memutus sambungan lewat tautan itu saja (4401)', async () => {
+		const store = new MemoryStore()
+		seedStore(store, 'awal')
+		const hub = new Hub()
+		const room = await openRoom(new MemoryBus(hub), store)
+		const owner = new FakeClient(room, 'editor', { claims: { sub: 'pemilik' } }).connect()
+		const guest = new FakeClient(room, 'viewer', { claims: { sub: 'share:abc' } }).connect()
+		const other = new FakeClient(room, 'viewer', { claims: { sub: 'share:lain' } }).connect()
+		await sleep(20)
+		await new MemoryBus(hub).publish(TAB, { kind: 'share-changed', shareId: 'abc' })
+		await sleep(10)
+		expect(guest.closed?.code).toBe(COLLAB_CLOSE.ticket)
+		expect(owner.closed).toBeNull()
+		expect(other.closed).toBeNull()
 	})
 
 	test('pembaruan rusak memutus pengirimnya saja', async () => {

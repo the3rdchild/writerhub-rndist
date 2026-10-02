@@ -1,3 +1,4 @@
+import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { RedisClient } from '@/config/redis'
 import type { AppEnv } from '@/lib/create-app'
@@ -25,14 +26,27 @@ const REDIS_TIMEOUT_MS = 250
  *
  * Dipasang sesudah `authMiddleware`, yang mengisi `userId`.
  */
-export function rateLimit(bucket: string, label: string, limitPerMinute: number) {
-	return createMiddleware<AppEnv>(async (c, next) => {
+export function rateLimit(
+	bucket: string,
+	label: string,
+	limitPerMinute: number,
+	/**
+	 * Siapa yang dihitung. Bawaannya pengguna dari `authMiddleware`; rute tanpa
+	 * sesi (mis. tiket lewat tautan berbagi) memberi kuncinya sendiri. Kosong =
+	 * tidak dihitung.
+	 */
+	subjectOf: (c: Context<AppEnv>) => string | null | undefined = (c) => {
 		const userId = c.get('userId')
-		if (limitPerMinute <= 0 || !userId) return next()
+		return userId ? `${c.get('identityOrigin') ?? '-'}:${userId}` : null
+	},
+) {
+	return createMiddleware<AppEnv>(async (c, next) => {
+		const subject = subjectOf(c)
+		if (limitPerMinute <= 0 || !subject) return next()
 
 		const now = Date.now()
 		const window = Math.floor(now / WINDOW_MS)
-		const key = `ratelimit:${bucket}:${c.get('identityOrigin') ?? '-'}:${userId}:${window}`
+		const key = `ratelimit:${bucket}:${subject}:${window}`
 		const count = await increment(key)
 
 		if (count !== null && count > limitPerMinute) {

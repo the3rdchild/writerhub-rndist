@@ -1,6 +1,8 @@
 import { upgradeCollabSocket } from '@/collab/server'
+import { env } from '@/config/env'
 import { createRouter } from '@/lib/create-app'
 import { authMiddleware } from '@/middlewares/auth'
+import { rateLimit } from '@/middlewares/rate-limit'
 import CollabService from '@/services/collab/service'
 
 /*
@@ -10,8 +12,21 @@ import CollabService from '@/services/collab/service'
  * peramban tidak bisa mengirim header tanda tangan server).
  */
 const collab = createRouter().basePath('/collab')
+
+// Tanpa sesi, jadi yang dihitung adalah tautannya: satu tautan yang bocor tidak
+// bisa dipakai membanjiri penerbitan tiket.
+const shareTicketLimit = rateLimit(
+	'collab-share-ticket',
+	'tiket kolaborasi',
+	env.RATE_LIMIT_SHARE_TICKETS_PER_MIN,
+	(c) => {
+		const token = c.req.param('token')
+		return token ? `share:${token}` : null
+	},
+)
+
 collab.post('/tickets', authMiddleware, (c) => new CollabService(c).issue())
-collab.post('/shared/:token/tickets', (c) => new CollabService(c).issueShared())
+collab.post('/shared/:token/tickets', shareTicketLimit, (c) => new CollabService(c).issueShared())
 collab.get('/ws/:tabId', (c) => upgradeCollabSocket(c))
 
 export default collab

@@ -18,6 +18,7 @@ import {
 	encodeSyncStep1,
 	encodeSyncStep2,
 	encodeSyncUpdate,
+	rewriteAwarenessUpdate,
 } from './protocol'
 import { stateVectorsEqual } from './state-vector'
 import type { DeriveResult, StoredCollabState } from './store'
@@ -105,6 +106,9 @@ export class CollabTabGoneError extends Error {
 		super(`Tab ${tabId} tidak ada`)
 	}
 }
+
+/** Klien awareness yang boleh dikendalikan satu sambungan (satu Y.Doc = satu klien; sisanya kelonggaran). */
+const MAX_AWARENESS_CLIENTS = 4
 
 /** Pembaruan awal harus bisa diterapkan berdiri sendiri, tanpa struktur yang menggantung. */
 function isSelfContainedUpdate(update: Uint8Array): boolean {
@@ -342,14 +346,21 @@ export class CollabRoom {
 					conn.close(COLLAB_CLOSE.badMessage, 'bad update')
 				}
 				return
-			case 'awareness':
+			case 'awareness': {
 				if (message.update.byteLength > this.host.settings.maxAwarenessBytes) return
+				let update: Uint8Array | null
 				try {
-					applyAwarenessUpdate(this.awareness, message.update, conn)
+					update = rewriteAwarenessUpdate(
+						message.update,
+						(clientId) => this.mayControlAwareness(conn, clientId),
+						(state) => this.stampIdentity(conn, state),
+					)
+					if (update) applyAwarenessUpdate(this.awareness, update, conn)
 				} catch {
 					conn.close(COLLAB_CLOSE.badMessage, 'bad awareness')
 				}
 				return
+			}
 			case 'query-awareness':
 				this.sendAwarenessSnapshot(conn)
 				return
@@ -359,6 +370,29 @@ export class CollabRoom {
 			default:
 				return
 		}
+	}
+
+	/**
+	 * Keadaan awareness milik sambungan lain di instance ini tidak boleh ditulis
+	 * - kecuali oleh pemegang tiket yang sama: itu klien yang sama menyambung
+	 * ulang sebelum sambungan lamanya dinyatakan mati.
+	 */
+	private mayControlAwareness(conn: CollabConnection, clientId: number): boolean {
+		if (conn.awarenessClients.has(clientId)) return true
+		for (const other of this.conns) {
+			if (other === conn || !other.awarenessClients.has(clientId)) continue
+			if (other.claims.sub !== conn.claims.sub) return false
+			other.awarenessClients.delete(clientId)
+			break
+		}
+		return conn.awarenessClients.size < MAX_AWARENESS_CLIENTS
+	}
+
+	/** Nama di kehadiran selalu nama dari tiket: tamu tautan tidak bisa tampil sebagai pemilik. */
+	private stampIdentity(conn: CollabConnection, state: Record<string, unknown>): Record<string, unknown> {
+		const user = state.user
+		if (!user || typeof user !== 'object' || Array.isArray(user)) return state
+		return { ...state, user: { ...(user as Record<string, unknown>), name: conn.claims.name } }
 	}
 
 	// ── Aliran pembaruan ────────────────────────────────────────────────────
@@ -388,7 +422,8 @@ export class CollabRoom {
 		const changed = added.concat(updated, removed)
 		if (changed.length === 0) return
 		if (origin instanceof CollabConnection) {
-			for (const client of added) origin.awarenessClients.add(client)
+			// `updated` juga: klien yang menyambung ulang mengambil alih keadaannya sendiri.
+			for (const client of added.concat(updated)) origin.awarenessClients.add(client)
 			for (const client of removed) origin.awarenessClients.delete(client)
 		}
 
@@ -471,6 +506,21 @@ export class CollabRoom {
 			case 'gone':
 				this.kill(COLLAB_CLOSE.gone, 'tab deleted')
 				return
+			case 'share-changed':
+				this.dropShareConnections(message.shareId)
+				return
+		}
+	}
+
+	/**
+	 * Tautan berbagi diubah perannya atau dicabut: sambungan lewat tautan itu
+	 * diputus 4401 supaya mengambil tiket baru - dengan peran yang baru, atau
+	 * ditolak bila tautannya sudah tidak ada.
+	 */
+	dropShareConnections(shareId: string): void {
+		const subject = `share:${shareId}`
+		for (const conn of [...this.conns]) {
+			if (conn.claims.sub === subject) conn.close(COLLAB_CLOSE.ticket, 'share changed')
 		}
 	}
 

@@ -1,4 +1,5 @@
 import { writeTabContentFromServer } from '@/collab/notify'
+import { contentFromLog } from '@/collab/store'
 import { AppError } from '@/lib/error'
 import { findTabById } from '@/repository/document-tab'
 import { findVersionById, findVersionsByTab, insertVersion } from '@/repository/document-version'
@@ -56,12 +57,13 @@ export default class VersionsService extends BaseService {
 			}
 
 			const tab = await this.ownedTab()
+			const content = body.data.content ?? (await this.currentContent(tab))
 			const version = await insertVersion({
 				tab_id: tab.id,
-				content: tab.content,
+				content,
 				trigger: body.data.trigger ?? 'manual',
 				label: body.data.label ?? null,
-				word_count: countWords(tab.content),
+				word_count: countWords(content),
 				created_by: this.ownerId(),
 			})
 			if (!version) throw AppError.internalServerError('Gagal menyimpan versi')
@@ -77,11 +79,15 @@ export default class VersionsService extends BaseService {
 			const version = await findVersionById(this.versionId(), tab.id)
 			if (!version) throw AppError.notFound('Versi tidak ditemukan')
 
+			// Isi terkini dari log Yjs bila tab kolaboratif: suntingan beberapa detik
+			// terakhir belum tentu sudah diturunkan ke `document_tabs.content`, dan
+			// sesudah pulihkan, room-nya dibuang.
+			const current = await this.currentContent(tab)
 			const preRestore = await insertVersion({
 				tab_id: tab.id,
-				content: tab.content,
+				content: current,
 				trigger: 'pre_restore',
-				word_count: countWords(tab.content),
+				word_count: countWords(current),
 				created_by: this.ownerId(),
 			})
 			if (!preRestore) throw AppError.internalServerError('Gagal menyimpan versi pre-restore')
@@ -98,6 +104,10 @@ export default class VersionsService extends BaseService {
 			return this.failFromError(error)
 		}
 	}
+	private async currentContent(tab: { id: string; content: Record<string, unknown> }) {
+		return (await contentFromLog(tab.id)) ?? tab.content
+	}
+
 	private async ownedTab() {
 		const tab = await findTabById(this.tabId(), await this.identityId())
 		if (!tab) throw AppError.notFound('Tab tidak ditemukan')

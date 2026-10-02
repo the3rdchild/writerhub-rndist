@@ -231,6 +231,104 @@ describe.skipIf(!enabled)('kolaborasi ujung-ke-ujung (proses API sungguhan)', ()
 		).rejects.toThrow(/404/)
 	}, 30_000)
 
+	test('tautan berbagi: ganti peran memutus tamu (4401) dan tiket barunya membawa peran baru; dicabut → 404', async () => {
+		const { documentId, tabId } = await createDocument(main, 'AWAL-PERAN')
+		const owner = peer(main, tabId, (await ticketFor(main, tabId)).ticket, { seed: seedFrom('AWAL-PERAN') })
+		await owner.ready()
+		const share = await apiJson<{ token: string }>(main.url, '/api/v1/shares', {
+			method: 'POST',
+			body: JSON.stringify({ documentId, access: 'anyone', role: 'viewer' }),
+		})
+		const shareTicket = () =>
+			apiJson<CollabTicket>(main.url, `/api/v1/collab/shared/${share.token}/tickets`, {
+				method: 'POST',
+				body: JSON.stringify({ tabId }),
+			})
+		const guest = peer(main, tabId, (await shareTicket()).ticket, { reconnect: false })
+		await guest.ready()
+		// Tamu mengaku sebagai pemilik di kehadiran: server memaksakan nama dari tiket.
+		guest.provider.awareness.setLocalStateField('user', { name: 'local-dev', color: '#f00' })
+		await waitFor(
+			() =>
+				(owner.provider.awareness.getStates().get(guest.doc.clientID)?.user as { name?: string } | undefined)
+					?.name === 'Guest',
+			'nama tamu dipaksa Guest',
+		)
+
+		await apiJson(main.url, `/api/v1/shares/${share.token}`, {
+			method: 'PATCH',
+			body: JSON.stringify({ role: 'editor' }),
+		})
+		await waitFor(() => guest.closes.some((close) => close.code === COLLAB_CLOSE.ticket), 'tamu diputus 4401')
+		expect(owner.closes).toHaveLength(0)
+		expect(await shareTicket()).toMatchObject({ role: 'editor', readOnly: false })
+
+		await apiJson(main.url, `/api/v1/shares/${share.token}`, { method: 'DELETE' })
+		await expect(shareTicket()).rejects.toThrow(/404/)
+	}, 30_000)
+
+	test('versi: cadangan membawa isi dari klien; sebelum-pulihkan memotret isi terkini dari log', async () => {
+		const { tabId } = await createDocument(main, 'AWAL-VERSI')
+		const versions = await apiJson<Array<{ id: string }>>(main.url, `/api/v1/tabs/${tabId}/versions`)
+		const writer = peer(main, tabId, (await ticketFor(main, tabId)).ticket, {
+			seed: seedFrom('AWAL-VERSI'),
+			reconnect: false,
+		})
+		await writer.ready()
+
+		const backup = await apiJson<{ id: string }>(main.url, `/api/v1/tabs/${tabId}/versions`, {
+			method: 'POST',
+			body: JSON.stringify({
+				label: 'Unsynced copy',
+				content: {
+					type: 'doc',
+					content: [{ type: 'paragraph', content: [{ type: 'text', text: 'CADANGAN' }] }],
+				},
+			}),
+		})
+		const stored = await apiJson<{ content: unknown; label: string }>(
+			main.url,
+			`/api/v1/tabs/${tabId}/versions/${backup.id}`,
+		)
+		expect(JSON.stringify(stored.content)).toContain('CADANGAN')
+		expect(stored.label).toBe('Unsynced copy')
+
+		// Diketik lalu langsung dipulihkan, jauh sebelum isi tab sempat diturunkan
+		// (2 dtk): versi sebelum-pulihkan tetap memuatnya.
+		writer.type('SESAAT-SEBELUM-PULIHKAN')
+		await Bun.sleep(250)
+		const restored = await apiJson<{ preRestoreVersionId: string }>(
+			main.url,
+			`/api/v1/tabs/${tabId}/versions/${versions[0].id}/restore`,
+			{ method: 'POST' },
+		)
+		const preRestore = await apiJson<{ content: unknown }>(
+			main.url,
+			`/api/v1/tabs/${tabId}/versions/${restored.preRestoreVersionId}`,
+		)
+		expect(JSON.stringify(preRestore.content)).toContain('SESAAT-SEBELUM-PULIHKAN')
+	}, 30_000)
+
+	test('tiket lewat tautan berbagi dibatasi lajunya per tautan (429)', async () => {
+		const limited = await api({ RATE_LIMIT_SHARE_TICKETS_PER_MIN: '3' })
+		const { documentId, tabId } = await createDocument(limited, 'AWAL-LAJU')
+		const share = await apiJson<{ token: string }>(limited.url, '/api/v1/shares', {
+			method: 'POST',
+			body: JSON.stringify({ documentId, access: 'anyone', role: 'viewer' }),
+		})
+		const statuses: number[] = []
+		for (let i = 0; i < 5; i += 1) {
+			const response = await fetch(`${limited.url}/api/v1/collab/shared/${share.token}/tickets`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ tabId }),
+			})
+			statuses.push(response.status)
+		}
+		expect(statuses.filter((status) => status === 200)).toHaveLength(3)
+		expect(statuses.filter((status) => status === 429)).toHaveLength(2)
+	}, 30_000)
+
 	test('tiket kedaluwarsa, palsu, untuk tab lain, atau kosong ditolak 4401', async () => {
 		const { tabId } = await createDocument(main, 'AWAL-TIKET')
 		const other = await createDocument(main, 'LAIN-TIKET')
@@ -326,13 +424,15 @@ describe.skipIf(!enabled)('kolaborasi ujung-ke-ujung (proses API sungguhan)', ()
 		onLeft.type(large)
 		await waitFor(() => onRight.text.includes(large), 'pembaruan besar kiri → kanan', 15_000)
 
-		// Kehadiran ikut menyeberang: nama kolaborator di proses lain terlihat.
-		onLeft.provider.awareness.setLocalStateField('user', { name: 'Penulis Kiri' })
+		// Kehadiran ikut menyeberang: kolaborator di proses lain terlihat - dengan
+		// nama dari TIKETNYA (server menimpa nama yang diaku klien).
+		onLeft.provider.awareness.setLocalStateField('user', { name: 'Penulis Kiri', color: '#abcdef' })
 		await waitFor(
 			() =>
-				[...onRight.provider.awareness.getStates().values()].some(
-					(state) => (state.user as { name?: string } | undefined)?.name === 'Penulis Kiri',
-				),
+				[...onRight.provider.awareness.getStates().values()].some((state) => {
+					const user = state.user as { name?: string; color?: string } | undefined
+					return user?.color === '#abcdef' && user.name === 'local-dev'
+				}),
 			'awareness kiri → kanan',
 		)
 		// Dan hilang begitu ia pergi.

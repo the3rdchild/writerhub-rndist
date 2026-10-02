@@ -15,6 +15,7 @@ const log = LoggerClient.getInstance()
 export interface CollabLocalHandler {
 	onReset(tabId: string): void
 	onGone(tabId: string): void
+	onShareChanged(tabId: string, shareId: string): void
 }
 
 let localHandler: CollabLocalHandler | null = null
@@ -48,5 +49,17 @@ export function notifyCollabTabsGone(tabIds: readonly string[]): void {
 	for (const tabId of tabIds) {
 		localHandler?.onGone(tabId)
 		void getCollabBus().publish(tabId, { kind: 'gone' })
+	}
+}
+
+/**
+ * Peran tautan berbagi diubah atau tautannya dicabut: putus sambungan yang
+ * masuk lewat tautan itu (4401), supaya izinnya diperiksa ulang saat mengambil
+ * tiket - bukan tetap berlaku sampai otorisasi ulang sejam kemudian.
+ */
+export function notifyCollabShareChanged(shareId: string, tabIds: readonly string[]): void {
+	for (const tabId of tabIds) {
+		localHandler?.onShareChanged(tabId, shareId)
+		void getCollabBus().publish(tabId, { kind: 'share-changed', shareId })
 	}
 }
