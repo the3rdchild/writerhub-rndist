@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { Schema } from '@tiptap/pm/model'
 import type { PageNumbering } from '@writer-hub/shared'
 import { formatSheetNumbers } from './page-furniture/numbering'
 import { DEFAULT_PAGE_SETUP, pageGeometry, sameSheetGeometry } from './page-geometry'
@@ -11,8 +12,10 @@ import {
 	pageOfPos,
 	type SheetGeometry,
 	sameSheets,
+	sectionContinuity,
 	withPrintVariants,
 } from './pagination'
+import { sectionSpans } from './section-break'
 
 const geometry = pageGeometry() // A4, margin 1 inci
 const { contentHeight, pageStride } = geometry
@@ -935,5 +938,39 @@ describe('pemisah bagian di kertas cetak', () => {
 			{ pos: 10, section: 0 },
 			{ pos: 12, section: 1, variant: 'o' },
 		])
+	})
+})
+
+describe('sectionContinuity - pembatas di awal naskah tidak membuka lembar baru (KOL-4)', () => {
+	const schema = new Schema({
+		nodes: {
+			doc: { content: 'block+' },
+			paragraph: { group: 'block', content: 'text*' },
+			text: {},
+			sectionBreak: {
+				group: 'block',
+				attrs: { pageSetup: { default: null }, columns: { default: null }, continuous: { default: false } },
+			},
+		},
+	})
+	const para = () => schema.node('paragraph', null, [schema.text('isi')])
+	const brk = (attrs: object) => schema.node('sectionBreak', attrs)
+
+	test('pembatas "next page" di posisi 0 dianggap menerus - halaman 1 tidak dikosongkan', () => {
+		const doc = schema.node('doc', null, [brk({ columns: { count: 2 }, continuous: false }), para()])
+		expect(sectionContinuity(doc, sectionSpans(doc))).toEqual([false, true])
+	})
+
+	test('pembatas "next page" sesudah isi tetap membuka lembar baru', () => {
+		const doc = schema.node('doc', null, [para(), brk({ columns: { count: 2 }, continuous: false }), para()])
+		expect(sectionContinuity(doc, sectionSpans(doc))).toEqual([false, false])
+	})
+
+	test('di awal naskah pun, geometri lembar yang berganti tetap butuh lembar sendiri', () => {
+		const doc = schema.node('doc', null, [
+			brk({ pageSetup: { orientation: 'landscape' }, continuous: false }),
+			para(),
+		])
+		expect(sectionContinuity(doc, sectionSpans(doc))).toEqual([false, false])
 	})
 })

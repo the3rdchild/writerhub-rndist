@@ -343,6 +343,18 @@ describe('applyColumnsToRange - menyatu dengan wilayah yang ada (KOL-3, KOL-4)',
 		expect(outline(next)).toEqual(['a', 'b', 'c'])
 	})
 
+	test('"This page" di halaman 2 dibuka di halamannya sendiri; di halaman 1 tetap menerus', () => {
+		const doc = docOf(para('a'), para('b'), para('c'))
+		const run = (from: number) => {
+			const state = EditorState.create({ schema, doc })
+			const tr = state.tr
+			applyColumnsToRange(tr, { from, to: doc.content.size, startsPage: true }, { count: 2 })
+			return outline(tr.doc)
+		}
+		expect(run(at(doc, 1))).toEqual(['a', '|2!|', 'b', 'c'])
+		expect(run(0)).toEqual(['|2|', 'a', 'b', 'c'])
+	})
+
 	test('penutup yatim (pembukanya terhapus) dibersihkan', () => {
 		const doc = docOf(para('a'), brk(null), para('b'))
 		const state = EditorState.create({ schema, doc })

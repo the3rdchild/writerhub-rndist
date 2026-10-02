@@ -2452,6 +2452,11 @@ html.light .range-highlight {
     margin: 0;
     border: 0;
   }
+  /* Pembatas di awal naskah tidak memenggal apa pun - belum ada isi sebelum
+     dia (KOL-4; padanan `sectionContinuity` di paginasi). */
+  .document-body > .section-break:first-child {
+    break-after: auto;
+  }
   .document-body .section-break::before,
   .document-body .section-break::after {
     display: none;

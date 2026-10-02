@@ -10,7 +10,15 @@ export function isSectionScope(value: unknown): value is SectionScope {
 	return value === 'from_here' || value === 'this_page'
 }
 
-export function sectionRange(editor: Editor, scope: SectionScope): { from: number; to?: number } | null {
+/**
+ * Rentang blok tingkat atas untuk sebuah cakupan. `startsPage` menandai
+ * rentang "This page" yang tidak dimulai di awal naskah: section yang
+ * dibukanya harus mulai di halaman itu, bukan menyusul isi halaman sebelumnya.
+ */
+export function sectionRange(
+	editor: Editor,
+	scope: SectionScope,
+): { from: number; to?: number; startsPage?: boolean } | null {
 	if (editor.isDestroyed) return null
 	const { doc, selection } = editor.state
 
@@ -32,5 +40,6 @@ export function sectionRange(editor: Editor, scope: SectionScope): { from: numbe
 	const page = pageOfPos(pagination.blockPages, selection.from)
 	if (page === null) return null
 
-	return pageBlockRange(pagination.blockPages, page, doc.content.size)
+	const range = pageBlockRange(pagination.blockPages, page, doc.content.size)
+	return range ? { ...range, startsPage: range.from > 0 } : null
 }

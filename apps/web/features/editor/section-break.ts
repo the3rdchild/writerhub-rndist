@@ -52,7 +52,7 @@ declare module '@tiptap/core' {
 			) => ReturnType
 			applySectionColumns: (
 				columns: SectionBreakAttrs['columns'],
-				range: { from: number; to?: number },
+				range: { from: number; to?: number; startsPage?: boolean },
 				baseSetup?: PageSetup,
 			) => ReturnType
 			setSectionColumns: (count: number) => ReturnType
@@ -343,13 +343,14 @@ function topBoundary(doc: PMNode, pos: number, side: -1 | 1): number {
  *   rentang, kecuali di sana sudah ada pembatas;
  * - pembatas yang tidak mengubah apa pun dibersihkan.
  *
- * Pembatas baru selalu menerus: menerapkan kolom tidak pernah memaksa halaman
- * baru (KOL-4). Rentang di dalam wilayah berkolom memecah wilayah itu, persis
- * Word.
+ * Pembatas baru menerus: menerapkan kolom tidak memaksa halaman baru, jadi
+ * halaman 1 tidak pernah dikosongkan (KOL-4). Satu pengecualian: rentang
+ * "This page" (`startsPage`) di halaman 2 dan seterusnya dibuka di halamannya
+ * sendiri. Rentang di dalam wilayah berkolom memecah wilayah itu, persis Word.
  */
 export function applyColumnsToRange(
 	tr: Transaction,
-	range: { from: number; to?: number },
+	range: { from: number; to?: number; startsPage?: boolean },
 	columns: SectionColumns | null,
 ): boolean {
 	const doc = tr.doc
@@ -384,7 +385,11 @@ export function applyColumnsToRange(
 		const open = doc.nodeAt(openPos)
 		if (open) tr.setNodeMarkup(openPos, undefined, { ...open.attrs, columns: wanted })
 	} else if (!sameColumns(before, wanted)) {
-		tr.insert(from, type.create({ pageSetup: null, columns: wanted, continuous: true }))
+		/* "This page" di halaman 2 dan seterusnya: wilayahnya mulai di halaman
+		 * itu. Menerus, isi halaman itu akan menyusul ke dasar halaman
+		 * sebelumnya (yang tadinya kosong karena paragrafnya tidak muat). */
+		const continuous = !(range.startsPage && from > 0)
+		tr.insert(from, type.create({ pageSetup: null, columns: wanted, continuous }))
 	}
 
 	removeIdleBreaks(tr, tr.mapping.map(from, -1) - 1, tr.mapping.map(to, 1) + 1)

@@ -369,6 +369,26 @@ function insertedHeights(view: EditorView): Map<number, number> {
 	return heights
 }
 
+/**
+ * Section mana yang mengalir terus di lembar berjalan (tidak membuka lembar
+ * baru): yang menerus dengan geometri lembar yang sama - dan pembatas di
+ * posisi 0, karena sebelum dia belum ada isi apa pun. Tanpa pengecualian itu
+ * pembatas "next page" di awal naskah (sisa perintah kolom "This page" lama)
+ * mengosongkan halaman 1 (KOL-4). Indeks sejajar `spans`; span pertama selalu
+ * false.
+ */
+export function sectionContinuity(
+	doc: PMNode,
+	spans: readonly { pos: number; setup: PageSetup }[],
+): boolean[] {
+	return spans.map((span, index) => {
+		if (index === 0) return false
+		const node = doc.nodeAt(span.pos)
+		const flowing = node?.attrs.continuous === true || span.pos === 0
+		return flowing && sameSheetGeometry(span.setup, spans[index - 1].setup)
+	})
+}
+
 export interface SectionGeometry {
 	pos: number
 	geometry: PageGeometry
@@ -1091,11 +1111,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 						const blocks = measureBlocks(view)
 						const spans = state.setup ? sectionSpans(view.state.doc, state.setup) : []
 
-						const continuous = spans.map((span, index) => {
-							if (index === 0) return false
-							const node = view.state.doc.nodeAt(span.pos)
-							return node?.attrs.continuous === true && sameSheetGeometry(span.setup, spans[index - 1].setup)
-						})
+						const continuous = sectionContinuity(view.state.doc, spans)
 						const sections = spans.slice(1).map((span, index) => ({
 							pos: span.pos,
 							geometry: pageGeometry(span.setup),
