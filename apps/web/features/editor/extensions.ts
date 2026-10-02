@@ -28,7 +28,7 @@ import { ClickPastNodeSelection } from '@/features/editor/click-past-node-select
 import { CodeBlock } from '@/features/editor/code-block'
 import { ColumnBreak } from '@/features/editor/column-break'
 import { ColumnExtension } from '@/features/editor/columns'
-import { EditShortcuts } from '@/features/editor/edit-shortcuts'
+import { EditShortcuts, KeepTabInEditor } from '@/features/editor/edit-shortcuts'
 import { Footnote, FootnoteRef } from '@/features/editor/footnote'
 import { HeadingLevels } from '@/features/editor/heading-extension'
 import { HtmlBlock } from '@/features/editor/html-block'
@@ -117,6 +117,7 @@ export function buildEditorExtensions({
 		TextAlign.configure({ types: ['heading', 'paragraph'] }),
 		TextStyleKit.configure({ lineHeight: false }),
 		EditShortcuts,
+		KeepTabInEditor,
 		TabStops,
 		Tab,
 		Highlight.configure({ multicolor: true }),

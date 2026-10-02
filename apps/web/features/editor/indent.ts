@@ -111,19 +111,35 @@ export const BlockIndentExtension = Extension.create({
 	},
 
 	addKeyboardShortcuts() {
-		const shift = (delta: number) => () => {
-			if (isInsideAny(this.editor, TAB_OWNERS)) return false
-			return this.editor.commands.shiftBlockIndent(delta)
+		/*
+		 * Tab seperti Word: dengan kursor di awal paragraf, Tab pertama
+		 * mengindentasi BARIS PERTAMA saja, Tab berikutnya baru menggeser seluruh
+		 * paragraf; Shift+Tab membalik urutannya. Dulu Tab langsung menggeser
+		 * seluruh paragraf (uji editor 2 Okt, TKS-16). Seleksi beberapa paragraf
+		 * tetap menggeser semuanya. Di tengah baris Tab menjadi karakter tab
+		 * (`tab-stops.ts`); daftar, tabel, dan blok kode menangani Tab sendiri.
+		 */
+		const shift = (direction: 1 | -1) => () => {
+			const editor = this.editor
+			if (isInsideAny(editor, TAB_OWNERS)) return false
+			const { selection } = editor.state
+			if (selection.empty && selection.$from.parentOffset === 0) {
+				const { firstLine } = blockIndentAt(editor)
+				if (direction > 0 && firstLine === 0)
+					return editor.commands.setBlockIndent({ firstLine: INDENT_STEP })
+				if (direction < 0 && firstLine > 0) return editor.commands.setBlockIndent({ firstLine: 0 })
+			}
+			return editor.commands.shiftBlockIndent(direction * INDENT_STEP)
 		}
 
 		return {
-			[shortcutKeys('para.indent')]: shift(INDENT_STEP),
-			[shortcutKeys('para.outdent')]: shift(-INDENT_STEP),
+			[shortcutKeys('para.indent')]: shift(1),
+			[shortcutKeys('para.outdent')]: shift(-1),
 		}
 	},
 })
 
-const TAB_OWNERS = ['listItem', 'taskItem', 'tableCell', 'tableHeader']
+const TAB_OWNERS = ['listItem', 'taskItem', 'tableCell', 'tableHeader', 'codeBlock']
 
 function isInsideAny(editor: Editor, types: readonly string[]): boolean {
 	const { $from } = editor.state.selection

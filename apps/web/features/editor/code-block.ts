@@ -61,4 +61,9 @@ export const CodeBlock = CodeBlockLowlight.extend({
 }).configure({
 	lowlight: lowlightInstance,
 	defaultLanguage: 'plaintext',
+	/* Tab mengindentasi baris kode. Tanpa ini Tab jatuh ke navigasi fokus
+	 * peramban dan mendarat di pemilih bahasa: ketikan berikutnya mengganti
+	 * bahasa alih-alih masuk ke kode (uji editor 2 Okt, OBJ-4). */
+	enableTabIndentation: true,
+	tabSize: 4,
 })
