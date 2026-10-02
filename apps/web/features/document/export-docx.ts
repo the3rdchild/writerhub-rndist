@@ -1543,8 +1543,9 @@ export async function exportDocx(
 	sectionContentHeight = contentHeightOf(spans[0])
 
 	/*
-	 * Gambar watermark dari aset proyek: URL bertanda tangan diterbitkan dan
-	 * berkasnya diambil sebelum dokumen dibangun, seperti gambar naskah.
+	 * Gambar watermark dari aset proyek diambil lewat rute BFF sesumber (bukan
+	 * URL bertanda tangan penyimpanan, yang butuh CORS) sebelum dokumen
+	 * dibangun, seperti gambar naskah.
 	 */
 	const watermark = setup?.watermark
 	const loadWatermarkImage = async (): Promise<ExportImage | null> => {
@@ -1552,11 +1553,8 @@ export async function exportDocx(
 		if (watermark.imageDataUrl) return loadExportImage(watermark.imageDataUrl)
 		if (!watermark.assetId) return null
 		try {
-			const { mintAssetUrls } = await import('@/features/assets/api')
-			const url = (await mintAssetUrls([watermark.assetId])).find(
-				(entry) => entry.id === watermark.assetId,
-			)?.url
-			return url ? loadExportImage(url) : null
+			const { fetchAssetDataUrl } = await import('@/features/assets/api')
+			return loadExportImage(await fetchAssetDataUrl(watermark.assetId))
 		} catch {
 			return null
 		}
