@@ -14,7 +14,6 @@ import {
 	LibraryBig,
 	Loader2,
 	Menu,
-	Pin,
 	Plus,
 	Settings,
 } from 'lucide-react'
@@ -140,7 +139,6 @@ export function NavMenu() {
 							}}
 						/>
 					)}
-					<DropdownItem icon={<Pin className="h-4 w-4" />}>Disematkan</DropdownItem>
 
 					<DropdownSeparator />
 
