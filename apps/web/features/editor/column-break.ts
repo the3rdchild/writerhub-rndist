@@ -1,4 +1,5 @@
 import { mergeAttributes, Node } from '@tiptap/core'
+import { insertBreak } from './break-insert'
 
 export const COLUMN_BREAK_NODE = 'columnBreak'
 
@@ -45,12 +46,8 @@ export const ColumnBreak = Node.create({
 		return {
 			setColumnBreak:
 				() =>
-				({ chain, state }) => {
-					const atEnd = state.selection.to >= state.doc.content.size - 1
-					const content = atEnd ? [{ type: this.name }, { type: 'paragraph' }] : [{ type: this.name }]
-
-					return chain().insertContent(content).run()
-				},
+				({ state, tr, dispatch }) =>
+					insertBreak(state, tr, dispatch, state.schema.nodes[this.name]),
 		}
 	},
 })
