@@ -145,6 +145,7 @@ export function documentReducer(state: DocumentState, action: DocumentAction): D
 			return { ...initialDocumentState, ...action.document }
 
 		case 'clear':
-			return { ...initialDocumentState }
+			/* Mengosongkan naskah tidak mengganti nama dokumen (SHL-8). */
+			return { ...initialDocumentState, title: state.title }
 	}
 }
