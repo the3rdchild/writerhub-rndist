@@ -17,8 +17,9 @@ import {
 	Stamp,
 	Table as TableIcon,
 } from 'lucide-react'
-import { DropdownLabel, DropdownSeparator } from '@/components/ui/dropdown'
+import { DropdownLabel, DropdownSeparator, Submenu } from '@/components/ui/dropdown'
 import { usePanels } from '@/features/analysis/panel-context'
+import { CALLOUT_TYPES } from '@/features/editor/callout'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { promptForLink } from '@/features/editor/link'
 import { isInsideTable, tableRepeatsHeader } from '@/features/editor/table-header-repeat'
@@ -58,12 +59,22 @@ export function InsertMenu({ onInsertImage }: { onInsertImage: () => void }) {
 					</Item>
 					<DropdownSeparator />
 					<DropdownLabel>Blok</DropdownLabel>
-					<Item
-						icon={<Highlighter className="h-4 w-4" />}
-						onSelect={() => run(close, () => editor?.chain().focus().setCallout('info').run())}
-					>
-						Callout…
-					</Item>
+					{/* Jenis dipilih saat menyisip (TKS-14); dulu selalu info. */}
+					<Submenu label="Callout" icon={<Highlighter className="h-4 w-4" />}>
+						{() => (
+							<>
+								{CALLOUT_TYPES.map((type) => (
+									<Item
+										key={type.id}
+										icon={<span className="w-4 text-center">{type.emoji}</span>}
+										onSelect={() => run(close, () => editor?.chain().focus().setCallout(type.id).run())}
+									>
+										{type.label}
+									</Item>
+								))}
+							</>
+						)}
+					</Submenu>
 					<Item
 						icon={<Quote className="h-4 w-4" />}
 						onSelect={() => run(close, () => editor?.chain().focus().toggleBlockquote().run())}
