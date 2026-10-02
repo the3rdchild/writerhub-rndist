@@ -91,7 +91,9 @@ export class CollabManager implements RoomHost {
 				await room.destroy()
 				throw error
 			}
-			this.rooms.set(tabId, room)
+			// Reset yang tiba selama memuat sudah mematikannya; sambungan yang
+			// bergabung ditolak 4409 dan room baru dimuat saat mereka kembali.
+			if (!room.dead) this.rooms.set(tabId, room)
 			return room
 		})()
 		this.loading.set(tabId, promise)
