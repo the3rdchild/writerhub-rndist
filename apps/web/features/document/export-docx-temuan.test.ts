@@ -255,6 +255,149 @@ describe('TKS-6: spasi baris persen', () => {
 	})
 })
 
+describe('TBL-6/TBL-7: lebar tabel konsisten', () => {
+	const cell = (value: string, attrs: Record<string, unknown> = {}, type = 'tableCell'): JSONContent => ({
+		type,
+		attrs,
+		content: [paragraph(value)],
+	})
+	const sum = (values: number[]) => values.reduce((total, value) => total + value, 0)
+	const tableXml = (xml: string) => /<w:tbl>[\s\S]*?<\/w:tbl>/.exec(xml)?.[0] ?? ''
+	const gridOf = (xml: string) =>
+		[...xml.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map((match) => Number(match[1]))
+	const tblWOf = (xml: string) => Number(/<w:tblW w:type="dxa" w:w="(\d+)"\/>/.exec(xml)?.[1])
+	const rowWidths = (xml: string) =>
+		[...xml.matchAll(/<w:tr>([\s\S]*?)<\/w:tr>/g)].map((row) =>
+			sum([...row[1].matchAll(/<w:tcW w:type="dxa" w:w="(\d+)"\/>/g)].map((match) => Number(match[1]))),
+		)
+
+	test('satu kolom tanpa colwidth tidak menghapus lebar kolom lain; tblW = Σ gridCol = Σ tcW', async () => {
+		const { xml } = await exported([
+			{
+				type: 'table',
+				content: [
+					{
+						type: 'tableRow',
+						content: [
+							cell('A', { colwidth: [195] }),
+							cell('B', { colwidth: [65] }),
+							cell('C', { colwidth: [130] }),
+							cell('D'),
+						],
+					},
+				],
+			},
+		])
+		const table = tableXml(xml)
+		const grid = gridOf(table)
+		expect(grid.slice(0, 3)).toEqual([195 * 15, 65 * 15, 130 * 15])
+		expect(sum(grid)).toBe(Math.round(pageGeometry(DEFAULT_PAGE_SETUP).contentWidth * 15))
+		expect(tblWOf(table)).toBe(sum(grid))
+		expect(rowWidths(table)).toEqual([sum(grid)])
+		expect(table).toContain('<w:tblLayout w:type="fixed"/>')
+	})
+
+	test('"Lebar tabel" 400 dipatuhi tanpa bertentangan dengan gridCol', async () => {
+		const { xml } = await exported([
+			{
+				type: 'table',
+				attrs: { tableWidth: 400 },
+				content: [{ type: 'tableRow', content: [cell('x'), cell('y'), cell('z')] }],
+			},
+		])
+		const table = tableXml(xml)
+		expect(tblWOf(table)).toBe(6000)
+		expect(sum(gridOf(table))).toBe(6000)
+	})
+
+	test('indentasi mengurangi lebar: tabel tidak melewati margin kanan', async () => {
+		const { xml } = await exported([
+			{
+				type: 'table',
+				attrs: { indentLeft: 60 },
+				content: [
+					{
+						type: 'tableRow',
+						content: [
+							cell('a', { colwidth: [300] }),
+							cell('b', { colwidth: [200] }),
+							cell('c', { colwidth: [200] }),
+						],
+					},
+				],
+			},
+		])
+		const table = tableXml(xml)
+		const indent = Number(/<w:tblInd w:type="dxa" w:w="(\d+)"\/>|<w:tblInd w:w="(\d+)"/.exec(table)?.[1] ?? 0)
+		expect(indent).toBe(900)
+		expect(tblWOf(table) + indent).toBeLessThanOrEqual(
+			Math.round(pageGeometry(DEFAULT_PAGE_SETUP).contentWidth * 15),
+		)
+	})
+
+	test('tabel di section dua kolom tidak lebih lebar dari kolomnya', async () => {
+		const { xml } = await exported([
+			paragraph('pembuka'),
+			{ type: 'sectionBreak', attrs: { pageSetup: null, columns: { count: 2, gap: 24 }, continuous: true } },
+			{ type: 'table', content: [{ type: 'tableRow', content: [cell('a'), cell('b')] }] },
+		])
+		const column = (pageGeometry(DEFAULT_PAGE_SETUP).contentWidth - 24) / 2
+		expect(tblWOf(tableXml(xml))).toBeLessThanOrEqual(Math.round(column * 15))
+	})
+})
+
+describe('TBL-11/TBL-12: bingkai dan judul sel', () => {
+	const tableOf = (rows: JSONContent[][], attrs: Record<string, unknown> = {}): JSONContent => ({
+		type: 'table',
+		attrs,
+		content: rows.map((cells) => ({ type: 'tableRow', content: cells })),
+	})
+	const cell = (value: string, attrs: Record<string, unknown> = {}, type = 'tableCell'): JSONContent => ({
+		type,
+		attrs,
+		content: [paragraph(value)],
+	})
+	const cellXml = (xml: string, marker: string) => {
+		const at = xml.indexOf(`>${marker}<`)
+		return xml.slice(xml.lastIndexOf('<w:tc>', at), xml.indexOf('</w:tc>', at))
+	}
+
+	test('warna bingkai sel tanpa lebar menjadi w:tcBorders berwarna', async () => {
+		const { xml } = await exported([tableOf([[cell('b1', { borderColor: '#e11d48' }), cell('biasa')]])])
+		const red = cellXml(xml, 'b1')
+		expect(red).toContain('<w:tcBorders>')
+		expect(red).toMatch(/<w:top w:val="single" w:color="E11D48" w:sz="6"\/>/)
+		expect(cellXml(xml, 'biasa')).not.toContain('<w:tcBorders>')
+	})
+
+	test('bingkai transparan menjadi garis "none"', async () => {
+		const { xml } = await exported([tableOf([[cell('tanpa', { borderColor: 'transparent' })]])])
+		expect(cellXml(xml, 'tanpa')).toMatch(/<w:top w:val="none"/)
+	})
+
+	test('sel judul tebal dan berlatar seperti kanvas; tabel polos tanpa latar', async () => {
+		const { xml } = await exported([
+			tableOf([
+				[cell('Nama', {}, 'tableHeader'), cell('Nilai', {}, 'tableHeader')],
+				[cell('isi'), cell('1')],
+			]),
+			tableOf([[cell('Polos', {}, 'tableHeader')]], { borderStyle: 'none' }),
+		])
+		const header = cellXml(xml, 'Nama')
+		expect(header).toMatch(/<w:shd [^>]*w:fill="F5F6F6"/)
+		expect(runWith(xml, 'Nama')).toContain('<w:b/>')
+		expect(runWith(xml, 'isi')).not.toContain('<w:b/>')
+		expect(cellXml(xml, 'Polos')).not.toContain('<w:shd ')
+	})
+
+	test('latar sel sendiri menang atas latar judul', async () => {
+		const { xml } = await exported([
+			tableOf([[cell('Kuning', { backgroundColor: '#fef08a' }, 'tableHeader')]]),
+		])
+		expect(cellXml(xml, 'Kuning')).toMatch(/w:fill="FEF08A"/)
+	})
+})
+
 describe('lekukan paragraf dan daftar', () => {
 	const skripsi: DocumentTypography = {
 		baseFont: { family: '"Times New Roman", Times, serif', sizePt: 12 },

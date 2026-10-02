@@ -31,6 +31,7 @@ import {
 	runStyleOf,
 } from './export-docx-runs'
 import { QUOTE_COLOR, QUOTE_PARAGRAPH_STYLE } from './export-docx-styles'
+import { cellTwips, tableGrid } from './export-docx-tables'
 import { docxPositionedFurniture, docxSectionFurniture, type FurnitureContent } from './export-furniture'
 import { collectImageSources, type ExportImage, imageBox, imageLabel, loadExportImage } from './export-images'
 
@@ -53,26 +54,44 @@ const BORDER_STYLES: Record<string, BorderStyleValue> = {
 	double: 'double',
 }
 
-/** Border attrs (px width, CSS style, #hex color) → docx border options. */
-function borderOptionOf(
-	color: string | null | undefined,
-	width: number | null | undefined,
-	style: string | null | undefined,
-): { style: BorderStyleValue; color: string; size: number } | null {
-	if (!width || width <= 0) return null
-	// docx size is in eighths of a point: px * 0.75 pt * 8 = px * 6.
-	return {
-		style: BORDER_STYLES[style ?? 'solid'] ?? 'single',
-		color: (color ?? '#000000').replace('#', ''),
-		size: Math.max(1, Math.round(width * 6)),
-	}
+type BorderSpec = { style: BorderStyleValue; color: string; size: number } | typeof NO_BORDER
+
+interface BorderAttrs {
+	color?: unknown
+	width?: unknown
+	style?: unknown
 }
 
-function cellBordersOf(cell: PMNode) {
-	const border = borderOptionOf(
-		cell.attrs.borderColor as string | null,
-		cell.attrs.borderWidth as number | null,
-		cell.attrs.borderStyle as string | null,
+/**
+ * Garis (warna CSS, lebar px, gaya CSS) → garis docx, atau `null` bila tidak
+ * ada yang diatur di tingkat ini (warisan dari tingkat di atasnya yang
+ * berlaku).
+ *
+ * Cukup salah satu atribut: toolbar warna tabel hanya menulis `borderColor`,
+ * dan di kanvas garis itu tampil dengan lebar bawaan 1 px. Dulu tanpa
+ * `borderWidth` garisnya dibuang (TBL-11).
+ */
+function borderOf(own: BorderAttrs, inherited: BorderAttrs = {}): BorderSpec | null {
+	if (!own.color && !own.width && !own.style) return null
+
+	const width = Number(own.width) || Number(inherited.width) || 1
+	// Lebar tanpa gaya digambar kanvas sebagai garis utuh, walau tabelnya polos.
+	const style = String(own.style ?? (own.width ? 'solid' : (inherited.style ?? 'solid')))
+	if (style === 'none' || style === 'hidden') return NO_BORDER
+
+	const rawColor = own.color ?? inherited.color
+	if (rawColor === 'transparent' && !own.width) return NO_BORDER
+	const color = cssColorToHex(rawColor) ?? (own.width ? '000000' : 'auto')
+	// docx size dalam perdelapan titik: px * 0.75 pt * 8 = px * 6.
+	return { style: BORDER_STYLES[style] ?? 'single', color, size: Math.max(2, Math.round(width * 6)) }
+}
+
+function cellBordersOf(cell: PMNode, table: PMNode) {
+	const border = borderOf(
+		{ color: cell.attrs.borderColor, width: cell.attrs.borderWidth, style: cell.attrs.borderStyle },
+		table.attrs.borderStyle === 'none'
+			? { style: 'none' }
+			: { color: table.attrs.borderColor, width: table.attrs.borderWidth, style: table.attrs.borderStyle },
 	)
 	if (!border) return null
 	return { top: border, bottom: border, left: border, right: border }
@@ -113,6 +132,9 @@ const VERTICAL_ALIGN: Record<string, 'top' | 'center' | 'bottom'> = {
 	middle: 'center',
 	bottom: 'bottom',
 }
+
+/** Latar sel judul tabel di kanvas: `--overlay-hover` di atas kertas putih. */
+const HEADER_FILL = cssColorToHex('rgba(15, 23, 42, 0.04)') ?? 'F5F6F7'
 
 /** Garis kiri kutipan (`--border-strong` di atas putih, 3 px). */
 const QUOTE_BORDER = {
@@ -305,26 +327,27 @@ function columnWidthsOf(
 	}
 }
 
-function tableColumnWidths(table: PMNode, contentWidth: number): number[] {
-	const header = table.firstChild
-	const columns: number[] = []
-	let complete = header !== null
+/**
+ * Lebar kolom teks sebuah section: seluruh area teks, atau satu kolom bila
+ * section-nya berkolom - tabel dan gambar di kolom tidak boleh melebihi
+ * kolomnya. Kolom tak-sama: kolom tersempit.
+ */
+function columnTextWidth(span: SectionSpan | undefined, fallback: PageGeometry): number {
+	const width = span ? pageGeometry(span.setup).contentWidth : fallback.contentWidth
+	const columns = span?.columns
+	if (!columns || columns.count < 2) return width
 
-	header?.forEach((cell) => {
-		const colwidth = cell.attrs.colwidth as number[] | null | undefined
-		const span = Math.max(1, Number(cell.attrs.colspan) || 1)
-		for (let index = 0; index < span; index += 1) {
-			const value = colwidth?.[index]
-			if (!value) complete = false
-			columns.push(value ?? 0)
-		}
-	})
-
-	if (columns.length === 0) return [contentWidth]
-	if (complete) return columns
-
-	const even = contentWidth / columns.length
-	return columns.map(() => even)
+	const gapTotal =
+		columns.gaps && columns.gaps.length === columns.count - 1
+			? columns.gaps.reduce((sum, gap) => sum + gap, 0)
+			: (columns.gap ?? DEFAULT_COLUMN_GAP_PX) * (columns.count - 1)
+	const usable = Math.max(1, width - gapTotal)
+	const widths = columns.widths
+	if (widths && widths.length === columns.count && widths.every((value) => value > 0)) {
+		const total = widths.reduce((sum, value) => sum + value, 0)
+		return Math.min(...widths.map((value) => (value / total) * usable))
+	}
+	return usable / columns.count
 }
 
 /** Wadah tempat sebuah blok sedang dibangun - pengganti pewarisan CSS kanvas. */
@@ -602,7 +625,7 @@ export async function exportDocx(
 		return out
 	}
 
-	const cellOf = (cell: PMNode, width?: number) => {
+	const cellOf = (cell: PMNode, table: PMNode, widthTwips: number, span: number) => {
 		/*
 		 * Isi sel dibangun lewat `blockOf`, jalur yang sama dengan badan naskah.
 		 * Dulu hanya blok teks yang diambil, jadi daftar, tabel bersarang, dan
@@ -612,15 +635,21 @@ export async function exportDocx(
 		 * lebar sel tanpa padding, supaya gambar dan tabel bersarang mengecil ke
 		 * selnya, bukan ke lebar halaman.
 		 */
+		const header = cell.type.name === 'tableHeader'
+		const plain = table.attrs.borderStyle === 'none'
 		const children: InstanceType<typeof Paragraph | typeof Table>[] = []
 		const outerWidth = sectionContentWidth
-		if (width && width > 0) sectionContentWidth = Math.max(1, width - cellInsetOf(cell))
+		sectionContentWidth = Math.max(1, widthTwips / TWIPS_PER_PX - cellInsetOf(cell))
 		try {
-			within({ indent: 0, nested: true, quote: false }, () => {
-				cell.forEach((block) => {
-					children.push(...(blockOf(block) as typeof children))
-				})
-			})
+			within(
+				// Sel judul tebal seperti di kanvas (`th { font-weight: 600 }`) - TBL-12.
+				{ indent: 0, nested: true, quote: false, run: header ? { bold: true } : {} },
+				() => {
+					cell.forEach((block) => {
+						children.push(...(blockOf(block) as typeof children))
+					})
+				},
+			)
 		} finally {
 			sectionContentWidth = outerWidth
 		}
@@ -628,22 +657,21 @@ export async function exportDocx(
 		const content = separateTables(children)
 
 		const rowSpan = Math.max(1, Number(cell.attrs.rowspan) || 1)
-		const background = cell.attrs.backgroundColor as string | null | undefined
-		const fill = background && /^#[0-9a-f]{6}$/i.test(background) ? background.replace('#', '') : null
+		// Latar sel judul bawaan kanvas (`th`), kecuali tabel polos - TBL-12.
+		const fill =
+			cell.attrs.backgroundColor === 'transparent'
+				? null
+				: (cssColorToHex(cell.attrs.backgroundColor) ?? (header && !plain ? HEADER_FILL : null))
 		const margins = cellMarginsOf(cell)
-		const borders = cellBordersOf(cell)
+		const borders = cellBordersOf(cell, table)
 		const verticalAlign = VERTICAL_ALIGN[cell.attrs.verticalAlign as string]
 		return new TableCell({
 			children: content,
 			// rowSpan > 1 otomatis membuat sel lanjutan vMerge di baris berikutnya.
 			...(rowSpan > 1 ? { rowSpan } : {}),
-			...(width && width > 0
-				? {
-						width: { size: px(width), type: WidthType.DXA },
-						columnSpan: Math.max(1, Number(cell.attrs.colspan) || 1),
-					}
-				: {}),
-			...(fill ? { shading: { type: docx.ShadingType.CLEAR, fill } } : {}),
+			width: { size: widthTwips, type: WidthType.DXA },
+			...(span > 1 ? { columnSpan: span } : {}),
+			...(fill ? { shading: { type: docx.ShadingType.CLEAR, fill, color: 'auto' } } : {}),
 			...(margins ? { margins } : {}),
 			...(borders ? { borders } : {}),
 			...(verticalAlign ? { verticalAlign } : {}),
@@ -664,21 +692,27 @@ export async function exportDocx(
 	const imageFiles = new Map<string, ExportImage | null>()
 
 	const tableOf = (node: PMNode) => {
-		const widths = tableColumnWidths(node, sectionContentWidth)
+		const indentLeft = ctx.indent + (Number(node.attrs.indentLeft) || 0)
+		const indentRight = Number(node.attrs.indentRight) || 0
+		// Indentasi tabel memakan ruang: tabel tidak boleh lewat margin kanan (TBL-6).
+		const grid = tableGrid(node, sectionContentWidth - indentLeft - indentRight)
+		const tableTwips = grid.columns.reduce((sum, value) => sum + value, 0)
 
 		const repeatHeader = node.attrs.repeatHeader !== false
 		const rows: InstanceType<typeof TableRow>[] = []
+		let rowIndex = 0
 		node.forEach((row) => {
 			const cells: InstanceType<typeof TableCell>[] = []
-			let column = 0
 			let headerRow = false
+			let cellIndex = 0
+			const places = grid.rows[rowIndex] ?? []
 			row.forEach((cell) => {
 				if (cell.type.name === 'tableHeader') headerRow = true
-				const span = Math.max(1, Number(cell.attrs.colspan) || 1)
-				const width = widths.slice(column, column + span).reduce((sum, value) => sum + value, 0)
-				cells.push(cellOf(cell, width))
-				column += span
+				const place = places[cellIndex] ?? { left: cellIndex, span: 1 }
+				cells.push(cellOf(cell, node, cellTwips(grid, place), place.span))
+				cellIndex += 1
 			})
+			rowIndex += 1
 			const rowHeight = Number(row.attrs.rowHeight) || 0
 			if (cells.length > 0) {
 				rows.push(
@@ -692,47 +726,37 @@ export async function exportDocx(
 			}
 		})
 
-		const tableWidth = Number(node.attrs.tableWidth) || 0
-		// Tabel di dalam kutipan atau butir daftar menjorok bersama wadahnya.
-		const indentLeft = ctx.indent + (Number(node.attrs.indentLeft) || 0)
-		const tableBorder = borderOptionOf(
-			node.attrs.borderColor as string | null,
-			node.attrs.borderWidth as number | null,
-			node.attrs.borderStyle as string | null,
-		)
+		const tableBorder =
+			node.attrs.borderStyle === 'none'
+				? NO_BORDER
+				: borderOf({
+						color: node.attrs.borderColor,
+						width: node.attrs.borderWidth,
+						style: node.attrs.borderStyle,
+					})
 		return new Table({
 			rows,
-			width:
-				tableWidth > 0
-					? { size: px(tableWidth), type: WidthType.DXA }
-					: { size: 100, type: WidthType.PERCENTAGE },
-			columnWidths: widths.map(px),
+			// tblW, gridCol, dan tcW dari satu kisi - jumlahnya selalu sama (TBL-7).
+			width: { size: tableTwips, type: WidthType.DXA },
+			columnWidths: grid.columns,
+			// Lebar tetap seperti kanvas (`table-layout: fixed`): Word tidak
+			// melebarkan kolom mengikuti isinya.
+			layout: docx.TableLayoutType.FIXED,
 			...(indentLeft > 0 ? { indent: { size: px(indentLeft), type: WidthType.DXA } } : {}),
 			/* Tabel polos (sampul, blok tanda tangan) harus tetap polos di Word:
 			 * tanpa penanda ini docx memberi garis bawaan ke setiap tabel. */
-			...(node.attrs.borderStyle === 'none'
+			...(tableBorder
 				? {
 						borders: {
-							top: NO_BORDER,
-							bottom: NO_BORDER,
-							left: NO_BORDER,
-							right: NO_BORDER,
-							insideHorizontal: NO_BORDER,
-							insideVertical: NO_BORDER,
+							top: tableBorder,
+							bottom: tableBorder,
+							left: tableBorder,
+							right: tableBorder,
+							insideHorizontal: tableBorder,
+							insideVertical: tableBorder,
 						},
 					}
-				: tableBorder
-					? {
-							borders: {
-								top: tableBorder,
-								bottom: tableBorder,
-								left: tableBorder,
-								right: tableBorder,
-								insideHorizontal: tableBorder,
-								insideVertical: tableBorder,
-							},
-						}
-					: {}),
+				: {}),
 		})
 	}
 
@@ -1384,10 +1408,7 @@ export async function exportDocx(
 	 * melewatkan paragraf kosong sesudahnya (EX-2). */
 	let prevWasPageFit = false
 
-	const contentWidthOf = (span: SectionSpan | undefined) =>
-		span ? pageGeometry(span.setup).contentWidth : geometry.contentWidth
-
-	sectionContentWidth = contentWidthOf(spans[0])
+	sectionContentWidth = columnTextWidth(spans[0], geometry)
 
 	// Semua diagram diratakan dan semua gambar diambil sekaligus, sebelum satu
 	// pun blok dibangun.
@@ -1416,7 +1437,7 @@ export async function exportDocx(
 			continued = false
 			opensChapter = false
 			lastBreak = null
-			sectionContentWidth = contentWidthOf(spans[spanIndex])
+			sectionContentWidth = columnTextWidth(spans[spanIndex], geometry)
 			prevWasPageFit = false
 			return
 		}
