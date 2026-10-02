@@ -16,6 +16,7 @@ import {
 	sameSheetGeometry,
 } from './page-geometry'
 import { columnRegions, SECTION_BREAK_NODE, sectionSpans } from './section-break'
+import { attachTablePrintHeaders } from './table-print-header'
 
 export const paginationKey = new PluginKey<PaginationState>('pagination')
 export type SpacerKind = 'block' | 'row'
@@ -1195,6 +1196,9 @@ export const Pagination = Extension.create<PaginationOptions>({
 					schedule()
 					const observer = new ResizeObserver(schedule)
 					observer.observe(view.dom)
+					/* Di kertas peramban yang memenggal tabel; kepala tabel diulang lewat
+					 * `<thead>` cetak (TBL-8), padanan `table-header-repeat` di kanvas. */
+					const detachPrintHeaders = attachTablePrintHeaders(view)
 
 					return {
 						update: (_updatedView, previous) => {
@@ -1207,6 +1211,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 						destroy: () => {
 							if (frame) cancelAnimationFrame(frame)
 							observer.disconnect()
+							detachPrintHeaders()
 						},
 					}
 				},

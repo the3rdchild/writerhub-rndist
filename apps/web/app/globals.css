@@ -2487,6 +2487,12 @@ html.light .range-highlight {
   .document-body .table-header-repeat {
     display: none !important;
   }
+  /* Kepala tabel yang diulang di kertas (TBL-8): salinannya di `<thead>`
+     (table-print-header.ts) yang diulang peramban tiap halaman, jadi baris
+     aslinya di `<tbody>` disembunyikan supaya tidak tercetak dua kali. */
+  .document-body tr.table-header-print-source {
+    display: none !important;
+  }
 
   /*
    * Paritas aturan penggalan kanvas-kertas (V1): paginator kanvas menjaga
