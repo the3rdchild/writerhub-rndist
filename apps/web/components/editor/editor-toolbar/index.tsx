@@ -20,11 +20,11 @@ import {
 	RemoveFormatting,
 	Search,
 	Strikethrough,
-	Table as TableIcon,
 	TableOfContents,
 	Underline as UnderlineIcon,
 	Undo2,
 } from 'lucide-react'
+import { TableSizeButton } from '@/components/editor/table-size-picker'
 import { indentSelection, outdentSelection } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
 import { useSettings } from '@/features/settings/settings-context'
@@ -124,12 +124,7 @@ export function EditorToolbar({
 				disabled={isOff}
 				onClick={() => editor && insertImage(editor)}
 			/>
-			<IconButton
-				icon={TableIcon}
-				label="Tabel"
-				disabled={isOff}
-				onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
-			/>
+			<TableSizeButton editor={editor} disabled={isOff} />
 			<IconButton
 				icon={Code2}
 				label="Blok kode"

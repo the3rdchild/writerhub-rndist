@@ -17,6 +17,7 @@ import {
 	Stamp,
 	Table as TableIcon,
 } from 'lucide-react'
+import { insertTableOfSize, TableSizeGrid } from '@/components/editor/table-size-picker'
 import { DropdownLabel, DropdownSeparator, Submenu } from '@/components/ui/dropdown'
 import { usePanels } from '@/features/analysis/panel-context'
 import { CALLOUT_TYPES } from '@/features/editor/callout'
@@ -130,16 +131,13 @@ export function InsertMenu({ onInsertImage }: { onInsertImage: () => void }) {
 						Kode (dalam baris)
 					</Item>
 					<DropdownSeparator />
-					<Item
-						icon={<TableIcon className="h-4 w-4" />}
-						onSelect={() =>
-							run(close, () =>
-								editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
-							)
-						}
-					>
-						Tabel 3×3
-					</Item>
+					<Submenu label="Tabel" icon={<TableIcon className="h-4 w-4" />}>
+						{() => (
+							<TableSizeGrid
+								onPick={(rows, cols) => run(close, () => editor && insertTableOfSize(editor, rows, cols))}
+							/>
+						)}
+					</Submenu>
 					<Item
 						icon={<Minus className="h-4 w-4" />}
 						onSelect={() => run(close, () => editor?.chain().focus().setHorizontalRule().run())}
