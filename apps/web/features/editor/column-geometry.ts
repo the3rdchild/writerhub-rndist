@@ -124,3 +124,74 @@ export function layoutPatch(layout: ColumnLayout): {
 		gaps: layout.gaps.map((value) => Math.round(value)),
 	}
 }
+
+/* ── Dialog "More column options…" ──────────────────────────────────────── */
+
+export type LengthUnit = 'cm' | 'in'
+
+const PX_PER: Record<LengthUnit, number> = { cm: 96 / 2.54, in: 96 }
+
+export function pxToUnit(px: number, unit: LengthUnit): number {
+	return Math.round((px / PX_PER[unit]) * 100) / 100
+}
+
+export function unitToPx(value: number, unit: LengthUnit): number {
+	return value * PX_PER[unit]
+}
+
+/** Jumlah kolom diganti: kolom dihitung ulang rata dari lebar teks, jarak pertamanya dipertahankan. */
+export function withCount(layout: ColumnLayout, count: number, width: number): ColumnLayout {
+	return evenColumns(width, Math.max(1, Math.round(count)), layout.gaps[0] ?? 0)
+}
+
+/**
+ * Lebar satu kolom diubah di dialog. Kolom rata: semua kolom ikut, jaraknya
+ * yang menyesuaikan. Tak rata: selisihnya diambil dari kolom terakhir (atau
+ * kolom sebelumnya bila yang diubah kolom terakhir), seperti Word.
+ */
+export function withWidth(
+	layout: ColumnLayout,
+	index: number,
+	value: number,
+	width: number,
+	equal: boolean,
+): ColumnLayout {
+	const count = layout.widths.length
+	if (count < 2 || index < 0 || index >= count) return layout
+	if (equal) {
+		const each = clamp(value, MIN_COLUMN_WIDTH, width / count)
+		const gap = (width - each * count) / (count - 1)
+		return {
+			widths: Array.from({ length: count }, () => each),
+			gaps: Array.from({ length: count - 1 }, () => gap),
+		}
+	}
+	const widths = [...layout.widths]
+	const partner = index === count - 1 ? count - 2 : count - 1
+	const pool = widths[index] + widths[partner]
+	widths[index] = clamp(value, MIN_COLUMN_WIDTH, pool - MIN_COLUMN_WIDTH)
+	widths[partner] = pool - widths[index]
+	return { widths, gaps: [...layout.gaps] }
+}
+
+/** Jarak satu celah diubah; kolom rata menyesuaikan lebarnya, tak rata mengambil dari kolom kanannya. */
+export function withSpacing(
+	layout: ColumnLayout,
+	index: number,
+	value: number,
+	width: number,
+	equal: boolean,
+): ColumnLayout {
+	const count = layout.widths.length
+	if (count < 2 || index < 0 || index >= count - 1) return layout
+	if (equal) {
+		const gap = clamp(value, MIN_COLUMN_GAP, (width - MIN_COLUMN_WIDTH * count) / (count - 1))
+		return evenColumns(width, count, gap)
+	}
+	const widths = [...layout.widths]
+	const gaps = [...layout.gaps]
+	const pool = gaps[index] + widths[index + 1]
+	gaps[index] = clamp(value, MIN_COLUMN_GAP, pool - MIN_COLUMN_WIDTH)
+	widths[index + 1] = pool - gaps[index]
+	return { widths, gaps }
+}

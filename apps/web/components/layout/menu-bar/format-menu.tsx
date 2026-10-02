@@ -18,6 +18,7 @@ import {
 	Type,
 } from 'lucide-react'
 import { useState } from 'react'
+import { ColumnOptionsDialog } from '@/components/editor/column-options-dialog'
 import { CustomSpacingDialog } from '@/components/editor/custom-spacing-dialog'
 import { SpacingMenuItems } from '@/components/editor/spacing-menu-items'
 import { DropdownLabel, DropdownSeparator, Submenu } from '@/components/ui/dropdown'
@@ -25,6 +26,7 @@ import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { indentSelection, outdentSelection } from '@/features/editor/indent'
 import { convertMathInDocument, convertSelectionToMath } from '@/features/editor/math'
+import { columnRegionAt } from '@/features/editor/section-break'
 import { sectionRange } from '@/features/editor/section-scope'
 import { ALL_PARAGRAPH_STYLES, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
 import { usePageSetup } from '@/features/editor/use-page-setup'
@@ -36,9 +38,14 @@ export function FormatMenu() {
 	const { editor } = useEditorInstance()
 	const { state } = useDocument()
 	const { setup: activeSetup } = usePageSetup()
-	const { setHeadersFootersOpen, setPageNumbersOpen } = useSettings()
+	const { settings, setHeadersFootersOpen, setPageNumbersOpen } = useSettings()
 	const hasSelection = () => Boolean(editor && !editor.state.selection.empty)
+	/* Kursor di dalam wilayah berkolom: "Two/Three columns" mengganti jumlah
+	 * kolom wilayah itu, jadi butirnya tidak perlu seleksi. */
+	const inColumns = () =>
+		Boolean(editor && columnRegionAt(editor.state.doc, editor.state.selection.from, activeSetup))
 	const [spacingDialogOpen, setSpacingDialogOpen] = useState(false)
+	const [columnsDialogOpen, setColumnsDialogOpen] = useState(false)
 
 	return (
 		<>
@@ -183,7 +190,7 @@ export function FormatMenu() {
 										<Item
 											key={`selection-${count}`}
 											icon={<Columns2 className="h-4 w-4" />}
-											disabled={!hasSelection()}
+											disabled={!hasSelection() && !inColumns()}
 											onSelect={() => run(close, () => editor?.chain().focus().setColumns(count).run())}
 										>
 											{count === 2 ? 'Two columns' : 'Three columns'}
@@ -212,6 +219,15 @@ export function FormatMenu() {
 									<DropdownSeparator />
 									<Item onSelect={() => run(close, () => editor?.chain().focus().unsetColumns().run())}>
 										Single column (revert)
+									</Item>
+									<Item
+										icon={<Columns2 className="h-4 w-4" />}
+										onSelect={() => {
+											close()
+											setColumnsDialogOpen(true)
+										}}
+									>
+										More column options…
 									</Item>
 								</>
 							)}
@@ -271,6 +287,13 @@ export function FormatMenu() {
 				editor={editor}
 				open={spacingDialogOpen}
 				onClose={() => setSpacingDialogOpen(false)}
+			/>
+			<ColumnOptionsDialog
+				editor={editor}
+				open={columnsDialogOpen}
+				onClose={() => setColumnsDialogOpen(false)}
+				unit={settings.measurementUnit}
+				baseSetup={activeSetup}
 			/>
 		</>
 	)
