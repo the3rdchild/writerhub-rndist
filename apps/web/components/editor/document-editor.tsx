@@ -11,9 +11,10 @@ import { usePageStatus } from '@/features/editor/use-page-status'
 import { useVisiblePage } from '@/features/editor/use-visible-page'
 import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
 import { useSettings } from '@/features/settings/settings-context'
-import { countWords } from '@/lib/utils'
+import { countCharacters, countWords } from '@/lib/utils'
 import { EditorContextMenu } from './context-menu'
 import { DocumentCanvas } from './document-canvas'
+import { LinkBubble } from './link-bubble'
 import { PageIndicator } from './page-indicator'
 import { TableControls } from './table-controls'
 import { TableOptionsPanel } from './table-options-panel'
@@ -127,6 +128,7 @@ export function DocumentEditor() {
 			{/* Menu konteks suntingan (klik kanan) untuk badan dokumen. Sel tabel
 			    tetap memakai menu tabelnya sendiri. */}
 			{editor && <EditorContextMenu editor={editor} />}
+			<LinkBubble editor={editor} />
 
 			{/* Panel samping opsi tabel (dibuka dari menu "..." sel). */}
 			{editor && <TableOptionsPanel editor={editor} />}
@@ -168,7 +170,7 @@ export function DocumentEditor() {
 
 				{settings.showWordCount && !state.file && (
 					<span className="text-xs text-subtle">
-						{countWords(state.text)} words · {state.text.length} characters
+						{countWords(state.text)} words · {countCharacters(state.text)} characters
 					</span>
 				)}
 
