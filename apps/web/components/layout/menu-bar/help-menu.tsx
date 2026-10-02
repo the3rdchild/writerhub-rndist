@@ -7,7 +7,7 @@ import { useShortcutLabel } from '@/features/shortcuts/use-shortcuts'
 import { Item, Menu, run } from './menu-shell'
 
 export function HelpMenu() {
-	const { setSettingsOpen, setShortcutsOpen } = useSettings()
+	const { setAboutOpen, setShortcutsOpen } = useSettings()
 	const keys = useShortcutLabel()
 
 	return (
@@ -22,7 +22,7 @@ export function HelpMenu() {
 						Pintasan papan tik…
 					</Item>
 					<DropdownSeparator />
-					<Item icon={<Info className="h-4 w-4" />} onSelect={() => run(close, () => setSettingsOpen(true))}>
+					<Item icon={<Info className="h-4 w-4" />} onSelect={() => run(close, () => setAboutOpen(true))}>
 						Tentang WritingHub
 					</Item>
 				</>
