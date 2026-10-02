@@ -1,39 +1,87 @@
 import type { PageGeometry } from './page-geometry'
 
+/*
+ * Mesin aliran kolom - fungsi murni, tanpa DOM.
+ *
+ * Wilayah berkolom dialirkan seperti Word: isi mengisi kolom pertama sampai
+ * dasar area teks, lalu kolom berikutnya, lalu kolom pertama lembar sesudahnya.
+ * Paragraf (dan blok lain yang bisa dipecah) dipotong di batas BARIS - bukan
+ * dipindah utuh - sehingga kolom tidak menyisakan rongga dan paragraf yang
+ * lebih panjang dari satu kolom tetap mengalir di dalam kolom. Di lembar
+ * terakhir wilayah, kolomnya diseimbangkan (kecuali wilayahnya ditutup
+ * pembatas "next page", persis Word).
+ *
+ * Pengukuran (tinggi blok, letak baris) ada di `column-measure.ts`; tampilan
+ * potongan (blok asli yang dipangkas + salinannya) di `column-render.ts`.
+ */
+
+/** Selisih piksel yang dianggap pembulatan, bukan isi yang benar-benar tidak muat. */
+const EPSILON = 0.5
+
 export interface ColumnItem {
 	pos: number
+	/** Tinggi kotak batas blok pada lebar kolomnya. */
 	height: number
 	marginTop: number
 	marginBottom: number
+	/** Judul: tidak boleh ditinggal sendirian di dasar kolom. */
 	keepWithNext: boolean
-	span?: boolean
-	table?: ColumnTable
+	/** Pemenggal halaman (`pageBreak`). */
 	isBreak?: boolean
 	/** Pindah kolom (`w:br w:type="column"`): lanjut di kolom berikutnya. */
 	columnBreak?: boolean
+	/**
+	 * Titik potong yang sah - jarak dari puncak blok, naik, semuanya di dalam
+	 * (0, height). Untuk paragraf: batas antarbaris yang sudah lolos aturan
+	 * yatim/janda; untuk tabel: batas antarbaris tabel. Boleh berupa fungsi
+	 * supaya baris hanya diukur untuk blok yang benar-benar menyeberangi dasar
+	 * kolom. Tanpa titik potong, blok berpindah utuh.
+	 */
+	cuts?: readonly number[] | (() => readonly number[])
+	/** Tinggi salinan baris kepala tabel yang mengawali tiap potongan lanjutan. */
+	repeatHeader?: number
 }
 
-export interface ColumnTable {
-	rows: readonly { pos: number; top: number; height: number }[]
-	columns: number
-	header?: { pos: number; height: number }
-}
-
-export interface TableCut {
-	pos: number
-	spacerHeight: number
-	headerHeight: number
-	headerPos?: number
-	columns: number
+export interface ColumnSlot {
+	left: number
+	width: number
 }
 
 export interface ColumnFrame {
+	/** Puncak wilayah, dalam koordinat badan naskah (`offsetTop`). */
 	top: number
-	count: number
-	columnWidth: number
-	columnGap: number
-	columns?: readonly { left: number; width: number }[]
-	sheetOrigin?: number
+	/**
+	 * Puncak area teks lembar tempat wilayah dimulai. Batas bawah kolom
+	 * dihitung dari sini - bukan dari puncak wilayah, karena wilayah yang mulai
+	 * di tengah halaman (judul satu kolom, lalu isi dua kolom) tetap berhenti di
+	 * margin bawah lembar yang SAMA (KOL-2).
+	 */
+	origin: number
+	slots: readonly ColumnSlot[]
+	/** Seimbangkan tinggi kolom di lembar terakhir wilayah. */
+	balance?: boolean
+}
+
+export interface ColumnFragment {
+	/** Indeks lembar, relatif terhadap lembar `origin`. */
+	sheet: number
+	column: number
+	/** Puncak petak (koordinat badan naskah); salinan kepala tabel, bila ada, menempati bagian atasnya. */
+	top: number
+	/** Bagian blok yang tampil di petak ini: mulai `offset`, setinggi `height`. */
+	offset: number
+	height: number
+	/** Tinggi salinan kepala tabel di atas potongan lanjutan. */
+	header?: number
+}
+
+export interface ColumnFlow {
+	/** Potongan tiap butir, sejajar dengan `items`; butir utuh punya tepat satu. */
+	fragments: ColumnFragment[][]
+	/** Tinggi wilayah dari puncaknya sampai dasar isi terdalam. */
+	height: number
+	/** Ruang non-isi (margin + celah antarlembar) di dalam tinggi wilayah. */
+	sheetGap: number
 }
 
 /**
@@ -50,7 +98,7 @@ export function resolveColumnSlots(
 	gap: number,
 	widths: readonly number[] | null,
 	gaps: readonly number[] | null = null,
-): { left: number; width: number }[] {
+): ColumnSlot[] {
 	const usable = gaps && gaps.length === count - 1 && gaps.every((value) => value >= 0) ? gaps : null
 	const gapBefore = (index: number) => (index <= 0 ? 0 : usable ? usable[index - 1] : gap)
 	const total = Array.from({ length: count }, (_, index) => gapBefore(index)).reduce((a, b) => a + b, 0)
@@ -79,296 +127,303 @@ export function resolveColumnSlots(
 	})
 }
 
-export interface ColumnPlacement {
-	pos: number
-	top: number
-	left: number
-	width: number
-	cuts?: readonly TableCut[]
-	span?: boolean
+/** Posisi baca: butir berikutnya, berapa bagian darinya yang sudah tampil, dan di petak mana. */
+interface Cursor {
+	index: number
+	offset: number
+	sheet: number
+	column: number
+	/** Ujung bawah isi kolom berjalan. */
+	y: number
+	/** Kolom berjalan belum berisi apa pun. */
+	fresh: boolean
+	/** Lembar berjalan sudah memuat isi (wilayah ini atau blok di atasnya). */
+	sheetUsed: boolean
+	/** Margin bawah blok terakhir - digabung dengan margin atas blok berikutnya. */
+	marginAbove: number
 }
 
-export interface ColumnFlow {
-	placements: ColumnPlacement[]
-	height: number
-	sheetGap: number
+interface Placed {
+	index: number
+	fragment: ColumnFragment
 }
 
 export function flowColumns(
 	items: readonly ColumnItem[],
-	{ top, count, columnWidth, columnGap, columns, sheetOrigin = 0 }: ColumnFrame,
+	frame: ColumnFrame,
 	{ contentHeight, pageStride }: Pick<PageGeometry, 'contentHeight' | 'pageStride'>,
 ): ColumnFlow {
-	if (items.length === 0 || count < 1 || contentHeight <= 0) {
-		return { placements: [], height: 0, sheetGap: 0 }
+	const count = frame.slots.length
+	const empty: ColumnFlow = { fragments: items.map(() => []), height: 0, sheetGap: 0 }
+	if (items.length === 0 || count < 1 || contentHeight <= 0) return empty
+
+	const sheetTop = (sheet: number) => frame.origin + sheet * pageStride
+	const sheetBottom = (sheet: number) => sheetTop(sheet) + contentHeight
+
+	/* Puncak wilayah yang jatuh di margin bawah atau celah antarlembar berarti
+	 * isinya baru bisa mulai di lembar berikutnya. */
+	let first = 0
+	while (frame.top >= sheetBottom(first) - EPSILON) first += 1
+	const firstTop = Math.max(frame.top, sheetTop(first))
+	const columnTop = (sheet: number) => (sheet === first ? firstTop : sheetTop(sheet))
+
+	const cache = new Map<number, readonly number[]>()
+	const cutsOf = (index: number): readonly number[] => {
+		const known = cache.get(index)
+		if (known) return known
+		const source = items[index].cuts
+		const list = typeof source === 'function' ? source() : (source ?? [])
+		cache.set(index, list)
+		return list
 	}
 
-	const sheetTop = (page: number) => sheetOrigin + page * pageStride
-	const sheetBottom = (page: number) => sheetOrigin + page * pageStride + contentHeight
-	let page = Math.max(0, Math.floor((top - sheetOrigin) / pageStride))
-	if (top >= sheetBottom(page)) page += 1
+	/*
+	 * Kolom tak-sama lebar: blok yang dipotong ke kolom yang lebarnya berbeda
+	 * akan membungkus barisnya lain, jadi potongan hanya boleh menyeberang ke
+	 * kolom selebar asalnya. Di luar itu blok pindah utuh.
+	 */
+	const nextColumn = (column: number) => (column + 1) % count
+	const canContinue = (column: number) =>
+		Math.abs(frame.slots[nextColumn(column)].width - frame.slots[column].width) < EPSILON
 
-	const firstPage = page
-	const firstTop = Math.max(top, sheetTop(firstPage))
-	const regionTop = (sheet: number) => (sheet === firstPage ? firstTop : sheetTop(sheet))
-	const regionHeight = (sheet: number) => sheetBottom(sheet) - regionTop(sheet)
-
-	const slots: {
-		page: number
-		column: number
-		top: number
-		height: number
-		cuts?: readonly TableCut[]
-		span?: boolean
-	}[] = []
-	const blockedUntil: number[] = Array.from({ length: count }, () => 0)
-	let column = 0
-
-	const advance = () => {
-		column += 1
-		if (column >= count) {
-			column = 0
-			page += 1
+	const advanceColumn = (cursor: Cursor) => {
+		cursor.column += 1
+		if (cursor.column >= count) {
+			cursor.column = 0
+			cursor.sheet += 1
+			cursor.sheetUsed = false
 		}
+		cursor.y = columnTop(cursor.sheet)
+		cursor.fresh = true
+		cursor.marginAbove = 0
 	}
-	const placeSpanner = (item: ColumnItem) => {
-		let water = firstTop
-		for (const slot of slots) water = Math.max(water, slot.top + slot.height)
-		for (const until of blockedUntil) water = Math.max(water, until)
-
-		let spanPage = Math.floor(water / pageStride)
-		if (water >= sheetBottom(spanPage)) spanPage += 1
-		let spanTop = Math.max(water, sheetTop(spanPage))
-		if (spanTop + item.height > sheetBottom(spanPage) + 0.5 && spanTop > sheetTop(spanPage) + 0.5) {
-			spanPage += 1
-			spanTop = sheetTop(spanPage)
-		}
-
-		const bottom = spanTop + item.height
-		slots.push({ page: spanPage, column: 0, top: spanTop, height: item.height, span: true })
-		blockedUntil.fill(bottom)
-		page = Math.floor(bottom / pageStride)
-		if (bottom >= sheetBottom(page)) page += 1
-		column = 0
-	}
-	const breakPage = () => {
-		page += 1
-		column = 0
+	const advanceSheet = (cursor: Cursor) => {
+		cursor.column = 0
+		cursor.sheet += 1
+		cursor.y = columnTop(cursor.sheet)
+		cursor.fresh = true
+		cursor.sheetUsed = false
+		cursor.marginAbove = 0
 	}
 
-	let index = 0
-	while (index < items.length) {
-		if (items[index].span) {
-			placeSpanner(items[index])
-			index += 1
-			continue
-		}
-		if (items[index].columnBreak) {
-			/*
-			 * Pindah kolom menutup kolom berjalan, bukan lembarnya.
-			 *
-			 * Ia tetap mendapat slot bertinggi nol supaya `placements` sejajar
-			 * dengan `items` - pemetaan indeks-ke-indeks yang dipegang seluruh
-			 * pemanggil. Yang TIDAK dilakukannya: memanggil `advance()` sekali
-			 * lagi. Isi sebelum pemenggal sudah memajukan kolom di ujung
-			 * putaran, jadi pemenggal ini mendarat di kolom yang masih kosong -
-			 * memajukannya lagi berarti melompati satu kolom penuh. Kolom yang
-			 * SUDAH terisi (mis. dua pemenggal beruntun) memang harus dilompati,
-			 * dan di sanalah `advance()` dipanggil; di kolom terakhir
-			 * `advance()` sendiri yang berpindah lembar, persis seperti Word.
-			 */
-			const fresh = !slots.some((slot) => slot.page === page && slot.column === column)
-			const base = Math.max(regionTop(page), blockedUntil[column])
-			slots.push({ page, column, top: base, height: 0 })
-			index += 1
-			if (!fresh) advance()
-			continue
-		}
-		if (items[index].isBreak) {
-			const fresh = column === 0 && !slots.some((slot) => slot.page === page && slot.height > 0)
-			const base = Math.max(regionTop(page), blockedUntil[column])
-			slots.push({ page, column, top: base, height: 0 })
-			index += 1
-			if (!fresh) breakPage()
-			continue
-		}
-
-		const base = Math.max(regionTop(page), blockedUntil[column])
-		const limit = sheetBottom(page) - base
-		let tops = packColumn(items, index, limit)
-		let giant = false
-
-		if (tops.length === 0) {
-			if (limit < contentHeight - 0.5) {
-				advance()
-				continue
-			}
-			if (!items[index].table) {
-				placeSpanner(items[index])
-				index += 1
-				continue
-			}
-			tops = [0]
-			giant = true
-		}
-
-		for (const [offsetIndex, offset] of tops.entries()) {
-			const item = items[index + offsetIndex]
-			const slot: (typeof slots)[number] = { page, column, top: base + offset, height: item.height }
-			if (giant && item.table) {
-				const cut = cutTableRows(item.table, slot.top - sheetOrigin, page, { contentHeight, pageStride })
-				slot.height = cut.bottom + sheetOrigin - slot.top
-				if (cut.cuts.length > 0) slot.cuts = cut.cuts
-				blockedUntil[column] = cut.bottom + sheetOrigin
-			}
-			slots.push(slot)
-		}
-		index += tops.length
-
-		if (index < items.length) advance()
+	/** Bagian pertama terkecil yang mungkin dari butir ini - untuk uji keepWithNext. */
+	const smallestHead = (index: number): number => {
+		const item = items[index]
+		if (item.isBreak || item.columnBreak) return 0
+		const cuts = cutsOf(index)
+		return cuts.length > 0 ? Math.min(cuts[0], item.height) : item.height
 	}
-	const lastPage = page
-	const spillOnLastPage = blockedUntil.some((until) => until > regionTop(lastPage) + 0.5)
-	const spanOnLastPage = slots.some((slot) => slot.page === lastPage && slot.span)
-	const firstOnLastPage = slots.findIndex((slot) => slot.page === lastPage)
-	if (firstOnLastPage >= 0 && !spillOnLastPage && !spanOnLastPage) {
-		const balanced = balanceColumns(items.slice(firstOnLastPage), regionHeight(lastPage), count)
-		if (balanced) {
-			const base = regionTop(lastPage)
-			balanced.forEach((placement, offset) => {
-				slots[firstOnLastPage + offset] = {
-					page: lastPage,
-					column: placement.column,
-					top: base + placement.top,
-					height: items[firstOnLastPage + offset].height,
-				}
+
+	/**
+	 * Mengalirkan butir dari `start` sampai habis. `bottomOf` memberi dasar
+	 * kolom per lembar (penyeimbangan memendekkannya di lembar terakhir);
+	 * `lastSheet` membatalkan aliran yang melewatinya. Mengembalikan null bila
+	 * dibatalkan.
+	 */
+	const run = (
+		start: Cursor,
+		bottomOf: (sheet: number) => number,
+		lastSheet: number | null,
+		snapshots?: Map<number, Cursor>,
+	): Placed[] | null => {
+		const cursor = { ...start }
+		const placed: Placed[] = []
+		const remember = () => {
+			if (snapshots && !snapshots.has(cursor.sheet)) snapshots.set(cursor.sheet, { ...cursor })
+		}
+		const place = (fragment: Omit<ColumnFragment, 'sheet' | 'column'>) =>
+			placed.push({
+				index: cursor.index,
+				fragment: { sheet: cursor.sheet, column: cursor.column, ...fragment },
 			})
+
+		remember()
+		let guard = 0
+		while (cursor.index < items.length) {
+			if (lastSheet !== null && cursor.sheet > lastSheet) return null
+			guard += 1
+			if (guard > items.length * (count + 4) * 64 + 1024) break
+
+			const item = items[cursor.index]
+			if (item.isBreak) {
+				/*
+				 * Pemenggal halaman: isi sesudahnya mulai di kolom pertama lembar
+				 * berikutnya - kecuali lembar ini belum memuat apa pun, supaya
+				 * pemenggal di awal wilayah atau dua pemenggal beruntun tidak
+				 * melahirkan lembar kosong.
+				 */
+				place({ top: cursor.y, offset: 0, height: 0 })
+				cursor.index += 1
+				if (cursor.sheetUsed) {
+					advanceSheet(cursor)
+					remember()
+				}
+				continue
+			}
+			if (item.columnBreak) {
+				/* Pindah kolom selalu menutup kolom berjalan - kolom kosong pun,
+				 * jadi dua pemenggal beruntun melompati satu kolom penuh (Word). */
+				place({ top: cursor.y, offset: 0, height: 0 })
+				cursor.index += 1
+				advanceColumn(cursor)
+				remember()
+				continue
+			}
+
+			const bottom = bottomOf(cursor.sheet)
+			const continuing = cursor.offset > 0
+			const header = continuing ? (item.repeatHeader ?? 0) : 0
+			const spacing = cursor.fresh || continuing ? 0 : Math.max(cursor.marginAbove, item.marginTop)
+			const top = cursor.y + spacing
+			const rest = item.height - cursor.offset
+			const room = bottom - top - header
+
+			if (rest <= room + EPSILON) {
+				const next = cursor.index + 1 < items.length ? cursor.index + 1 : -1
+				if (!continuing && item.keepWithNext && !cursor.fresh && next >= 0) {
+					const nextTop = top + rest + Math.max(item.marginBottom, items[next].marginTop)
+					if (nextTop + smallestHead(next) > bottom + EPSILON) {
+						advanceColumn(cursor)
+						remember()
+						continue
+					}
+				}
+				place({ top, offset: cursor.offset, height: rest, ...(header > 0 ? { header } : {}) })
+				cursor.y = top + header + rest
+				cursor.fresh = false
+				cursor.sheetUsed = true
+				cursor.marginAbove = item.marginBottom
+				cursor.index += 1
+				cursor.offset = 0
+				continue
+			}
+
+			const cuts = canContinue(cursor.column) ? cutsOf(cursor.index) : []
+			let fitting: number | undefined
+			for (const cut of cuts) {
+				if (cut <= cursor.offset + EPSILON) continue
+				if (cut - cursor.offset > room + EPSILON) break
+				fitting = cut
+			}
+			if (fitting !== undefined) {
+				place({
+					top,
+					offset: cursor.offset,
+					height: fitting - cursor.offset,
+					...(header > 0 ? { header } : {}),
+				})
+				cursor.offset = fitting
+				cursor.sheetUsed = true
+				advanceColumn(cursor)
+				remember()
+				continue
+			}
+
+			if (!cursor.fresh) {
+				advanceColumn(cursor)
+				remember()
+				continue
+			}
+
+			/*
+			 * Bahkan kolom kosong tidak cukup untuk bagian pertamanya: blok
+			 * tak terpenggal yang lebih tinggi dari kolom (gambar raksasa), atau
+			 * potongan pertama yang sudah lebih tinggi dari kolom. Ia ditaruh di
+			 * puncak kolom dan dibiarkan meluber - seperti paginasi satu kolom -
+			 * lalu sisanya (bila bisa dipotong) lanjut di kolom berikutnya.
+			 */
+			const nextCut = cuts.find((cut) => cut > cursor.offset + EPSILON)
+			if (nextCut !== undefined) {
+				place({
+					top,
+					offset: cursor.offset,
+					height: nextCut - cursor.offset,
+					...(header > 0 ? { header } : {}),
+				})
+				cursor.offset = nextCut
+				cursor.sheetUsed = true
+				advanceColumn(cursor)
+				remember()
+				continue
+			}
+			place({ top, offset: cursor.offset, height: rest, ...(header > 0 ? { header } : {}) })
+			cursor.y = top + header + rest
+			cursor.fresh = false
+			cursor.sheetUsed = true
+			cursor.marginAbove = item.marginBottom
+			cursor.index += 1
+			cursor.offset = 0
+		}
+		return placed
+	}
+
+	const startCursor: Cursor = {
+		index: 0,
+		offset: 0,
+		sheet: first,
+		column: 0,
+		y: firstTop,
+		fresh: true,
+		/* Wilayah yang mulai di tengah lembar berbagi lembar itu dengan isi di
+		 * atasnya: pemenggal halaman di awal wilayah tetap memenggal. */
+		sheetUsed: firstTop > sheetTop(first) + EPSILON,
+		marginAbove: 0,
+	}
+	const snapshots = new Map<number, Cursor>()
+	let placed = run(startCursor, sheetBottom, null, snapshots) ?? []
+
+	let lastSheet = first
+	for (const entry of placed) {
+		if (entry.fragment.height > 0 || entry.fragment.header)
+			lastSheet = Math.max(lastSheet, entry.fragment.sheet)
+	}
+
+	/*
+	 * Penyeimbangan: tinggi kolom terkecil yang masih memuat seluruh isi lembar
+	 * terakhir. Dicari biner per piksel; tiap percobaan memakai aliran yang sama,
+	 * jadi pemotongan baris, pindah kolom, dan keepWithNext tetap berlaku.
+	 */
+	const balanceStart = snapshots.get(lastSheet)
+	if (frame.balance && balanceStart && count > 1) {
+		const top = columnTop(lastSheet)
+		const full = sheetBottom(lastSheet) - top
+		const attempt = (height: number) =>
+			run(balanceStart, (sheet) => (sheet === lastSheet ? top + height : sheetBottom(sheet)), lastSheet)
+		let best = attempt(full)
+		if (best) {
+			let low = 0
+			let high = full
+			while (high - low > 1) {
+				const middle = (low + high) / 2
+				const trial = attempt(middle)
+				if (trial) {
+					best = trial
+					high = middle
+				} else {
+					low = middle
+				}
+			}
+			const before = placed.filter(
+				(entry) =>
+					entry.index < balanceStart.index ||
+					(entry.index === balanceStart.index && entry.fragment.offset < balanceStart.offset),
+			)
+			placed = [...before, ...best]
 		}
 	}
+
+	const fragments: ColumnFragment[][] = items.map(() => [])
+	for (const entry of placed) fragments[entry.index].push(entry.fragment)
+
 	let bottom = firstTop
-	for (const slot of slots) {
-		bottom = Math.max(bottom, slot.top + slot.height)
+	for (const entry of placed) {
+		bottom = Math.max(bottom, entry.fragment.top + (entry.fragment.header ?? 0) + entry.fragment.height)
 	}
-	const sheets = Math.max(0, Math.ceil((bottom - sheetBottom(firstPage)) / pageStride))
+	const crossings = Math.max(0, Math.ceil((bottom - sheetBottom(first)) / pageStride))
 
 	return {
-		placements: items.map((item, i) => ({
-			pos: item.pos,
-			top: slots[i].top - top,
-			left: columns?.[slots[i].column]?.left ?? slots[i].column * (columnWidth + columnGap),
-			width: columns?.[slots[i].column]?.width ?? columnWidth,
-			cuts: slots[i].cuts,
-			span: slots[i].span,
-		})),
-		height: Math.max(0, bottom - top),
-		sheetGap: firstTop - top + sheets * (pageStride - contentHeight),
+		fragments,
+		height: Math.max(0, bottom - frame.top),
+		sheetGap: firstTop - frame.top + crossings * (pageStride - contentHeight),
 	}
-}
-
-export function cutTableRows(
-	table: ColumnTable,
-	base: number,
-	page: number,
-	{ contentHeight, pageStride }: Pick<PageGeometry, 'contentHeight' | 'pageStride'>,
-): { cuts: TableCut[]; bottom: number } {
-	const sheetTop = (p: number) => p * pageStride
-	const sheetBottom = (p: number) => p * pageStride + contentHeight
-	const headerHeight = table.header?.height ?? 0
-
-	const cuts: TableCut[] = []
-	let shift = 0
-	let sheet = page
-
-	for (const row of table.rows) {
-		const top = base + shift + row.top
-		while (top >= sheetTop(sheet + 1) - 0.5) sheet += 1
-		if (top + row.height <= sheetBottom(sheet) + 0.5) continue
-		if (top <= sheetTop(sheet) + 0.5) {
-			continue
-		}
-
-		const target = sheetTop(sheet + 1)
-		const spacerHeight = target - top
-		cuts.push({
-			pos: row.pos,
-			spacerHeight,
-			headerHeight,
-			headerPos: headerHeight > 0 ? table.header?.pos : undefined,
-			columns: table.columns,
-		})
-		shift += spacerHeight + headerHeight
-		sheet += 1
-	}
-
-	const lastRow = table.rows[table.rows.length - 1]
-	const bottom = lastRow ? base + shift + lastRow.top + lastRow.height : base
-	return { cuts, bottom }
-}
-
-function packColumn(items: readonly ColumnItem[], from: number, limit: number): number[] {
-	const tops: number[] = []
-	let y = 0
-	let previousBottom = 0
-
-	for (let i = from; i < items.length; i++) {
-		const item = items[i]
-		if (item.span) break
-		if (item.isBreak || item.columnBreak) break
-		const spacing = i === from ? 0 : Math.max(previousBottom, item.marginTop)
-		if (y + spacing + item.height > limit + 0.5) break
-
-		const next = items[i + 1]
-		if (item.keepWithNext && next && i > from) {
-			const after = y + spacing + item.height
-			if (after + Math.max(item.marginBottom, next.marginTop) + next.height > limit + 0.5) break
-		}
-
-		tops.push(y + spacing)
-		y += spacing + item.height
-		previousBottom = item.marginBottom
-	}
-
-	return tops
-}
-
-function balanceColumns(
-	items: readonly ColumnItem[],
-	limit: number,
-	count: number,
-): { column: number; top: number }[] | null {
-	let best = fillColumns(items, limit, count)
-	if (!best) return null
-
-	let low = 0
-	let high = limit
-	while (high - low > 1) {
-		const middle = (low + high) / 2
-		const attempt = fillColumns(items, middle, count)
-		if (attempt) {
-			best = attempt
-			high = middle
-		} else {
-			low = middle
-		}
-	}
-
-	return best
-}
-
-function fillColumns(
-	items: readonly ColumnItem[],
-	limit: number,
-	count: number,
-): { column: number; top: number }[] | null {
-	const placements: { column: number; top: number }[] = []
-	let index = 0
-
-	for (let column = 0; column < count && index < items.length; column++) {
-		const tops = packColumn(items, index, limit)
-		if (tops.length === 0) return null
-		for (const top of tops) placements.push({ column, top })
-		index += tops.length
-	}
-
-	return index === items.length ? placements : null
 }

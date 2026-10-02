@@ -2,6 +2,7 @@
 
 import type { Editor } from '@tiptap/react'
 import { useCallback, useRef, useState } from 'react'
+import { type ColumnDrag, dragColumns, layoutPatch } from '@/features/editor/column-geometry'
 import { type BlockIndent, clampBlockIndent, useBlockIndent } from '@/features/editor/indent'
 import { INCH, MIN_CONTENT_WIDTH, type PageGeometry, type PageMargins } from '@/features/editor/page-geometry'
 import { clamp, rulerNudge, useRulerDrag } from '@/features/editor/ruler-drag'
@@ -72,8 +73,6 @@ export function rulerMarginPatch(
 	}
 	return null
 }
-
-const MIN_COLUMN_GAP = 8
 
 const RULER_HEIGHT = 24
 
@@ -225,8 +224,9 @@ export function DocumentRuler({
 					let left = margins.left
 					for (let index = 0; index < target.widths.length - 1; index++) {
 						const gapLeft = left + target.widths[index]
-						gaps.push({ left: gapLeft, right: gapLeft + target.gap, index })
-						left = gapLeft + target.gap
+						const size = target.gaps[index] ?? 0
+						gaps.push({ left: gapLeft, right: gapLeft + size, index })
+						left = gapLeft + size
 					}
 					return { gaps }
 				})()
@@ -348,7 +348,7 @@ export function DocumentRuler({
 								onKeyDown={nudge({ kind: 'columnsGapBand', index: gap.index }, gap.left)}
 								onDoubleClick={() => {
 									if (target?.kind === 'columns') {
-										editor?.commands.setColumnsLayout(target.pos, { widths: null })
+										editor?.commands.setColumnsLayout(target.pos, { widths: null, gaps: null })
 									}
 								}}
 							/>
@@ -470,41 +470,12 @@ function applyColumnsHandle(
 	target: ColumnsRulerTarget,
 	contentLeft: number,
 ): void {
-	const { widths, gap, pos } = target
-	const lefts: number[] = []
-	let left = contentLeft
-	for (const columnWidth of widths) {
-		lefts.push(left)
-		left += columnWidth + gap
-	}
-
-	const index = handle.index
-	if (index < 0 || index >= widths.length - 1) return
-	const next = [...widths]
-
-	if (handle.kind === 'columnsGapBand') {
-		const pair = widths[index] + widths[index + 1]
-		const first = clamp(x - lefts[index], MIN_COLUMN_WIDTH, pair - MIN_COLUMN_WIDTH)
-		next[index] = Math.round(first)
-		next[index + 1] = pair - next[index]
-		editor.commands.setColumnsLayout(pos, { widths: next })
-		return
-	}
-
-	if (handle.side === 'left') {
-		const first = clamp(x - lefts[index], MIN_COLUMN_WIDTH, widths[index] + gap - MIN_COLUMN_GAP)
-		next[index] = Math.round(first)
-		editor.commands.setColumnsLayout(pos, { widths: next, gap: Math.round(widths[index] + gap - first) })
-		return
-	}
-
-	const last = clamp(
-		lefts[index + 1] + widths[index + 1] - x,
-		MIN_COLUMN_WIDTH,
-		widths[index + 1] + gap - MIN_COLUMN_GAP,
-	)
-	next[index + 1] = Math.round(last)
-	editor.commands.setColumnsLayout(pos, { widths: next, gap: Math.round(widths[index + 1] + gap - last) })
+	const drag: ColumnDrag =
+		handle.kind === 'columnsGapBand'
+			? { kind: 'band', index: handle.index }
+			: { kind: 'edge', index: handle.index, side: handle.side }
+	const next = dragColumns({ widths: target.widths, gaps: target.gaps }, drag, x - contentLeft)
+	editor.commands.setColumnsLayout(target.pos, layoutPatch(next))
 }
 
 function Ticks({ width, zoom }: { width: number; zoom: number }) {

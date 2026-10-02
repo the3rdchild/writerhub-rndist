@@ -1551,27 +1551,29 @@ a {
 }
 
 /*
- * Tata letak kolom di layar dihitung plugin (columns.ts): tiap blok diposisikan
- * mutlak ke petak (lembar, kolom)-nya, jadi tidak ada isi yang menyeberangi
- * batas lembar. Posisi dan tinggi datang sebagai style inline dari dekorasi -
+ * Tata letak kolom di layar dihitung plugin (columns.ts + column-flow.ts): tiap
+ * blok wilayah diposisikan mutlak ke petak (lembar, kolom)-nya, dan blok yang
+ * menyeberangi dasar kolom dipotong per baris - blok aslinya dipangkas
+ * (`clip-path`) dan potongan lainnya digambar salinan (`.columns-clone`).
+ * Posisi, tinggi, dan pangkasnya datang sebagai style inline dari dekorasi -
  * di sini hanya sifat yang tidak bergantung angka.
  */
-.document-body .columns-flowed {
-  position: relative;
-  /* Multi-kolom CSS pada pembungkus yang sama akan memecah anak-anak yang sudah
-     diposisikan mutlak, jadi ia dimatikan selama tata letak sendiri berlaku.
-     `!important` karena `column-count` node ditulis inline. */
-  column-count: initial !important;
-}
 .document-body .columns-item {
   /* Kolom sempit: kata panjang tidak boleh menonjol keluar petaknya. */
   overflow-wrap: break-word;
 }
-.document-body .columns-sheet-gap {
-  position: absolute;
-  left: 0;
-  width: 0;
+/* Salinan visual potongan: bukan naskah (aria-hidden, tidak disunting), tapi
+   kliknya dipetakan ke blok asli (column-pointer.ts), jadi rupanya tetap teks. */
+.document-body .columns-clone {
+  overflow-wrap: break-word;
   user-select: none;
+  cursor: text;
+}
+/* Sorotan seleksi yang jatuh di salinan - warnanya sama dengan ::selection. */
+.document-body .columns-clone-selection {
+  position: absolute;
+  z-index: 1;
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
   pointer-events: none;
 }
 /* Pengganjal ruang rentang section berkolom (§P8): tak terlihat, tak bisa
@@ -1580,6 +1582,11 @@ a {
 .document-body .columns-region-space {
   user-select: none;
   pointer-events: none;
+}
+/* Salinan cetak wilayah (column-print.ts) hanya hidup di antara beforeprint
+   dan afterprint, dan hanya untuk kertas. */
+.document-body .columns-print {
+  display: none;
 }
 /* Sisa struktur kolom lama - dibiarkan mengalir sebagai blok biasa. */
 .document-body div[data-type='col'] { min-width: 0; }
@@ -2490,8 +2497,15 @@ html.light .range-highlight {
    * Kolom: di layar petaknya dihitung sendiri karena lembar di sana cuma
    * gambar latar pada satu aliran menerus. Di kertas halamannya sungguhan,
    * dan multi-kolom CSS memang mengalir dari lembar ke lembar dengan benar -
-   * termasuk memecah paragraf di batas kolom, yang tidak bisa dilakukan tata
-   * letak layar. Jadi di sini perhitungan itu dilepas seluruhnya.
+   * termasuk memecah paragraf di batas kolom. Jadi di sini perhitungan layar
+   * dilepas seluruhnya (KOL-1).
+   *
+   * Wilayah section tidak punya pembungkus, jadi `column-count` dipasang pada
+   * salinan cetaknya (`.columns-print`, dibuat column-print.ts saat
+   * beforeprint) di dalam penjaga ruang wilayah. Selama salinan itu ada, blok
+   * asli dan salinan layar disembunyikan - isinya tercetak tepat sekali.
+   * Tanpa salinan (cetak yang tidak memicu beforeprint) blok asli kembali ke
+   * aliran biasa: satu kolom, tapi tidak ada isi yang hilang.
    */
   .document-body div[data-type='columns'] {
     position: static !important;
@@ -2503,17 +2517,28 @@ html.light .range-highlight {
     top: auto !important;
     left: auto !important;
     right: auto !important;
+    clip-path: none !important;
   }
-  /* Petak selebar pembungkus (§P4 lapis 3) ikut melintang penuh di kertas. */
-  .document-body .columns-span {
-    column-span: all;
-  }
-  .document-body .columns-sheet-gap {
+  .document-body:has(.columns-print) .columns-item,
+  .document-body .columns-clone {
     display: none !important;
   }
-  /* Pengganjal rentang section juga hanya penjaga ruang layar. */
+  /* Penjaga ruang hanya berarti di layar - kecuali ia sedang membawa salinan cetak. */
   .document-body .columns-region-space {
     display: none !important;
+  }
+  .document-body .columns-region-space:has(> .columns-print) {
+    display: block !important;
+    height: auto !important;
+  }
+  .document-body .columns-print {
+    display: block !important;
+    orphans: 2;
+    widows: 2;
+  }
+  /* Pindah kolom di dalam salinan: peramban yang memindah isi ke kolom berikutnya. */
+  .document-body .columns-print .column-break {
+    break-after: column;
   }
 
   /*
