@@ -106,28 +106,54 @@ export const BUS_KIND = {
 	reset: 4,
 	gone: 5,
 	queryAwareness: 6,
+	updateRef: 7,
+	seededRef: 8,
 } as const
 
+/*
+ * Pembaruan besar (gambar base64 yang ditempel, semaian naskah panjang) tidak
+ * dikirim lewat pub/sub, cukup rujukannya: Redis memutus pelanggan yang
+ * antrean keluarannya melewati `client-output-buffer-limit pubsub` (bawaan
+ * 32 MB). Penerima mengambil barisnya sendiri dari log.
+ */
 export type BusMessage =
 	| { kind: 'update'; origin: string; epoch: string; update: Uint8Array }
+	| { kind: 'update-ref'; origin: string; epoch: string; id: number }
 	| { kind: 'awareness'; origin: string; update: Uint8Array }
 	| { kind: 'seeded'; origin: string; epoch: string; update: Uint8Array }
+	| { kind: 'seeded-ref'; origin: string; epoch: string }
 	| { kind: 'reset'; origin: string }
 	| { kind: 'gone'; origin: string }
 	| { kind: 'query-awareness'; origin: string }
 
+const KIND_CODE: Record<BusMessage['kind'], number> = {
+	update: BUS_KIND.update,
+	'update-ref': BUS_KIND.updateRef,
+	awareness: BUS_KIND.awareness,
+	seeded: BUS_KIND.seeded,
+	'seeded-ref': BUS_KIND.seededRef,
+	reset: BUS_KIND.reset,
+	gone: BUS_KIND.gone,
+	'query-awareness': BUS_KIND.queryAwareness,
+}
+
 export function encodeBusMessage(message: BusMessage): Uint8Array {
 	const encoder = encoding.createEncoder()
-	encoding.writeVarUint(
-		encoder,
-		BUS_KIND[message.kind === 'query-awareness' ? 'queryAwareness' : message.kind],
-	)
+	encoding.writeVarUint(encoder, KIND_CODE[message.kind])
 	encoding.writeVarString(encoder, message.origin)
 	switch (message.kind) {
 		case 'update':
 		case 'seeded':
 			encoding.writeVarString(encoder, message.epoch)
 			encoding.writeVarUint8Array(encoder, message.update)
+			break
+		case 'update-ref':
+			encoding.writeVarString(encoder, message.epoch)
+			// Sebagai teks: id bigserial bisa melewati 2^31.
+			encoding.writeVarString(encoder, String(message.id))
+			break
+		case 'seeded-ref':
+			encoding.writeVarString(encoder, message.epoch)
 			break
 		case 'awareness':
 			encoding.writeVarUint8Array(encoder, message.update)
@@ -158,6 +184,13 @@ export function decodeBusMessage(data: Uint8Array): BusMessage | null {
 					epoch: decoding.readVarString(decoder),
 					update: decoding.readVarUint8Array(decoder),
 				}
+			case BUS_KIND.updateRef: {
+				const epoch = decoding.readVarString(decoder)
+				const id = Number(decoding.readVarString(decoder))
+				return Number.isSafeInteger(id) ? { kind: 'update-ref', origin, epoch, id } : null
+			}
+			case BUS_KIND.seededRef:
+				return { kind: 'seeded-ref', origin, epoch: decoding.readVarString(decoder) }
 			case BUS_KIND.awareness:
 				return { kind: 'awareness', origin, update: decoding.readVarUint8Array(decoder) }
 			case BUS_KIND.reset:

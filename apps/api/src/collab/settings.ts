@@ -14,6 +14,7 @@ export function roomSettingsFromEnv(): RoomSettings {
 		compactEvery: 500,
 		compactOnUnload: 20,
 		maxAwarenessBytes: 64 * 1024,
+		busInlineMaxBytes: 256 * 1024,
 	}
 }
 

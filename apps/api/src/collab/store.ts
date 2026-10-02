@@ -75,19 +75,35 @@ export async function findCollabEpoch(tabId: string): Promise<string | null> {
 	return row?.epoch ?? null
 }
 
-/** `stale`: generasi ini sudah tidak ada (di-reset atau tabnya dihapus). */
+/**
+ * @returns id baris log, atau `stale` bila generasi ini sudah tidak ada
+ * (di-reset atau tabnya dihapus).
+ */
 export async function appendCollabUpdate(
 	tabId: string,
 	epoch: string,
 	update: Uint8Array,
-): Promise<'ok' | 'stale'> {
+): Promise<number | 'stale'> {
 	try {
-		await db.insert(collabUpdates).values({ tab_id: tabId, epoch, update })
-		return 'ok'
+		const [row] = await db
+			.insert(collabUpdates)
+			.values({ tab_id: tabId, epoch, update })
+			.returning({ id: collabUpdates.id })
+		return row?.id ?? 'stale'
 	} catch (error) {
 		if (isPgError(error, PG_ERROR.FOREIGN_KEY_VIOLATION)) return 'stale'
 		throw error
 	}
+}
+
+/** Satu baris log (pesan antar-instance yang hanya membawa rujukan); null bila sudah dipadatkan. */
+export async function loadCollabUpdate(tabId: string, epoch: string, id: number): Promise<Uint8Array | null> {
+	const [row] = await db
+		.select({ update: collabUpdates.update })
+		.from(collabUpdates)
+		.where(and(eq(collabUpdates.id, id), eq(collabUpdates.tab_id, tabId), eq(collabUpdates.epoch, epoch)))
+		.limit(1)
+	return row?.update ?? null
 }
 
 /**

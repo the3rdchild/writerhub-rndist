@@ -74,6 +74,8 @@ describe('pesan antar-instance', () => {
 			{ kind: 'reset', origin: 'd' },
 			{ kind: 'gone', origin: 'e' },
 			{ kind: 'query-awareness', origin: 'f' },
+			{ kind: 'update-ref', origin: 'g', epoch: 'e3', id: 9_007_199_254 },
+			{ kind: 'seeded-ref', origin: 'h', epoch: 'e4' },
 		] as const
 		for (const message of messages) {
 			const decoded = decodeBusMessage(encodeBusMessage(message))

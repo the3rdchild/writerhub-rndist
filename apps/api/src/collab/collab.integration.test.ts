@@ -320,6 +320,12 @@ describe.skipIf(!enabled)('kolaborasi ujung-ke-ujung (proses API sungguhan)', ()
 		await waitFor(() => onLeft.text.includes('ditulis-di-kanan'), 'kanan → kiri')
 		expect(onLeft.text).toBe(onRight.text)
 
+		// Seperti gambar base64 yang ditempel (±400 KB): menyeberang sebagai
+		// rujukan baris log, lalu diambil instance lain dari Postgres.
+		const large = `GAMBAR-${'x'.repeat(400_000)}`
+		onLeft.type(large)
+		await waitFor(() => onRight.text.includes(large), 'pembaruan besar kiri → kanan', 15_000)
+
 		// Kehadiran ikut menyeberang: nama kolaborator di proses lain terlihat.
 		onLeft.provider.awareness.setLocalStateField('user', { name: 'Penulis Kiri' })
 		await waitFor(

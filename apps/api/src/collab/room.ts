@@ -52,7 +52,9 @@ export interface RoomBus {
 export interface RoomStore {
 	tabExists(tabId: string): Promise<boolean>
 	load(tabId: string): Promise<StoredCollabState | null>
-	append(tabId: string, epoch: string, update: Uint8Array): Promise<'ok' | 'stale'>
+	/** @returns id baris log, atau `stale` bila generasinya sudah tidak ada. */
+	append(tabId: string, epoch: string, update: Uint8Array): Promise<number | 'stale'>
+	loadUpdate(tabId: string, epoch: string, id: number): Promise<Uint8Array | null>
 	seed(
 		tabId: string,
 		epoch: string,
@@ -81,6 +83,8 @@ export interface RoomSettings {
 	/** Padatkan saat room dilepas bila sudah ada sekian baris baru. */
 	compactOnUnload: number
 	maxAwarenessBytes: number
+	/** Pembaruan yang lebih besar dikirim ke instance lain sebagai rujukan baris log, bukan isinya. */
+	busInlineMaxBytes: number
 }
 
 export interface RoomHost {
@@ -430,9 +434,16 @@ export class CollabRoom {
 					this.host.log.warn({ err: error, tabId: this.tabId }, '[collab] pembaruan antar-instance rusak')
 				}
 				return
+			case 'update-ref':
+				if (message.epoch !== this.epoch) void this.catchUp()
+				else void this.fetchUpdate(message.epoch, message.id)
+				return
 			case 'seeded':
 				if (!this.epoch) this.becomeSeeded(message.epoch, [message.update])
 				else if (message.epoch !== this.epoch) void this.catchUp()
+				return
+			case 'seeded-ref':
+				if (message.epoch !== this.epoch) void this.catchUp()
 				return
 			case 'awareness':
 				try {
@@ -522,7 +533,7 @@ export class CollabRoom {
 		const update = batch.length === 1 ? batch[0] : Y.mergeUpdates(batch)
 		const epoch = this.epoch
 
-		let result: 'ok' | 'stale'
+		let result: number | 'stale'
 		try {
 			result = await this.host.store.append(this.tabId, epoch, update)
 		} catch (error) {
@@ -538,9 +549,36 @@ export class CollabRoom {
 			return false
 		}
 		this.rowsSinceCompact += 1
-		void this.host.bus.publish(this.tabId, { kind: 'update', epoch, update })
+		void this.host.bus.publish(
+			this.tabId,
+			update.byteLength > this.host.settings.busInlineMaxBytes
+				? { kind: 'update-ref', epoch, id: result }
+				: { kind: 'update', epoch, update },
+		)
 		if (this.rowsSinceCompact >= this.host.settings.compactEvery) void this.compact()
 		return true
+	}
+
+	/** Pembaruan instance lain yang dikirim sebagai rujukan baris log. */
+	private async fetchUpdate(epoch: string, id: number): Promise<void> {
+		let update: Uint8Array | null
+		try {
+			update = await this.host.store.loadUpdate(this.tabId, epoch, id)
+		} catch (error) {
+			this.host.log.warn({ err: error, tabId: this.tabId }, '[collab] gagal mengambil pembaruan dari log')
+			return
+		}
+		if (this.dead || this.epoch !== epoch) return
+		// Sudah dipadatkan ke baris lain: ambil seluruh log saja.
+		if (!update) {
+			await this.catchUp()
+			return
+		}
+		try {
+			Y.applyUpdate(this.doc, update, BUS_ORIGIN)
+		} catch (error) {
+			this.host.log.warn({ err: error, tabId: this.tabId }, '[collab] pembaruan dari log rusak')
+		}
 	}
 
 	private async compact(): Promise<void> {
@@ -741,7 +779,12 @@ export class CollabRoom {
 			case 'seeded':
 				this.becomeSeeded(epoch, [update])
 				if (conn.claims.uid) this.lastEditor = conn.claims.uid
-				void this.host.bus.publish(this.tabId, { kind: 'seeded', epoch, update })
+				void this.host.bus.publish(
+					this.tabId,
+					update.byteLength > this.host.settings.busInlineMaxBytes
+						? { kind: 'seeded-ref', epoch }
+						: { kind: 'seeded', epoch, update },
+				)
 				this.host.log.info({ tabId: this.tabId, epoch, bytes: update.byteLength }, '[collab] tab disemai')
 				// Turunan pertama menormalkan `document_tabs.content` ke isi room.
 				this.scheduleDerive()

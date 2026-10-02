@@ -37,7 +37,8 @@ const TAB = '0b5b9c1e-3f43-4c4e-9a43-6f0c2d0a7e11'
 class MemoryStore implements RoomStore {
 	readonly tabs = new Set<string>([TAB])
 	readonly heads = new Map<string, { epoch: string; contentSv: Uint8Array | null }>()
-	readonly logs = new Map<string, Array<{ epoch: string; update: Uint8Array }>>()
+	readonly logs = new Map<string, Array<{ id: number; epoch: string; update: Uint8Array }>>()
+	private nextId = 1
 	readonly content = new Map<string, Record<string, unknown>>()
 	seedCalls = 0
 
@@ -57,15 +58,19 @@ class MemoryStore implements RoomStore {
 	}
 	async append(tabId: string, epoch: string, update: Uint8Array) {
 		if (this.heads.get(tabId)?.epoch !== epoch) return 'stale' as const
-		this.logs.set(tabId, [...(this.logs.get(tabId) ?? []), { epoch, update }])
-		return 'ok' as const
+		const id = this.nextId++
+		this.logs.set(tabId, [...(this.logs.get(tabId) ?? []), { id, epoch, update }])
+		return id
+	}
+	async loadUpdate(tabId: string, epoch: string, id: number) {
+		return this.logs.get(tabId)?.find((row) => row.id === id && row.epoch === epoch)?.update ?? null
 	}
 	async seed(tabId: string, epoch: string, update: Uint8Array) {
 		this.seedCalls += 1
 		if (!this.tabs.has(tabId)) return 'gone' as const
 		if (this.heads.has(tabId)) return 'conflict' as const
 		this.heads.set(tabId, { epoch, contentSv: null })
-		this.logs.set(tabId, [{ epoch, update }])
+		this.logs.set(tabId, [{ id: this.nextId++, epoch, update }])
 		return 'seeded' as const
 	}
 	async writeDerived(
@@ -85,7 +90,7 @@ class MemoryStore implements RoomStore {
 	async compact(tabId: string, epoch: string) {
 		const rows = (this.logs.get(tabId) ?? []).filter((row) => row.epoch === epoch)
 		if (rows.length < 2) return 0
-		this.logs.set(tabId, [{ epoch, update: snapshotOf(rows.map((row) => row.update)) }])
+		this.logs.set(tabId, [{ id: this.nextId++, epoch, update: snapshotOf(rows.map((row) => row.update)) }])
 		return rows.length
 	}
 	/** Isi tersimpan di log, dibaca seperti room baru memuatnya. */
@@ -148,6 +153,7 @@ const SETTINGS: RoomSettings = {
 	compactEvery: 1000,
 	compactOnUnload: 1000,
 	maxAwarenessBytes: 64 * 1024,
+	busInlineMaxBytes: 256 * 1024,
 }
 
 const quiet = { info() {}, warn() {}, error() {}, debug() {} }
@@ -274,7 +280,7 @@ async function openRoom(bus: RoomBus, store: RoomStore, settings: Partial<RoomSe
 function seedStore(store: MemoryStore, text: string): string {
 	const epoch = randomUUID()
 	store.heads.set(TAB, { epoch, contentSv: null })
-	store.logs.set(TAB, [{ epoch, update: paragraphUpdate(text) }])
+	store.logs.set(TAB, [{ id: 0, epoch, update: paragraphUpdate(text) }])
 	return epoch
 }
 
@@ -415,6 +421,33 @@ describe('room kolaborasi', () => {
 		await sleep(40)
 		expect(fragmentText(a.doc)).toBe(fragmentText(b.doc))
 		expect(store.text()).toBe(fragmentText(a.doc))
+	})
+
+	test('pembaruan dan semaian besar menyeberang sebagai rujukan baris log, bukan isinya', async () => {
+		const store = new MemoryStore()
+		const hub = new Hub()
+		const published: string[] = []
+		const tiny = { busInlineMaxBytes: 16 }
+		const busA = new MemoryBus(hub)
+		const original = busA.publish.bind(busA)
+		busA.publish = async (tabId, message) => {
+			published.push(message.kind)
+			return original(tabId, message)
+		}
+		const roomA = await openRoom(busA, store, tiny)
+		const roomB = await openRoom(new MemoryBus(hub), store, tiny)
+		const a = new FakeClient(roomA, 'editor', { seedText: 'SEMAI-BESAR' }).connect()
+		await sleep(30)
+		const b = new FakeClient(roomB, 'editor').connect()
+		await sleep(30)
+		expect(fragmentText(b.doc)).toBe('SEMAI-BESAR')
+
+		a.type('paragraf yang cukup panjang untuk melewati batas')
+		await sleep(40)
+		expect(fragmentText(b.doc)).toContain('paragraf yang cukup panjang')
+		expect(published).toContain('seeded-ref')
+		expect(published).toContain('update-ref')
+		expect(published).not.toContain('update')
 	})
 
 	test('isi tab diturunkan dari state Yjs, dan turunan yang tertinggal tidak menimpa yang lebih baru', async () => {
