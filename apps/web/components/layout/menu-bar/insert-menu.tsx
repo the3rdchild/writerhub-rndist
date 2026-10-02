@@ -25,6 +25,7 @@ import { insertCodeBlock } from '@/features/editor/code-block'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { promptForImage } from '@/features/editor/image-insert'
 import { promptForLink } from '@/features/editor/link'
+import { insertOrConvertMath } from '@/features/editor/math'
 import { isInsideTable, tableRepeatsHeader } from '@/features/editor/table-header-repeat'
 import { useSessions } from '@/features/sessions/session-context'
 import { useShortcutLabel } from '@/features/shortcuts/use-shortcuts'
@@ -133,6 +134,18 @@ export function InsertMenu() {
 						onSelect={() => run(close, () => editor?.chain().focus().toggleCode().run())}
 					>
 						Kode (dalam baris)
+					</Item>
+					<Item
+						icon={<Sigma className="h-4 w-4" />}
+						onSelect={() => run(close, () => editor && insertOrConvertMath(editor, false))}
+					>
+						Formula…
+					</Item>
+					<Item
+						icon={<Sigma className="h-4 w-4" />}
+						onSelect={() => run(close, () => editor && insertOrConvertMath(editor, true))}
+					>
+						Block formula…
 					</Item>
 					<DropdownSeparator />
 					<Submenu label="Tabel" icon={<TableIcon className="h-4 w-4" />}>

@@ -24,7 +24,7 @@ import { DropdownLabel, DropdownSeparator, Submenu } from '@/components/ui/dropd
 import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { indentSelection, outdentSelection } from '@/features/editor/indent'
-import { convertMathInDocument, convertSelectionToMath } from '@/features/editor/math'
+import { convertMathInDocument, insertOrConvertMath } from '@/features/editor/math'
 import { sectionRange } from '@/features/editor/section-scope'
 import { ALL_PARAGRAPH_STYLES, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
 import { usePageSetup } from '@/features/editor/use-page-setup'
@@ -237,17 +237,17 @@ export function FormatMenu() {
 								<>
 									<Item
 										icon={<Sigma className="h-4 w-4" />}
-										disabled={!editor || editor.state.selection.empty}
-										onSelect={() => run(close, () => editor && convertSelectionToMath(editor, false))}
+										disabled={!editor}
+										onSelect={() => run(close, () => editor && insertOrConvertMath(editor, false))}
 									>
-										Make formula
+										{editor?.state.selection.empty === false ? 'Make formula' : 'Insert formula…'}
 									</Item>
 									<Item
 										icon={<Sigma className="h-4 w-4" />}
-										disabled={!editor || editor.state.selection.empty}
-										onSelect={() => run(close, () => editor && convertSelectionToMath(editor, true))}
+										disabled={!editor}
+										onSelect={() => run(close, () => editor && insertOrConvertMath(editor, true))}
 									>
-										Make block formula
+										{editor?.state.selection.empty === false ? 'Make block formula' : 'Insert block formula…'}
 									</Item>
 									<DropdownSeparator />
 									<Item onSelect={() => run(close, () => editor && convertMathInDocument(editor))}>

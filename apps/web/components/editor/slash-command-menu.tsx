@@ -14,6 +14,7 @@ import {
 	ListOrdered,
 	Minus,
 	Quote,
+	Sigma,
 	Table as TableIcon,
 	Text,
 } from 'lucide-react'
@@ -22,6 +23,7 @@ import { createPortal } from 'react-dom'
 import { CALLOUT_TYPES } from '@/features/editor/callout'
 import { CODE_LANGUAGES } from '@/features/editor/code-block'
 import { promptForImage } from '@/features/editor/image-insert'
+import { insertOrConvertMath } from '@/features/editor/math'
 import type { SlashCommandState } from '@/features/editor/slash-command'
 import { rankSlashItems } from '@/features/editor/slash-rank'
 import { cn } from '@/lib/utils'
@@ -105,6 +107,20 @@ function buildItems(editor: Editor): SlashItem[] {
 			icon: <Code2 className="h-4 w-4" />,
 			keywords: ['code', 'kode', CODE_LANGUAGES.map((l) => l.label).join(' ')],
 			run: (e) => e.chain().focus().toggleCodeBlock().run(),
+		},
+		{
+			id: 'formula',
+			label: 'Rumus',
+			icon: <Sigma className="h-4 w-4" />,
+			keywords: ['formula', 'rumus', 'math', 'equation', 'persamaan', 'latex'],
+			run: (e) => insertOrConvertMath(e, false),
+		},
+		{
+			id: 'formula-block',
+			label: 'Rumus blok',
+			icon: <Sigma className="h-4 w-4" />,
+			keywords: ['block formula', 'rumus blok', 'display', 'equation', 'persamaan', 'latex'],
+			run: (e) => insertOrConvertMath(e, true),
 		},
 		{
 			id: 'toc',
