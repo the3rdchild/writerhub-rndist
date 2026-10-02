@@ -22,6 +22,7 @@ import { createPortal } from 'react-dom'
 import { CALLOUT_TYPES } from '@/features/editor/callout'
 import { CODE_LANGUAGES } from '@/features/editor/code-block'
 import type { SlashCommandState } from '@/features/editor/slash-command'
+import { rankSlashItems } from '@/features/editor/slash-rank'
 import { cn } from '@/lib/utils'
 
 interface SlashItem {
@@ -105,20 +106,6 @@ function buildItems(editor: Editor): SlashItem[] {
 			run: (e) => e.chain().focus().toggleCodeBlock().run(),
 		},
 		{
-			id: 'callout-info',
-			label: 'Callout (info)',
-			icon: <span className="text-sm">ℹ️</span>,
-			keywords: ['callout', 'info', 'note', 'catatan'],
-			run: (e) => e.chain().focus().setCallout('info').run(),
-		},
-		{
-			id: 'callout-warning',
-			label: 'Callout (peringatan)',
-			icon: <span className="text-sm">⚠️</span>,
-			keywords: ['callout', 'warning', 'warning', 'peringatan'],
-			run: (e) => e.chain().focus().setCallout('warning').run(),
-		},
-		{
 			id: 'toc',
 			label: 'Daftar isi',
 			icon: <List className="h-4 w-4" />,
@@ -198,13 +185,7 @@ export function SlashCommandMenu({
 	const rect = state.clientRect?.() ?? null
 	const [active, setActive] = useState(0)
 
-	const filtered = useMemo(() => {
-		const q = state.query.toLowerCase()
-		if (!q) return items
-		return items.filter((item) => {
-			return item.label.toLowerCase().includes(q) || item.keywords.some((k) => k.toLowerCase().includes(q))
-		})
-	}, [items, state.query])
+	const filtered = useMemo(() => rankSlashItems(items, state.query), [items, state.query])
 	useEffect(
 		function resetActiveOnQueryChange() {
 			setActive(0)
@@ -237,6 +218,11 @@ export function SlashCommandMenu({
 					event.preventDefault()
 					setActive((i) => (i - 1 + Math.max(1, filtered.length)) % Math.max(1, filtered.length))
 				} else if (event.key === 'Enter') {
+					/* Tanpa hasil, Enter milik editor lagi (baris baru) - dulu ia tertelan. */
+					if (filtered.length === 0) {
+						onClose()
+						return
+					}
 					event.preventDefault()
 					apply(filtered[active])
 				} else if (event.key === 'Escape') {
