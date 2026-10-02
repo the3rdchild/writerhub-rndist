@@ -19,6 +19,8 @@ import {
 } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE, type SectionSpan, sectionSpans } from '@/features/editor/section-break'
 import type { TabStop } from '@/features/editor/tab-stops'
+import { TOC_BLOCK } from '@/features/editor/toc-block'
+import { readOutlineItems } from '@/features/editor/use-outline-plain'
 import { DOCX_ALIGNMENT, docxTypographyStyles } from './docx/typography-styles'
 import { createXmlParser } from './docx/xml'
 import { LatexToOmml, ommlBuilder } from './export-docx-math'
@@ -31,8 +33,16 @@ import {
 	type RunStyle,
 	runStyleOf,
 } from './export-docx-runs'
-import { QUOTE_COLOR, QUOTE_PARAGRAPH_STYLE } from './export-docx-styles'
+import { captionParagraphStyles, QUOTE_COLOR, QUOTE_PARAGRAPH_STYLE } from './export-docx-styles'
 import { cellTwips, tableGrid } from './export-docx-tables'
+import {
+	type TocEntry,
+	tocAttrsOf,
+	tocBlock,
+	tocEntriesOf,
+	tocLeaderOf,
+	tocParagraphStyles,
+} from './export-docx-toc'
 import { watermarkAlpha, watermarkParagraphFactory } from './export-docx-watermark'
 import { docxPositionedFurniture, docxSectionFurniture, type FurnitureContent } from './export-furniture'
 import { collectImageSources, type ExportImage, imageBox, imageLabel, loadExportImage } from './export-images'
@@ -284,6 +294,72 @@ export function mergeTabContents(tabs: JSONContent[]): JSONContent {
 }
 
 /**
+ * Pasangan rujukan catatan kaki (`footnoteRef`) dan isinya (`footnote`).
+ *
+ * - Nomor Word mengikuti urutan kemunculan rujukan di naskah.
+ * - Isi dicari lewat `id` yang sama. Isi tanpa `id` - bentuk yang ditulis alat
+ *   AI dan importer DOCX, yang menaruh isinya berurutan di akhir naskah -
+ *   dipasangkan menurut urutan dengan rujukan yang belum berpasangan. Skema
+ *   editor saat ini belum memberi node `footnote` atribut `id`, jadi jalur
+ *   urutan inilah yang berlaku sampai modelnya dilengkapi.
+ * - Rujukan tanpa isi tetap menjadi catatan kaki (kosong), supaya nomornya
+ *   sama dengan yang tampil di layar.
+ * - Isi yang tidak dirujuk siapa pun tidak masuk `paired`: ia tetap dicetak di
+ *   badan naskah, bukan hilang diam-diam.
+ */
+export function pairFootnotes(root: PMNode): {
+	ids: Map<PMNode, number>
+	bodies: Map<number, PMNode | null>
+	paired: Set<PMNode>
+} {
+	const refs: PMNode[] = []
+	const notes: PMNode[] = []
+	root.descendants((node) => {
+		if (node.type.name === 'footnote') {
+			notes.push(node)
+			return false
+		}
+		if (node.type.name === 'footnoteRef') refs.push(node)
+		return true
+	})
+
+	const idOf = (node: PMNode) => {
+		const id = node.attrs.id
+		return typeof id === 'string' && id ? id : null
+	}
+	const byId = new Map<string, PMNode>()
+	for (const note of notes) {
+		const id = idOf(note)
+		if (id && !byId.has(id)) byId.set(id, note)
+	}
+
+	const ids = new Map<PMNode, number>()
+	const bodies = new Map<number, PMNode | null>()
+	const paired = new Set<PMNode>()
+	const waiting: number[] = []
+	refs.forEach((ref, index) => {
+		const wordId = index + 1
+		ids.set(ref, wordId)
+		const id = idOf(ref)
+		const note = id ? byId.get(id) : undefined
+		if (note) {
+			bodies.set(wordId, note)
+			paired.add(note)
+		} else waiting.push(wordId)
+	})
+
+	// Hanya isi tanpa id yang dipasangkan menurut urutan; isi ber-id yang tidak
+	// dirujuk adalah yatim dan tetap di badan naskah.
+	const pool = notes.filter((note) => !paired.has(note) && !idOf(note))
+	waiting.forEach((wordId, index) => {
+		const note = pool[index] ?? null
+		bodies.set(wordId, note)
+		if (note) paired.add(note)
+	})
+	return { ids, bodies, paired }
+}
+
+/**
  * Lebar tak-sama → anak `w:col`, bentuk yang dipakai Word sendiri.
  *
  * Lebar di `SectionColumns` adalah PROPORSI (px pada saat impor), jadi ia
@@ -442,6 +518,36 @@ export async function exportDocx(
 		}
 	}
 
+	const footnotes = pairFootnotes(root)
+
+	/*
+	 * Daftar isi: entri setiap blok dan penanda `_Toc…` pada judul yang
+	 * dirujuknya, disiapkan sebelum penelusuran supaya judul tahu ia sasaran
+	 * tautan sebuah entri.
+	 */
+	const outline = readOutlineItems(root)
+	const tocEntries = new Map<PMNode, TocEntry[]>()
+	const headingBookmarks = new Map<PMNode, string>()
+	let firstToc: ReturnType<typeof tocAttrsOf> | null = null
+	root.descendants((node) => {
+		if (node.type.name !== TOC_BLOCK) return true
+		const attrs = tocAttrsOf(node.attrs)
+		firstToc ??= attrs
+		const entries = tocEntriesOf(attrs, outline)
+		tocEntries.set(node, entries)
+		for (const entry of entries) {
+			const heading = entry.heading ? root.nodeAt(entry.heading.pos) : null
+			if (heading && !headingBookmarks.has(heading)) {
+				headingBookmarks.set(heading, `_Toc${100000000 + headingBookmarks.size + 1}`)
+			}
+		}
+		return false
+	})
+	const bookmarkOf = (entry: TocEntry) => {
+		const heading = entry.heading ? root.nodeAt(entry.heading.pos) : null
+		return heading ? headingBookmarks.get(heading) : undefined
+	}
+
 	/** Rumus dalam baris: persamaan Word, atau sumber LaTeX berhuruf lebar-tetap. */
 	const inlineMath = (latex: string): ParagraphChild[] => {
 		const items = LatexToOmml.convert(latex, false, parseXml)
@@ -501,6 +607,11 @@ export async function exportDocx(
 				case 'mathInline':
 					out.push(...inlineMath(String(child.attrs.latex ?? '')))
 					break
+				case 'footnoteRef': {
+					const id = footnotes.ids.get(child)
+					if (id) out.push(new docx.FootnoteReferenceRun(id))
+					break
+				}
 				default:
 					// Atom sebaris lain: teksnya ikut, bukan hilang diam-diam.
 					if (child.textContent) {
@@ -571,7 +682,9 @@ export async function exportDocx(
 		const tabStops = tabStopsOf(node)
 		const indent = indentOf(node, resetsBody)
 
-		const children = runsOf(node, lead)
+		let children = runsOf(node, lead)
+		const bookmark = headingBookmarks.get(node)
+		if (bookmark) children = [new docx.Bookmark({ id: bookmark, children }) as unknown as ParagraphChild]
 
 		return new Paragraph({
 			children,
@@ -1030,7 +1143,10 @@ export async function exportDocx(
 				if (level <= 6) {
 					return [paragraphOf(node, { heading: HEADINGS[level - 1] })]
 				}
-				return [paragraphOf(node, { heading: HeadingLevel.HEADING_6, outlineLevel: level - 1 })]
+				// Caption (7-9) memakai gaya "heading 7..9" sendiri, bukan Heading 6.
+				return [
+					paragraphOf(node, { style: `Heading${Math.min(9, level)}`, outlineLevel: Math.min(9, level) - 1 }),
+				]
 			}
 
 			case 'paragraph':
@@ -1118,6 +1234,14 @@ export async function exportDocx(
 					}),
 				]
 			}
+
+			/*
+			 * Isi catatan kaki pindah ke bagian footnotes Word, di bawah halaman
+			 * tempat rujukannya - tidak dicetak lagi di badan naskah. Isi tanpa
+			 * rujukan tetap di tempatnya supaya tidak hilang.
+			 */
+			case 'footnote':
+				return footnotes.paired.has(node) ? [] : [paragraphOf(node)]
 
 			// Blok HTML masuk sebagai gambar: Word tidak mengenal HTML, jadi
 			// rancangannya diratakan menjadi potretan yang diambil
@@ -1273,22 +1397,14 @@ export async function exportDocx(
 				]
 			}
 
-			case 'tocBlock': {
-				const snapshot = String(node.attrs.snapshot ?? '')
-				/*
-				 * Tiap baris potretan berbentuk `Judul⇥Halaman`. Tanpa perhentian
-				 * tab, Word merender tab itu apa adanya - judulnya lalu nomornya
-				 * menggantung di tengah baris, tanpa titik penuntun. Perhentian
-				 * rata kanan di tepi kolom teks yang membuatnya terbaca sebagai
-				 * daftar isi, dan titiknya digambar Word sendiri.
-				 */
-				const tabStops = [
-					{ type: 'right' as const, position: px(sectionContentWidth), leader: 'dot' as const },
-				]
-				return snapshot
-					.split('\n')
-					.filter((line) => line.trim())
-					.map((line) => new Paragraph({ text: line, tabStops }))
+			case TOC_BLOCK: {
+				const attrs = tocAttrsOf(node.attrs)
+				return tocBlock(docx, {
+					attrs,
+					entries: tocEntries.get(node) ?? tocEntriesOf(attrs, outline),
+					widthTwips: px(Math.max(1, sectionContentWidth - ctx.indent)),
+					bookmarkOf,
+				})
 			}
 
 			default: {
@@ -1642,16 +1758,47 @@ export async function exportDocx(
 		})
 	}
 
+	/*
+	 * Catatan kaki Word (TKS-1): isinya satu paragraf bergaya "Footnote Text";
+	 * pustaka docx menaruh tanda nomornya di depan.
+	 */
+	const footnoteParts: Record<number, { children: InstanceType<typeof Paragraph>[] }> = {}
+	for (const [id, note] of footnotes.bodies) {
+		footnoteParts[id] = {
+			children: [
+				new Paragraph({
+					style: 'FootnoteText',
+					children: [
+						new TextRun({ text: ' ' }),
+						...(note ? within({ nested: true }, () => runsOf(note)) : []),
+					],
+				}),
+			],
+		}
+	}
+
+	const tocStyle = firstToc as ReturnType<typeof tocAttrsOf> | null
 	const document = new Document({
 		title,
 		styles: {
 			...(typography ? docxTypographyStyles(typography) : {}),
-			paragraphStyles: [QUOTE_PARAGRAPH_STYLE],
+			paragraphStyles: [
+				...captionParagraphStyles(typography),
+				QUOTE_PARAGRAPH_STYLE,
+				...(tocStyle
+					? tocParagraphStyles({
+							widthTwips: px(columnTextWidth(spans[0], geometry)),
+							stepPx: tocStyle.indentPerLevel,
+							leader: tocLeaderOf(tocStyle),
+						})
+					: []),
+			],
 		},
 		...(furnitureExtras.evenAndOdd ? { evenAndOddHeaderAndFooters: true } : {}),
 		numbering: {
 			config: [...orderedConfigs].map(([reference, levels]) => ({ reference, levels })),
 		},
+		...(Object.keys(footnoteParts).length > 0 ? { footnotes: footnoteParts } : {}),
 		sections: assembled.map((section) => ({
 			properties: section.properties,
 			...(section.headers ? { headers: section.headers } : {}),

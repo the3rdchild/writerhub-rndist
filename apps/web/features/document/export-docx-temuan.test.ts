@@ -8,7 +8,7 @@ import type { DocumentTypography, Watermark } from '@writer-hub/shared'
 import { strFromU8, unzipSync } from 'fflate'
 import { DEFAULT_PAGE_SETUP, type PageSetup, pageGeometry } from '@/features/editor/page-geometry'
 import { buildSchema } from '@/features/sync/serialize'
-import { exportDocx, lineSpacingOf } from './export-docx'
+import { exportDocx, lineSpacingOf, pairFootnotes } from './export-docx'
 import { applyWatermarkAlpha, attachSectionBreaks } from './export-docx-post'
 
 const PNG_1PX =
@@ -46,6 +46,11 @@ const paragraph = (value: string, attrs?: Record<string, unknown>): JSONContent 
 	type: 'paragraph',
 	...(attrs ? { attrs } : {}),
 	content: value ? [text(value)] : [],
+})
+const heading = (level: number, value: string): JSONContent => ({
+	type: 'heading',
+	attrs: { level },
+	content: [text(value)],
 })
 
 /** XML paragraf Word yang memuat penanda itu. */
@@ -270,6 +275,69 @@ describe('OBJ-14: gambar lebih tinggi dari halaman diperkecil proporsional', () 
 		expect(height / width).toBeCloseTo(4, 1)
 		// Spasi tunggal: kelipatan spasi dokumen tidak memanjangkan baris gambar.
 		expect(paragraphWith(xml, '<w:drawing>')).toMatch(/<w:spacing [^>]*w:line="240"/)
+	})
+})
+
+describe('OBJ-21: daftar isi sebagai field TOC', () => {
+	const toc = (attrs: Record<string, unknown>): JSONContent => ({ type: 'tocBlock', attrs })
+
+	test('field TOC dengan hasil tersimpan berlekuk per tingkat dan bertaut ke judulnya', async () => {
+		const { xml, files } = await exported([
+			toc({
+				listKind: 'isi',
+				minLevel: 1,
+				maxLevel: 3,
+				snapshot: 'Bab 1 Pendahuluan\t1\n1.1 Latar Belakang\t2',
+			}),
+			heading(1, 'Bab 1 Pendahuluan'),
+			heading(2, '1.1 Latar Belakang'),
+		])
+		expect(xml).toContain('<w:fldChar w:fldCharType="begin"/>')
+		expect(xml).toMatch(
+			/<w:instrText xml:space="preserve"> TOC \\o (&quot;|")1-3(&quot;|") \\h \\z \\u <\/w:instrText>/,
+		)
+		expect(xml).toContain('<w:fldChar w:fldCharType="separate"/>')
+		expect(xml).toContain('<w:fldChar w:fldCharType="end"/>')
+		expect(xml).toContain('<w:docPartGallery w:val="Table of Contents"/>')
+
+		const first = paragraphWith(xml, '>Bab 1 Pendahuluan<')
+		const second = paragraphWith(xml, '>1.1 Latar Belakang<')
+		expect(first).toContain('<w:pStyle w:val="TOC1"/>')
+		expect(second).toContain('<w:pStyle w:val="TOC2"/>')
+		expect(Number(/w:left="(\d+)"/.exec(second)?.[1])).toBeGreaterThan(0)
+		expect(first).toMatch(/<w:hyperlink [^>]*w:anchor="_Toc\d+"/)
+
+		// Judul sasarannya membawa penanda yang sama.
+		const anchor = /<w:hyperlink [^>]*w:anchor="(_Toc\d+)"/.exec(first)?.[1]
+		expect(xml).toContain(`w:name="${anchor}"`)
+		expect(files['word/styles.xml']).toContain('w:styleId="TOC2"')
+	})
+
+	test('caption tingkat 7-9 bergaya Heading 7-9, bukan Heading 6; daftar gambar merujuknya lewat \\t', async () => {
+		const { xml, files } = await exported([
+			toc({ listKind: 'gambar', minLevel: 7, maxLevel: 9, snapshot: 'Gambar 1. Kucing\t2' }),
+			heading(7, 'Gambar 1. Kucing'),
+			heading(8, 'Tabel 1. Responden'),
+		])
+		expect(xml).not.toContain('<w:pStyle w:val="Heading6"/>')
+		expect(paragraphWith(xml, '>Tabel 1. Responden<')).toContain('<w:pStyle w:val="Heading8"/>')
+		expect(xml).toMatch(/TOC \\h \\z \\t (&quot;|")heading 7,1,heading 8,2,heading 9,3/)
+		expect(files['word/styles.xml']).toMatch(/w:styleId="Heading7"[\s\S]*?<w:outlineLvl w:val="6"\/>/)
+	})
+
+	test('putar-balik: daftar isi dan daftar gambar diimpor kembali sebagai blok daftar', async () => {
+		const { readDocx } = await import('./docx')
+		const { bytes } = await exported([
+			toc({ listKind: 'isi', snapshot: 'Bab 1\t1' }),
+			toc({ listKind: 'gambar', minLevel: 7, maxLevel: 9, snapshot: 'Gambar 1. Kucing\t1' }),
+			heading(1, 'Bab 1'),
+			heading(7, 'Gambar 1. Kucing'),
+		])
+		const blocks = (await readDocx(bytes)).content.content ?? []
+		const tocs = blocks.filter((block) => block.type === 'tocBlock').map((block) => block.attrs?.listKind)
+		expect(tocs).toEqual(['isi', 'gambar'])
+		const caption = blocks.find((block) => block.type === 'heading' && block.attrs?.level === 7)
+		expect(caption).toBeDefined()
 	})
 })
 
@@ -542,6 +610,57 @@ describe('TBL-11/TBL-12: bingkai dan judul sel', () => {
 			tableOf([[cell('Kuning', { backgroundColor: '#fef08a' }, 'tableHeader')]]),
 		])
 		expect(cellXml(xml, 'Kuning')).toMatch(/w:fill="FEF08A"/)
+	})
+})
+
+describe('TKS-1: catatan kaki Word', () => {
+	const ref = (id: string): JSONContent => ({ type: 'footnoteRef', attrs: { id } })
+	const note = (value: string): JSONContent => ({ type: 'footnote', content: [text(value)] })
+
+	test('rujukan menjadi w:footnoteReference bernomor urut, isinya di footnotes.xml', async () => {
+		const { xml, files } = await exported([
+			{ type: 'paragraph', content: [text('pertama'), ref('fn-1'), text(' kedua'), ref('fn-2')] },
+			note('Sumber: BPS.'),
+			note('Lihat Bab 2.'),
+		])
+		const ids = [...xml.matchAll(/<w:footnoteReference w:id="(\d+)"\/>/g)].map((match) => Number(match[1]))
+		expect(ids).toEqual([1, 2])
+		expect(xml).not.toContain('Sumber: BPS.')
+		const notes = files['word/footnotes.xml']
+		const entries = [...notes.matchAll(/<w:footnote w:id="(\d+)">([\s\S]*?)<\/w:footnote>/g)].map(
+			(match) => [Number(match[1]), match[2]] as const,
+		)
+		expect(entries.find(([id]) => id === 1)?.[1]).toContain('Sumber: BPS.')
+		expect(entries.find(([id]) => id === 2)?.[1]).toContain('Lihat Bab 2.')
+		expect(notes).toContain('<w:pStyle w:val="FootnoteText"/>')
+	})
+
+	test('rujukan tanpa isi tetap menjadi catatan kaki (kosong); isi tanpa rujukan tetap di naskah', () => {
+		const doc = buildSchema().nodeFromJSON({
+			type: 'doc',
+			content: [{ type: 'paragraph', content: [text('a'), ref('fn-1')] }],
+		})
+		const pairs = pairFootnotes(doc)
+		expect([...pairs.bodies.entries()]).toEqual([[1, null]])
+	})
+
+	test('isi yang tidak dirujuk tidak hilang dari badan naskah', async () => {
+		const { xml } = await exported([paragraph('tanpa rujukan'), note('catatan yatim')])
+		expect(xml).toContain('catatan yatim')
+	})
+
+	test('dipasangkan menurut id bila isi catatan membawanya', () => {
+		const node = (name: string, attrs: Record<string, unknown>) => ({ type: { name }, attrs })
+		const refs = [node('footnoteRef', { id: 'b' }), node('footnoteRef', { id: 'a' })]
+		const notes = [node('footnote', { id: 'a' }), node('footnote', { id: 'b' })]
+		const fake = {
+			descendants: (visit: (child: unknown) => boolean | undefined) => {
+				for (const child of [...refs, ...notes]) visit(child)
+			},
+		}
+		const pairs = pairFootnotes(fake as never)
+		expect(pairs.bodies.get(1)).toBe(notes[1] as never)
+		expect(pairs.bodies.get(2)).toBe(notes[0] as never)
 	})
 })
 
