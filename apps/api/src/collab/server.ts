@@ -235,24 +235,36 @@ export class CollabManager implements RoomHost {
 	}
 }
 
-let manager: CollabManager | null = null
+/*
+ * Manajer disimpan di globalThis karena `bun --hot` (stack dev) mengevaluasi
+ * ulang modul ini tanpa mematikan proses. Generasi lama dimatikan di sini:
+ * kliennya menerima 1012 dan menyambung ulang ke kode yang baru, alih-alih
+ * room lama hidup terus dengan langganan Redis yang bocor.
+ */
+const runtime = globalThis as typeof globalThis & { __collabManager?: CollabManager }
+if (runtime.__collabManager) {
+	void runtime.__collabManager.shutdown()
+	runtime.__collabManager = undefined
+}
 
 export function getCollabManager(): CollabManager {
-	if (!manager) {
-		manager = new CollabManager(
+	if (!runtime.__collabManager) {
+		runtime.__collabManager = new CollabManager(
 			getCollabBus(),
 			postgresStore,
 			roomSettingsFromEnv(),
 			env.COLLAB_ROOM_IDLE_S * 1000,
 		)
 	}
-	return manager
+	return runtime.__collabManager
 }
 
+/**
+ * Manajernya TIDAK dilepas: sambungan yang masih sempat masuk selama proses
+ * berhenti harus ditolak (1012), bukan memuat room baru.
+ */
 export async function shutdownCollab(): Promise<void> {
-	const current = manager
-	manager = null
-	await current?.shutdown()
+	await runtime.__collabManager?.shutdown()
 }
 
 /** Satu-satunya penangan websocket di `Bun.serve`; semua websocket API saat ini milik kolaborasi. */
@@ -268,7 +280,7 @@ export const collabWebSocketHandler: Bun.WebSocketHandler<CollabSocketData> = {
 	perMessageDeflate: true,
 	open: (ws) => getCollabManager().open(ws),
 	message: (ws, message) => getCollabManager().message(ws, message),
-	close: (ws) => manager?.close(ws),
+	close: (ws) => runtime.__collabManager?.close(ws),
 }
 
 /**

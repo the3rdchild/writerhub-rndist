@@ -125,16 +125,26 @@ export class CollabBus {
 	}
 }
 
-let shared: CollabBus | null = null
+/*
+ * Disimpan di globalThis karena `bun --hot` (stack dev) mengevaluasi ulang
+ * modul tanpa mematikan proses; bus generasi lama ditutup supaya sambungan
+ * langganan Redis-nya tidak bocor setiap kali berkas disimpan.
+ */
+const runtime = globalThis as typeof globalThis & { __collabBus?: CollabBus }
+if (runtime.__collabBus) {
+	void runtime.__collabBus.close()
+	runtime.__collabBus = undefined
+}
 
 /** Satu bus per proses; dibuat saat pertama dipakai supaya impor modul ini tidak membuka sambungan. */
 export function getCollabBus(): CollabBus {
-	if (!shared) shared = new CollabBus(RedisClient.getInstance(), env.COLLAB_REDIS_PREFIX)
-	return shared
+	if (!runtime.__collabBus)
+		runtime.__collabBus = new CollabBus(RedisClient.getInstance(), env.COLLAB_REDIS_PREFIX)
+	return runtime.__collabBus
 }
 
 export async function closeCollabBus(): Promise<void> {
-	const bus = shared
-	shared = null
+	const bus = runtime.__collabBus
+	runtime.__collabBus = undefined
 	await bus?.close()
 }

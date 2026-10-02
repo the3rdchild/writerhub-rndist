@@ -37,7 +37,12 @@ export async function bootstrap(): Promise<void> {
 	console.log('- Redis: connected')
 
 	registerShutdownHandlers(async () => {
-		// Room kolaborasi dulu: antrean tulisnya harus sampai ke Postgres dan
+		// Berhenti menerima sambungan baru DULU (tanpa ditunggu: janjinya baru
+		// selesai saat semua sambungan habis). Klien kolaborasi yang diputus 1012
+		// langsung menyambung ulang; kalau port masih mendengar, sambungan baru
+		// itu membuat `stop(true)` di bawah menggantung sampai proses dibunuh.
+		void server.stop(false)
+		// Lalu room kolaborasi: antrean tulisnya harus sampai ke Postgres dan
 		// kliennya menerima 1012 (pindah replika) sebelum soketnya diputus paksa.
 		await shutdownCollab()
 		await closeCollabBus()
