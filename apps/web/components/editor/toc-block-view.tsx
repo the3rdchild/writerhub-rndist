@@ -318,7 +318,7 @@ export function TocBlockView({
 					{(segment.entries.length > 0 || segmentIndex === 0) && (
 						<div
 							className={cn(
-								'toc-segment rounded-lg border p-4',
+								'toc-segment relative rounded-lg border',
 								selected ? 'border-accent bg-surface-inset/60' : 'border-line bg-surface-inset/40',
 							)}
 						>
@@ -335,7 +335,9 @@ export function TocBlockView({
 							)}
 							<TocEntries entries={segment.entries} attrs={attrs} onJump={jumpTo} />
 							{entries.length === 0 && (
-								<p className="py-2 text-center text-xs italic text-subtle">{EMPTY_HINT[attrs.listKind]}</p>
+								<p className="toc-empty-hint py-2 text-center text-xs italic text-subtle">
+									{EMPTY_HINT[attrs.listKind]}
+								</p>
 							)}
 						</div>
 					)}
@@ -373,7 +375,7 @@ function TocControls({
 	return (
 		<div
 			className={cn(
-				'toc-block-controls mb-2 flex items-center gap-1 transition-opacity',
+				'toc-block-controls absolute -top-8 right-0 left-0 flex items-center gap-1 transition-opacity',
 				selected ? 'opacity-100' : 'opacity-0 focus-within:opacity-100 hover:opacity-100',
 			)}
 		>

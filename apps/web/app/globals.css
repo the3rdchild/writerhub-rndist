@@ -1906,6 +1906,17 @@ a {
  * ProseMirror - dan menunya jadi renggang serta tidak sejajar dengan menu lain
  * di aplikasi.
  */
+/*
+ * Kotak daftar isi di kanvas setinggi versi cetaknya: bingkai dan bantalannya
+ * diimbangi margin negatif, dan bilah kontrol melayang di atas kotak. Dulu
+ * kotak layar lebih tinggi daripada cetakan, sehingga paginasi kanvas - sumber
+ * nomor halaman di daftar isi - tidak cocok dengan PDF (uji editor 2 Okt, OBJ-13).
+ */
+.document-body .toc-segment {
+  padding: 8px 12px;
+  margin: -9px -13px;
+}
+
 .document-body .toc-block-controls,
 .document-body .toc-block-controls [role='menu'] {
   font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
@@ -1996,6 +2007,13 @@ html.dark .document-body .comment-mark {
     border: none !important;
     background: none !important;
     padding: 0 !important;
+    margin: 0 !important;
+  }
+  /* Petunjuk "Belum ada caption…" milik editor, bukan isi naskah, tapi ruangnya
+     tetap: nomor halaman daftar isi berasal dari paginasi kanvas, jadi tinggi
+     cetak harus sama dengan tinggi layar (OBJ-13). */
+  .toc-empty-hint {
+    visibility: hidden !important;
   }
   .document-body .comment-mark {
     background: none;
