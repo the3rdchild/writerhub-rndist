@@ -67,7 +67,10 @@ export function CodeBlockNodeView({ node, updateAttributes, selected, editor, de
 		[isDiagram, code],
 	)
 
-	const [mermaidView, setMermaidView] = useState<MermaidView>('source')
+	/* Diagram yang sudah berisi langsung tampil sebagai gambar; dulu selalu
+	 * mulai dari kode sumber dan pilihannya tidak diingat (OBJ-12). Blok baru
+	 * yang masih kosong mulai dari sumber supaya bisa langsung diketik. */
+	const [mermaidView, setMermaidView] = useState<MermaidView>(() => (code.trim() ? 'preview' : 'source'))
 	const [mermaidError, setMermaidError] = useState<string | null>(null)
 	const mermaidId = `mermaid-${useId().replace(/:/g, '')}`
 
@@ -107,6 +110,11 @@ export function CodeBlockNodeView({ node, updateAttributes, selected, editor, de
 				 */
 				updateAttributesRef.current({ mermaidSvg: '', mermaidSource: source })
 				setMermaidError(err instanceof Error ? err.message : String(err))
+				/* Mermaid meninggalkan wadah render sementaranya (berisi "Syntax
+				 * error in text") di <body> saat gagal - ia muncul di bawah aplikasi
+				 * (OBJ-18). */
+				document.getElementById(`d${mermaidId}`)?.remove()
+				document.getElementById(mermaidId)?.remove()
 			} finally {
 				renderingRef.current = null
 			}
