@@ -22,6 +22,7 @@ import {
 } from '@/features/editor/toc-block'
 import type { OutlineItem } from '@/features/editor/use-outline-plain'
 import { readOutlineItems } from '@/features/editor/use-outline-plain'
+import { useIsMac } from '@/features/shortcuts/use-shortcuts'
 import { cn } from '@/lib/utils'
 
 interface TocEntry {
@@ -466,9 +467,14 @@ function TocEntries({
 	attrs: TocBlockAttrs
 	onJump: (pos: number) => void
 }) {
+	const mac = useIsMac()
 	if (entries.length === 0) return null
 
 	const lo = Math.min(attrs.minLevel, attrs.maxLevel)
+	/* Gaya selain Tautan: klik biasa tetap memilih blok (untuk menyunting
+	 * pengaturannya), Ctrl/Cmd+klik melompat ke judul seperti di Word
+	 * (uji editor 2 Okt, OBJ-21). */
+	const jumpHint = `${mac ? 'Cmd' : 'Ctrl'}+click to go to this heading`
 
 	return (
 		<ul className="flex flex-col gap-0.5">
@@ -476,9 +482,16 @@ function TocEntries({
 				const indent = (item.level - lo) * attrs.indentPerLevel
 				const showPage = attrs.showPageNumbers && page !== undefined
 				return (
+					// biome-ignore lint/a11y/useKeyWithClickEvents: Ctrl+klik hanya jalan pintas tetikus; papan tik melompat lewat daftar judul di bilah samping
 					<li
 						key={item.pos}
 						data-toc-entry
+						title={attrs.style === 'link' ? undefined : jumpHint}
+						onClick={(event) => {
+							if (attrs.style === 'link' || !(event.ctrlKey || event.metaKey)) return
+							event.preventDefault()
+							onJump(item.pos)
+						}}
 						style={{ paddingLeft: `${indent}px` }}
 						className={cn(
 							'flex items-baseline gap-2 text-sm',
