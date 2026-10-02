@@ -4,6 +4,7 @@ import { type NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer } from '@tip
 import { Copy, MoreVertical, RefreshCw, Settings2, Trash2, Type } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown'
+import { captionKind } from '@/features/editor/caption-kind'
 import { formatSheetNumbers } from '@/features/editor/page-furniture/numbering'
 import { pageGeometry } from '@/features/editor/page-geometry'
 import {
@@ -93,8 +94,16 @@ export function TocBlockView({
 			const lo = Math.min(attrs.minLevel, attrs.maxLevel)
 			const hi = Math.max(attrs.minLevel, attrs.maxLevel)
 			const wantKind = KIND_FILTER[attrs.listKind]
-			const items = readOutlineItems(editor.state.doc).filter(
-				(item) => item.kind === wantKind && item.level >= lo && item.level <= hi,
+			/*
+			 * Daftar gambar/tabel membaca SEMUA caption (tingkat 7-9) dan memilih
+			 * menurut kata pembukanya. Rentang tingkat hanya berlaku untuk daftar
+			 * isi: dengan bawaan 1-3 daftar gambar/tabel dulu selalu kosong, dan
+			 * tanpa saringan jenis isinya tercampur (OBJ-8).
+			 */
+			const items = readOutlineItems(editor.state.doc).filter((item) =>
+				attrs.listKind === 'isi'
+					? item.kind === wantKind && item.level >= lo && item.level <= hi
+					: item.kind === wantKind && captionKind(item.text) === attrs.listKind,
 			)
 			const state = paginationKey.getState(editor.state)
 			const stride = state?.geometry?.pageStride ?? pageGeometry().pageStride

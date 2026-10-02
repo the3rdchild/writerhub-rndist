@@ -68,11 +68,14 @@ export const TocBlock = Node.create({
 		return {
 			insertToc:
 				(attrs?: Partial<TocBlockAttrs>) =>
-				({ chain }) =>
-					chain()
+				({ chain }) => {
+					/* Daftar gambar/tabel berisi caption, yang hidup di tingkat 7-9. */
+					const captionRange = attrs?.listKind && attrs.listKind !== 'isi' ? { minLevel: 7, maxLevel: 9 } : {}
+					return chain()
 						.focus()
-						.insertContent({ type: TOC_BLOCK, attrs: clampedAttrs(attrs ?? {}) })
-						.run(),
+						.insertContent({ type: TOC_BLOCK, attrs: clampedAttrs({ ...captionRange, ...attrs }) })
+						.run()
+				},
 		}
 	},
 })
