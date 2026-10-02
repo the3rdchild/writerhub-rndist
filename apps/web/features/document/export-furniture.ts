@@ -6,6 +6,7 @@ import {
 	type PageFurniture,
 	type PageFurnitureLine,
 } from '@/features/editor/page-furniture/model'
+import { marksFromJson, runStyleOf } from './export-docx-runs'
 
 /**
  * Perakitan header/footer pustaka docx dari PageFurniture (T6).
@@ -69,14 +70,6 @@ function blocksAreEmpty(blocks: JSONContent[]): boolean {
 	return !hasImage(blocks) && blocksTextOf(blocks).trim() === ''
 }
 
-const MARKS: Record<string, () => Record<string, unknown>> = {
-	bold: () => ({ bold: true }),
-	italic: () => ({ italics: true }),
-	underline: () => ({ underline: {} }),
-	strike: () => ({ strike: true }),
-	code: () => ({ font: 'Consolas' }),
-}
-
 type TextRunOf = InstanceType<DocxModule['TextRun']>
 type ImageRunOf = InstanceType<DocxModule['ImageRun']>
 type RunOf = TextRunOf | ImageRunOf
@@ -112,11 +105,9 @@ function runsOfNode(docx: DocxModule, node: JSONContent, hideNumbers: boolean): 
 	const runs: RunOf[] = []
 	for (const child of node.content ?? []) {
 		if (child.type === 'text' && child.text) {
-			const marks: Record<string, unknown> = {}
-			for (const mark of child.marks ?? []) {
-				const factory = MARKS[mark.type]
-				if (factory) Object.assign(marks, factory())
-			}
+			// Pemetaan mark yang sama dengan badan naskah: kop surat berwarna dan
+			// berhuruf khusus tidak lagi pulang polos.
+			const marks = runStyleOf(marksFromJson(child.marks)) as Record<string, unknown>
 			runs.push(...tokenRunsOf(docx, child.text, marks, hideNumbers))
 		} else if (child.type === 'hardBreak') {
 			runs.push(new docx.TextRun({ break: 1 }))

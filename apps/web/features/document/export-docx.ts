@@ -2,7 +2,8 @@
 
 import type { JSONContent } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
-import type { DocumentTypography } from '@writer-hub/shared'
+import { type DocumentTypography, resolveParagraphStyle } from '@writer-hub/shared'
+import type { ParagraphChild } from 'docx'
 import { COLUMN_BREAK_NODE } from '@/features/editor/column-break'
 import { sanitizeDiagramSvg } from '@/features/editor/diagram-svg'
 import { HTML_BLOCK } from '@/features/editor/html-block'
@@ -19,6 +20,17 @@ import {
 import { SECTION_BREAK_NODE, type SectionSpan, sectionSpans } from '@/features/editor/section-break'
 import type { TabStop } from '@/features/editor/tab-stops'
 import { DOCX_ALIGNMENT, docxTypographyStyles } from './docx/typography-styles'
+import { createXmlParser } from './docx/xml'
+import { LatexToOmml, ommlBuilder } from './export-docx-math'
+import {
+	CODE_FONT,
+	CODE_SHADING,
+	cssColorToHex,
+	linkOfMarks,
+	type RunStyle,
+	runStyleOf,
+} from './export-docx-runs'
+import { QUOTE_COLOR, QUOTE_PARAGRAPH_STYLE } from './export-docx-styles'
 import { docxPositionedFurniture, docxSectionFurniture, type FurnitureContent } from './export-furniture'
 import { collectImageSources, type ExportImage, imageBox, imageLabel, loadExportImage } from './export-images'
 
@@ -102,71 +114,76 @@ const VERTICAL_ALIGN: Record<string, 'top' | 'center' | 'bottom'> = {
 	bottom: 'bottom',
 }
 
+/** Garis kiri kutipan (`--border-strong` di atas putih, 3 px). */
+const QUOTE_BORDER = {
+	style: 'single' as const,
+	size: 18,
+	color: cssColorToHex('rgba(15, 23, 42, 0.14)') ?? 'DDDEE1',
+	// Jarak garis ke teks, titik: ±1em kanvas.
+	space: 10,
+}
+
+/** Lekukan isi kutipan: garis 3 px + padding 1em (px). */
+const QUOTE_INDENT_PX = 18
+
+/** Satu tingkat daftar di kanvas: `padding-left: 1.6em` (±24 px pada 11 pt). */
+const LIST_STEP_PX = 24
+
+/** Lebar kotak centang + jaraknya ke teks di kanvas (px). */
+const TASK_INDENT_PX = 24
+
+/** Warna butir centang yang selesai (`--foreground-subtle`, dicoret). */
+const DONE_TASK_COLOR = '6B7280'
+
+/** Rupa callout per jenis - warna garis kiri dan latar dari CSS kanvas. */
+const CALLOUT_LOOK: Record<string, { border: string; fill: string }> = Object.fromEntries(
+	(
+		[
+			['info', '3B82F6', 'rgba(59, 130, 246, 0.08)'],
+			['note', '6B7280', 'rgba(107, 114, 128, 0.08)'],
+			['tip', '10B981', 'rgba(16, 185, 129, 0.08)'],
+			['warning', 'F59E0B', 'rgba(245, 158, 11, 0.1)'],
+			['success', '22C55E', 'rgba(34, 197, 94, 0.08)'],
+			['error', 'EF4444', 'rgba(239, 68, 68, 0.08)'],
+		] as const
+	).map(([type, border, fill]) => [type, { border, fill: cssColorToHex(fill) ?? 'F5F6F7' }]),
+)
+
+/**
+ * `line-height` blok → `w:spacing` (TKS-6).
+ *
+ * Angka tanpa satuan, `em`, dan persen semuanya kelipatan ukuran huruf CSS:
+ * `"200%"` dari tempelan Word sama dengan `2`. Dulu `parseFloat("200%")`
+ * dibaca sebagai kelipatan 200 dan menjadi `w:line="41739"` - 174 kali spasi
+ * tunggal. px dan pt menjadi tinggi baris tepat.
+ */
+export function lineSpacingOf(value: unknown): { line: number; lineRule: 'auto' | 'exact' } | null {
+	if (typeof value !== 'string' && typeof value !== 'number') return null
+	const text = String(value).trim().toLowerCase()
+	if (!text || text === 'normal') return null
+	const number = Number.parseFloat(text)
+	if (!Number.isFinite(number) || number <= 0) return null
+
+	if (text.endsWith('px')) return { line: px(number), lineRule: 'exact' }
+	if (text.endsWith('pt')) return { line: Math.round(number * 20), lineRule: 'exact' }
+	const factor = text.endsWith('%') ? number / 100 : number
+	return { line: Math.round(factor * CSS_LINE_TO_WORD * 240), lineRule: 'auto' }
+}
+
 /** Paragraph spacing attrs (BlockSpacing) → docx spacing options. */
 function spacingOf(node: PMNode): Record<string, unknown> {
 	const before = Number(node.attrs.spaceBefore) || 0
 	const after = Number(node.attrs.spaceAfter) || 0
-	const lineHeight = String(node.attrs.lineHeight ?? 'normal')
+	const line = lineSpacingOf(node.attrs.lineHeight)
 
-	let line: number | undefined
-	let lineRule: 'auto' | 'exact' | undefined
-	if (lineHeight.endsWith('px')) {
-		const value = Number.parseFloat(lineHeight)
-		if (Number.isFinite(value) && value > 0) {
-			line = px(value)
-			lineRule = 'exact'
-		}
-	} else if (lineHeight !== 'normal') {
-		const multiple = Number.parseFloat(lineHeight)
-		if (Number.isFinite(multiple) && multiple > 0) {
-			line = Math.round(multiple * CSS_LINE_TO_WORD * 240)
-			lineRule = 'auto'
-		}
-	}
-
-	if (!before && !after && line === undefined) return {}
+	if (!before && !after && !line) return {}
 	return {
 		spacing: {
 			...(before ? { before: px(before) } : {}),
 			...(after ? { after: px(after) } : {}),
-			...(line !== undefined ? { line, lineRule } : {}),
+			...(line ?? {}),
 		},
 	}
-}
-
-function tableColumnWidths(table: PMNode, contentWidth: number): number[] {
-	const header = table.firstChild
-	const columns: number[] = []
-	let complete = header !== null
-
-	header?.forEach((cell) => {
-		const colwidth = cell.attrs.colwidth as number[] | null | undefined
-		const span = Math.max(1, Number(cell.attrs.colspan) || 1)
-		for (let index = 0; index < span; index += 1) {
-			const value = colwidth?.[index]
-			if (!value) complete = false
-			columns.push(value ?? 0)
-		}
-	})
-
-	if (columns.length === 0) return [contentWidth]
-	if (complete) return columns
-
-	const even = contentWidth / columns.length
-	return columns.map(() => even)
-}
-
-type Marks = { bold?: boolean; italics?: boolean; underline?: object; strike?: boolean }
-
-function marksOf(node: PMNode): Marks {
-	const result: Marks = {}
-	for (const mark of node.marks) {
-		if (mark.type.name === 'bold') result.bold = true
-		if (mark.type.name === 'italic') result.italics = true
-		if (mark.type.name === 'underline') result.underline = {}
-		if (mark.type.name === 'strike') result.strike = true
-	}
-	return result
 }
 
 /**
@@ -203,9 +220,6 @@ function pngFromDataUrl(value: string): Uint8Array | null {
 		return null
 	}
 }
-
-/** Huruf lebar-tetap untuk blok kode di Word; ada di Windows maupun Office Mac. */
-const CODE_FONT = 'Consolas'
 
 /**
  * SVG diagram di dokumen, tanpa kembar - dari kedua produsennya.
@@ -291,6 +305,43 @@ function columnWidthsOf(
 	}
 }
 
+function tableColumnWidths(table: PMNode, contentWidth: number): number[] {
+	const header = table.firstChild
+	const columns: number[] = []
+	let complete = header !== null
+
+	header?.forEach((cell) => {
+		const colwidth = cell.attrs.colwidth as number[] | null | undefined
+		const span = Math.max(1, Number(cell.attrs.colspan) || 1)
+		for (let index = 0; index < span; index += 1) {
+			const value = colwidth?.[index]
+			if (!value) complete = false
+			columns.push(value ?? 0)
+		}
+	})
+
+	if (columns.length === 0) return [contentWidth]
+	if (complete) return columns
+
+	const even = contentWidth / columns.length
+	return columns.map(() => even)
+}
+
+/** Wadah tempat sebuah blok sedang dibangun - pengganti pewarisan CSS kanvas. */
+interface BlockContext {
+	/** Lekukan kiri tambahan dari wadah (kutipan, butir daftar), px. */
+	indent: number
+	/**
+	 * Di dalam wadah (sel, daftar, kutipan, callout): gaya paragraf badan naskah
+	 * tidak berlaku, sama seperti `.document-body > p` di kanvas.
+	 */
+	nested: boolean
+	/** Di dalam kutipan: garis kiri. */
+	quote: boolean
+	/** Rupa run warisan wadah (judul tabel tebal, kutipan miring, centang dicoret). */
+	run: RunStyle
+}
+
 export async function exportDocx(
 	root: PMNode,
 	{
@@ -339,6 +390,12 @@ export async function exportDocx(
 		Tab,
 		TabStopType,
 	} = docx
+	const parseXml = await createXmlParser()
+	const omml = ommlBuilder(docx)
+
+	/** Gaya paragraf badan naskah (docDefaults) - yang tidak berlaku di dalam wadah. */
+	const body = typography ? resolveParagraphStyle(typography) : null
+	const basePt = typography?.baseFont.sizePt ?? 11
 
 	const HEADINGS = [
 		HeadingLevel.HEADING_1,
@@ -348,29 +405,86 @@ export async function exportDocx(
 		HeadingLevel.HEADING_5,
 		HeadingLevel.HEADING_6,
 	]
-	const runsOf = (node: PMNode) => {
-		const runs: InstanceType<typeof TextRun>[] = []
+
+	let ctx: BlockContext = { indent: 0, nested: false, quote: false, run: {} }
+	const within = <T>(patch: Partial<BlockContext>, build: () => T): T => {
+		const outer = ctx
+		ctx = { ...outer, ...patch, run: { ...outer.run, ...patch.run } }
+		try {
+			return build()
+		} finally {
+			ctx = outer
+		}
+	}
+
+	/** Rumus dalam baris: persamaan Word, atau sumber LaTeX berhuruf lebar-tetap. */
+	const inlineMath = (latex: string): ParagraphChild[] => {
+		const items = LatexToOmml.convert(latex, false, parseXml)
+		if (items) return [omml.inline(items) as ParagraphChild]
+		return latex.trim()
+			? [
+					new TextRun({
+						text: latex,
+						font: CODE_FONT,
+						shading: { type: 'clear', fill: CODE_SHADING, color: 'auto' },
+					}),
+				]
+			: []
+	}
+
+	const runsOf = (node: PMNode, lead: ParagraphChild[] = []): ParagraphChild[] => {
+		const out: ParagraphChild[] = [...lead]
+		/*
+		 * Tautan: run berurutan dengan alamat yang sama menjadi satu
+		 * `w:hyperlink` eksternal (TKS-4). Dulu mark `link` diabaikan dan
+		 * teksnya keluar sebagai teks biasa.
+		 */
+		let link: { href: string; runs: InstanceType<typeof TextRun>[] } | null = null
+		const flush = () => {
+			if (link) out.push(new docx.ExternalHyperlink({ link: link.href, children: link.runs }))
+			link = null
+		}
+
 		node.forEach((child) => {
 			if (child.isText && child.text) {
-				const marks = marksOf(child)
+				const href = linkOfMarks(child.marks)
+				if (href !== (link?.href ?? null)) flush()
+				if (href && !link) link = { href, runs: [] }
+				const target: ParagraphChild[] = link ? link.runs : out
+				const style = runStyleOf(child.marks, ctx.run, basePt)
+				const options = link ? { style: 'Hyperlink', ...style } : style
+
 				child.text.split('\n').forEach((piece, index) => {
-					if (index > 0) runs.push(new TextRun({ break: 1 }))
+					if (index > 0) target.push(new TextRun({ break: 1 }))
 					// Karakter \t di teks (impor lama) diterjemahkan ke run tab.
-					if (piece) {
-						const parts = piece.split('\t')
-						parts.forEach((part, i) => {
-							if (i > 0) runs.push(new TextRun({ children: [new Tab()] }))
-							if (part) runs.push(new TextRun({ text: part, ...marks }))
-						})
-					}
+					piece.split('\t').forEach((part, i) => {
+						if (i > 0) target.push(new TextRun({ children: [new Tab()], ...options }))
+						if (part) target.push(new TextRun({ text: part, ...options }))
+					})
 				})
-			} else if (child.type.name === 'hardBreak') {
-				runs.push(new TextRun({ break: 1 }))
-			} else if (child.type.name === 'tab') {
-				runs.push(new TextRun({ children: [new Tab()] }))
+				return
+			}
+
+			flush()
+			switch (child.type.name) {
+				case 'hardBreak':
+					out.push(new TextRun({ break: 1 }))
+					break
+				case 'tab':
+					out.push(new TextRun({ children: [new Tab()] }))
+					break
+				case 'mathInline':
+					out.push(...inlineMath(String(child.attrs.latex ?? '')))
+					break
+				default:
+					// Atom sebaris lain: teksnya ikut, bukan hilang diam-diam.
+					if (child.textContent) {
+						out.push(new TextRun({ text: child.textContent, ...runStyleOf(child.marks, ctx.run, basePt) }))
+					}
 			}
 		})
-		return runs
+		flush()
+		return out
 	}
 
 	const TAB_TYPE = {
@@ -391,24 +505,101 @@ export async function exportDocx(
 		}))
 	}
 
-	const paragraphOf = (node: PMNode, extra: Record<string, unknown> = {}): InstanceType<typeof Paragraph> => {
-		const alignment = DOCX_ALIGNMENT[node.attrs.textAlign as string]
+	/**
+	 * Lekukan paragraf. Nilai 0 berarti "tidak diatur" - sama seperti kanvas,
+	 * yang tidak menulis gaya apa pun untuknya - jadi lekukan gaya dokumen
+	 * (baris pertama skripsi, lekukan judul) tetap berlaku. Dulu setiap
+	 * paragraf menulis `w:ind` nol dan menimpanya.
+	 *
+	 * Di dalam wadah (sel, daftar, kutipan) gaya badan naskah tidak berlaku di
+	 * kanvas, jadi lekukan baris pertama dan rata kanan-kirinya dinolkan.
+	 */
+	const indentOf = (node: PMNode, resetsBody: boolean): Record<string, number> | undefined => {
+		const left = (Number(node.attrs.indentLeft) || 0) + ctx.indent
+		const right = Number(node.attrs.indentRight) || 0
+		const first = Number(node.attrs.indentFirstLine) || 0
+		const indent: Record<string, number> = {}
+		if (left) indent.left = px(left)
+		else if (resetsBody && body?.indentPt) indent.left = 0
+		if (right) indent.right = px(right)
+		if (first > 0) indent.firstLine = px(first)
+		else if (first < 0) indent.hanging = px(-first)
+		else if (resetsBody && body?.firstLinePt) indent.firstLine = 0
+		return Object.keys(indent).length > 0 ? indent : undefined
+	}
+
+	const paragraphOf = (
+		node: PMNode,
+		extra: Record<string, unknown> = {},
+		lead: ParagraphChild[] = [],
+	): InstanceType<typeof Paragraph> => {
+		const textAlign = DOCX_ALIGNMENT[node.attrs.textAlign as string]
+		const isParagraph = node.type.name === 'paragraph'
+		/*
+		 * Gaya badan naskah hanya untuk paragraf tingkat atas; baris rata
+		 * tengah/kanan (sampul, tanda tangan) juga tidak membawa lekukan baris
+		 * pertamanya - aturan yang sama dengan lembar gaya kanvas.
+		 */
+		const resetsBody = isParagraph && (ctx.nested || textAlign === 'center' || textAlign === 'right')
+		const alignment =
+			textAlign ?? (isParagraph && ctx.nested && body && body.align !== 'left' ? 'left' : undefined)
 		const tabStops = tabStopsOf(node)
+		const indent = indentOf(node, resetsBody)
+
+		const children = runsOf(node, lead)
 
 		return new Paragraph({
-			children: runsOf(node),
+			children,
+			...(ctx.quote && !['heading', 'style', 'bullet', 'numbering'].some((key) => key in extra)
+				? { style: QUOTE_PARAGRAPH_STYLE.id }
+				: {}),
 			...(alignment ? { alignment } : {}),
 			...(tabStops ? { tabStops } : {}),
 			...blockKeepOf(node),
 			...spacingOf(node),
-			indent: {
-				left: px(Number(node.attrs.indentLeft) || 0),
-				right: px(Number(node.attrs.indentRight) || 0),
-				firstLine: Math.max(0, px(Number(node.attrs.indentFirstLine) || 0)),
-				hanging: Math.max(0, px(-(Number(node.attrs.indentFirstLine) || 0))),
-			},
+			...(indent ? { indent } : {}),
+			...(ctx.quote ? { border: { left: QUOTE_BORDER } } : {}),
 			...extra,
 		})
+	}
+
+	/** Paragraf pembawa objek (gambar, rumus, kode) di dalam wadah saat ini. */
+	const objectParagraphProps = (resetBody = false): Record<string, unknown> => {
+		const indent: Record<string, number> = {}
+		if (ctx.indent) indent.left = px(ctx.indent)
+		if (resetBody && body?.firstLinePt) indent.firstLine = 0
+		return {
+			...(Object.keys(indent).length > 0 ? { indent } : {}),
+			...(ctx.quote ? { border: { left: QUOTE_BORDER } } : {}),
+		}
+	}
+
+	let sectionContentWidth = geometry.contentWidth
+
+	/*
+	 * Dua tabel yang bersentuhan dilebur Word menjadi satu tabel - dua callout
+	 * berurutan, atau tabel tepat sesudah callout, akan kehilangan batasnya.
+	 * Di antara keduanya disisipkan paragraf setinggi satu em, kira-kira jarak
+	 * `margin: 1em` callout di kanvas.
+	 */
+	const separateTables = <T>(blocks: T[]): T[] => {
+		const out: T[] = []
+		for (const block of blocks) {
+			if (block instanceof Table && out.at(-1) instanceof Table) {
+				out.push(
+					new Paragraph({
+						spacing: {
+							before: 0,
+							after: 0,
+							line: Math.round(basePt * 20),
+							lineRule: docx.LineRuleType.EXACT,
+						},
+					}) as T,
+				)
+			}
+			out.push(block)
+		}
+		return out
 	}
 
 	const cellOf = (cell: PMNode, width?: number) => {
@@ -425,13 +616,16 @@ export async function exportDocx(
 		const outerWidth = sectionContentWidth
 		if (width && width > 0) sectionContentWidth = Math.max(1, width - cellInsetOf(cell))
 		try {
-			cell.forEach((block) => {
-				children.push(...(blockOf(block) as typeof children))
+			within({ indent: 0, nested: true, quote: false }, () => {
+				cell.forEach((block) => {
+					children.push(...(blockOf(block) as typeof children))
+				})
 			})
 		} finally {
 			sectionContentWidth = outerWidth
 		}
 		if (children.length === 0) children.push(new Paragraph({}))
+		const content = separateTables(children)
 
 		const rowSpan = Math.max(1, Number(cell.attrs.rowspan) || 1)
 		const background = cell.attrs.backgroundColor as string | null | undefined
@@ -440,7 +634,7 @@ export async function exportDocx(
 		const borders = cellBordersOf(cell)
 		const verticalAlign = VERTICAL_ALIGN[cell.attrs.verticalAlign as string]
 		return new TableCell({
-			children,
+			children: content,
 			// rowSpan > 1 otomatis membuat sel lanjutan vMerge di baris berikutnya.
 			...(rowSpan > 1 ? { rowSpan } : {}),
 			...(width && width > 0
@@ -455,7 +649,6 @@ export async function exportDocx(
 			...(verticalAlign ? { verticalAlign } : {}),
 		})
 	}
-	let sectionContentWidth = geometry.contentWidth
 
 	/*
 	 * Diagram Mermaid yang sudah diratakan jadi PNG, berkunci SVG-nya.
@@ -500,7 +693,8 @@ export async function exportDocx(
 		})
 
 		const tableWidth = Number(node.attrs.tableWidth) || 0
-		const indentLeft = Number(node.attrs.indentLeft) || 0
+		// Tabel di dalam kutipan atau butir daftar menjorok bersama wadahnya.
+		const indentLeft = ctx.indent + (Number(node.attrs.indentLeft) || 0)
 		const tableBorder = borderOptionOf(
 			node.attrs.borderColor as string | null,
 			node.attrs.borderWidth as number | null,
@@ -581,38 +775,205 @@ export async function exportDocx(
 		return reference
 	}
 
+	/*
+	 * Butir daftar. Lekukannya ditulis langsung - `LIST_STEP_PX` per tingkat,
+	 * seperti `padding-left: 1.6em` kanvas - dan ditambah lekukan wadahnya
+	 * (daftar di dalam kutipan). Dulu setiap butir menulis `w:ind` nol, jadi
+	 * daftar bertingkat rata kiri semua di Word. Hanya blok teks pertama butir
+	 * yang membawa nomor/poin; paragraf berikutnya di butir yang sama sejajar
+	 * dengan teksnya.
+	 */
 	const listBlocksOf = (list: PMNode, level: number): unknown[] => {
 		const ordered = list.type.name === 'orderedList'
 		const numbering = ordered ? { reference: orderedReferenceOf(list), instance: listInstance++ } : undefined
 		const items: unknown[] = []
+		const textLeft = ctx.indent + LIST_STEP_PX * (level + 1)
 
 		list.forEach((item) => {
-			item.forEach((block) => {
-				if (block.isTextblock) {
-					items.push(
-						paragraphOf(
-							block,
-							ordered
-								? {
-										numbering: {
-											reference: numbering?.reference as string,
-											level,
-											instance: numbering?.instance,
-										},
-									}
-								: { bullet: { level } },
-						),
-					)
-				} else if (block.type.name === 'bulletList' || block.type.name === 'orderedList') {
-					// List bersarang diekspor di level berikutnya agar menjorok di Word.
-					items.push(...listBlocksOf(block, level + 1))
-				} else {
-					// Blok lain di dalam item direkursi agar isinya tidak hilang.
-					items.push(...blockOf(block))
-				}
+			let first = true
+			within({ nested: true }, () => {
+				item.forEach((block) => {
+					if (block.isTextblock) {
+						const left = px(textLeft + (Number(block.attrs.indentLeft) || 0))
+						items.push(
+							paragraphOf(
+								block,
+								first
+									? {
+											...(ordered
+												? {
+														numbering: {
+															reference: numbering?.reference as string,
+															level,
+															instance: numbering?.instance,
+														},
+													}
+												: { bullet: { level } }),
+											indent: { left, hanging: px(LIST_STEP_PX) },
+										}
+									: { indent: { left } },
+							),
+						)
+					} else if (block.type.name === 'bulletList' || block.type.name === 'orderedList') {
+						// List bersarang diekspor di level berikutnya agar menjorok di Word.
+						items.push(...listBlocksOf(block, level + 1))
+					} else {
+						// Blok lain di dalam item direkursi agar isinya tidak hilang.
+						items.push(...within({ indent: textLeft }, () => blockOf(block)))
+					}
+					first = false
+				})
 			})
 		})
 		return items
+	}
+
+	/*
+	 * Kotak centang Word 2010 (`w14:checkbox`) dalam bentuk yang ditulis Word
+	 * sendiri: glifnya `w:t` berhuruf MS Gothic. Kelas `CheckBox` pustaka docx
+	 * memakai `w:sym`, yang kotak kosongnya (☐) tidak tergambar di LibreOffice.
+	 */
+	const checkboxOf = (checked: boolean): ParagraphChild => {
+		const element = (name: string, children: unknown[] = [], attrs?: Record<string, string>) =>
+			new docx.BuilderElement({
+				name,
+				attributes: attrs
+					? Object.fromEntries(Object.entries(attrs).map(([key, value]) => [key, { key, value }]))
+					: undefined,
+				children: children as never,
+			})
+		const gothic = {
+			'w:ascii': 'MS Gothic',
+			'w:eastAsia': 'MS Gothic',
+			'w:hAnsi': 'MS Gothic',
+			'w:hint': 'eastAsia',
+		}
+		return element('w:sdt', [
+			element('w:sdtPr', [
+				element('w14:checkbox', [
+					element('w14:checked', [], { 'w14:val': checked ? '1' : '0' }),
+					element('w14:checkedState', [], { 'w14:val': '2612', 'w14:font': 'MS Gothic' }),
+					element('w14:uncheckedState', [], { 'w14:val': '2610', 'w14:font': 'MS Gothic' }),
+				]),
+			]),
+			element('w:sdtContent', [
+				element('w:r', [
+					element('w:rPr', [element('w:rFonts', [], gothic)]),
+					element('w:t', [checked ? '\u2612' : '\u2610']),
+				]),
+			]),
+		]) as unknown as ParagraphChild
+	}
+
+	/*
+	 * Daftar centang: satu paragraf per butir, kotak centang Word 2010
+	 * (`w14:checkbox`, ☐/☒) menggantung di depan teksnya (TKS-5). Dulu seluruh
+	 * daftar jatuh ke cabang `default` dan menjadi satu paragraf dengan teks
+	 * butir yang tergabung tanpa spasi. Butir selesai dicoret dan diabukan,
+	 * seperti di kanvas.
+	 */
+	const taskListBlocksOf = (list: PMNode): unknown[] => {
+		const items: unknown[] = []
+		const base = ctx.indent
+		list.forEach((item) => {
+			const checked = item.attrs.checked === true
+			let first = true
+			within({ nested: true, run: checked ? { strike: true, color: DONE_TASK_COLOR } : {} }, () => {
+				item.forEach((block) => {
+					if (first && block.isTextblock) {
+						items.push(
+							paragraphOf(
+								block,
+								{ indent: { left: px(base + TASK_INDENT_PX), hanging: px(TASK_INDENT_PX) } },
+								[checkboxOf(checked), new TextRun({ children: [new Tab()] })],
+							),
+						)
+					} else {
+						items.push(...within({ indent: base + TASK_INDENT_PX }, () => blockOf(block)))
+					}
+					first = false
+				})
+			})
+		})
+		return items
+	}
+
+	/*
+	 * Callout: tabel satu sel berlatar dan bergaris kiri berwarna menurut
+	 * jenisnya, dengan ikonnya di depan paragraf pertama (TKS-5). Tabel menjaga
+	 * semua anaknya - paragraf, daftar, tabel - dalam satu kotak, di Word
+	 * maupun LibreOffice. Dulu isinya dilebur jadi satu paragraf.
+	 */
+	const calloutOf = (node: PMNode): unknown[] => {
+		const look = CALLOUT_LOOK[String(node.attrs.calloutType)] ?? CALLOUT_LOOK.info
+		const width = Math.max(1, sectionContentWidth - ctx.indent)
+		const padding = { top: 12, bottom: 12, left: 15, right: 15 }
+		const emoji = String(node.attrs.emoji ?? '').trim()
+		const children: InstanceType<typeof Paragraph | typeof Table>[] = []
+		const outerWidth = sectionContentWidth
+		sectionContentWidth = Math.max(1, width - padding.left - padding.right)
+		try {
+			within({ indent: 0, nested: true, quote: false }, () => {
+				let lead: ParagraphChild[] = emoji ? [new TextRun({ text: `${emoji} ` })] : []
+				node.forEach((child) => {
+					if (lead.length > 0 && child.isTextblock) {
+						children.push(paragraphOf(child, {}, lead))
+						lead = []
+						return
+					}
+					if (lead.length > 0) {
+						children.push(new Paragraph({ children: lead }))
+						lead = []
+					}
+					children.push(...(blockOf(child) as typeof children))
+				})
+				if (lead.length > 0) children.push(new Paragraph({ children: lead }))
+			})
+		} finally {
+			sectionContentWidth = outerWidth
+		}
+		if (children.length === 0) children.push(new Paragraph({}))
+
+		const widthTwips = px(width)
+		return [
+			new Table({
+				width: { size: widthTwips, type: WidthType.DXA },
+				columnWidths: [widthTwips],
+				layout: docx.TableLayoutType.FIXED,
+				...(ctx.indent > 0 ? { indent: { size: px(ctx.indent), type: WidthType.DXA } } : {}),
+				borders: {
+					top: NO_BORDER,
+					bottom: NO_BORDER,
+					left: NO_BORDER,
+					right: NO_BORDER,
+					insideHorizontal: NO_BORDER,
+					insideVertical: NO_BORDER,
+				},
+				rows: [
+					new TableRow({
+						children: [
+							new TableCell({
+								children: separateTables(children),
+								width: { size: widthTwips, type: WidthType.DXA },
+								shading: { type: docx.ShadingType.CLEAR, fill: look.fill, color: 'auto' },
+								margins: {
+									top: px(padding.top),
+									bottom: px(padding.bottom),
+									left: px(padding.left),
+									right: px(padding.right),
+								},
+								borders: {
+									top: NO_BORDER,
+									bottom: NO_BORDER,
+									right: NO_BORDER,
+									left: { style: 'single', size: 24, color: look.border },
+								},
+							}),
+						],
+					}),
+				],
+			}),
+		]
 	}
 
 	const blockOf = (node: PMNode): unknown[] => {
@@ -628,15 +989,37 @@ export async function exportDocx(
 			case 'paragraph':
 				return [paragraphOf(node)]
 
-			case 'blockquote': {
-				const inner: unknown[] = []
-				node.forEach((child) => inner.push(...blockOf(child)))
-				return inner
-			}
+			/*
+			 * Kutipan: anak-anaknya menjorok dengan garis kiri, miring, dan
+			 * berwarna redup - rupa kanvas - bertumpuk dengan lekukan wadahnya
+			 * (TKS-5). Dulu ia direkursi tanpa gaya apa pun.
+			 */
+			case 'blockquote':
+				return within(
+					{
+						indent: ctx.indent + (Number(node.attrs.indentLeft) || 0) + QUOTE_INDENT_PX,
+						nested: true,
+						quote: true,
+						run: { italics: true, color: QUOTE_COLOR },
+					},
+					() => {
+						const inner: unknown[] = []
+						node.forEach((child) => {
+							inner.push(...blockOf(child))
+						})
+						return inner
+					},
+				)
 
 			case 'bulletList':
 			case 'orderedList':
 				return listBlocksOf(node, 0)
+
+			case 'taskList':
+				return taskListBlocksOf(node)
+
+			case 'callout':
+				return calloutOf(node)
 
 			case 'table':
 				return [tableOf(node)]
@@ -657,8 +1040,36 @@ export async function exportDocx(
 			case 'columns':
 			case 'column': {
 				const inner: unknown[] = []
-				node.forEach((child) => inner.push(...blockOf(child)))
+				node.forEach((child) => {
+					inner.push(...blockOf(child))
+				})
 				return inner
+			}
+
+			/*
+			 * Rumus blok: persamaan Word (`m:oMathPara`) rata tengah yang bisa
+			 * disunting (OBJ-2). Dulu ia jatuh ke `default`, yang memakai
+			 * `textContent` - kosong untuk atom - jadi rumusnya hilang tanpa jejak.
+			 */
+			case 'mathBlock': {
+				const latex = String(node.attrs.latex ?? '')
+				const items = LatexToOmml.convert(latex, true, parseXml)
+				if (items)
+					return [new Paragraph({ ...objectParagraphProps(true), children: [omml.block(items) as never] })]
+				if (!latex.trim()) return []
+				return [
+					new Paragraph({
+						...objectParagraphProps(true),
+						alignment: docx.AlignmentType.CENTER,
+						children: [
+							new TextRun({
+								text: latex,
+								font: CODE_FONT,
+								shading: { type: 'clear', fill: CODE_SHADING, color: 'auto' },
+							}),
+						],
+					}),
+				]
 			}
 
 			// Blok HTML masuk sebagai gambar: Word tidak mengenal HTML, jadi
@@ -708,6 +1119,7 @@ export async function exportDocx(
 				const scale = Math.min(1, sectionContentWidth / width)
 				return [
 					new Paragraph({
+						...objectParagraphProps(true),
 						children: [
 							new ImageRun({
 								data: png,
@@ -745,6 +1157,7 @@ export async function exportDocx(
 						const scale = Math.min(1, sectionContentWidth / image.width)
 						return [
 							new Paragraph({
+								...objectParagraphProps(true),
 								children: [
 									new ImageRun({
 										data: image.png,
@@ -763,9 +1176,14 @@ export async function exportDocx(
 					// lubang kosong di naskah.
 				}
 
-				return node.textContent
-					.split('\n')
-					.map((line) => new Paragraph({ children: [new TextRun({ text: line, font: CODE_FONT })] }))
+				return node.textContent.split('\n').map(
+					(line) =>
+						new Paragraph({
+							...objectParagraphProps(true),
+							...(body && body.align !== 'left' ? { alignment: docx.AlignmentType.LEFT } : {}),
+							children: [new TextRun({ text: line, font: CODE_FONT })],
+						}),
+				)
 			}
 
 			/*
@@ -778,9 +1196,11 @@ export async function exportDocx(
 				const offsetX = Number(node.attrs.offsetX)
 				const shifted = Number.isFinite(offsetX) && node.attrs.offsetX !== null
 				const alignment = shifted ? undefined : DOCX_ALIGNMENT[node.attrs.align as string]
+				const left = ctx.indent + (shifted && offsetX > 0 ? offsetX : 0)
 				const placement = {
+					...objectParagraphProps(true),
 					...(alignment ? { alignment } : {}),
-					...(shifted && offsetX > 0 ? { indent: { left: px(offsetX) } } : {}),
+					...(left > 0 ? { indent: { left: px(left), ...(body?.firstLinePt ? { firstLine: 0 } : {}) } } : {}),
 				}
 
 				const image = imageFiles.get(String(node.attrs.src ?? ''))
@@ -799,7 +1219,7 @@ export async function exportDocx(
 					]
 				}
 
-				const room = sectionContentWidth - (shifted ? Math.max(0, offsetX) : 0)
+				const room = sectionContentWidth - ctx.indent - (shifted ? Math.max(0, offsetX) : 0)
 				const box = imageBox(node.attrs, image, room)
 				const alt = String(node.attrs.alt ?? '').trim()
 				return [
@@ -835,8 +1255,24 @@ export async function exportDocx(
 					.map((line) => new Paragraph({ text: line, tabStops }))
 			}
 
-			default:
-				return node.textContent ? [new Paragraph({ text: node.textContent })] : []
+			default: {
+				/*
+				 * Node tanpa penanganan khusus diturunkan ke anak-anaknya, bukan
+				 * dilebur lewat `textContent` - itulah yang dulu membuat daftar
+				 * centang dan callout jadi satu paragraf tanpa pemisah (TKS-5).
+				 */
+				if (node.isTextblock) return [paragraphOf(node)]
+				if (node.isLeaf) {
+					return node.textContent
+						? [new Paragraph({ children: [new TextRun({ text: node.textContent })] })]
+						: []
+				}
+				const inner: unknown[] = []
+				node.forEach((child) => {
+					inner.push(...blockOf(child))
+				})
+				return inner
+			}
 		}
 	}
 	/*
@@ -1076,41 +1512,58 @@ export async function exportDocx(
 		})
 	})
 
+	type HeaderOf = InstanceType<typeof docx.Header>
+	type HeaderSet = Partial<Record<'default' | 'first' | 'even', HeaderOf>>
+	const assembled: {
+		properties: Record<string, unknown>
+		headers?: HeaderSet
+		footers?: Partial<Record<'default' | 'first' | 'even', InstanceType<typeof docx.Footer>>>
+		children: unknown[]
+	}[] = sections.map((section, index) => {
+		const own = positioned[index]
+		if (own) {
+			return {
+				properties: own.titlePage ? { ...section.properties, titlePage: true } : section.properties,
+				headers: own.headers,
+				footers: own.footers,
+				children: section.children,
+			}
+		}
+		return {
+			properties:
+				index === 0 && furnitureBase.titlePage
+					? { ...section.properties, titlePage: true }
+					: section.properties,
+			...(index === 0 && furnitureBase.headers
+				? { headers: furnitureBase.headers }
+				: overrides[index]?.headers
+					? { headers: overrides[index]?.headers }
+					: {}),
+			...(index === 0 && furnitureBase.footers
+				? { footers: furnitureBase.footers }
+				: overrides[index]?.footers
+					? { footers: overrides[index]?.footers }
+					: {}),
+			children: section.children,
+		}
+	})
+
 	const document = new Document({
 		title,
-		...(typography ? { styles: docxTypographyStyles(typography) } : {}),
+		styles: {
+			...(typography ? docxTypographyStyles(typography) : {}),
+			paragraphStyles: [QUOTE_PARAGRAPH_STYLE],
+		},
 		...(furnitureExtras.evenAndOdd ? { evenAndOddHeaderAndFooters: true } : {}),
 		numbering: {
 			config: [...orderedConfigs].map(([reference, levels]) => ({ reference, levels })),
 		},
-		sections: sections.map((section, index) => {
-			const own = positioned[index]
-			if (own) {
-				return {
-					properties: own.titlePage ? { ...section.properties, titlePage: true } : section.properties,
-					headers: own.headers,
-					footers: own.footers,
-					children: section.children as never,
-				}
-			}
-			return {
-				properties:
-					index === 0 && furnitureBase.titlePage
-						? { ...section.properties, titlePage: true }
-						: section.properties,
-				...(index === 0 && furnitureBase.headers
-					? { headers: furnitureBase.headers }
-					: overrides[index]?.headers
-						? { headers: overrides[index]?.headers }
-						: {}),
-				...(index === 0 && furnitureBase.footers
-					? { footers: furnitureBase.footers }
-					: overrides[index]?.footers
-						? { footers: overrides[index]?.footers }
-						: {}),
-				children: section.children as never,
-			}
-		}) as never,
+		sections: assembled.map((section) => ({
+			properties: section.properties,
+			...(section.headers ? { headers: section.headers } : {}),
+			...(section.footers ? { footers: section.footers } : {}),
+			children: separateTables(section.children),
+		})) as never,
 	})
 
 	return Packer.toBlob(document)
