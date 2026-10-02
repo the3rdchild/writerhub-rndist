@@ -221,6 +221,64 @@ export function clampColumnWidths(widths: readonly number[] | null, available: n
 	return Math.abs(nextSum - sum) < 0.5 ? null : next
 }
 
+/**
+ * Ubah lebar satu kolom; kolom lain mengecil proporsional bila jumlahnya
+ * melewati lebar tersedia. Dulu panel Opsi tabel menulis lebar apa adanya:
+ * 300 px pada tabel 3 kolom langsung membuat tabel 701 px menembus tepi kertas
+ * (uji editor 2 Okt, TBL-6).
+ */
+export function fitColumnWidths(
+	widths: readonly number[],
+	index: number,
+	width: number,
+	available: number | null,
+): number[] {
+	const next = [...widths]
+	const others = widths.length - 1
+	const max = available === null ? Number.POSITIVE_INFINITY : available - MIN_COLUMN_WIDTH * others
+	next[index] = Math.max(MIN_COLUMN_WIDTH, Math.min(Math.round(width), max))
+	if (available === null || others === 0) return next
+	const rest = available - next[index]
+	const otherSum = next.reduce((sum, value, at) => (at === index ? sum : sum + value), 0)
+	if (otherSum <= rest) return next
+	const scaled = scaleColumnWidths(
+		next.filter((_, at) => at !== index),
+		rest,
+	)
+	let cursor = 0
+	return next.map((value, at) => (at === index ? value : scaled[cursor++]))
+}
+
+/** Lebar yang tersedia bagi tabel: lebar pembungkusnya (sudah dikurangi indentasi). */
+export function availableTableWidth(editor: Editor, tablePos: number): number | null {
+	const dom = editor.view.nodeDOM(tablePos) as HTMLElement | null
+	if (!(dom instanceof HTMLElement)) return null
+	const wrapper = dom.classList.contains('tableWrapper')
+		? dom
+		: (dom.closest('.tableWrapper') as HTMLElement | null)
+	const width = (wrapper ?? dom.parentElement)?.clientWidth ?? 0
+	return width > 0 ? width : null
+}
+
+/**
+ * "Lebar tabel" yang benar-benar dipakai: atributnya ditulis DAN lebar kolom
+ * diskalakan ke sana (dijepit ke lebar tersedia). Dulu hanya atributnya yang
+ * berubah - kanvas mengabaikannya, sementara DOCX memakainya (TBL-6).
+ */
+export function applyTableWidth(editor: Editor, tablePos: number, width: number | null): boolean {
+	if (width === null) return editor.chain().focus().setTableWidth(null).run()
+	const available = availableTableWidth(editor, tablePos)
+	const target = Math.round(available === null ? width : Math.min(width, available))
+	const widths = columnWidths(editor, tablePos)
+	const tr = editor.state.tr
+	const table = tr.doc.nodeAt(tablePos)
+	if (!table) return false
+	tr.setNodeAttribute(tablePos, 'tableWidth', target)
+	if (widths) writeColumnWidths(tr, tr.doc, tablePos, scaleColumnWidths(widths, target))
+	editor.view.dispatch(tr)
+	return true
+}
+
 export function writeColumnWidths(tr: Transaction, doc: PMNode, tablePos: number, widths: number[]): boolean {
 	const table = doc.nodeAt(tablePos)
 	if (!table || table.type.spec.tableRole !== 'table') return false
@@ -265,8 +323,16 @@ export function setTableIndent(editor: Editor, tablePos: number, left: number): 
 	const table = tableNodeAt(editor, tablePos)
 	if (!table) return false
 	const next = Math.max(0, Math.round(left))
-	if (table.attrs.indentLeft === next) return false
-	editor.view.dispatch(editor.state.tr.setNodeAttribute(tablePos, 'indentLeft', next))
+	const previous = Number(table.attrs.indentLeft) || 0
+	if (previous === next) return false
+	const tr = editor.state.tr.setNodeAttribute(tablePos, 'indentLeft', next)
+	/* Tabel bergeser tanpa mengecil dulu menembus margin kanan (TBL-6). */
+	const available = availableTableWidth(editor, tablePos)
+	if (available !== null) {
+		const clamped = clampColumnWidths(explicitColumnWidths(table), available - (next - previous))
+		if (clamped) writeColumnWidths(tr, tr.doc, tablePos, clamped)
+	}
+	editor.view.dispatch(tr)
 	return true
 }
 

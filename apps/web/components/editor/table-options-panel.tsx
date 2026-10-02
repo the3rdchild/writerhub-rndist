@@ -4,7 +4,13 @@ import type { Editor } from '@tiptap/react'
 import { ChevronDown, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { PALETTE } from '@/components/editor/color-picker'
-import { columnWidths, setColumnWidths } from '@/features/editor/table-ops'
+import {
+	applyTableWidth,
+	availableTableWidth,
+	columnWidths,
+	fitColumnWidths,
+	setColumnWidths,
+} from '@/features/editor/table-ops'
 import { type TablePropsSnapshot, tablePropsAt } from '@/features/editor/table-props'
 import { cn } from '@/lib/utils'
 
@@ -204,8 +210,8 @@ export function TableOptionsPanel({ editor, onClose }: { editor: Editor; onClose
 		if (!snap) return
 		const widths = columnWidths(editor, snap.tablePos)
 		if (!widths) return
-		widths[snap.colIndex] = width
-		setColumnWidths(editor, snap.tablePos, widths)
+		const available = availableTableWidth(editor, snap.tablePos)
+		setColumnWidths(editor, snap.tablePos, fitColumnWidths(widths, snap.colIndex, width, available))
 	}
 
 	return (
@@ -233,16 +239,14 @@ export function TableOptionsPanel({ editor, onClose }: { editor: Editor; onClose
 							label="Lebar tabel"
 							checked={snap.tableWidth !== null}
 							onChange={(checked) =>
-								chain()
-									.setTableWidth(checked ? (snap.tableWidth ?? 480) : null)
-									.run()
+								applyTableWidth(editor, snap.tablePos, checked ? (snap.tableWidth ?? 480) : null)
 							}
 						>
 							<MeasureInput
 								ariaLabel="Lebar tabel"
 								valuePx={snap.tableWidth}
 								disabled={snap.tableWidth === null}
-								onCommit={(px) => chain().setTableWidth(px).run()}
+								onCommit={(px) => applyTableWidth(editor, snap.tablePos, px)}
 							/>
 						</CheckRow>
 					</Section>

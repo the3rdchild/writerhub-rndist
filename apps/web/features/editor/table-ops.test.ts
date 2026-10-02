@@ -5,6 +5,7 @@ import { buildSchema } from '@/features/sync/serialize'
 import {
 	clampColumnWidths,
 	explicitColumnWidths,
+	fitColumnWidths,
 	MIN_COLUMN_WIDTH,
 	scaleColumnWidths,
 	writeColumnWidths,
@@ -108,5 +109,25 @@ describe('writeColumnWidths', () => {
 		const tr = state.tr
 		expect(writeColumnWidths(tr, tr.doc, 0, [100])).toBe(false)
 		expect(tr.docChanged).toBe(false)
+	})
+})
+
+describe('lebar kolom dari panel dijepit ke lebar tersedia (TBL-6)', () => {
+	test('kolom yang dilebarkan memaksa kolom lain mengecil proporsional', () => {
+		expect(fitColumnWidths([200, 200, 200], 0, 300, 602)).toEqual([300, 151, 151])
+	})
+
+	test('tanpa melewati batas, kolom lain tidak berubah', () => {
+		expect(fitColumnWidths([200, 200, 200], 1, 150, 602)).toEqual([200, 150, 200])
+	})
+
+	test('lebar satu kolom tidak bisa menghabiskan tempat kolom lain', () => {
+		const next = fitColumnWidths([200, 200, 200], 2, 900, 602)
+		expect(next[2]).toBe(602 - 2 * 24)
+		expect(next.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(602)
+	})
+
+	test('tanpa ukuran tersedia, hanya kolom itu yang berubah', () => {
+		expect(fitColumnWidths([100, 100], 0, 250, null)).toEqual([250, 100])
 	})
 })

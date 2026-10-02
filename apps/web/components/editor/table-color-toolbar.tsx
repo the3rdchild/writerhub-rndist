@@ -47,12 +47,19 @@ export function TableColorToolbar({ editor }: { editor: Editor | null }) {
 					return
 				}
 
-				const above = rect.top - 44
-				setPlace({
-					top: above < 8 ? rect.bottom + 6 : above,
-					left: rect.left + rect.width / 2,
-					centered: true,
-				})
+				/*
+				 * Di samping kanan tabel (margin halaman), sejajar tepi atasnya - bukan
+				 * di tengah atas: di sana pil ini menutup pegangan dan tombol + kolom
+				 * tengah (uji editor 2 Okt, TBL-14). Tanpa ruang di kanan, turun ke
+				 * bawah tabel di ujung kanannya.
+				 */
+				const PILL_WIDTH = 88
+				const fitsRight = rect.right + 12 + PILL_WIDTH < window.innerWidth - 8
+				setPlace(
+					fitsRight
+						? { top: Math.max(8, rect.top), left: rect.right + 12, centered: false }
+						: { top: rect.bottom + 8, left: Math.max(8, rect.right - PILL_WIDTH), centered: false },
+				)
 			}
 			const update = () => {
 				cancelAnimationFrame(frame)
