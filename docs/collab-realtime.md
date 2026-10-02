@@ -146,6 +146,9 @@ bahasa, tata letak tetap tersimpan).
   Setiap pembaruan pasti ada di salah satunya: di log yang terbaca, atau di pesan yang tiba setelah langganan aktif.
 - Pub/sub paling-banyak-sekali. Celahnya ditutup: ioredis mengantre perintah selama putus; setelah langganan pulih
   setiap room mengejar dari log; dan penjaga state vector pada turunan mendeteksi room yang tertinggal.
+- Pembaruan atau semaian di atas 256 KB (gambar base64 yang ditempel, naskah panjang) diterbitkan sebagai rujukan
+  baris log (`update-ref`/`seeded-ref`); penerima mengambil barisnya dari Postgres. Redis memutus pelanggan yang
+  antrean keluarannya melewati `client-output-buffer-limit pubsub` (bawaan 32 MB, atau 8 MB selama 60 dtk).
 - Kanal pub/sub berlaku lintas indeks DB Redis, jadi lingkungan yang berbagi satu Redis wajib memakai awalan berbeda.
 - Klien baru di satu instance meminta awareness instance lain (`query-awareness`), jadi kolaborator di proses lain
   langsung terlihat, bukan setelah pembaruan awareness berikutnya (±15 dtk).
@@ -191,6 +194,23 @@ bahasa, tata letak tetap tersimpan).
 - `apps/web`: konverter vs skema sungguhan, semaian, cermin, protokol, rencana simpan cloud, coba ulang; dan
   `CollabSession` melawan API sungguhan (`features/collab/session.integration.test.ts`, variabel yang sama).
 - Tanpa `COLLAB_IT_DATABASE_URL` uji ujung-ke-ujung dilewati dan itu diumumkan di keluaran.
+
+### Angka (3 Okt 2026, mesin pengembang, `API_PROCESSES=2`, satu tab)
+
+Klien y-websocket di satu proses Bun; setiap klien menulis paragraf berpenanda. Latensi = sejak sebuah suntingan
+dibuat sampai tiba di SETIAP klien lain.
+
+| Klien × suntingan (jeda) | Pengiriman | p50 | p95 | p99 | maks | Konvergen | Baris log |
+|---|---:|---:|---:|---:|---:|---|---:|
+| 10 × 20 (150 ms) | 1.800 | 37 ms | 107 ms | 109 ms | 111 ms | ya | 49 |
+| 25 × 30 (100 ms) | 18.000 | 8 ms | 105 ms | 109 ms | 115 ms | ya | 60 |
+| 50 × 20 (200 ms) | 49.000 | 11 ms | 108 ms | 113 ms | 124 ms | ya | 75 |
+| 100 × 10 (200 ms) | 99.000 | 151 ms | 370 ms | 457 ms | 512 ms | ya | 37 |
+
+Semua pengiriman tiba, semua salinan identik, dan isi turunan di server memuat semua suntingan. Sambungan di proses
+yang sama menerima seketika; antar-proses ±100 ms - itulah jeda tulis ke log (`flushMs` di `collab/settings.ts`),
+karena pembaruan baru diterbitkan ke Redis setelah tercatat. Pada 100 klien sebagian latensi milik klien uji sendiri
+(100 provider di satu event loop).
 
 ## Tahap 2 (belum)
 
