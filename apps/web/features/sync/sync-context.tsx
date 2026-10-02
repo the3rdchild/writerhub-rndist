@@ -105,7 +105,7 @@ interface SaveTimers {
 }
 
 export function SyncProvider({ children }: { children: ReactNode }) {
-	const { doc, documents, activeId, selectSession, renameDocument } = useSessions()
+	const { doc, documents, activeId, selectSession, renameDocument, whenLoaded } = useSessions()
 	const { editor } = useEditorInstance()
 	const queryClient = useQueryClient()
 	const serverDocuments = useDocuments()
@@ -560,6 +560,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
 	const openFromLibrary = useCallback(
 		async (serverDoc: DocumentDetail): Promise<string | null> => {
+			/* Halaman /d/<id> bisa sampai di sini sebelum simpanan lokal terbaca;
+			 * dokumen yang ditulis saat itu hilang (lihat `whenLoaded`). */
+			await whenLoaded()
 			const opened = Object.entries(linkageRef.current).find(
 				([, linkage]) => linkage.documentId === serverDoc.id,
 			)
@@ -620,7 +623,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 			selectSession(firstTabId)
 			return firstTabId
 		},
-		[doc, selectSession, setStatus, setStore],
+		[doc, selectSession, setStatus, setStore, whenLoaded],
 	)
 
 	const linkTab = useCallback(

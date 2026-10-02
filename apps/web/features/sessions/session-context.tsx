@@ -82,6 +82,13 @@ interface SessionContextValue {
 	hydrated: boolean
 	/** Simpanan lokal tidak bisa dipakai: suntingan hanya hidup di tab ini. */
 	persistenceFailed: boolean
+	/**
+	 * Selesai setelah simpanan lokal terbaca dan `boot()` jalan. Apa pun yang
+	 * MENULIS dokumen baru ke Y.Doc dan bisa terpanggil sebelum itu (galeri
+	 * /new, membuka dokumen server) harus menunggunya: sebelum itu wadah
+	 * dokumen masih ditahan (`holdRootsUntilLoaded`) dan tulisannya hilang.
+	 */
+	whenLoaded: () => Promise<void>
 	newSession: () => void
 	newDocument: () => void
 	selectSession: (id: string) => void
@@ -122,6 +129,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	const [documents, setDocuments] = useState<DocMeta[]>([])
 	const [tabs, setTabs] = useState<Array<TabMeta & { preview: string }>>([])
 	const [loaded, setLoaded] = useState(false)
+	const loadedRef = useRef(false)
+	const loadWaiters = useRef<Array<() => void>>([])
+	const whenLoaded = useCallback(
+		(): Promise<void> =>
+			loadedRef.current
+				? Promise.resolve()
+				: new Promise((resolve) => {
+						loadWaiters.current.push(resolve)
+					}),
+		[],
+	)
 	const [persistenceFailed, setPersistenceFailed] = useState(false)
 	const [view, setView, viewHydrated] = usePersistentState<LocalView>(
 		LOCAL_VIEW_STORAGE_KEY,
@@ -158,6 +176,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 					)
 				}
 				setLoaded(true)
+				loadedRef.current = true
+				for (const resolve of loadWaiters.current.splice(0)) resolve()
 			}
 
 			const stopWatching = watchPersistence(provider, {
@@ -310,11 +330,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	}, [doc, activeDocId, setView])
 
 	const newDocument = useCallback(() => {
-		if (readDocs(doc).length >= MAX_DOCUMENTS) return
-		const docId = createDocument(doc)
-		const tabId = readTabs(doc, docId)[0]?.id ?? null
-		setView((current) => ({ ...current, activeDocId: docId, activeTabId: tabId }))
-	}, [doc, setView])
+		const create = () => {
+			if (readDocs(doc).length >= MAX_DOCUMENTS) return
+			const docId = createDocument(doc)
+			const tabId = readTabs(doc, docId)[0]?.id ?? null
+			setView((current) => ({ ...current, activeDocId: docId, activeTabId: tabId }))
+		}
+		/* Kartu "Dokumen kosong" di /new bisa diklik sebelum simpanan terbaca. */
+		if (loadedRef.current) create()
+		else void whenLoaded().then(create)
+	}, [doc, setView, whenLoaded])
 	const selectSession = useCallback(
 		(id: string) => {
 			setView((current) => {
@@ -502,6 +527,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			activeId,
 			hydrated: loaded && viewHydrated,
 			persistenceFailed,
+			whenLoaded,
 			newSession,
 			newDocument,
 			selectSession,
@@ -534,6 +560,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			loaded,
 			viewHydrated,
 			persistenceFailed,
+			whenLoaded,
 			active,
 			newSession,
 			newDocument,
