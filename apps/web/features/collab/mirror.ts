@@ -4,12 +4,9 @@ import { yFragmentToProseMirrorJSON } from '@writer-hub/shared/collab-json'
 import { updateYFragment } from 'y-prosemirror'
 import type * as Y from 'yjs'
 
-/**
- * Asal transaksi cermin di Y.Doc besar. Penyimpan cloud lama (`features/sync`)
- * mengabaikannya: isi tab kolaboratif sudah sampai ke server lewat websocket,
- * dan PUT naskahnya akan dibuang server juga.
- */
-export const COLLAB_MIRROR_ORIGIN = 'collab-mirror'
+import { COLLAB_MIRROR_ORIGIN } from './origins'
+
+export { COLLAB_MIRROR_ORIGIN }
 
 /**
  * Menyalin naskah tab kolaboratif ke fragmen tab yang sama di Y.Doc besar,

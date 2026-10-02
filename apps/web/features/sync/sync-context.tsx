@@ -13,6 +13,7 @@ import {
 } from 'react'
 import { IndexeddbPersistence } from 'y-indexeddb'
 import { briefSyncKey, readDocBrief, writeDocBrief } from '@/features/brief/brief-ydoc'
+import { COLLAB_MIRROR_ORIGIN } from '@/features/collab/origins'
 import { backupComments, restoreComments } from '@/features/comments/comment-backup'
 import {
 	createDocument,
@@ -36,6 +37,7 @@ import {
 import { deleteLocalVersionsExcept } from '@/features/versions/local-store'
 import { ApiError } from '@/lib/api-client'
 import { usePersistentState } from '@/lib/use-persistent-state'
+import { planCloudSave, tabsAwaitingCloud } from './cloud-plan'
 import {
 	applyDocLayout,
 	applyTabLayout,
@@ -43,6 +45,7 @@ import {
 	readDocLayout,
 	readTabLayoutOverride,
 } from './layout-sync'
+import { RetryScheduler } from './retry'
 import { fragmentToJSON, jsonToFragment } from './serialize'
 import { resolveTitle } from './title-sync'
 
@@ -51,6 +54,13 @@ const IDLE_SAVE_MS = 3_000
 const MAX_SAVE_MS = 30_000
 const TITLE_SYNC_MS = 1_200
 const MAX_SESSIONS = 50
+/**
+ * Tab baru dokumen cloud yang ditautkan sekaligus (lihat
+ * `linkNewTabsOfCloudDocuments`). Satu: server menghitung posisi tab baru
+ * sebagai posisi terakhir + 1, dan dua pembuatan bersamaan bisa mendapat
+ * posisi yang sama - urutannya jadi acak.
+ */
+const LINK_CONCURRENCY = 1
 export const SYNC_ORIGIN = 'sync'
 
 /**
@@ -126,6 +136,25 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	editorRef.current = editor
 	const linkageRef = useRef(store.linkage)
 	linkageRef.current = store.linkage
+	/** Tab yang sedang dibuatkan tab server; mencegah dua jalur membuat dua tab server untuk satu tab. */
+	const linking = useRef(new Map<string, Promise<boolean>>())
+	/**
+	 * Tab yang penautannya ditolak permanen (naskah melewati batas ukuran).
+	 * Penautan otomatis melewatinya - tanpa ini setiap perubahan daftar
+	 * dokumen mengirim ulang naskah raksasa yang pasti ditolak lagi. Simpan ke
+	 * cloud manual tetap mencobanya.
+	 */
+	const rejectedLinks = useRef(new Set<string>())
+	/** Naik setiap peramban kembali online, supaya penautan yang tertunda dicoba lagi. */
+	const [onlineTick, setOnlineTick] = useState(0)
+	/*
+	 * Coba ulang simpanan yang gagal (SHL-7). Penjadwalnya dibuat sekali; yang
+	 * dijalankannya dibaca lewat ref supaya selalu memakai closure terbaru.
+	 */
+	const retryTabRef = useRef<(tabId: string) => void>(() => {})
+	const retries = useRef<RetryScheduler | null>(null)
+	if (!retries.current) retries.current = new RetryScheduler((tabId) => retryTabRef.current(tabId))
+	const retry = retries.current
 
 	const setStatus = useCallback((tabId: string, status: TransientStatus | null) => {
 		setTransient((current) => {
@@ -320,17 +349,21 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				} else {
 					setStatus(tabId, 'dirty')
 				}
+				retry.clear(tabId)
 				patchCachedDocument(
 					linkage.documentId,
 					savedDocument ? documentSummaryOf(savedDocument) : { updatedAt: savedTab.updatedAt },
 				)
 				return true
 			} catch (error) {
-				setStatus(tabId, failedStatus(error))
+				const status = failedStatus(error)
+				setStatus(tabId, status)
+				// Naskah kebesaran tidak akan lolos walau dicoba seribu kali.
+				if (status === 'error') retry.schedule(tabId)
 				return false
 			}
 		},
-		[doc, serializeTab, setStatus, setStore, patchCachedDocument, unlinkTab, unlinkDocument],
+		[doc, serializeTab, setStatus, setStore, patchCachedDocument, unlinkTab, unlinkDocument, retry],
 	)
 
 	const pushRef = useRef(pushToServer)
@@ -359,7 +392,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	useEffect(
 		function scheduleSaveOnEdit() {
 			const onUpdate = (_update: Uint8Array, origin: unknown) => {
-				if (origin === SYNC_ORIGIN || origin instanceof IndexeddbPersistence) return
+				// Cermin tab kolaboratif: isinya sudah di server lewat websocket.
+				if (
+					origin === SYNC_ORIGIN ||
+					origin === COLLAB_MIRROR_ORIGIN ||
+					origin instanceof IndexeddbPersistence
+				)
+					return
 				const tabId = activeIdRef.current
 				if (!tabId || !linkageRef.current[tabId]) return
 				revisions.current.set(tabId, (revisions.current.get(tabId) ?? 0) + 1)
@@ -501,18 +540,131 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 			map.clear()
 			for (const timer of titles.values()) clearTimeout(timer)
 			titles.clear()
+			retries.current?.dispose()
 		}
 	}, [])
+
+	/**
+	 * Membuat tab server untuk `tabId` di dokumen server `documentId`, lalu
+	 * menautkannya (SHL-6). Satu tab hanya pernah punya satu pembuatan yang
+	 * berjalan: penyimpanan dokumen, simpan per tab, dan penautan otomatis
+	 * bisa memanggilnya bersamaan, dan tanpa penjaga ini masing-masing
+	 * membuat tab server sendiri.
+	 */
+	const linkTabToServerDocument = useCallback(
+		(tabId: string, documentId: string): Promise<boolean> => {
+			const running = linking.current.get(tabId)
+			if (running) return running
+			const work = (async (): Promise<boolean> => {
+				if (linkageRef.current[tabId]) return true
+				const meta = readTabs(doc).find((tab) => tab.id === tabId)
+				if (!meta) return false
+				setStatus(tabId, 'saving')
+				try {
+					const tab = await createTabApi(documentId, {
+						title: meta.title,
+						content: serializeTab(tabId),
+						emoji: meta.emoji,
+						language: meta.language,
+						layout: readTabLayoutOverride(doc, tabId),
+					})
+					const linked: SyncLinkage = { serverId: tab.id, documentId, lastSyncedAt: Date.now() }
+					// Langsung terlihat oleh jalur lain sebelum render berikutnya.
+					linkageRef.current = { ...linkageRef.current, [tabId]: linked }
+					setStore((current) => ({ ...current, linkage: { ...current.linkage, [tabId]: linked } }))
+					setStatus(tabId, null)
+					retry.clear(tabId)
+					return true
+				} catch (error) {
+					// Dokumen servernya sudah dihapus: lepas tautan seluruh dokumennya.
+					if (isGone(error)) {
+						unlinkDocument(documentId)
+						setStatus(tabId, null)
+						return false
+					}
+					const status = failedStatus(error)
+					setStatus(tabId, status)
+					if (status === 'error') retry.schedule(tabId)
+					else rejectedLinks.current.add(tabId)
+					return false
+				} finally {
+					linking.current.delete(tabId)
+				}
+			})()
+			linking.current.set(tabId, work)
+			return work
+		},
+		[doc, serializeTab, setStatus, setStore, unlinkDocument, retry],
+	)
+
+	/* Percobaan ulang memakai jalur yang sama dengan simpanan biasa. */
+	retryTabRef.current = (tabId: string) => {
+		const linkage = linkageRef.current[tabId]
+		if (linkage) {
+			void pushRef.current(tabId, linkage)
+			return
+		}
+		const plan = planCloudSave(tabId, readDocs(doc), linkageRef.current)
+		if (plan.kind === 'add-tab') void linkTabToServerDocument(tabId, plan.documentId)
+		else retry.clear(tabId)
+	}
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: onlineTick memang cuma pemicu - naiknya angka itulah sinyal "jaringan kembali, coba tautkan lagi"
+	useEffect(
+		function linkNewTabsOfCloudDocuments() {
+			/*
+			 * Dokumen yang satu tabnya sudah di cloud adalah dokumen cloud: tab
+			 * baru, duplikat, dan tab yang dulu tidak ikut disimpan masuk ke
+			 * dokumen server yang sama (SHL-6). Dikerjakan bertahap - selesainya
+			 * satu penautan mengubah `store.linkage` dan menjalankan efek ini lagi.
+			 */
+			if (!storeHydrated) return
+			const busy = new Set(linking.current.keys())
+			const room = LINK_CONCURRENCY - busy.size
+			if (room <= 0) return
+			// Yang menunggu giliran coba ulang tidak didahului, dan yang ditolak
+			// permanen tidak dikirim ulang.
+			for (const tabId of rejectedLinks.current) busy.add(tabId)
+			const awaiting = tabsAwaitingCloud(documents, store.linkage, busy).filter(
+				({ tabId }) => !retry.has(tabId),
+			)
+			for (const { tabId, documentId } of awaiting.slice(0, room)) {
+				void linkTabToServerDocument(tabId, documentId)
+			}
+		},
+		[storeHydrated, documents, store.linkage, linkTabToServerDocument, retry, onlineTick],
+	)
+
+	useEffect(
+		function retrySavesWhenOnline() {
+			const onOnline = () => {
+				retry.retryAllNow()
+				setOnlineTick((tick) => tick + 1)
+			}
+			window.addEventListener('online', onOnline)
+			return () => window.removeEventListener('online', onOnline)
+		},
+		[retry],
+	)
 
 	const saveToCloud = useCallback(
 		async (tabId: string): Promise<boolean> => {
 			const meta = readTabs(doc).find((tab) => tab.id === tabId)
 			if (!meta) return false
 
+			const plan = planCloudSave(tabId, readDocs(doc), linkageRef.current)
 			const existing = linkageRef.current[tabId]
-			if (existing) {
+			if (plan.kind === 'push' && existing) {
 				clearTimers(tabId)
 				return pushToServer(tabId, existing)
+			}
+			// Dokumennya sudah di cloud lewat tab lain: tab ini masuk ke dokumen
+			// server yang sama, bukan menjadi dokumen baru (SHL-6).
+			if (plan.kind === 'add-tab') {
+				rejectedLinks.current.delete(tabId)
+				const linked = await linkTabToServerDocument(tabId, plan.documentId)
+				if (linked) void invalidateDocuments()
+				return linked
 			}
 			const parentId = findTabDoc(doc, tabId)
 			const docTitle = parentId
@@ -533,20 +685,18 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				})
 				const serverTabId = created.tabs[0]?.id
 				if (!serverTabId) throw new Error('Respons dokumen tanpa tab')
-				setStore((current) => ({
-					...current,
-					linkage: {
-						...current.linkage,
-						[tabId]: {
-							serverId: serverTabId,
-							documentId: created.id,
-							lastSyncedAt: Date.now(),
-							lastDocTitle: docTitle,
-							lastDocLayoutKey: layoutSyncKey(parentId ? readDocLayout(doc, parentId) : null),
-							lastDocBriefKey: briefSyncKey(docBrief),
-						},
-					},
-				}))
+				const linked: SyncLinkage = {
+					serverId: serverTabId,
+					documentId: created.id,
+					lastSyncedAt: Date.now(),
+					lastDocTitle: docTitle,
+					lastDocLayoutKey: layoutSyncKey(parentId ? readDocLayout(doc, parentId) : null),
+					lastDocBriefKey: briefSyncKey(docBrief),
+				}
+				// Tab lain dokumen ini menyusul ke dokumen server yang sama lewat
+				// `linkNewTabsOfCloudDocuments`; tautan ini harus sudah terlihat.
+				linkageRef.current = { ...linkageRef.current, [tabId]: linked }
+				setStore((current) => ({ ...current, linkage: { ...current.linkage, [tabId]: linked } }))
 				setStatus(tabId, null)
 				void invalidateDocuments()
 				return true
@@ -555,7 +705,16 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				return false
 			}
 		},
-		[doc, clearTimers, pushToServer, serializeTab, setStatus, setStore, invalidateDocuments],
+		[
+			doc,
+			clearTimers,
+			pushToServer,
+			serializeTab,
+			setStatus,
+			setStore,
+			invalidateDocuments,
+			linkTabToServerDocument,
+		],
 	)
 
 	const openFromLibrary = useCallback(
@@ -665,69 +824,60 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 						await pushToServer(tabId, existing)
 						continue
 					}
+					if (parentId) {
+						// Lewat jalur yang sama dengan penautan otomatis, jadi tab ini
+						// tidak pernah dibuatkan dua tab server.
+						if (!(await linkTabToServerDocument(tabId, parentId))) return false
+						continue
+					}
 
 					setStatus(tabId, 'saving')
-					if (!parentId) {
-						const docBrief = readDocBrief(doc, docId)
-						const created = await createDocument({
-							title: dok.title,
-							content: serializeTab(tabId),
-							emoji: meta.emoji,
-							language: meta.language,
-							layout: readDocLayout(doc, docId),
-							tabLayout: readTabLayoutOverride(doc, tabId),
-							...(docBrief ? { brief: docBrief } : {}),
-						})
-						const serverTabId = created.tabs[0]?.id
-						if (!serverTabId) throw new Error('Respons dokumen tanpa tab')
-						parentId = created.id
-						setStore((current) => ({
-							...current,
-							linkage: {
-								...current.linkage,
-								[tabId]: {
-									serverId: serverTabId,
-									documentId: created.id,
-									lastSyncedAt: Date.now(),
-									lastDocTitle: dok.title,
-									lastDocLayoutKey: layoutSyncKey(readDocLayout(doc, docId)),
-									lastDocBriefKey: briefSyncKey(docBrief),
-								},
-							},
-						}))
-					} else {
-						const tab = await createTabApi(parentId, {
-							title: meta.title,
-							content: serializeTab(tabId),
-							emoji: meta.emoji,
-							language: meta.language,
-							layout: readTabLayoutOverride(doc, tabId),
-						})
-						const serverDocId = parentId
-						setStore((current) => ({
-							...current,
-							linkage: {
-								...current.linkage,
-								[tabId]: {
-									serverId: tab.id,
-									documentId: serverDocId,
-									lastSyncedAt: Date.now(),
-								},
-							},
-						}))
+					const docBrief = readDocBrief(doc, docId)
+					const created = await createDocument({
+						title: dok.title,
+						content: serializeTab(tabId),
+						emoji: meta.emoji,
+						language: meta.language,
+						layout: readDocLayout(doc, docId),
+						tabLayout: readTabLayoutOverride(doc, tabId),
+						...(docBrief ? { brief: docBrief } : {}),
+					})
+					const serverTabId = created.tabs[0]?.id
+					if (!serverTabId) throw new Error('Respons dokumen tanpa tab')
+					parentId = created.id
+					const linked: SyncLinkage = {
+						serverId: serverTabId,
+						documentId: created.id,
+						lastSyncedAt: Date.now(),
+						lastDocTitle: dok.title,
+						lastDocLayoutKey: layoutSyncKey(readDocLayout(doc, docId)),
+						lastDocBriefKey: briefSyncKey(docBrief),
 					}
+					linkageRef.current = { ...linkageRef.current, [tabId]: linked }
+					setStore((current) => ({ ...current, linkage: { ...current.linkage, [tabId]: linked } }))
 					setStatus(tabId, null)
 				}
 				void invalidateDocuments()
 				return true
 			} catch (error) {
+				// Hanya pembuatan dokumen server yang sampai di sini; tab berikutnya
+				// mengurus kegagalannya sendiri di `linkTabToServerDocument`.
 				for (const tabId of dok.tabOrder) {
 					if (!linkageRef.current[tabId]) setStatus(tabId, failedStatus(error))
 				}
 				return false
 			}
 		},
-		[doc, clearTimers, pushToServer, serializeTab, setStatus, setStore, invalidateDocuments],
+		[
+			doc,
+			clearTimers,
+			pushToServer,
+			serializeTab,
+			setStatus,
+			setStore,
+			invalidateDocuments,
+			linkTabToServerDocument,
+		],
 	)
 
 	const syncStatus = useCallback(
