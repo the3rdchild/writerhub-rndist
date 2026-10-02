@@ -1968,6 +1968,14 @@ a {
  * lewat selektor: yang membedakan satu mark dari yang lain adalah nilai
  * `data-comment-id`-nya, dan nilai itu baru diketahui saat kartunya diklik.
  */
+/* Utas yang diselesaikan tidak disorot lagi, kecuali sedang dibuka (SHL-17). */
+.document-body .comment-mark--resolved:not(.comment-mark--active),
+.document-body .comment-mark--resolved:not(.comment-mark--active):hover {
+  background: none;
+  border-bottom-color: transparent;
+  cursor: text;
+}
+
 .document-body .comment-mark--active {
   background: color-mix(in srgb, #f59e0b 45%, transparent);
   border-bottom-color: #f59e0b;
@@ -1975,6 +1983,11 @@ a {
 
 html.dark .document-body .comment-mark {
   background: color-mix(in srgb, #fbbf24 18%, transparent);
+}
+
+html.dark .document-body .comment-mark--resolved:not(.comment-mark--active),
+html.dark .document-body .comment-mark--resolved:not(.comment-mark--active):hover {
+  background: none;
 }
 
 /* Menu seleksi melayang di atas kanvas dan tidak ikut tergulung isinya. */
