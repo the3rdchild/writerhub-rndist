@@ -64,10 +64,43 @@ interface DocsRoot {
 	meta: Y.Map<Y.Map<unknown>>
 }
 
+/*
+ * Wadah `order`/`meta` adalah tipe bersarang yang dibuat malas. Membuatnya
+ * SEBELUM simpanan lokal terbaca berarti menulis wadah kosong yang bersaing
+ * dengan wadah tersimpan: dua `set` konkuren pada kunci Y.Map yang sama
+ * dimenangkan clientID terbesar, dan clientID sesi baru itu acak - kira-kira
+ * separuh muat ulang menghapus seluruh daftar dokumen (uji editor 2 Okt,
+ * SHL-1). Selama ditahan, pembaca mendapat wadah kosong sekali pakai dari
+ * Y.Doc lain, jadi `doc` sendiri tidak tersentuh. `root` tetap yang asli:
+ * tipe tingkat atas tidak pernah bertabrakan, dan pengamat `observeDeep` di
+ * sana ikut menyala ketika simpanan tiba.
+ */
+const awaitingStorage = new WeakSet<Y.Doc>()
+
+/** Tahan pembuatan wadah sampai simpanan lokal terbaca. Panggil sebelum `doc` dibagikan. */
+export function holdRootsUntilLoaded(doc: Y.Doc): void {
+	awaitingStorage.add(doc)
+}
+
+/** Simpanan sudah diterapkan (atau dipastikan tidak akan datang): wadah boleh dibuat. */
+export function releaseRoots(doc: Y.Doc): void {
+	awaitingStorage.delete(doc)
+}
+
+function detachedRoot(name: string): Y.Map<unknown> {
+	return new Y.Doc().getMap<unknown>(name)
+}
+
 export function tabsRoot(doc: Y.Doc): TabsRoot {
 	const root = doc.getMap<unknown>(TABS)
 
 	let meta = root.get(META) as Y.Map<Y.Map<unknown>> | undefined
+
+	if (!meta && awaitingStorage.has(doc)) {
+		const scratch = detachedRoot(TABS)
+		scratch.set(META, new Y.Map<Y.Map<unknown>>())
+		return { root, meta: scratch.get(META) as Y.Map<Y.Map<unknown>> }
+	}
 
 	if (!meta) {
 		doc.transact(() => {
@@ -84,6 +117,17 @@ export function docsRoot(doc: Y.Doc): DocsRoot {
 
 	let order = root.get(ORDER) as Y.Array<string> | undefined
 	let meta = root.get(META) as Y.Map<Y.Map<unknown>> | undefined
+
+	if ((!order || !meta) && awaitingStorage.has(doc)) {
+		const scratch = detachedRoot(DOCS)
+		scratch.set(ORDER, new Y.Array<string>())
+		scratch.set(META, new Y.Map<Y.Map<unknown>>())
+		return {
+			root,
+			order: order ?? (scratch.get(ORDER) as Y.Array<string>),
+			meta: meta ?? (scratch.get(META) as Y.Map<Y.Map<unknown>>),
+		}
+	}
 
 	if (!order || !meta) {
 		doc.transact(() => {

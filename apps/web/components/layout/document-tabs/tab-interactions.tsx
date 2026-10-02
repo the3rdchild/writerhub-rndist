@@ -4,6 +4,7 @@ import { createContext, type ReactNode, useContext, useState } from 'react'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { type Outline, scrollToOutlineItem, useOutline } from '@/features/editor/use-outline'
 import { type Session, useSessions } from '@/features/sessions/session-context'
+import { useSettings } from '@/features/settings/settings-context'
 import { type SyncStatus, useSync } from '@/features/sync/sync-context'
 
 /**
@@ -19,7 +20,6 @@ export interface TabInteractions {
 	sessions: Session[]
 	activeId: string | null
 	renamingId: string | null
-	pendingDelete: Session | null
 	outline: Outline
 
 	syncStatus: (tabId: string) => SyncStatus
@@ -37,9 +37,8 @@ export interface TabInteractions {
 	saveToCloud: (tabId: string) => void
 	scrollToHeading: (pos: number) => void
 
+	/** Membuka konfirmasi bersama (DeleteTabDialog di AppShell); tidak menghapus langsung. */
 	requestDelete: (tab: Session) => void
-	confirmDelete: () => void
-	cancelDelete: () => void
 
 	dragStart: (tabId: string) => void
 	dragEnter: (tabId: string) => void
@@ -62,17 +61,16 @@ export function TabInteractionsProvider({ children }: { children: ReactNode }) {
 		selectSession,
 		renameSession,
 		duplicateSession,
-		deleteSession,
 		setSessionEmoji,
 		moveSession,
 		setSessionOutlineExpanded,
 	} = useSessions()
 	const { syncStatus, saveToCloud } = useSync()
+	const { setPendingTabDelete } = useSettings()
 	const { editor } = useEditorInstance()
 	const outline = useOutline(editor)
 
 	const [renamingId, setRenamingId] = useState<string | null>(null)
-	const [pendingDelete, setPendingDelete] = useState<Session | null>(null)
 	const [draggingId, setDraggingId] = useState<string | null>(null)
 	const [dragOverId, setDragOverId] = useState<string | null>(null)
 
@@ -85,7 +83,6 @@ export function TabInteractionsProvider({ children }: { children: ReactNode }) {
 		sessions,
 		activeId,
 		renamingId,
-		pendingDelete,
 		outline,
 
 		syncStatus,
@@ -126,12 +123,7 @@ export function TabInteractionsProvider({ children }: { children: ReactNode }) {
 			if (editor) scrollToOutlineItem(editor, pos)
 		},
 
-		requestDelete: setPendingDelete,
-		confirmDelete: () => {
-			if (pendingDelete) deleteSession(pendingDelete.id)
-			setPendingDelete(null)
-		},
-		cancelDelete: () => setPendingDelete(null),
+		requestDelete: (tab) => setPendingTabDelete(tab.id),
 
 		dragStart: setDraggingId,
 		dragEnter: setDragOverId,

@@ -14,6 +14,7 @@ import { EDITOR_READY_ATTRIBUTE } from '@/features/editor/editor-ready'
 import { FurnitureEditProvider } from '@/features/editor/page-furniture/furniture-edit-context'
 import { useSessions } from '@/features/sessions/session-context'
 import { useAppShortcuts } from '@/features/shortcuts/use-shortcuts'
+import { DeleteTabDialog } from './document-tabs/delete-tab-dialog'
 import { TopBar } from './top-bar'
 
 /**
@@ -74,6 +75,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 				<PageNumbersDialog />
 				<ExportDocxDialog />
 				<ShareDialog />
+				<DeleteTabDialog />
 			</div>
 		</FurnitureEditProvider>
 	)

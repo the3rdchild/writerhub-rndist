@@ -1038,12 +1038,17 @@ a {
 }
 /* Tabel polos dari sumbernya (V6): impor menulis `borderStyle: 'none'`
    eksplisit - sampul, blok tanda tangan. Kisi sel dan latar baris judul
-   bawaan harus tunduk ke penanda itu, bukan menimpa rupa sumbernya. */
+   bawaan harus tunduk ke penanda itu, bukan menimpa rupa sumbernya.
+   Di kanvas penandanya menempel di `.tableWrapper` milik TableView (dekorasi
+   node mengenai DOM terluar node), di HTML hasil renderHTML pada <table>. */
 .document-body table[data-border-style='none'] th,
-.document-body table[data-border-style='none'] td {
+.document-body table[data-border-style='none'] td,
+.document-body .tableWrapper[data-border-style='none'] th,
+.document-body .tableWrapper[data-border-style='none'] td {
   border: none;
 }
-.document-body table[data-border-style='none'] th {
+.document-body table[data-border-style='none'] th,
+.document-body .tableWrapper[data-border-style='none'] th {
   background: none;
 }
 .document-body .selectedCell::after {
@@ -1052,6 +1057,20 @@ a {
   inset: 0;
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   pointer-events: none;
+}
+/* Gagang seret batas kolom dari `columnResizing`: widget di tepi kanan sel
+   yang sedang didekati, dan kursor editor selama gagang aktif. */
+.document-body .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: -2px;
+  width: 4px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.document-body.resize-cursor {
+  cursor: col-resize;
 }
 
 /* ── watermark halaman ─────────────────────────────────────────────────── */

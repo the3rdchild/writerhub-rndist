@@ -1,7 +1,7 @@
 'use client'
 
 import { type CommandProps, Extension } from '@tiptap/core'
-import { Table, TableRow } from '@tiptap/extension-table'
+import { Table, TableRow, TableView } from '@tiptap/extension-table'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { CellSelection, findTable, TableMap } from '@tiptap/pm/tables'
@@ -145,6 +145,32 @@ export const TableRowProps = TableRow.extend({
 	},
 })
 
+/*
+ * TableView Tiptap (3.29) tidak pernah MENGHAPUS lebar <col>: kolom yang
+ * kehilangan colwidth hanya diberi min-width, dan `width` lamanya tertinggal.
+ * Akibatnya undo resize kolom sudah membuang colwidth di dokumen tetapi
+ * kolomnya tetap lebar di layar sampai muat ulang. Sisa itu dibersihkan di sini
+ * setiap kali TableView memperbarui kolomnya.
+ */
+export class TableViewClearingWidths extends TableView {
+	override update(node: PMNode): boolean {
+		if (!super.update(node)) return false
+		clearStaleColumnWidths(node, this.colgroup)
+		return true
+	}
+}
+
+function clearStaleColumnWidths(table: PMNode, colgroup: HTMLElement): void {
+	let col = colgroup.firstElementChild as HTMLElement | null
+	table.firstChild?.forEach((cell) => {
+		const { colspan, colwidth } = cell.attrs as { colspan: number; colwidth: number[] | null }
+		for (let index = 0; index < colspan && col; index += 1) {
+			if (!colwidth?.[index]) col.style.removeProperty('width')
+			col = col.nextElementSibling as HTMLElement | null
+		}
+	})
+}
+
 export const TableNodeProps = Table.extend({
 	addAttributes() {
 		return {
@@ -219,9 +245,16 @@ export const TableNodeProps = Table.extend({
 	 * Dekorasi node-lah yang menempelkannya: ia ikut dipelihara ProseMirror,
 	 * berlaku di kanvas dan di hasil cetak, dan tetap sinkron saat atribut
 	 * berubah (V6: tabel polos dari sumber tampil polos, bukan kisi bawaan).
+	 *
+	 * Plugin induk WAJIB ikut: `columnResizing` (seret batas kolom, sekaligus
+	 * pemasang TableView itu) dan `tableEditing` (seleksi sel, gabung sel,
+	 * `fixTables`). Sejak d5d533f keduanya hilang karena daftar ini menimpa
+	 * milik induk - resize mati, seleksi seret lintas sel lalu Delete merusak
+	 * struktur tabel (uji editor 2 Okt, TBL-1 s/d TBL-5).
 	 */
 	addProseMirrorPlugins() {
 		return [
+			...(this.parent?.() ?? []),
 			new Plugin<{ decorations: DecorationSet }>({
 				key: new PluginKey('tableBorderDecoration'),
 				state: {

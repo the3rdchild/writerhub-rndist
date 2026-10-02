@@ -9,10 +9,12 @@ import {
 	docsRoot,
 	duplicateTab,
 	findTabDoc,
+	holdRootsUntilLoaded,
 	moveDocument,
 	moveTab,
 	readDocs,
 	readTabs,
+	releaseRoots,
 	renameDocument,
 	resolvePageSetup,
 	setPageSetupForDoc,
@@ -407,5 +409,66 @@ describe('watermark bertahan melewati readPageSetup', () => {
 		expect(stored?.opacity).toBe(1)
 		expect(stored?.scale).toBe(0.01)
 		expect(stored?.anchor).toBe('center')
+	})
+})
+
+describe('wadah dokumen saat simpanan lokal belum terbaca (SHL-1, uji editor 2 Okt)', () => {
+	/** Sesi lama: satu dokumen tersimpan, dikembalikan sebagai pembaruan seperti isi IndexedDB. */
+	function storedSession(clientID: number): { update: Uint8Array; docId: string } {
+		const stored = new Y.Doc()
+		stored.clientID = clientID
+		const docId = createDocument(stored, 'Naskah penting')
+		return { update: Y.encodeStateAsUpdate(stored), docId }
+	}
+
+	/** Sesi baru dengan urutan seperti SessionProvider: baca saat mount, simpanan tiba belakangan. */
+	function reload(clientID: number, update: Uint8Array, hold: boolean): Y.Doc {
+		const doc = new Y.Doc()
+		doc.clientID = clientID
+		if (hold) holdRootsUntilLoaded(doc)
+		readDocs(doc)
+		readTabs(doc)
+		Y.applyUpdate(doc, update)
+		releaseRoots(doc)
+		return doc
+	}
+
+	test('membaca selama ditahan tidak menulis apa pun ke dokumen', () => {
+		const doc = new Y.Doc()
+		holdRootsUntilLoaded(doc)
+		let updates = 0
+		doc.on('update', () => {
+			updates += 1
+		})
+
+		expect(readDocs(doc)).toEqual([])
+		expect(readTabs(doc)).toEqual([])
+		expect(docsRoot(doc).root.has('order')).toBe(false)
+		expect(updates).toBe(0)
+	})
+
+	test('dokumen tersimpan tetap ada, berapa pun clientID sesi barunya', () => {
+		for (const [oldId, newId] of [
+			[2000, 1000],
+			[1000, 2000],
+		]) {
+			const { update, docId } = storedSession(oldId)
+			const doc = reload(newId, update, true)
+			expect(readDocs(doc).map((dok) => dok.id)).toEqual([docId])
+			expect(readTabs(doc, docId)).toHaveLength(1)
+		}
+	})
+
+	test('kontrol: tanpa penahanan, wadah kosong sesi ber-clientID lebih besar menang', () => {
+		const { update } = storedSession(1000)
+		expect(readDocs(reload(2000, update, false))).toEqual([])
+	})
+
+	test('setelah dilepas, dokumen pertama dibuat seperti biasa', () => {
+		const doc = new Y.Doc()
+		holdRootsUntilLoaded(doc)
+		releaseRoots(doc)
+		const docId = createDocument(doc)
+		expect(readDocs(doc).map((dok) => dok.id)).toEqual([docId])
 	})
 })

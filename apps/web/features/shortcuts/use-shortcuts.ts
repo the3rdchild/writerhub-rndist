@@ -31,8 +31,8 @@ function stepZoom(current: number, direction: 1 | -1): number {
 export function useAppShortcuts(): void {
 	const mac = useIsMac()
 	const { togglePanel } = usePanels()
-	const { settings, update, toggleFocusMode, setShortcutsOpen } = useSettings()
-	const { sessions, activeId, newSession, selectSession, deleteSession } = useSessions()
+	const { settings, update, toggleFocusMode, setShortcutsOpen, setPendingTabDelete } = useSettings()
+	const { sessions, activeId, newSession, selectSession } = useSessions()
 	const { openSearch, openPanelSearch } = useSearch()
 
 	const handlers = useMemo<Partial<Record<ShortcutId, () => void>>>(() => {
@@ -66,7 +66,7 @@ export function useAppShortcuts(): void {
 			'doc.nextTab': stepTab(1),
 			'doc.prevTab': stepTab(-1),
 			'doc.closeTab': () => {
-				if (activeId && sessions.length > 1) deleteSession(activeId)
+				if (activeId && sessions.length > 1) setPendingTabDelete(activeId)
 			},
 		}
 	}, [
@@ -83,7 +83,7 @@ export function useAppShortcuts(): void {
 		activeId,
 		newSession,
 		selectSession,
-		deleteSession,
+		setPendingTabDelete,
 	])
 
 	useEffect(

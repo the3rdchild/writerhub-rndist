@@ -97,6 +97,9 @@ interface SettingsContextValue {
 	setHeadersFootersOpen: (open: boolean) => void
 	pageNumbersOpen: boolean
 	setPageNumbersOpen: (open: boolean) => void
+	/** Tab yang menunggu konfirmasi hapus - dari menu File, Ctrl+Alt+W, atau menu ⋮ tab. */
+	pendingTabDelete: string | null
+	setPendingTabDelete: (tabId: string | null) => void
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null)
@@ -110,6 +113,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 	const [pageSetupOpen, setPageSetupOpen] = useState(false)
 	const [headersFootersOpen, setHeadersFootersOpen] = useState(false)
 	const [pageNumbersOpen, setPageNumbersOpen] = useState(false)
+	const [pendingTabDelete, setPendingTabDelete] = useState<string | null>(null)
 	useEffect(
 		function applyThemeOnChange() {
 			applyTheme(settings.theme)
@@ -163,6 +167,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 			setHeadersFootersOpen,
 			pageNumbersOpen,
 			setPageNumbersOpen,
+			pendingTabDelete,
+			setPendingTabDelete,
 		}),
 		[
 			settings,
@@ -174,6 +180,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 			pageSetupOpen,
 			headersFootersOpen,
 			pageNumbersOpen,
+			pendingTabDelete,
 		],
 	)
 

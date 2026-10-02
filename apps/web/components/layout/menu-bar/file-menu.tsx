@@ -1,5 +1,5 @@
 'use client'
-import { Boxes, Download, Files, FileText, Info, Printer, RotateCcw, Upload } from 'lucide-react'
+import { Boxes, Download, Files, FileText, Info, Printer, Trash2, Upload } from 'lucide-react'
 import { useState } from 'react'
 import { DropdownSeparator, Submenu } from '@/components/ui/dropdown'
 import { useBrief } from '@/features/brief/brief-context'
@@ -22,9 +22,9 @@ import { Item, Menu, run } from './menu-shell'
 export function FileMenu() {
 	const { editor } = useEditorInstance()
 	const { state } = useDocument()
-	const { setExportOpen, setDocxExportOpen, setPageSetupOpen, settings } = useSettings()
+	const { setExportOpen, setDocxExportOpen, setPageSetupOpen, setPendingTabDelete, settings } = useSettings()
 	const { openPanel: openMetadata } = useBrief()
-	const { newSession, deleteSession, activeId, sessions, doc } = useSessions()
+	const { newSession, activeId, sessions, doc } = useSessions()
 	const { setup: activeSetup } = usePageSetup()
 	const { furniture } = usePageFurniture()
 	const { typography } = useTypography()
@@ -148,13 +148,15 @@ export function FileMenu() {
 						Metadata dokumen…
 					</Item>
 					<DropdownSeparator />
+					{/* Hanya meminta konfirmasi (DeleteTabDialog). Tab terakhir tidak bisa
+					    dihapus dari sini - sama seperti menu ⋮ tab dan Ctrl+Alt+W. */}
 					<Item
-						icon={<RotateCcw className="h-4 w-4" />}
-						disabled={!activeId}
+						icon={<Trash2 className="h-4 w-4" />}
+						disabled={!activeId || sessions.length < 2}
 						shortcut={keys('doc.closeTab')}
-						onSelect={() => run(close, () => activeId && deleteSession(activeId))}
+						onSelect={() => run(close, () => activeId && setPendingTabDelete(activeId))}
 					>
-						Tutup tab ini
+						Hapus tab ini…
 					</Item>
 				</>
 			)}

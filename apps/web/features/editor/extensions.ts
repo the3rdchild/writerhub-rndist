@@ -61,6 +61,7 @@ import {
 	TableNodeProps,
 	TablePropsCommands,
 	TableRowProps,
+	TableViewClearingWidths,
 } from '@/features/editor/table-props'
 import { TextWeight } from '@/features/editor/text-weight'
 import { TocBlock } from '@/features/editor/toc-block'
@@ -123,7 +124,7 @@ export function buildEditorExtensions({
 		Superscript,
 		Typography,
 		TableKit.configure({ table: false, tableRow: false, tableCell: false, tableHeader: false }),
-		TableNodeProps.configure({ resizable: true }),
+		TableNodeProps.configure({ resizable: true, View: TableViewClearingWidths }),
 		TableRowProps,
 		TableCellProps,
 		TableHeaderProps,

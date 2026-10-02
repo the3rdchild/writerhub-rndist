@@ -177,7 +177,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
 		category: 'Dokumen',
 		owner: 'app',
 	},
-	{ id: 'doc.closeTab', keys: 'Mod-Alt-w', label: 'Tutup tab', category: 'Dokumen', owner: 'app' },
+	{ id: 'doc.closeTab', keys: 'Mod-Alt-w', label: 'Hapus tab', category: 'Dokumen', owner: 'app' },
 
 	{ id: 'tools.proofreader', keys: 'Mod-Shift-1', label: 'Proofreader', category: 'Tools', owner: 'app' },
 	{ id: 'tools.aiDetector', keys: 'Mod-Shift-2', label: 'AI Detector', category: 'Tools', owner: 'app' },

@@ -39,9 +39,11 @@ import {
 	docsRoot,
 	duplicateTab,
 	findTabDoc,
+	holdRootsUntilLoaded,
 	moveTab,
 	readDocs,
 	readTabs,
+	releaseRoots,
 	type TabMeta,
 	tabPreview,
 	tabsRoot,
@@ -110,7 +112,13 @@ interface SessionContextValue {
 const SessionContext = createContext<SessionContextValue | null>(null)
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-	const [doc] = useState(() => new Y.Doc())
+	const [doc] = useState(() => {
+		const fresh = new Y.Doc()
+		/* Pembaca yang berjalan saat render pertama pun tidak boleh membuat
+		 * wadah sebelum simpanan IndexedDB terbaca - lihat `holdRootsUntilLoaded`. */
+		holdRootsUntilLoaded(fresh)
+		return fresh
+	})
 	const [documents, setDocuments] = useState<DocMeta[]>([])
 	const [tabs, setTabs] = useState<Array<TabMeta & { preview: string }>>([])
 	const [loaded, setLoaded] = useState(false)
@@ -133,6 +141,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			 * provider dipastikan tidak akan menempel lagi belakangan.
 			 */
 			const boot = () => {
+				releaseRoots(doc)
 				const migrated = migrateLegacySessions(doc)
 				migrateTabsToDocs(doc)
 				if (readDocs(doc).length === 0) createDocument(doc)

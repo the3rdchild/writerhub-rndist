@@ -1,8 +1,7 @@
 'use client'
 
 import { ChevronLeft, Files, Plus } from 'lucide-react'
-import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { sessionLabel, useSessions } from '@/features/sessions/session-context'
+import { useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { OutlineTree } from './outline-tree'
 import { TabInteractionsProvider, useTabInteractions } from './tab-interactions'
@@ -19,8 +18,7 @@ export function DocumentTabsSidebar() {
 function SidebarBody() {
 	const { documents, activeDocId, newSession } = useSessions()
 	const { update } = useSettings()
-	const { sessions, activeId, outline, pendingDelete, confirmDelete, cancelDelete, scrollToHeading } =
-		useTabInteractions()
+	const { sessions, activeId, outline, scrollToHeading } = useTabInteractions()
 
 	const activeDoc = documents.find((document) => document.id === activeDocId) ?? null
 
@@ -71,21 +69,6 @@ function SidebarBody() {
 					</li>
 				))}
 			</ul>
-
-			<ConfirmDialog
-				open={pendingDelete !== null}
-				danger
-				title="Hapus tab ini?"
-				description={
-					<>
-						Naskah <strong className="text-foreground">{pendingDelete && sessionLabel(pendingDelete)}</strong>{' '}
-						ikut terhapus, termasuk komentar di dalamnya. Tidak ada jalan kembali.
-					</>
-				}
-				confirmLabel="Hapus"
-				onConfirm={confirmDelete}
-				onCancel={cancelDelete}
-			/>
 		</aside>
 	)
 }
