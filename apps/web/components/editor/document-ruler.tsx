@@ -4,19 +4,21 @@ import type { Editor } from '@tiptap/react'
 import { useCallback, useRef, useState } from 'react'
 import { type ColumnDrag, dragColumns, layoutPatch } from '@/features/editor/column-geometry'
 import { type BlockIndent, clampBlockIndent, useBlockIndent } from '@/features/editor/indent'
-import { INCH, MIN_CONTENT_WIDTH, type PageGeometry, type PageMargins } from '@/features/editor/page-geometry'
+import { MIN_CONTENT_WIDTH, type PageGeometry, type PageMargins } from '@/features/editor/page-geometry'
 import { clamp, rulerNudge, useRulerDrag } from '@/features/editor/ruler-drag'
 import {
 	type ColumnsRulerTarget,
 	type TableRulerTarget,
 	useRulerTarget,
 } from '@/features/editor/ruler-targets'
+import { type RulerUnit, rulerTicks } from '@/features/editor/ruler-ticks'
 import {
 	MIN_COLUMN_WIDTH,
 	scaleColumnWidths,
 	setColumnWidths,
 	setTableIndent,
 } from '@/features/editor/table-ops'
+import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
 
 type Handle =
@@ -90,6 +92,7 @@ export function DocumentRuler({
 	className?: string
 }) {
 	const { width, margins, contentWidth } = geometry
+	const { settings } = useSettings()
 	const indent = useBlockIndent(editor)
 	const target = useRulerTarget(editor)
 	const trackRef = useRef<HTMLDivElement>(null)
@@ -263,7 +266,7 @@ export function DocumentRuler({
 					}}
 				/>
 
-				<Ticks width={width} zoom={zoom} />
+				<Ticks width={width} zoom={zoom} unit={settings.measurementUnit} />
 
 				<MarginHandle
 					label="Margin kiri"
@@ -478,34 +481,23 @@ function applyColumnsHandle(
 	editor.commands.setColumnsLayout(target.pos, layoutPatch(next))
 }
 
-function Ticks({ width, zoom }: { width: number; zoom: number }) {
-	const step = zoom < 0.75 ? INCH / 4 : INCH / 8
-	const count = Math.floor(width / step)
-
+/* Satuan mengikuti pengaturan pengguna, sama dengan penggaris kiri (KOL-13). */
+function Ticks({ width, zoom, unit }: { width: number; zoom: number; unit: RulerUnit }) {
 	return (
 		<>
-			{Array.from({ length: count + 1 }, (_, index) => {
-				const x = index * step
-				const isInch = Math.abs(x % INCH) < 0.01
-				const isHalf = Math.abs(x % (INCH / 2)) < 0.01
-
-				if (isInch) {
-					if (x === 0) return null
-					return (
-						<span key={x} className="document-ruler__label" style={{ left: x * zoom }}>
-							{Math.round(x / INCH)}
-						</span>
-					)
-				}
-
-				return (
+			{rulerTicks(width, unit, zoom).map((tick) =>
+				tick.kind === 'label' ? (
+					<span key={tick.at} className="document-ruler__label" style={{ left: tick.at * zoom }}>
+						{tick.value}
+					</span>
+				) : (
 					<span
-						key={x}
-						className={cn('document-ruler__tick', isHalf && 'document-ruler__tick--major')}
-						style={{ left: x * zoom }}
+						key={tick.at}
+						className={cn('document-ruler__tick', tick.kind === 'major' && 'document-ruler__tick--major')}
+						style={{ left: tick.at * zoom }}
 					/>
-				)
-			})}
+				),
+			)}
 		</>
 	)
 }
