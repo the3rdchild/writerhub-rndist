@@ -15,6 +15,7 @@ import {
 import type * as Y from 'yjs'
 import { getTab } from '@/features/documents/api'
 import { useSessions } from '@/features/sessions/session-context'
+import { tabsRoot } from '@/features/sessions/ydoc'
 import { buildSchema } from '@/features/sync/serialize'
 import { BACKUP_LABEL, backupDiscardedCopy, discardedContent } from './backup'
 import {
@@ -23,8 +24,8 @@ import {
 	type CollabNotice,
 	type Collaborator,
 	INACTIVE_PHASES,
-	newNoticeId,
 	phaseOf,
+	randomId,
 	useCollaborators,
 } from './binding'
 import { indexeddbCollabStore } from './local-store'
@@ -75,7 +76,7 @@ export function CollabProvider({
 	const schema = useMemo(() => buildSchema(), [])
 	// Penanda sesi peramban ini di kehadiran: dua tab peramban milik orang yang
 	// sama tampil berbeda warna.
-	const [presenceKey] = useState(newNoticeId)
+	const [presenceKey] = useState(randomId)
 	const entries = useRef(new Map<string, Entry>())
 	const [, setRevision] = useState(0)
 	const bump = useCallback(() => setRevision((value) => value + 1), [])
@@ -84,7 +85,7 @@ export function CollabProvider({
 	onCollabTabRef.current = onCollabTab
 
 	const notify = useCallback((notice: Omit<CollabNotice, 'id'>) => {
-		setNotices((current) => [...current, { ...notice, id: newNoticeId() }])
+		setNotices((current) => [...current, { ...notice, id: randomId() }])
 	}, [])
 	const dismissNotice = useCallback((id: string) => {
 		setNotices((current) => current.filter((notice) => notice.id !== id))
@@ -150,14 +151,20 @@ export function CollabProvider({
 		[doc, schema],
 	)
 
-	const retire = useCallback((entry: Entry) => {
-		if (entry.retireTimer) clearTimeout(entry.retireTimer)
-		if (entry.mirror && entry.mirroredDoc === entry.session.doc) entry.mirror.flush()
-		entry.mirror?.destroy()
-		entry.session.destroy()
-		entries.current.delete(entry.localTabId)
-		onCollabTabRef.current(entry.localTabId, false)
-	}, [])
+	const retire = useCallback(
+		(entry: Entry) => {
+			if (entry.retireTimer) clearTimeout(entry.retireTimer)
+			// Salinan terakhir ke Y.Doc besar - kecuali tabnya sudah dihapus: menulis
+			// fragmennya lagi hanya meninggalkan isi yatim.
+			const tabStillExists = tabsRoot(doc).meta.has(entry.localTabId)
+			if (entry.mirror && entry.mirroredDoc === entry.session.doc && tabStillExists) entry.mirror.flush()
+			entry.mirror?.destroy()
+			entry.session.destroy()
+			entries.current.delete(entry.localTabId)
+			onCollabTabRef.current(entry.localTabId, false)
+		},
+		[doc],
+	)
 
 	const ensureEntry = useCallback(
 		(localTabId: string, serverTabId: string): Entry => {
@@ -204,6 +211,7 @@ export function CollabProvider({
 	useEffect(
 		function followActiveTab() {
 			const activeServerTabId = activeId ? (linkage[activeId]?.serverId ?? null) : null
+			let changed = false
 			for (const entry of [...entries.current.values()]) {
 				if (entry.localTabId === activeId && entry.serverTabId === activeServerTabId) continue
 				const { session } = entry
@@ -213,29 +221,38 @@ export function CollabProvider({
 					session.contentReady && session.phase !== 'synced' && !INACTIVE_PHASES.has(session.phase)
 				if (!linkage[entry.localTabId] || !pending) {
 					retire(entry)
+					changed = true
 					continue
 				}
 				if (!entry.background) {
 					entry.background = true
 					entry.backgroundSince = Date.now()
 					session.setPresent(false)
+					changed = true
 				}
 			}
 			const background = [...entries.current.values()]
 				.filter((entry) => entry.background)
 				.sort((a, b) => a.backgroundSince - b.backgroundSince)
-			for (const entry of background.slice(0, Math.max(0, background.length - MAX_BACKGROUND))) retire(entry)
+			for (const entry of background.slice(0, Math.max(0, background.length - MAX_BACKGROUND))) {
+				retire(entry)
+				changed = true
+			}
 
 			if (activeId && activeServerTabId) {
+				const known = entries.current.get(activeId)
 				const entry = ensureEntry(activeId, activeServerTabId)
+				if (entry !== known) changed = true
 				if (entry.retireTimer) clearTimeout(entry.retireTimer)
 				entry.retireTimer = null
 				if (entry.background) {
 					entry.background = false
 					entry.session.setPresent(true)
+					changed = true
 				}
 			}
-			bump()
+			// `linkage` berganti pada setiap simpanan; render ulang hanya bila ada sesi yang berubah.
+			if (changed) bump()
 		},
 		[activeId, linkage, ensureEntry, retire, bump],
 	)

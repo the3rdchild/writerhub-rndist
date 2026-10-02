@@ -82,6 +82,7 @@ export function useCollaborators(provider: WebsocketProvider | null): Collaborat
 	return people
 }
 
-export function newNoticeId(): string {
+/** Id acak untuk pemberitahuan dan penanda sesi kehadiran. */
+export function randomId(): string {
 	return typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Math.random())
 }

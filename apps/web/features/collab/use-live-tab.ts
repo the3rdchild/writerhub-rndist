@@ -10,8 +10,8 @@ import {
 	type CollabBinding,
 	type CollabNotice,
 	type Collaborator,
-	newNoticeId,
 	phaseOf,
+	randomId,
 	useCollaborators,
 } from './binding'
 import { seedUpdateFromJSON } from './seed'
@@ -71,7 +71,7 @@ export function useLiveTab({
 						setNotices((current) => [
 							...current,
 							{
-								id: newNoticeId(),
+								id: randomId(),
 								message:
 									'This tab was reset by its owner (for example, a version was restored). Your previous copy is kept in this browser. Copy it now if you need it.',
 								copyText: result.kind === 'server' ? undefined : result.text,
