@@ -1596,6 +1596,13 @@ a {
 }
 .resizable-image-figure {
   cursor: default;
+  max-width: 100%;
+}
+/* Tidak lebih lebar dari kolom, tidak lebih tinggi dari area isi halaman, dan
+   rasionya terjaga saat dibatasi (uji editor 2 Okt, OBJ-7/OBJ-14). Variabel
+   tinggi area isi dipasang lembar kertas; pageless tidak membatasi tinggi. */
+.resizable-image-figure[style*='--image-ratio'] {
+  max-width: min(100%, calc(var(--page-content-height, 100000px) * var(--image-ratio)));
 }
 .resizable-image-handle {
   position: absolute;
@@ -1624,10 +1631,13 @@ a {
 .resizable-image-handle:hover {
   background: var(--accent-hover);
 }
+/* Di dalam pojok kanan atas, menjauhi gagang ubah ukuran: dulu × duduk tepat
+   di bawah gagang pojok, dan klik yang meleset 6 px menghapus gambar (OBJ-16). */
 .resizable-image-delete {
   position: absolute;
-  top: -10px;
-  right: -10px;
+  top: 10px;
+  right: 10px;
+  z-index: 4;
   width: 22px;
   height: 22px;
   border-radius: 50%;
