@@ -2,8 +2,14 @@
 
 Keputusan pemesan (3 Okt 2026): dokumen cloud yang dibuka di beberapa peramban atau perangkat saling melihat
 perubahan secara langsung, tanpa saling menimpa, plus kehadiran (kursor dan nama kolaborator). Dokumen ini mencatat
-rancangannya dan alasan setiap keputusan. Status: **tahap 1 selesai** (server, tiket, pustaka klien, uji), **tahap 2
-belum** (pengikatan ke editor, kehadiran di UI, uji dua peramban).
+rancangannya dan alasan setiap keputusan. Status: **tahap 1 selesai** (server, tiket, pustaka klien, uji); **tahap 2
+selesai di kode** (editor terikat ke sesi, kehadiran, cermin, cadangan, halaman berbagi langsung, indikator); uji dua
+peramban menunggu slot server dev (skrip siap: `writer-hub-test/uji-editor-02okt/alat/kolab-0*.ts`).
+
+Keputusan pemesan yang sudah disetujui (3 Okt): tautan `editor` boleh menyunting siapa pun pemegangnya; isi tab
+kolaboratif milik server (PUT naskah diabaikan); pulihkan versi/draf me-reset state, dengan cadangan salinan lokal
+WAJIB dan pemberitahuan; SHL-6 membawa semua tab dokumen ke cloud; "yang terakhir menang" selama transisi; tiket di
+query dengan umur 60 dtk; batas laju tiket tautan; identitas kehadiran dipaksakan server.
 
 ## Masalah yang ditutup
 
@@ -59,8 +65,15 @@ Keputusan terkait:
 - **Viewer dan commenter hanya menerima.** Pembaruan dari sambungan tanpa hak tulis dibuang di server, tidak pernah
   sampai ke room, log, maupun klien lain. Awareness tetap boleh (kehadiran). Commenter belum punya anotasi di Yjs.
 - **Tautan berbagi berperan `editor` memberi hak tulis** kepada siapa pun yang memegang tautannya, seperti "anyone with
-  the link can edit". Hari ini halaman share masih hanya-baca, jadi kemampuan ini baru terpakai bila tahap berikutnya
-  memakainya. **Perlu persetujuan pemesan.**
+  the link can edit" (disetujui pemesan). Halaman `/share/<token>` kini langsung: viewer melihat perubahan seketika
+  tanpa bisa menyunting, tautan `editor` bisa menyunting.
+- **Mengubah atau mencabut tautan berbagi** memutus sambungan yang masuk lewat tautan itu (4401, pesan bus
+  `share-changed`), jadi peran baru atau penolakan berlaku seketika, bukan setelah otorisasi ulang sejam kemudian.
+- **Batas laju tiket tautan** per tautan (`RATE_LIMIT_SHARE_TICKETS_PER_MIN`, bawaan 120/menit): rute itu tanpa sesi,
+  jadi yang dihitung adalah tautannya.
+- **Identitas di kehadiran dipaksakan server.** y-protocols mempercayai klien sepenuhnya; server menimpa `user.name`
+  setiap keadaan awareness dengan nama dari tiket (tamu tautan selalu "Guest") dan membuang entri untuk clientID milik
+  sambungan lain - kecuali pemegang tiket yang sama, yaitu klien yang menyambung ulang. Warna tetap pilihan klien.
 - Kunci tiket `COLLAB_TICKET_SECRET` terpisah dari rahasia lain (bisa dirotasi sendiri). Kosong = kolaborasi mati:
   tiket dijawab 503 dan klien tetap memakai simpanan lama.
 
@@ -191,9 +204,13 @@ bahasa, tata letak tetap tersimpan).
   semaian tunggal termasuk dua instance yang sama-sama meminta, penyemai diam diganti, epoch, fan-out, penjaga turunan,
   reset, pesan rusak). Ujung-ke-ujung dengan proses API sungguhan:
   `COLLAB_IT_DATABASE_URL=postgresql://…/writer_hub_kolab COLLAB_IT_REDIS_DB=1 bun test src/collab/collab.integration.test.ts`.
-- `apps/web`: konverter vs skema sungguhan, semaian, cermin, protokol, rencana simpan cloud, coba ulang; dan
-  `CollabSession` melawan API sungguhan (`features/collab/session.integration.test.ts`, variabel yang sama).
+- `apps/web`: konverter vs skema sungguhan, semaian, cermin, protokol, pengikatan, cadangan, rencana simpan cloud,
+  coba ulang; dan `CollabSession` melawan API sungguhan (`features/collab/session.integration.test.ts`, variabel yang
+  sama) termasuk muat ulang saat luring.
 - Tanpa `COLLAB_IT_DATABASE_URL` uji ujung-ke-ujung dilewati dan itu diumumkan di keluaran.
+- Dua peramban (Edge, profil sementara): `alat/kolab-01-dua-peramban.ts` (konvergen + kursor, viewer tautan, luring →
+  online, muat ulang tanpa duplikasi, pulihkan versi saat pihak lain menyunting) dan `alat/kolab-02-tab-baru-luring.ts`
+  (SHL-6/SHL-7) di `writer-hub-test/uji-editor-02okt`, dengan `UJI_BASE` mengarah ke server dev jalur ini.
 
 ### Angka (3 Okt 2026, mesin pengembang, `API_PROCESSES=2`, satu tab)
 
@@ -212,14 +229,38 @@ yang sama menerima seketika; antar-proses ±100 ms - itulah jeda tulis ke log (`
 karena pembaruan baru diterbitkan ke Redis setelah tercatat. Pada 100 klien sebagian latensi milik klien uji sendiri
 (100 provider di satu event loop).
 
-## Tahap 2 (belum)
+## Tahap 2: editor, kehadiran, cadangan
 
-- Mengikat `Collaboration` di `tiptap-editor.tsx`/`extensions.ts` ke `CollabSession.doc` untuk tab yang tertaut,
-  termasuk mengikat ulang saat event `doc`, dan editor hanya-baca untuk viewer/selama `waiting`.
-- Kehadiran: `@tiptap/extension-collaboration-caret` versi 3.29.x (sama dengan inti Tiptap) dengan
-  `CollabSession.provider`.
-- Cermin ke Y.Doc besar, sumber semaian sesuai aturan di atas, cadangan versi lokal pada event `discard`, PUT hanya
-  metadata untuk tab kolaboratif, pemulihan versi lewat Yjs dari UI.
-- Uji dua peramban (harness Playwright) dan SHL-6/SHL-7 di UI.
-- Di luar cakupan sekarang: judul dokumen, daftar/urutan tab, dan komentar masih lewat PUT ("yang terakhir menang");
-  menghapus tab lokal tidak menghapus tab servernya (perilaku lama).
+- **Pengikatan** (`features/collab/collab-context.tsx`, dipasang di dalam `SyncProvider`): sesi untuk tab cloud
+  aktif. `local` = tab lokal atau kolaborasi tidak tersedia (editor terikat ke Y.Doc besar seperti dulu); `pending` =
+  sesi belum memegang isi (editor menampilkan salinan lokal, hanya-baca); `live` = editor terikat ke Y.Doc sesi.
+  Editor dibuat ulang hanya saat ikatannya berganti (event `doc` → Y.Doc baru → ikatan baru). Hak sunting mengikuti
+  peran sesi; untuk pemilik dianggap `editor` sebelum tiket pertama, supaya salinan lokal bisa disunting luring.
+- **Muat ulang saat luring**: salinan lokal (IndexedDB per tab+epoch) dimuat sebelum tiket diminta, jadi tab cloud
+  langsung `live`. Bila ternyata basi, server menolak (4409) dan salinannya dicadangkan.
+- **Tab yang ditinggalkan** dengan suntingan yang mungkin belum terkirim (luring/menyambung) tetap tersambung di latar
+  tanpa kehadiran, lalu dilepas 2 dtk setelah tersinkron (paling banyak 5). Tab lain hanya tersambung saat dibuka.
+- **Kehadiran**: `@tiptap/extension-collaboration-caret` 3.29.2; kursor dan label nama berwarna (gaya di
+  `globals.css`, bagian kolaborasi; tidak ikut tercetak). Avatar kolaborator di indikator bilah atas.
+- **Cermin**: Y.Doc sesi → fragmen tab di Y.Doc besar, lewat diff, 0,8-4 dtk. Y.Doc yang dibuang tidak disalin lagi.
+- **Semaian**: `initial` → salinan persis tab lokal; `reset` → naskah server. Halaman tautan berbagi menyemai dari
+  naskah di muatan halaman.
+- **Cadangan WAJIB** saat salinan dibuang (`backup.ts`): versi lokal + versi di riwayat tab server berlabel
+  "Unsynced copy kept before reset" (`POST /tabs/:id/versions` kini menerima `content`), lalu pemberitahuan. Bila
+  riwayat server tidak terjangkau (atau tamu tautan), teksnya bisa disalin dari pemberitahuan. Versi bernama dan
+  "sebelum pemulihan" di server kini memotret isi dari log Yjs, bukan `document_tabs.content` yang bisa tertinggal.
+- **PUT naskah berhenti** untuk tab kolaboratif; yang tetap dikirim judul, ikon, bahasa, dan tata letak.
+- **Pengaman lain**: paragraf penutup dan migrasi kolom lama tidak menanggapi perubahan dari kolaborator (dua klien
+  yang melakukannya bersamaan menghasilkan paragraf/struktur ganda); viewer tidak menambah paragraf penutup.
+- **Indikator** (English): `Connecting…`, `Preparing…`, `Syncing…`, `Live`, `Offline`, `· View only`.
+
+### Masih "yang terakhir menang" (lewat PUT), dan batasan
+
+- Judul dokumen, daftar dan urutan tab, komentar, header/footer (perabot halaman), dan tata letak/tipografi tetap
+  lewat PUT per tab/dokumen. Tab yang ditambahkan kolaborator tidak muncul di peramban lain sampai dokumen dibuka
+  ulang dari Library.
+- Pratinjau tab lain di panel tab mengikuti cermin; tab yang tidak sedang dibuka tidak tersambung, jadi pratinjaunya
+  bisa tertinggal dari suntingan kolaborator sampai tab itu dibuka.
+- Menghapus tab lokal tidak menghapus tab servernya (perilaku lama).
+- Pulihkan versi oleh siapa pun membuat SEMUA klien yang membuka tab itu (termasuk yang memulihkan) mencadangkan
+  salinannya dan menerima pemberitahuan.
