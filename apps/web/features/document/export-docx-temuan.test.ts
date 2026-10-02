@@ -4,11 +4,16 @@
  */
 import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
-import type { DocumentTypography } from '@writer-hub/shared'
+import type { DocumentTypography, Watermark } from '@writer-hub/shared'
 import { strFromU8, unzipSync } from 'fflate'
 import { DEFAULT_PAGE_SETUP, type PageSetup, pageGeometry } from '@/features/editor/page-geometry'
 import { buildSchema } from '@/features/sync/serialize'
 import { exportDocx, lineSpacingOf } from './export-docx'
+import { applyWatermarkAlpha, attachSectionBreaks } from './export-docx-post'
+
+const PNG_1PX =
+	'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+const EMU_PER_PX = 9525
 
 async function exported(
 	content: JSONContent[],
@@ -252,6 +257,148 @@ describe('TKS-6: spasi baris persen', () => {
 		const spacing = /<w:spacing [^>]*w:line="(\d+)"/.exec(paragraphWith(xml, 'ganda'))
 		expect(Number(spacing?.[1])).toBe(417)
 		expect(xml).not.toContain('41739')
+	})
+})
+
+describe('OBJ-14: gambar lebih tinggi dari halaman diperkecil proporsional', () => {
+	test('600×2400 di A4 muat setinggi area isi, rasionya tetap', async () => {
+		const { xml } = await exported([{ type: 'image', attrs: { src: PNG_1PX, width: 600, height: 2400 } }])
+		const match = /<wp:extent cx="(\d+)" cy="(\d+)"/.exec(xml)
+		const width = Number(match?.[1]) / EMU_PER_PX
+		const height = Number(match?.[2]) / EMU_PER_PX
+		expect(height).toBeLessThanOrEqual(pageGeometry(DEFAULT_PAGE_SETUP).contentHeight)
+		expect(height / width).toBeCloseTo(4, 1)
+		// Spasi tunggal: kelipatan spasi dokumen tidak memanjangkan baris gambar.
+		expect(paragraphWith(xml, '<w:drawing>')).toMatch(/<w:spacing [^>]*w:line="240"/)
+	})
+})
+
+describe('KOL-12: watermark di header Word', () => {
+	const watermark = (patch: Partial<Watermark>): Watermark => ({
+		kind: 'text',
+		text: 'RAHASIA',
+		anchor: 'center',
+		offsetX: 0,
+		offsetY: 0,
+		scale: 0.6,
+		opacity: 0.15,
+		rotation: -45,
+		...patch,
+	})
+	const headersOf = (files: Record<string, string>) =>
+		Object.entries(files)
+			.filter(([name]) => /^word\/header\d+\.xml$/.test(name))
+			.map(([, xml]) => xml)
+
+	test('watermark teks: WordArt VML di belakang teks, diputar, tembus pandang', async () => {
+		const { files } = await exported([paragraph('isi')], {
+			setup: { ...DEFAULT_PAGE_SETUP, watermark: watermark({}) },
+		})
+		const headers = headersOf(files)
+		expect(headers.length).toBeGreaterThan(0)
+		const xml = headers[0]
+		expect(xml).toContain('id="PowerPlusWaterMarkObject1"')
+		expect(xml).toContain('string="RAHASIA"')
+		expect(xml).toContain('rotation:315')
+		expect(xml).toMatch(/z-index:-\d+/)
+		expect(xml).toContain('<v:fill opacity="0.15"/>')
+		expect(xml).toContain('mso-position-horizontal-relative:margin')
+	})
+
+	test('header perabot tetap ada, dan halaman pertama berbeda juga bertanda air', async () => {
+		const { files } = await exported([paragraph('isi')], {
+			setup: { ...DEFAULT_PAGE_SETUP, watermark: watermark({}) },
+			furniture: {
+				header: { default: { text: 'Kop Jurnal', align: 'right' }, first: { text: '', align: 'left' } },
+			},
+		})
+		const headers = headersOf(files)
+		expect(headers.length).toBeGreaterThanOrEqual(2)
+		expect(headers.every((xml) => xml.includes('v:textpath'))).toBe(true)
+		expect(headers.some((xml) => xml.includes('Kop Jurnal'))).toBe(true)
+	})
+
+	test('setiap section mendapat watermark-nya, termasuk section lanskap', async () => {
+		const { files } = await exported(
+			[
+				paragraph('potret'),
+				{ type: 'sectionBreak', attrs: { pageSetup: { orientation: 'landscape' }, columns: null } },
+				paragraph('lanskap'),
+			],
+			{ setup: { ...DEFAULT_PAGE_SETUP, watermark: watermark({}) } },
+		)
+		const headers = headersOf(files)
+		expect(headers).toHaveLength(2)
+		expect(headers.every((xml) => xml.includes('string="RAHASIA"'))).toBe(true)
+	})
+
+	test('watermark gambar: gambar mengambang di belakang teks dengan opasitasnya', async () => {
+		const { files } = await exported([paragraph('isi')], {
+			setup: {
+				...DEFAULT_PAGE_SETUP,
+				watermark: watermark({
+					kind: 'image',
+					text: undefined,
+					assetId: 'aset',
+					imageDataUrl: PNG_1PX,
+					opacity: 0.3,
+				}),
+			},
+		})
+		const xml = headersOf(files)[0] ?? ''
+		expect(xml).toContain('behindDoc="1"')
+		expect(xml).toContain('<a:alphaModFix amt="30000"/>')
+		expect(Object.keys(files).some((name) => /^word\/_rels\/header\d+\.xml\.rels$/.test(name))).toBe(true)
+	})
+
+	test('watermark kosong tidak menulis apa pun', async () => {
+		const { files } = await exported([paragraph('isi')], {
+			setup: { ...DEFAULT_PAGE_SETUP, watermark: watermark({ text: '   ' }) },
+		})
+		expect(headersOf(files).some((xml) => xml.includes('v:shape'))).toBe(false)
+	})
+})
+
+describe('KOL-17: tanpa paragraf kosong di batas section', () => {
+	const sectionBreak = (attrs: object): JSONContent => ({
+		type: 'sectionBreak',
+		attrs: { pageSetup: null, columns: null, ...attrs },
+	})
+
+	test('sectPr menumpang di paragraf terakhir section (jurnal 1 → 2 → 1 kolom)', async () => {
+		const { xml } = await exported([
+			paragraph('abstrak'),
+			sectionBreak({ columns: { count: 2 }, continuous: true }),
+			paragraph('dua kolom'),
+			sectionBreak({ columns: null, continuous: true }),
+			paragraph('penutup'),
+		])
+		expect(xml).not.toMatch(/<w:p><w:pPr><w:sectPr>[\s\S]*?<\/w:sectPr><\/w:pPr><\/w:p>/)
+		expect(paragraphWith(xml, 'abstrak')).toContain('<w:sectPr>')
+		expect(paragraphWith(xml, 'dua kolom')).toContain('<w:sectPr>')
+		expect(xml.match(/<w:sectPr/g) ?? []).toHaveLength(3)
+	})
+
+	test('section yang berakhir dengan tabel tetap memakai paragraf pemisah', () => {
+		const source =
+			'<w:body><w:tbl><w:tr/></w:tbl><w:p><w:pPr><w:sectPr><w:cols/></w:sectPr></w:pPr></w:p><w:p><w:r><w:t>b</w:t></w:r></w:p></w:body>'
+		expect(attachSectionBreaks(source)).toBe(source)
+	})
+
+	test('paragraf berproperti: sectPr masuk ke ujung w:pPr-nya', () => {
+		const source =
+			'<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>a</w:t></w:r></w:p><w:p><w:pPr><w:sectPr><w:cols/></w:sectPr></w:pPr></w:p>'
+		expect(attachSectionBreaks(source)).toBe(
+			'<w:p><w:pPr><w:jc w:val="center"/><w:sectPr><w:cols/></w:sectPr></w:pPr><w:r><w:t>a</w:t></w:r></w:p>',
+		)
+	})
+
+	test('opasitas hanya ditempel ke gambar watermark', () => {
+		const anchor = (name: string) =>
+			`<wp:anchor><wp:docPr id="1" name="${name}"/><a:blip r:embed="rId1" cstate="none"/></wp:anchor>`
+		const result = applyWatermarkAlpha(anchor('WritingHub Watermark') + anchor('Logo'), 15000)
+		expect(result).toContain('<a:blip r:embed="rId1" cstate="none"><a:alphaModFix amt="15000"/></a:blip>')
+		expect(result.match(/alphaModFix/g) ?? []).toHaveLength(1)
 	})
 })
 

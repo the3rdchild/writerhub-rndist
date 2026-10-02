@@ -22,6 +22,7 @@ import type { TabStop } from '@/features/editor/tab-stops'
 import { DOCX_ALIGNMENT, docxTypographyStyles } from './docx/typography-styles'
 import { createXmlParser } from './docx/xml'
 import { LatexToOmml, ommlBuilder } from './export-docx-math'
+import { finalizeDocx } from './export-docx-post'
 import {
 	CODE_FONT,
 	CODE_SHADING,
@@ -32,6 +33,7 @@ import {
 } from './export-docx-runs'
 import { QUOTE_COLOR, QUOTE_PARAGRAPH_STYLE } from './export-docx-styles'
 import { cellTwips, tableGrid } from './export-docx-tables'
+import { watermarkAlpha, watermarkParagraphFactory } from './export-docx-watermark'
 import { docxPositionedFurniture, docxSectionFurniture, type FurnitureContent } from './export-furniture'
 import { collectImageSources, type ExportImage, imageBox, imageLabel, loadExportImage } from './export-images'
 
@@ -598,6 +600,21 @@ export async function exportDocx(
 	}
 
 	let sectionContentWidth = geometry.contentWidth
+	let sectionContentHeight = geometry.contentHeight
+
+	/*
+	 * Tinggi terbesar gambar: tinggi area isi dikurangi jarak paragraf badan
+	 * naskah. Gambar yang lebih tinggi dari halaman dipotong Word (OBJ-14).
+	 */
+	const imageHeightRoom = () =>
+		Math.max(1, sectionContentHeight - (body ? ((body.spaceBeforePt + body.spaceAfterPt) * 4) / 3 : 0) - 4)
+
+	/*
+	 * Spasi tunggal untuk paragraf gambar: Word mengalikan tinggi baris gambar
+	 * dengan kelipatan spasi dokumen, jadi gambar setinggi halaman di naskah
+	 * berspasi 1,5 tetap meluber.
+	 */
+	const IMAGE_SPACING = { spacing: { line: 240, lineRule: docx.LineRuleType.AUTO } }
 
 	/*
 	 * Dua tabel yang bersentuhan dilebur Word menjadi satu tabel - dua callout
@@ -1000,6 +1017,12 @@ export async function exportDocx(
 		]
 	}
 
+	/** Isi paragraf satu gambar, dibatasi lebar DAN tinggi area isi. */
+	const fittedImage = (width: number, height: number) => {
+		const scale = Math.min(1, sectionContentWidth / width, imageHeightRoom() / height)
+		return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) }
+	}
+
 	const blockOf = (node: PMNode): unknown[] => {
 		switch (node.type.name) {
 			case 'heading': {
@@ -1140,20 +1163,11 @@ export async function exportDocx(
 					]
 				}
 
-				const scale = Math.min(1, sectionContentWidth / width)
 				return [
 					new Paragraph({
 						...objectParagraphProps(true),
-						children: [
-							new ImageRun({
-								data: png,
-								type: 'png',
-								transformation: {
-									width: Math.round(width * scale),
-									height: Math.round(height * scale),
-								},
-							}),
-						],
+						...IMAGE_SPACING,
+						children: [new ImageRun({ data: png, type: 'png', transformation: fittedImage(width, height) })],
 					}),
 				]
 			}
@@ -1178,18 +1192,15 @@ export async function exportDocx(
 				if (diagramSvg) {
 					const image = mermaidImages.get(diagramSvg)
 					if (image) {
-						const scale = Math.min(1, sectionContentWidth / image.width)
 						return [
 							new Paragraph({
 								...objectParagraphProps(true),
+								...IMAGE_SPACING,
 								children: [
 									new ImageRun({
 										data: image.png,
 										type: 'png',
-										transformation: {
-											width: Math.round(image.width * scale),
-											height: Math.round(image.height * scale),
-										},
+										transformation: fittedImage(image.width, image.height),
 									}),
 								],
 							}),
@@ -1244,11 +1255,12 @@ export async function exportDocx(
 				}
 
 				const room = sectionContentWidth - ctx.indent - (shifted ? Math.max(0, offsetX) : 0)
-				const box = imageBox(node.attrs, image, room)
+				const box = imageBox(node.attrs, image, room, imageHeightRoom())
 				const alt = String(node.attrs.alt ?? '').trim()
 				return [
 					new Paragraph({
 						...placement,
+						...IMAGE_SPACING,
 						children: [
 							new ImageRun({
 								data: image.data,
@@ -1408,7 +1420,32 @@ export async function exportDocx(
 	 * melewatkan paragraf kosong sesudahnya (EX-2). */
 	let prevWasPageFit = false
 
+	const contentHeightOf = (span: SectionSpan | undefined) =>
+		span ? pageGeometry(span.setup).contentHeight : geometry.contentHeight
+
 	sectionContentWidth = columnTextWidth(spans[0], geometry)
+	sectionContentHeight = contentHeightOf(spans[0])
+
+	/*
+	 * Gambar watermark dari aset proyek: URL bertanda tangan diterbitkan dan
+	 * berkasnya diambil sebelum dokumen dibangun, seperti gambar naskah.
+	 */
+	const watermark = setup?.watermark
+	const loadWatermarkImage = async (): Promise<ExportImage | null> => {
+		if (watermark?.kind !== 'image') return null
+		if (watermark.imageDataUrl) return loadExportImage(watermark.imageDataUrl)
+		if (!watermark.assetId) return null
+		try {
+			const { mintAssetUrls } = await import('@/features/assets/api')
+			const url = (await mintAssetUrls([watermark.assetId])).find(
+				(entry) => entry.id === watermark.assetId,
+			)?.url
+			return url ? loadExportImage(url) : null
+		} catch {
+			return null
+		}
+	}
+	let watermarkImage: ExportImage | null = null
 
 	// Semua diagram diratakan dan semua gambar diambil sekaligus, sebelum satu
 	// pun blok dibangun.
@@ -1421,6 +1458,9 @@ export async function exportDocx(
 		}),
 		...collectImageSources(root).map(async (src) => {
 			imageFiles.set(src, await loadExportImage(src))
+		}),
+		loadWatermarkImage().then((image) => {
+			watermarkImage = image
 		}),
 	])
 
@@ -1438,6 +1478,7 @@ export async function exportDocx(
 			opensChapter = false
 			lastBreak = null
 			sectionContentWidth = columnTextWidth(spans[spanIndex], geometry)
+			sectionContentHeight = contentHeightOf(spans[spanIndex])
 			prevWasPageFit = false
 			return
 		}
@@ -1535,7 +1576,7 @@ export async function exportDocx(
 
 	type HeaderOf = InstanceType<typeof docx.Header>
 	type HeaderSet = Partial<Record<'default' | 'first' | 'even', HeaderOf>>
-	const assembled: {
+	let assembled: {
 		properties: Record<string, unknown>
 		headers?: HeaderSet
 		footers?: Partial<Record<'default' | 'first' | 'even', InstanceType<typeof docx.Footer>>>
@@ -1569,6 +1610,38 @@ export async function exportDocx(
 		}
 	})
 
+	/*
+	 * Watermark di setiap header yang mungkin tampil (KOL-12). Word mewarisi
+	 * header per jenis (default/first/even) dari section sebelumnya, dan
+	 * halaman pertama section bertitlePg tanpa header "first" kosong sama
+	 * sekali - jadi setiap section menulis header lengkapnya sendiri: isi yang
+	 * akan diwarisinya, ditambah paragraf watermark untuk geometri lembarnya.
+	 */
+	const watermarkParagraph = watermarkParagraphFactory(docx, watermark, watermarkImage)
+	if (watermarkParagraph) {
+		const evenAndOdd = furnitureExtras.evenAndOdd === true
+		let inherited: HeaderSet = {}
+		assembled = assembled.map((section, index) => {
+			inherited = { ...inherited, ...(section.headers ?? {}) }
+			const span = sections[index]?.span
+			const geo = span ? pageGeometry(span.setup) : geometry
+			const variants: ('default' | 'first' | 'even')[] = [
+				'default',
+				...(section.properties.titlePage === true ? (['first'] as const) : []),
+				...(evenAndOdd ? (['even'] as const) : []),
+			]
+			const headers: HeaderSet = {}
+			for (const variant of variants) {
+				// Jenis yang tidak pernah ditulis kosong di Word - tetap kosong, plus watermark.
+				const base = inherited[variant]
+				headers[variant] = new docx.Header({
+					children: [watermarkParagraph(geo), ...((base?.options.children ?? []) as never[])],
+				})
+			}
+			return { ...section, headers }
+		})
+	}
+
 	const document = new Document({
 		title,
 		styles: {
@@ -1587,5 +1660,11 @@ export async function exportDocx(
 		})) as never,
 	})
 
-	return Packer.toBlob(document)
+	const packed = new Uint8Array(await (await Packer.toBlob(document)).arrayBuffer())
+	const finished = finalizeDocx(packed, {
+		watermarkAlpha: watermarkParagraph ? watermarkAlpha(watermark) : null,
+	})
+	return new Blob([finished as BlobPart], {
+		type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+	})
 }

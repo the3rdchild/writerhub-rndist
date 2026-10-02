@@ -206,11 +206,15 @@ async function flattenToPng(bytes: Uint8Array, kind: ImageKind): Promise<ExportI
  *
  * Lalu dibatasi lebar yang tersedia. Layar membatasi lewat `max-width`; di sini
  * tingginya ikut diperkecil supaya rasionya tidak rusak.
+ *
+ * `availableHeight` membatasi tingginya juga, proporsional (OBJ-14): gambar
+ * yang lebih tinggi dari area isi halaman dipotong Word di tepi bawah lembar.
  */
 export function imageBox(
 	attrs: { width?: unknown; height?: unknown },
 	natural: { width: number; height: number },
 	available: number,
+	availableHeight = Number.POSITIVE_INFINITY,
 ): { width: number; height: number } {
 	const setWidth = Number(attrs.width) > 0 ? Number(attrs.width) : null
 	const setHeight = Number(attrs.height) > 0 ? Number(attrs.height) : null
@@ -233,6 +237,11 @@ export function imageBox(
 	if (width > room) {
 		height *= room / width
 		width = room
+	}
+	const roomHeight = Math.max(1, availableHeight)
+	if (height > roomHeight) {
+		width *= roomHeight / height
+		height = roomHeight
 	}
 	return { width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(height)) }
 }
