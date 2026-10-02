@@ -1,6 +1,7 @@
 import analysis from './analysis.route'
 import assets from './assets.route'
 import chat from './chat.route'
+import collab from './collab.route'
 import diagrams from './diagrams.route'
 import documents from './documents.route'
 import drafts from './drafts.route'
@@ -42,4 +43,5 @@ export const v1Routes = [
 	drafts,
 	assets,
 	exports_,
+	collab,
 ]

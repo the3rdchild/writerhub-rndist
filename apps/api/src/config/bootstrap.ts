@@ -1,4 +1,6 @@
 import app from '@/app'
+import { closeCollabBus } from '@/collab/bus'
+import { type CollabSocketData, collabWebSocketHandler, shutdownCollab } from '@/collab/server'
 import { env } from '@/config/env'
 import { isPrimaryApiProcess } from '@/config/processes'
 import { RedisClient } from '@/config/redis'
@@ -18,13 +20,15 @@ export async function bootstrap(): Promise<void> {
 
 	if (isPrimaryApiProcess()) await seedBuiltinTemplatesSafely()
 
-	const server = Bun.serve({
+	const server = Bun.serve<CollabSocketData>({
 		hostname: '0.0.0.0',
 		port: env.PORT,
 		idleTimeout: 0, // SSE stream bisa berjalan lama (mode advanced ~60s)
 		// Beberapa proses berbagi port ini bila API_PROCESSES > 1 (config/processes.ts).
 		reusePort: env.API_PROCESSES > 1,
-		fetch: (request) => app.fetch(request),
+		// `server` diteruskan sebagai env Hono: rute websocket kolaborasi butuh `server.upgrade`.
+		fetch: (request, server) => app.fetch(request, server),
+		websocket: collabWebSocketHandler,
 	})
 
 	console.log('✅ Service status:')
@@ -33,6 +37,10 @@ export async function bootstrap(): Promise<void> {
 	console.log('- Redis: connected')
 
 	registerShutdownHandlers(async () => {
+		// Room kolaborasi dulu: antrean tulisnya harus sampai ke Postgres dan
+		// kliennya menerima 1012 (pindah replika) sebelum soketnya diputus paksa.
+		await shutdownCollab()
+		await closeCollabBus()
 		await server.stop(true)
 		await QueueClient.close()
 		await RedisClient.disconnect()

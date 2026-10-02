@@ -9,10 +9,15 @@
     "./grammar": "./src/grammar.ts",
     "./analysis": "./src/analysis.ts",
     "./job": "./src/job.ts",
-    "./http": "./src/http.ts"
+    "./http": "./src/http.ts",
+    "./collab": "./src/collab.ts",
+    "./collab-json": "./src/collab-json.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "yjs": "^13.6.32"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

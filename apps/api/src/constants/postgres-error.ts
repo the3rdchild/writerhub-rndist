@@ -9,12 +9,22 @@ export const PG_ERROR = {
 
 export type PgErrorCode = (typeof PG_ERROR)[keyof typeof PG_ERROR]
 
-/** Driver postgres melempar objek biasa, bukan subclass Error, jadi dicek manual. */
-export function isPgError(error: unknown, code: PgErrorCode): boolean {
+function hasCode(value: unknown, code: PgErrorCode): boolean {
 	return (
-		typeof error === 'object' &&
-		error !== null &&
-		'code' in error &&
-		(error as { code?: unknown }).code === code
+		typeof value === 'object' &&
+		value !== null &&
+		'code' in value &&
+		(value as { code?: unknown }).code === code
 	)
+}
+
+/**
+ * Driver postgres melempar objek biasa, bukan subclass Error, jadi dicek
+ * manual. Sejak drizzle 0.44 galat itu dibungkus `DrizzleQueryError` dan
+ * aslinya ada di `cause`, jadi keduanya diperiksa - tanpa itu pemeriksaan ini
+ * diam-diam tidak pernah cocok lagi.
+ */
+export function isPgError(error: unknown, code: PgErrorCode): boolean {
+	if (hasCode(error, code)) return true
+	return typeof error === 'object' && error !== null && 'cause' in error && hasCode(error.cause, code)
 }

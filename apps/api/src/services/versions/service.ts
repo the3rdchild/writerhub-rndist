@@ -1,5 +1,6 @@
+import { writeTabContentFromServer } from '@/collab/notify'
 import { AppError } from '@/lib/error'
-import { findTabById, updateTab } from '@/repository/document-tab'
+import { findTabById } from '@/repository/document-tab'
 import { findVersionById, findVersionsByTab, insertVersion } from '@/repository/document-version'
 import BaseService from '@/services/base.service'
 import type { VersionDetail, VersionSummary } from './dto'
@@ -85,7 +86,9 @@ export default class VersionsService extends BaseService {
 			})
 			if (!preRestore) throw AppError.internalServerError('Gagal menyimpan versi pre-restore')
 
-			const updated = await updateTab(tab.id, { content: version.content })
+			// Tab kolaboratif ikut di-reset: klien yang terbuka diputus (4409) lalu
+			// room disemai ulang dari isi yang dipulihkan ini.
+			const { tab: updated } = await writeTabContentFromServer(tab.id, { content: version.content })
 			if (!updated) throw AppError.internalServerError('Gagal memulihkan tab')
 
 			return this.success({

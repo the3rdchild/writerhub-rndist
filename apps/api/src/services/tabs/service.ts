@@ -1,4 +1,6 @@
 import type { TabLayoutOverride } from '@writer-hub/shared'
+import { notifyCollabTabsGone } from '@/collab/notify'
+import { findCollabEpoch } from '@/collab/store'
 import type { NewDocumentTab } from '@/db/schemas'
 import { AppError } from '@/lib/error'
 import LoggerClient from '@/lib/logger'
@@ -109,10 +111,20 @@ export default class TabsService extends BaseService {
 					errors: ['Tidak ada field yang bisa diubah (title/content/emoji/language/layout)'],
 				})
 			}
+			/*
+			 * Tab kolaboratif: isinya diturunkan server dari state Yjs
+			 * (`collab/room.ts`). Naskah dari PUT dibuang - ia hanya salinan satu
+			 * peramban, dan menyimpannya berarti kembali ke "yang terakhir
+			 * menulis menang" yang menghapus suntingan kolaborator (SHL-5).
+			 */
+			const collaborative = values.content !== undefined && (await findCollabEpoch(existing.id)) !== null
+			if (collaborative) delete values.content
+			if (Object.keys(values).length === 0) return this.success({ data: this.toSummary(existing) })
+
 			const tab = await updateTab(existing.id, values)
 			if (!tab) throw AppError.internalServerError('Gagal menyimpan tab')
 
-			await snapshotIntervalTab(tab.id, body.data.content ?? tab.content, this.ownerId())
+			if (!collaborative) await snapshotIntervalTab(tab.id, body.data.content ?? tab.content, this.ownerId())
 			await touchDocument(tab.document_id)
 
 			// Ringkasan, bukan detail: autosave mengirim naskah utuh, dan
@@ -131,6 +143,7 @@ export default class TabsService extends BaseService {
 
 			const deleted = await deleteTab(tab.id)
 			if (!deleted) throw AppError.internalServerError('Gagal menghapus tab')
+			notifyCollabTabsGone([tab.id])
 
 			let documentDeleted = false
 			if (siblingCount === 1) {

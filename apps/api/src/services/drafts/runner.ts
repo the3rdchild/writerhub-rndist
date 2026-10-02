@@ -1,7 +1,7 @@
 import type { DraftOutput, TabLayout } from '@writer-hub/shared'
+import { writeTabContentFromServer } from '@/collab/notify'
 import LoggerClient from '@/lib/logger'
 import { touchDocument, updateDocument } from '@/repository/document'
-import { updateTab } from '@/repository/document-tab'
 import { snapshotIntervalTab } from '@/services/tabs/service'
 import type { SectionColumns } from '@/services/templates/section-columns'
 import { withColumnsAfterTitle } from '@/services/templates/section-columns'
@@ -191,7 +191,10 @@ async function writeDraft(
 		const content = columns && !design ? withColumnsAfterTitle(generated, columns) : generated
 		const title = titleFromHeading ? headingTitle(markdown) : null
 
-		await updateTab(tabId, { content, ...(title ? { title } : {}) })
+		// Lewat jalur yang ikut membuang state Yjs: bila dokumen draf ini sudah
+		// sempat dibuka (room disemai dari kerangka kosong), isi baru ini yang
+		// harus menang, bukan turunan room yang lama.
+		await writeTabContentFromServer(tabId, { content, ...(title ? { title } : {}) })
 		/*
 		 * Lembarnya baru bisa ditentukan sekarang: pada `kind: 'auto'` bentuk
 		 * jawaban belum diketahui saat dokumen dibuat. Dokumen prosa tidak

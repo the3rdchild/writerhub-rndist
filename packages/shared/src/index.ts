@@ -1,6 +1,7 @@
 export * from './analysis'
 export * from './brief'
 export * from './chat'
+export * from './collab'
 export * from './dashes'
 export * from './draft'
 export * from './fonts'

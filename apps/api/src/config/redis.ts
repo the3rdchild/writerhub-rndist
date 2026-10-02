@@ -10,6 +10,7 @@ class RedisClient {
 				host: env.REDIS_HOST,
 				port: Number(env.REDIS_PORT),
 				password: env.REDIS_PASSWORD || undefined,
+				db: env.REDIS_DB,
 				maxRetriesPerRequest: null,
 			})
 

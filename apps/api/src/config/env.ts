@@ -118,6 +118,12 @@ export const env = {
 	REDIS_PORT: num('REDIS_PORT', 6379),
 	REDIS_PASSWORD: str('REDIS_PASSWORD'),
 	/**
+	 * Indeks basis data Redis. Kunci (antrean job, cache, kunci penyemaian
+	 * kolaborasi) terpisah per indeks, tetapi kanal pub/sub TIDAK - kanal
+	 * berlaku lintas indeks, jadi pemisahnya `COLLAB_REDIS_PREFIX`.
+	 */
+	REDIS_DB: num('REDIS_DB', 0),
+	/**
 	 * Koneksi Postgres maksimal per proses API. Selaraskan dengan
 	 * `max_connections` Postgres: totalnya adalah nilai ini × `API_PROCESSES`
 	 * × jumlah replika, ditambah worker.
@@ -186,6 +192,45 @@ export const env = {
 	 * objeknya - atau sebaliknya, mengungguli pembersihannya.
 	 */
 	EXPORT_URL_TTL_S: num('EXPORT_URL_TTL_S', 43_200),
+
+	// ── Kolaborasi real-time (Yjs lewat websocket, docs/collab-realtime.md) ──
+	/**
+	 * Kunci HMAC tiket websocket. Kosong berarti kolaborasi mati: penerbitan
+	 * tiket dijawab 503 dan klien tetap memakai simpanan lama (PUT per tab).
+	 * Harus sama di semua proses dan replika - tiket yang diterbitkan satu
+	 * replika dipakai membuka websocket di replika lain.
+	 */
+	COLLAB_TICKET_SECRET: str('COLLAB_TICKET_SECRET'),
+	/** Umur tiket untuk MEMBUKA sambungan, dalam detik. Sambungan yang sudah terbuka tidak ikut putus. */
+	COLLAB_TICKET_TTL_S: num('COLLAB_TICKET_TTL_S', 60),
+	/**
+	 * Sambungan yang sudah hidup selama ini ditutup dengan kode 4401 supaya
+	 * klien mengambil tiket baru: batas atas lamanya akses yang sudah dicabut
+	 * (token login kedaluwarsa, tab dipindah) masih berlaku. `0` mematikannya.
+	 */
+	COLLAB_REAUTH_S: num('COLLAB_REAUTH_S', 3600),
+	/**
+	 * Awalan kanal pub/sub dan kunci Redis milik kolaborasi. Kanal pub/sub
+	 * berlaku lintas indeks DB, jadi lingkungan yang berbagi satu Redis harus
+	 * memakai awalan berbeda.
+	 */
+	COLLAB_REDIS_PREFIX: str('COLLAB_REDIS_PREFIX', 'writer-hub:collab:'),
+	/**
+	 * Alamat websocket yang dibuka peramban. Kosong berarti diturunkan dari
+	 * `SERVICE_URL` (http→ws) + `/api/v1/collab/ws`. Isi bila websocket
+	 * dirutekan lewat host lain, mis. host web dengan aturan ingress khusus.
+	 */
+	COLLAB_PUBLIC_WS_URL: str('COLLAB_PUBLIC_WS_URL'),
+	/** Room tanpa sambungan dilepas dari memori setelah sekian detik. */
+	COLLAB_ROOM_IDLE_S: num('COLLAB_ROOM_IDLE_S', 30),
+	/**
+	 * Jeda tenang sebelum `document_tabs.content` diturunkan ulang dari state
+	 * Yjs, dan batas atas tundaannya selama suntingan terus mengalir (ms).
+	 */
+	COLLAB_DERIVE_DEBOUNCE_MS: num('COLLAB_DERIVE_DEBOUNCE_MS', 2000),
+	COLLAB_DERIVE_MAX_MS: num('COLLAB_DERIVE_MAX_MS', 10_000),
+	/** Batas satu pesan websocket (MB); harus muat naskah awal terbesar (lihat `CONTENT_MAX_MB`). */
+	COLLAB_MAX_MESSAGE_MB: num('COLLAB_MAX_MESSAGE_MB', 32),
 
 	// ── Antrean worker (nama harus sama persis dengan services/worker) ──────
 	GRAMMAR_QUEUE_NAME: str('GRAMMAR_QUEUE_NAME', 'GRAMMAR_QUEUE'),
@@ -297,7 +342,13 @@ export function validateEnv(): void {
 		console.warn('🔐 PP_API_KEY kosong - klien pp-extended akan selalu ditolak 401.')
 	}
 
+	if (!env.COLLAB_TICKET_SECRET) {
+		console.warn(
+			'🤝 COLLAB_TICKET_SECRET kosong - kolaborasi real-time nonaktif, tab disimpan lewat PUT seperti dulu.',
+		)
+	}
+
 	console.info(
-		`🔑 Environment validated | auth=${env.AUTH_MODE} | storage=${env.STORAGE_DRIVER} | research=${env.RESEARCH_ENABLED ? 'on' : 'off'}`,
+		`🔑 Environment validated | auth=${env.AUTH_MODE} | storage=${env.STORAGE_DRIVER} | research=${env.RESEARCH_ENABLED ? 'on' : 'off'} | collab=${env.COLLAB_TICKET_SECRET ? 'on' : 'off'}`,
 	)
 }

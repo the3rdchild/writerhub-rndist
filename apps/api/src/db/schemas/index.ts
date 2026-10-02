@@ -1,4 +1,5 @@
 export * from './asset'
+export * from './collab'
 export * from './document'
 export * from './document-tab'
 export * from './document-version'

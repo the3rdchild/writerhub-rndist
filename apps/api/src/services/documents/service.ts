@@ -1,3 +1,4 @@
+import { notifyCollabTabsGone } from '@/collab/notify'
 import type { Document, NewDocument, Template } from '@/db/schemas'
 import { AppError } from '@/lib/error'
 import {
@@ -187,8 +188,12 @@ export default class DocumentsService extends BaseService {
 	}
 	async remove(): Promise<Response> {
 		try {
+			// Id tab dikumpulkan dulu: setelah dokumen terhapus (bertingkat ke
+			// tabnya), room kolaborasi yang masih terbuka perlu diberi tahu.
+			const tabIds = (await findTabsByDocument(this.documentId())).map((tab) => tab.id)
 			const document = await deleteDocument(this.documentId(), await this.identityId())
 			if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
+			notifyCollabTabsGone(tabIds)
 			return this.success({ data: { id: document.id } })
 		} catch (error) {
 			return this.failFromError(error)
