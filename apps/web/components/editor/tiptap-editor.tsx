@@ -1,8 +1,12 @@
 'use client'
 
+import { isChangeOrigin } from '@tiptap/extension-collaboration'
+import type { Transaction } from '@tiptap/pm/state'
 import { type Editor, EditorContent, useEditor } from '@tiptap/react'
+import { COLLAB_FRAGMENT } from '@writer-hub/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAnalysisDiffHost } from '@/features/analysis/use-analysis-diff-host'
+import { useCollab } from '@/features/collab/collab-context'
 import { useDocument } from '@/features/document/document-context'
 import { suggestionHighlightKey } from '@/features/document/suggestion-highlight'
 import { buildTextIndex, textRangeToPM } from '@/features/document/tiptap-offsets'
@@ -52,6 +56,18 @@ export function TiptapEditor({
 }) {
 	const { state, dispatch } = useDocument()
 	const { doc, activeId } = useSessions()
+	/*
+	 * Tab cloud disunting bersama (SHL-5): editor terikat ke Y.Doc sesi
+	 * kolaborasi, bukan ke fragmen tab di Y.Doc besar - yang terakhir itu kini
+	 * cermin yang diisi `features/collab`. Selama sesinya belum memegang isi,
+	 * editor menampilkan salinan lokal hanya-baca.
+	 */
+	const { binding } = useCollab()
+	const live = binding.kind === 'live' ? binding : null
+	const editable = binding.kind === 'local' || (live !== null && !live.readOnly)
+	// Editor dibuat ulang hanya saat ikatannya berganti: ekstensi Collaboration
+	// tidak bisa dipindah ke Y.Doc lain setelah editor dibuat.
+	const bindingKey = live ? `live:${live.doc.guid}` : binding.kind
 	const [popover, setPopover] = useState<PopoverPosition | null>(null)
 	const [slashState, setSlashState] = useState<SlashCommandState | null>(null)
 	const slashStateRef = useRef(setSlashState)
@@ -66,6 +82,7 @@ export function TiptapEditor({
 	const editor = useEditor(
 		{
 			immediatelyRender: false, // dokumen dirender di klien; hindari mismatch hidrasi
+			editable,
 			extensions: buildEditorExtensions({
 				geometry,
 				setup,
@@ -73,7 +90,12 @@ export function TiptapEditor({
 				onPageCountChange: (pageCount) => pageCountRef.current?.(pageCount),
 				onSheetsChange: (sheets) => sheetsRef.current?.(sheets),
 				onSectionsChange: (setups) => sectionsRef.current?.(setups),
-				collaboration: activeId ? { document: doc, field: activeId } : null,
+				collaboration: live
+					? { document: live.doc, field: COLLAB_FRAGMENT }
+					: activeId
+						? { document: doc, field: activeId }
+						: null,
+				collaborationCaret: live ? { provider: live.provider, user: live.user } : null,
 				slashCommand: {
 					onOpen: (s) => slashStateRef.current(s),
 					onUpdate: (s) => slashStateRef.current(s),
@@ -91,7 +113,14 @@ export function TiptapEditor({
 				dispatch({ type: 'editText', text: editorPlainText(instance) })
 			},
 		},
-		[activeId],
+		[activeId, bindingKey],
+	)
+	useEffect(
+		function followEditableBinding() {
+			if (!editor || editor.isDestroyed || editor.isEditable === editable) return
+			editor.setEditable(editable)
+		},
+		[editor, editable],
 	)
 	useEffect(
 		function reportEditorToParent() {
@@ -107,10 +136,15 @@ export function TiptapEditor({
 				const tr = migrateLegacyColumns(editor.state)
 				if (tr) editor.view.dispatch(tr)
 			}
+			// Perubahan dari kolaborator tidak dimigrasi di sini: pengirimnya sudah
+			// melakukannya, dan dua klien yang memigrasi bersamaan menggandakannya.
+			const migrateLocalChange = ({ transaction }: { transaction: Transaction }) => {
+				if (!isChangeOrigin(transaction)) migrate()
+			}
 			migrate()
-			editor.on('update', migrate)
+			editor.on('update', migrateLocalChange)
 			return () => {
-				editor.off('update', migrate)
+				editor.off('update', migrateLocalChange)
 			}
 		},
 		[editor],

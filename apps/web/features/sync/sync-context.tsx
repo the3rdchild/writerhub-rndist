@@ -13,6 +13,8 @@ import {
 } from 'react'
 import { IndexeddbPersistence } from 'y-indexeddb'
 import { briefSyncKey, readDocBrief, writeDocBrief } from '@/features/brief/brief-ydoc'
+import { CollabProvider } from '@/features/collab/collab-context'
+import { indexeddbCollabStore } from '@/features/collab/local-store'
 import { COLLAB_MIRROR_ORIGIN } from '@/features/collab/origins'
 import { backupComments, restoreComments } from '@/features/comments/comment-backup'
 import {
@@ -151,6 +153,17 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	 * Coba ulang simpanan yang gagal (SHL-7). Penjadwalnya dibuat sekali; yang
 	 * dijalankannya dibaca lewat ref supaya selalu memakai closure terbaru.
 	 */
+	/*
+	 * Tab yang isinya disunting bersama lewat websocket (SHL-5). Naskahnya
+	 * tidak di-PUT lagi: server menurunkannya sendiri dari state Yjs dan
+	 * membuang naskah dari PUT. Yang tetap dikirim hanya judul, ikon, bahasa,
+	 * dan tata letak.
+	 */
+	const collabTabs = useRef(new Set<string>())
+	const markCollabTab = useCallback((tabId: string, collaborative: boolean) => {
+		if (collaborative) collabTabs.current.add(tabId)
+		else collabTabs.current.delete(tabId)
+	}, [])
 	const retryTabRef = useRef<(tabId: string) => void>(() => {})
 	const retries = useRef<RetryScheduler | null>(null)
 	if (!retries.current) retries.current = new RetryScheduler((tabId) => retryTabRef.current(tabId))
@@ -290,10 +303,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 			}
 			setStatus(tabId, 'saving')
 			try {
+				const collaborative =
+					collabTabs.current.has(tabId) || indexeddbCollabStore.storedEpoch(linkage.serverId) !== null
 				const savedTab = await write(
 					updateTabApi(linkage.serverId, {
 						title: meta.title,
-						content: serializeTab(tabId),
+						...(collaborative ? {} : { content: serializeTab(tabId) }),
 						emoji: meta.emoji,
 						language: meta.language,
 						layout: readTabLayoutOverride(doc, tabId),
@@ -911,7 +926,15 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 		[store.linkage, syncStatus, saveToCloud, openFromLibrary, linkTab, serverDocId, saveDocumentToCloud],
 	)
 
-	return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>
+	return (
+		<SyncContext.Provider value={value}>
+			{/* Kolaborasi butuh tautan tab → tab server dari sini, dan memberi tahu
+			    tab mana yang isinya mengalir lewat websocket (bukan PUT naskah). */}
+			<CollabProvider linkage={store.linkage} onCollabTab={markCollabTab}>
+				{children}
+			</CollabProvider>
+		</SyncContext.Provider>
+	)
 }
 
 export function useSync(): SyncContextValue {

@@ -4,12 +4,13 @@ import {
 	type CollabRole,
 	type CollabStatus,
 	type CollabTicket,
+	collabCanWrite,
 } from '@writer-hub/shared'
 import { ObservableV2 } from 'lib0/observable'
 import { WebsocketProvider } from 'y-websocket'
 import * as Y from 'yjs'
 import type { CollabLocalStore } from './local-store'
-import { presenceUser } from './presence'
+import { type PresenceUser, presenceUser } from './presence'
 import { encodeSeedMessage, installCollabHandlers } from './protocol'
 import { fetchCollabTicket } from './ticket'
 
@@ -77,6 +78,12 @@ export interface CollabSessionOptions {
 	presenceKey?: string
 	/** Tiket yang sisa umurnya kurang dari ini diperbarui sebelum menyambung. */
 	ticketMarginMs?: number
+	/**
+	 * Peran yang dianggap sebelum tiket pertama tiba - menentukan apakah
+	 * salinan lokal boleh disunting saat luring. Pemilik tab (aplikasi utama):
+	 * `editor`; bawaannya `viewer`.
+	 */
+	assumeRole?: CollabRole
 }
 
 type SessionEvents = {
@@ -86,6 +93,8 @@ type SessionEvents = {
 	doc: (doc: Y.Doc, previous: Y.Doc) => void
 	/** Salinan generasi lama akan dibuang; cadangkan isinya sekarang (sinkron) bila perlu. */
 	discard: (doc: Y.Doc, epoch: string) => void
+	/** Apa pun yang terlihat dari luar berubah (fase, peran, `doc`, `contentReady`). */
+	change: () => void
 }
 
 function errorStatus(error: unknown): number {
@@ -104,12 +113,17 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 	phase: CollabPhase = 'idle'
 	/** Epoch state server terakhir yang diketahui. */
 	epoch: string | null = null
-	role: CollabRole = 'viewer'
-	readOnly = true
+	role: CollabRole
+	readOnly: boolean
 	ticket: CollabTicket | null = null
+
+	/** Nama dan warna di kehadiran; ada setelah tiket pertama. */
+	user: PresenceUser | null = null
 
 	/** Generasi isi `doc`; '' selama ia belum menerima apa pun dari server. */
 	private docEpoch = ''
+	private ready = false
+	private present = true
 	private attachedEpoch: string | null = null
 	private detachStore: (() => void) | null = null
 	private seedReason: SeedRequest['reason'] = 'initial'
@@ -120,16 +134,55 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 	constructor(private readonly options: CollabSessionOptions) {
 		super()
 		this.tabId = options.tabId
+		this.role = options.assumeRole ?? 'viewer'
+		this.readOnly = !collabCanWrite(this.role)
+	}
+
+	/**
+	 * `doc` sudah memegang isi satu generasi yang diakui server: dimuat dari
+	 * salinan lokal generasi yang berlaku, atau sudah menerima sync step 2.
+	 * Sebelum itu editor jangan diikat ke `doc` - ia kosong, dan cermin dari
+	 * Y.Doc kosong akan mengosongkan salinan di Y.Doc besar.
+	 */
+	get contentReady(): boolean {
+		return this.ready
+	}
+
+	/**
+	 * Hadir (tab aktif) atau tidak (sesi yang dibiarkan hidup di latar sampai
+	 * suntingannya terkirim): kolaborator tidak melihat kursor dari tab yang
+	 * tidak sedang dibuka.
+	 */
+	setPresent(present: boolean): void {
+		this.present = present
+		const awareness = this.provider?.awareness
+		if (!awareness) return
+		if (!present) awareness.setLocalState(null)
+		else if (this.user) awareness.setLocalState({ ...(awareness.getLocalState() ?? {}), user: this.user })
+	}
+
+	private setReady(ready: boolean): void {
+		if (this.ready === ready) return
+		this.ready = ready
+		this.emit('change', [])
 	}
 
 	async start(): Promise<void> {
 		if (this.phase !== 'idle') return
 		this.setPhase('connecting')
-		const ticket = await this.obtainTicket()
-		if (!ticket) return
-		const epoch = await this.prepareLocalCopy(ticket)
+		// Salinan lokal dimuat DULU, tanpa menunggu jaringan: setelah muat ulang
+		// saat luring, tab kolaboratif tetap bisa disunting.
+		await this.loadLocalCopy()
 		if (this.destroyed) return
-		this.openProvider(ticket, epoch)
+		const ticket = await this.obtainTicket()
+		if (!ticket || this.destroyed) return
+		if (this.attachedEpoch && ticket.epoch !== this.attachedEpoch) {
+			// State di server di-reset selama peramban ini tertutup/luring: salinan
+			// (beserta suntingan luringnya) dicadangkan lewat `discard`, lalu mulai baru.
+			await this.restartWithFreshDoc()
+			return
+		}
+		this.openProvider(ticket, this.docEpoch)
 	}
 
 	override destroy(): void {
@@ -153,6 +206,11 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 			try {
 				const ticket = await fetchTicket(this.tabId, this.options.shareToken)
 				this.ticket = ticket
+				if (this.role !== ticket.role || this.readOnly !== ticket.readOnly) {
+					this.role = ticket.role
+					this.readOnly = ticket.readOnly
+					this.emit('change', [])
+				}
 				return ticket
 			} catch (error) {
 				const status = errorStatus(error)
@@ -186,35 +244,17 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 
 	// ── Salinan lokal ───────────────────────────────────────────────────────
 
-	/** @returns epoch yang diakui saat menyambung ('' = tanpa salinan) */
-	private async prepareLocalCopy(ticket: CollabTicket): Promise<string> {
+	private async loadLocalCopy(): Promise<void> {
 		const store = this.options.localStore
 		const stored = store?.storedEpoch(this.tabId) ?? null
-		if (!store || !stored) return ''
-		if (ticket.epoch === stored) {
-			this.detachStore = await store.attach(this.tabId, stored, this.doc)
-			this.attachedEpoch = stored
-			this.docEpoch = stored
-			return stored
-		}
-		// Generasi lain: state di server di-reset saat kita luring.
-		await this.discardStoredCopy(stored)
-		this.seedReason = 'reset'
-		return ''
-	}
-
-	private async discardStoredCopy(epoch: string): Promise<void> {
-		const store = this.options.localStore
-		if (!store) return
-		const stale = new Y.Doc()
-		try {
-			const detach = await store.attach(this.tabId, epoch, stale)
-			detach()
-			if (hasContent(stale)) this.emit('discard', [stale, epoch])
-			await store.discard(this.tabId, epoch)
-		} finally {
-			stale.destroy()
-		}
+		if (!store || !stored) return
+		this.detachStore = await store.attach(this.tabId, stored, this.doc)
+		this.attachedEpoch = stored
+		this.docEpoch = stored
+		// Salinan generasi yang terakhir diakui server: boleh langsung disunting,
+		// juga luring. Bila ternyata basi, server menolaknya (4409) dan sesi
+		// mencadangkannya sebelum mulai baru.
+		this.setReady(true)
 	}
 
 	private async persistLocally(epoch: string): Promise<void> {
@@ -246,7 +286,9 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 			if (provider === this.provider) this.onStatus(status)
 		})
 		provider.on('sync', (synced: boolean) => {
-			if (provider === this.provider && synced && this.epoch) this.setPhase('synced')
+			if (provider !== this.provider || !synced || !this.epoch) return
+			this.setReady(true)
+			this.setPhase('synced')
 		})
 		provider.on('connection-close', () => {
 			if (provider === this.provider && !TERMINAL.has(this.phase)) this.setPhase('offline')
@@ -254,7 +296,9 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 		provider.on('closed', ({ code }: { code: number; reason: string }) => {
 			if (provider === this.provider) void this.onServerClose(code)
 		})
-		provider.awareness.setLocalStateField('user', presenceUser(ticket.user, this.options.presenceKey))
+		this.user = presenceUser(ticket.user, this.options.presenceKey)
+		if (this.present) provider.awareness.setLocalStateField('user', this.user)
+		else provider.awareness.setLocalState(null)
 		this.provider = provider
 		provider.connect()
 	}
@@ -334,7 +378,9 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 		this.docEpoch = ''
 		this.epoch = null
 		this.seedReason = 'reset'
+		this.ready = false
 		this.emit('doc', [this.doc, previous])
+		this.emit('change', [])
 
 		this.setPhase('connecting')
 		const ticket = await this.obtainTicket()
@@ -345,9 +391,11 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 	// ── Status dari server ──────────────────────────────────────────────────
 
 	private onStatus(status: CollabStatus): void {
+		const roleChanged = this.role !== status.role || this.readOnly !== status.readOnly
 		this.role = status.role
 		this.readOnly = status.readOnly
 		this.emit('status', [status])
+		if (roleChanged) this.emit('change', [])
 		switch (status.state) {
 			case 'waiting':
 				this.setPhase('waiting')
@@ -406,5 +454,6 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 		if (this.phase === phase || this.phase === 'destroyed') return
 		this.phase = phase
 		this.emit('phase', [phase])
+		this.emit('change', [])
 	}
 }

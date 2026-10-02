@@ -1,6 +1,7 @@
 'use client'
 
-import Collaboration from '@tiptap/extension-collaboration'
+import Collaboration, { isChangeOrigin } from '@tiptap/extension-collaboration'
+import { CollaborationCaret } from '@tiptap/extension-collaboration-caret'
 import Highlight from '@tiptap/extension-highlight'
 import Link from '@tiptap/extension-link'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
@@ -79,6 +80,7 @@ export function buildEditorExtensions({
 	onSectionsChange,
 	breakBeforeLevels,
 	collaboration,
+	collaborationCaret,
 	slashCommand,
 	trailingParagraph = true,
 }: {
@@ -90,6 +92,14 @@ export function buildEditorExtensions({
 	/** Tingkat judul yang selalu membuka lembar baru; dari tipografi dokumen. */
 	breakBeforeLevels?: number[]
 	collaboration?: { document: Y.Doc; field: string } | null
+	/**
+	 * Kursor dan nama kolaborator (SHL-5). Hanya untuk editor yang terikat ke
+	 * Y.Doc tab kolaboratif; `provider` adalah provider y-websocket sesinya.
+	 */
+	collaborationCaret?: {
+		provider: { awareness: unknown }
+		user: { name: string; color: string }
+	} | null
 	slashCommand?: Pick<SlashCommandOptions, 'onOpen' | 'onUpdate' | 'onClose'>
 	/**
 	 * Paragraf kosong di ujung dokumen adalah kenyamanan MENYUNTING, bukan isi.
@@ -198,7 +208,7 @@ export function buildEditorExtensions({
 		SearchAndReplace,
 		// Paragraf penutup hanya untuk kanvas menyunting; halaman ekspor
 		// mematikannya (`trailingParagraph: false`).
-		...(trailingParagraph ? [TrailingParagraph] : []),
+		...(trailingParagraph ? [collaborationCaret ? CollaborativeTrailingParagraph : TrailingParagraph] : []),
 		TocBlock.extend({ addNodeView: () => TocBlockNodeView }),
 		HtmlBlock.extend({ addNodeView: () => HtmlBlockNodeView }),
 		Pagination.configure({
@@ -221,5 +231,54 @@ export function buildEditorExtensions({
 		...(collaboration
 			? [Collaboration.configure({ document: collaboration.document, field: collaboration.field })]
 			: []),
+		...(collaborationCaret
+			? [
+					CollaborationCaret.configure({
+						provider: collaborationCaret.provider,
+						user: collaborationCaret.user,
+						render: renderCollaboratorCaret,
+					}),
+				]
+			: []),
 	]
+}
+
+/**
+ * Paragraf penutup versi kolaboratif: hanya menanggapi transaksi lokal. Tanpa
+ * ini setiap klien yang menerima perubahan dari kolaborator ikut menambahkan
+ * paragraf penutupnya sendiri - dan semuanya tergabung menjadi paragraf kosong
+ * berderet di ujung naskah.
+ */
+const CollaborativeTrailingParagraph = TrailingParagraph.extend({
+	addProseMirrorPlugins() {
+		const [plugin] = this.parent?.() ?? []
+		if (!plugin) return []
+		const append = plugin.spec.appendTransaction
+		const editor = this.editor
+		return [
+			new Plugin({
+				key: new PluginKey('trailingParagraphCollab'),
+				appendTransaction(transactions, oldState, newState) {
+					// Viewer juga tidak: tulisannya dibuang server, dan salinannya jadi menyimpang.
+					if (!editor.isEditable) return null
+					if (transactions.some((transaction) => isChangeOrigin(transaction))) return null
+					return append?.call(plugin, transactions, oldState, newState) ?? null
+				},
+			}),
+		]
+	},
+})
+
+/** Kursor kolaborator: garis berwarna dengan label nama (gaya di globals.css, bagian kolaborasi). */
+function renderCollaboratorCaret(user: Record<string, unknown>): HTMLElement {
+	const color = typeof user.color === 'string' ? user.color : '#888888'
+	const caret = document.createElement('span')
+	caret.classList.add('collaboration-carets__caret')
+	caret.style.borderColor = color
+	const label = document.createElement('div')
+	label.classList.add('collaboration-carets__label')
+	label.style.backgroundColor = color
+	label.textContent = typeof user.name === 'string' && user.name ? user.name : 'Guest'
+	caret.append(label)
+	return caret
 }

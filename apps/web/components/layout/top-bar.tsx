@@ -4,6 +4,7 @@ import { Focus, History, PanelLeft, Settings as SettingsIcon, Share2 } from 'luc
 import { useState } from 'react'
 import { EditorToolbar } from '@/components/editor/editor-toolbar'
 import { TocPanel } from '@/components/editor/toc-panel'
+import { CollabIndicator } from '@/features/collab/collab-indicator'
 import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { useSearch } from '@/features/editor/search-context'
@@ -66,6 +67,8 @@ export function TopBar() {
 					</div>
 
 					<div className="flex shrink-0 items-center gap-1 pt-1">
+						{/* Sunting bersama: fase sesi dan kolaborator di tab ini (SHL-5). */}
+						<CollabIndicator />
 						{isRunning && <span className="mr-1 hidden text-xs text-subtle sm:inline">Memeriksa…</span>}
 						<HeaderButton
 							icon={PanelLeft}

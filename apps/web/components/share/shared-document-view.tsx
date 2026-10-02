@@ -1,11 +1,15 @@
 'use client'
 
 import { EditorContent, useEditor } from '@tiptap/react'
+import { COLLAB_FRAGMENT } from '@writer-hub/shared'
 import { ArrowLeft, Lock } from 'lucide-react'
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { DocumentPaper } from '@/components/editor/document-paper'
 import { PageIndicator } from '@/components/editor/page-indicator'
+import { CollabNotices, CollabStatus } from '@/features/collab/collab-status'
+import { useLiveTab } from '@/features/collab/use-live-tab'
 import { buildEditorExtensions } from '@/features/editor/extensions'
 import { DEFAULT_PAGE_SETUP, pageGeometry, type SheetGeometry } from '@/features/editor/page-geometry'
 import { DEFAULT_TYPOGRAPHY } from '@/features/editor/typography'
@@ -17,6 +21,7 @@ import {
 	type SharedTab,
 	type SharePayload,
 } from '@/features/share/types'
+import { buildSchema } from '@/features/sync/serialize'
 import { cn } from '@/lib/utils'
 
 /**
@@ -28,6 +33,8 @@ import { cn } from '@/lib/utils'
  */
 export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 	const [selectedTabId, setSelectedTabId] = useState<string | null>(payload.tabs[0]?.id ?? null)
+	const { token } = useParams<{ token: string }>()
+	const schema = useMemo(() => buildSchema(), [])
 
 	const selectedTab = useMemo<SharedTab | null>(
 		() => payload.tabs.find((tab) => tab.id === selectedTabId) ?? null,
@@ -59,27 +66,49 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 	// lembar yang sedang terlihat, dan lompatannya cukup menggulung.
 	const { page, scrollToPage } = useVisiblePage()
 
-	const editor = useEditor({
-		immediatelyRender: false,
-		extensions: buildEditorExtensions({
-			geometry,
-			setup,
-			onPageCountChange: setPageCount,
-			onSheetsChange: setSheets,
-		}),
-		content: selectedTab?.content,
-		editable: false,
-		editorProps: {
-			attributes: {
-				class: 'document-body focus:outline-none text-[17px] leading-[1.8]',
-				spellcheck: 'false',
+	/*
+	 * Tab yang dibuka disunting/dilihat langsung (SHL-5): perubahan pemilik dan
+	 * kolaborator lain tampil seketika, dan tautan berperan `editor` boleh
+	 * menyunting. Selama sesinya belum memegang isi - atau bila kolaborasi
+	 * tidak tersedia - yang tampil naskah dari muatan halaman, hanya-baca.
+	 */
+	const live = useLiveTab({
+		serverTabId: selectedTab?.id ?? null,
+		shareToken: token,
+		serverContent: selectedTab?.content,
+		schema,
+	})
+	const liveBinding = live.binding.kind === 'live' ? live.binding : null
+	const bindingKey = liveBinding ? `live:${liveBinding.doc.guid}` : 'static'
+
+	const editor = useEditor(
+		{
+			immediatelyRender: false,
+			extensions: buildEditorExtensions({
+				geometry,
+				setup,
+				onPageCountChange: setPageCount,
+				onSheetsChange: setSheets,
+				collaboration: liveBinding ? { document: liveBinding.doc, field: COLLAB_FRAGMENT } : null,
+				collaborationCaret: liveBinding ? { provider: liveBinding.provider, user: liveBinding.user } : null,
+			}),
+			content: liveBinding ? undefined : selectedTab?.content,
+			editable: liveBinding ? !liveBinding.readOnly : false,
+			editorProps: {
+				attributes: {
+					class: 'document-body focus:outline-none text-[17px] leading-[1.8]',
+					spellcheck: 'false',
+				},
 			},
 		},
-	})
+		[bindingKey],
+	)
 
 	useEffect(
 		function showSelectedTab() {
-			if (!editor || !selectedTab) return
+			// Saat terikat ke sesi, isinya milik Y.Doc: setContent di sini akan
+			// menimpa naskah semua orang.
+			if (!editor || !selectedTab || liveBinding) return
 
 			const timer = window.setTimeout(() => {
 				if (editor.isDestroyed) return
@@ -87,7 +116,7 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 			}, 0)
 			return () => window.clearTimeout(timer)
 		},
-		[editor, selectedTab],
+		[editor, selectedTab, liveBinding],
 	)
 
 	// Tab lain boleh punya penimpa tata letaknya sendiri, jadi geometri yang
@@ -120,6 +149,7 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 					</div>
 				</div>
 				<div className="flex items-center gap-3">
+					<CollabStatus phase={live.phase} role={live.role} collaborators={live.collaborators} />
 					{pageCount > 1 && <PageIndicator page={page} pageCount={pageCount} onJump={scrollToPage} />}
 					<Link
 						href="/"
@@ -130,6 +160,7 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 				</div>
 			</header>
 
+			<CollabNotices notices={live.notices} onDismiss={live.dismissNotice} />
 			<div className="flex flex-1 overflow-hidden">
 				{hasMultipleTabs && (
 					<aside className="w-56 shrink-0 overflow-y-auto border-r border-line px-2 py-4">

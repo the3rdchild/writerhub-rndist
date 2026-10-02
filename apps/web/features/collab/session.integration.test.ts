@@ -249,6 +249,68 @@ describe.skipIf(!enabled)('CollabSession melawan API sungguhan', () => {
 		await back.stop('SIGTERM')
 	}, 60_000)
 
+	test('muat ulang saat luring: salinan lokal langsung bisa disunting, lalu terkirim saat API kembali', async () => {
+		const port = freePort()
+		let own = await startApi(port, ENV)
+		const ownTicket = (tabId: string) =>
+			apiJson<CollabTicket>(own.url, '/api/v1/collab/tickets', {
+				method: 'POST',
+				body: JSON.stringify({ tabId }),
+			})
+		const created = await apiJson<{ tabs: Array<{ id: string }> }>(own.url, '/api/v1/documents', {
+			method: 'POST',
+			body: JSON.stringify({ title: 'Muat ulang luring' }),
+		})
+		const tabId = created.tabs[0].id
+		const store = memoryStore()
+		const first = new CollabSession({
+			tabId,
+			fetchTicket: ownTicket,
+			seed: async () => seedUpdateFromJSON({ type: 'doc', content: [] }, schema),
+			localStore: store,
+			assumeRole: 'editor',
+			maxBackoffMs: 200,
+		})
+		sessions.push(first)
+		await first.start()
+		await synced(first)
+		append(first.doc, 'sebelum-muat-ulang')
+		await Bun.sleep(300)
+		first.destroy()
+		await own.stop('SIGKILL')
+
+		// "Muat ulang" tanpa jaringan: sesi baru dengan salinan lokal yang sama.
+		const reloaded = new CollabSession({
+			tabId,
+			fetchTicket: ownTicket,
+			seed: async () => null,
+			localStore: store,
+			assumeRole: 'editor',
+			maxBackoffMs: 200,
+		})
+		sessions.push(reloaded)
+		void reloaded.start()
+		await waitFor(() => reloaded.contentReady, 'salinan lokal termuat tanpa jaringan')
+		expect(textOf(reloaded.doc)).toContain('sebelum-muat-ulang')
+		expect(reloaded.readOnly).toBe(false)
+		append(reloaded.doc, 'ditulis-setelah-muat-ulang-luring')
+
+		own = await startApi(port, ENV)
+		await waitFor(() => reloaded.phase === 'synced', 'tersambung setelah API kembali', 20_000)
+		const reader = new CollabSession({
+			tabId,
+			fetchTicket: ownTicket,
+			seed: async () => null,
+			maxBackoffMs: 200,
+		})
+		sessions.push(reader)
+		await reader.start()
+		await synced(reader)
+		await waitFor(() => textOf(reader.doc).includes('ditulis-setelah-muat-ulang-luring'), 'suntingan tiba')
+		expect(textOf(reader.doc).split('sebelum-muat-ulang').length - 1).toBe(1)
+		await own.stop('SIGTERM')
+	}, 60_000)
+
 	test('sambungan yang diputus untuk otorisasi ulang (4401) mengambil tiket baru dan lanjut', async () => {
 		const reauth = await startApi(freePort(), { ...ENV, COLLAB_REAUTH_S: '1' })
 		const created = await apiJson<{ tabs: Array<{ id: string }> }>(reauth.url, '/api/v1/documents', {
