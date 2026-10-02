@@ -25,6 +25,7 @@ import {
 	Undo2,
 } from 'lucide-react'
 import { TableSizeButton } from '@/components/editor/table-size-picker'
+import { promptForImage } from '@/features/editor/image-insert'
 import { indentSelection, outdentSelection } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
 import { useSettings } from '@/features/settings/settings-context'
@@ -122,7 +123,7 @@ export function EditorToolbar({
 				icon={ImageIcon}
 				label="Gambar"
 				disabled={isOff}
-				onClick={() => editor && insertImage(editor)}
+				onClick={() => editor && promptForImage(editor)}
 			/>
 			<TableSizeButton editor={editor} disabled={isOff} />
 			<IconButton
@@ -224,9 +225,4 @@ export function EditorToolbar({
 			/>
 		</div>
 	)
-}
-
-export function insertImage(editor: Editor) {
-	const url = window.prompt('URL gambar:')
-	if (url) editor.chain().focus().setImage({ src: url }).run()
 }

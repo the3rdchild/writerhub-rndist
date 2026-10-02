@@ -21,6 +21,7 @@ import { type JSX, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CALLOUT_TYPES } from '@/features/editor/callout'
 import { CODE_LANGUAGES } from '@/features/editor/code-block'
+import { promptForImage } from '@/features/editor/image-insert'
 import type { SlashCommandState } from '@/features/editor/slash-command'
 import { rankSlashItems } from '@/features/editor/slash-rank'
 import { cn } from '@/lib/utils'
@@ -152,10 +153,7 @@ function buildItems(editor: Editor): SlashItem[] {
 			label: 'Gambar',
 			icon: <ImageIcon className="h-4 w-4" />,
 			keywords: ['image', 'gambar', 'upload', 'media'],
-			run: (e) => {
-				const url = window.prompt('URL gambar:')
-				if (url) e.chain().focus().setImage({ src: url }).run()
-			},
+			run: (e) => promptForImage(e),
 		},
 		...CALLOUT_TYPES.map((c) => ({
 			id: `callout-${c.id}`,

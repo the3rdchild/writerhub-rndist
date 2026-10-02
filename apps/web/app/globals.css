@@ -1653,7 +1653,7 @@ a {
 }
 .resizable-image-delete:hover { background: #ef4444; }
 
-/* Bilah alat gambar melayang (perataan + hapus). */
+/* Bilah alat gambar melayang (perataan, ukuran, alt, keterangan, ganti, hapus). */
 .image-toolbar {
   transform: translateX(-50%);
 }

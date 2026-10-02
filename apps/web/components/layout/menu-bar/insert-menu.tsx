@@ -23,13 +23,14 @@ import { usePanels } from '@/features/analysis/panel-context'
 import { CALLOUT_TYPES } from '@/features/editor/callout'
 import { insertCodeBlock } from '@/features/editor/code-block'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import { promptForImage } from '@/features/editor/image-insert'
 import { promptForLink } from '@/features/editor/link'
 import { isInsideTable, tableRepeatsHeader } from '@/features/editor/table-header-repeat'
 import { useSessions } from '@/features/sessions/session-context'
 import { useShortcutLabel } from '@/features/shortcuts/use-shortcuts'
 import { Item, Menu, run } from './menu-shell'
 
-export function InsertMenu({ onInsertImage }: { onInsertImage: () => void }) {
+export function InsertMenu() {
 	const { editor } = useEditorInstance()
 	const { activeId } = useSessions()
 	const { setActivePanel } = usePanels()
@@ -39,7 +40,10 @@ export function InsertMenu({ onInsertImage }: { onInsertImage: () => void }) {
 		<Menu label="Sisip" icon={<SquarePlus className="h-4 w-4" />}>
 			{({ close }) => (
 				<>
-					<Item icon={<ImageIcon className="h-4 w-4" />} onSelect={() => run(close, () => onInsertImage())}>
+					<Item
+						icon={<ImageIcon className="h-4 w-4" />}
+						onSelect={() => run(close, () => editor && promptForImage(editor))}
+					>
 						Gambar…
 					</Item>
 					{/* Watermark bukan isi naskah melainkan perabot halaman - ia dibuka

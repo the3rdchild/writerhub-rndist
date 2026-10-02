@@ -33,6 +33,7 @@ import { EditShortcuts, KeepTabInEditor } from '@/features/editor/edit-shortcuts
 import { Footnote, FootnoteRef } from '@/features/editor/footnote'
 import { HeadingLevels } from '@/features/editor/heading-extension'
 import { HtmlBlock } from '@/features/editor/html-block'
+import { ImageFileDrop } from '@/features/editor/image-insert'
 import { BlockIndentExtension } from '@/features/editor/indent'
 import { openHref, promptForLink } from '@/features/editor/link'
 import { Bold, Code, Italic, Strike } from '@/features/editor/marks'
@@ -169,6 +170,7 @@ export function buildEditorExtensions({
 		TaskList,
 		TaskItem.configure({ nested: true }),
 		ResizableImage.configure({ inline: false, allowBase64: true } satisfies ResizableImageOptions),
+		ImageFileDrop,
 		CodeBlock,
 		Callout,
 		Footnote,

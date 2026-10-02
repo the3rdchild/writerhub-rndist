@@ -1,6 +1,7 @@
 'use client'
 
 import { type ReactNode, useEffect } from 'react'
+import { ImageDialog } from '@/components/editor/image-dialog'
 import { LinkDialog } from '@/components/editor/link-dialog'
 import { SearchOverlay } from '@/components/editor/search/search-overlay'
 import { AboutDialog } from '@/components/settings/about-dialog'
@@ -17,6 +18,7 @@ import { FurnitureEditProvider } from '@/features/editor/page-furniture/furnitur
 import { useSessions } from '@/features/sessions/session-context'
 import { useAppShortcuts } from '@/features/shortcuts/use-shortcuts'
 import { DeleteTabDialog } from './document-tabs/delete-tab-dialog'
+import { NoticeToast } from './notice-toast'
 import { TopBar } from './top-bar'
 
 /**
@@ -80,6 +82,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 				<ShareDialog />
 				<DeleteTabDialog />
 				<LinkDialog />
+				<ImageDialog />
+				<NoticeToast />
 			</div>
 		</FurnitureEditProvider>
 	)
