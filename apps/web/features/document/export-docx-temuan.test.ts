@@ -714,3 +714,64 @@ describe('lekukan paragraf dan daftar', () => {
 		expect(left('lanjutan induk')).toBe(360)
 	})
 })
+
+/*
+ * Akar D: pengekspor dulu diam-diam melebur atau membuang node dan mark yang
+ * tidak dikenalnya. Uji ini gagal begitu skema editor mendapat node/mark baru,
+ * supaya penanganan ekspornya diputuskan dengan sengaja.
+ */
+describe('cakupan skema editor (Akar D)', () => {
+	const NODES = [
+		'doc',
+		'text',
+		'paragraph',
+		'heading',
+		'blockquote',
+		'bulletList',
+		'orderedList',
+		'listItem',
+		'taskList',
+		'taskItem',
+		'hardBreak',
+		'tab',
+		'horizontalRule',
+		'table',
+		'tableRow',
+		'tableCell',
+		'tableHeader',
+		'image',
+		'codeBlock',
+		'callout',
+		'footnote',
+		'footnoteRef',
+		'columns',
+		'column',
+		'pageBreak',
+		'columnBreak',
+		'sectionBreak',
+		'mathInline',
+		'mathBlock',
+		'tocBlock',
+		'htmlBlock',
+	]
+	// `comment`: anotasi, bukan isi - utas komentarnya tidak sampai ke pengekspor.
+	const MARKS = [
+		'bold',
+		'italic',
+		'underline',
+		'strike',
+		'code',
+		'link',
+		'textStyle',
+		'highlight',
+		'subscript',
+		'superscript',
+		'comment',
+	]
+
+	test('setiap node dan mark punya penanganan ekspor yang disengaja', () => {
+		const schema = buildSchema()
+		expect(Object.keys(schema.nodes).filter((name) => !NODES.includes(name))).toEqual([])
+		expect(Object.keys(schema.marks).filter((name) => !MARKS.includes(name))).toEqual([])
+	})
+})
