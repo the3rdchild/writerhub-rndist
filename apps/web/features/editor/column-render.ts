@@ -364,6 +364,28 @@ function copyOf(original: HTMLElement, offset: number): HTMLElement {
 }
 
 /**
+ * Kotak-kotak teks yang dicakup `range` - dari simpul teks saja.
+ * `Range.getClientRects()` juga mengembalikan kotak tiap elemen yang tercakup
+ * utuh (huruf tebal, tautan), sehingga sorotannya bertumpuk dua kali lebih
+ * gelap di sana.
+ */
+function textRects(range: Range): DOMRect[] {
+	const root = range.commonAncestorContainer
+	if (root.nodeType === Node.TEXT_NODE) return [...range.getClientRects()]
+	const rects: DOMRect[] = []
+	const part = document.createRange()
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+		if (!range.intersectsNode(node)) continue
+		part.selectNodeContents(node)
+		if (node === range.startContainer) part.setStart(node, range.startOffset)
+		if (node === range.endContainer) part.setEnd(node, range.endOffset)
+		rects.push(...part.getClientRects())
+	}
+	return rects
+}
+
+/**
  * Pemelihara salinan sebuah editor: mengisi salinan baru, menyalin ulang saat
  * DOM blok aslinya berubah, dan menggambar sorotan seleksi di dalamnya.
  */
@@ -414,6 +436,14 @@ export class ColumnClones {
 			if (!original) continue
 			originals.add(original)
 			if (this.filled.get(clone) !== original || this.stale.has(original) || clone.childElementCount === 0) {
+				/* Salinan kepala tabel menampilkan baris pertama tabel, yang di
+				 * dalam blok aslinya bisa tergeser margin/bingkai tabel. */
+				if (clone.classList.contains(CLONE_HEADER_CLASS)) {
+					const row = original.querySelector('tr')
+					const base = original.getBoundingClientRect()
+					const scale = original.offsetWidth > 0 ? base.width / original.offsetWidth || 1 : 1
+					if (row) clone.dataset.offset = String((row.getBoundingClientRect().top - base.top) / scale)
+				}
 				const offset = Number(clone.dataset.offset) || 0
 				clone.replaceChildren(copyOf(original, offset))
 				this.filled.set(clone, original)
@@ -472,7 +502,7 @@ export class ColumnClones {
 			const scale = original.offsetWidth > 0 ? base.width / original.offsetWidth || 1 : 1
 			const offset = Number(clone.dataset.offset) || 0
 			const height = clone.offsetHeight
-			for (const rect of range.getClientRects()) {
+			for (const rect of textRects(range)) {
 				if (rect.width <= 0 || rect.height <= 0) continue
 				const top = (rect.top - base.top) / scale - offset
 				const bottom = (rect.bottom - base.top) / scale - offset

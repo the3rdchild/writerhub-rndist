@@ -107,15 +107,20 @@ function cloneHit(
 	return { pos: positionAtOffset(view, original, item.pos, item.pos + item.nodeSize, local) }
 }
 
-/** Petak terdekat dari titik badan naskah (bx, by) di wilayah yang memuatnya. */
+/**
+ * Petak terdekat dari titik badan naskah (bx, by) di wilayah yang memuatnya.
+ * `below` mengizinkan titik di bawah ujung wilayah sejauh itu (klik di sisa
+ * lembar sesudah wilayah terakhir naskah).
+ */
 function nearestFragment(
 	plans: readonly RegionPlan[],
 	bx: number,
 	by: number,
+	below = 4,
 ): { item: PlannedItem; fragment: PlannedFragment } | null {
 	let best: { item: PlannedItem; fragment: PlannedFragment; score: number } | null = null
 	for (const plan of plans) {
-		if (by < plan.top - 4 || by > plan.top + plan.height + 4) continue
+		if (by < plan.top - 4 || by > plan.top + plan.height + below) continue
 		for (const item of plan.items) {
 			for (const fragment of item.fragments) {
 				if (fragment.height <= 0) continue
@@ -141,21 +146,21 @@ export function columnPositionAt(
 	plans: readonly RegionPlan[],
 	x: number,
 	y: number,
-	clampOnly = false,
+	below = 4,
 ): number | null {
 	const target = document.elementFromPoint(x, y)
 	const clone = target?.closest(`.${CLONE_CLASS}:not(.columns-clone-header)`)
 	if (clone instanceof HTMLElement && view.dom.contains(clone))
 		return cloneHit(view, plans, clone, x, y)?.pos ?? null
-	if (!clampOnly && target && view.dom.contains(target) && target.closest('.columns-item')) {
+	if (target && view.dom.contains(target) && target.closest('.columns-item')) {
 		return view.posAtCoords({ left: x, top: y })?.pos ?? null
 	}
 
 	const { rect, scale } = bodyScale(view)
 	const bx = (x - rect.left) / scale
 	const by = (y - rect.top) / scale
-	const nearest = nearestFragment(plans, bx, by)
-	if (!nearest || clampOnly) return null
+	const nearest = nearestFragment(plans, bx, by, below)
+	if (!nearest) return null
 	const { fragment } = nearest
 	const top = fragment.top + fragment.header
 	const cx = Math.min(Math.max(bx, fragment.left + 1), fragment.left + fragment.width - 1)
@@ -208,6 +213,9 @@ function wordAround(view: EditorView, pos: number): { from: number; to: number }
 	const base = $pos.start()
 	return { from: base + start, to: base + end }
 }
+
+/** Seberapa jauh di bawah wilayah terakhir klik masih diantar ke kolomnya: kurang dari selembar. */
+const LAST_SHEET_REACH = 900
 
 /** Meta transaksi koreksi seret (lihat `appendTransaction`). */
 const DRAG_FIX = 'columnsDragFix'
@@ -263,13 +271,41 @@ export function columnPointerPlugin(plansOf: (state: EditorState) => readonly Re
 			const up = () => {
 				drag = null
 			}
+			/*
+			 * Klik di sisa lembar SESUDAH naskah berakhir (di bawah kolom terakhir)
+			 * mendarat di pembungkus kertas, di luar editor - dulu tidak terjadi
+			 * apa-apa dan ketikan sesudahnya hilang (KOL-15). Bila naskahnya
+			 * berakhir di wilayah berkolom, kursor ditaruh di baris terdekat kolom
+			 * itu; lembar yang sama saja, dan hanya di antara margin kiri-kanan.
+			 */
+			const outside = (event: MouseEvent) => {
+				if (event.button !== 0 || event.defaultPrevented || view.isDestroyed) return
+				const target = event.target instanceof Element ? event.target : null
+				/* Kertasnya dicari saat klik: waktu plugin ini dibuat, editor belum
+				 * dipasang ke kanvas. */
+				const paper = view.dom.closest('.document-page-padding')
+				if (!target || !paper?.contains(target) || view.dom.contains(target)) return
+				const plans = plansOf(view.state)
+				if (plans.length === 0) return
+				const { rect, scale } = bodyScale(view)
+				const bx = (event.clientX - rect.left) / scale
+				const by = (event.clientY - rect.top) / scale
+				if (bx < 0 || bx > view.dom.offsetWidth || by < view.dom.offsetHeight) return
+				const pos = columnPositionAt(view, plans, event.clientX, event.clientY, LAST_SHEET_REACH)
+				if (pos === null) return
+				event.preventDefault()
+				view.focus()
+				view.dispatch(view.state.tr.setSelection(selectionFor(view.state.doc, pos, pos)))
+			}
 			/* Fase gelembung: `defaultPrevented` sudah menandai klik yang ditangani sendiri. */
 			view.dom.addEventListener('mousedown', down)
+			document.addEventListener('mousedown', outside)
 			window.addEventListener('mousemove', move, true)
 			window.addEventListener('mouseup', up, true)
 			return {
 				destroy: () => {
 					view.dom.removeEventListener('mousedown', down)
+					document.removeEventListener('mousedown', outside)
 					window.removeEventListener('mousemove', move, true)
 					window.removeEventListener('mouseup', up, true)
 					editorView = null
