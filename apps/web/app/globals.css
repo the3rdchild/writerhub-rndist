@@ -2038,6 +2038,25 @@ a {
   transition: background-color 0.15s ease;
 }
 
+/* Muat di lebar bloknya (math-fit.ts): --math-scale mengecilkan, --wrap
+   memenggal seperti teks. Yang masih lebih lebar terpotong di bloknya
+   sendiri, tidak menimpa kolom sebelah atau keluar kertas. */
+.document-body .math-block .katex-display {
+  font-size: calc(var(--math-scale, 1) * 1em);
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.15em 0;
+}
+
+.document-body .math-block--wrap {
+  text-align: left;
+  overflow: hidden;
+}
+
+.document-body .math-block--wrap .katex {
+  white-space: normal;
+}
+
 .document-body .math-block:hover {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }

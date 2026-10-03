@@ -2,7 +2,7 @@ import type { JSONContent } from '@tiptap/core'
 import { COLUMN_BREAK_NODE } from '@/features/editor/column-break'
 import { MATH_BLOCK, MATH_INLINE } from '@/features/editor/math'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
-import { DEFAULT_PAGE_SETUP, sameSheetGeometry } from '@/features/editor/page-geometry'
+import { DEFAULT_PAGE_SETUP, sameSheetSize } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
 import { type ParseContext, type ReadParagraph, skip, type ThemeFonts } from './context'
 import { headingLevel, numberedHeadingLevel, promoteNumberedHeadings } from './headings'
@@ -604,7 +604,7 @@ export function readBody(
 	endings.forEach(({ at, props }, index) => {
 		if (index > 0) {
 			const next = mergeSetup(resolved, props.pageSetup)
-			const continuous = props.continuous === true && sameSheetGeometry(next, resolved)
+			const continuous = props.continuous === true && sameSheetSize(next, resolved)
 			blocks.push({
 				type: SECTION_BREAK_NODE,
 				attrs: {

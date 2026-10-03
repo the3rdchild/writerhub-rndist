@@ -16,7 +16,7 @@ import {
 	type PageSetup,
 	pageGeometry,
 	resolvePageSize,
-	sameSheetGeometry,
+	sameSheetSize,
 } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE, type SectionSpan, sectionSpans } from '@/features/editor/section-break'
 import type { TabStop } from '@/features/editor/tab-stops'
@@ -1606,7 +1606,7 @@ export async function exportDocx(
 				(span, index) =>
 					index > 0 &&
 					root.nodeAt(span.pos)?.attrs.continuous === true &&
-					sameSheetGeometry(span.setup, spans[index - 1].setup),
+					sameSheetSize(span.setup, spans[index - 1].setup),
 			)
 			.map((span) => span.pos),
 	)

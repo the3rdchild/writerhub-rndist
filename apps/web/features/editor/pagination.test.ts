@@ -3,7 +3,7 @@ import { Schema } from '@tiptap/pm/model'
 import type { PageNumbering } from '@writer-hub/shared'
 import { assignFootnotes, type FootnoteSizes } from './footnote-layout'
 import { formatSheetNumbers } from './page-furniture/numbering'
-import { DEFAULT_PAGE_SETUP, pageGeometry, sameSheetGeometry } from './page-geometry'
+import { DEFAULT_PAGE_SETUP, pageGeometry, sameSheetGeometry, sameSheetSize } from './page-geometry'
 import {
 	blockSections,
 	breaksKeepPreviousName,
@@ -11,6 +11,7 @@ import {
 	type Measurement,
 	pageBlockRange,
 	pageOfPos,
+	printPageNames,
 	type SectionGeometry,
 	type SheetGeometry,
 	sameSheets,
@@ -1103,5 +1104,117 @@ describe('catatan kaki di wilayah berkolom (TKS-1 × KOL)', () => {
 		expect(trailingNotes?.refs).toEqual([20])
 		// Bukan 11 (awal wilayah): urutan bacanya isi wilayah dulu, baru catatannya.
 		expect(trailingNotes?.afterPos).toBe(79)
+	})
+})
+
+/*
+ * Pembatas menerus dengan margin berbeda (dokumen pengguna 69565-277381-1-RV.docx:
+ * margin atas 540/450/1080 twips, kiri/kanan 893/907 di antara section). Word
+ * membiarkannya menerus: kiri/kanan berlaku sejak pembatas, atas/bawah sejak
+ * halaman berikutnya. Dulu setiap beda margin memaksa halaman baru.
+ */
+describe('pembatas menerus dengan margin berbeda tetap di halaman yang sama', () => {
+	const narrowTop = { ...DEFAULT_PAGE_SETUP, margins: { ...DEFAULT_PAGE_SETUP.margins, top: 48 } }
+
+	test('sameSheetSize: margin boleh berbeda, kertas tidak', () => {
+		expect(sameSheetSize(DEFAULT_PAGE_SETUP, narrowTop)).toBe(true)
+		expect(sameSheetSize(DEFAULT_PAGE_SETUP, { ...DEFAULT_PAGE_SETUP, orientation: 'landscape' })).toBe(false)
+		expect(sameSheetSize(DEFAULT_PAGE_SETUP, { ...DEFAULT_PAGE_SETUP, size: 'letter' })).toBe(false)
+		expect(sameSheetSize(DEFAULT_PAGE_SETUP, { ...DEFAULT_PAGE_SETUP, pageless: true })).toBe(false)
+	})
+
+	test('sectionContinuity menganggapnya menerus', () => {
+		const schema = new Schema({
+			nodes: {
+				doc: { content: 'block+' },
+				paragraph: { group: 'block', content: 'text*' },
+				text: {},
+				sectionBreak: {
+					group: 'block',
+					attrs: { pageSetup: { default: null }, columns: { default: null }, continuous: { default: false } },
+				},
+			},
+		})
+		const para = () => schema.node('paragraph', null, [schema.text('isi')])
+		const doc = schema.node('doc', null, [
+			para(),
+			schema.node('sectionBreak', { pageSetup: { margins: narrowTop.margins }, continuous: true }),
+			para(),
+		])
+		expect(sectionContinuity(doc, sectionSpans(doc))).toEqual([false, true])
+	})
+
+	test('lembar berjalan tetap; margin atas baru berlaku di lembar berikutnya', () => {
+		const next = pageGeometry(narrowTop)
+		const blocks: Measurement[] = [
+			{ pos: 0, top: 0, bottom: 200, isBreak: false, kind: 'block' },
+			{ pos: 1, top: 200, bottom: 200, isBreak: false, isSectionBreak: true, kind: 'block' },
+			{ pos: 2, top: 200, bottom: 900, isBreak: false, kind: 'block' },
+			{ pos: 3, top: 900, bottom: 1200, isBreak: false, kind: 'block' },
+		]
+		const { pageCount, sheets, blockPages } = computeSpacers(blocks, geometry, [
+			{ pos: 1, geometry: next, continuous: true, index: 1 },
+		])
+		expect(pageCount).toBe(2)
+		expect(pageOfPos(blockPages, 2)).toBe(0)
+		expect(sheets[0].margins.top).toBe(geometry.margins.top)
+		expect(sheets[1].margins.top).toBe(48)
+	})
+
+	test('nama halaman cetak berganti di blok pertama lembar berikutnya, bukan di pembatas', () => {
+		const spans = [
+			{ pos: 0, setup: DEFAULT_PAGE_SETUP },
+			{ pos: 5, setup: narrowTop },
+		]
+		const blockPages = [
+			{ pos: 1, page: 0 },
+			{ pos: 3, page: 0 },
+			{ pos: 5, page: 0 },
+			{ pos: 6, page: 0 },
+			{ pos: 8, page: 1 },
+			{ pos: 10, page: 1 },
+		]
+		const { setups, entries } = printPageNames(spans, [false, true], [1, 3, 6, 8, 10], blockPages)
+		expect(setups).toEqual([DEFAULT_PAGE_SETUP, narrowTop])
+		expect(entries).toEqual([
+			{ pos: 0, name: 0 },
+			{ pos: 8, name: 1 },
+		])
+	})
+
+	test('menerus dengan geometri sama tidak butuh nama sendiri; yang membuka halaman tetap di pembatasnya', () => {
+		const spans = [
+			{ pos: 0, setup: DEFAULT_PAGE_SETUP },
+			{ pos: 3, setup: DEFAULT_PAGE_SETUP },
+			{ pos: 6, setup: narrowTop },
+		]
+		const blockPages = [
+			{ pos: 1, page: 0 },
+			{ pos: 4, page: 0 },
+			{ pos: 7, page: 1 },
+		]
+		const { setups, entries } = printPageNames(spans, [false, true, false], [1, 4, 7], blockPages)
+		expect(setups).toHaveLength(2)
+		expect(entries).toEqual([
+			{ pos: 0, name: 0 },
+			{ pos: 6, name: 1 },
+		])
+	})
+
+	test('section menerus yang habis di lembarnya sendiri tidak mengganti nama', () => {
+		const spans = [
+			{ pos: 0, setup: DEFAULT_PAGE_SETUP },
+			{ pos: 3, setup: narrowTop },
+		]
+		const { entries } = printPageNames(
+			spans,
+			[false, true],
+			[1, 4],
+			[
+				{ pos: 1, page: 0 },
+				{ pos: 4, page: 0 },
+			],
+		)
+		expect(entries).toEqual([{ pos: 0, name: 0 }])
 	})
 })

@@ -24,6 +24,7 @@ import {
 	pageGeometry,
 	type SheetGeometry,
 	sameSheetGeometry,
+	sameSheetSize,
 } from './page-geometry'
 import { columnRegions, SECTION_BREAK_NODE, sectionSpans } from './section-break'
 import { attachTablePrintHeaders } from './table-print-header'
@@ -413,7 +414,7 @@ export function sectionContinuity(
 		if (index === 0) return false
 		const node = doc.nodeAt(span.pos)
 		const flowing = node?.attrs.continuous === true || span.pos === 0
-		return flowing && sameSheetGeometry(span.setup, spans[index - 1].setup)
+		return flowing && sameSheetSize(span.setup, spans[index - 1].setup)
 	})
 }
 
@@ -591,6 +592,12 @@ export function computeSpacers(
 				emitNotesBefore(block)
 				forceNext = true
 				pendingGeometry = section?.geometry ?? null
+			} else {
+				/* Menerus dengan margin berbeda (kertasnya sama, `sameSheetSize`):
+				 * lembar berjalan tetap; margin atas/bawah section ini berlaku mulai
+				 * lembar berikutnya, seperti Word. Kiri/kanan sudah digeser per blok
+				 * (`marginAdjustments`). */
+				pendingGeometry = section.geometry
 			}
 			continue
 		}
@@ -886,6 +893,46 @@ export interface BlockSection {
 	pos: number
 	section: number
 	variant?: 'o' | 'f' | 'fo'
+}
+
+/**
+ * Nama halaman cetak per section, dan dari blok mana tiap nama berlaku.
+ *
+ * Section yang memulai halaman baru mendapat nama baru tepat di pembatasnya.
+ * Section menerus yang margin-nya berbeda (kertas sama, `sameSheetSize`) tidak
+ * boleh berganti nama di pembatasnya - pergantian nama memaksa pemenggalan -
+ * jadi namanya baru berlaku di blok pertama yang jatuh di lembar berikutnya,
+ * tempat kanvas juga mulai memakai margin itu. Section menerus yang
+ * geometrinya sama tidak butuh nama sendiri.
+ */
+export function printPageNames(
+	spans: readonly { pos: number; setup: PageSetup }[],
+	continuous: readonly boolean[],
+	blockPositions: readonly number[],
+	blockPages: readonly BlockPage[],
+): { setups: PageSetup[]; entries: { pos: number; name: number }[] } {
+	if (spans.length === 0) return { setups: [], entries: [] }
+	const setups: PageSetup[] = [spans[0].setup]
+	const entries = [{ pos: spans[0].pos, name: 0 }]
+	spans.forEach((span, index) => {
+		if (index === 0) return
+		if (!continuous[index]) {
+			setups.push(span.setup)
+			entries.push({ pos: span.pos, name: setups.length - 1 })
+			return
+		}
+		if (sameSheetGeometry(span.setup, setups[setups.length - 1])) return
+		const limit = spans.find((_later, at) => at > index && !continuous[at])?.pos ?? Number.POSITIVE_INFINITY
+		const breakSheet = pageOfPos(blockPages, span.pos)
+		const boundary = blockPositions.find(
+			(pos) => pos > span.pos && pos < limit && (pageOfPos(blockPages, pos) ?? -1) > (breakSheet ?? -1),
+		)
+		if (boundary === undefined) return
+		setups.push(span.setup)
+		entries.push({ pos: boundary, name: setups.length - 1 })
+	})
+	entries.sort((a, b) => a.pos - b.pos)
+	return { setups, entries }
 }
 
 export function blockSections(
@@ -1372,16 +1419,13 @@ export const Pagination = Extension.create<PaginationOptions>({
 									state.geometry.margins,
 								)
 							: []
-						const printSetups: PageSetup[] = spans.length > 0 ? [spans[0].setup] : []
-						const pageNames: number[] = []
-						spans.forEach((span, index) => {
-							if (index > 0 && !continuous[index]) printSetups.push(span.setup)
-							pageNames.push(printSetups.length - 1)
-						})
-						const named = blockSections(
+						const { setups: printSetups, entries: pageNames } = printPageNames(
+							spans,
+							continuous,
 							targets,
-							spans.map((span, index) => ({ pos: span.pos, name: pageNames[index] })),
+							blockPages,
 						)
+						const named = blockSections(targets, pageNames)
 						const varied = withPrintVariants(
 							named,
 							blockPages,
