@@ -545,4 +545,29 @@ describe.skipIf(!enabled)('CollabSession melawan API sungguhan', () => {
 		await reauth.stop('SIGTERM')
 		expect(ticketRequests).toBeGreaterThan(0)
 	}, 60_000)
+
+	test('tiket yang terus ditolak (4401) dicoba ulang dengan jeda bertambah, lalu berhenti', async () => {
+		const tabId = await createTab('TIKET-DITOLAK')
+		let issued = 0
+		const rejected = new CollabSession({
+			tabId,
+			// Tiket yang tidak pernah lolos (misalnya jam server dan klien berselisih jauh).
+			fetchTicket: async (id) => {
+				issued += 1
+				const real = await fetchTicket(id)
+				return { ...real, ticket: `${real.ticket}rusak` }
+			},
+			seed: async () => null,
+			maxBackoffMs: 50,
+		})
+		sessions.push(rejected)
+		void rejected.start()
+		await Bun.sleep(2_000)
+		// Tanpa jeda: puluhan tiket per detik, tanpa akhir.
+		expect(issued).toBeLessThanOrEqual(6)
+		await waitFor(() => rejected.phase === 'denied', 'sesi berhenti setelah batas penolakan', 30_000)
+		const final = issued
+		await Bun.sleep(1_000)
+		expect(issued).toBe(final)
+	}, 45_000)
 })

@@ -73,6 +73,9 @@ Keputusan terkait:
   akses (`acc`) tautan saat dibuat, dan tiket yang masih sah (±60 dtk) tetapi berasal dari sebelum perubahan
   ditolak 4401 (ambil tiket baru) atau 4403 bila tautannya sudah dicabut. Tanpa itu, sambungan ulang dengan tiket
   terakhir membawa peran lama sampai otorisasi ulang berikutnya.
+- **Batas laju tiket pemilik** per pengguna (`RATE_LIMIT_COLLAB_TICKETS_PER_MIN`, bawaan 120/menit); klien yang
+  tiketnya terus ditolak (4401) mencoba ulang dengan jeda bertambah (0,5 → 15 dtk) dan berhenti sebagai `denied`
+  setelah 6 penolakan beruntun tanpa sinkron di antaranya.
 - **Batas laju tiket tautan** per tautan (`RATE_LIMIT_SHARE_TICKETS_PER_MIN`, bawaan 120/menit): rute itu tanpa sesi,
   jadi yang dihitung adalah tautannya.
 - **Identitas di kehadiran dipaksakan server.** y-protocols mempercayai klien sepenuhnya; server menimpa `user.name`

@@ -52,6 +52,8 @@ export type CollabPhase =
 	| 'destroyed'
 
 const TERMINAL: ReadonlySet<CollabPhase> = new Set(['denied', 'gone', 'unavailable', 'destroyed'])
+/** 4401 berturut-turut (tanpa sinkron di antaranya) sebelum sesi menyerah sebagai `denied`. */
+const MAX_TICKET_REJECTIONS = 6
 
 export interface SeedRequest {
 	/**
@@ -133,6 +135,7 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 	private seedReason: SeedRequest['reason'] = 'initial'
 	private refreshing = false
 	private badMessages = 0
+	private ticketRejections = 0
 	private destroyed = false
 	private readonly network: NetworkEvents | null
 
@@ -311,6 +314,7 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 		})
 		provider.on('sync', (synced: boolean) => {
 			if (provider !== this.provider || !synced || !this.epoch) return
+			this.ticketRejections = 0
 			this.setReady(true)
 			this.setPhase('synced')
 		})
@@ -354,6 +358,25 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 				}
 				await this.reconnectWithFreshTicket()
 				return
+			case COLLAB_CLOSE.ticket: {
+				/*
+				 * Satu 4401 itu biasa (otorisasi ulang berkala, tautan berbagi
+				 * berubah): langsung ambil tiket baru. Tiket yang TERUS ditolak -
+				 * jam berselisih, kunci server berganti - dulu menjadi putaran
+				 * puluhan tiket per detik; kini berjeda makin panjang, lalu berhenti.
+				 */
+				this.ticketRejections += 1
+				if (this.ticketRejections > MAX_TICKET_REJECTIONS) {
+					this.stop('denied')
+					return
+				}
+				if (this.ticketRejections > 1) {
+					await this.pause(Math.min(500 * 2 ** (this.ticketRejections - 2), 15_000))
+					if (this.destroyed) return
+				}
+				await this.reconnectWithFreshTicket()
+				return
+			}
 			default:
 				await this.reconnectWithFreshTicket()
 		}

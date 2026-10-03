@@ -31,4 +31,9 @@ describe('rute kolaborasi', () => {
 		expect(source).toContain("collab.post('/shared/:token/tickets', shareTicketLimit,")
 		expect(source).toMatch(/return token \? `share:/)
 	})
+
+	test('tiket pemilik dibatasi lajunya per pengguna, sesudah authMiddleware', () => {
+		expect(source).toContain("collab.post('/tickets', authMiddleware, ticketLimit,")
+		expect(source).toContain('env.RATE_LIMIT_COLLAB_TICKETS_PER_MIN')
+	})
 })

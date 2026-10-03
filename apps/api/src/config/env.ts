@@ -118,6 +118,12 @@ export const env = {
 	 * menyambung dan sekali per jam sesudahnya, jadi angka ini longgar.
 	 */
 	RATE_LIMIT_SHARE_TICKETS_PER_MIN: num('RATE_LIMIT_SHARE_TICKETS_PER_MIN', 120),
+	/**
+	 * Tiket kolaborasi pemilik, per pengguna per menit. Klien yang tiketnya
+	 * terus ditolak tidak boleh membanjiri penerbitan tiket walau jeda
+	 * sambung-ulangnya rusak; pemakaian wajar beberapa tiket per tab per jam.
+	 */
+	RATE_LIMIT_COLLAB_TICKETS_PER_MIN: num('RATE_LIMIT_COLLAB_TICKETS_PER_MIN', 120),
 
 	// ── Basis data & Redis ──────────────────────────────────────────────────
 	DATABASE_URL: str('DATABASE_URL'),
