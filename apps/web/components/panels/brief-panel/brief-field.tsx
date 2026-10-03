@@ -55,7 +55,7 @@ export function SourceBadge({ entry, onConfirm }: { entry: BriefEntry | undefine
 	return (
 		<span className="flex items-center gap-1">
 			<span
-				title={entry.evidence ? `Diisi AI berdasarkan: “${entry.evidence}”` : 'Filled by AI'}
+				title={entry.evidence ? `Filled by AI based on: “${entry.evidence}”` : 'Filled by AI'}
 				className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[9px] font-medium text-accent"
 			>
 				AI

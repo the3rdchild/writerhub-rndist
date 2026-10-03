@@ -162,7 +162,7 @@ describe('pendingRenderErrors', () => {
 		const errors = pendingRenderErrors(['pdf', 'docx'])
 
 		expect(errors.map((error) => error.output)).toEqual(['pdf', 'docx'])
-		expect(errors[0].reason).toContain('naskahnya selesai')
+		expect(errors[0].reason).toContain('manuscript is finished')
 	})
 
 	test('tidak ada yang diminta, tidak ada yang dilaporkan', () => {

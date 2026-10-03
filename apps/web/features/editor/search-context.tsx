@@ -118,6 +118,6 @@ export function SearchProvider({ children }: { children: ReactNode }) {
 
 export function useSearch(): SearchContextValue {
 	const context = useContext(SearchContext)
-	if (!context) throw new Error('useSearch harus dipakai di dalam <SearchProvider>')
+	if (!context) throw new Error('useSearch must be used inside <SearchProvider>')
 	return context
 }

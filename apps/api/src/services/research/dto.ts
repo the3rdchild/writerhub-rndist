@@ -10,8 +10,8 @@ export const researchSearchSchema = z.object({
 	query: z.string().min(2).max(400),
 	topic: z.enum(['general', 'news']).optional(),
 	language: z.string().max(10).optional(),
-	startDate: z.string().regex(ISO_DATE, 'Tanggal harus YYYY-MM-DD').optional(),
-	endDate: z.string().regex(ISO_DATE, 'Tanggal harus YYYY-MM-DD').optional(),
+	startDate: z.string().regex(ISO_DATE, 'The date must be YYYY-MM-DD').optional(),
+	endDate: z.string().regex(ISO_DATE, 'The date must be YYYY-MM-DD').optional(),
 	maxResults: z.coerce.number().int().min(1).max(20).optional(),
 	tabId: z.uuid().optional(),
 })

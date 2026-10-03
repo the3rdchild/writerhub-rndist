@@ -50,7 +50,10 @@ export default class PoolingService extends BaseService {
 			// melewatinya kalau job tidak tertaut tab (atau tabnya keburu dihapus) -
 			// lihat save_metadata_version di services/worker/core/db/repository.py.
 			// Balas status apa adanya; 404 di sini berbohong soal jobId tidak dikenal.
-			return { ...base, error: 'Hasil job tidak tersimpan karena job tidak tertaut ke tab dokumen' }
+			return {
+				...base,
+				error: 'The job result was not stored because the job is not linked to a document tab',
+			}
 		}
 		if (params?.feature) {
 			return {

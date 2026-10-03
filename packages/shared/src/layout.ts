@@ -38,7 +38,7 @@ export const PAGE_SIZES = {
 	a5: { label: 'A5 (148 × 210 mm)', width: 559, height: 794 },
 	b4: { label: 'B4 (250 × 353 mm)', width: 945, height: 1334 },
 	b5: { label: 'B5 (176 × 250 mm)', width: 665, height: 945 },
-	custom: { label: 'Ukuran khusus', width: 0, height: 0 },
+	custom: { label: 'Custom size', width: 0, height: 0 },
 } as const
 
 export type PageSizeId = keyof typeof PAGE_SIZES

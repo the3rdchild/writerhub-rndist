@@ -8,7 +8,7 @@ import { type FontSize, type Theme, useSettings } from '@/features/settings/sett
 import { cn } from '@/lib/utils'
 
 const TABS = [
-	{ key: 'profile', label: 'Profil', icon: User },
+	{ key: 'profile', label: 'Profile', icon: User },
 	{ key: 'appearance', label: 'Appearance', icon: Palette },
 	{ key: 'editor', label: 'Editor', icon: Type },
 	{ key: 'memory', label: 'AI Memory', icon: Brain },
@@ -125,7 +125,7 @@ export function SettingsDialog() {
 										type="email"
 										value={settings.profile.email}
 										onChange={(event) => updateProfile({ email: event.target.value })}
-										placeholder="anda@example.com"
+										placeholder="you@example.com"
 										className="w-full rounded-lg border border-line-strong bg-surface-inset py-2 pl-9 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-faint focus:border-accent/50"
 									/>
 								</div>

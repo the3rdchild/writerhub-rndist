@@ -220,7 +220,7 @@ const BY_ID = new Map(SHORTCUTS.map((shortcut) => [shortcut.id, shortcut]))
 
 export function shortcut(id: ShortcutId): Shortcut {
 	const found = BY_ID.get(id)
-	if (!found) throw new Error(`Pintasan tidak terdaftar: ${id}`)
+	if (!found) throw new Error(`Shortcut not registered: ${id}`)
 	return found
 }
 

@@ -40,7 +40,7 @@ export default class AssetsService extends BaseService {
 		try {
 			const form = await this.context.req.parseBody()
 			const file = form.file
-			if (!(file instanceof File)) throw AppError.badRequest('Berkas tidak ada')
+			if (!(file instanceof File)) throw AppError.badRequest('No file was sent')
 
 			const body = uploadAssetBodySchema.safeParse({
 				projectId: form.projectId,
@@ -54,14 +54,14 @@ export default class AssetsService extends BaseService {
 
 			const identityId = await this.identityId()
 			if (!(await canAccessProject(identityId, body.data.projectId))) {
-				throw AppError.forbidden('Proyek ini bukan milik Anda')
+				throw AppError.forbidden("This project isn't yours")
 			}
 
 			const mime = baseMimeType(file.type)
-			if (!isAllowedImageMime(mime)) throw AppError.badRequest(`Jenis berkas ${mime} tidak didukung`)
+			if (!isAllowedImageMime(mime)) throw AppError.badRequest(`File type ${mime} is not supported`)
 
 			const limit = env.ASSET_MAX_MB * 1024 * 1024
-			if (file.size > limit) throw AppError.badRequest(`Berkas melebihi ${env.ASSET_MAX_MB} MB`)
+			if (file.size > limit) throw AppError.badRequest(`The file exceeds ${env.ASSET_MAX_MB} MB`)
 
 			const { bytes, sanitized } = await this.readUpload(file, mime)
 			const checksum = checksumOf(bytes)
@@ -82,7 +82,7 @@ export default class AssetsService extends BaseService {
 			 */
 			if ((await countAssetsInProject(body.data.projectId)) >= env.ASSET_MAX_PER_PROJECT) {
 				throw AppError.cantProcess(
-					`Proyek ini sudah memuat ${env.ASSET_MAX_PER_PROJECT} aset. Hapus yang tidak terpakai dulu.`,
+					`This project already holds ${env.ASSET_MAX_PER_PROJECT} assets. Delete unused ones first.`,
 				)
 			}
 
@@ -102,7 +102,7 @@ export default class AssetsService extends BaseService {
 				checksum,
 				created_by: identityId,
 			})
-			if (!asset) throw AppError.internalServerError('Gagal menyimpan aset')
+			if (!asset) throw AppError.internalServerError("Couldn't save the asset")
 
 			const response: UploadAssetResponse = this.toSummary(asset)
 			if (sanitized?.length) response.sanitized = sanitized
@@ -116,10 +116,10 @@ export default class AssetsService extends BaseService {
 	async list(): Promise<Response> {
 		try {
 			const projectId = this.context.req.query('projectId')
-			if (!projectId) throw AppError.badRequest('projectId tidak ada')
+			if (!projectId) throw AppError.badRequest('projectId is missing')
 
 			if (!(await canAccessProject(await this.identityId(), projectId))) {
-				throw AppError.forbidden('Proyek ini bukan milik Anda')
+				throw AppError.forbidden("This project isn't yours")
 			}
 
 			const rows = await findAssetsByProject(projectId)
@@ -195,9 +195,9 @@ export default class AssetsService extends BaseService {
 
 	private async inlineFor(shareToken: string | undefined): Promise<Response> {
 		try {
-			const id = this.uuidParam('id', 'ID aset')
+			const id = this.uuidParam('id', 'Asset ID')
 			const [asset] = await this.authorizeAssets([id], shareToken)
-			if (!asset) throw AppError.notFound('Aset tidak ditemukan')
+			if (!asset) throw AppError.notFound('Asset not found')
 
 			return this.serveBytes(asset)
 		} catch (error) {
@@ -216,13 +216,13 @@ export default class AssetsService extends BaseService {
 	 */
 	async raw(): Promise<Response> {
 		try {
-			const id = this.uuidParam('id', 'ID aset')
+			const id = this.uuidParam('id', 'Asset ID')
 			const exp = Number(this.context.req.query('exp'))
 			const sig = this.context.req.query('sig') ?? ''
 			verifyAsset(id, exp, sig)
 
 			const asset = await findAssetById(id)
-			if (!asset) throw AppError.notFound('Aset tidak ditemukan')
+			if (!asset) throw AppError.notFound('Asset not found')
 
 			return this.serveBytes(asset)
 		} catch (error) {
@@ -232,12 +232,12 @@ export default class AssetsService extends BaseService {
 
 	async remove(): Promise<Response> {
 		try {
-			const id = this.uuidParam('id', 'ID aset')
+			const id = this.uuidParam('id', 'Asset ID')
 			const asset = await findAssetById(id)
-			if (!asset) throw AppError.notFound('Aset tidak ditemukan')
+			if (!asset) throw AppError.notFound('Asset not found')
 
 			if (!(await canAccessProject(await this.identityId(), asset.project_id))) {
-				throw AppError.forbidden('Aset ini bukan milik Anda')
+				throw AppError.forbidden("This asset isn't yours")
 			}
 
 			await deleteAsset(id)
@@ -280,7 +280,7 @@ export default class AssetsService extends BaseService {
 
 			const identityId = await this.identityId()
 			const document = await findDocumentById(body.data.documentId, identityId)
-			if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
+			if (!document) throw AppError.notFound('Document not found')
 
 			/*
 			 * Hanya aset dari proyek dokumen itu yang boleh ditautkan. Tanpa saringan
@@ -334,12 +334,12 @@ export default class AssetsService extends BaseService {
 			.where(eq(shares.token, token))
 			.limit(1)
 
-		if (!row?.documentId) throw AppError.notFound('Share link tidak ditemukan')
+		if (!row?.documentId) throw AppError.notFound('Share link not found')
 		// Aturan yang sama persis dengan ShareService.getByToken: tautan terbatas
 		// tetap menuntut sesi. Kalau keduanya menyimpang, aset jadi celah yang
 		// melewati pembatasan dokumennya sendiri.
 		if (row.access === 'restricted' && !this.context.get('userId')) {
-			throw AppError.forbidden('Dokumen ini dibatasi, silakan masuk terlebih dahulu')
+			throw AppError.forbidden('This document is restricted - please sign in first')
 		}
 		return row.documentId
 	}
@@ -349,7 +349,7 @@ export default class AssetsService extends BaseService {
 		if (mime !== SVG_MIME) return { bytes: raw }
 
 		const cleaned = sanitizeSvg(new TextDecoder().decode(raw))
-		if (!cleaned) throw AppError.badRequest('Berkas ini bukan SVG yang sah')
+		if (!cleaned) throw AppError.badRequest("This file isn't a valid SVG")
 		return { bytes: new TextEncoder().encode(cleaned.svg), sanitized: cleaned.removed }
 	}
 

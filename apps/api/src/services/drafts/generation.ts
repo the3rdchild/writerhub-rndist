@@ -160,7 +160,7 @@ function deltaContent(event: string): string {
 
 function requireMarkdown(markdown: string): string {
 	const trimmed = markdown.trim()
-	if (!trimmed) throw new DraftFailure('empty_response', 'Provider AI mengembalikan naskah kosong.')
+	if (!trimmed) throw new DraftFailure('empty_response', 'The AI provider returned an empty manuscript.')
 	return trimmed
 }
 

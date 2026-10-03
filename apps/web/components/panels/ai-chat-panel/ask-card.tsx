@@ -320,7 +320,7 @@ function BriefRequestCard({ call }: { call: ToolCall }) {
 	const visible = panel.open && !panel.minimized
 
 	return (
-		<CardShell title="AI meminta metadata">
+		<CardShell title="The AI is asking for metadata">
 			{message && <p className="text-sm leading-snug text-foreground">{message}</p>}
 			<ul className="flex flex-col gap-0.5">
 				{keys.map((key) => (

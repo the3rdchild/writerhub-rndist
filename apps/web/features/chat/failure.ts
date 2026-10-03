@@ -22,7 +22,7 @@ export class ChatTurnError extends Error {
 /** Apa yang bisa dilakukan penulis - ditampilkan di bawah kalimat galatnya. */
 const HINT: Partial<Record<ProviderErrorCode, string>> = {
 	timeout: 'Research and finished steps are kept.',
-	provider_unreachable: 'Periksa koneksi, lalu lanjutkan.',
+	provider_unreachable: 'Check your connection, then continue.',
 	quota_exceeded: 'Switch models in the model picker, or wait for the quota to renew.',
 	provider_rejected: 'Check the API key and the selected model.',
 }

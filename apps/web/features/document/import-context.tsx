@@ -313,6 +313,6 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 
 export function useDocumentImport(): ImportContextValue {
 	const context = useContext(ImportContext)
-	if (!context) throw new Error('useDocumentImport harus dipakai di dalam <DocumentImportProvider>')
+	if (!context) throw new Error('useDocumentImport must be used inside <DocumentImportProvider>')
 	return context
 }

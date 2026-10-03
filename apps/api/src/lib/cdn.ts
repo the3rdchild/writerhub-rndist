@@ -84,7 +84,7 @@ export async function getPresignedUrl(
 export async function getObjectBytes(key: string): Promise<Uint8Array> {
 	const result = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }))
 	const body = result.Body
-	if (!body) throw new Error(`Objek ${key} kosong`)
+	if (!body) throw new Error(`Object ${key} is empty`)
 	return new Uint8Array(await body.transformToByteArray())
 }
 

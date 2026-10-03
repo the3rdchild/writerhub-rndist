@@ -334,7 +334,7 @@ export function TableOptionsPanel({ editor, onClose }: { editor: Editor; onClose
 									type="number"
 									min={1}
 									defaultValue={snap.borderWidth ?? ''}
-									aria-label="Ketebalan bingkai (px)"
+									aria-label="Border width (px)"
 									placeholder="px"
 									onKeyDown={(e) => {
 										if (e.key === 'Enter') (e.target as HTMLInputElement).blur()

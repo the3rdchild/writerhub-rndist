@@ -16,7 +16,7 @@ const FIELD_CLASS =
 
 const OPTIONS: ReadonlyArray<{ key: keyof SearchModifiers; label: string }> = [
 	{ key: 'caseSensitive', label: 'Match case' },
-	{ key: 'regex', label: 'Gunakan ekspresi reguler' },
+	{ key: 'regex', label: 'Use regular expressions' },
 	{ key: 'wholeWord', label: 'Whole words only' },
 	{ key: 'ignoreDiacritics', label: 'Ignore diacritics (ä = a)' },
 ]
@@ -170,7 +170,7 @@ export function SearchPanelBody() {
 					<span className="ml-auto flex items-center gap-0.5">
 						<button
 							type="button"
-							title="Sebelumnya (Shift+Enter)"
+							title="Previous (Shift+Enter)"
 							aria-label="Previous result"
 							disabled={total === 0}
 							onClick={goPrevious}
@@ -208,7 +208,7 @@ export function SearchPanelBody() {
 				{/* Cakupannya selalu tab yang sedang dibuka - tab lain punya naskahnya
 				    sendiri dan tidak ikut tersentuh, jadi judulnya disebut apa adanya. */}
 				<p className="truncate text-[11px] text-subtle" title={scopeLabel}>
-					Tab ini: {scopeLabel}
+					This tab: {scopeLabel}
 				</p>
 			</div>
 

@@ -30,7 +30,7 @@ export function compileTemplateContent(definition: BuiltinTemplateDefinition): P
 	const result = withColumnsBefore(doc, definition.columnsBeforeHeading, columns)
 	if (!result) {
 		throw new Error(
-			`Template "${definition.slug}": heading "${definition.columnsBeforeHeading}" tidak ada di kerangkanya`,
+			`Template "${definition.slug}": heading "${definition.columnsBeforeHeading}" is not in its outline`,
 		)
 	}
 	return result

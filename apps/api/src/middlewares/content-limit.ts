@@ -17,9 +17,9 @@ export const contentBodyLimit = bodyLimit({
 	onError: (c) =>
 		c.json(
 			{
-				message: 'Naskah terlalu besar',
+				message: 'Manuscript too large',
 				errors: [
-					`Naskah melebihi batas ${env.CONTENT_MAX_MB} MB. Perkecil atau hapus sebagian gambar agar bisa tersimpan.`,
+					`The manuscript exceeds the ${env.CONTENT_MAX_MB} MB limit. Shrink or remove some images so it can be saved.`,
 				],
 			},
 			413,

@@ -59,13 +59,13 @@ export function EditorToolbar({
 		<div className="flex flex-wrap items-center gap-0.5 rounded-full border border-line bg-surface px-3 py-1.5">
 			<IconButton
 				icon={Undo2}
-				label="Urungkan"
+				label="Undo"
 				disabled={isOff || !active?.canUndo}
 				onClick={() => editor?.chain().focus().undo().run()}
 			/>
 			<IconButton
 				icon={Redo2}
-				label="Ulangi"
+				label="Redo"
 				disabled={isOff || !active?.canRedo}
 				onClick={() => editor?.chain().focus().redo().run()}
 			/>
@@ -99,7 +99,7 @@ export function EditorToolbar({
 			/>
 			<IconButton
 				icon={Strikethrough}
-				label="Coret"
+				label="Strikethrough"
 				active={active?.strike}
 				disabled={isOff}
 				onClick={() => editor?.chain().focus().toggleStrike().run()}

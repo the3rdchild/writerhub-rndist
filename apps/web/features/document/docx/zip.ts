@@ -11,7 +11,7 @@ export function openDocx(data: Uint8Array): DocxArchive {
 	try {
 		entries = unzipSync(data)
 	} catch (cause) {
-		throw new Error('Berkas ini bukan DOCX yang sah - isinya tidak bisa dibuka', { cause })
+		throw new Error("This file isn't a valid DOCX - its contents can't be opened", { cause })
 	}
 
 	const decoder = new TextDecoder('utf-8')

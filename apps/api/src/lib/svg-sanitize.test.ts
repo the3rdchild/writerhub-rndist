@@ -36,7 +36,7 @@ describe('sanitizeSvg', () => {
 		expect(result?.svg).not.toContain('onclick')
 		// Atribut yang sah di elemen yang sama tidak ikut terbawa.
 		expect(result?.svg).toContain('fill="#0f0"')
-		expect(result?.removed).toContain('atribut on*')
+		expect(result?.removed).toContain('on* attributes')
 	})
 
 	test('membuang <foreignObject>, tempat HTML menyelinap masuk', () => {
@@ -55,7 +55,7 @@ describe('sanitizeSvg', () => {
 		expect(result?.svg).toContain('href="#icon"')
 		expect(result?.svg).not.toContain('contoh.test')
 		expect(result?.svg).not.toContain('javascript:')
-		expect(result?.removed).toContain('rujukan luar')
+		expect(result?.removed).toContain('external references')
 	})
 
 	test('membiarkan gambar tertanam ber-URI data:', () => {
@@ -82,6 +82,6 @@ describe('sanitizeSvg', () => {
 
 	test('daftar buangan tidak mengulang jenis yang sama', () => {
 		const result = sanitizeSvg(wrap('<rect onload="a()"/><rect onclick="b()"/>'))
-		expect(result?.removed).toEqual(['atribut on*'])
+		expect(result?.removed).toEqual(['on* attributes'])
 	})
 })

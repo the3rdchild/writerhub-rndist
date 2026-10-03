@@ -41,12 +41,12 @@ export default abstract class JobSubmissionService extends BaseService {
 
 		const bearerToken = this.context.get('bearerToken')
 		if (!bearerToken) {
-			throw AppError.unauthorized('Butuh autentikasi pp-extended untuk memproses permintaan ini.')
+			throw AppError.unauthorized('pp-extended authentication is required to process this request.')
 		}
 
 		const provider = await resolveProvider(bearerToken, USAGE_SERVICE_SLUG)
 		if (!provider) {
-			throw AppError.badRequest('Model AI belum tersedia untuk plan Anda saat ini. Coba lagi nanti.')
+			throw AppError.badRequest('No AI model is available for your current plan yet. Try again later.')
 		}
 
 		await ensureToolQuota(provider.userId, USAGE_SERVICE_SLUG, USAGE_TOOL_NAME)

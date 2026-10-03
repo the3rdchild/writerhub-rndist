@@ -19,6 +19,6 @@ export function ShareProvider({ children }: { children: ReactNode }) {
 
 export function useShare(): ShareContextValue {
 	const context = useContext(ShareContext)
-	if (!context) throw new Error('useShare harus dipakai di dalam <ShareProvider>')
+	if (!context) throw new Error('useShare must be used inside <ShareProvider>')
 	return context
 }

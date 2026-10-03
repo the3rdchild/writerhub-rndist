@@ -95,5 +95,5 @@ export function ignoredRequestFields(body: unknown): string[] {
 }
 
 export const draftRequestSchema = draftRequestObject.refine((body) => Boolean(body.prompt || body.content), {
-	message: 'Butuh `prompt` (untuk ditulis WritingHub) atau `content` (Markdown siap pakai)',
+	message: 'Needs `prompt` (for WritingHub to write) or `content` (ready-made Markdown)',
 })

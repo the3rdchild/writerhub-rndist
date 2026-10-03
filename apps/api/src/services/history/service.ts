@@ -34,25 +34,25 @@ function summarize(source: SummarySource): string | null {
 			const parts: string[] = []
 			if (source.grammarScore !== null) parts.push(`Skor ${source.grammarScore}`)
 			const count = source.suggestionCount ?? 0
-			parts.push(count === 1 ? '1 saran' : `${count} saran`)
+			parts.push(count === 1 ? '1 suggestion' : `${count} suggestions`)
 			return parts.join(' · ')
 		}
 		case 'research': {
 			const count = source.researchSourceCount ?? 0
-			return count === 1 ? '1 sumber' : `${count} sumber`
+			return count === 1 ? '1 source' : `${count} sources`
 		}
 		case 'ai_rewriter':
 		case 'humanizer': {
 			const count = source.analysisChangeCount ?? 0
-			if (count === 0) return 'Tanpa perubahan'
-			return count === 1 ? '1 perubahan' : `${count} perubahan`
+			if (count === 0) return 'No changes'
+			return count === 1 ? '1 change' : `${count} changes`
 		}
 		case 'ai_detector':
 		case 'plagiarism': {
 			const label = source.analysisLabel
 			const score = source.analysisScore !== null ? Math.round(Number(source.analysisScore)) : null
 			if (label && score !== null) {
-				return source.feature === 'plagiarism' ? `${label} · ${score}% unik` : `${label} · ${score}%`
+				return source.feature === 'plagiarism' ? `${label} · ${score}% unique` : `${label} · ${score}%`
 			}
 			return label
 		}
@@ -162,7 +162,7 @@ export default class HistoryService extends BaseService {
 	async getById(): Promise<Response> {
 		try {
 			const row = await findHistoryEntry(this.ownerId(), this.jobId())
-			if (!row) throw AppError.notFound('Aktivitas tidak ditemukan')
+			if (!row) throw AppError.notFound('Activity not found')
 
 			const detail: HistoryDetail = {
 				jobId: row.request.job_id,
@@ -192,7 +192,7 @@ export default class HistoryService extends BaseService {
 	async remove(): Promise<Response> {
 		try {
 			const deleted = await deleteHistoryEntry(this.ownerId(), this.jobId())
-			if (!deleted) throw AppError.notFound('Aktivitas tidak ditemukan')
+			if (!deleted) throw AppError.notFound('Activity not found')
 			return this.success({ data: { deleted: true } })
 		} catch (error) {
 			return this.failFromError(error)
@@ -209,13 +209,13 @@ export default class HistoryService extends BaseService {
 
 	private ownerId(): string {
 		const userId = this.context.get('userId')
-		if (!userId) throw AppError.unauthorized('User tidak dikenal')
+		if (!userId) throw AppError.unauthorized('Unknown user')
 		return userId
 	}
 
 	private jobId(): string {
 		const jobId = this.context.req.param('jobId')
-		if (!jobId) throw AppError.badRequest('ID job tidak ada')
+		if (!jobId) throw AppError.badRequest('Job ID is missing')
 		return jobId
 	}
 }

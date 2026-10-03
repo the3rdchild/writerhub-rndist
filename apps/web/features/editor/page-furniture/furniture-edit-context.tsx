@@ -34,6 +34,6 @@ export function FurnitureEditProvider({ children }: { children: ReactNode }) {
 
 export function useFurnitureEdit(): FurnitureEditValue {
 	const context = useContext(FurnitureEditContext)
-	if (!context) throw new Error('useFurnitureEdit harus dipakai di dalam <FurnitureEditProvider>')
+	if (!context) throw new Error('useFurnitureEdit must be used inside <FurnitureEditProvider>')
 	return context
 }

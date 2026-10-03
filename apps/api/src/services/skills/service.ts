@@ -28,7 +28,7 @@ export default class SkillsService extends BaseService {
 
 			const path = skillFilePath(body.data.name, body.data.file)
 			if (!path) {
-				return this.error({ errors: [`Skill "${body.data.name}" tidak ada di katalog.`], status: 404 })
+				return this.error({ errors: [`Skill "${body.data.name}" is not in the catalog.`], status: 404 })
 			}
 
 			const text = await readFile(new URL(path, SKILLS_DIR), 'utf8')

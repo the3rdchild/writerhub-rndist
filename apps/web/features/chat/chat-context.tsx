@@ -246,10 +246,10 @@ const BROKEN_ARGS_RESULT =
 	'Not carried out: the arguments of this call were cut off or were not valid JSON (a reply that hits the output length limit ends mid-call). Send it again in smaller pieces: one section per call.'
 
 const PHASE_LABEL: Record<ChatStreamPhase, string> = {
-	connecting: 'Menghubungi provider…',
+	connecting: 'Connecting to the provider…',
 	thinking: THINKING_LABEL,
 	reading: 'Preparing to read the document…',
-	writing: 'Menyusun jawaban…',
+	writing: 'Writing the answer…',
 	retrying: 'Retrying without tool calling…',
 }
 
@@ -622,7 +622,7 @@ interface ChatContextValue {
 const AUTO_RETRY_DELAY_MS = 1_500
 
 /** Langkah pembuka percobaan ulang - lihat `markResumedRef`. */
-const RESUMED_LABEL = 'Melanjutkan sesi'
+const RESUMED_LABEL = 'Resuming the session'
 
 const ChatContext = createContext<ChatContextValue | null>(null)
 
@@ -1432,7 +1432,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			const broken = malformed.size > 0
 			if ((reads.length === 0 && !broken) || sealed) {
 				if (reads.length > 0 && sealed) {
-					pushStep('Penelusuran ditutup')
+					pushStep('Reading stopped')
 					patchRunningStep({
 						status: 'done',
 						endedAt: Date.now(),
@@ -1513,21 +1513,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					continue
 				}
 				if (call.name === 'update_brief') {
-					pushStep('Memperbarui metadata')
+					pushStep('Updating metadata')
 					const content = runBriefUpdate(call, history)
 					patchRunningStep({ status: 'done', endedAt: Date.now(), detail: content })
 					results.push({ role: 'tool', content, toolCallId: call.id, taskId })
 					continue
 				}
 				if (call.name === 'set_outline') {
-					pushStep('Mencatat kerangka tulisan')
+					pushStep('Recording the outline')
 					const content = recordOutline(briefRef.current, call)
 					patchRunningStep({ status: 'done', endedAt: Date.now(), detail: content })
 					results.push({ role: 'tool', content, toolCallId: call.id, taskId })
 					continue
 				}
 				if (call.name === 'think') {
-					pushStep('Berpikir sejenak')
+					pushStep('Thinking it through')
 					patchRunningStep({
 						status: 'done',
 						endedAt: Date.now(),
@@ -1572,7 +1572,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			if (budgetSpent && reads.length > 0) {
 				const last = results[results.length - 1]
 				results[results.length - 1] = { ...last, content: last.content + BUDGET_NOTICE }
-				pushStep('Anggaran penelusuran habis')
+				pushStep('Reading budget used up')
 				patchRunningStep({
 					status: 'done',
 					endedAt: Date.now(),
@@ -1880,7 +1880,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 	const runWriteTool = useCallback(
 		(call: ToolCall): ToolOutcome => {
-			if (appliedActionIds.has(call.id)) return { ok: true, message: 'Sudah diterapkan.' }
+			if (appliedActionIds.has(call.id)) return { ok: true, message: 'Already applied.' }
 
 			const editor = editorRef.current
 			if (!editor) return { ok: false, message: "The editor isn't ready yet." }
@@ -2031,7 +2031,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 		const label = redraw
 			? `Redrawing "${target?.title || 'diagram'}"`
-			: `Menggambar diagram ${String(call.arguments.type ?? '')}`.trim()
+			: `Drawing diagram ${String(call.arguments.type ?? '')}`.trim()
 		const stepId = startBackgroundStep(label)
 
 		const drawn = await drawDiagram({
@@ -2096,7 +2096,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				const id = String(entry.id ?? '').toLowerCase()
 				if (!id) continue
 
-				const stepId = startBackgroundStep(`Menggambar bagan "${id}"`)
+				const stepId = startBackgroundStep(`Drawing diagram "${id}"`)
 				const result = await drawDiagram({
 					type: String(entry.type ?? 'architecture'),
 					spec: String(entry.spec ?? ''),
@@ -2417,7 +2417,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 export function useChat(): ChatContextValue {
 	const context = useContext(ChatContext)
-	if (!context) throw new Error('useChat harus dipakai di dalam <ChatProvider>')
+	if (!context) throw new Error('useChat must be used inside <ChatProvider>')
 	return context
 }
 

@@ -26,6 +26,6 @@ async function upsertIdentity(userId: string, origin: IdentityOrigin): Promise<s
 			set: { user_id: userId },
 		})
 		.returning({ id: identity.id })
-	if (!row) throw new Error('Gagal resolve identity')
+	if (!row) throw new Error("Couldn't resolve the identity")
 	return row.id
 }

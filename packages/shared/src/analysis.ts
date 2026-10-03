@@ -12,12 +12,12 @@ export const ANALYSIS_FEATURES = [
 export type AnalysisFeature = (typeof ANALYSIS_FEATURES)[number]
 
 export const REWRITE_TONES = [
-	{ id: 'academic', label: 'Akademik', instruction: 'academic and scholarly' },
+	{ id: 'academic', label: 'Academic', instruction: 'academic and scholarly' },
 	{ id: 'formal', label: 'Formal', instruction: 'formal and professional' },
-	{ id: 'casual', label: 'Santai', instruction: 'casual and conversational' },
+	{ id: 'casual', label: 'Casual', instruction: 'casual and conversational' },
 	{
 		id: 'natural',
-		label: 'Lebih natural',
+		label: 'More natural',
 		instruction: 'natural and human-like, as if written by a person rather than an AI',
 	},
 ] as const

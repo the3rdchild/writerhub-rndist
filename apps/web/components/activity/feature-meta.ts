@@ -13,7 +13,7 @@ import type { HistoryFeature } from '@/features/history/types'
 
 export const FEATURE_META: Record<HistoryFeature, { label: string; icon: LucideIcon }> = {
 	grammar: { label: 'Proofreader', icon: SpellCheck },
-	research: { label: 'Riset Web', icon: Globe },
+	research: { label: 'Web research', icon: Globe },
 	ai_detector: { label: 'AI Detector', icon: Bot },
 	ai_rewriter: { label: 'AI Rewriter', icon: RefreshCw },
 	humanizer: { label: 'Humanizer', icon: UserCheck },
@@ -23,8 +23,8 @@ export const FEATURE_META: Record<HistoryFeature, { label: string; icon: LucideI
 }
 
 export const STATUS_LABELS: Record<string, string> = {
-	pending: 'Menunggu',
-	processing: 'Diproses',
-	completed: 'Selesai',
-	failed: 'Gagal',
+	pending: 'Queued',
+	processing: 'Processing',
+	completed: 'Done',
+	failed: 'Failed',
 }

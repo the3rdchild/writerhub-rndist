@@ -323,6 +323,6 @@ export function BriefProvider({ children }: { children: ReactNode }) {
 
 export function useBrief(): BriefContextValue {
 	const context = useContext(BriefContext)
-	if (!context) throw new Error('useBrief harus dipakai di dalam <BriefProvider>')
+	if (!context) throw new Error('useBrief must be used inside <BriefProvider>')
 	return context
 }

@@ -131,7 +131,7 @@ describe('galat validasi dari server sendiri', () => {
 		)
 		expect(failure).toBeInstanceOf(ChatTurnError)
 		const error = failure as ChatTurnError
-		expect(error.message).toContain('ditolak sebelum sampai ke model')
+		expect(error.message).toContain('rejected before it reached the model')
 		expect(chatFailureHint(error.code) ?? '').not.toContain('kunci API')
 	})
 

@@ -423,38 +423,40 @@ export function runReadTool(context: ReadToolContext, call: ToolCall): string {
 export function readToolLabel(editor: Editor, call: ToolCall): string {
 	switch (call.name) {
 		case 'get_outline':
-			return 'Membaca kerangka dokumen'
+			return 'Reading the document outline'
 		case 'read_section': {
 			const asked = call.arguments.heading_index
-			if (asked === undefined || asked === null) return 'Membaca naskah dari awal'
+			if (asked === undefined || asked === null) return 'Reading the manuscript from the start'
 			const at = Number(asked)
 			const heading = Number.isInteger(at) ? headings(editor)[at] : undefined
-			return heading ? `Membaca bagian "${heading.text.slice(0, 48)}"` : 'Membaca bagian naskah'
+			return heading
+				? `Reading section "${heading.text.slice(0, 48)}"`
+				: 'Reading a section of the manuscript'
 		}
 		case 'find_text':
-			return `Mencari "${String(call.arguments.query ?? '').slice(0, 48)}"`
+			return `Searching for "${String(call.arguments.query ?? '').slice(0, 48)}"`
 		case 'get_document_stats':
-			return 'Menghitung statistik dokumen'
+			return 'Counting document statistics'
 		case 'get_selection':
-			return 'Membaca teks yang disorot'
+			return 'Reading the selected text'
 		case 'get_page_setup':
-			return 'Membaca tata letak halaman'
+			return 'Reading the page layout'
 		case 'get_template_rules':
-			return 'Membaca aturan format template'
+			return 'Reading the template format rules'
 		case 'list_tabs':
-			return 'Mendaftar tab dokumen'
+			return 'Listing the document tabs'
 		case 'read_tab': {
 			const tabId = String(call.arguments.tab_id ?? '')
-			return `Membaca tab ${tabId.slice(0, 12)}`
+			return `Reading tab ${tabId.slice(0, 12)}`
 		}
 		case 'get_comments':
-			return 'Membaca komentar terbuka'
+			return 'Reading open comments'
 		case 'update_brief':
-			return 'Memperbarui metadata'
+			return 'Updating metadata'
 		case 'set_outline':
-			return 'Mencatat kerangka tulisan'
+			return 'Recording the outline'
 		default:
-			return `Menjalankan ${call.name}`
+			return `Running ${call.name}`
 	}
 }
 
@@ -1523,7 +1525,9 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 
 			const cmOf = (px: number) => Math.round((px / INCH) * 2.54 * 10) / 10
 			const margins = `${cmOf(pageSetup.margins.top)}/${cmOf(pageSetup.margins.right)}/${cmOf(pageSetup.margins.bottom)}/${cmOf(pageSetup.margins.left)} cm`
-			const font = typography ? `, ${typography.baseFont.sizePt}pt spasi ${typography.lineHeight}` : ''
+			const font = typography
+				? `, ${typography.baseFont.sizePt}pt, line spacing ${typography.lineHeight}`
+				: ''
 
 			/*
 			 * Aturan menulisnya ikut dikembalikan di sini, bukan diserahkan ke
@@ -1536,7 +1540,7 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			return {
 				ok: true,
 				message: [
-					`Format ${slug} diterapkan: margin ${margins}${font}.`,
+					`Format ${slug} applied: margins ${margins}${font}.`,
 					`Citation style: ${spec.format.citationStyle}; heading scheme: ${spec.format.headingScheme}.`,
 					...spec.aiRules.map((rule) => `- ${rule}`),
 				].join('\n'),

@@ -23,7 +23,7 @@ const ROOT = resolve(env.STORAGE_DIR)
 function resolveWithinRoot(key: string): string {
 	const target = resolve(join(ROOT, normalize(key)))
 	if (target !== ROOT && !target.startsWith(ROOT + sep)) {
-		throw AppError.badRequest('Path berkas tidak valid')
+		throw AppError.badRequest('Invalid file path')
 	}
 	return target
 }
@@ -51,7 +51,7 @@ export async function readLocalFile(key: string) {
 	const target = resolveWithinRoot(key)
 
 	const info = await stat(target).catch(() => null)
-	if (!info?.isFile()) throw AppError.notFound('Berkas tidak ditemukan')
+	if (!info?.isFile()) throw AppError.notFound('File not found')
 
 	return { file: Bun.file(target), size: info.size }
 }
