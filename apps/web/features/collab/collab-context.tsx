@@ -30,13 +30,17 @@ import {
 	type CollabBinding,
 	type CollabNotice,
 	type Collaborator,
+	handoverDelay,
 	INACTIVE_PHASES,
 	phaseOf,
 	randomId,
+	reconcileOnBind,
 	useCollaborators,
 } from './binding'
+import { localEdits, touchesTab } from './local-edits'
 import { indexeddbCollabStore } from './local-store'
-import { createFragmentMirror, type FragmentMirror } from './mirror'
+import { createFragmentMirror, type FragmentMirror, mirrorFragment } from './mirror'
+import { COLLAB_CARRY_ORIGIN, COLLAB_MIRROR_ORIGIN } from './origins'
 import { seedUpdateFromFragment, seedUpdateFromJSON } from './seed'
 import { type CollabPhase, CollabSession, type SeedRequest } from './session'
 
@@ -56,6 +60,12 @@ const CollabContext = createContext<CollabContextValue | null>(null)
 const MAX_BACKGROUND = 5
 /** Sesi latar dilepas sekian lama setelah tersinkron - cukup untuk mengosongkan antrean kirim. */
 const RETIRE_AFTER_SYNC_MS = 2000
+/** Tab baru diserahkan ke sesinya setelah penulis berhenti mengetik sekian lama... */
+const HANDOVER_QUIET_MS = 700
+/** ...tetapi paling lambat sekian lama setelah sesinya memegang isi. */
+const HANDOVER_MAX_MS = 5000
+
+const LOCAL_BINDING: CollabBinding = { kind: 'local' }
 
 interface Entry {
 	localTabId: string
@@ -68,18 +78,41 @@ interface Entry {
 	retireTimer: ReturnType<typeof setTimeout> | null
 	/** Peramban ini belum pernah memegang salinan kolaborasi tab ini saat sesinya dibuat. */
 	firstBinding: boolean
+	/**
+	 * Tab server ini baru dibuat dari salinan lokal tab ini (simpan ke cloud,
+	 * tab baru di dokumen cloud) dan belum diserahkan ke sesinya. Editor tetap
+	 * di salinan lokal - tetap bisa diketik, tanpa jeda hanya-baca - dan saat
+	 * sesinya memegang isi suntingan sejak semaian dibawa ke Y.Doc sesi.
+	 */
+	fresh: boolean
+	/** Kapan sesi tab baru pertama memegang isi; batas tunda penyerahannya. */
+	readySince: number
+	handoverTimer: ReturnType<typeof setTimeout> | null
+	/** Salinan lokal sudah dibereskan (dibawa atau dicadangkan) untuk sesi ini. */
+	reconciled: boolean
+}
+
+/** Sesi memegang isi yang bisa diikat dan dicermin - juga saat kolaborasinya berhenti sementara. */
+function holdsContent(session: CollabSession): boolean {
+	return session.contentReady && session.phase !== 'gone' && session.phase !== 'destroyed'
 }
 
 export function CollabProvider({
 	children,
 	linkage,
 	onCollabTab,
+	isFreshTab,
+	onHandedOver,
 }: {
 	children: ReactNode
 	/** Tautan tab lokal → tab server (milik `features/sync`). */
 	linkage: Readonly<Record<string, { serverId: string }>>
 	/** Kabari penyimpan cloud: isi tab ini mengalir lewat websocket, jangan PUT naskahnya. */
 	onCollabTab: (localTabId: string, collaborative: boolean) => void
+	/** Tab server ini baru saja dibuat dari salinan lokal tab ini di halaman ini (`features/sync`). */
+	isFreshTab?: (localTabId: string, serverTabId: string) => boolean
+	/** Salinan lokal tab baru sudah diserahkan ke sesinya. */
+	onHandedOver?: (localTabId: string) => void
 }) {
 	const { doc, activeId, whenLoaded } = useSessions()
 	const schema = useMemo(() => buildSchema(), [])
@@ -92,6 +125,16 @@ export function CollabProvider({
 	const [notices, setNotices] = useState<CollabNotice[]>([])
 	const onCollabTabRef = useRef(onCollabTab)
 	onCollabTabRef.current = onCollabTab
+	const isFreshTabRef = useRef(isFreshTab)
+	isFreshTabRef.current = isFreshTab
+	const onHandedOverRef = useRef(onHandedOver)
+	onHandedOverRef.current = onHandedOver
+	const activeIdRef = useRef(activeId)
+	activeIdRef.current = activeId
+	const linkageRef = useRef(linkage)
+	linkageRef.current = linkage
+	/** Jenis pengikatan editor tab aktif menurut render terakhir. */
+	const bindingKindRef = useRef<CollabBinding['kind']>('local')
 
 	const notify = useCallback((notice: Omit<CollabNotice, 'id'>) => {
 		setNotices((current) => [...current, { ...notice, id: randomId() }])
@@ -142,18 +185,23 @@ export function CollabProvider({
 	)
 
 	/*
-	 * Saat sebuah tab pertama kali tersambung di peramban ini, salinan lokalnya
-	 * bisa berisi suntingan yang tidak pernah sampai ke server: ditulis saat
-	 * luring sebelum tab ini punya salinan kolaborasi, atau PUT lama yang gagal.
-	 * Bila isinya berbeda dari isi server (dan tab ini tidak disemai dari salinan
-	 * itu), salinannya dicadangkan sebelum cermin menimpanya.
+	 * Salinan lokal bisa berisi suntingan yang tidak pernah sampai ke room:
+	 * ditulis saat luring sebelum tab ini punya salinan kolaborasi di peramban
+	 * ini (`first-sync`), atau saat editor tidak terikat ke sesi - sebelum
+	 * sesinya dibuat, luring tanpa salinan kolaborasi (`local-edits`). Bila
+	 * isinya berbeda dari isi server, salinannya dicadangkan sebagai versi dan
+	 * penulisnya diberi tahu SEBELUM cermin menimpanya.
 	 */
 	const keepDivergentLocalCopy = useCallback(
-		(entry: Entry) => {
+		(entry: Entry, reason: 'first-sync' | 'local-edits') => {
 			const local = fragmentContent(doc.getXmlFragment(entry.localTabId), schema)
 			if (!local) return
 			const remote = fragmentContent(entry.session.doc.getXmlFragment(COLLAB_FRAGMENT), schema)
 			if (sameContent(local, remote)) return
+			const lead =
+				reason === 'first-sync'
+					? 'This tab had changed elsewhere since this browser last saved it.'
+					: 'Changes made in this browser while live editing was unavailable could not be merged with the live copy.'
 			void backupDiscardedCopy({
 				content: local,
 				serverTabId: entry.serverTabId,
@@ -164,11 +212,10 @@ export function CollabProvider({
 				notify(
 					result.kind === 'server'
 						? {
-								message: `This tab had changed elsewhere since this browser last saved it. The copy that was here is saved in Version history as "${FIRST_SYNC_LABEL}".`,
+								message: `${lead} The copy that was here is saved in Version history as "${FIRST_SYNC_LABEL}".`,
 							}
 						: {
-								message:
-									'This tab had changed elsewhere since this browser last saved it. The copy that was here is kept in this browser. Copy it now if you need it.',
+								message: `${lead} The copy that was here is kept in this browser. Copy it now if you need it.`,
 								copyText: result.text,
 							},
 				)
@@ -177,11 +224,35 @@ export function CollabProvider({
 		[doc, schema, notify],
 	)
 
-	/** Cermin ke Y.Doc besar mengikuti `doc` sesi yang memegang isi. */
+	/**
+	 * Suntingan di salinan lokal tab baru sejak semaian dibawa ke Y.Doc sesi
+	 * lewat diff: hanya selisihnya yang menjadi pembaruan Yjs, tersimpan di
+	 * salinan kolaborasi lokal dan terkirim ke room seperti suntingan biasa.
+	 * Hanya untuk sesi yang disemai dari salinan ini - di tempat lain diff ini
+	 * akan membatalkan suntingan kolaborator.
+	 */
+	const carryLocalCopy = useCallback(
+		(entry: Entry) => {
+			mirrorFragment(
+				doc.getXmlFragment(entry.localTabId),
+				entry.session.doc,
+				COLLAB_FRAGMENT,
+				schema,
+				COLLAB_CARRY_ORIGIN,
+			)
+		},
+		[doc, schema],
+	)
+
+	/**
+	 * Cermin ke Y.Doc besar mengikuti `doc` sesi yang memegang isi - juga saat
+	 * kolaborasinya berhenti sementara, karena editor tetap terikat ke sana.
+	 * Tab baru yang belum diserahkan tidak dicermin: salinan lokalnya yang benar.
+	 */
 	const syncMirror = useCallback(
 		(entry: Entry) => {
 			const { session } = entry
-			const source = session.contentReady && !INACTIVE_PHASES.has(session.phase) ? session.doc : null
+			const source = holdsContent(session) && !entry.fresh ? session.doc : null
 			if (entry.mirroredDoc === source) return
 			// Y.Doc lama yang dibuang (reset) TIDAK disalin lagi: isinya basi dan
 			// sudah dicadangkan; menyalinnya akan menimpa isi yang dipulihkan.
@@ -196,19 +267,53 @@ export function CollabProvider({
 		[doc, schema],
 	)
 
+	/** Sesi tab ini kini menerima suntingan editor; kabari penyimpan cloud. */
+	const reportCollaborative = useCallback((entry: Entry) => {
+		const { session } = entry
+		onCollabTabRef.current(
+			entry.localTabId,
+			!entry.fresh && holdsContent(session) && !INACTIVE_PHASES.has(session.phase),
+		)
+	}, [])
+
+	/** Tab baru: dari salinan lokal ke sesinya, sekali. */
+	const handOver = useCallback(
+		(entry: Entry) => {
+			if (entry.handoverTimer) clearTimeout(entry.handoverTimer)
+			entry.handoverTimer = null
+			if (!entry.fresh) return
+			if (holdsContent(entry.session)) carryLocalCopy(entry)
+			entry.fresh = false
+			entry.firstBinding = false
+			entry.reconciled = true
+			localEdits.clear(entry.localTabId)
+			onHandedOverRef.current?.(entry.localTabId)
+			syncMirror(entry)
+			reportCollaborative(entry)
+			bump()
+		},
+		[carryLocalCopy, syncMirror, reportCollaborative, bump],
+	)
+
 	const retire = useCallback(
 		(entry: Entry) => {
 			if (entry.retireTimer) clearTimeout(entry.retireTimer)
+			if (entry.handoverTimer) clearTimeout(entry.handoverTimer)
 			// Salinan terakhir ke Y.Doc besar - kecuali tabnya sudah dihapus: menulis
 			// fragmennya lagi hanya meninggalkan isi yatim.
 			const tabStillExists = tabsRoot(doc).meta.has(entry.localTabId)
+			// Tab baru yang ditinggalkan sebelum diserahkan: suntingannya sejak
+			// semaian tetap dibawa ke Y.Doc sesi (salinan kolaborasi lokalnya, lalu
+			// room) sebelum sesinya ditutup. Tandanya di `features/sync` tetap ada,
+			// jadi saat tab ini dibuka lagi penyerahannya diulang.
+			if (entry.fresh && tabStillExists && holdsContent(entry.session)) carryLocalCopy(entry)
 			if (entry.mirror && entry.mirroredDoc === entry.session.doc && tabStillExists) entry.mirror.flush()
 			entry.mirror?.destroy()
 			entry.session.destroy()
 			entries.current.delete(entry.localTabId)
 			onCollabTabRef.current(entry.localTabId, false)
 		},
-		[doc],
+		[doc, carryLocalCopy],
 	)
 
 	const ensureEntry = useCallback(
@@ -235,16 +340,55 @@ export function CollabProvider({
 				backgroundSince: 0,
 				retireTimer: null,
 				firstBinding: indexeddbCollabStore.storedEpoch(serverTabId) === null,
+				fresh: isFreshTabRef.current?.(localTabId, serverTabId) ?? false,
+				readySince: 0,
+				handoverTimer: null,
+				reconciled: false,
+			}
+			// Tab baru diserahkan saat penulis berhenti mengetik sejenak: penyerahan
+			// membuat ulang editor, dan ketukan di tengahnya jatuh di antara keduanya.
+			const tryHandover = () => {
+				if (entries.current.get(localTabId) !== entry || !entry.fresh || entry.handoverTimer) return
+				if (!holdsContent(session)) return
+				if (!entry.readySince) entry.readySince = Date.now()
+				const wait = handoverDelay({
+					now: Date.now(),
+					lastEditAt: localEdits.lastEditAt(localTabId),
+					readySince: entry.readySince,
+					quietMs: HANDOVER_QUIET_MS,
+					maxWaitMs: HANDOVER_MAX_MS,
+				})
+				if (wait > 0) {
+					entry.handoverTimer = setTimeout(() => {
+						entry.handoverTimer = null
+						tryHandover()
+					}, wait)
+					return
+				}
+				handOver(entry)
 			}
 			session.on('change', () => {
 				if (entries.current.get(localTabId) !== entry) return
+				if (entry.fresh) {
+					tryHandover()
+					bump()
+					return
+				}
 				// Sebelum cermin pertama: setelah itu salinan lokalnya sudah tertimpa.
-				if (entry.firstBinding && session.contentReady) {
+				if (holdsContent(session) && !entry.reconciled) {
+					entry.reconciled = true
+					const plan = reconcileOnBind({
+						fresh: false,
+						firstBinding: entry.firstBinding,
+						editedLocally: localEdits.has(localTabId),
+					})
+					if (plan === 'compare')
+						keepDivergentLocalCopy(entry, entry.firstBinding ? 'first-sync' : 'local-edits')
 					entry.firstBinding = false
-					keepDivergentLocalCopy(entry)
+					localEdits.clear(localTabId)
 				}
 				syncMirror(entry)
-				onCollabTabRef.current(localTabId, session.contentReady && !INACTIVE_PHASES.has(session.phase))
+				reportCollaborative(entry)
 				// Sesi latar sudah mengirim semuanya: lepas.
 				if (entry.background && session.phase === 'synced' && !entry.retireTimer) {
 					entry.retireTimer = setTimeout(() => retire(entry), RETIRE_AFTER_SYNC_MS)
@@ -256,7 +400,39 @@ export function CollabProvider({
 			void whenLoaded().then(() => session.start())
 			return entry
 		},
-		[presenceKey, seedFor, keepDivergentLocalCopy, syncMirror, onDiscarded, retire, whenLoaded, bump],
+		[
+			presenceKey,
+			seedFor,
+			keepDivergentLocalCopy,
+			syncMirror,
+			reportCollaborative,
+			handOver,
+			onDiscarded,
+			retire,
+			whenLoaded,
+			bump,
+		],
+	)
+
+	/*
+	 * Suntingan di salinan lokal tab cloud selagi editornya tidak terikat ke
+	 * sesi (tab aktif, pengikatan `local`) ditandai - tahan muat ulang - supaya
+	 * tidak tertimpa diam-diam saat sesinya memegang isi. Tulisan cermin dan
+	 * pembaruan yang dimuat dari penyimpanan (bukan transaksi lokal) tidak
+	 * dihitung.
+	 */
+	useEffect(
+		function trackLocalEditsOfCloudTabs() {
+			const onTransaction = (transaction: Y.Transaction) => {
+				if (!transaction.local || transaction.origin === COLLAB_MIRROR_ORIGIN) return
+				const tabId = activeIdRef.current
+				if (!tabId || !linkageRef.current[tabId] || bindingKindRef.current !== 'local') return
+				if (touchesTab(transaction, doc, tabId)) localEdits.mark(tabId)
+			}
+			doc.on('afterTransaction', onTransaction)
+			return () => doc.off('afterTransaction', onTransaction)
+		},
+		[doc],
 	)
 
 	useEffect(
@@ -325,8 +501,13 @@ export function CollabProvider({
 
 	const collaborators = useCollaborators(activeProvider)
 
-	const binding = bindingOf(activeSession)
-	const phase = phaseOf(activeSession)
+	// Tab baru yang belum diserahkan: editor tetap di salinan lokal, dan
+	// indikatornya belum "Live" karena suntingannya belum terlihat kolaborator.
+	const handingOver = active?.fresh === true && activeSession !== null
+	const binding = handingOver ? LOCAL_BINDING : bindingOf(activeSession, { keepWhileInactive: true })
+	bindingKindRef.current = binding.kind
+	const sessionPhase = phaseOf(activeSession)
+	const phase = handingOver && sessionPhase === 'synced' ? 'syncing' : sessionPhase
 
 	const value: CollabContextValue = {
 		binding,

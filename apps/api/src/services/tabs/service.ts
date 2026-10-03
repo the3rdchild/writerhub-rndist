@@ -1,5 +1,6 @@
 import type { TabLayoutOverride } from '@writer-hub/shared'
-import { notifyCollabTabsGone } from '@/collab/notify'
+import { notifyCollabTabsGone, writeTabContentFromServer } from '@/collab/notify'
+import { collabTicketSigner } from '@/collab/settings'
 import { findCollabEpoch } from '@/collab/store'
 import type { NewDocumentTab } from '@/db/schemas'
 import { AppError } from '@/lib/error'
@@ -111,20 +112,34 @@ export default class TabsService extends BaseService {
 					errors: ['Tidak ada field yang bisa diubah (title/content/emoji/language/layout)'],
 				})
 			}
-			/*
-			 * Tab kolaboratif: isinya diturunkan server dari state Yjs
-			 * (`collab/room.ts`). Naskah dari PUT dibuang - ia hanya salinan satu
-			 * peramban, dan menyimpannya berarti kembali ke "yang terakhir
-			 * menulis menang" yang menghapus suntingan kolaborator (SHL-5).
-			 */
-			const collaborative = values.content !== undefined && (await findCollabEpoch(existing.id)) !== null
-			if (collaborative) delete values.content
-			if (Object.keys(values).length === 0) return this.success({ data: this.toSummary(existing) })
-
-			const tab = await updateTab(existing.id, values)
+			let tab: Awaited<ReturnType<typeof updateTab>> | null
+			if (values.content !== undefined && (await findCollabEpoch(existing.id)) !== null) {
+				if (collabTicketSigner()) {
+					/*
+					 * Tab kolaboratif: isinya diturunkan server dari state Yjs
+					 * (`collab/room.ts`), dan naskah satu peramban yang ditulis di
+					 * sini menghapus suntingan kolaborator (SHL-5). Ditolak TERANG -
+					 * dulu dibuang diam-diam dengan 200, sehingga peramban yang
+					 * suntingannya belum masuk room mengira semuanya tersimpan.
+					 * Klien mengulang tanpa `content`; naskahnya mengalir lewat
+					 * websocket.
+					 */
+					throw AppError.conflict(
+						'Isi tab ini disunting bersama secara real-time; kirim ulang tanpa content',
+						'collab_active',
+					)
+				}
+				// Kolaborasi tidak dikonfigurasi: naskah ini yang berlaku. State Yjs
+				// lama ikut dibuang supaya saat kolaborasi menyala lagi room disemai
+				// ulang dari isi ini, bukan dari log yang sudah tertinggal.
+				tab = (await writeTabContentFromServer(existing.id, values)).tab
+			} else {
+				tab = await updateTab(existing.id, values)
+			}
 			if (!tab) throw AppError.internalServerError('Gagal menyimpan tab')
 
-			if (!collaborative) await snapshotIntervalTab(tab.id, body.data.content ?? tab.content, this.ownerId())
+			if (body.data.content !== undefined)
+				await snapshotIntervalTab(tab.id, body.data.content, this.ownerId())
 			await touchDocument(tab.document_id)
 
 			// Ringkasan, bukan detail: autosave mengirim naskah utuh, dan

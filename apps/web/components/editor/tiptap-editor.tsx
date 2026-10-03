@@ -1,10 +1,10 @@
 'use client'
 
 import { isChangeOrigin } from '@tiptap/extension-collaboration'
-import type { Transaction } from '@tiptap/pm/state'
+import { Selection, type Transaction } from '@tiptap/pm/state'
 import { type Editor, EditorContent, useEditor } from '@tiptap/react'
 import { COLLAB_FRAGMENT } from '@writer-hub/shared'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useAnalysisDiffHost } from '@/features/analysis/use-analysis-diff-host'
 import { bindingKey } from '@/features/collab/binding'
 import { useCollab } from '@/features/collab/collab-context'
@@ -33,6 +33,15 @@ import { type PopoverPosition, SuggestionPopover } from './suggestion-popover'
 import { TableColorToolbar } from './table-color-toolbar'
 
 const POPOVER_HIDE_DELAY_MS = 180
+/** Fokus dari editor yang dilepas hanya diteruskan ke pengganti yang muncul secepat ini. */
+const FOCUS_HANDOFF_MS = 3000
+
+/** Fokus dan kursor editor yang dilepas, untuk editor pengganti tab yang sama. */
+interface FocusHandoff {
+	tabId: string
+	head: number
+	at: number
+}
 
 interface TiptapEditorProps {
 	containerRef: React.RefObject<HTMLDivElement | null>
@@ -61,7 +70,16 @@ interface TiptapEditorProps {
 export function TiptapEditor(props: TiptapEditorProps) {
 	const { activeId } = useSessions()
 	const { binding } = useCollab()
-	return <BoundTiptapEditor key={`${activeId ?? ''}|${bindingKey(binding)}`} {...props} />
+	// Ikatan tab yang berganti saat penulis mengetik - tab baru yang diserahkan
+	// ke sesinya, sesi yang tersambung - tidak boleh membuang fokusnya.
+	const focusHandoff = useRef<FocusHandoff | null>(null)
+	return (
+		<BoundTiptapEditor
+			key={`${activeId ?? ''}|${bindingKey(binding)}`}
+			focusHandoff={focusHandoff}
+			{...props}
+		/>
+	)
 }
 
 function BoundTiptapEditor({
@@ -74,7 +92,8 @@ function BoundTiptapEditor({
 	onSheetsChange,
 	onSectionsChange,
 	breakBeforeLevels,
-}: TiptapEditorProps) {
+	focusHandoff,
+}: TiptapEditorProps & { focusHandoff: React.RefObject<FocusHandoff | null> }) {
 	const { state, dispatch } = useDocument()
 	const { doc, activeId } = useSessions()
 	/*
@@ -149,6 +168,38 @@ function BoundTiptapEditor({
 			return () => onReady?.(null)
 		},
 		[editor, onReady],
+	)
+	// Layout effect: pembersihnya berjalan sebelum DOM editor dilepas, saat
+	// fokusnya masih bisa dibaca.
+	useLayoutEffect(
+		function keepFocusForReplacement() {
+			if (!editor || !activeId) return
+			return () => {
+				if (editor.isDestroyed || !editor.view.hasFocus()) return
+				focusHandoff.current = { tabId: activeId, head: editor.state.selection.head, at: Date.now() }
+			}
+		},
+		[editor, activeId, focusHandoff],
+	)
+	useEffect(
+		function takeFocusFromPredecessor() {
+			const handoff = focusHandoff.current
+			if (!editor || editor.isDestroyed || !handoff) return
+			if (handoff.tabId !== activeId || Date.now() - handoff.at > FOCUS_HANDOFF_MS) {
+				focusHandoff.current = null
+				return
+			}
+			// Pengganti hanya-baca (menunggu sesi) tidak mengambilnya; yang berikutnya yang bisa diketik.
+			if (!editor.isEditable) return
+			focusHandoff.current = null
+			const { state } = editor
+			const position = Math.min(Math.max(handoff.head, 0), state.doc.content.size)
+			editor.view.dispatch(
+				state.tr.setSelection(Selection.near(state.doc.resolve(position))).setMeta('addToHistory', false),
+			)
+			editor.view.focus()
+		},
+		[editor, activeId, focusHandoff],
 	)
 	useEffect(
 		function migrateLegacyColumnNodes() {

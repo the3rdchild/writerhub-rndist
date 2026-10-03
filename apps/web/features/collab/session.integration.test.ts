@@ -4,11 +4,12 @@ import type { JSONContent } from '@tiptap/core'
 import { COLLAB_FRAGMENT, type CollabTicket } from '@writer-hub/shared'
 import * as Y from 'yjs'
 import type { SharePayload } from '@/features/share/types'
-import { buildSchema } from '@/features/sync/serialize'
+import { buildSchema, jsonToFragment } from '@/features/sync/serialize'
 // Alat uji API (proses API sungguhan) dipakai ulang; berkas uji tidak ikut tsc web.
 import { type ApiProcess, apiJson, freePort, startApi, waitFor } from '../../../api/src/collab/test-harness'
 import type { CollabLocalStore } from './local-store'
-import { seedUpdateFromJSON } from './seed'
+import { mirrorFragment } from './mirror'
+import { seedUpdateFromFragment, seedUpdateFromJSON } from './seed'
 import { type CollabPhase, CollabSession } from './session'
 import { seedFromShare } from './share-seed'
 
@@ -405,6 +406,98 @@ describe.skipIf(!enabled)('CollabSession melawan API sungguhan', () => {
 			'isi server tetap versi yang dipulihkan',
 		)
 	}, 40_000)
+
+	test('login habis: suntingan di Y.Doc sesi tetap tersimpan lokal dan terkirim setelah muat ulang', async () => {
+		const reauth = await startApi(freePort(), { ...ENV, COLLAB_REAUTH_S: '1' })
+		const created = await apiJson<{ tabs: Array<{ id: string }> }>(reauth.url, '/api/v1/documents', {
+			method: 'POST',
+			body: JSON.stringify({ title: 'Login habis' }),
+		})
+		const tabId = created.tabs[0].id
+		let loggedIn = true
+		const ticket = (id: string) =>
+			loggedIn
+				? apiJson<CollabTicket>(reauth.url, '/api/v1/collab/tickets', {
+						method: 'POST',
+						body: JSON.stringify({ tabId: id }),
+					})
+				: Promise.reject(Object.assign(new Error('401'), { status: 401 }))
+		const store = memoryStore()
+		const writer = new CollabSession({
+			tabId,
+			fetchTicket: ticket,
+			seed: async () => seedUpdateFromJSON({ type: 'doc', content: [] }, schema),
+			localStore: store,
+			assumeRole: 'editor',
+			maxBackoffMs: 200,
+		})
+		sessions.push(writer)
+		await writer.start()
+		await synced(writer)
+
+		loggedIn = false
+		await waitFor(() => writer.phase === 'denied', 'sesi berhenti karena login habis', 10_000)
+		// Editor tetap terikat ke Y.Doc sesi (`bindingOf`, keepWhileInactive): suntingannya masuk ke sini.
+		append(writer.doc, 'ditulis-saat-login-habis')
+		await Bun.sleep(100)
+		writer.destroy()
+
+		// Muat ulang setelah masuk lagi: salinan lokal dimuat dulu, lalu terkirim.
+		loggedIn = true
+		const reloaded = new CollabSession({
+			tabId,
+			fetchTicket: ticket,
+			seed: async () => null,
+			localStore: store,
+			assumeRole: 'editor',
+			maxBackoffMs: 200,
+		})
+		sessions.push(reloaded)
+		await reloaded.start()
+		await synced(reloaded)
+		const reader = new CollabSession({
+			tabId,
+			fetchTicket: ticket,
+			seed: async () => null,
+			maxBackoffMs: 200,
+		})
+		sessions.push(reader)
+		await reader.start()
+		await synced(reader)
+		await waitFor(() => textOf(reader.doc).includes('ditulis-saat-login-habis'), 'suntingan tiba di room')
+		await reauth.stop('SIGTERM')
+	}, 60_000)
+
+	test('tab baru: suntingan salinan lokal sejak semaian dibawa ke sesi lewat diff, tanpa ganda', async () => {
+		const tabId = await createTab('AWAL-SALINAN')
+		const local = new Y.Doc()
+		jsonToFragment(local, 'tab-lokal', {
+			type: 'doc',
+			content: [{ type: 'paragraph', content: [{ type: 'text', text: 'AWAL-SALINAN' }] }],
+		})
+		const writer = new CollabSession({
+			tabId,
+			fetchTicket,
+			seed: async () => seedUpdateFromFragment(local.getXmlFragment('tab-lokal')),
+			localStore: memoryStore(),
+			maxBackoffMs: 300,
+		})
+		sessions.push(writer)
+		await writer.start()
+		await synced(writer)
+
+		// Diketik di salinan lokal setelah semaian, sebelum tab diserahkan ke sesinya.
+		const paragraph = new Y.XmlElement('paragraph')
+		paragraph.insert(0, [new Y.XmlText('SETELAH-SEMAIAN')])
+		local.getXmlFragment('tab-lokal').push([paragraph])
+		expect(mirrorFragment(local.getXmlFragment('tab-lokal'), writer.doc, COLLAB_FRAGMENT, schema)).toBe(true)
+
+		const reader = session(tabId)
+		await reader.start()
+		await synced(reader)
+		await waitFor(() => textOf(reader.doc).includes('SETELAH-SEMAIAN'), 'suntingan tiba di room')
+		expect(textOf(reader.doc).split('AWAL-SALINAN').length - 1).toBe(1)
+	}, 30_000)
 
 	test('sambungan yang diputus untuk otorisasi ulang (4401) mengambil tiket baru dan lanjut', async () => {
 		const reauth = await startApi(freePort(), { ...ENV, COLLAB_REAUTH_S: '1' })

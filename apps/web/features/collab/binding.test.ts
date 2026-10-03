@@ -3,7 +3,7 @@ import { COLLAB_FRAGMENT } from '@writer-hub/shared'
 import * as Y from 'yjs'
 import { buildSchema, jsonToFragment } from '@/features/sync/serialize'
 import { discardedContent, fragmentContent, sameContent } from './backup'
-import { bindingKey, bindingOf, phaseOf } from './binding'
+import { bindingKey, bindingOf, handoverDelay, phaseOf, reconcileOnBind } from './binding'
 import { RICH_DOCUMENT } from './fixtures'
 import { seedUpdateFromFragment, seedUpdateFromJSON } from './seed'
 import type { CollabSession } from './session'
@@ -43,6 +43,44 @@ describe('pengikatan editor ke sesi kolaborasi', () => {
 		expect(bindingKey(offline)).not.toBe(bindingKey(online))
 		expect(bindingKey(online)).toBe(bindingKey(bindingOf(fakeSession({ phase: 'offline', doc }))))
 		expect(bindingKey({ kind: 'pending' })).toBe('pending')
+	})
+
+	test('aplikasi utama: sesi yang memegang isi tetap terikat saat kolaborasi berhenti (login habis, tidak tersedia)', () => {
+		const doc = new Y.Doc()
+		for (const phase of ['denied', 'unavailable'] as const) {
+			// Suntingan masuk ke Y.Doc sesi (tersimpan di salinan lokalnya) dan
+			// terkirim sebagai pembaruan Yjs begitu sesi tersambung lagi.
+			expect(bindingOf(fakeSession({ phase, doc }), { keepWhileInactive: true })).toMatchObject({
+				kind: 'live',
+				doc,
+			})
+			// Halaman tautan berbagi tidak punya salinan lokal: kembali ke tampilan statis.
+			expect(bindingOf(fakeSession({ phase, doc })).kind).toBe('local')
+		}
+		for (const phase of ['gone', 'destroyed'] as const) {
+			expect(bindingOf(fakeSession({ phase, doc }), { keepWhileInactive: true }).kind).toBe('local')
+		}
+		expect(
+			bindingOf(fakeSession({ phase: 'denied', contentReady: false }), { keepWhileInactive: true }).kind,
+		).toBe('local')
+	})
+
+	test('salinan lokal saat sesi pertama memegang isi: dibawa, dibandingkan, atau aman ditimpa', () => {
+		expect(reconcileOnBind({ fresh: true, firstBinding: true, editedLocally: true })).toBe('carry')
+		expect(reconcileOnBind({ fresh: false, firstBinding: true, editedLocally: false })).toBe('compare')
+		// Sudah pernah tersambung, tetapi disunting saat editor tidak terikat ke sesi.
+		expect(reconcileOnBind({ fresh: false, firstBinding: false, editedLocally: true })).toBe('compare')
+		expect(reconcileOnBind({ fresh: false, firstBinding: false, editedLocally: false })).toBe('none')
+	})
+
+	test('penyerahan tab baru menunggu jeda ketik, tetapi tidak selamanya', () => {
+		const base = { readySince: 1_000, quietMs: 700, maxWaitMs: 5_000 }
+		expect(handoverDelay({ ...base, now: 1_100, lastEditAt: 1_050 })).toBe(650)
+		expect(handoverDelay({ ...base, now: 2_000, lastEditAt: 1_000 })).toBe(0)
+		expect(handoverDelay({ ...base, now: 1_100, lastEditAt: 0 })).toBe(0)
+		// Mengetik terus: paling lama `maxWaitMs` sejak sesi memegang isi.
+		expect(handoverDelay({ ...base, now: 5_800, lastEditAt: 5_790 })).toBe(200)
+		expect(handoverDelay({ ...base, now: 6_000, lastEditAt: 5_999 })).toBe(0)
 	})
 
 	test('sesi yang memegang isi: terikat langsung - juga saat luring - dan mengikuti peran', () => {

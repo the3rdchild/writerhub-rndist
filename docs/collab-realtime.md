@@ -7,7 +7,7 @@ selesai di kode** (editor terikat ke sesi, kehadiran, cermin, cadangan, halaman 
 peramban menunggu slot server dev (skrip siap: `writer-hub-test/uji-editor-02okt/alat/kolab-0*.ts`).
 
 Keputusan pemesan yang sudah disetujui (3 Okt): tautan `editor` boleh menyunting siapa pun pemegangnya; isi tab
-kolaboratif milik server (PUT naskah diabaikan); pulihkan versi/draf me-reset state, dengan cadangan salinan lokal
+kolaboratif milik server (PUT naskah ditolak 409, tidak dibuang diam-diam); pulihkan versi/draf me-reset state, dengan cadangan salinan lokal
 WAJIB dan pemberitahuan; SHL-6 membawa semua tab dokumen ke cloud; "yang terakhir menang" selama transisi; tiket di
 query dengan umur 60 dtk; batas laju tiket tautan; identitas kehadiran dipaksakan server.
 
@@ -139,12 +139,17 @@ Penyemai yang diam digantikan setelah kuncinya habis. Sumber isi adalah keputusa
 
 ## Isi untuk pembaca sisi server (`document_tabs.content`)
 
-Dipilih: **server menurunkan JSON dari state Yjs**, dan **PUT isi untuk tab kolaboratif diabaikan** (judul, emoji,
-bahasa, tata letak tetap tersimpan).
+Dipilih: **server menurunkan JSON dari state Yjs**, dan **PUT isi untuk tab kolaboratif ditolak 409**
+(`collab_active`) - tidak pernah 200 sambil dibuang diam-diam. Klien mengulang tanpa `content`; judul, emoji, bahasa,
+dan tata letak tetap tersimpan.
 
 - PUT dari satu peramban hanyalah salinan peramban itu. Menerimanya berarti kembali ke "yang terakhir menulis menang".
-  Mengabaikannya hanya bila "room aktif" tidak cukup: room yang sedang tidak dimuat pun punya state yang lebih benar
+  Menolaknya hanya bila "room aktif" tidak cukup: room yang sedang tidak dimuat pun punya state yang lebih benar
   daripada PUT dari tab peramban lama.
+- Ditolak TERANG, bukan dibuang: dulu jawaban 200 membuat peramban yang suntingannya belum masuk room (login habis,
+  websocket diblokir) mengira semuanya tersimpan.
+- Bila kolaborasi **tidak dikonfigurasi** (`COLLAB_TICKET_SECRET` kosong), PUT isi diterima dan state Yjs tab itu
+  dibuang dalam transaksi yang sama, supaya saat kolaborasi menyala lagi room disemai ulang dari isi itu.
 - Konverter tanpa skema (`@writer-hub/shared/collab-json`) membaca pengodean y-prosemirror apa adanya. Bedanya dengan
   `node.toJSON()` hanya atribut bernilai bawaan null yang tidak tertulis; pembaca yang memakai skema mengisinya
   kembali. Uji di `apps/web/features/collab/collab-json.test.ts` memastikan hasilnya sama persis dengan jalur
@@ -247,8 +252,22 @@ karena pembaruan baru diterbitkan ke Redis setelah tercatat. Pada 100 klien seba
 - **Pengikatan** (`features/collab/collab-context.tsx`, dipasang di dalam `SyncProvider`): sesi untuk tab cloud
   aktif. `local` = tab lokal atau kolaborasi tidak tersedia (editor terikat ke Y.Doc besar seperti dulu); `pending` =
   sesi belum memegang isi (editor menampilkan salinan lokal, hanya-baca); `live` = editor terikat ke Y.Doc sesi.
-  Editor dibuat ulang hanya saat ikatannya berganti (event `doc` → Y.Doc baru → ikatan baru). Hak sunting mengikuti
-  peran sesi; untuk pemilik dianggap `editor` sebelum tiket pertama, supaya salinan lokal bisa disunting luring.
+  Di aplikasi utama, sesi yang sudah memegang isi **tetap** `live` walau kolaborasinya berhenti (login habis →
+  `denied`, `unavailable`): suntingannya masuk ke Y.Doc sesi, tersimpan di salinan kolaborasi lokal, dan terkirim
+  sebagai pembaruan Yjs saat tersambung lagi (dulu editor kembali ke Y.Doc besar dan suntingannya hilang).
+  Editor dibuat ulang lewat `key` saat tab atau ikatannya berganti; fokus dan kursornya dibawa ke editor pengganti
+  tab yang sama. Hak sunting mengikuti peran sesi; untuk pemilik dianggap `editor` sebelum tiket pertama, supaya
+  salinan lokal bisa disunting luring.
+- **Suntingan di salinan lokal tab cloud** saat editornya tidak terikat ke sesi (`local-edits.ts`) ditandai, tahan
+  muat ulang, dan membuat status simpan tab itu tidak "tersimpan". Saat sesinya memegang isi, salinan itu dibandingkan
+  dengan isi server sebelum cermin menimpanya dan dicadangkan bila berbeda ("Local copy kept before live sync",
+  dengan pemberitahuan). PUT tab itu tetap mengirim naskahnya; bila server memegangnya secara kolaboratif ia
+  menolak (409) dan PUT diulang tanpa naskah.
+- **Tab baru dari salinan peramban ini** (simpan ke cloud, tab baru di dokumen cloud; `freshTabs` di
+  `features/sync`): editor tetap di salinan lokal tanpa jeda hanya-baca selama sesinya menyambung dan menyemai dari
+  salinan itu. Saat sesi memegang isi dan penulis berhenti mengetik 0,7 dtk (paling lambat 5 dtk), suntingan sejak
+  semaian dibawa ke Y.Doc sesi lewat diff, lalu editor diserahkan ke sesi. Tab yang ditinggalkan sebelum diserahkan
+  tetap membawa suntingannya ke sesi sebelum sesinya ditutup.
 - **Muat ulang saat luring**: salinan lokal (IndexedDB per tab+epoch) dimuat sebelum tiket diminta, jadi tab cloud
   langsung `live`. Bila ternyata basi, server menolak (4409) dan salinannya dicadangkan. Tab cloud yang belum pernah
   tersambung di peramban ini dan dibuka saat luring kembali ke salinan lokal yang bisa disunting (`local`).
@@ -269,7 +288,8 @@ karena pembaruan baru diterbitkan ke Redis setelah tercatat. Pada 100 klien seba
   "Unsynced copy kept before reset" (`POST /tabs/:id/versions` kini menerima `content`), lalu pemberitahuan. Bila
   riwayat server tidak terjangkau (atau tamu tautan), teksnya bisa disalin dari pemberitahuan. Versi bernama dan
   "sebelum pemulihan" di server kini memotret isi dari log Yjs, bukan `document_tabs.content` yang bisa tertinggal.
-- **PUT naskah berhenti** untuk tab kolaboratif; yang tetap dikirim judul, ikon, bahasa, dan tata letak.
+- **PUT naskah berhenti** untuk tab yang sesinya sedang menerima suntingan; yang tetap dikirim judul, ikon, bahasa,
+  dan tata letak.
 - **Pengaman lain**: paragraf penutup dan migrasi kolom lama tidak menanggapi perubahan dari kolaborator (dua klien
   yang melakukannya bersamaan menghasilkan paragraf/struktur ganda); viewer tidak menambah paragraf penutup.
 - **Indikator** (English): `Connecting…`, `Preparing…`, `Syncing…`, `Live`, `Offline`, `· View only`.

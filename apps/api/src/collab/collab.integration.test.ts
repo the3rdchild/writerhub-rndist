@@ -528,24 +528,61 @@ describe.skipIf(!enabled)('kolaborasi ujung-ke-ujung (proses API sungguhan)', ()
 		expect(await headRows(tabId)).toBe(1)
 	}, 60_000)
 
-	test('PUT isi untuk tab kolaboratif diabaikan; judul tetap tersimpan', async () => {
+	test('PUT isi untuk tab kolaboratif ditolak 409 (tidak pernah 200 sambil dibuang); tanpa isi, judul tersimpan', async () => {
 		const { tabId } = await createDocument(main, 'AWAL-PUT')
 		const writer = peer(main, tabId, (await ticketFor(main, tabId)).ticket, { seed: seedFrom('AWAL-PUT') })
 		await writer.ready()
 		writer.type('suntingan-kolaborator')
 		await waitFor(async () => (await serverContent(main, tabId)).includes('suntingan-kolaborator'), 'turunan')
 
-		await apiJson(main.url, `/api/v1/tabs/${tabId}`, {
+		const rejected = await fetch(`${main.url}/api/v1/tabs/${tabId}`, {
 			method: 'PUT',
+			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({
 				title: 'Judul baru',
 				content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'BASI' }] }] },
 			}),
 		})
+		expect(rejected.status).toBe(409)
+		const unchanged = await apiJson<{ title: string; content: unknown }>(main.url, `/api/v1/tabs/${tabId}`)
+		expect(unchanged.title).not.toBe('Judul baru')
+		expect(JSON.stringify(unchanged.content)).not.toContain('BASI')
+
+		// Klien mengulang tanpa naskah: bagian lain tetap tersimpan.
+		await apiJson(main.url, `/api/v1/tabs/${tabId}`, {
+			method: 'PUT',
+			body: JSON.stringify({ title: 'Judul baru' }),
+		})
 		const tab = await apiJson<{ title: string; content: unknown }>(main.url, `/api/v1/tabs/${tabId}`)
 		expect(tab.title).toBe('Judul baru')
-		expect(JSON.stringify(tab.content)).not.toContain('BASI')
 		expect(JSON.stringify(tab.content)).toContain('suntingan-kolaborator')
+	}, 30_000)
+
+	test('kolaborasi tidak dikonfigurasi: PUT isi tab yang pernah kolaboratif diterima dan state Yjs-nya dibuang', async () => {
+		const { tabId } = await createDocument(main, 'AWAL-MATI')
+		const writer = peer(main, tabId, (await ticketFor(main, tabId)).ticket, {
+			seed: seedFrom('AWAL-MATI'),
+			reconnect: false,
+		})
+		await writer.ready()
+		writer.type('lewat-kolaborasi')
+		await waitFor(async () => (await serverContent(main, tabId)).includes('lewat-kolaborasi'), 'turunan')
+		expect(await headRows(tabId)).toBe(1)
+
+		// Proses API yang sama basis datanya, tanpa COLLAB_TICKET_SECRET.
+		const plain = await api({ COLLAB_TICKET_SECRET: '' })
+		await apiJson(plain.url, `/api/v1/tabs/${tabId}`, {
+			method: 'PUT',
+			body: JSON.stringify({
+				content: {
+					type: 'doc',
+					content: [{ type: 'paragraph', content: [{ type: 'text', text: 'DITULIS-TANPA-KOLABORASI' }] }],
+				},
+			}),
+		})
+		expect(await serverContent(plain, tabId)).toContain('DITULIS-TANPA-KOLABORASI')
+		// Saat kolaborasi menyala lagi, room disemai ulang dari isi ini - bukan dari log lama.
+		expect(await headRows(tabId)).toBe(0)
 	}, 30_000)
 
 	test('hapusan saja (tanpa sisipan) tetap sampai ke isi server', async () => {

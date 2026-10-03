@@ -10,11 +10,12 @@ import {
 	useMemo,
 	useRef,
 	useState,
+	useSyncExternalStore,
 } from 'react'
 import { IndexeddbPersistence } from 'y-indexeddb'
 import { briefSyncKey, readDocBrief, writeDocBrief } from '@/features/brief/brief-ydoc'
 import { CollabProvider } from '@/features/collab/collab-context'
-import { indexeddbCollabStore } from '@/features/collab/local-store'
+import { localEdits } from '@/features/collab/local-edits'
 import { COLLAB_MIRROR_ORIGIN } from '@/features/collab/origins'
 import { backupComments, restoreComments } from '@/features/comments/comment-backup'
 import {
@@ -64,6 +65,10 @@ const MAX_SESSIONS = 50
  */
 const LINK_CONCURRENCY = 1
 export const SYNC_ORIGIN = 'sync'
+
+/** Potret kosong untuk render server (`useSyncExternalStore`). */
+const EMPTY_LOCAL_EDITS: ReadonlySet<string> = new Set()
+const noLocalEdits = () => EMPTY_LOCAL_EDITS
 
 /**
  * `too-large`: server menolak naskahnya karena melewati batas ukuran (413).
@@ -163,6 +168,20 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	const markCollabTab = useCallback((tabId: string, collaborative: boolean) => {
 		if (collaborative) collabTabs.current.add(tabId)
 		else collabTabs.current.delete(tabId)
+	}, [])
+	/*
+	 * Tab lokal → tab server yang baru saja dibuat DARI salinan peramban ini
+	 * (simpan ke cloud, tab baru di dokumen cloud). Sampai sesi kolaborasinya
+	 * memegang isi, salinan lokal inilah yang benar: editor tetap di sana dan
+	 * tetap bisa diketik, lalu suntingannya dibawa ke sesi (`CollabProvider`).
+	 */
+	const freshTabs = useRef(new Map<string, string>())
+	const isFreshTab = useCallback(
+		(tabId: string, serverTabId: string) => freshTabs.current.get(tabId) === serverTabId,
+		[],
+	)
+	const forgetFreshTab = useCallback((tabId: string) => {
+		freshTabs.current.delete(tabId)
 	}, [])
 	const retryTabRef = useRef<(tabId: string) => void>(() => {})
 	const retries = useRef<RetryScheduler | null>(null)
@@ -311,15 +330,26 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 			}
 			setStatus(tabId, 'saving')
 			try {
-				const collaborative =
-					collabTabs.current.has(tabId) || indexeddbCollabStore.storedEpoch(linkage.serverId) !== null
-				const savedTab = await write(
+				const putTab = (withContent: boolean) =>
 					updateTabApi(linkage.serverId, {
 						title: meta.title,
-						...(collaborative ? {} : { content: serializeTab(tabId) }),
+						...(withContent ? { content: serializeTab(tabId) } : {}),
 						emoji: meta.emoji,
 						language: meta.language,
 						layout: readTabLayoutOverride(doc, tabId),
+					})
+				/*
+				 * Naskah tab yang sesinya sedang menerima suntingan mengalir lewat
+				 * websocket. Selain itu naskahnya ikut dikirim: bila server ternyata
+				 * memegang tab ini secara kolaboratif ia menolak terang (409) -
+				 * dulu dibuang diam-diam - dan sisanya dikirim ulang tanpa naskah.
+				 * Suntingan salinan lokal itu sendiri dibereskan `CollabProvider`
+				 * saat sesinya memegang isi (`localEdits`).
+				 */
+				const savedTab = await write(
+					putTab(!collabTabs.current.has(tabId)).catch((error: unknown) => {
+						if (error instanceof ApiError && error.status === 409) return putTab(false)
+						throw error
 					}),
 					() => unlinkTab(tabId),
 				)
@@ -592,6 +622,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 						layout: readTabLayoutOverride(doc, tabId),
 					})
 					const linked: SyncLinkage = { serverId: tab.id, documentId, lastSyncedAt: Date.now() }
+					freshTabs.current.set(tabId, tab.id)
 					// Langsung terlihat oleh jalur lain sebelum render berikutnya.
 					linkageRef.current = { ...linkageRef.current, [tabId]: linked }
 					setStore((current) => ({ ...current, linkage: { ...current.linkage, [tabId]: linked } }))
@@ -716,6 +747,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 					lastDocLayoutKey: layoutSyncKey(parentId ? readDocLayout(doc, parentId) : null),
 					lastDocBriefKey: briefSyncKey(docBrief),
 				}
+				freshTabs.current.set(tabId, serverTabId)
 				// Tab lain dokumen ini menyusul ke dokumen server yang sama lewat
 				// `linkNewTabsOfCloudDocuments`; tautan ini harus sudah terlihat.
 				linkageRef.current = { ...linkageRef.current, [tabId]: linked }
@@ -876,6 +908,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 						lastDocLayoutKey: layoutSyncKey(readDocLayout(doc, docId)),
 						lastDocBriefKey: briefSyncKey(docBrief),
 					}
+					freshTabs.current.set(tabId, serverTabId)
 					linkageRef.current = { ...linkageRef.current, [tabId]: linked }
 					setStore((current) => ({ ...current, linkage: { ...current.linkage, [tabId]: linked } }))
 					setStatus(tabId, null)
@@ -903,9 +936,17 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 		],
 	)
 
+	/*
+	 * Tab cloud yang disunting di salinan lokal selagi editornya tidak terikat
+	 * ke sesi (`localEdits`): suntingan itu belum ada di server walau PUT-nya
+	 * berhasil, jadi tidak dilaporkan tersimpan sampai sesinya membereskannya.
+	 */
+	const pendingLocalEdits = useSyncExternalStore(localEdits.subscribe, localEdits.snapshot, noLocalEdits)
 	const syncStatus = useCallback(
-		(tabId: string): SyncStatus => transient[tabId] ?? (store.linkage[tabId] ? 'synced' : 'local'),
-		[transient, store.linkage],
+		(tabId: string): SyncStatus =>
+			transient[tabId] ??
+			(store.linkage[tabId] ? (pendingLocalEdits.has(tabId) ? 'dirty' : 'synced') : 'local'),
+		[transient, store.linkage, pendingLocalEdits],
 	)
 
 	const serverDocId = useCallback(
@@ -938,7 +979,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 		<SyncContext.Provider value={value}>
 			{/* Kolaborasi butuh tautan tab → tab server dari sini, dan memberi tahu
 			    tab mana yang isinya mengalir lewat websocket (bukan PUT naskah). */}
-			<CollabProvider linkage={store.linkage} onCollabTab={markCollabTab}>
+			<CollabProvider
+				linkage={store.linkage}
+				onCollabTab={markCollabTab}
+				isFreshTab={isFreshTab}
+				onHandedOver={forgetFreshTab}
+			>
 				{children}
 			</CollabProvider>
 		</SyncContext.Provider>

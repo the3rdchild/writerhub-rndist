@@ -46,8 +46,22 @@ export const INACTIVE_PHASES: ReadonlySet<CollabPhase> = new Set([
 	'destroyed',
 ])
 
-export function bindingOf(session: CollabSession | null): CollabBinding {
-	if (!session || INACTIVE_PHASES.has(session.phase)) return { kind: 'local' }
+/**
+ * `keepWhileInactive` (aplikasi utama): sesi yang sudah memegang isi tetap
+ * diikat walau kolaborasinya berhenti - login habis (`denied`), kolaborasi
+ * tidak tersedia (`unavailable`). Editor kembali ke Y.Doc besar di situ dulu
+ * membuat suntingannya hilang: naskahnya tidak di-PUT (tab kolaboratif) dan
+ * saat sesi tersambung lagi cermin menimpanya. Di Y.Doc sesi, suntingan itu
+ * tersimpan di salinan lokalnya dan terkirim sebagai pembaruan Yjs begitu
+ * tersambung. Halaman tautan berbagi tidak punya salinan lokal, jadi tidak.
+ */
+export function bindingOf(
+	session: CollabSession | null,
+	{ keepWhileInactive = false }: { keepWhileInactive?: boolean } = {},
+): CollabBinding {
+	if (!session || session.phase === 'gone' || session.phase === 'destroyed') return { kind: 'local' }
+	const inactive = INACTIVE_PHASES.has(session.phase)
+	if (inactive && !(keepWhileInactive && session.contentReady)) return { kind: 'local' }
 	if (session.contentReady) {
 		return {
 			kind: 'live',
@@ -63,6 +77,55 @@ export function bindingOf(session: CollabSession | null): CollabBinding {
 	// perangkat lain (`CollabProvider`).
 	if (session.phase === 'offline') return { kind: 'local' }
 	return { kind: 'pending' }
+}
+
+/**
+ * Nasib salinan lokal (fragmen tab di Y.Doc besar) saat sesi tab itu PERTAMA
+ * kali memegang isi di halaman ini, sebelum cermin menimpanya:
+ * - `carry`: tab yang baru dibuat di server dari salinan ini (`fresh`): sesi
+ *   disemai darinya, jadi suntingan sejak semaian dibawa ke Y.Doc sesi.
+ * - `compare`: salinan ini mungkin memuat suntingan yang tidak pernah sampai
+ *   ke room (sambungan pertama di peramban ini, atau disunting saat editor
+ *   tidak terikat ke sesi) - dicadangkan bila isinya berbeda dari isi server.
+ * - `none`: salinan ini hanya cermin; aman ditimpa.
+ */
+export function reconcileOnBind({
+	fresh,
+	firstBinding,
+	editedLocally,
+}: {
+	fresh: boolean
+	firstBinding: boolean
+	editedLocally: boolean
+}): 'carry' | 'compare' | 'none' {
+	if (fresh) return 'carry'
+	if (firstBinding || editedLocally) return 'compare'
+	return 'none'
+}
+
+/**
+ * Sisa tunda (ms) sebelum tab baru diserahkan dari salinan lokal ke sesinya.
+ * Penyerahan membuat ulang editor; di tengah ketikan, beberapa ketukan jatuh
+ * di antara editor lama dan yang baru. Jadi ditunggu sampai penulis berhenti
+ * sejenak - tetapi tidak selamanya: selama ditunda, suntingannya belum
+ * terlihat kolaborator.
+ */
+export function handoverDelay({
+	now,
+	lastEditAt,
+	readySince,
+	quietMs,
+	maxWaitMs,
+}: {
+	now: number
+	lastEditAt: number
+	readySince: number
+	quietMs: number
+	maxWaitMs: number
+}): number {
+	const left = maxWaitMs - (now - readySince)
+	if (left <= 0) return 0
+	return Math.max(0, Math.min(quietMs - (now - lastEditAt), left))
 }
 
 /** Kunci pengikatan: editor dibuat ulang hanya saat kunci ini berganti. */
