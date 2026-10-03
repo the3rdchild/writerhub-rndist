@@ -162,7 +162,7 @@ function SuggestionSection({ thread }: { thread: CommentThread }) {
 		return (
 			<div className="flex flex-col gap-1 rounded-lg bg-[var(--overlay-hover)] p-2">
 				<span className={cn('text-[10px] font-medium', accepted ? 'text-green-400' : 'text-subtle')}>
-					Usulan {proposal.author} {accepted ? 'diterapkan' : 'ditolak'}
+					Suggestion by {proposal.author} {accepted ? 'applied' : 'rejected'}
 				</span>
 				{accepted && proposal.replaced && (
 					<p className="break-words text-[11px] leading-relaxed text-faint line-through">
@@ -184,7 +184,7 @@ function SuggestionSection({ thread }: { thread: CommentThread }) {
 	if (proposal) {
 		return (
 			<div className="flex flex-col gap-1.5 rounded-lg bg-[var(--overlay-hover)] p-2">
-				<span className="text-[10px] font-medium text-accent">{proposal.author} mengusulkan perubahan</span>
+				<span className="text-[10px] font-medium text-accent">{proposal.author} suggested a change</span>
 				<p className="break-words text-[11px] leading-relaxed text-faint line-through">
 					{markedText(thread.id) ?? thread.quote}
 				</p>

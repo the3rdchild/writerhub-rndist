@@ -92,7 +92,7 @@ export function ProposalBox({
 			{current && <p className="text-[11px] leading-snug text-faint line-through">{current}</p>}
 			<p className="whitespace-pre-wrap text-xs leading-snug text-foreground">{proposal.value}</p>
 			{proposal.evidence && (
-				<p className="text-[11px] leading-snug text-subtle">Dasarnya: “{proposal.evidence}”</p>
+				<p className="text-[11px] leading-snug text-subtle">Based on: “{proposal.evidence}”</p>
 			)}
 			<div className="flex gap-1.5 text-[11px]">
 				<button

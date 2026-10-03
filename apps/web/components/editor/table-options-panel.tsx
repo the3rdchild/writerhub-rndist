@@ -253,7 +253,7 @@ export function TableOptionsPanel({ editor, onClose }: { editor: Editor; onClose
 
 					<Section title="Column">
 						<div className="flex flex-col gap-1.5">
-							<span className="text-xs text-foreground">Lebar kolom {snap.colIndex + 1}</span>
+							<span className="text-xs text-foreground">Column {snap.colIndex + 1} width</span>
 							<MeasureInput ariaLabel="Column width" valuePx={snap.columnWidth} onCommit={setColumnWidth} />
 						</div>
 					</Section>

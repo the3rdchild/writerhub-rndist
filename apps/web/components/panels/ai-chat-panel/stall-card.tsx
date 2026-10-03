@@ -39,7 +39,7 @@ export function StallCard({
 					<p className="mt-1 text-muted">
 						{filled} of {stall.total} sections filled
 						{stall.empty.length > 0 && stall.empty.length <= 4 && (
-							<span className="text-subtle"> · kosong: {stall.empty.join(', ')}</span>
+							<span className="text-subtle"> · empty: {stall.empty.join(', ')}</span>
 						)}
 					</p>
 				)
@@ -65,7 +65,7 @@ export function StallCard({
 
 				{stall.autoContinues > 0 && (
 					<span className="text-[11px] text-faint">
-						Sudah dilanjutkan otomatis {stall.autoContinues} kali.
+						Continued automatically {stall.autoContinues} {stall.autoContinues === 1 ? 'time' : 'times'}.
 					</span>
 				)}
 			</div>

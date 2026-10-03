@@ -84,7 +84,7 @@ function ResultBody({ detail, text }: { detail: HistoryDetail; text: string }) {
 		const suggestions = grammar.suggestions ?? []
 		return (
 			<div className="flex flex-col gap-2">
-				<p className="px-1 text-[11px] text-subtle">{suggestions.length} saran</p>
+				<p className="px-1 text-[11px] text-subtle">{suggestions.length} {suggestions.length === 1 ? 'suggestion' : 'suggestions'}</p>
 				{suggestions.map((suggestion) => (
 					<ChangeRow
 						key={suggestion.id}
@@ -101,7 +101,7 @@ function ResultBody({ detail, text }: { detail: HistoryDetail; text: string }) {
 		const changes = (result as AiRewriterResult | HumanizerResult).changes ?? []
 		return (
 			<div className="flex flex-col gap-2">
-				<p className="px-1 text-[11px] text-subtle">{changes.length} perubahan</p>
+				<p className="px-1 text-[11px] text-subtle">{changes.length} {changes.length === 1 ? 'change' : 'changes'}</p>
 				{changes.map((change, index) => (
 					<ChangeRow
 						key={`${change.offset}-${index}`}

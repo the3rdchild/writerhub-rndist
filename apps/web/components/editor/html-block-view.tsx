@@ -263,14 +263,14 @@ export function HtmlBlockView({ node, updateAttributes, selected, editor, delete
 			{isClipped && !showSource && (
 				<div className="html-block-clipped" contentEditable={false}>
 					<Scissors className="h-3.5 w-3.5" />
-					Isi terpotong {Math.round(clipped)}px
+					Content clipped by {Math.round(clipped)}px
 				</div>
 			)}
 
 			{isUnderfilled && !showSource && (
 				<div className="html-block-underfilled" contentEditable={false}>
 					<ArrowDownToLine className="h-3.5 w-3.5" />
-					Isi baru mengisi {Math.round(filled * 100)}% halaman
+					Content fills only {Math.round(filled * 100)}% of the page
 				</div>
 			)}
 

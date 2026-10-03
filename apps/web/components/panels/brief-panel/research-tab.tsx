@@ -299,7 +299,7 @@ function OutlinePlan({ outline }: { outline: OutlineProgress | null }) {
 				<p>
 					Target {pages[0] === pages[1] ? pages[0] : `${pages[0]}-${pages[1]}`} pages
 					{current !== undefined && (
-						<span className={off ? 'text-yellow-400' : 'text-subtle'}> · sekarang {current}</span>
+						<span className={off ? 'text-yellow-400' : 'text-subtle'}> · now {current}</span>
 					)}
 				</p>
 			)}

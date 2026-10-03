@@ -244,7 +244,7 @@ export function SearchPanelBody() {
 							<span className="text-subtle">{row.after}</span>
 						</span>
 						{row.page !== null && (
-							<span className="shrink-0 pt-0.5 text-[10px] text-faint tabular-nums">Hal. {row.page}</span>
+							<span className="shrink-0 pt-0.5 text-[10px] text-faint tabular-nums">p. {row.page}</span>
 						)}
 					</button>
 				))}
