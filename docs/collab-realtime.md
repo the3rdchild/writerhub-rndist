@@ -280,6 +280,12 @@ karena pembaruan baru diterbitkan ke Redis setelah tercatat. Pada 100 klien seba
 - **Kehadiran**: `@tiptap/extension-collaboration-caret` 3.29.2; kursor dan label nama berwarna (gaya di
   `globals.css`, bagian kolaborasi; tidak ikut tercetak). Avatar kolaborator di indikator bilah atas.
 - **Cermin**: Y.Doc sesi → fragmen tab di Y.Doc besar, lewat diff, 0,8-4 dtk. Y.Doc yang dibuang tidak disalin lagi.
+  Hanya **satu halaman per tab** yang mencermin (Web Locks, `mirror-leader.ts`): setiap tab peramban punya salinan
+  Y.Doc besar sendiri yang tersimpan ke IndexedDB yang sama, dan dua halaman yang sama-sama mencermin perubahan
+  yang sama membuat item Yjs berbeda untuk isi yang sama - setelah muat ulang naskahnya ganda. Halaman yang
+  mendapat giliran mengejar dulu tulisan halaman lain (`fetchUpdates` pada penyimpan Y.Doc besar, dikenali dari
+  asal transaksi muatnya) sebelum mencermin. Halaman lain tetap menyunting lewat Y.Doc sesinya sendiri; hanya
+  salinan Y.Doc besarnya (pratinjau, ekspor) yang tertinggal sampai ia mendapat giliran.
 - **Semaian**: `initial` → salinan persis tab lokal; `reset` → naskah server. Halaman tautan berbagi SELALU menyemai
   dari naskah server yang diambil saat diminta (`share-seed.ts`), tidak pernah dari muatan halaman: muatan itu
   basi setelah pemilik memulihkan versi, dan semaian darinya menimpa versi yang baru dipulihkan. Bila naskah

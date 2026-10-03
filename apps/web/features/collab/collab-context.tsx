@@ -12,6 +12,7 @@ import {
 	useRef,
 	useState,
 } from 'react'
+import { fetchUpdates, IndexeddbPersistence } from 'y-indexeddb'
 import type * as Y from 'yjs'
 import { getTab } from '@/features/documents/api'
 import { useSessions } from '@/features/sessions/session-context'
@@ -40,6 +41,7 @@ import {
 import { localEdits, touchesTab } from './local-edits'
 import { indexeddbCollabStore } from './local-store'
 import { createFragmentMirror, type FragmentMirror, mirrorFragment } from './mirror'
+import { holdMirrorLead } from './mirror-leader'
 import { COLLAB_CARRY_ORIGIN, COLLAB_MIRROR_ORIGIN } from './origins'
 import { seedUpdateFromFragment, seedUpdateFromJSON } from './seed'
 import { type CollabPhase, CollabSession, type SeedRequest } from './session'
@@ -73,6 +75,8 @@ interface Entry {
 	session: CollabSession
 	mirror: FragmentMirror | null
 	mirroredDoc: Y.Doc | null
+	/** Melepas (atau membatalkan permintaan) giliran mencermin tab ini. */
+	mirrorLead: (() => void) | null
 	background: boolean
 	backgroundSince: number
 	retireTimer: ReturnType<typeof setTimeout> | null
@@ -135,6 +139,12 @@ export function CollabProvider({
 	linkageRef.current = linkage
 	/** Jenis pengikatan editor tab aktif menurut render terakhir. */
 	const bindingKindRef = useRef<CollabBinding['kind']>('local')
+	/**
+	 * Penyimpan IndexedDB Y.Doc besar milik `SessionProvider`, dikenali dari
+	 * asal transaksi muatnya sendiri. Dipakai mengejar tulisan halaman lain
+	 * (`fetchUpdates`) sebelum halaman ini mendapat giliran mencermin.
+	 */
+	const bigDocPersistence = useRef<IndexeddbPersistence | null>(null)
 
 	const notify = useCallback((notice: Omit<CollabNotice, 'id'>) => {
 		setNotices((current) => [...current, { ...notice, id: randomId() }])
@@ -258,11 +268,24 @@ export function CollabProvider({
 			// sudah dicadangkan; menyalinnya akan menimpa isi yang dipulihkan.
 			entry.mirror?.destroy()
 			entry.mirror = null
+			entry.mirrorLead?.()
+			entry.mirrorLead = null
 			entry.mirroredDoc = source
 			if (!source) return
-			entry.mirror = createFragmentMirror({ source, target: doc, targetField: entry.localTabId, schema })
-			// Sekali sekarang: isi server bisa sudah berbeda dari salinan di Y.Doc besar.
-			entry.mirror.flush()
+			// Hanya satu halaman per tab yang mencermin (`mirror-leader.ts`); yang
+			// mendapat giliran mengejar dulu tulisan halaman lain di IndexedDB.
+			entry.mirrorLead = holdMirrorLead(entry.localTabId, async () => {
+				const persistence = bigDocPersistence.current
+				try {
+					if (persistence?.db) await fetchUpdates(persistence)
+				} catch {
+					// IndexedDB tidak terbaca: tidak ada tulisan halaman lain yang bisa dikejar.
+				}
+				if (entry.mirroredDoc !== source || entries.current.get(entry.localTabId) !== entry) return
+				entry.mirror = createFragmentMirror({ source, target: doc, targetField: entry.localTabId, schema })
+				// Sekali sekarang: isi server bisa sudah berbeda dari salinan di Y.Doc besar.
+				entry.mirror.flush()
+			})
 		},
 		[doc, schema],
 	)
@@ -309,6 +332,7 @@ export function CollabProvider({
 			if (entry.fresh && tabStillExists && holdsContent(entry.session)) carryLocalCopy(entry)
 			if (entry.mirror && entry.mirroredDoc === entry.session.doc && tabStillExists) entry.mirror.flush()
 			entry.mirror?.destroy()
+			entry.mirrorLead?.()
 			entry.session.destroy()
 			entries.current.delete(entry.localTabId)
 			onCollabTabRef.current(entry.localTabId, false)
@@ -335,6 +359,7 @@ export function CollabProvider({
 				serverTabId,
 				session,
 				mirror: null,
+				mirrorLead: null,
 				mirroredDoc: null,
 				background: false,
 				backgroundSince: 0,
@@ -424,6 +449,11 @@ export function CollabProvider({
 	useEffect(
 		function trackLocalEditsOfCloudTabs() {
 			const onTransaction = (transaction: Y.Transaction) => {
+				// Efek anak berjalan lebih dulu dari efek `SessionProvider`, jadi
+				// muatan pertama dari IndexedDB pun terlihat di sini.
+				if (transaction.origin instanceof IndexeddbPersistence && transaction.origin.doc === doc) {
+					bigDocPersistence.current = transaction.origin
+				}
 				if (!transaction.local || transaction.origin === COLLAB_MIRROR_ORIGIN) return
 				const tabId = activeIdRef.current
 				if (!tabId || !linkageRef.current[tabId] || bindingKindRef.current !== 'local') return
