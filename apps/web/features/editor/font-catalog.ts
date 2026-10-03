@@ -10,7 +10,7 @@ export const FONT_CATEGORY_LABELS: Record<FontCategory, string> = {
 	sans: 'Sans-serif',
 	serif: 'Serif',
 	mono: 'Monospace',
-	display: 'Dekoratif',
+	display: 'Display',
 }
 
 export const DEFAULT_FONT_FAMILY = 'var(--font-document), serif'

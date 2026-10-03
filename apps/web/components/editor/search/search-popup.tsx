@@ -47,7 +47,7 @@ export function SearchPopup({
 						invalidRegex ? 'text-red-500' : 'text-accent',
 					)}
 				>
-					Cari di dokumen
+					Find in document
 				</label>
 				<input
 					id="find-in-document"
@@ -81,14 +81,14 @@ export function SearchPopup({
 
 			{invalidRegex && (
 				<span id="find-in-document-error" className="max-w-32 text-[11px] text-red-500 leading-tight">
-					Pola regex tidak sah
+					Invalid regular expression
 				</span>
 			)}
 
 			<button
 				type="button"
 				title="Sebelumnya (Shift+Enter)"
-				aria-label="Hasil sebelumnya"
+				aria-label="Previous result"
 				disabled={total === 0}
 				onClick={goPrevious}
 				className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
@@ -97,8 +97,8 @@ export function SearchPopup({
 			</button>
 			<button
 				type="button"
-				title="Berikutnya (Enter)"
-				aria-label="Hasil berikutnya"
+				title="Next (Enter)"
+				aria-label="Next result"
 				disabled={total === 0}
 				onClick={goNext}
 				className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
@@ -107,8 +107,8 @@ export function SearchPopup({
 			</button>
 			<button
 				type="button"
-				title="Buka di panel - ganti, opsi lanjutan, dan daftar hasil"
-				aria-label="Buka di panel - ganti, opsi lanjutan, dan daftar hasil"
+				title="Open in panel - replace, more options, and the result list"
+				aria-label="Open in panel - replace, more options, and the result list"
 				onClick={onOpenPanel}
 				className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 			>
@@ -116,8 +116,8 @@ export function SearchPopup({
 			</button>
 			<button
 				type="button"
-				title="Tutup (Esc)"
-				aria-label="Tutup pencarian"
+				title="Close (Esc)"
+				aria-label="Close search"
 				onClick={onClose}
 				className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 			>

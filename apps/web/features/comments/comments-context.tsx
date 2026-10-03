@@ -75,21 +75,30 @@ export function CommentsProvider({ children }: { children: ReactNode }) {
 		},
 		[activeId],
 	)
+	const resolvedThreadIds = useMemo(
+		() => comments.filter((thread) => thread.resolved).map((thread) => thread.id),
+		[comments],
+	)
 	useEffect(
-		function paintActiveThreadMark() {
+		/*
+		 * Utas yang dibuka disorot lebih tegas; utas yang sudah diselesaikan tidak
+		 * disorot sama sekali, seperti Google Docs - tandanya tetap di naskah
+		 * supaya "Buka lagi" mengembalikan sorotannya (uji editor 2 Okt, SHL-17).
+		 */
+		function paintThreadMarks() {
 			if (!editor || editor.isDestroyed) return
 			const view = editor.view
+			const marksOf = (id: string) => view.dom.querySelectorAll(`[data-comment-id="${CSS.escape(id)}"]`)
 
 			const paint = () => {
-				for (const node of view.dom.querySelectorAll('.comment-mark--active')) {
-					node.classList.remove('comment-mark--active')
+				for (const node of view.dom.querySelectorAll('.comment-mark--active, .comment-mark--resolved')) {
+					node.classList.remove('comment-mark--active', 'comment-mark--resolved')
+				}
+				for (const id of resolvedThreadIds) {
+					for (const node of marksOf(id)) node.classList.add('comment-mark--resolved')
 				}
 				if (!activeThreadId) return
-
-				const selector = `[data-comment-id="${CSS.escape(activeThreadId)}"]`
-				for (const node of view.dom.querySelectorAll(selector)) {
-					node.classList.add('comment-mark--active')
-				}
+				for (const node of marksOf(activeThreadId)) node.classList.add('comment-mark--active')
 			}
 
 			paint()
@@ -98,7 +107,7 @@ export function CommentsProvider({ children }: { children: ReactNode }) {
 				editor.off('update', paint)
 			}
 		},
-		[activeThreadId, editor],
+		[activeThreadId, editor, resolvedThreadIds],
 	)
 
 	const startPending = useCallback(

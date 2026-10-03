@@ -4,6 +4,7 @@ import { Clipboard, FileText, Upload, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useDocument } from '@/features/document/document-context'
 import { useDocumentImport } from '@/features/document/import-context'
+import { useDocumentLanguage } from '@/features/document/use-language'
 import { pastePlainTextFromClipboard } from '@/features/editor/clipboard'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { pageBlockRange, paginationKey } from '@/features/editor/pagination'
@@ -11,7 +12,7 @@ import { usePageStatus } from '@/features/editor/use-page-status'
 import { useVisiblePage } from '@/features/editor/use-visible-page'
 import { useGrammarCheck } from '@/features/grammar/use-grammar-check'
 import { useSettings } from '@/features/settings/settings-context'
-import { countCharacters, countWords } from '@/lib/utils'
+import { formatTextCounts } from '@/lib/utils'
 import { EditorContextMenu } from './context-menu'
 import { DocumentCanvas } from './document-canvas'
 import { LinkBubble } from './link-bubble'
@@ -25,6 +26,7 @@ export function DocumentEditor() {
 	const { settings } = useSettings()
 	const { editor, setEditor } = useEditorInstance()
 	const { error } = useGrammarCheck()
+	const language = useDocumentLanguage()
 
 	const { openImport, importing, warnings, dismissWarnings } = useDocumentImport()
 
@@ -79,13 +81,15 @@ export function DocumentEditor() {
 	}
 
 	return (
+		/* Bahasa naskah (bukan bahasa antarmuka) untuk pemeriksa ejaan dan pemenggalan kata peramban. */
 		<div
 			ref={containerRef}
+			lang={language.code}
 			className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-surface-sunken"
 		>
 			{importing && (
 				<div className="mx-4 mt-3 shrink-0 rounded-lg bg-accent/10 px-3 py-2">
-					<p className="text-xs text-accent">Membaca dokumen Word…</p>
+					<p className="text-xs text-accent">Reading the Word document…</p>
 				</div>
 			)}
 
@@ -93,12 +97,12 @@ export function DocumentEditor() {
 				<div className="mx-4 mt-3 shrink-0 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-2">
 					<div className="mb-1 flex items-start justify-between gap-2">
 						<p className="text-xs font-medium text-yellow-400">
-							Sebagian isi tidak punya padanan di editor ini:
+							Some content has no equivalent in this editor:
 						</p>
 						<button
 							type="button"
 							onClick={dismissWarnings}
-							aria-label="Tutup peringatan"
+							aria-label="Dismiss warning"
 							className="shrink-0 text-yellow-400/70 transition-colors hover:text-yellow-400"
 						>
 							<X className="h-3.5 w-3.5" />
@@ -143,7 +147,7 @@ export function DocumentEditor() {
 						</div>
 						<button
 							type="button"
-							aria-label="Hapus dokumen"
+							aria-label="Delete document"
 							onClick={() => dispatch({ type: 'setFile', file: null })}
 							className="ml-2 shrink-0 text-subtle transition-colors hover:text-foreground"
 						>
@@ -169,14 +173,12 @@ export function DocumentEditor() {
 				)}
 
 				{settings.showWordCount && !state.file && (
-					<span className="text-xs text-subtle">
-						{countWords(state.text)} words · {countCharacters(state.text)} characters
-					</span>
+					<span className="text-xs text-subtle">{formatTextCounts(state.text)}</span>
 				)}
 
 				<div className="ml-auto flex items-center gap-1">
-					<StatusButton icon={Upload} label="Unggah dokumen" onClick={() => openImport()} />
-					<StatusButton icon={Clipboard} label="Tempel teks" onClick={pasteFromClipboard} />
+					<StatusButton icon={Upload} label="Upload document" onClick={() => openImport()} />
+					<StatusButton icon={Clipboard} label="Paste text" onClick={pasteFromClipboard} />
 				</div>
 			</div>
 		</div>

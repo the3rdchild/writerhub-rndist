@@ -28,8 +28,8 @@ const PANEL_TITLES: Record<PanelId, string> = {
 	plagiarism: 'Plagiarism Checker',
 	translator: 'Translator',
 	glossary: 'Glosarium',
-	assets: 'Aset',
-	search: 'Cari dan ganti',
+	assets: 'Assets',
+	search: 'Find and replace',
 	watermark: 'Watermark',
 }
 
@@ -80,7 +80,8 @@ export function PanelContainer({ panel }: { panel: PanelId }) {
 	 */
 	return (
 		<div className="relative flex shrink-0">
-			<div className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-2xl bg-surface">
+			{/* Lebih sempit di bawah 1536 px supaya halaman masih cukup terlihat di laptop (SHL-9). */}
+			<div className="flex w-[300px] shrink-0 flex-col overflow-hidden rounded-2xl bg-surface 2xl:w-[340px]">
 				<div className="flex shrink-0 items-center justify-between px-4 py-2.5">
 					<h2 className="text-sm font-semibold text-foreground">{PANEL_TITLES[panel]}</h2>
 					<div className="flex items-center gap-1 text-xs">

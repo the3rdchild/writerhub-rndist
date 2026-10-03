@@ -36,8 +36,11 @@ function buildDecorations(doc: PMNode, ranges: readonly VersionDiffRange[]): Dec
 				() => {
 					const marker = document.createElement('span')
 					marker.className = 'version-diff-added'
-					marker.title = `${addedWords} kata ditambahkan di versi saat ini`
-					marker.setAttribute('aria-label', `${addedWords} kata ditambahkan di versi saat ini`)
+					marker.title = `${addedWords} ${addedWords === 1 ? 'word' : 'words'} added in the current version`
+					marker.setAttribute(
+						'aria-label',
+						`${addedWords} ${addedWords === 1 ? 'word' : 'words'} added in the current version`,
+					)
 					return marker
 				},
 				{ key: `version-diff-added-${range.offset}` },

@@ -9,7 +9,7 @@ export class StreamError extends Error {}
 
 export class StreamTimeoutError extends StreamError {
 	constructor() {
-		super('Timeout menunggu hasil, coba lagi')
+		super('Timed out waiting for the result, try again')
 	}
 }
 
@@ -58,6 +58,6 @@ export function streamJob<TEvent>(
 			onEvent?.(event)
 			if (isTerminal(event)) succeed(event)
 		}
-		source.onerror = () => fail(new StreamError('Koneksi ke server terputus'))
+		source.onerror = () => fail(new StreamError('Lost the connection to the server'))
 	})
 }

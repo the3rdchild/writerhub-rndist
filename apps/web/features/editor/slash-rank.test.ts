@@ -30,3 +30,25 @@ describe('peringkat menu slash (TBL-13)', () => {
 		expect(labels('')).toEqual(ITEMS.map((item) => item.label))
 	})
 })
+
+describe('kata kunci Indonesia setelah label berbahasa Inggris', () => {
+	/* Label kini Inggris, jadi `/tabel` dan `/gambar` hanya cocok lewat kata
+	 * kunci; daftar tabel/gambar tidak boleh ikut memakai kata itu sendirian,
+	 * kalau tidak mereka seri dan menang karena tertulis lebih dulu (TBL-13). */
+	const items = [
+		{ label: 'List of figures', keywords: ['daftar gambar', 'lof', 'figures'] },
+		{ label: 'List of tables', keywords: ['daftar tabel', 'lot', 'tables'] },
+		{ label: 'Table', keywords: ['table', 'tabel', 'grid'] },
+		{ label: 'Image', keywords: ['image', 'gambar', 'upload', 'media'] },
+	]
+
+	test('/tabel dan /gambar memilih Table dan Image', () => {
+		expect(rankSlashItems(items, 'tabel')[0]?.label).toBe('Table')
+		expect(rankSlashItems(items, 'gambar')[0]?.label).toBe('Image')
+	})
+
+	test('/daftar tabel tetap menemukan List of tables', () => {
+		expect(rankSlashItems(items, 'daftar tabel')[0]?.label).toBe('List of tables')
+	})
+})
+

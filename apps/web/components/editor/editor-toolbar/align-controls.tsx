@@ -15,10 +15,10 @@ export function AlignControls({
 	state: ToolbarState | null
 }) {
 	const options = [
-		{ icon: AlignLeft, label: 'Rata kiri', value: 'left', active: state?.alignLeft },
-		{ icon: AlignCenter, label: 'Rata tengah', value: 'center', active: state?.alignCenter },
-		{ icon: AlignRight, label: 'Rata kanan', value: 'right', active: state?.alignRight },
-		{ icon: AlignJustify, label: 'Rata kanan-kiri', value: 'justify', active: state?.alignJustify },
+		{ icon: AlignLeft, label: 'Align left', value: 'left', active: state?.alignLeft },
+		{ icon: AlignCenter, label: 'Align center', value: 'center', active: state?.alignCenter },
+		{ icon: AlignRight, label: 'Align right', value: 'right', active: state?.alignRight },
+		{ icon: AlignJustify, label: 'Justify', value: 'justify', active: state?.alignJustify },
 	] as const
 
 	return (

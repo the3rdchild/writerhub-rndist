@@ -11,12 +11,12 @@ import { cn } from '@/lib/utils'
 import { ActivityDetail } from './activity-detail'
 import { FEATURE_META } from './feature-meta'
 
-const timeFormat = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' })
+const timeFormat = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' })
 
 const FILTERS: Array<{ key: HistoryFeature | 'all'; label: string }> = [
-	{ key: 'all', label: 'Semua' },
+	{ key: 'all', label: 'All' },
 	{ key: 'grammar', label: 'Proofreader' },
-	{ key: 'research', label: 'Riset Web' },
+	{ key: 'research', label: 'Web research' },
 	{ key: 'ai_detector', label: 'AI Detector' },
 	{ key: 'ai_rewriter', label: 'AI Rewriter' },
 	{ key: 'humanizer', label: 'Humanizer' },
@@ -44,16 +44,16 @@ function EntryRow({
 		>
 			<div className="flex items-center gap-2">
 				{meta && <meta.icon className="h-4 w-4 shrink-0 text-muted" />}
-				<span className="text-sm font-medium text-foreground">{meta?.label ?? 'Modul AI'}</span>
+				<span className="text-sm font-medium text-foreground">{meta?.label ?? 'AI tool'}</span>
 				<span className="ml-auto shrink-0 text-xs text-subtle">
 					{timeFormat.format(new Date(entry.createdAt))}
 				</span>
 			</div>
 			<div className="mt-0.5 truncate pl-6 text-xs text-muted">
-				{entry.documentTitle ?? 'Tanpa tautan dokumen'}
+				{entry.documentTitle ?? 'No linked document'}
 			</div>
 			<div className="mt-0.5 truncate pl-6 text-xs text-subtle">
-				{entry.summary ?? (entry.status === 'failed' ? 'Job gagal' : 'Belum ada hasil')}
+				{entry.summary ?? (entry.status === 'failed' ? 'Job failed' : 'No results yet')}
 			</div>
 		</button>
 	)
@@ -91,7 +91,7 @@ export function ActivityView() {
 			await clearHistory.mutateAsync()
 			setSelectedJobId(null)
 		} catch {
-			setClearError('Gagal menghapus aktivitas. Coba lagi.')
+			setClearError('Could not delete the activity. Try again.')
 		}
 	}
 
@@ -101,7 +101,7 @@ export function ActivityView() {
 				<Link
 					href="/"
 					className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
-					aria-label="Kembali ke editor"
+					aria-label="Back to editor"
 				>
 					<ArrowLeft className="h-5 w-5" />
 				</Link>
@@ -118,7 +118,7 @@ export function ActivityView() {
 							className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-red-400"
 						>
 							<Trash2 className="h-3.5 w-3.5" />
-							Hapus semua aktivitas
+							Delete all activity
 						</button>
 					)}
 				</div>
@@ -147,20 +147,20 @@ export function ActivityView() {
 
 					<div className="flex-1 px-4 pb-6 pt-2">
 						{history.isPending && (
-							<p className="px-3 py-10 text-center text-sm text-muted">Memuat aktivitas…</p>
+							<p className="px-3 py-10 text-center text-sm text-muted">Loading activity…</p>
 						)}
 						{history.isError && (
-							<p className="px-3 py-10 text-center text-sm text-red-400">Gagal memuat aktivitas AI.</p>
+							<p className="px-3 py-10 text-center text-sm text-red-400">Could not load AI activity.</p>
 						)}
 						{clearError && <p className="px-3 pt-2 text-xs text-red-400">{clearError}</p>}
 
 						{!history.isPending && !history.isError && entries.length === 0 && (
 							<div className="flex flex-col items-center justify-center py-20 text-center">
 								<Activity className="h-8 w-8 text-faint" />
-								<p className="mt-3 text-sm font-medium text-foreground">Belum ada aktivitas</p>
+								<p className="mt-3 text-sm font-medium text-foreground">No activity yet</p>
 								<p className="mt-1 max-w-sm text-xs text-subtle">
-									Jalankan Proofreader, AI Detector, AI Rewriter, Humanizer, atau Plagiarism - catatannya akan
-									muncul di sini.
+									Run the Proofreader, AI Detector, AI Rewriter, Humanizer, or Plagiarism Checker - the record
+									shows up here.
 								</p>
 							</div>
 						)}
@@ -189,7 +189,7 @@ export function ActivityView() {
 									onClick={() => void history.fetchNextPage()}
 									className="rounded-xl border border-line px-4 py-2 text-sm text-muted transition-colors hover:border-line-strong hover:text-foreground disabled:opacity-50"
 								>
-									{history.isFetchingNextPage ? 'Memuat…' : 'Muat lebih banyak'}
+									{history.isFetchingNextPage ? 'Loading…' : 'Load more'}
 								</button>
 							</div>
 						)}
@@ -201,9 +201,9 @@ export function ActivityView() {
 
 			<ConfirmDialog
 				open={confirmOpen}
-				title="Hapus semua aktivitas?"
-				description="Seluruh catatan pemakaian modul AI Anda beserta hasilnya akan dihapus permanen. Dokumen Anda tidak ikut terhapus."
-				confirmLabel="Hapus semua"
+				title="Delete all activity?"
+				description="All records of your AI tool use and their results will be deleted permanently. Your documents are not affected."
+				confirmLabel="Delete all"
 				danger
 				onConfirm={() => void handleClearAll()}
 				onCancel={() => setConfirmOpen(false)}

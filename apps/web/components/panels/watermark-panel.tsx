@@ -27,16 +27,16 @@ const ANCHOR_GRID: readonly WatermarkAnchor[][] = [
 ]
 
 const ANCHOR_LABELS: Record<WatermarkAnchor, string> = {
-	'top-left': 'Kiri atas',
-	top: 'Tengah atas',
-	'top-right': 'Kanan atas',
-	left: 'Kiri tengah',
-	center: 'Tengah',
-	right: 'Kanan tengah',
-	'bottom-left': 'Kiri bawah',
-	bottom: 'Tengah bawah',
-	'bottom-right': 'Kanan bawah',
-	tile: 'Ubin',
+	'top-left': 'Top left',
+	top: 'Top center',
+	'top-right': 'Top right',
+	left: 'Middle left',
+	center: 'Center',
+	right: 'Middle right',
+	'bottom-left': 'Bottom left',
+	bottom: 'Bottom center',
+	'bottom-right': 'Bottom right',
+	tile: 'Tile',
 }
 
 /** Seret tidak boleh membuang watermark keluar dari kotak isi sepenuhnya. */
@@ -52,7 +52,7 @@ const clamp = (value: number, low: number, high: number) => Math.min(high, Math.
  * diatur - dan ia menggambar bidang acuannya, bukan sekadar kertas. Bawaannya
  * kotak margin, karena batas itu nyata: saat mencetak, isi halaman di-clip ke
  * kotak margin `@page`, jadi watermark yang melewatinya akan terpotong di PDF.
- * "Lepas dari batas margin" memindahkan bidang itu ke kertas utuh sekaligus
+ * "Extend past the margins" memindahkan bidang itu ke kertas utuh sekaligus
  * mengubah jalur cetaknya (lihat `document-paper.tsx`), jadi yang ditata di
  * sini tetap sama dengan yang keluar dari mesin cetak.
  */
@@ -114,8 +114,7 @@ export function WatermarkPanelBody() {
 		return () => observer.disconnect()
 	}, [])
 
-	const scopeLabel =
-		sessions.find((tab) => tab.id === activeId)?.title || state.title || 'Dokumen tanpa judul'
+	const scopeLabel = sessions.find((tab) => tab.id === activeId)?.title || state.title || 'Untitled document'
 
 	const write = (next: Watermark | null) => {
 		setDraft(next)
@@ -164,7 +163,7 @@ export function WatermarkPanelBody() {
 	const pickFile = async (file: File | undefined) => {
 		if (!file) return
 		if (!projectId) {
-			setNotice('Dokumen ini belum tersinkron ke proyek, jadi belum ada pustaka aset untuk menyimpannya.')
+			setNotice("This document isn't synced to a project yet, so there's no asset library to keep it in.")
 			return
 		}
 		setNotice(null)
@@ -172,7 +171,7 @@ export function WatermarkPanelBody() {
 			const asset = await upload.mutateAsync(file)
 			patch({ kind: 'image', assetId: asset.id })
 		} catch (error) {
-			setNotice(error instanceof Error ? error.message : 'Unggahan gagal.')
+			setNotice(error instanceof Error ? error.message : 'Upload failed.')
 		}
 	}
 
@@ -193,8 +192,8 @@ export function WatermarkPanelBody() {
 			<div className="flex gap-2">
 				{(
 					[
-						{ kind: 'text' as const, label: 'Teks' },
-						{ kind: 'image' as const, label: 'Gambar' },
+						{ kind: 'text' as const, label: 'Text' },
+						{ kind: 'image' as const, label: 'Image' },
 					] satisfies ReadonlyArray<{ kind: Watermark['kind']; label: string }>
 				).map((option) => (
 					<button
@@ -219,7 +218,7 @@ export function WatermarkPanelBody() {
 					value={active?.text ?? ''}
 					onChange={(event) => patch({ kind: 'text', text: event.target.value })}
 					placeholder={DEFAULT_WATERMARK.text}
-					aria-label="Teks watermark"
+					aria-label="Watermark text"
 					className="w-full rounded-lg border border-line bg-surface-raised px-2.5 py-1.5 text-foreground text-sm outline-none transition-colors focus:border-accent"
 				/>
 			) : (
@@ -251,8 +250,8 @@ export function WatermarkPanelBody() {
 					</div>
 					{projectId !== null && (assets.data ?? []).length === 0 && !assets.isLoading && (
 						<p className="text-[11px] text-subtle">
-							Pustaka aset proyek ini masih kosong. Unggah gambarnya di sini - ia ikut tersimpan di pustaka,
-							jadi dokumen lain di proyek yang sama bisa memakai logo yang sama.
+							This project's asset library is empty. Upload the image here - it is kept in the library, so
+							other documents in the same project can use the same logo.
 						</p>
 					)}
 					<button
@@ -262,7 +261,7 @@ export function WatermarkPanelBody() {
 						className="flex items-center justify-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-muted text-xs transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground disabled:opacity-50"
 					>
 						<Upload className="h-3.5 w-3.5" />
-						{upload.isPending ? 'Mengunggah…' : 'Unggah gambar'}
+						{upload.isPending ? 'Mengunggah…' : 'Upload image'}
 					</button>
 					<input
 						ref={fileInput}
@@ -340,9 +339,7 @@ export function WatermarkPanelBody() {
 						})}
 				</div>
 			</div>
-			<p className="text-[11px] text-subtle">
-				Garis putus-putus adalah batas margin.
-			</p>
+			<p className="text-[11px] text-subtle">The dashed line is the margin boundary.</p>
 
 			<div className="flex items-start gap-3">
 				<div className="grid shrink-0 grid-cols-3 gap-0.5">
@@ -375,7 +372,7 @@ export function WatermarkPanelBody() {
 							: 'border-line text-muted hover:text-foreground',
 					)}
 				>
-					Ubin
+					Tile
 				</button>
 			</div>
 
@@ -393,15 +390,15 @@ export function WatermarkPanelBody() {
 					className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
 				/>
 				<span className="flex flex-col gap-0.5">
-					Lepas dari batas margin
+					Extend past the margins
 					<span className="text-[11px] text-subtle leading-relaxed">
-						Watermark memakai kertas utuh sampai ke tepinya.
+						The watermark uses the whole sheet, edge to edge.
 					</span>
 				</span>
 			</label>
 
 			<Slider
-				label="Ukuran"
+				label="Size"
 				value={Math.round((active?.scale ?? DEFAULT_WATERMARK.scale) * 100)}
 				min={5}
 				max={100}
@@ -410,7 +407,7 @@ export function WatermarkPanelBody() {
 				onCommit={(value) => patch({ scale: value / 100 })}
 			/>
 			<Slider
-				label="Opasitas"
+				label="Opacity"
 				value={Math.round((active?.opacity ?? DEFAULT_WATERMARK.opacity) * 100)}
 				min={2}
 				max={100}
@@ -439,7 +436,7 @@ export function WatermarkPanelBody() {
 					className="flex items-center justify-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-muted text-xs transition-colors hover:bg-red-500/10 hover:text-red-400"
 				>
 					<Trash2 className="h-3.5 w-3.5" />
-					Hapus watermark
+					Remove watermark
 				</button>
 			)}
 		</div>

@@ -290,6 +290,8 @@ export interface RunStyle {
 	size?: number
 	font?: string
 	highlight?: WordHighlight
+	/** Selalu `false`: tanpa ini pustaka docx menulis `w:highlightCs`, elemen yang tidak ada di skema. */
+	highlightComplexScript?: false
 	shading?: { type: 'clear'; fill: string; color: 'auto' }
 	subScript?: boolean
 	superScript?: boolean
@@ -344,8 +346,10 @@ export function runStyleOf(marks: readonly MarkLike[], inherited: RunStyle = {},
 				const fill = attrs.color === undefined || attrs.color === null ? 'FFFF00' : cssColorToHex(attrs.color)
 				if (!fill) break
 				const named = wordHighlightOf(fill)
-				if (named) style.highlight = named
-				else style.shading = { type: 'clear', fill, color: 'auto' }
+				if (named) {
+					style.highlight = named
+					style.highlightComplexScript = false
+				} else style.shading = { type: 'clear', fill, color: 'auto' }
 				break
 			}
 			case 'textStyle': {

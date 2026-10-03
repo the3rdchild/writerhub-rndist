@@ -7,6 +7,7 @@ import {
 	deleteDocument,
 	deleteTab,
 	docsRoot,
+	duplicateDocument,
 	duplicateTab,
 	findTabDoc,
 	holdRootsUntilLoaded,
@@ -213,6 +214,44 @@ describe('duplikat tab', () => {
 		const copy = duplicateTab(doc, tabIds[0]) as string
 		expect(readTabs(doc, docId).find((tab) => tab.id === copy)?.comments).toEqual([])
 		expect(readTabs(doc, docId).find((tab) => tab.id === tabIds[0])?.comments).toHaveLength(1)
+	})
+})
+
+describe('duplikat dokumen (SHL-11)', () => {
+	test('semua tab, isi, setelan, dan komentarnya tersalin ke dokumen baru sesudah aslinya', () => {
+		const doc = new Y.Doc()
+		const other = createDocument(doc, 'Lain')
+		const { docId, tabIds } = docWithTabs(doc, ['Bab 1', 'Bab 2'])
+		moveDocument(doc, docId, other)
+		renameDocument(doc, docId, 'Skripsi')
+		writeParagraph(doc, tabIds[1], 'isi bab dua')
+		updateTab(doc, tabIds[0], {
+			comments: [{ id: 'c1', quote: 'kutipan', replies: [], resolved: false, createdAt: 1 }],
+		})
+		setPageSetupForTab(doc, tabIds[1], { ...DEFAULT_PAGE_SETUP, orientation: 'landscape' })
+
+		const copy = duplicateDocument(doc, docId) as string
+		expect(copy).not.toBeNull()
+		const docs = readDocs(doc)
+		expect(docs.map((entry) => entry.title)).toEqual(['Skripsi', 'Skripsi (copy)', 'Lain'])
+		const copyTabs = readTabs(doc, copy)
+		expect(copyTabs.map((tab) => tab.title)).toEqual(['Bab 1', 'Bab 2'])
+		expect(copyTabs.some((tab) => tabIds.includes(tab.id))).toBe(false)
+		expect(tabPreview(doc, copyTabs[1].id)).toBe('isi bab dua')
+		expect(copyTabs[0].comments).toHaveLength(1)
+		expect(resolvePageSetup(doc, copyTabs[1].id).orientation).toBe('landscape')
+	})
+
+	test('menyunting salinan tidak mengubah aslinya', () => {
+		const doc = new Y.Doc()
+		const { docId, tabIds } = docWithTabs(doc, ['Asli'])
+		writeParagraph(doc, tabIds[0], 'naskah')
+		const copy = duplicateDocument(doc, docId) as string
+		const copyTab = readTabs(doc, copy)[0].id
+		writeParagraph(doc, copyTab, 'tambahan')
+		updateTab(doc, copyTab, { title: 'Diubah' })
+		expect(tabPreview(doc, tabIds[0])).toBe('naskah')
+		expect(readTabs(doc, docId)[0].title).toBe('Asli')
 	})
 })
 

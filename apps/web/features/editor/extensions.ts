@@ -34,8 +34,10 @@ import { EditShortcuts, KeepTabInEditor } from '@/features/editor/edit-shortcuts
 import { Footnote, FootnoteRef } from '@/features/editor/footnote'
 import { HeadingLevels } from '@/features/editor/heading-extension'
 import { HtmlBlock } from '@/features/editor/html-block'
+import { ImageFileDrop } from '@/features/editor/image-insert'
 import { BlockIndentExtension } from '@/features/editor/indent'
 import { openHref, promptForLink } from '@/features/editor/link'
+import { NumberedList } from '@/features/editor/list-numbering'
 import { Bold, Code, Italic, Strike } from '@/features/editor/marks'
 import { MathBlock, MathInline } from '@/features/editor/math'
 import { PageBreak } from '@/features/editor/page-break'
@@ -114,6 +116,8 @@ export function buildEditorExtensions({
 			link: false,
 			codeBlock: false,
 			heading: false,
+			/* Diganti NumberedList - gaya nomor yang terbaca CSS (`list-numbering.ts`). */
+			orderedList: false,
 			/* Diganti versi tanpa aturan tempel - lihat `marks.ts`. */
 			bold: false,
 			italic: false,
@@ -125,6 +129,7 @@ export function buildEditorExtensions({
 		Italic,
 		Strike,
 		Code,
+		NumberedList,
 		HeadingLevels,
 		Link.extend({
 			addKeyboardShortcuts() {
@@ -179,13 +184,14 @@ export function buildEditorExtensions({
 		TaskList,
 		TaskItem.configure({ nested: true }),
 		ResizableImage.configure({ inline: false, allowBase64: true } satisfies ResizableImageOptions),
+		ImageFileDrop,
 		CodeBlock,
 		Callout,
 		Footnote,
 		FootnoteRef,
 		ColumnExtension,
 		TableOfContentsConfigured,
-		Placeholder.configure({ placeholder: 'Mulai menulis, atau tempel draf Anda di sini…' }),
+		Placeholder.configure({ placeholder: 'Start writing, or paste your draft here…' }),
 		SuggestionHighlight,
 		CandidatePreviewHighlight,
 		AnalysisHighlight,

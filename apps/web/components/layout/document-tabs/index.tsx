@@ -23,12 +23,12 @@ function SidebarBody() {
 	const activeDoc = documents.find((document) => document.id === activeDocId) ?? null
 
 	return (
-		<aside className="flex w-[248px] shrink-0 flex-col overflow-y-auto pb-6 pl-1 pr-2">
+		<aside className="flex w-[208px] shrink-0 flex-col overflow-y-auto pb-6 pl-1 pr-2 2xl:w-[248px]">
 			<div className="flex items-center px-1 pb-1 pt-1">
 				<button
 					type="button"
-					aria-label="Sembunyikan tab dokumen"
-					title="Sembunyikan tab dokumen"
+					aria-label="Hide document tabs"
+					title="Hide document tabs"
 					onClick={() => update({ showDocumentTabs: false })}
 					className="flex h-8 w-8 items-center justify-center rounded-lg text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 				>
@@ -49,8 +49,8 @@ function SidebarBody() {
 				<h2 className="text-sm font-medium text-muted">Tab</h2>
 				<button
 					type="button"
-					aria-label="Tab baru"
-					title="Tab baru"
+					aria-label="New tab"
+					title="New tab"
 					onClick={newSession}
 					className="flex h-7 w-7 items-center justify-center rounded-lg text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 				>

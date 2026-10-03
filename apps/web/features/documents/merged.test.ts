@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import type { DocMeta } from '@/features/sessions/ydoc'
-import { filterByProject, mergeDocuments } from './merged'
+import {
+	filterByProject,
+	type MergedDocument,
+	mergeDocuments,
+	searchDocuments,
+	sortDocuments,
+} from './merged'
 import type { DocumentSummary } from './types'
 
 const local = (id: string, title: string, updatedAt: number, tabs = 1): DocMeta => ({
@@ -83,5 +89,34 @@ describe('penyaringan proyek', () => {
 
 	test('proyek tertentu tidak pernah memuat dokumen lokal-saja', () => {
 		expect(filterByProject(docs, 'P1').map((d) => d.title)).toEqual(['Di proyek'])
+	})
+})
+
+describe('cari dan urutkan library (SHL-11)', () => {
+	const doc = (title: string, updatedAt: number): MergedDocument => ({
+		key: title,
+		localId: title,
+		serverId: null,
+		title,
+		updatedAt,
+		tabCount: 1,
+		projectId: null,
+		origin: 'local-only',
+	})
+	const docs = [doc('Bab 10 Penutup', 3), doc('Résumé Riset', 1), doc('Bab 2 Tinjauan', 2)]
+
+	test('cari mengabaikan huruf besar-kecil dan diakritik, semua kata harus ada', () => {
+		expect(searchDocuments(docs, 'resume').map((entry) => entry.title)).toEqual(['Résumé Riset'])
+		expect(searchDocuments(docs, 'bab tinjau').map((entry) => entry.title)).toEqual(['Bab 2 Tinjauan'])
+		expect(searchDocuments(docs, '  ')).toHaveLength(3)
+	})
+
+	test('urut nama memakai angka alami, urut terbaru menurut waktu ubah', () => {
+		expect(sortDocuments(docs, 'name').map((entry) => entry.title)).toEqual([
+			'Bab 2 Tinjauan',
+			'Bab 10 Penutup',
+			'Résumé Riset',
+		])
+		expect(sortDocuments(docs, 'modified').map((entry) => entry.updatedAt)).toEqual([3, 2, 1])
 	})
 })

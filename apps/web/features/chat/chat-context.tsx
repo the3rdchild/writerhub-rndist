@@ -113,6 +113,7 @@ import {
 	promisesMore,
 	type StallReason,
 } from './stall'
+import { THINKING_LABEL } from './thinking-words'
 import { hasOpenTodos, parseTodos, type Todo, todoCounts, todosForModel } from './todos'
 import {
 	applyInOrder,
@@ -140,7 +141,6 @@ import {
 	type TurnPart,
 	visibleParts,
 } from './turn-parts'
-import { THINKING_LABEL } from './thinking-words'
 import { formatWordDelta, sumWordDeltas, type WordDelta, wordDelta } from './word-delta'
 
 export type { ChatStep, TurnPart } from './turn-parts'
@@ -248,9 +248,9 @@ const BROKEN_ARGS_RESULT =
 const PHASE_LABEL: Record<ChatStreamPhase, string> = {
 	connecting: 'Menghubungi provider…',
 	thinking: THINKING_LABEL,
-	reading: 'Menyiapkan pembacaan dokumen…',
+	reading: 'Preparing to read the document…',
 	writing: 'Menyusun jawaban…',
-	retrying: 'Mencoba ulang tanpa tool calling…',
+	retrying: 'Retrying without tool calling…',
 }
 
 function newTaskId(): string {
@@ -949,7 +949,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		patchRunningStep({
 			status: 'done',
 			endedAt: Date.now(),
-			detail: `${why}. Langkah yang sudah selesai tidak diulang; AI meneruskan dari langkah terakhir.`,
+			detail: `${why}. Finished steps aren't repeated; the AI continues from the last step.`,
 		})
 	}
 
@@ -1005,7 +1005,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		const first = todosRef.current?.taskId !== taskId
 		setTodosBoth({ taskId, items })
 		if (!first) return
-		const stepId = pushStep(`Rencana ${items.length} langkah`)
+		const stepId = pushStep(`Plan with ${items.length} ${items.length === 1 ? 'step' : 'steps'}`)
 		setPartsBoth(
 			mapSteps(partsRef.current, (step) =>
 				step.id === stepId
@@ -1264,8 +1264,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		if (!outcome.ok) return null
 		setNumberingPreset(app.doc, app.activeId, outcome.front ? 'academic' : 'academic-body')
 		return outcome.front
-			? 'Bagian depan bernomor romawi (i, ii, …) di tengah bawah; mulai BAB I angka dari 1 - tengah bawah di halaman pembuka bab, kanan atas di halaman lainnya.'
-			: 'Angka dari 1 - tengah bawah di halaman pembuka bab, kanan atas di halaman lainnya. Bagian depan akan bernomor romawi begitu ditulis.'
+			? 'Front matter numbered in roman numerals (i, ii, …) at the bottom center; from BAB I, numbers from 1 - bottom center on chapter opening pages, top right elsewhere.'
+			: 'Numbers from 1 - bottom center on chapter opening pages, top right elsewhere. Front matter gets roman numerals once it is written.'
 	}
 
 	const runTurn = useCallback(
@@ -1437,7 +1437,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 						status: 'done',
 						endedAt: Date.now(),
 						detail:
-							'Jatah baca permintaan ini habis sementara AI masih ingin membaca. Tekan Lanjutkan untuk memberi jatah baru.',
+							'This request ran out of reading budget while the AI still wanted to read. Press Continue to give it a new budget.',
 					})
 				}
 				/*
@@ -1483,7 +1483,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 					if (!stallPendingRef.current) {
 						const numbered = autoNumber(history, taskId)
 						if (numbered) {
-							pushStep('Penomoran halaman dipasang', numbered)
+							pushStep('Page numbering set', numbered)
 							patchRunningStep({ status: 'done', endedAt: Date.now() })
 						}
 					}
@@ -1576,7 +1576,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 				patchRunningStep({
 					status: 'done',
 					endedAt: Date.now(),
-					detail: `${round} putaran · ${readsUsed + reads.length} alat baca. Model diminta menjawab dengan bahan yang ada.`,
+					detail: `${round} rounds · ${readsUsed + reads.length} reading tools. The model was asked to answer with what it has.`,
 				})
 			}
 			/*
@@ -1642,7 +1642,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			 * "Berpikir…" lagi di bawah langkah yang gagal (uji 29 Sep, tiga
 			 * kali "Berpikir" 598 detik berturut-turut).
 			 */
-			if (autoRetried) markResumedRef.current('Dicoba ulang otomatis')
+			if (autoRetried) markResumedRef.current('Retried automatically')
 
 			runTurn(history, 0, controller, taskId)
 				.catch((cause: unknown) => {
@@ -1695,7 +1695,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		setStall(null)
 		setInterruption(null)
 		setStreaming('')
-		markResumedRef.current('Dicoba ulang oleh penulis')
+		markResumedRef.current('Retried by the writer')
 		startTurnRef.current?.(messagesRef.current, currentTaskIdRef.current ?? newTaskId(), false)
 	}, [])
 
@@ -1883,7 +1883,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			if (appliedActionIds.has(call.id)) return { ok: true, message: 'Sudah diterapkan.' }
 
 			const editor = editorRef.current
-			if (!editor) return { ok: false, message: 'Editor belum siap.' }
+			if (!editor) return { ok: false, message: "The editor isn't ready yet." }
 
 			// Diukur mengapit penerapannya, bukan dari argumen alat: yang dihitung
 			// harus perubahan yang benar-benar mendarat di naskah.
@@ -2005,7 +2005,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	 */
 	const runDrawTool = useCallback(async (call: ToolCall): Promise<ToolOutcome> => {
 		const editor = editorRef.current
-		if (!editor) return { ok: false, message: 'Editor belum siap.' }
+		if (!editor) return { ok: false, message: "The editor isn't ready yet." }
 
 		const redraw = call.name === 'redraw_diagram'
 		let target: { pos: number; source: string; title: string } | null = null
@@ -2030,7 +2030,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		}
 
 		const label = redraw
-			? `Menggambar ulang "${target?.title || 'diagram'}"`
+			? `Redrawing "${target?.title || 'diagram'}"`
 			: `Menggambar diagram ${String(call.arguments.type ?? '')}`.trim()
 		const stepId = startBackgroundStep(label)
 
@@ -2164,7 +2164,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 	const applyAction = useCallback(
 		async (call: ToolCall): Promise<ToolOutcome> => {
 			if (claimActions([call]).length === 0) {
-				return { ok: false, message: 'Aksi ini sedang atau sudah diterapkan.' }
+				return { ok: false, message: 'This action is being applied or already was.' }
 			}
 			try {
 				const outcome = needsDrawing(call.name, call.arguments)

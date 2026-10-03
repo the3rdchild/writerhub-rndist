@@ -24,10 +24,10 @@ function roundUnit(value: number): number {
 const LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
 
 const TAB_LEADERS: ReadonlyArray<{ value: TocTabLeader; label: string; char: string }> = [
-	{ value: 'none', label: 'Tidak ada', char: ' ' },
-	{ value: 'dots', label: 'Titik-titik', char: '·' },
-	{ value: 'dashes', label: 'Tanda pisah', char: '-' },
-	{ value: 'line', label: 'Garis bawah', char: '_' },
+	{ value: 'none', label: 'None', char: ' ' },
+	{ value: 'dots', label: 'Dots', char: '·' },
+	{ value: 'dashes', label: 'Dashes', char: '-' },
+	{ value: 'line', label: 'Underscores', char: '_' },
 ]
 
 const FIELD_CLASS =
@@ -112,31 +112,31 @@ export function TocSettingsDialog() {
 			ref={overlayRef}
 			role="dialog"
 			aria-modal="true"
-			aria-label="Setelan daftar isi"
+			aria-label="Table of contents settings"
 			className="fixed inset-0 z-[70] flex animate-in items-center justify-center bg-black/60 p-4 backdrop-blur-sm fade-in duration-200"
 			onClick={(e) => {
 				if (e.target === overlayRef.current) setOpen(false)
 			}}
 		>
 			<div className="flex max-h-full w-full max-w-md animate-in flex-col gap-4 overflow-y-auto rounded-2xl border border-line-strong bg-surface-raised p-5 shadow-2xl zoom-in-95 duration-200">
-				<h2 className="text-base font-semibold text-foreground">Setelan daftar isi</h2>
+				<h2 className="text-base font-semibold text-foreground">Table of contents settings</h2>
 
 				<div className="flex flex-col gap-3">
 					{/*
 					 */}
 					<Row
-						label="Gaya butir"
+						label="Entry style"
 						hint={
 							draft.style === 'link'
-								? 'Tiap butir jadi tautan yang melompat ke judulnya - ikut berfungsi di PDF hasil cetak.'
+								? 'Each entry links to its heading - this also works in printed PDFs.'
 								: undefined
 						}
 					>
 						<div className="flex gap-2">
 							{(
 								[
-									{ value: 'plain', label: 'Teks biasa', active: draft.style !== 'link' },
-									{ value: 'link', label: 'Tautan ke judul', active: draft.style === 'link' },
+									{ value: 'plain', label: 'Plain text', active: draft.style !== 'link' },
+									{ value: 'link', label: 'Links to headings', active: draft.style === 'link' },
 								] as const
 							).map((option) => (
 								<button
@@ -156,37 +156,37 @@ export function TocSettingsDialog() {
 						</div>
 					</Row>
 
-					<Row label="Tingkat judul" hint="Judul di luar rentang ini tidak ikut ke dalam daftar.">
+					<Row label="Heading levels" hint="Headings outside this range are left out.">
 						<div className="flex items-center gap-2">
 							<select
-								aria-label="Tingkat terendah"
+								aria-label="From heading level"
 								value={draft.minLevel}
 								onChange={(e) => setMinLevel(Number(e.target.value))}
 								className={FIELD_CLASS}
 							>
 								{LEVELS.map((level) => (
 									<option key={level} value={level}>
-										Judul {level}
+										Heading {level}
 									</option>
 								))}
 							</select>
-							<span className="shrink-0 text-xs text-subtle">sampai</span>
+							<span className="shrink-0 text-xs text-subtle">to</span>
 							<select
-								aria-label="Tingkat tertinggi"
+								aria-label="To heading level"
 								value={draft.maxLevel}
 								onChange={(e) => setMaxLevel(Number(e.target.value))}
 								className={FIELD_CLASS}
 							>
 								{LEVELS.map((level) => (
 									<option key={level} value={level}>
-										Judul {level}
+										Heading {level}
 									</option>
 								))}
 							</select>
 						</div>
 					</Row>
 
-					<Row label="Lekukan per tingkat">
+					<Row label="Indent per level">
 						<div className="flex items-center gap-2">
 							<input
 								type="number"
@@ -216,18 +216,14 @@ export function TocSettingsDialog() {
 							className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--accent)] disabled:opacity-50"
 						/>
 						<span className="flex flex-col gap-0.5">
-							<span className="text-sm text-foreground">Tampilkan nomor halaman</span>
-							{pageless && (
-								<span className="text-[11px] text-subtle">
-									Tidak tersedia pada mode tanpa halaman (pageless).
-								</span>
-							)}
+							<span className="text-sm text-foreground">Show page numbers</span>
+							{pageless && <span className="text-[11px] text-subtle">Not available in pageless mode.</span>}
 						</span>
 					</label>
 
 					{/* Pengisi tab hanya merentang menuju kolom nomor - tanpa nomor
 					    halaman ia tidak punya tujuan, jadi ikut dimatikan. */}
-					<Row label="Pengisi tab">
+					<Row label="Tab leader">
 						<select
 							value={draft.tabLeader}
 							disabled={!showPages}
@@ -246,11 +242,11 @@ export function TocSettingsDialog() {
 				{/* Pratinjau: satu baris contoh dengan lekukan, pengisi, dan nomor yang
 				    sedang dipilih - lebih cepat dipahami daripada nama setelannya. */}
 				<div className="rounded-xl border border-line bg-surface-inset px-3 py-2.5">
-					<p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-subtle">Pratinjau</p>
+					<p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-subtle">Preview</p>
 					<div className="flex flex-col gap-0.5 overflow-hidden text-sm">
 						{[
-							{ text: 'Pendahuluan', level: 0, page: 1 },
-							{ text: 'Latar belakang', level: 1, page: 2 },
+							{ text: 'Introduction', level: 0, page: 1 },
+							{ text: 'Background', level: 1, page: 2 },
 						].map((entry) => (
 							<div
 								key={entry.text}
@@ -294,7 +290,7 @@ export function TocSettingsDialog() {
 						onClick={() => setOpen(false)}
 						className="rounded-lg px-3 py-1.5 text-sm text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 					>
-						Batal
+						Cancel
 					</button>
 					<button
 						type="button"

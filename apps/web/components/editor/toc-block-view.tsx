@@ -22,6 +22,7 @@ import {
 } from '@/features/editor/toc-block'
 import type { OutlineItem } from '@/features/editor/use-outline-plain'
 import { readOutlineItems } from '@/features/editor/use-outline-plain'
+import { useIsMac } from '@/features/shortcuts/use-shortcuts'
 import { cn } from '@/lib/utils'
 
 interface TocEntry {
@@ -42,15 +43,15 @@ const KIND_FILTER: Record<TocListKind, 'heading' | 'caption'> = {
 }
 
 const KIND_TITLE: Record<TocListKind, string> = {
-	isi: 'Daftar isi',
-	gambar: 'Daftar gambar',
-	tabel: 'Daftar tabel',
+	isi: 'Table of contents',
+	gambar: 'List of figures',
+	tabel: 'List of tables',
 }
 
 const EMPTY_HINT: Record<TocListKind, string> = {
-	isi: 'Belum ada judul di rentang tingkat ini.',
-	gambar: 'Belum ada caption gambar (heading tingkat 7-9).',
-	tabel: 'Belum ada caption tabel (heading tingkat 7-9).',
+	isi: 'No headings in this level range yet.',
+	gambar: 'No figure captions yet (heading levels 7-9).',
+	tabel: 'No table captions yet (heading levels 7-9).',
 }
 
 function leaderChar(tabLeader: TocTabLeader): string {
@@ -385,7 +386,7 @@ function TocControls({
 			<button
 				type="button"
 				onClick={onRefresh}
-				title="Segarkan isi dan nomor halaman"
+				title="Refresh entries and page numbers"
 				className="rounded-md p-1.5 text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 			>
 				<RefreshCw className="h-3.5 w-3.5" />
@@ -398,8 +399,8 @@ function TocControls({
 					<button
 						type="button"
 						onClick={toggle}
-						title="Opsi"
-						aria-label="Opsi daftar isi"
+						title="Options"
+						aria-label="Table of contents options"
 						className={cn(
 							'rounded-md p-1.5 transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground',
 							open ? 'bg-[var(--overlay-active)] text-foreground' : 'text-subtle',
@@ -420,7 +421,7 @@ function TocControls({
 								onSettings()
 							}}
 						>
-							Setelan daftar isi…
+							Table of contents settings…
 						</DropdownItem>
 						<DropdownItem
 							icon={<Copy className="h-3.5 w-3.5" />}
@@ -429,7 +430,7 @@ function TocControls({
 								onCopy()
 							}}
 						>
-							Salin sebagai teks
+							Copy as text
 						</DropdownItem>
 						<DropdownItem
 							icon={<Type className="h-3.5 w-3.5" />}
@@ -438,7 +439,7 @@ function TocControls({
 								onConvert()
 							}}
 						>
-							Ubah jadi teks biasa
+							Convert to plain text
 						</DropdownItem>
 						<DropdownSeparator />
 						<DropdownItem
@@ -448,7 +449,7 @@ function TocControls({
 								onDelete()
 							}}
 						>
-							Hapus
+							Delete
 						</DropdownItem>
 					</>
 				)}
@@ -466,9 +467,14 @@ function TocEntries({
 	attrs: TocBlockAttrs
 	onJump: (pos: number) => void
 }) {
+	const mac = useIsMac()
 	if (entries.length === 0) return null
 
 	const lo = Math.min(attrs.minLevel, attrs.maxLevel)
+	/* Gaya selain Tautan: klik biasa tetap memilih blok (untuk menyunting
+	 * pengaturannya), Ctrl/Cmd+klik melompat ke judul seperti di Word
+	 * (uji editor 2 Okt, OBJ-21). */
+	const jumpHint = `${mac ? 'Cmd' : 'Ctrl'}+click to go to this heading`
 
 	return (
 		<ul className="flex flex-col gap-0.5">
@@ -476,9 +482,16 @@ function TocEntries({
 				const indent = (item.level - lo) * attrs.indentPerLevel
 				const showPage = attrs.showPageNumbers && page !== undefined
 				return (
+					// biome-ignore lint/a11y/useKeyWithClickEvents: Ctrl+klik hanya jalan pintas tetikus; papan tik melompat lewat daftar judul di bilah samping
 					<li
 						key={item.pos}
 						data-toc-entry
+						title={attrs.style === 'link' ? undefined : jumpHint}
+						onClick={(event) => {
+							if (attrs.style === 'link' || !(event.ctrlKey || event.metaKey)) return
+							event.preventDefault()
+							onJump(item.pos)
+						}}
 						style={{ paddingLeft: `${indent}px` }}
 						className={cn(
 							'flex items-baseline gap-2 text-sm',
@@ -497,10 +510,10 @@ function TocEntries({
 								}}
 								className="min-w-0 max-w-[80%] shrink-0 truncate"
 							>
-								{item.text || 'Tanpa judul'}
+								{item.text || 'Untitled'}
 							</a>
 						) : (
-							<span className="min-w-0 max-w-[80%] shrink-0 truncate">{item.text || 'Tanpa judul'}</span>
+							<span className="min-w-0 max-w-[80%] shrink-0 truncate">{item.text || 'Untitled'}</span>
 						)}
 						{showPage && attrs.tabLeader !== 'none' && (
 							/* Pengisi merentang sampai kolom nomor: karakter diulang jauh

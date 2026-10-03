@@ -44,7 +44,7 @@ export function SourceBadge({ entry, onConfirm }: { entry: BriefEntry | undefine
 	if (entry.source === 'template') {
 		return (
 			<span
-				title="Diambil dari template dokumen ini. Ubah bila pedoman kampus Anda berbeda."
+				title="Taken from this document's template. Change it if your university's guidelines differ."
 				className="rounded-full bg-surface-inset px-1.5 py-0.5 text-[9px] font-medium text-muted"
 			>
 				template
@@ -55,7 +55,7 @@ export function SourceBadge({ entry, onConfirm }: { entry: BriefEntry | undefine
 	return (
 		<span className="flex items-center gap-1">
 			<span
-				title={entry.evidence ? `Diisi AI berdasarkan: “${entry.evidence}”` : 'Diisi AI'}
+				title={entry.evidence ? `Diisi AI berdasarkan: “${entry.evidence}”` : 'Filled by AI'}
 				className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[9px] font-medium text-accent"
 			>
 				AI
@@ -64,8 +64,8 @@ export function SourceBadge({ entry, onConfirm }: { entry: BriefEntry | undefine
 				<button
 					type="button"
 					onClick={onConfirm}
-					title="Tandai sebagai keputusan Anda - sesudah ini AI hanya bisa mengusulkan perubahannya"
-					aria-label="Kunci isian ini"
+					title="Mark as your decision - after this the AI can only suggest changes to it"
+					aria-label="Lock this field"
 					className="rounded-full p-0.5 text-faint transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 				>
 					<Lock className="h-3 w-3" />
@@ -88,11 +88,11 @@ export function ProposalBox({
 }) {
 	return (
 		<div className="flex flex-col gap-1.5 rounded-lg border border-accent/25 bg-accent/5 px-2.5 py-2">
-			<p className="text-[10px] font-semibold uppercase tracking-wide text-accent">Usulan AI</p>
+			<p className="text-[10px] font-semibold uppercase tracking-wide text-accent">AI suggestion</p>
 			{current && <p className="text-[11px] leading-snug text-faint line-through">{current}</p>}
 			<p className="whitespace-pre-wrap text-xs leading-snug text-foreground">{proposal.value}</p>
 			{proposal.evidence && (
-				<p className="text-[11px] leading-snug text-subtle">Dasarnya: “{proposal.evidence}”</p>
+				<p className="text-[11px] leading-snug text-subtle">Based on: “{proposal.evidence}”</p>
 			)}
 			<div className="flex gap-1.5 text-[11px]">
 				<button
@@ -101,7 +101,7 @@ export function ProposalBox({
 					className="flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-1 text-[11px] font-medium text-green-400 transition-colors hover:bg-green-500/25"
 				>
 					<Check className="h-3 w-3" />
-					Terima
+					Accept
 				</button>
 				<button
 					type="button"
@@ -109,7 +109,7 @@ export function ProposalBox({
 					className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 				>
 					<X className="h-3 w-3" />
-					Tolak
+					Reject
 				</button>
 			</div>
 		</div>
@@ -290,7 +290,7 @@ function ChoiceInput({
 							: 'border-dashed border-line text-subtle hover:bg-[var(--overlay-hover)] hover:text-foreground',
 					)}
 				>
-					Lainnya…
+					Other…
 				</button>
 			</fieldset>
 			{showOther && (
@@ -309,7 +309,7 @@ function ChoiceInput({
 					onKeyDown={(event) => {
 						if (event.key === 'Enter') event.currentTarget.blur()
 					}}
-					placeholder="Tulis sendiri"
+					placeholder="Write your own"
 					className={FIELD_INPUT}
 				/>
 			)}

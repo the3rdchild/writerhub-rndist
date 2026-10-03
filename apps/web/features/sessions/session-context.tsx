@@ -18,6 +18,7 @@ import type { EditorSuggestion } from '@/features/document/suggestions'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { editorPlainText } from '@/features/editor/text-content'
 import { usePersistentState } from '@/lib/use-persistent-state'
+import { watchPersistence } from './local-persistence'
 import {
 	EMPTY_LOCAL_VIEW,
 	LOCAL_VIEW_STORAGE_KEY,
@@ -27,7 +28,6 @@ import {
 	storedActiveTabId,
 	tabView,
 } from './local-view'
-import { watchPersistence } from './local-persistence'
 import { migrateLegacySessions } from './migrate-legacy'
 import { migrateTabsToDocs } from './migrate-to-docs'
 import type { CommentReply, CommentThread } from './types'
@@ -37,6 +37,7 @@ import {
 	type DocMeta,
 	deleteTab,
 	docsRoot,
+	duplicateDocument,
 	duplicateTab,
 	findTabDoc,
 	holdRootsUntilLoaded,
@@ -98,6 +99,8 @@ interface SessionContextValue {
 	renameSession: (id: string, title: string) => void
 	renameDocument: (id: string, title: string, origin?: unknown) => void
 	duplicateSession: (id: string) => void
+	/** Salin dokumen (atau dokumen pemilik tab ini); kembali id salinannya. */
+	duplicateDocument: (idOrTabId: string) => string | null
 	setSessionEmoji: (id: string, emoji: string | null) => void
 	moveSession: (movedId: string, destId: string) => void
 	moveDocument: (movedId: string, destId: string) => void
@@ -440,6 +443,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	)
 
 	const duplicateSession = useCallback((id: string) => void duplicateTab(doc, id), [doc])
+	const duplicateDocumentAction = useCallback(
+		(idOrTabId: string) => duplicateDocument(doc, findTabDoc(doc, idOrTabId) ?? idOrTabId),
+		[doc],
+	)
 
 	const setSessionEmoji = useCallback(
 		(id: string, emoji: string | null) => updateTab(doc, id, { emoji }),
@@ -539,6 +546,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			renameSession,
 			renameDocument: renameDocumentAction,
 			duplicateSession,
+			duplicateDocument: duplicateDocumentAction,
 			setSessionEmoji,
 			moveSession,
 			moveDocument: moveDocumentAction,
@@ -573,6 +581,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			renameSession,
 			renameDocumentAction,
 			duplicateSession,
+			duplicateDocumentAction,
 			setSessionEmoji,
 			moveSession,
 			moveDocumentAction,

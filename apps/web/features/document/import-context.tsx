@@ -128,7 +128,7 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 			if (furnitureSkipped.length > 0) {
 				setWarnings((current) => [
 					...current,
-					`Isi header/footer tidak terbawa untuk: ${furnitureSkipped.join(', ')}.`,
+					`Header/footer content wasn't imported for: ${furnitureSkipped.join(', ')}.`,
 				])
 			}
 			selectSession(tabId)
@@ -152,7 +152,7 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 				)
 				setWarnings(result.warnings.map((warning) => warning.message))
 			} catch (cause) {
-				setWarnings([cause instanceof Error ? cause.message : 'Gagal membaca berkas DOCX'])
+				setWarnings([cause instanceof Error ? cause.message : "Couldn't read the DOCX file"])
 			} finally {
 				setImporting(false)
 			}
@@ -204,16 +204,16 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 				)
 			}
 			if (importable.length === 0) {
-				setWarnings(warn.length > 0 ? warn : ['Tidak ada berkas yang bisa diimpor.'])
+				setWarnings(warn.length > 0 ? warn : ['There are no files that can be imported.'])
 				setImporting(false)
 				return
 			}
 			const limited = importable.slice(0, MAX_SESSIONS)
 			if (importable.length > MAX_SESSIONS) {
-				warn.push(`Hanya ${MAX_SESSIONS} berkas pertama yang diimpor - batas tab per dokumen.`)
+				warn.push(`Only the first ${MAX_SESSIONS} files were imported - the tab limit per document.`)
 			}
 			if (readDocs(doc).length >= MAX_DOCUMENTS) {
-				warn.push('Batas jumlah dokumen tercapai; impor dibatalkan.')
+				warn.push('The document limit was reached; the import was cancelled.')
 				setWarnings(warn)
 				setImporting(false)
 				return
@@ -233,7 +233,7 @@ export function DocumentImportProvider({ children }: { children: ReactNode }) {
 						parsed.push({ title: baseName(file), content: textToDocContent(await file.text()) })
 					}
 				} catch (cause) {
-					warn.push(`${file.name}: ${cause instanceof Error ? cause.message : 'gagal membaca berkas'}`)
+					warn.push(`${file.name}: ${cause instanceof Error ? cause.message : "couldn't read the file"}`)
 				}
 			}
 

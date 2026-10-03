@@ -93,7 +93,7 @@ export function SpacingMenuItems({
 					close()
 				}}
 			>
-				{(current?.spaceBefore ?? 0) > 0 ? 'Hapus spasi sebelum paragraf' : 'Tambah spasi sebelum paragraf'}
+				{(current?.spaceBefore ?? 0) > 0 ? 'Remove space before paragraph' : 'Add space before paragraph'}
 			</DropdownItem>
 			<DropdownItem
 				onSelect={() => {
@@ -106,12 +106,12 @@ export function SpacingMenuItems({
 					close()
 				}}
 			>
-				{(current?.spaceAfter ?? 0) > 0 ? 'Hapus spasi sesudah paragraf' : 'Tambah spasi sesudah paragraf'}
+				{(current?.spaceAfter ?? 0) > 0 ? 'Remove space after paragraph' : 'Add space after paragraph'}
 			</DropdownItem>
 
 			<DropdownSeparator />
 
-			<DropdownItem onSelect={onOpenCustomSpacing}>Spasi kustom…</DropdownItem>
+			<DropdownItem onSelect={onOpenCustomSpacing}>Custom spacing…</DropdownItem>
 
 			<DropdownSeparator />
 

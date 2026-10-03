@@ -629,6 +629,9 @@ export class LatexToOmml {
 	private table(node: Element, fenced: boolean): MathElementIR {
 		const rows = childElements(node).filter((row) => ['mtr', 'mlabeledtr'].includes(nameOf(row)))
 		const cellsOf = (row: Element) => childElements(row).filter((cell) => nameOf(cell) === 'mtd')
+		// Matriks kosong (`\begin{matrix}\end{matrix}`) tidak punya padanan sah:
+		// `m:eqArr` wajib berisi `m:e` dan `m:m` wajib berisi `m:mr`.
+		if (rows.length === 0) throw new UnsupportedMath('mtable kosong')
 
 		if (node.getAttribute('width') === '100%' && rows.length === 1) {
 			const cells = cellsOf(rows[0])

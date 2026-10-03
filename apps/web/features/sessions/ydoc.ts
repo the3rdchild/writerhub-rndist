@@ -631,6 +631,49 @@ export function duplicateTab(doc: Y.Doc, id: string): string | null {
 	return copyId
 }
 
+/**
+ * Salinan utuh satu dokumen - semua tabnya beserta setelan halaman, header &
+ * footer, komentar, dan isinya - diletakkan tepat sesudah aslinya. Salinannya
+ * dokumen lokal baru: tautan cloud aslinya tidak ikut (Library, SHL-11).
+ */
+export function duplicateDocument(doc: Y.Doc, id: string, title?: string): string | null {
+	const docs = docsRoot(doc)
+	const source = docs.meta.get(id)
+	if (!source) return null
+	const { meta: tabs } = tabsRoot(doc)
+	const tabIds = (source.get(TAB_ORDER) as Y.Array<string> | undefined)?.toArray() ?? []
+	const copyId = createDocId()
+
+	doc.transact(() => {
+		const copyTabIds: string[] = []
+		for (const tabId of tabIds) {
+			const tab = tabs.get(tabId)
+			if (!tab) continue
+			const tabCopyId = createTabId()
+			const entry = tab.clone()
+			entry.set('updatedAt', Date.now())
+			tabs.set(tabCopyId, entry)
+			cloneFragment(doc.getXmlFragment(tabId), doc.getXmlFragment(tabCopyId))
+			copyTabIds.push(tabCopyId)
+		}
+
+		const entry = source.clone()
+		entry.set(
+			'title',
+			title ?? `${(source.get('title') as string | undefined) ?? 'Untitled document'} (copy)`,
+		)
+		entry.set(TAB_ORDER, Y.Array.from(copyTabIds))
+		entry.set('updatedAt', Date.now())
+		entry.set('titleUpdatedAt', Date.now())
+		docs.meta.set(copyId, entry)
+
+		const at = docs.order.toArray().indexOf(id)
+		docs.order.insert(at === -1 ? docs.order.length : at + 1, [copyId])
+	}, LOCAL_ORIGIN)
+
+	return copyId
+}
+
 const APPLIED_FORMAT = 'appliedFormat'
 
 /**

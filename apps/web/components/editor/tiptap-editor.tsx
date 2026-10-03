@@ -24,6 +24,7 @@ import type { SlashCommandState } from '@/features/editor/slash-command'
 import { editorPlainText, textToParagraphs } from '@/features/editor/text-content'
 import { useDocumentGeometry } from '@/features/editor/use-document-geometry'
 import { useSessions } from '@/features/sessions/session-context'
+import { FootnotePopover } from './footnote-popover'
 import { ImageToolbar } from './image-toolbar'
 import { MathPopover } from './math-popover'
 import { SelectionMenu } from './selection-menu'
@@ -310,6 +311,7 @@ export function TiptapEditor({
 			<EditorContent editor={editor} />
 			<SelectionMenu editor={editor} containerRef={containerRef} />
 			<MathPopover editor={editor} containerRef={containerRef} />
+			<FootnotePopover editor={editor} containerRef={containerRef} />
 			{editor && slashState?.open && (
 				<SlashCommandMenu editor={editor} state={slashState} onClose={() => setSlashState(null)} />
 			)}

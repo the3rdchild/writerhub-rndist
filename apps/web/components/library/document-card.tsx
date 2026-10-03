@@ -26,7 +26,7 @@ import { createShare } from '@/features/share/api'
 import { useSync } from '@/features/sync/sync-context'
 import { cn } from '@/lib/utils'
 
-const dateFormat = new Intl.DateTimeFormat('id-ID', {
+const dateFormat = new Intl.DateTimeFormat('en-GB', {
 	day: 'numeric',
 	month: 'short',
 	year: 'numeric',
@@ -34,7 +34,15 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	minute: '2-digit',
 })
 
-export function DocumentCard({ document, onDelete }: { document: DocumentSummary; onDelete: () => void }) {
+export function DocumentCard({
+	document,
+	onDelete,
+	onDuplicate,
+}: {
+	document: DocumentSummary
+	onDelete: () => void
+	onDuplicate: () => void
+}) {
 	const router = useRouter()
 	const { openFromLibrary } = useSync()
 	const invalidate = useInvalidateDocuments()
@@ -55,10 +63,12 @@ export function DocumentCard({ document, onDelete }: { document: DocumentSummary
 				if (tabId) {
 					router.push('/')
 				} else {
-					setActionError('Jumlah dokumen atau tab sudah mencapai batas. Tutup salah satu dulu.')
+					setActionError('Too many documents or tabs are open. Close one first.')
 				}
 			})
-			.catch((cause) => setActionError(cause instanceof Error ? cause.message : 'Gagal membuka dokumen'))
+			.catch((cause) =>
+				setActionError(cause instanceof Error ? cause.message : 'Could not open the document'),
+			)
 			.finally(() => setOpening(false))
 	}
 
@@ -67,13 +77,17 @@ export function DocumentCard({ document, onDelete }: { document: DocumentSummary
 		setActionError(null)
 		updateDocument(document.id, { title })
 			.then(() => void invalidate())
-			.catch((cause) => setActionError(cause instanceof Error ? cause.message : 'Gagal mengganti nama'))
+			.catch((cause) =>
+				setActionError(cause instanceof Error ? cause.message : 'Could not rename the document'),
+			)
 	}
 	const moveToProject = (projectId: string) => {
 		setActionError(null)
 		updateDocument(document.id, { projectId })
 			.then(() => void invalidate())
-			.catch((cause) => setActionError(cause instanceof Error ? cause.message : 'Gagal memindahkan dokumen'))
+			.catch((cause) =>
+				setActionError(cause instanceof Error ? cause.message : 'Could not move the document'),
+			)
 	}
 
 	return (
@@ -96,7 +110,8 @@ export function DocumentCard({ document, onDelete }: { document: DocumentSummary
 						</h3>
 					)}
 					<p className="mt-0.5 text-xs text-subtle">
-						{document.tabCount} tab · {dateFormat.format(new Date(document.updatedAt))}
+						{document.tabCount} {document.tabCount === 1 ? 'tab' : 'tabs'} ·{' '}
+						{dateFormat.format(new Date(document.updatedAt))}
 					</p>
 				</div>
 
@@ -106,7 +121,7 @@ export function DocumentCard({ document, onDelete }: { document: DocumentSummary
 						<button
 							type="button"
 							onClick={toggle}
-							aria-label={`Opsi ${document.title}`}
+							aria-label={`Options for ${document.title}`}
 							aria-expanded={menuOpen}
 							aria-controls={id}
 							className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-subtle transition-colors hover:bg-[var(--overlay-active)] hover:text-foreground"
@@ -131,7 +146,7 @@ export function DocumentCard({ document, onDelete }: { document: DocumentSummary
 									open()
 								}}
 							>
-								Buka
+								Open
 							</DropdownItem>
 							<DropdownItem
 								icon={<Pencil className="h-4 w-4" />}
@@ -140,7 +155,16 @@ export function DocumentCard({ document, onDelete }: { document: DocumentSummary
 									setRenaming(true)
 								}}
 							>
-								Ganti nama
+								Rename
+							</DropdownItem>
+							<DropdownItem
+								icon={<Copy className="h-4 w-4" />}
+								onSelect={() => {
+									close()
+									onDuplicate()
+								}}
+							>
+								Duplicate
 							</DropdownItem>
 							<DropdownItem
 								icon={<Share2 className="h-4 w-4" />}
@@ -149,7 +173,7 @@ export function DocumentCard({ document, onDelete }: { document: DocumentSummary
 									setSharing(true)
 								}}
 							>
-								Bagikan
+								Share
 							</DropdownItem>
 							{/* Kartu library selalu dokumen server, jadi pemindahan proyek
 							    selalu bekerja; dokumen lokal-saja memang tidak muncul di sini. */}
@@ -157,7 +181,7 @@ export function DocumentCard({ document, onDelete }: { document: DocumentSummary
 								icon={<FolderInput className="h-4 w-4" />}
 								onSelect={() => setMovingOpen((current) => !current)}
 							>
-								Pindahkan ke proyek
+								Move to project
 							</DropdownItem>
 							{movingOpen && (
 								<div className="border-l border-line ml-5 flex flex-col">
@@ -182,7 +206,7 @@ export function DocumentCard({ document, onDelete }: { document: DocumentSummary
 									))}
 									{projects?.length === 0 && (
 										<p className="px-3 py-1.5 text-xs text-faint">
-											Belum ada proyek. Buat dari sidebar Library.
+											No projects yet. Create one in the Library sidebar.
 										</p>
 									)}
 								</div>
@@ -195,7 +219,7 @@ export function DocumentCard({ document, onDelete }: { document: DocumentSummary
 									onDelete()
 								}}
 							>
-								Hapus
+								Delete
 							</DropdownItem>
 						</>
 					)}
@@ -214,7 +238,7 @@ export function DocumentCard({ document, onDelete }: { document: DocumentSummary
 				)}
 			>
 				{opening ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-				Buka di editor
+				Open in editor
 			</button>
 
 			{sharing && <CardShareDialog documentId={document.id} onClose={() => setSharing(false)} />}
@@ -255,7 +279,7 @@ export function CardNameInput({
 				if (event.key === 'Enter') commit()
 				else if (event.key === 'Escape') onCancel()
 			}}
-			aria-label="Nama dokumen"
+			aria-label="Document name"
 			className="w-full rounded-lg border border-accent bg-surface-raised px-2 py-1 text-sm text-foreground outline-none"
 		/>
 	)
@@ -282,7 +306,7 @@ function CardShareDialog({ documentId, onClose }: { documentId: string; onClose:
 					setLink(`${window.location.origin}${result.url}`)
 					setDocumentTitle(result.documentTitle)
 				})
-				.catch((cause) => setError(cause instanceof Error ? cause.message : 'Gagal membuat link'))
+				.catch((cause) => setError(cause instanceof Error ? cause.message : 'Could not create the link'))
 				.finally(() => setLoading(false))
 
 			return () => {
@@ -307,7 +331,7 @@ function CardShareDialog({ documentId, onClose }: { documentId: string; onClose:
 			ref={overlayRef}
 			role="dialog"
 			aria-modal="true"
-			aria-label="Bagikan dokumen"
+			aria-label="Share document"
 			className="fixed inset-0 z-[70] flex animate-in items-center justify-center bg-black/60 backdrop-blur-sm fade-in duration-200"
 			onClick={(event) => {
 				if (event.target === overlayRef.current) onClose()
@@ -316,12 +340,12 @@ function CardShareDialog({ documentId, onClose }: { documentId: string; onClose:
 			<div className="flex w-full max-w-md animate-in flex-col gap-4 rounded-2xl border border-line-strong bg-surface-raised p-5 shadow-2xl zoom-in-95 duration-200">
 				<div className="flex items-start justify-between gap-4">
 					<h2 className="text-base font-semibold text-foreground">
-						{documentTitle ? `Bagikan "${documentTitle}"` : 'Bagikan dokumen'}
+						{documentTitle ? `Share "${documentTitle}"` : 'Share document'}
 					</h2>
 					<button
 						type="button"
 						onClick={onClose}
-						aria-label="Tutup"
+						aria-label="Close"
 						className="rounded-md p-1 text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 					>
 						<X className="h-5 w-5" />
@@ -333,7 +357,7 @@ function CardShareDialog({ documentId, onClose }: { documentId: string; onClose:
 					<input
 						type="text"
 						readOnly
-						value={loading ? 'Membuat link…' : error ? '' : link}
+						value={loading ? 'Creating link…' : error ? '' : link}
 						className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none"
 					/>
 					<button
@@ -347,7 +371,7 @@ function CardShareDialog({ documentId, onClose }: { documentId: string; onClose:
 						)}
 					>
 						{copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-						{copied ? 'Tersalin' : 'Salin'}
+						{copied ? 'Copied' : 'Copy'}
 					</button>
 				</div>
 
@@ -355,8 +379,8 @@ function CardShareDialog({ documentId, onClose }: { documentId: string; onClose:
 					<p className="text-xs text-red-500">{error}</p>
 				) : (
 					<p className="text-xs text-subtle">
-						Link menampilkan isi dokumen ini secara langsung (live) - perubahan terbaru langsung terlihat.
-						Siapa pun yang memiliki link dapat membuka.
+						The link shows this document live - recent changes appear right away. Anyone with the link can
+						open it.
 					</p>
 				)}
 			</div>

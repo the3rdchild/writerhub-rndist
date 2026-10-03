@@ -8,7 +8,7 @@ import { MetadataForm, MetadataScopeNote } from './metadata-form'
 /**
  * Dialog pengisi metadata template.
  *
- * Nilainya disunting di draf lokal dan baru diserahkan saat "Simpan": menutup
+ * Nilainya disunting di draf lokal dan baru diserahkan saat "Save": menutup
  * lewat Batal, Esc, atau latar harus benar-benar membatalkan, bukan menyisakan
  * separuh ketikan yang terlanjur tersimpan.
  */
@@ -66,7 +66,7 @@ export function TemplateMetadataDialog({
 					<h2 className="font-semibold text-base text-foreground">{title}</h2>
 					<button
 						type="button"
-						aria-label="Tutup"
+						aria-label="Close"
 						onClick={onClose}
 						className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 					>
@@ -86,7 +86,7 @@ export function TemplateMetadataDialog({
 						onClick={onClose}
 						className="rounded-lg px-3 py-1.5 text-muted text-sm transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 					>
-						Batal
+						Cancel
 					</button>
 					<button
 						type="button"
@@ -94,7 +94,7 @@ export function TemplateMetadataDialog({
 						onClick={() => onSave(draft)}
 						className="rounded-lg bg-accent px-4 py-1.5 font-medium text-accent-foreground text-sm transition-colors hover:bg-accent-hover disabled:opacity-60"
 					>
-						{saving ? 'Menyimpan…' : 'Simpan'}
+						{saving ? 'Saving…' : 'Save'}
 					</button>
 				</div>
 			</div>

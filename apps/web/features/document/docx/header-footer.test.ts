@@ -208,7 +208,7 @@ describe('peringatan header/footer (W2)', () => {
 		const { readDocx } = await import('./index')
 		return (await readDocx(bytes)).warnings.map((warning) => warning.message)
 	}
-	const MISSING = 'Header, footer, dan nomor halaman tidak punya padanan'
+	const MISSING = 'Headers, footers, and page numbers have no equivalent'
 
 	test('footer yang fieldnya di dalam kotak teks: isi kaya masuk, peringatan tidak muncul', async () => {
 		const bytes = docxWith({
@@ -250,6 +250,6 @@ describe('peringatan header/footer (W2)', () => {
 		expect((result.furnitureContent?.footer?.default ?? []).length).toBeGreaterThan(0)
 		const messages = result.warnings.map((warning) => warning.message).join('\n')
 		expect(messages).not.toContain(MISSING)
-		expect(messages).not.toContain('satu baris teks saja')
+		expect(messages).not.toContain('single line of text')
 	})
 })

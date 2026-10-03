@@ -36,7 +36,7 @@ export const ColumnBreak = Node.create({
 			mergeAttributes(HTMLAttributes, {
 				'data-column-break': '',
 				class: 'column-break',
-				'aria-label': 'Pindah kolom',
+				'aria-label': 'Column break',
 			}),
 		]
 	},

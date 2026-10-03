@@ -190,6 +190,30 @@ export function stripDelimiters(text: string): string {
 		.trim()
 }
 
+const OPEN_EVENT = 'writer-hub:open-math-editor'
+
+export interface MathEditorRequest {
+	editor: Editor
+	display: boolean
+}
+
+export function onMathEditorRequest(listener: (request: MathEditorRequest) => void): () => void {
+	const handler = (event: Event) => listener((event as CustomEvent<MathEditorRequest>).detail)
+	window.addEventListener(OPEN_EVENT, handler)
+	return () => window.removeEventListener(OPEN_EVENT, handler)
+}
+
+/**
+ * Sisip rumus: teks terpilih langsung dijadikan rumus (perilaku lama); tanpa
+ * seleksi, editor rumus kosong dibuka di kursor dan rumusnya baru disisip saat
+ * disimpan. Dulu tidak ada jalan menyisip rumus baru (uji editor 2 Okt, OBJ-22).
+ */
+export function insertOrConvertMath(editor: Editor, display: boolean): boolean {
+	if (!editor.state.selection.empty) return convertSelectionToMath(editor, display)
+	window.dispatchEvent(new CustomEvent<MathEditorRequest>(OPEN_EVENT, { detail: { editor, display } }))
+	return true
+}
+
 export function convertSelectionToMath(editor: Editor, display: boolean): boolean {
 	const { from, to, empty } = editor.state.selection
 	if (empty) return false

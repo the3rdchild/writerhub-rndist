@@ -84,15 +84,15 @@ function CommentComposer({
 						onClick={onCancel}
 						className="rounded-md px-2 py-1 text-[11px] text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 					>
-						Batal
+						Cancel
 					</button>
 				)}
 				<button
 					type="button"
 					onClick={onSubmit}
 					disabled={!filled}
-					title={submitLabel ?? 'Kirim (Enter)'}
-					aria-label={submitLabel ?? 'Kirim komentar'}
+					title={submitLabel ?? 'Send (Enter)'}
+					aria-label={submitLabel ?? 'Send comment'}
 					className={cn(
 						'flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
 						filled
@@ -136,8 +136,8 @@ export function PendingCommentCard({
 				onChange={(text) => setDraft(PENDING_KEY, text)}
 				onSubmit={() => submitPending()}
 				onCancel={cancelPending}
-				placeholder="Tulis komentar…"
-				submitLabel="Komentari"
+				placeholder="Write a comment…"
+				submitLabel="Comment"
 				autoFocus
 			/>
 		</div>
@@ -162,7 +162,7 @@ function SuggestionSection({ thread }: { thread: CommentThread }) {
 		return (
 			<div className="flex flex-col gap-1 rounded-lg bg-[var(--overlay-hover)] p-2">
 				<span className={cn('text-[10px] font-medium', accepted ? 'text-green-400' : 'text-subtle')}>
-					Usulan {proposal.author} {accepted ? 'diterapkan' : 'ditolak'}
+					Suggestion by {proposal.author} {accepted ? 'applied' : 'rejected'}
 				</span>
 				{accepted && proposal.replaced && (
 					<p className="break-words text-[11px] leading-relaxed text-faint line-through">
@@ -184,7 +184,7 @@ function SuggestionSection({ thread }: { thread: CommentThread }) {
 	if (proposal) {
 		return (
 			<div className="flex flex-col gap-1.5 rounded-lg bg-[var(--overlay-hover)] p-2">
-				<span className="text-[10px] font-medium text-accent">{proposal.author} mengusulkan perubahan</span>
+				<span className="text-[10px] font-medium text-accent">{proposal.author} suggested a change</span>
 				<p className="break-words text-[11px] leading-relaxed text-faint line-through">
 					{markedText(thread.id) ?? thread.quote}
 				</p>
@@ -195,14 +195,14 @@ function SuggestionSection({ thread }: { thread: CommentThread }) {
 						onClick={() => rejectSuggestion(thread.id)}
 						className="rounded-md px-2 py-1 text-[11px] text-subtle transition-colors hover:bg-[var(--overlay-active)] hover:text-foreground"
 					>
-						Tolak
+						Reject
 					</button>
 					<button
 						type="button"
 						onClick={() => acceptSuggestion(thread.id)}
 						className="rounded-md bg-accent px-2 py-1 text-[11px] font-medium text-white transition-opacity hover:opacity-90"
 					>
-						Terapkan
+						Apply
 					</button>
 				</div>
 			</div>
@@ -212,7 +212,7 @@ function SuggestionSection({ thread }: { thread: CommentThread }) {
 	if (composing) {
 		return (
 			<div className="flex flex-col gap-1.5 rounded-lg bg-[var(--overlay-hover)] p-2">
-				<span className="text-[10px] font-medium text-subtle">Teks pengganti</span>
+				<span className="text-[10px] font-medium text-subtle">Replacement text</span>
 				<CommentComposer
 					value={draftFor(draftKey)}
 					onChange={(text) => setDraft(draftKey, text)}
@@ -222,8 +222,8 @@ function SuggestionSection({ thread }: { thread: CommentThread }) {
 						setComposing(false)
 					}}
 					onCancel={() => setComposing(false)}
-					placeholder="Tulis penggantinya…"
-					submitLabel="Usulkan"
+					placeholder="Write the replacement…"
+					submitLabel="Suggest"
 					autoFocus
 				/>
 			</div>
@@ -237,7 +237,7 @@ function SuggestionSection({ thread }: { thread: CommentThread }) {
 			className="flex items-center gap-1.5 self-start rounded-md px-1 py-0.5 text-[11px] text-subtle transition-colors hover:text-foreground"
 		>
 			<Replace className="h-3 w-3" />
-			Usulkan perubahan
+			Suggest a change
 		</button>
 	)
 }
@@ -259,7 +259,7 @@ export function CommentThreadCard({
 }) {
 	const { draftFor, setDraft, submitDraft } = useComments()
 	const draft = draftFor(thread.id)
-	const opener = thread.author ?? thread.replies[0]?.author ?? 'Tidak diketahui'
+	const opener = thread.author ?? thread.replies[0]?.author ?? 'Unknown'
 	const openerId = thread.authorId ?? thread.replies[0]?.authorId
 	const resolve = () => {
 		submitDraft(thread.id)
@@ -281,8 +281,8 @@ export function CommentThreadCard({
 				<button
 					type="button"
 					onClick={resolve}
-					title={thread.resolved ? 'Buka lagi' : 'Selesaikan'}
-					aria-label={thread.resolved ? 'Buka lagi' : 'Selesaikan'}
+					title={thread.resolved ? 'Reopen' : 'Resolve'}
+					aria-label={thread.resolved ? 'Reopen' : 'Resolve'}
 					className={cn(
 						'rounded-md p-1 transition-colors',
 						thread.resolved ? 'text-green-400' : 'text-faint hover:text-green-400',
@@ -293,8 +293,8 @@ export function CommentThreadCard({
 				<button
 					type="button"
 					onClick={onRemove}
-					title="Hapus utas"
-					aria-label="Hapus utas"
+					title="Delete thread"
+					aria-label="Delete thread"
 					className="rounded-md p-1 text-faint transition-colors hover:text-red-400"
 				>
 					<Trash2 className="h-3.5 w-3.5" />
@@ -324,7 +324,7 @@ export function CommentThreadCard({
 				value={draft}
 				onChange={(text) => setDraft(thread.id, text)}
 				onSubmit={() => submitDraft(thread.id)}
-				placeholder="Balas…"
+				placeholder="Reply…"
 			/>
 		</div>
 	)

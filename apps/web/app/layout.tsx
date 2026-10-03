@@ -7,7 +7,7 @@ import './globals.css'
 import 'katex/dist/katex.min.css'
 
 const SITE_NAME = 'WritingHub'
-const SITE_DESCRIPTION = 'Tulis, periksa, dan sempurnakan dokumen dalam satu ruang kerja'
+const SITE_DESCRIPTION = 'Write, check, and polish documents in one workspace'
 
 /**
  * Dibutuhkan agar URL relatif di Open Graph - misalnya `/share/<token>` -
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
 		title: SITE_NAME,
 		description: SITE_DESCRIPTION,
 		type: 'website',
-		locale: 'id_ID',
+		locale: 'en_US',
 	},
 	twitter: {
 		card: 'summary',
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
 	return (
-		<html lang="id" className={`h-full antialiased ${FONT_VARIABLES}`} suppressHydrationWarning>
+		<html lang="en" className={`h-full antialiased ${FONT_VARIABLES}`} suppressHydrationWarning>
 			<head>
 				<ThemeScript />
 			</head>

@@ -17,17 +17,17 @@ export function ColorControls({
 		<>
 			<ColorPicker
 				icon={<Baseline className="h-4 w-4" />}
-				label="Warna teks"
+				label="Text color"
 				value={color}
-				clearLabel="Warna bawaan"
+				clearLabel="Default color"
 				onSelect={(value) => editor?.chain().focus().setColor(value).run()}
 				onClear={() => editor?.chain().focus().unsetColor().run()}
 			/>
 			<ColorPicker
 				icon={<Highlighter className="h-4 w-4" />}
-				label="Warna sorotan"
+				label="Highlight color"
 				value={highlight}
-				clearLabel="Tanpa sorotan"
+				clearLabel="No highlight"
 				onSelect={(value) => editor?.chain().focus().setHighlight({ color: value }).run()}
 				onClear={() => editor?.chain().focus().unsetHighlight().run()}
 			/>

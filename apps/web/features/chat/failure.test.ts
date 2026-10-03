@@ -43,7 +43,7 @@ describe('saran tindakan', () => {
 	})
 
 	test('timeout menenangkan bahwa langkahnya tidak hilang', () => {
-		expect(chatFailureHint('timeout')).toContain('tersimpan')
+		expect(chatFailureHint('timeout')).toContain('kept')
 	})
 
 	test('sebab tak dikenal tidak mengarang saran', () => {

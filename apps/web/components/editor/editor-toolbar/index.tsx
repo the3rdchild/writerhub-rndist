@@ -20,11 +20,13 @@ import {
 	RemoveFormatting,
 	Search,
 	Strikethrough,
-	Table as TableIcon,
 	TableOfContents,
 	Underline as UnderlineIcon,
 	Undo2,
 } from 'lucide-react'
+import { TableSizeButton } from '@/components/editor/table-size-picker'
+import { insertFootnoteAndEdit } from '@/features/editor/footnote'
+import { promptForImage } from '@/features/editor/image-insert'
 import { indentSelection, outdentSelection } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
 import { useSettings } from '@/features/settings/settings-context'
@@ -76,21 +78,21 @@ export function EditorToolbar({
 
 			<IconButton
 				icon={Bold}
-				label="Tebal"
+				label="Bold"
 				active={active?.bold}
 				disabled={isOff}
 				onClick={() => editor?.chain().focus().toggleBold().run()}
 			/>
 			<IconButton
 				icon={Italic}
-				label="Miring"
+				label="Italic"
 				active={active?.italic}
 				disabled={isOff}
 				onClick={() => editor?.chain().focus().toggleItalic().run()}
 			/>
 			<IconButton
 				icon={UnderlineIcon}
-				label="Garis bawah"
+				label="Underline"
 				active={active?.underline}
 				disabled={isOff}
 				onClick={() => editor?.chain().focus().toggleUnderline().run()}
@@ -113,26 +115,21 @@ export function EditorToolbar({
 
 			<IconButton
 				icon={LinkIcon}
-				label="Tautan"
+				label="Link"
 				active={active?.link}
 				disabled={isOff}
 				onClick={() => editor && promptForLink(editor)}
 			/>
 			<IconButton
 				icon={ImageIcon}
-				label="Gambar"
+				label="Image"
 				disabled={isOff}
-				onClick={() => editor && insertImage(editor)}
+				onClick={() => editor && promptForImage(editor)}
 			/>
-			<IconButton
-				icon={TableIcon}
-				label="Tabel"
-				disabled={isOff}
-				onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
-			/>
+			<TableSizeButton editor={editor} disabled={isOff} />
 			<IconButton
 				icon={Code2}
-				label="Blok kode"
+				label="Code block"
 				active={editor?.isActive('codeBlock')}
 				disabled={isOff}
 				onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
@@ -148,7 +145,7 @@ export function EditorToolbar({
 			    sudah berada di dalam kolom, di mana tombolnya bertugas keluar lagi. */}
 			<IconButton
 				icon={Columns2}
-				label="Dua kolom"
+				label="Two columns"
 				active={active?.columns}
 				disabled={isOff || !(active?.hasSelection || active?.columns)}
 				onClick={() =>
@@ -159,15 +156,20 @@ export function EditorToolbar({
 			/>
 			<IconButton
 				icon={Footprints}
-				label="Catatan kaki"
+				label="Footnote"
 				disabled={isOff}
-				onClick={() => editor?.chain().focus().insertFootnote(`fn-${Date.now()}`).run()}
+				onClick={() => editor && insertFootnoteAndEdit(editor)}
 			/>
 
 			<Divider />
 
-			<IconButton icon={Search} label="Cari & ganti" disabled={isOff} onClick={() => onOpenSearch?.()} />
-			<IconButton icon={TableOfContents} label="Daftar isi" disabled={isOff} onClick={() => onOpenToc?.()} />
+			<IconButton icon={Search} label="Find & replace" disabled={isOff} onClick={() => onOpenSearch?.()} />
+			<IconButton
+				icon={TableOfContents}
+				label="Table of contents"
+				disabled={isOff}
+				onClick={() => onOpenToc?.()}
+			/>
 
 			<Divider />
 
@@ -178,28 +180,28 @@ export function EditorToolbar({
 
 			<IconButton
 				icon={CheckSquare}
-				label="Daftar centang"
+				label="Checklist"
 				active={active?.taskList}
 				disabled={isOff}
 				onClick={() => editor?.chain().focus().toggleTaskList().run()}
 			/>
 			<IconButton
 				icon={List}
-				label="Daftar butir"
+				label="Bulleted list"
 				active={active?.bulletList}
 				disabled={isOff}
 				onClick={() => editor?.chain().focus().toggleBulletList().run()}
 			/>
 			<IconButton
 				icon={ListOrdered}
-				label="Daftar nomor"
+				label="Numbered list"
 				active={active?.orderedList}
 				disabled={isOff}
 				onClick={() => editor?.chain().focus().toggleOrderedList().run()}
 			/>
 			<IconButton
 				icon={Quote}
-				label="Kutipan"
+				label="Quote"
 				active={active?.blockquote}
 				disabled={isOff}
 				onClick={() => editor?.chain().focus().toggleBlockquote().run()}
@@ -211,27 +213,22 @@ export function EditorToolbar({
 			    menggeser blok - hasil keduanya terlihat di penggaris. */}
 			<IconButton
 				icon={Outdent}
-				label="Kurangi indentasi"
+				label="Decrease indent"
 				disabled={isOff}
 				onClick={() => outdentSelection(editor)}
 			/>
 			<IconButton
 				icon={Indent}
-				label="Tambah indentasi"
+				label="Increase indent"
 				disabled={isOff}
 				onClick={() => indentSelection(editor)}
 			/>
 			<IconButton
 				icon={RemoveFormatting}
-				label="Hapus format"
+				label="Clear formatting"
 				disabled={isOff}
 				onClick={() => editor?.chain().focus().unsetAllMarks().clearNodes().run()}
 			/>
 		</div>
 	)
-}
-
-export function insertImage(editor: Editor) {
-	const url = window.prompt('URL gambar:')
-	if (url) editor.chain().focus().setImage({ src: url }).run()
 }

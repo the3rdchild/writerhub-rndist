@@ -163,7 +163,7 @@ export function HeadersFootersDialog() {
 							{activeTab ? `This tab: ${activeTab.title || 'Untitled'}` : 'This tab'}
 						</span>
 						<span className="text-[11px] leading-relaxed text-subtle">
-							Nomor halaman diatur terpisah di Format → Page numbers.
+							Page numbers are set separately in Format → Page numbers.
 						</span>
 					</div>
 

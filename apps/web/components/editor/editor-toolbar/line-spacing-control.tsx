@@ -9,7 +9,7 @@ import { Dropdown } from '@/components/ui/dropdown'
 import { NO_FORM_RESTORE } from '@/lib/no-form-restore'
 import { cn } from '@/lib/utils'
 
-/** Dropdown "Spasi baris & paragraf" di toolbar, ala Google Docs. */
+/** Dropdown "Line & paragraph spacing" di toolbar, ala Google Docs. */
 export function LineSpacingControl({ editor, disabled }: { editor: Editor | null; disabled?: boolean }) {
 	const [customOpen, setCustomOpen] = useState(false)
 
@@ -22,8 +22,8 @@ export function LineSpacingControl({ editor, disabled }: { editor: Editor | null
 						onClick={toggle}
 						disabled={disabled}
 						{...NO_FORM_RESTORE}
-						aria-label="Spasi baris & paragraf"
-						title="Spasi baris & paragraf"
+						aria-label="Line & paragraph spacing"
+						title="Line & paragraph spacing"
 						aria-haspopup="menu"
 						aria-expanded={open}
 						aria-controls={id}

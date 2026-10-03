@@ -82,7 +82,7 @@ export function TabRow({ tab, index }: { tab: Session; index: number }) {
 
 			{unresolvedComments > 0 && (
 				<span
-					title={`${unresolvedComments} komentar belum dibereskan`}
+					title={`${unresolvedComments} unresolved ${unresolvedComments === 1 ? 'comment' : 'comments'}`}
 					className="flex shrink-0 items-center gap-1 rounded-full bg-[var(--overlay-active)] px-1.5 text-[11px] leading-5 text-muted"
 				>
 					<MessageSquare className="h-3 w-3" />

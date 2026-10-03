@@ -272,7 +272,7 @@ export function BriefProvider({ children }: { children: ReactNode }) {
 					await queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_KEY })
 					return true
 				} catch (cause) {
-					setIdentityError(cause instanceof Error ? cause.message : 'Gagal menyimpan identitas')
+					setIdentityError(cause instanceof Error ? cause.message : 'Could not save the identity')
 					return false
 				} finally {
 					setIdentitySaving(false)

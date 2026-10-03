@@ -1,16 +1,16 @@
 import { mergeAttributes, Node } from '@tiptap/core'
 import { Fragment, type Node as ProseMirrorNode, Slice } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
-import { EditorView } from '@tiptap/pm/view'
+import type { EditorView } from '@tiptap/pm/view'
 export type CalloutType = 'info' | 'note' | 'tip' | 'warning' | 'success' | 'error'
 
 export const CALLOUT_TYPES: Array<{ id: CalloutType; label: string; emoji: string }> = [
 	{ id: 'info', label: 'Info', emoji: 'ℹ️' },
-	{ id: 'note', label: 'Catatan', emoji: '📝' },
-	{ id: 'tip', label: 'Tips', emoji: '💡' },
-	{ id: 'warning', label: 'Peringatan', emoji: '⚠️' },
-	{ id: 'success', label: 'Sukses', emoji: '✅' },
-	{ id: 'error', label: 'Kesalahan', emoji: '❌' },
+	{ id: 'note', label: 'Note', emoji: '📝' },
+	{ id: 'tip', label: 'Tip', emoji: '💡' },
+	{ id: 'warning', label: 'Warning', emoji: '⚠️' },
+	{ id: 'success', label: 'Success', emoji: '✅' },
+	{ id: 'error', label: 'Error', emoji: '❌' },
 ]
 
 const LEGACY_DEFAULT_EMOJI = 'ℹ️'

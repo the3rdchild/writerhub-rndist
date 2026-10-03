@@ -29,7 +29,7 @@ describe('registri model chat', () => {
 	})
 
 	test('findChatModel mengembalikan bawaan untuk id kosong', () => {
-		expect(findChatModel(DEFAULT_CHAT_MODEL)?.label).toBe('Bawaan')
+		expect(findChatModel(DEFAULT_CHAT_MODEL)?.label).toBe('Default')
 		expect(findChatModel('tidak-ada')).toBeUndefined()
 	})
 })

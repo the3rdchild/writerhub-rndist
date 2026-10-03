@@ -9,9 +9,9 @@ import { cn } from '@/lib/utils'
 
 export function CapitalizationControl({ editor, disabled }: { editor: Editor | null; disabled?: boolean }) {
 	const options = [
-		{ mode: 'lower' as const, label: 'huruf kecil' },
-		{ mode: 'upper' as const, label: 'HURUF BESAR' },
-		{ mode: 'title' as const, label: 'Huruf Kapital Setiap Kata' },
+		{ mode: 'lower' as const, label: 'lowercase' },
+		{ mode: 'upper' as const, label: 'UPPERCASE' },
+		{ mode: 'title' as const, label: 'Title Case' },
 	]
 
 	return (
@@ -22,8 +22,8 @@ export function CapitalizationControl({ editor, disabled }: { editor: Editor | n
 					onClick={toggle}
 					disabled={disabled}
 					{...NO_FORM_RESTORE}
-					aria-label="Kapitalisasi"
-					title="Kapitalisasi"
+					aria-label="Capitalization"
+					title="Capitalization"
 					aria-haspopup="menu"
 					aria-expanded={open}
 					aria-controls={id}

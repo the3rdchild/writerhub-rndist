@@ -954,11 +954,22 @@ a {
 }
 .document-body ul { list-style: disc; }
 .document-body ol { list-style: decimal; }
-/* Atribut type dari list hasil impor DOCX (huruf/romawi) menimpa penanda decimal. */
-.document-body ol[type='a'] { list-style-type: lower-alpha; }
-.document-body ol[type='A'] { list-style-type: upper-alpha; }
-.document-body ol[type='i'] { list-style-type: lower-roman; }
-.document-body ol[type='I'] { list-style-type: upper-roman; }
+/* Tingkat bersarang tanpa gaya sendiri berganti penanda seperti Word:
+   1. → a. → i. dan ● → ○ → ■ (TKS-10; `list-numbering.ts`, sama dengan DOCX). */
+.document-body :is(ol, ul) ol { list-style-type: lower-alpha; }
+.document-body :is(ol, ul) :is(ol, ul) ol { list-style-type: lower-roman; }
+.document-body :is(ol, ul) :is(ol, ul) :is(ol, ul) ol { list-style-type: decimal; }
+.document-body :is(ol, ul) ul { list-style-type: circle; }
+.document-body :is(ol, ul) :is(ol, ul) ul { list-style-type: square; }
+.document-body :is(ol, ul) :is(ol, ul) :is(ol, ul) ul { list-style-type: disc; }
+/* Gaya nomor yang dipilih (atau dari impor DOCX) menimpa penanda bawaan
+   tingkatnya. Lewat `data-list-type`, bukan `type`: selektor atribut `type`
+   tidak membedakan huruf besar-kecil, jadi a dan A saling menimpa. */
+.document-body ol[data-list-type='decimal'] { list-style-type: decimal; }
+.document-body ol[data-list-type='lower-alpha'] { list-style-type: lower-alpha; }
+.document-body ol[data-list-type='upper-alpha'] { list-style-type: upper-alpha; }
+.document-body ol[data-list-type='lower-roman'] { list-style-type: lower-roman; }
+.document-body ol[data-list-type='upper-roman'] { list-style-type: upper-roman; }
 .document-body li { margin: 0.2em 0; }
 
 .document-body blockquote {
@@ -1496,14 +1507,82 @@ a {
   border: 1px solid var(--border-subtle);
 }
 
+/* Tampilan cetak beberapa tab dirender di luar layar (SHL-19). */
+.print-tabs-root {
+  position: fixed;
+  top: 0;
+  left: -100000px;
+  pointer-events: none;
+}
+
 /* ── catatan kaki ──────────────────────────────────────────────────────── */
 
 .document-body sup[data-type='footnote-ref'] {
   font-size: 0.72em;
   vertical-align: super;
+  line-height: 0;
   color: var(--accent);
   cursor: pointer;
   padding: 0 0.1em;
+}
+/* Nomor rujukan = urutannya di naskah, dari dekorasi `data-number` (TKS-1). */
+.document-body sup[data-type='footnote-ref']::after {
+  content: attr(data-number);
+}
+
+/*
+ * Area catatan kaki di dasar lembar. Ia hidup di dalam spacer pemenggal
+ * halaman (yang tidak menerima klik), jadi klik diaktifkan lagi di sini -
+ * mengklik catatan membuka editornya.
+ */
+.document-body .footnote-area {
+  display: flow-root;
+  pointer-events: auto;
+  user-select: none;
+  cursor: text;
+  font-size: 0.8em;
+  line-height: 1.35;
+  text-align: left;
+  text-indent: 0;
+  white-space: normal;
+  color: var(--foreground);
+}
+.document-body .footnote-separator {
+  width: 33%;
+  height: 0;
+  margin: 0 0 0.45em;
+  border-top: 1px solid currentColor;
+  opacity: 0.45;
+}
+.document-body .footnote-item {
+  display: flex;
+  gap: 0.35em;
+  padding: 0 0.15em 0.2em;
+  border-radius: 4px;
+}
+.document-body .footnote-item:hover {
+  background: var(--overlay-hover);
+}
+.document-body .footnote-number {
+  flex: none;
+  font-size: 0.75em;
+  line-height: 1.6;
+}
+.document-body .footnote-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.document-body .footnote-text--empty {
+  color: var(--foreground-muted);
+  font-style: italic;
+}
+.footnote-editor-content {
+  min-height: 1.5em;
+  outline: none;
+}
+.footnote-editor-content p {
+  margin: 0;
 }
 .document-body sup[data-type='footnote-ref'].footnote-ref--active {
   background: var(--overlay-active);
@@ -1653,7 +1732,7 @@ a {
 }
 .resizable-image-delete:hover { background: #ef4444; }
 
-/* Bilah alat gambar melayang (perataan + hapus). */
+/* Bilah alat gambar melayang (perataan, ukuran, alt, keterangan, ganti, hapus). */
 .image-toolbar {
   transform: translateX(-50%);
 }
@@ -1968,6 +2047,14 @@ a {
  * lewat selektor: yang membedakan satu mark dari yang lain adalah nilai
  * `data-comment-id`-nya, dan nilai itu baru diketahui saat kartunya diklik.
  */
+/* Utas yang diselesaikan tidak disorot lagi, kecuali sedang dibuka (SHL-17). */
+.document-body .comment-mark--resolved:not(.comment-mark--active),
+.document-body .comment-mark--resolved:not(.comment-mark--active):hover {
+  background: none;
+  border-bottom-color: transparent;
+  cursor: text;
+}
+
 .document-body .comment-mark--active {
   background: color-mix(in srgb, #f59e0b 45%, transparent);
   border-bottom-color: #f59e0b;
@@ -1975,6 +2062,11 @@ a {
 
 html.dark .document-body .comment-mark {
   background: color-mix(in srgb, #fbbf24 18%, transparent);
+}
+
+html.dark .document-body .comment-mark--resolved:not(.comment-mark--active),
+html.dark .document-body .comment-mark--resolved:not(.comment-mark--active):hover {
+  background: none;
 }
 
 /* Menu seleksi melayang di atas kanvas dan tidak ikut tergulung isinya. */
@@ -2018,6 +2110,60 @@ html.dark .document-body .comment-mark {
   .document-body .comment-mark {
     background: none;
     border-bottom: none;
+  }
+
+  /* Cetak beberapa tab (SHL-19): hanya tampilan tab-tab pilihan yang dicetak. */
+  body.printing-tabs .document-print-root:not(.print-tabs-root .document-print-root) {
+    display: none !important;
+  }
+
+  /*
+   * Catatan kaki (TKS-1): kertas peramban tidak mengenal catatan kaki, jadi
+   * naskah yang memilikinya dicetak mengikuti pemenggalan kanvas - setiap
+   * spacer menjadi pemenggal paksa, dan area catatan lembar itu duduk tepat
+   * sebelum pemenggalnya. Naskah tanpa catatan kaki tetap dipenggal peramban
+   * seperti sebelumnya.
+   */
+  .document-body.has-footnotes .page-break-spacer {
+    display: block !important;
+    height: 0 !important;
+    margin: 0 !important;
+    break-after: page;
+  }
+  .document-body.has-footnotes .page-break-spacer + * {
+    margin-top: 0 !important;
+  }
+  .document-body.has-footnotes .page-break-spacer--notes {
+    height: auto !important;
+  }
+  /* Spacer catatan sebelum pemenggal, dan area lembar terakhir: pemenggalnya
+     milik node pemenggal itu sendiri, atau memang tidak ada. */
+  .document-body.has-footnotes .page-break-spacer--notes-only,
+  .document-body.has-footnotes .footnote-trailing {
+    break-after: auto;
+  }
+  .document-body.has-footnotes
+    :is(.page-break, .section-break:not(.section-break-continuous))
+    + .page-break-spacer:not(.page-break-spacer--notes) {
+    display: none !important;
+  }
+  .document-body.has-footnotes .page-break-row--notes {
+    display: table-row !important;
+    height: auto !important;
+    break-after: page;
+  }
+  .document-body .footnote-area {
+    break-inside: avoid;
+    color: #000;
+  }
+  .document-body .footnote-item:hover {
+    background: none;
+  }
+  .document-body .footnote-text--empty {
+    visibility: hidden;
+  }
+  .document-body sup[data-type='footnote-ref'] {
+    color: inherit;
   }
 }
 

@@ -19,7 +19,7 @@ function toNumber(value: string, fallback: number): number {
 }
 
 /**
- * Dialog "Spasi kustom", meniru dialog Line & paragraph spacing Google Docs:
+ * Dialog "Custom spacing", meniru dialog Line & paragraph spacing Google Docs:
  * spasi baris bebas plus spasi paragraf sebelum/sesudah dalam pt.
  */
 export function CustomSpacingDialog({
@@ -88,19 +88,19 @@ export function CustomSpacingDialog({
 			ref={overlayRef}
 			role="dialog"
 			aria-modal="true"
-			aria-label="Spasi kustom"
+			aria-label="Custom spacing"
 			className="fixed inset-0 z-[70] flex animate-in items-center justify-center bg-black/60 p-4 backdrop-blur-sm fade-in duration-200"
 			onClick={(e) => {
 				if (e.target === overlayRef.current) onClose()
 			}}
 		>
 			<div className="flex max-h-full w-full max-w-sm animate-in flex-col gap-4 overflow-y-auto rounded-2xl border border-line-strong bg-surface-raised p-5 shadow-2xl zoom-in-95 duration-200">
-				<h2 className="text-base font-semibold text-foreground">Spasi kustom</h2>
+				<h2 className="text-base font-semibold text-foreground">Custom spacing</h2>
 
 				<div className="flex flex-col gap-3">
 					<div className="grid grid-cols-[9.5rem_1fr] items-center gap-x-4">
 						<label htmlFor="custom-line-spacing" className="text-xs font-medium text-muted">
-							Spasi baris
+							Line spacing
 						</label>
 						<input
 							id="custom-line-spacing"
@@ -114,10 +114,10 @@ export function CustomSpacingDialog({
 					</div>
 
 					<fieldset className="flex flex-col gap-2">
-						<legend className="text-xs font-medium text-muted">Spasi paragraf (pt)</legend>
+						<legend className="text-xs font-medium text-muted">Paragraph spacing (pt)</legend>
 						<div className="grid grid-cols-[9.5rem_1fr] items-center gap-x-4">
 							<label htmlFor="custom-space-before" className="text-xs text-subtle">
-								Sebelum
+								Before
 							</label>
 							<input
 								id="custom-space-before"
@@ -131,7 +131,7 @@ export function CustomSpacingDialog({
 						</div>
 						<div className="grid grid-cols-[9.5rem_1fr] items-center gap-x-4">
 							<label htmlFor="custom-space-after" className="text-xs text-subtle">
-								Sesudah
+								After
 							</label>
 							<input
 								id="custom-space-after"
@@ -152,14 +152,14 @@ export function CustomSpacingDialog({
 						onClick={onClose}
 						className="rounded-lg px-3 py-1.5 text-sm text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 					>
-						Batal
+						Cancel
 					</button>
 					<button
 						type="button"
 						onClick={apply}
 						className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
 					>
-						Terapkan
+						Apply
 					</button>
 				</div>
 			</div>

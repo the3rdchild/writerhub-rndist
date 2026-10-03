@@ -38,15 +38,15 @@ export function StepSummary({ steps, usage }: { steps: ChatStep[]; usage?: ChatU
 				{open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
 				<span className="min-w-0 truncate">
 					{shown.join(' · ')}
-					{hidden > 0 && ` · … ${steps.length} langkah`}
+					{hidden > 0 && ` · … ${steps.length} steps`}
 				</span>
-				<span className="shrink-0">{(Math.max(0, totalMs) / 1000).toFixed(1).replace('.', ',')} dtk</span>
+				<span className="shrink-0">{(Math.max(0, totalMs) / 1000).toFixed(1)} s</span>
 			</button>
 			{open && <StepTimeline steps={steps} />}
 			{usage && (usage.promptTokens !== undefined || usage.completionTokens !== undefined) && (
 				<p className="text-[10px] text-faint">
-					{(usage.promptTokens ?? 0).toLocaleString('id-ID')} token masuk ·{' '}
-					{(usage.completionTokens ?? 0).toLocaleString('id-ID')} keluar
+					{(usage.promptTokens ?? 0).toLocaleString('en-US')} tokens in ·{' '}
+					{(usage.completionTokens ?? 0).toLocaleString('en-US')} out
 				</p>
 			)}
 		</div>

@@ -36,7 +36,7 @@ export function EditMenu() {
 							shortcut={keys('doc.undo')}
 							onSelect={() => run(close, () => editor?.chain().focus().undo().run())}
 						>
-							Urungkan
+							Undo
 						</Item>
 						<Item
 							icon={<Redo2 className="h-4 w-4" />}
@@ -44,7 +44,7 @@ export function EditMenu() {
 							shortcut={keys('doc.redo')}
 							onSelect={() => run(close, () => editor?.chain().focus().redo().run())}
 						>
-							Ulangi
+							Redo
 						</Item>
 						<DropdownSeparator />
 						<Item
@@ -52,20 +52,20 @@ export function EditMenu() {
 							shortcut={keys('doc.selectAll')}
 							onSelect={() => run(close, () => editor?.chain().focus().selectAll().run())}
 						>
-							Pilih semua
+							Select all
 						</Item>
 						<Item
 							icon={<FileText className="h-4 w-4" />}
 							onSelect={() => run(close, () => navigator.clipboard.writeText(state.text))}
 						>
-							Salin seluruh teks
+							Copy all text
 						</Item>
 						<DropdownSeparator />
 						<Item
 							icon={<Eraser className="h-4 w-4" />}
 							onSelect={() => run(close, () => setConfirmClear(true))}
 						>
-							Kosongkan dokumen…
+							Clear this tab…
 						</Item>
 					</>
 				)}

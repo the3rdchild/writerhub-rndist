@@ -33,8 +33,10 @@ export function MetadataForm({
 					<div key={field.key} className="flex flex-col gap-1">
 						<label htmlFor={id} className="flex items-baseline gap-2">
 							<span className="font-medium text-muted text-xs">{field.label}</span>
-							{!field.placeholder && <span className="text-[10px] text-faint">tidak ditulis ke naskah</span>}
-							{field.personal && <span className="text-[10px] text-faint">tidak dikirim ke AI</span>}
+							{!field.placeholder && (
+								<span className="text-[10px] text-faint">not written into the document</span>
+							)}
+							{field.personal && <span className="text-[10px] text-faint">not sent to the AI</span>}
 						</label>
 
 						{field.kind === 'multiline' ? (
@@ -75,15 +77,15 @@ export function MetadataScopeNote({ afterCreation }: { afterCreation: boolean })
 		<p className="rounded-lg border border-line bg-surface-inset px-3 py-2 text-[11px] text-subtle leading-relaxed">
 			{afterCreation ? (
 				<>
-					Perubahan di sini <strong className="text-muted">tidak menulis ulang naskah</strong> - sampul sudah
-					terisi saat dokumen dibuat, dan menimpanya berarti menghapus suntingan Anda. Yang ikut berubah
-					adalah penjelasan yang dibaca AI.
+					Changes here <strong className="text-muted">don't rewrite the document</strong> - the cover was
+					filled in when the document was created, and overwriting it would erase your edits. What changes is
+					the context the AI reads.
 				</>
 			) : (
 				<>
-					Isian ini menggantikan teks contoh di kerangka saat dokumen dibuat, lalu tetap tersimpan sebagai
-					penjelasan untuk AI. Mengubahnya nanti <strong className="text-muted">tidak</strong> menulis ulang
-					naskah.
+					These fields replace the sample text in the outline when the document is created, and stay saved as
+					context for the AI. Changing them later <strong className="text-muted">doesn't</strong> rewrite the
+					document.
 				</>
 			)}
 		</p>

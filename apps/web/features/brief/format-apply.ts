@@ -114,10 +114,10 @@ export interface FormatDifference {
 }
 
 const SIDE_LABEL: Record<keyof PageMargins, string> = {
-	left: 'Margin kiri',
-	top: 'Margin atas',
-	right: 'Margin kanan',
-	bottom: 'Margin bawah',
+	left: 'Left margin',
+	top: 'Top margin',
+	right: 'Right margin',
+	bottom: 'Bottom margin',
 }
 
 const formatCm = (cm: number): string => `${String(Math.round(cm * 100) / 100).replace('.', ',')} cm`
@@ -158,7 +158,7 @@ export function formatDifferences(
 	if (target.family && target.family !== typography.baseFont.family) {
 		differences.push({
 			key: 'family',
-			label: 'Huruf',
+			label: 'Font',
 			current: fontLabelOf(typography.baseFont.family),
 			wanted: fontLabelOf(target.family),
 		})
@@ -166,7 +166,7 @@ export function formatDifferences(
 	if (target.sizePt !== undefined && target.sizePt !== typography.baseFont.sizePt) {
 		differences.push({
 			key: 'sizePt',
-			label: 'Ukuran huruf',
+			label: 'Font size',
 			current: `${typography.baseFont.sizePt} pt`,
 			wanted: `${target.sizePt} pt`,
 		})
@@ -174,7 +174,7 @@ export function formatDifferences(
 	if (target.lineHeight !== undefined && target.lineHeight !== typography.lineHeight) {
 		differences.push({
 			key: 'lineHeight',
-			label: 'Spasi baris',
+			label: 'Line spacing',
 			current: formatSpacing(typography.lineHeight),
 			wanted: formatSpacing(target.lineHeight),
 		})

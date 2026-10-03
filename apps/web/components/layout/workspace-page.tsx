@@ -19,15 +19,19 @@ export function WorkspacePage() {
 	if (versionMode) return <VersionHistoryView />
 
 	return (
-		<div className="relative flex min-h-0 flex-1 gap-3 py-3 pl-2 pr-20">
+		/* `min-w-0`: tanpa itu baris ini tidak bisa lebih sempit dari isinya
+		 * (tab + halaman + panel ±1578 px), sehingga di laptop 1280-1366 px panel
+		 * dan rail terdorong ke luar layar tanpa bisa digulir (SHL-9). Kini
+		 * kanvas yang menyempit dan menggulung halamannya. */
+		<div className="relative flex min-h-0 min-w-0 flex-1 gap-3 py-3 pl-2 pr-20">
 			{settings.showDocumentTabs ? (
 				<DocumentTabsSidebar />
 			) : (
 				<div className="flex shrink-0 flex-col pl-2 pt-1">
 					<button
 						type="button"
-						aria-label="Tampilkan tab dokumen"
-						title="Tampilkan tab dokumen"
+						aria-label="Show document tabs"
+						title="Show document tabs"
 						onClick={() => update({ showDocumentTabs: true })}
 						className="flex h-8 w-8 items-center justify-center rounded-lg text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 					>

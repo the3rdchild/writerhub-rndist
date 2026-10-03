@@ -38,6 +38,27 @@ const DOCX_HEADING_LEVELS: readonly HeadingLevel[] = [1, 2, 3, 4, 5, 6]
 
 const pt = (value: number) => Math.round(value * TWIPS_PER_PT)
 
+/**
+ * `w:ind` dari lekukan kiri dan baris pertama (pt; negatif = menggantung).
+ *
+ * `firstLine` dan `hanging` saling meniadakan: bila keduanya tertulis, Word
+ * mengabaikan `firstLine` (ISO/IEC 29500 §17.3.1.12). Dulu keduanya selalu
+ * ditulis - salah satunya nol - sehingga lekukan baris pertama skripsi
+ * (`firstLinePt: 28`) hilang dari setiap paragraf badan di Word. Hanya yang
+ * bukan nol yang ditulis.
+ */
+export function wordIndent(
+	leftPt: number,
+	firstLinePt: number,
+): { left: number; firstLine?: number; hanging?: number } {
+	const first = pt(firstLinePt)
+	return {
+		left: pt(leftPt),
+		...(first > 0 ? { firstLine: first } : {}),
+		...(first < 0 ? { hanging: -first } : {}),
+	}
+}
+
 function runOf(style: BlockStyle, family: string) {
 	return {
 		font: fontFamilyLabel(family),
@@ -61,11 +82,7 @@ function paragraphOf(style: BlockStyle) {
 			line: Math.round(style.lineHeight * TWENTIETHS_PER_LINE),
 			lineRule: 'auto' as const,
 		},
-		indent: {
-			left: pt(style.indentPt),
-			firstLine: Math.max(0, pt(style.firstLinePt)),
-			hanging: Math.max(0, pt(-style.firstLinePt)),
-		},
+		indent: wordIndent(style.indentPt, style.firstLinePt),
 		// Garis bawah blok: diterjemahkan ke pBdr bottom seperti Template_cv.docx.
 		...(style.borderBottom
 			? {

@@ -45,12 +45,12 @@ export const ANALYSIS_PANELS: readonly RailItem[] = [
 	{ id: 'comments', icon: MessageSquare, label: 'Comments' },
 ]
 
-export const SOURCE_PANELS: readonly RailItem[] = [{ id: 'assets', icon: Images, label: 'Aset' }]
+export const SOURCE_PANELS: readonly RailItem[] = [{ id: 'assets', icon: Images, label: 'Assets' }]
 
 /* `Search` sudah dipakai Plagiarism, jadi pencarian naskah memakai ikon lain -
  * dua ikon kaca pembesar di rail yang sama berarti tidak ada yang menandakan
  * apa pun. */
-export const SEARCH_PANEL: RailItem = { id: 'search', icon: TextSearch, label: 'Cari & ganti' }
+export const SEARCH_PANEL: RailItem = { id: 'search', icon: TextSearch, label: 'Find & replace' }
 
 /* Watermark tidak ikut ke menu Tools: jalan masuknya menu Sisip, karena dari
  * sudut pandang penulis ia sesuatu yang ditaruh di halaman, bukan perkakas yang

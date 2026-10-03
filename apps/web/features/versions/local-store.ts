@@ -54,7 +54,7 @@ function openDb(): Promise<IDBDatabase> {
 			}
 		}
 		request.onsuccess = () => resolve(request.result)
-		request.onerror = () => reject(request.error ?? new Error('Gagal membuka penyimpanan versi lokal'))
+		request.onerror = () => reject(request.error ?? new Error("Couldn't open local version storage"))
 	})
 	return dbPromise
 }
@@ -67,7 +67,7 @@ async function run<T>(
 	return new Promise<T>((resolve, reject) => {
 		const request = action(db.transaction(STORE_NAME, mode).objectStore(STORE_NAME))
 		request.onsuccess = () => resolve(request.result)
-		request.onerror = () => reject(request.error ?? new Error('Operasi penyimpanan versi lokal gagal'))
+		request.onerror = () => reject(request.error ?? new Error('A local version storage operation failed'))
 	})
 }
 

@@ -45,7 +45,7 @@ export function TabMenu({ tab, index }: { tab: Session; index: number }) {
 				<button
 					type="button"
 					onClick={toggle}
-					aria-label={`Opsi ${label}`}
+					aria-label={`Options for ${label}`}
 					aria-expanded={open}
 					aria-controls={id}
 					className={cn(
@@ -68,10 +68,10 @@ export function TabMenu({ tab, index }: { tab: Session; index: number }) {
 				return (
 					<>
 						<DropdownItem icon={<Pencil className="h-4 w-4" />} onSelect={run(() => startRename(tab.id))}>
-							Ganti nama
+							Rename
 						</DropdownItem>
 						<DropdownItem icon={<Copy className="h-4 w-4" />} onSelect={run(() => duplicate(tab.id))}>
-							Duplikat
+							Duplicate
 						</DropdownItem>
 						<DropdownItem
 							icon={
@@ -84,10 +84,10 @@ export function TabMenu({ tab, index }: { tab: Session; index: number }) {
 							disabled={syncState === 'saving'}
 							onSelect={run(() => saveToCloud(tab.id))}
 						>
-							{syncState === 'local' ? 'Simpan ke cloud' : 'Simpan ke cloud sekarang'}
+							{syncState === 'local' ? 'Save to cloud' : 'Save to cloud now'}
 						</DropdownItem>
 						<DropdownItem icon={<ListTree className="h-4 w-4" />} onSelect={run(() => toggleOutline(tab))}>
-							{tab.outlineExpanded ? 'Sembunyikan daftar isi' : 'Tampilkan daftar isi'}
+							{tab.outlineExpanded ? 'Hide outline' : 'Show outline'}
 						</DropdownItem>
 
 						{(canMoveUp || canMoveDown) && <DropdownSeparator />}
@@ -108,13 +108,13 @@ export function TabMenu({ tab, index }: { tab: Session; index: number }) {
 							</DropdownItem>
 						)}
 
-						<DropdownLabel>Ikon</DropdownLabel>
+						<DropdownLabel>Icon</DropdownLabel>
 						<div className="flex flex-wrap gap-0.5 px-2 pb-1.5">
 							{TAB_ICONS.map((icon) => (
 								<button
 									key={icon}
 									type="button"
-									aria-label={`Ikon ${icon}`}
+									aria-label={`Icon ${icon}`}
 									onClick={run(() => setIcon(tab.id, icon))}
 									className={cn(
 										'flex h-7 w-7 items-center justify-center rounded-md text-sm transition-colors hover:bg-[var(--overlay-hover)]',
@@ -126,8 +126,8 @@ export function TabMenu({ tab, index }: { tab: Session; index: number }) {
 							))}
 							<button
 								type="button"
-								aria-label="Tanpa ikon"
-								title="Tanpa ikon"
+								aria-label="No icon"
+								title="No icon"
 								onClick={run(() => setIcon(tab.id, null))}
 								className="flex h-7 w-7 items-center justify-center rounded-md text-xs text-subtle transition-colors hover:bg-[var(--overlay-hover)]"
 							>
@@ -141,7 +141,7 @@ export function TabMenu({ tab, index }: { tab: Session; index: number }) {
 							disabled={!canRemove}
 							onSelect={run(() => requestDelete(tab))}
 						>
-							Hapus
+							Delete
 						</DropdownItem>
 					</>
 				)

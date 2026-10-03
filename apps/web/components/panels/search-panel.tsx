@@ -15,10 +15,10 @@ const FIELD_CLASS =
 	'w-full rounded-lg border border-line bg-surface-raised px-2.5 py-1.5 text-foreground text-sm outline-none transition-colors focus:border-accent'
 
 const OPTIONS: ReadonlyArray<{ key: keyof SearchModifiers; label: string }> = [
-	{ key: 'caseSensitive', label: 'Cocokkan huruf besar/kecil' },
+	{ key: 'caseSensitive', label: 'Match case' },
 	{ key: 'regex', label: 'Gunakan ekspresi reguler' },
-	{ key: 'wholeWord', label: 'Kata utuh saja' },
-	{ key: 'ignoreDiacritics', label: 'Abaikan diakritik (ä = a)' },
+	{ key: 'wholeWord', label: 'Whole words only' },
+	{ key: 'ignoreDiacritics', label: 'Ignore diacritics (ä = a)' },
 ]
 
 /*
@@ -81,8 +81,7 @@ export function SearchPanelBody() {
 	} = controls
 
 	const total = results.length
-	const scopeLabel =
-		sessions.find((tab) => tab.id === activeId)?.title || state.title || 'Dokumen tanpa judul'
+	const scopeLabel = sessions.find((tab) => tab.id === activeId)?.title || state.title || 'Untitled document'
 
 	const rows = useMemo<ResultRow[]>(
 		function buildRows() {
@@ -136,8 +135,8 @@ export function SearchPanelBody() {
 					value={search}
 					onChange={(event) => setSearch(event.target.value)}
 					onKeyDown={onFieldKeyDown}
-					placeholder="Cari"
-					aria-label="Cari"
+					placeholder="Find"
+					aria-label="Find"
 					aria-invalid={invalidRegex}
 					className={cn(FIELD_CLASS, invalidRegex && 'border-red-500 focus:border-red-500')}
 				/>
@@ -146,8 +145,8 @@ export function SearchPanelBody() {
 					value={replace}
 					onChange={(event) => setReplace(event.target.value)}
 					onKeyDown={onFieldKeyDown}
-					placeholder="Ganti dengan"
-					aria-label="Ganti dengan"
+					placeholder="Replace with"
+					aria-label="Replace with"
 					className={FIELD_CLASS}
 				/>
 
@@ -158,7 +157,7 @@ export function SearchPanelBody() {
 						disabled={total === 0}
 						className="rounded-lg border border-line px-2.5 py-1 text-muted text-xs transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
 					>
-						Ganti
+						Replace
 					</button>
 					<button
 						type="button"
@@ -166,13 +165,13 @@ export function SearchPanelBody() {
 						disabled={total === 0}
 						className="rounded-lg border border-line px-2.5 py-1 text-muted text-xs transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
 					>
-						Ganti semua
+						Replace all
 					</button>
 					<span className="ml-auto flex items-center gap-0.5">
 						<button
 							type="button"
 							title="Sebelumnya (Shift+Enter)"
-							aria-label="Hasil sebelumnya"
+							aria-label="Previous result"
 							disabled={total === 0}
 							onClick={goPrevious}
 							className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
@@ -181,8 +180,8 @@ export function SearchPanelBody() {
 						</button>
 						<button
 							type="button"
-							title="Berikutnya (Enter)"
-							aria-label="Hasil berikutnya"
+							title="Next (Enter)"
+							aria-label="Next result"
 							disabled={total === 0}
 							onClick={goNext}
 							className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
@@ -216,12 +215,12 @@ export function SearchPanelBody() {
 			<PanelScroll className="gap-1 p-2">
 				<p className={cn('px-1 pb-1 text-[11px]', invalidRegex ? 'text-red-400' : 'text-subtle')}>
 					{invalidRegex
-						? 'Pola regex tidak sah - periksa tanda kurung dan pelolosnya.'
+						? 'Invalid regular expression - check the brackets and escapes.'
 						: !search
-							? 'Ketik kata kunci untuk melihat daftar kemunculannya.'
+							? 'Type a search term to list where it appears.'
 							: total === 0
-								? 'Tidak ada hasil.'
-								: `${total} hasil`}
+								? 'No results.'
+								: `${total} ${total === 1 ? 'result' : 'results'}`}
 				</p>
 
 				{rows.map((row) => (
@@ -245,15 +244,15 @@ export function SearchPanelBody() {
 							<span className="text-subtle">{row.after}</span>
 						</span>
 						{row.page !== null && (
-							<span className="shrink-0 pt-0.5 text-[10px] text-faint tabular-nums">Hal. {row.page}</span>
+							<span className="shrink-0 pt-0.5 text-[10px] text-faint tabular-nums">p. {row.page}</span>
 						)}
 					</button>
 				))}
 
 				{total > MAX_ROWS && (
 					<p className="px-1 pt-1 text-[11px] text-subtle">
-						{total - MAX_ROWS} hasil lain tidak ditampilkan - persempit kata kuncinya, atau pakai Ganti semua
-						kalau memang semuanya hendak diganti.
+						{total - MAX_ROWS} more results aren't shown - narrow the search, or use Replace all if you
+						really want to replace every one.
 					</p>
 				)}
 			</PanelScroll>

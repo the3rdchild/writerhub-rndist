@@ -32,14 +32,14 @@ export function StallCard({
 					{stall.outline.slice(0, 4).map((line) => (
 						<li key={line}>{line}</li>
 					))}
-					{stall.outline.length > 4 && <li className="text-subtle">+{stall.outline.length - 4} lagi</li>}
+					{stall.outline.length > 4 && <li className="text-subtle">+{stall.outline.length - 4} more</li>}
 				</ul>
 			) : (
 				stall.total > 0 && (
 					<p className="mt-1 text-muted">
-						{filled} dari {stall.total} bagian sudah berisi
+						{filled} of {stall.total} sections filled
 						{stall.empty.length > 0 && stall.empty.length <= 4 && (
-							<span className="text-subtle"> · kosong: {stall.empty.join(', ')}</span>
+							<span className="text-subtle"> · empty: {stall.empty.join(', ')}</span>
 						)}
 					</p>
 				)
@@ -53,19 +53,19 @@ export function StallCard({
 					className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 font-medium text-foreground transition-colors hover:border-accent/60 disabled:opacity-50"
 				>
 					{stall.reason === 'empty' ? <RotateCw className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-					Lanjutkan
+					Continue
 				</button>
 				<button
 					type="button"
 					onClick={onDismiss}
 					className="rounded-lg px-2 py-1 text-subtle transition-colors hover:text-foreground"
 				>
-					Cukup
+					That's enough
 				</button>
 
 				{stall.autoContinues > 0 && (
 					<span className="text-[11px] text-faint">
-						Sudah dilanjutkan otomatis {stall.autoContinues} kali.
+						Continued automatically {stall.autoContinues} {stall.autoContinues === 1 ? 'time' : 'times'}.
 					</span>
 				)}
 			</div>
@@ -74,14 +74,14 @@ export function StallCard({
 }
 
 const MARKER: Record<ContinueReason, string> = {
-	wave_limit: 'jeda suntingan',
-	promised: 'AI sempat berhenti',
-	truncated: 'jawaban terpotong',
-	stopped: 'setelah dihentikan',
-	incomplete: 'bagian yang masih kosong',
-	unfinished: 'kerangka belum lengkap',
-	read_budget: 'jatah baca baru',
-	todos_open: 'daftar tugas belum tuntas',
+	wave_limit: 'edit pause',
+	promised: 'the AI stopped early',
+	truncated: 'answer cut off',
+	stopped: 'after being stopped',
+	incomplete: 'sections still empty',
+	unfinished: 'outline not finished',
+	read_budget: 'new reading budget',
+	todos_open: 'tasks still open',
 }
 
 /** Dorongan `[Continue]` di percakapan: penanda kecil, bukan gelembung pesan penulis. */
@@ -91,7 +91,7 @@ export function ContinueMarker({ continuation }: { continuation: NonNullable<Cha
 		<div className="flex items-center gap-2 py-0.5 text-[11px] text-subtle" role="note">
 			<span className="h-px flex-1 bg-foreground/10" />
 			<span>
-				{continuation.mode === 'auto' ? 'Dilanjutkan otomatis' : 'Dilanjutkan'}
+				{continuation.mode === 'auto' ? 'Continued automatically' : 'Continued'}
 				<span className="text-faint"> · {reason}</span>
 			</span>
 			<span className="h-px flex-1 bg-foreground/10" />

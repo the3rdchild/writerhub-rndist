@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { countCharacters, countWords } from './utils'
+import { countCharacters, countWords, formatTextCounts } from './utils'
 
 describe('hitungan kata dan karakter (TKS-22)', () => {
 	test('tanda pisah dan butir bukan kata', () => {
@@ -11,5 +11,13 @@ describe('hitungan kata dan karakter (TKS-22)', () => {
 	test('pemisah blok tidak dihitung sebagai karakter', () => {
 		expect(countCharacters('ab cd\n\n\nef')).toBe(7)
 		expect(countCharacters('')).toBe(0)
+	})
+})
+
+describe('formatTextCounts', () => {
+	test('bentuk tunggal untuk satu kata atau satu karakter', () => {
+		expect(formatTextCounts('a')).toBe('1 word · 1 character')
+		expect(formatTextCounts('dua kata')).toBe('2 words · 8 characters')
+		expect(formatTextCounts('')).toBe('0 words · 0 characters')
 	})
 })

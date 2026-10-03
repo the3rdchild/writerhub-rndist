@@ -31,8 +31,8 @@ export const ADD_SPACE_PT = 12
 
 /** Keempat saklar penanganan halaman beserta label menunya. */
 export const KEEP_OPTIONS: ReadonlyArray<{ key: keyof BlockKeepValues; label: string }> = [
-	{ key: 'keepWithNext', label: 'Tetap dengan berikutnya' },
-	{ key: 'keepLines', label: 'Satukan baris' },
-	{ key: 'widowControl', label: 'Cegah baris tunggal' },
-	{ key: 'pageBreakBefore', label: 'Tambah hentian halaman sebelum' },
+	{ key: 'keepWithNext', label: 'Keep with next' },
+	{ key: 'keepLines', label: 'Keep lines together' },
+	{ key: 'widowControl', label: 'Widow/orphan control' },
+	{ key: 'pageBreakBefore', label: 'Page break before' },
 ]

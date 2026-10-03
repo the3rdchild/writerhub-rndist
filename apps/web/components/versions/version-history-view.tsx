@@ -28,9 +28,9 @@ import { VersionDiffHighlight, versionDiffHighlightKey } from '@/features/versio
 import { GROUP_ORDER, groupOf } from '@/lib/day-groups'
 import { cn } from '@/lib/utils'
 
-const timeFormat = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' })
+const timeFormat = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' })
 
-const dateFormat = new Intl.DateTimeFormat('id-ID', {
+const dateFormat = new Intl.DateTimeFormat('en-GB', {
 	day: 'numeric',
 	month: 'long',
 	year: 'numeric',
@@ -46,13 +46,13 @@ function featureLabel(feature: string | null): string | null {
 function entryLabel(version: VersionSummary): string {
 	switch (version.trigger) {
 		case 'manual':
-			return version.label ?? 'Diberi nama'
+			return version.label ?? 'Named'
 		case 'interval':
-			return 'Otomatis'
+			return 'Automatic'
 		case 'pre_restore':
-			return 'Sebelum pemulihan'
+			return 'Before restore'
 		case 'pre_translate':
-			return 'Sebelum terjemah'
+			return 'Before translation'
 		case 'ai_result': {
 			/*
 			 * Dua penulis, dua bentuk keterangan. Modul analisis menandai
@@ -61,7 +61,7 @@ function entryLabel(version: VersionSummary): string {
 			 * perubahannya ("AI Chat · +128 −34 kata").
 			 */
 			const label = version.label ?? featureLabel(version.feature)
-			return label ? `Hasil AI: ${label}` : 'Hasil AI'
+			return label ? `AI result: ${label}` : 'AI result'
 		}
 	}
 }
@@ -192,7 +192,7 @@ export function VersionHistoryView() {
 			}
 			await invalidateVersions(versionMode)
 		} catch (error) {
-			setActionError(error instanceof Error ? error.message : 'Gagal menyimpan versi')
+			setActionError(error instanceof Error ? error.message : 'Could not save the version')
 		}
 	}
 
@@ -204,7 +204,7 @@ export function VersionHistoryView() {
 		try {
 			await restoreToVersion(selectedId)
 		} catch (error) {
-			setActionError(error instanceof Error ? error.message : 'Pemulihan gagal')
+			setActionError(error instanceof Error ? error.message : 'Could not restore the version')
 			setRestoring(false)
 		}
 	}
@@ -215,8 +215,8 @@ export function VersionHistoryView() {
 				<button
 					type="button"
 					onClick={closeVersionMode}
-					aria-label="Kembali ke editor"
-					title="Kembali ke editor"
+					aria-label="Back to editor"
+					title="Back to editor"
 					className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 				>
 					<ArrowLeft className="h-5 w-5" />
@@ -224,7 +224,7 @@ export function VersionHistoryView() {
 				<div className="min-w-0">
 					<h1 className="truncate text-base font-medium text-foreground">{versionMode.title}</h1>
 					<p className="text-xs text-muted">
-						{selectedVersion ? dateFormat.format(new Date(selectedVersion.createdAt)) : 'Versi saat ini'}
+						{selectedVersion ? dateFormat.format(new Date(selectedVersion.createdAt)) : 'Current version'}
 					</p>
 				</div>
 				<div className="ml-auto shrink-0">
@@ -254,15 +254,15 @@ export function VersionHistoryView() {
 
 				<aside className="flex w-[320px] shrink-0 flex-col border-l border-line bg-surface">
 					<div className="flex shrink-0 items-center justify-between gap-2 px-4 pb-2 pt-4">
-						<h2 className="text-sm font-medium text-foreground">Riwayat versi</h2>
+						<h2 className="text-sm font-medium text-foreground">Version history</h2>
 						<button
 							type="button"
 							onClick={() => setNameDialogOpen(true)}
-							title="Beri nama versi ini"
+							title="Name this version"
 							className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 						>
 							<Plus className="h-3.5 w-3.5" />
-							Beri nama versi ini
+							Name this version
 						</button>
 					</div>
 
@@ -275,13 +275,13 @@ export function VersionHistoryView() {
 								selectedId === null ? 'bg-accent/15 text-foreground' : 'hover:bg-[var(--overlay-hover)]',
 							)}
 						>
-							<div className="text-sm font-medium text-foreground">Versi saat ini</div>
-							<div className="text-xs text-muted">Draf yang sedang dikerjakan</div>
+							<div className="text-sm font-medium text-foreground">Current version</div>
+							<div className="text-xs text-muted">The draft you are working on</div>
 						</button>
 
-						{versions.isPending && <p className="px-3 py-4 text-xs text-muted">Memuat riwayat…</p>}
+						{versions.isPending && <p className="px-3 py-4 text-xs text-muted">Loading history…</p>}
 						{versions.isError && (
-							<p className="px-3 py-4 text-xs text-red-400">Gagal memuat riwayat versi.</p>
+							<p className="px-3 py-4 text-xs text-red-400">Could not load the version history.</p>
 						)}
 
 						{grouped.map((group) => (
@@ -306,7 +306,7 @@ export function VersionHistoryView() {
 											{version.trigger === 'manual' && <Pin className="h-3 w-3 shrink-0" />}
 											<span className="truncate">{entryLabel(version)}</span>
 											<span aria-hidden>•</span>
-											<span className="shrink-0">{version.wordCount.toLocaleString('id-ID')} kata</span>
+											<span className="shrink-0">{version.wordCount.toLocaleString('en-US')} words</span>
 										</div>
 									</button>
 								))}
@@ -328,7 +328,7 @@ export function VersionHistoryView() {
 								onChange={(event) => setShowDiff(event.target.checked)}
 								className="h-4 w-4 accent-[var(--accent)]"
 							/>
-							Sorot perubahan
+							Highlight changes
 						</label>
 						{selectedId !== null && (
 							<button
@@ -337,7 +337,7 @@ export function VersionHistoryView() {
 								onClick={() => setConfirmOpen(true)}
 								className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-50"
 							>
-								{restoring ? 'Memulihkan…' : 'Pulihkan versi ini'}
+								{restoring ? 'Restoring…' : 'Restore this version'}
 							</button>
 						)}
 						{actionError && <p className="text-xs text-red-400">{actionError}</p>}
@@ -347,8 +347,8 @@ export function VersionHistoryView() {
 
 			<ConfirmDialog
 				open={confirmOpen}
-				title="Pulihkan versi ini?"
-				description="Naskah akan dikembalikan ke versi yang dipilih. Draf saat ini disimpan otomatis sebagai versi 'Sebelum pemulihan'."
+				title="Restore this version?"
+				description="The document goes back to the selected version. The current draft is saved automatically as the version 'Before restore'."
 				confirmLabel="Pulihkan"
 				onConfirm={() => void handleRestore()}
 				onCancel={() => setConfirmOpen(false)}
@@ -392,7 +392,7 @@ function NameVersionDialog({
 		<div
 			role="dialog"
 			aria-modal="true"
-			aria-label="Beri nama versi ini"
+			aria-label="Name this version"
 			className="fixed inset-0 z-[70] flex animate-in items-center justify-center bg-black/60 backdrop-blur-sm fade-in duration-200"
 			onClick={(event) => {
 				if (event.target === event.currentTarget) onCancel()
@@ -406,12 +406,12 @@ function NameVersionDialog({
 					if (trimmed) onSubmit(trimmed)
 				}}
 			>
-				<h2 className="text-base font-semibold text-foreground">Beri nama versi ini</h2>
+				<h2 className="text-base font-semibold text-foreground">Name this version</h2>
 				<input
 					autoFocus
 					value={label}
 					onChange={(event) => setLabel(event.target.value)}
-					placeholder="Nama versi"
+					placeholder="Version name"
 					maxLength={255}
 					className="rounded-xl border border-line-strong bg-surface px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-faint focus:border-accent"
 				/>
@@ -421,14 +421,14 @@ function NameVersionDialog({
 						onClick={onCancel}
 						className="rounded-xl px-4 py-2 text-sm text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 					>
-						Batal
+						Cancel
 					</button>
 					<button
 						type="submit"
 						disabled={!label.trim()}
 						className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-50"
 					>
-						Simpan
+						Save
 					</button>
 				</div>
 			</form>

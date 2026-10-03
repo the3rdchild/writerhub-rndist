@@ -1,6 +1,6 @@
 import { type DocumentTypography, resolveHeadingStyle } from '@writer-hub/shared'
 import { fontFamilyLabel } from '@/features/editor/font-catalog'
-import { DOCX_ALIGNMENT } from './docx/typography-styles'
+import { DOCX_ALIGNMENT, wordIndent } from './docx/typography-styles'
 
 /**
  * Gaya paragraf tambahan yang dirujuk pengekspor DOCX, di luar Heading 1-6
@@ -47,11 +47,7 @@ export function captionParagraphStyles(typography: DocumentTypography | null | u
 								line: Math.round(style.lineHeight * 240),
 								lineRule: 'auto' as const,
 							},
-							indent: {
-								left: pt(style.indentPt),
-								firstLine: Math.max(0, pt(style.firstLinePt)),
-								hanging: Math.max(0, pt(-style.firstLinePt)),
-							},
+							indent: wordIndent(style.indentPt, style.firstLinePt),
 						}
 					: {}),
 			},
