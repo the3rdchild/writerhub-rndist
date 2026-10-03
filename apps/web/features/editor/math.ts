@@ -28,13 +28,20 @@ export function renderMath(latex: string, display: boolean): string {
 	}
 }
 
-function buildDom(latex: string, display: boolean): HTMLElement {
+function buildDom(latex: string, display: boolean, fontSize: unknown = null): HTMLElement {
 	const element = document.createElement(display ? 'div' : 'span')
 	element.className = display ? 'math-block' : 'math-inline'
 	element.setAttribute('data-latex', latex)
+	const size = fontSizeStyle(fontSize)
+	if (size) element.style.fontSize = size
 	element.contentEditable = 'false'
 	element.innerHTML = renderMath(latex, display)
 	return element
+}
+
+/** `fontSize` (pt) → nilai CSS; null bila rumus ikut ukuran teks sekitarnya. */
+function fontSizeStyle(fontSize: unknown): string | null {
+	return typeof fontSize === 'number' && fontSize > 0 ? `${fontSize}pt` : null
 }
 
 const latexAttribute = {
@@ -42,6 +49,21 @@ const latexAttribute = {
 		default: '',
 		parseHTML: (element: HTMLElement) => element.getAttribute('data-latex') ?? '',
 		renderHTML: (attributes: Record<string, unknown>) => ({ 'data-latex': attributes.latex }),
+	},
+	/*
+	 * Ukuran huruf rumus (pt) bila naskahnya menyebut sendiri - rumus dari DOCX
+	 * membawa `w:sz` run-nya. Null: ikut ukuran teks di sekitarnya.
+	 */
+	fontSize: {
+		default: null,
+		parseHTML: (element: HTMLElement) => {
+			const value = Number.parseFloat(element.getAttribute('data-font-size') ?? '')
+			return Number.isFinite(value) && value > 0 ? value : null
+		},
+		renderHTML: (attributes: Record<string, unknown>) => {
+			const size = fontSizeStyle(attributes.fontSize)
+			return size ? { 'data-font-size': attributes.fontSize, style: `font-size: ${size}` } : {}
+		},
 	},
 }
 
@@ -63,7 +85,7 @@ export const MathInline = Node.create({
 	},
 
 	addNodeView() {
-		return ({ node }) => ({ dom: buildDom(node.attrs.latex, false) })
+		return ({ node }) => ({ dom: buildDom(node.attrs.latex, false, node.attrs.fontSize) })
 	},
 })
 
@@ -91,7 +113,7 @@ export const MathBlock = Node.create({
 	addNodeView() {
 		return ({ node }) => {
 			const latex: string = node.attrs.latex
-			const dom = buildDom(latex, true)
+			const dom = buildDom(latex, true, node.attrs.fontSize)
 			let fittedWidth = -1
 			const fit = () => {
 				const width = dom.clientWidth

@@ -120,6 +120,16 @@ describe('rumus di berkas DOCX (OBJ-2)', () => {
 		expect(xml).toMatch(/<m:nary>[\s\S]*<m:sub>[\s\S]*<m:sup>[\s\S]*<m:e>/)
 	})
 
+	test('ukuran rumus (fontSize) ditulis sebagai w:sz di setiap run', async () => {
+		const { xml } = await exported([{ type: 'mathBlock', attrs: { latex: 'D_5^+=0.069', fontSize: 8 } }])
+		const runs = xml.match(/<m:r>[\s\S]*?<\/m:r>/g) ?? []
+		expect(runs.length).toBeGreaterThan(0)
+		for (const run of runs) expect(run).toContain('<w:sz w:val="16"/>')
+
+		const { xml: polos } = await exported([{ type: 'mathBlock', attrs: { latex: 'x' } }])
+		expect(polos).not.toMatch(/<m:r>[\s\S]*?<w:sz /)
+	})
+
 	test('LaTeX yang tidak terpetakan jatuh ke teks lebar-tetap, tidak hilang', async () => {
 		const { xml } = await exported([{ type: 'mathBlock', attrs: { latex: '\\frac{1}{2' } }])
 		expect(xml).not.toContain('<m:oMath>')
