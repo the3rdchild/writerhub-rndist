@@ -8,6 +8,7 @@ import { COLUMN_BREAK_NODE } from '@/features/editor/column-break'
 import { sanitizeDiagramSvg } from '@/features/editor/diagram-svg'
 import { HTML_BLOCK } from '@/features/editor/html-block'
 import { rasterizeSvg } from '@/features/editor/html-raster'
+import { defaultNumberingType } from '@/features/editor/list-numbering'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import type { PageFurniture } from '@/features/editor/page-furniture/model'
 import {
@@ -968,10 +969,22 @@ export async function exportDocx(
 		I: LevelFormat.UPPER_ROMAN,
 	}
 
-	const orderedLevels = (format: (typeof LevelFormat)[keyof typeof LevelFormat], start: number) =>
+	/*
+	 * Daftar tanpa gaya sendiri memakai penanda bawaan tiap tingkat seperti
+	 * kanvas (1. → a. → i., `list-numbering.ts`); dulu semua tingkat "1." di Word
+	 * sementara kanvas menulis a. dan i.
+	 */
+	const DEFAULT_LEVEL_FORMAT: Record<string, (typeof LevelFormat)[keyof typeof LevelFormat]> = {
+		'1': LevelFormat.DECIMAL,
+		...TYPE_FORMAT,
+	}
+	const orderedLevels = (
+		format: (typeof LevelFormat)[keyof typeof LevelFormat] | 'per-level',
+		start: number,
+	) =>
 		Array.from({ length: 9 }, (_, level) => ({
 			level,
-			format,
+			format: format === 'per-level' ? DEFAULT_LEVEL_FORMAT[defaultNumberingType(level)] : format,
 			text: `%${level + 1}.`,
 			alignment: 'left' as const,
 			/*
@@ -986,7 +999,7 @@ export async function exportDocx(
 		}))
 
 	const orderedConfigs = new Map<string, ReturnType<typeof orderedLevels>>([
-		['ol', orderedLevels(LevelFormat.DECIMAL, 1)],
+		['ol', orderedLevels('per-level', 1)],
 	])
 	// Tiap node list mendapat instance sendiri supaya penomorannya selalu mulai ulang,
 	// bukan melanjutkan list sebelumnya yang kebetulan mereferensikan format sama.
@@ -995,11 +1008,14 @@ export async function exportDocx(
 	const orderedReferenceOf = (list: PMNode): string => {
 		const type = String(list.attrs.type ?? '')
 		const start = Number(list.attrs.start) || 1
-		let reference = type && TYPE_FORMAT[type] ? `ol-${type}` : 'ol'
+		let reference = type && (TYPE_FORMAT[type] || type === '1') ? `ol-${type}` : 'ol'
 		if (start !== 1) reference += `-s${start}`
 
 		if (!orderedConfigs.has(reference)) {
-			orderedConfigs.set(reference, orderedLevels(TYPE_FORMAT[type] ?? LevelFormat.DECIMAL, start))
+			orderedConfigs.set(
+				reference,
+				orderedLevels(type === '1' ? LevelFormat.DECIMAL : (TYPE_FORMAT[type] ?? 'per-level'), start),
+			)
 		}
 		return reference
 	}

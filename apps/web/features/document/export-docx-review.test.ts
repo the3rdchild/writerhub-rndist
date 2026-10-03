@@ -399,6 +399,27 @@ describe('8 · butir kecil', () => {
 		expect(withThree).toBeDefined()
 	})
 
+	test('daftar bernomor bersarang tanpa gaya: 1. lalu a. lalu i., seperti kanvas', async () => {
+		const files = await exported([
+			{
+				type: 'orderedList',
+				content: [
+					listItem(paragraph('satu'), {
+						type: 'orderedList',
+						content: [listItem(paragraph('a'), { type: 'orderedList', content: [listItem(paragraph('i'))] })],
+					}),
+				],
+			},
+		])
+		const numbering = files['word/numbering.xml']
+		const plain = [...numbering.matchAll(/<w:abstractNum [\s\S]*?<\/w:abstractNum>/g)]
+			.map((match) => match[0])
+			.find((abstract) => /<w:lvl w:ilvl="1"[^>]*>[\s\S]*?<w:numFmt w:val="lowerLetter"\/>/.test(abstract))
+		expect(plain).toBeDefined()
+		expect(plain).toMatch(/<w:lvl w:ilvl="0"[^>]*>[\s\S]*?<w:numFmt w:val="decimal"\/>/)
+		expect(plain).toMatch(/<w:lvl w:ilvl="2"[^>]*>[\s\S]*?<w:numFmt w:val="lowerRoman"\/>/)
+	})
+
 	test('gambar blok HTML di dalam kutipan diperkecil ke lebar yang tersisa', async () => {
 		const xml = (
 			await exported([

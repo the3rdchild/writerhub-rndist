@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils'
  * penjelasan apa pun.
  */
 export function reportDocxExportError(error: unknown): void {
-	console.error('Ekspor DOCX gagal', error)
+	console.error('DOCX export failed', error)
 	showNotice("Couldn't export to Word (.docx). Please try again.")
 }
 
@@ -111,7 +111,7 @@ export function ExportDocxDialog() {
 			ref={overlayRef}
 			role="dialog"
 			aria-modal="true"
-			aria-label="Ekspor Word"
+			aria-label="Export Word"
 			className="fixed inset-0 z-50 flex animate-in items-center justify-center bg-black/60 backdrop-blur-sm fade-in duration-200"
 			onClick={(event) => {
 				if (event.target === overlayRef.current) setDocxExportOpen(false)
@@ -120,7 +120,7 @@ export function ExportDocxDialog() {
 			<div className="flex w-full max-w-md animate-in flex-col gap-4 rounded-2xl border border-line-strong bg-surface-raised p-5 shadow-2xl zoom-in-95 duration-200">
 				<div className="flex items-center gap-2">
 					<FileDown className="h-5 w-5 text-accent" />
-					<h2 className="text-base font-semibold text-foreground">Ekspor Word (.docx)</h2>
+					<h2 className="text-base font-semibold text-foreground">Export Word (.docx)</h2>
 				</div>
 
 				<div className="flex flex-col gap-2">
@@ -132,7 +132,7 @@ export function ExportDocxDialog() {
 							onChange={() => setMode('all')}
 							className="accent-[var(--accent)]"
 						/>
-						Seluruh tab ({sessions.length})
+						All tabs ({sessions.length})
 					</label>
 					<label className="flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm text-foreground transition-colors hover:bg-[var(--overlay-hover)]">
 						<input
@@ -142,7 +142,7 @@ export function ExportDocxDialog() {
 							onChange={() => setMode('pick')}
 							className="accent-[var(--accent)]"
 						/>
-						Tab terpilih
+						Selected tabs
 					</label>
 
 					{mode === 'pick' && (
@@ -172,7 +172,7 @@ export function ExportDocxDialog() {
 				</div>
 
 				<p className="text-[13px] leading-relaxed text-muted">
-					Tab digabung berurutan dalam satu berkas, masing-masing mulai di halaman baru.
+					Tabs are joined in order into one file, each starting on a new page.
 				</p>
 
 				<div className="flex justify-end gap-2">
@@ -181,7 +181,7 @@ export function ExportDocxDialog() {
 						onClick={() => setDocxExportOpen(false)}
 						className="rounded-xl px-4 py-2 text-sm text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 					>
-						Batal
+						Cancel
 					</button>
 					<button
 						type="button"
@@ -190,7 +190,7 @@ export function ExportDocxDialog() {
 						className="flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						<FileDown className="h-4 w-4" />
-						{exporting ? 'Mengekspor…' : `Ekspor ${chosen.length} tab`}
+						{exporting ? 'Exporting…' : `Export ${chosen.length} ${chosen.length === 1 ? 'tab' : 'tabs'}`}
 					</button>
 				</div>
 			</div>

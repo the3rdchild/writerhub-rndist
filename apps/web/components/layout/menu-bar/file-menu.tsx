@@ -88,30 +88,30 @@ export function FileMenu() {
 						onSelect={() => run(close, newSession)}
 						shortcut={keys('doc.newTab')}
 					>
-						Tab baru
+						New tab
 					</Item>
 					<DropdownSeparator />
 					{/* Impor & ekspor dikelompokkan sebagai submenu supaya daftar tetap
 			    ringkas; tiap submenu hanya berisi format yang relevan. */}
-					<Submenu label="Impor" icon={<Upload className="h-4 w-4" />}>
+					<Submenu label="Import" icon={<Upload className="h-4 w-4" />}>
 						{() => (
 							<>
 								<Item
 									icon={<FileText className="h-4 w-4" />}
 									onSelect={() => run(close, () => openImport('docx'))}
 								>
-									Word (.docx) - dengan format
+									Word (.docx) - with formatting
 								</Item>
 								<Item
 									icon={<FileText className="h-4 w-4" />}
 									onSelect={() => run(close, () => openImport('text'))}
 								>
-									PDF atau teks - teks saja
+									PDF or text - text only
 								</Item>
 							</>
 						)}
 					</Submenu>
-					<Submenu label="Ekspor" icon={<Download className="h-4 w-4" />}>
+					<Submenu label="Export" icon={<Download className="h-4 w-4" />}>
 						{() => (
 							<>
 								<Item
@@ -131,7 +131,7 @@ export function FileMenu() {
 									icon={<FileText className="h-4 w-4" />}
 									onSelect={() => run(close, () => downloadText(false))}
 								>
-									Teks polos (.txt)
+									Plain text (.txt)
 								</Item>
 								{sessions.length > 1 && (
 									<Item
@@ -154,7 +154,7 @@ export function FileMenu() {
 						}
 						shortcut={keys('doc.print')}
 					>
-						Cetak
+						Print
 					</Item>
 					<DropdownSeparator />
 					<Item
@@ -162,7 +162,7 @@ export function FileMenu() {
 						disabled={!activeId}
 						onSelect={() => run(close, () => setPageSetupOpen(true))}
 					>
-						Penyiapan halaman…
+						Page setup…
 					</Item>
 					{/* Metadata milik dokumen, bukan halaman - tapi keduanya sama-sama
 					    "tentang berkas ini", dan menu File tempat orang mencarinya.
@@ -172,7 +172,7 @@ export function FileMenu() {
 						disabled={!activeId}
 						onSelect={() => run(close, () => openMetadata())}
 					>
-						Metadata dokumen…
+						Document metadata…
 					</Item>
 					<DropdownSeparator />
 					{/* Hanya meminta konfirmasi (DeleteTabDialog). Tab terakhir tidak bisa
@@ -183,7 +183,7 @@ export function FileMenu() {
 						shortcut={keys('doc.closeTab')}
 						onSelect={() => run(close, () => activeId && setPendingTabDelete(activeId))}
 					>
-						Hapus tab ini…
+						Delete this tab…
 					</Item>
 				</>
 			)}
