@@ -95,6 +95,19 @@ export function sameSheetGeometry(a: PageSetup, b: PageSetup): boolean {
 	)
 }
 
+/**
+ * Syarat pembatas menerus (continuous) seperti di Word: kertasnya sama - ukuran,
+ * orientasi, dan mode tanpa halaman. Margin boleh berbeda: kiri/kanan berlaku
+ * sejak pembatas (geseran per blok), atas/bawah sejak lembar berikutnya.
+ * Kertas yang berbeda tetap memaksa halaman baru, sama seperti Word.
+ */
+export function sameSheetSize(a: PageSetup, b: PageSetup): boolean {
+	if (a.pageless !== b.pageless) return false
+	const sizeA = resolvePageSize(a)
+	const sizeB = resolvePageSize(b)
+	return sizeA.width === sizeB.width && sizeA.height === sizeB.height
+}
+
 export function resolvePageSize(setup: PageSetup): { width: number; height: number } {
 	const base = PAGE_SIZES[setup.size]
 	const w = setup.size === 'custom' ? (setup.customWidth ?? 0) : base.width

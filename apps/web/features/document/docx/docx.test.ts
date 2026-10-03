@@ -1399,6 +1399,21 @@ describe('impor section (E4)', () => {
 		expect(sectionBreaksOf(result.content)[0]?.attrs?.continuous).toBe(true)
 	})
 
+	test('sectPr continuous yang hanya mengubah margin tetap menerus, margin-nya dibawa', async () => {
+		// Pola 69565-277381-1-RV.docx: margin atas 540 → 450, kiri/kanan sama, ditulis "continuous".
+		const margins = (top: number) =>
+			`<w:pgMar w:top="${top}" w:right="893" w:bottom="1440" w:left="893" w:header="720" w:footer="720" w:gutter="0"/>`
+		const body =
+			p(r('satu'), sectPr(pgSz(11906, 16838) + margins(540))) +
+			p(r('dua')) +
+			sectPr(`${pgSz(11906, 16838)}${margins(450)}<w:type w:val="continuous"/>`)
+		const result = await readDocx(docx({ body }))
+
+		const pembatas = sectionBreaksOf(result.content)[0]
+		expect(pembatas?.attrs?.continuous).toBe(true)
+		expect(pembatas?.attrs?.pageSetup.margins.top).toBe(30)
+	})
+
 	test('sectPr continuous yang mengubah ukuran turun pangkat jadi pembatas biasa (E5)', async () => {
 		const body =
 			p(r('satu'), sectPr(pgSz(11906, 16838))) +

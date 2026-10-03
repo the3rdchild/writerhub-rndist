@@ -4,7 +4,7 @@ import type { EditorView } from '@tiptap/pm/view'
 import { COLUMN_BREAK_NODE } from './column-break'
 import { type ColumnItem, type ColumnSlot, resolveColumnSlots } from './column-flow'
 import { PAGE_BREAK_NODE } from './page-break'
-import { type PageGeometry, pageGeometry, type SheetGeometry, sameSheetGeometry } from './page-geometry'
+import { type PageGeometry, pageGeometry, type SheetGeometry, sameSheetSize } from './page-geometry'
 import { KEEP_WITH_NEXT, paginationKey, REGION_SPACE_ATTRIBUTE } from './pagination'
 import { columnRegions, SECTION_BREAK_NODE, type SectionColumns, sectionSpans } from './section-break'
 
@@ -391,7 +391,7 @@ export function measureRegions(view: EditorView): { regions: RegionMeasure[]; el
 		const balance =
 			!next ||
 			closing?.type.name !== SECTION_BREAK_NODE ||
-			(closing.attrs.continuous === true && sameSheetGeometry(region.span.setup, next.setup))
+			(closing.attrs.continuous === true && sameSheetSize(region.span.setup, next.setup))
 
 		const items: MeasuredItem[] = []
 		view.state.doc.forEach((node, offset) => {
