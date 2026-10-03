@@ -1,35 +1,51 @@
 import { Extension, mergeAttributes, Node } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { type EditorState, Plugin, PluginKey, type Transaction } from '@tiptap/pm/state'
-import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
-import { COLUMN_BREAK_NODE } from './column-break'
-import { PAGE_BREAK_NODE } from './page-break'
-import { type PageGeometry, pageGeometry } from './page-geometry'
+import { DecorationSet, type EditorView } from '@tiptap/pm/view'
+import { flowColumns } from './column-flow'
+import { fragmentStart, measureRegions, type RegionMeasure } from './column-measure'
+import { columnPointerPlugin } from './column-pointer'
+import { attachColumnPrint } from './column-print'
 import {
-	KEEP_WITH_NEXT,
-	paginationKey,
-	REGION_SHEET_GAP_ATTRIBUTE,
-	REGION_SPACE_ATTRIBUTE,
-	repeatedHeader,
-	rowSpacer,
-	SELF_PAGINATE_ATTRIBUTE,
-	SPACER_ATTRIBUTE,
-	type Spacer,
-	tableColumnCount,
-} from './pagination'
-import { columnRegions, SECTION_BREAK_NODE, type SectionBreakAttrs, sectionSpans } from './section-break'
+	type ActiveFragments,
+	activeFragments,
+	buildDecorations,
+	ColumnClones,
+	caretFragment,
+	type FragmentPin,
+	mapPlans,
+	type RegionPlan,
+	sameActive,
+} from './column-render'
+import { DEFAULT_PAGE_SETUP } from './page-geometry'
+import { paginationKey, SELF_PAGINATE_ATTRIBUTE } from './pagination'
+import {
+	columnRegionAt,
+	SECTION_BREAK_NODE,
+	type SectionBreakAttrs,
+	type SectionColumns,
+	sectionSpans,
+} from './section-break'
 import { clampColumnWidths, explicitColumnWidths, writeColumnWidths } from './table-ops'
 
 const MIN_COLUMNS = 2
 
 export const COLUMNS_NODE = 'columns'
 
+/** Perubahan tata letak kolom dari penggaris atau dialog; `null` menghapus medannya. */
+export interface ColumnsLayoutPatch {
+	count?: number
+	gap?: number | null
+	widths?: number[] | null
+	gaps?: number[] | null
+}
+
 declare module '@tiptap/core' {
 	interface Commands<ReturnType> {
 		columns: {
 			setColumns: (count: number) => ReturnType
 			unsetColumns: () => ReturnType
-			setColumnsLayout: (pos: number, patch: { gap?: number; widths?: number[] | null }) => ReturnType
+			setColumnsLayout: (pos: number, patch: ColumnsLayoutPatch) => ReturnType
 		}
 	}
 }
@@ -49,6 +65,21 @@ function parseWidthsAttribute(element: HTMLElement): number[] | null {
 	} catch {
 		return null
 	}
+}
+
+/** Menerapkan tambalan ke atribut `columns` pembatas section; medan `null` dibuang. */
+export function patchSectionColumns(columns: SectionColumns, patch: ColumnsLayoutPatch): SectionColumns {
+	const next: SectionColumns = { ...columns }
+	if (typeof patch.count === 'number') next.count = patch.count
+	for (const field of ['gap', 'widths', 'gaps'] as const) {
+		if (!(field in patch)) continue
+		const value = patch[field]
+		if (value === null || value === undefined) delete next[field]
+		else (next as unknown as Record<string, unknown>)[field] = value
+	}
+	if (next.widths && next.widths.length !== next.count) delete next.widths
+	if (next.gaps && next.gaps.length !== next.count - 1) delete next.gaps
+	return next
 }
 
 export const Columns = Node.create({
@@ -119,12 +150,36 @@ export const Columns = Node.create({
 				() =>
 				({ commands }) =>
 					commands.lift(this.name) || commands.unsetSectionColumns(),
+			/*
+			 * Lebar & jarak kolom. Sasarannya pembatas section pembuka wilayah
+			 * (penggaris dan dialog "More column options"); node `columns` lama
+			 * tetap dilayani untuk naskah yang belum sempat dimigrasi.
+			 */
 			setColumnsLayout:
 				(pos, patch) =>
 				({ tr, dispatch }) => {
 					const node = tr.doc.nodeAt(pos)
-					if (!node || node.type.name !== this.name) return false
-					if (dispatch) tr.setNodeMarkup(pos, undefined, { ...node.attrs, ...patch })
+					if (!node) return false
+					if (node.type.name === SECTION_BREAK_NODE) {
+						const columns = node.attrs.columns as SectionColumns | null
+						if (!columns) return false
+						if (dispatch) {
+							tr.setNodeMarkup(pos, undefined, {
+								...node.attrs,
+								columns: patchSectionColumns(columns, patch),
+							})
+						}
+						return true
+					}
+					if (node.type.name !== this.name) return false
+					if (dispatch) {
+						const { gap, widths } = patch
+						tr.setNodeMarkup(pos, undefined, {
+							...node.attrs,
+							...(gap !== undefined ? { gap } : {}),
+							...(widths !== undefined ? { widths } : {}),
+						})
+					}
 					return true
 				},
 		}
@@ -146,6 +201,20 @@ const LegacyColumn = Node.create({
 		return [{ tag: 'div[data-type="col"]' }]
 	},
 })
+
+/**
+ * Kursor di dalam tata letak berkolom - wilayah section, atau node kolom lama
+ * yang belum dimigrasi. Dipakai tombol "Two columns" di toolbar: di sana ia
+ * tampil aktif dan menekannya mengembalikan wilayah itu ke satu kolom (KOL-10).
+ */
+export function selectionInColumns(state: EditorState): boolean {
+	const { $from, from } = state.selection
+	for (let depth = $from.depth; depth > 0; depth -= 1) {
+		if ($from.node(depth).type.name === COLUMNS_NODE) return true
+	}
+	const setup = paginationKey.getState(state)?.setup ?? DEFAULT_PAGE_SETUP
+	return columnRegionAt(state.doc, from, setup) !== null
+}
 
 export function migrateLegacyColumns(state: EditorState): Transaction | null {
 	const breakType = state.schema.nodes[SECTION_BREAK_NODE]
@@ -173,7 +242,9 @@ export function migrateLegacyColumns(state: EditorState): Transaction | null {
 		const close = breakType.create({ pageSetup: null, columns: restore ?? null, continuous: true })
 
 		const children: PMNode[] = []
-		node.content.forEach((child) => children.push(child))
+		node.content.forEach((child) => {
+			children.push(child)
+		})
 		tr.replaceWith(pos, pos + node.nodeSize, [open, ...children, close])
 	}
 
@@ -181,692 +252,89 @@ export function migrateLegacyColumns(state: EditorState): Transaction | null {
 	return tr
 }
 
-export interface ColumnItem {
-	pos: number
-	height: number
-	marginTop: number
-	marginBottom: number
-	keepWithNext: boolean
-	span?: boolean
-	table?: ColumnTable
-	isBreak?: boolean
-	/** Pindah kolom (`w:br w:type="column"`): lanjut di kolom berikutnya. */
-	columnBreak?: boolean
-}
-
-export interface ColumnTable {
-	rows: readonly { pos: number; top: number; height: number }[]
-	columns: number
-	header?: { pos: number; height: number }
-}
-
-export interface TableCut {
-	pos: number
-	spacerHeight: number
-	headerHeight: number
-	headerPos?: number
-	columns: number
-}
-
-export interface ColumnFrame {
-	top: number
-	count: number
-	columnWidth: number
-	columnGap: number
-	columns?: readonly { left: number; width: number }[]
-	sheetOrigin?: number
-}
-
-/**
- * Lebar & posisi tiap kolom.
- *
- * `gaps` adalah jarak PER CELAH (panjang `count - 1`), bentuk yang dipakai Word
- * lewat `w:col/@w:space`: tiap kolom membawa jarak ke tetangga kanannya
- * sendiri, dan templat berkolom tak-sama hampir selalu memakainya. Tanpa
- * `gaps`, `gap` tunggal berlaku untuk semua celah - perilaku lama.
- */
-export function resolveColumnSlots(
-	width: number,
-	count: number,
-	gap: number,
-	widths: readonly number[] | null,
-	gaps: readonly number[] | null = null,
-): { left: number; width: number }[] {
-	const usable = gaps && gaps.length === count - 1 && gaps.every((value) => value >= 0) ? gaps : null
-	const gapBefore = (index: number) => (index <= 0 ? 0 : usable ? usable[index - 1] : gap)
-	const total = Array.from({ length: count }, (_, index) => gapBefore(index)).reduce((a, b) => a + b, 0)
-	const natural = width - total
-	if (!(natural > 0) || count < 1) return []
-
-	if (!widths || widths.length !== count || widths.some((value) => !(value > 0))) {
-		const columnWidth = natural / count
-		let even = 0
-		return Array.from({ length: count }, (_, index) => {
-			even += gapBefore(index)
-			const slot = { left: even, width: columnWidth }
-			even += columnWidth
-			return slot
-		})
-	}
-
-	const sum = widths.reduce((total, value) => total + value, 0)
-	const scale = sum > 0 ? natural / sum : 1
-	let left = 0
-	return widths.map((value, index) => {
-		left += gapBefore(index)
-		const slot = { left, width: value * scale }
-		left += slot.width
-		return slot
-	})
-}
-
-export interface ColumnPlacement {
-	pos: number
-	top: number
-	left: number
-	width: number
-	cuts?: readonly TableCut[]
-	span?: boolean
-}
-
-export interface ColumnFlow {
-	placements: ColumnPlacement[]
-	height: number
-	sheetGap: number
-}
-
-export function flowColumns(
-	items: readonly ColumnItem[],
-	{ top, count, columnWidth, columnGap, columns, sheetOrigin = 0 }: ColumnFrame,
-	{ contentHeight, pageStride }: Pick<PageGeometry, 'contentHeight' | 'pageStride'>,
-): ColumnFlow {
-	if (items.length === 0 || count < 1 || contentHeight <= 0) {
-		return { placements: [], height: 0, sheetGap: 0 }
-	}
-
-	const sheetTop = (page: number) => sheetOrigin + page * pageStride
-	const sheetBottom = (page: number) => sheetOrigin + page * pageStride + contentHeight
-	let page = Math.max(0, Math.floor((top - sheetOrigin) / pageStride))
-	if (top >= sheetBottom(page)) page += 1
-
-	const firstPage = page
-	const firstTop = Math.max(top, sheetTop(firstPage))
-	const regionTop = (sheet: number) => (sheet === firstPage ? firstTop : sheetTop(sheet))
-	const regionHeight = (sheet: number) => sheetBottom(sheet) - regionTop(sheet)
-
-	const slots: {
-		page: number
-		column: number
-		top: number
-		height: number
-		cuts?: readonly TableCut[]
-		span?: boolean
-	}[] = []
-	const blockedUntil: number[] = Array.from({ length: count }, () => 0)
-	let column = 0
-
-	const advance = () => {
-		column += 1
-		if (column >= count) {
-			column = 0
-			page += 1
-		}
-	}
-	const placeSpanner = (item: ColumnItem) => {
-		let water = firstTop
-		for (const slot of slots) water = Math.max(water, slot.top + slot.height)
-		for (const until of blockedUntil) water = Math.max(water, until)
-
-		let spanPage = Math.floor(water / pageStride)
-		if (water >= sheetBottom(spanPage)) spanPage += 1
-		let spanTop = Math.max(water, sheetTop(spanPage))
-		if (spanTop + item.height > sheetBottom(spanPage) + 0.5 && spanTop > sheetTop(spanPage) + 0.5) {
-			spanPage += 1
-			spanTop = sheetTop(spanPage)
-		}
-
-		const bottom = spanTop + item.height
-		slots.push({ page: spanPage, column: 0, top: spanTop, height: item.height, span: true })
-		blockedUntil.fill(bottom)
-		page = Math.floor(bottom / pageStride)
-		if (bottom >= sheetBottom(page)) page += 1
-		column = 0
-	}
-	const breakPage = () => {
-		page += 1
-		column = 0
-	}
-
-	let index = 0
-	while (index < items.length) {
-		if (items[index].span) {
-			placeSpanner(items[index])
-			index += 1
-			continue
-		}
-		if (items[index].columnBreak) {
-			/*
-			 * Pindah kolom menutup kolom berjalan, bukan lembarnya.
-			 *
-			 * Ia tetap mendapat slot bertinggi nol supaya `placements` sejajar
-			 * dengan `items` - pemetaan indeks-ke-indeks yang dipegang seluruh
-			 * pemanggil. Yang TIDAK dilakukannya: memanggil `advance()` sekali
-			 * lagi. Isi sebelum pemenggal sudah memajukan kolom di ujung
-			 * putaran, jadi pemenggal ini mendarat di kolom yang masih kosong -
-			 * memajukannya lagi berarti melompati satu kolom penuh. Kolom yang
-			 * SUDAH terisi (mis. dua pemenggal beruntun) memang harus dilompati,
-			 * dan di sanalah `advance()` dipanggil; di kolom terakhir
-			 * `advance()` sendiri yang berpindah lembar, persis seperti Word.
-			 */
-			const fresh = !slots.some((slot) => slot.page === page && slot.column === column)
-			const base = Math.max(regionTop(page), blockedUntil[column])
-			slots.push({ page, column, top: base, height: 0 })
-			index += 1
-			if (!fresh) advance()
-			continue
-		}
-		if (items[index].isBreak) {
-			const fresh = column === 0 && !slots.some((slot) => slot.page === page && slot.height > 0)
-			const base = Math.max(regionTop(page), blockedUntil[column])
-			slots.push({ page, column, top: base, height: 0 })
-			index += 1
-			if (!fresh) breakPage()
-			continue
-		}
-
-		const base = Math.max(regionTop(page), blockedUntil[column])
-		const limit = sheetBottom(page) - base
-		let tops = packColumn(items, index, limit)
-		let giant = false
-
-		if (tops.length === 0) {
-			if (limit < contentHeight - 0.5) {
-				advance()
-				continue
-			}
-			if (!items[index].table) {
-				placeSpanner(items[index])
-				index += 1
-				continue
-			}
-			tops = [0]
-			giant = true
-		}
-
-		for (const [offsetIndex, offset] of tops.entries()) {
-			const item = items[index + offsetIndex]
-			const slot: (typeof slots)[number] = { page, column, top: base + offset, height: item.height }
-			if (giant && item.table) {
-				const cut = cutTableRows(item.table, slot.top - sheetOrigin, page, { contentHeight, pageStride })
-				slot.height = cut.bottom + sheetOrigin - slot.top
-				if (cut.cuts.length > 0) slot.cuts = cut.cuts
-				blockedUntil[column] = cut.bottom + sheetOrigin
-			}
-			slots.push(slot)
-		}
-		index += tops.length
-
-		if (index < items.length) advance()
-	}
-	const lastPage = page
-	const spillOnLastPage = blockedUntil.some((until) => until > regionTop(lastPage) + 0.5)
-	const spanOnLastPage = slots.some((slot) => slot.page === lastPage && slot.span)
-	const firstOnLastPage = slots.findIndex((slot) => slot.page === lastPage)
-	if (firstOnLastPage >= 0 && !spillOnLastPage && !spanOnLastPage) {
-		const balanced = balanceColumns(items.slice(firstOnLastPage), regionHeight(lastPage), count)
-		if (balanced) {
-			const base = regionTop(lastPage)
-			balanced.forEach((placement, offset) => {
-				slots[firstOnLastPage + offset] = {
-					page: lastPage,
-					column: placement.column,
-					top: base + placement.top,
-					height: items[firstOnLastPage + offset].height,
-				}
-			})
-		}
-	}
-	let bottom = firstTop
-	for (const slot of slots) {
-		bottom = Math.max(bottom, slot.top + slot.height)
-	}
-	const sheets = Math.max(0, Math.ceil((bottom - sheetBottom(firstPage)) / pageStride))
-
-	return {
-		placements: items.map((item, i) => ({
-			pos: item.pos,
-			top: slots[i].top - top,
-			left: columns?.[slots[i].column]?.left ?? slots[i].column * (columnWidth + columnGap),
-			width: columns?.[slots[i].column]?.width ?? columnWidth,
-			cuts: slots[i].cuts,
-			span: slots[i].span,
-		})),
-		height: Math.max(0, bottom - top),
-		sheetGap: firstTop - top + sheets * (pageStride - contentHeight),
-	}
-}
-
-export function cutTableRows(
-	table: ColumnTable,
-	base: number,
-	page: number,
-	{ contentHeight, pageStride }: Pick<PageGeometry, 'contentHeight' | 'pageStride'>,
-): { cuts: TableCut[]; bottom: number } {
-	const sheetTop = (p: number) => p * pageStride
-	const sheetBottom = (p: number) => p * pageStride + contentHeight
-	const headerHeight = table.header?.height ?? 0
-
-	const cuts: TableCut[] = []
-	let shift = 0
-	let sheet = page
-
-	for (const row of table.rows) {
-		const top = base + shift + row.top
-		while (top >= sheetTop(sheet + 1) - 0.5) sheet += 1
-		if (top + row.height <= sheetBottom(sheet) + 0.5) continue
-		if (top <= sheetTop(sheet) + 0.5) {
-			continue
-		}
-
-		const target = sheetTop(sheet + 1)
-		const spacerHeight = target - top
-		cuts.push({
-			pos: row.pos,
-			spacerHeight,
-			headerHeight,
-			headerPos: headerHeight > 0 ? table.header?.pos : undefined,
-			columns: table.columns,
-		})
-		shift += spacerHeight + headerHeight
-		sheet += 1
-	}
-
-	const lastRow = table.rows[table.rows.length - 1]
-	const bottom = lastRow ? base + shift + lastRow.top + lastRow.height : base
-	return { cuts, bottom }
-}
-
-function packColumn(items: readonly ColumnItem[], from: number, limit: number): number[] {
-	const tops: number[] = []
-	let y = 0
-	let previousBottom = 0
-
-	for (let i = from; i < items.length; i++) {
-		const item = items[i]
-		if (item.span) break
-		if (item.isBreak || item.columnBreak) break
-		const spacing = i === from ? 0 : Math.max(previousBottom, item.marginTop)
-		if (y + spacing + item.height > limit + 0.5) break
-
-		const next = items[i + 1]
-		if (item.keepWithNext && next && i > from) {
-			const after = y + spacing + item.height
-			if (after + Math.max(item.marginBottom, next.marginTop) + next.height > limit + 0.5) break
-		}
-
-		tops.push(y + spacing)
-		y += spacing + item.height
-		previousBottom = item.marginBottom
-	}
-
-	return tops
-}
-
-function balanceColumns(
-	items: readonly ColumnItem[],
-	limit: number,
-	count: number,
-): { column: number; top: number }[] | null {
-	let best = fillColumns(items, limit, count)
-	if (!best) return null
-
-	let low = 0
-	let high = limit
-	while (high - low > 1) {
-		const middle = (low + high) / 2
-		const attempt = fillColumns(items, middle, count)
-		if (attempt) {
-			best = attempt
-			high = middle
-		} else {
-			low = middle
-		}
-	}
-
-	return best
-}
-
-function fillColumns(
-	items: readonly ColumnItem[],
-	limit: number,
-	count: number,
-): { column: number; top: number }[] | null {
-	const placements: { column: number; top: number }[] = []
-	let index = 0
-
-	for (let column = 0; column < count && index < items.length; column++) {
-		const tops = packColumn(items, index, limit)
-		if (tops.length === 0) return null
-		for (const top of tops) placements.push({ column, top })
-		index += tops.length
-	}
-
-	return index === items.length ? placements : null
-}
-
-const FALLBACK_COLUMN_GAP = 24
-
 export const columnLayoutKey = new PluginKey<ColumnLayoutState>('columnLayout')
 
-export interface ColumnsPlan {
-	pos: number
-	nodeSize: number
-	height: number
-	sheetGap: number
-	region?: boolean
-	items: {
-		pos: number
-		nodeSize: number
-		top: number
-		left: number
-		right: number
-		cuts?: readonly TableCut[]
-		span?: boolean
-	}[]
-}
-
 export interface ColumnLayoutState {
-	plans: ColumnsPlan[]
+	plans: RegionPlan[]
+	active: ActiveFragments
+	pin: FragmentPin | null
 	decorations: DecorationSet
 }
 
-function px(value: string): number {
-	const parsed = Number.parseFloat(value)
-	return Number.isFinite(parsed) ? parsed : 0
-}
+/** Meta transaksi pematok potongan (lihat `FragmentPin`). */
+const PIN_META = 'columnsFragmentPin'
 
-export function collapsedMargin(own: number, padding: number, border: number, child: number): number {
-	if (own !== 0 || padding !== 0 || border !== 0) return own
-	return child
-}
-
-function blockMargins(element: HTMLElement): { marginTop: number; marginBottom: number } {
-	const style = getComputedStyle(element)
-	const childMargin = (side: 'Top' | 'Bottom'): number => {
-		const child = side === 'Top' ? element.firstElementChild : element.lastElementChild
-		return child instanceof HTMLElement ? px(getComputedStyle(child)[`margin${side}`]) : 0
-	}
+/** Mengalirkan satu wilayah terukur menjadi rencana tampil. */
+function planRegion(view: EditorView, region: RegionMeasure): RegionPlan {
+	const flow = flowColumns(
+		region.items,
+		{ top: region.top, origin: region.origin, slots: region.slots, balance: region.balance },
+		region.geometry,
+	)
 	return {
-		marginTop: collapsedMargin(
-			px(style.marginTop),
-			px(style.paddingTop),
-			px(style.borderTopWidth),
-			childMargin('Top'),
-		),
-		marginBottom: collapsedMargin(
-			px(style.marginBottom),
-			px(style.paddingBottom),
-			px(style.borderBottomWidth),
-			childMargin('Bottom'),
-		),
+		pos: region.from,
+		top: region.top,
+		height: flow.height,
+		sheetGap: flow.sheetGap,
+		parentWidth: region.parentWidth,
+		count: region.slots.length,
+		gap: region.gap,
+		balance: region.balance,
+		items: region.items.map((item, index) => ({
+			key: item.pos,
+			pos: item.pos,
+			nodeSize: item.nodeSize,
+			marginTop: item.marginTop,
+			fragments: flow.fragments[index].map((fragment) => {
+				const slot = region.slots[fragment.column]
+				return {
+					top: fragment.top,
+					left: region.left + slot.left,
+					width: slot.width,
+					offset: fragment.offset,
+					height: fragment.height,
+					header: fragment.header ?? 0,
+					from: fragment.offset > 0 ? fragmentStart(view, item, fragment.offset) : item.pos,
+				}
+			}),
+		})),
 	}
 }
 
-export function columnGapOf(dom: HTMLElement): number {
-	const parsed = Number.parseFloat(getComputedStyle(dom).columnGap)
-	return Number.isFinite(parsed) ? parsed : FALLBACK_COLUMN_GAP
-}
-
-function measureTableItem(view: EditorView, table: PMNode, tablePos: number, dom: HTMLElement): ColumnItem {
-	const inserted = new Map<number, number>()
-	let insertedTotal = 0
-	for (const element of dom.querySelectorAll<HTMLElement>(`[${SPACER_ATTRIBUTE}]`)) {
-		const pos = Number(element.getAttribute(SPACER_ATTRIBUTE))
-		if (Number.isNaN(pos)) continue
-		inserted.set(pos, (inserted.get(pos) ?? 0) + element.offsetHeight)
-		insertedTotal += element.offsetHeight
-	}
-	const headerRow = table.firstChild
-	const repeat = headerRow?.firstChild?.type.name === 'tableHeader' && table.attrs.repeatHeader !== false
-
-	const rows: { pos: number; top: number; height: number }[] = []
-	let header: ColumnTable['header']
-	let cumulative = 0
-
-	table.forEach((row, rowOffset) => {
-		const rowPos = tablePos + 1 + rowOffset
-		cumulative += inserted.get(rowPos) ?? 0
-
-		const rowDom = view.nodeDOM(rowPos)
-		if (!(rowDom instanceof HTMLElement)) return
-		rows.push({ pos: rowPos, top: rowDom.offsetTop - cumulative, height: rowDom.offsetHeight })
-		if (repeat && rows.length === 1) header = { pos: rowPos, height: rowDom.offsetHeight }
-	})
-
-	return {
-		pos: tablePos,
-		height: dom.offsetHeight - insertedTotal,
-		...blockMargins(dom),
-		keepWithNext: false,
-		table: { rows, columns: tableColumnCount(table), header },
-	}
-}
-
-interface TableWidthCorrection {
-	pos: number
-	available: number
-}
-
-function measureColumns(
-	view: EditorView,
-	geometry: PageGeometry,
-): { plans: ColumnsPlan[]; elements: HTMLElement[]; corrections: TableWidthCorrection[] } {
-	const plans: ColumnsPlan[] = []
-	const elements: HTMLElement[] = []
-	const corrections: TableWidthCorrection[] = []
-	const collectTableCorrections = (flow: ColumnFlow, items: readonly ColumnItem[], fullWidth: number) => {
-		flow.placements.forEach((placement, index) => {
-			if (!items[index].table) return
-			const table = view.state.doc.nodeAt(placement.pos)
-			if (!table || table.type.name !== 'table') return
-			const indent = Number(table.attrs.indentLeft) || 0
-			const available = Math.max(0, (placement.span ? fullWidth : placement.width) - indent)
-			if (clampColumnWidths(explicitColumnWidths(table), available)) {
-				corrections.push({ pos: placement.pos, available })
-			}
-		})
-	}
-	const setup = paginationKey.getState(view.state)?.setup
-	const regions = setup ? columnRegions(view.state.doc, setup) : []
-	const regionItems = regions.map(() => ({ items: [] as ColumnItem[], sizes: [] as number[] }))
-
-	view.state.doc.forEach((node, offset) => {
-		const regionIndex = regions.findIndex((region) => offset >= region.from && offset < region.to)
-		if (regionIndex >= 0) {
-			const element = view.nodeDOM(offset)
-			if (element instanceof HTMLElement) {
-				elements.push(element)
-				regionItems[regionIndex].items.push(
-					node.type.name === 'table'
-						? measureTableItem(view, node, offset, element)
-						: {
-								pos: offset,
-								height: element.offsetHeight,
-								...blockMargins(element),
-								keepWithNext: KEEP_WITH_NEXT.has(node.type.name),
-								span: element.classList.contains('columns-span') || undefined,
-								isBreak: node.type.name === PAGE_BREAK_NODE || undefined,
-								columnBreak: node.type.name === COLUMN_BREAK_NODE || undefined,
-							},
-				)
-				regionItems[regionIndex].sizes.push(node.nodeSize)
-			}
-			return
-		}
-
-		if (node.type.name !== COLUMNS_NODE) return
-
-		const dom = view.nodeDOM(offset)
-		if (!(dom instanceof HTMLElement)) return
-
-		const count = Math.max(MIN_COLUMNS, Number(node.attrs.count) || MIN_COLUMNS)
-		const width = dom.clientWidth
-		const columnGap =
-			typeof node.attrs.gap === 'number' && node.attrs.gap >= 0 ? node.attrs.gap : columnGapOf(dom)
-		const slots = resolveColumnSlots(width, count, columnGap, node.attrs.widths ?? null)
-		if (slots.length === 0) return
-
-		const items: ColumnItem[] = []
-		const sizes: number[] = []
-		let childPos = offset + 1
-
-		node.forEach((child) => {
-			const element = view.nodeDOM(childPos)
-			if (element instanceof HTMLElement) {
-				elements.push(element)
-				items.push(
-					child.type.name === 'table'
-						? measureTableItem(view, child, childPos, element)
-						: {
-								pos: childPos,
-								height: element.offsetHeight,
-								...blockMargins(element),
-								keepWithNext: KEEP_WITH_NEXT.has(child.type.name),
-								isBreak: child.type.name === PAGE_BREAK_NODE || undefined,
-								columnBreak: child.type.name === COLUMN_BREAK_NODE || undefined,
-								span: element.classList.contains('columns-span') || undefined,
-							},
-				)
-				sizes.push(child.nodeSize)
-			}
-			childPos += child.nodeSize
-		})
-
-		if (items.length === 0) return
-
-		const flow = flowColumns(
-			items,
-			{ top: dom.offsetTop, count, columnWidth: slots[0].width, columnGap, columns: slots },
-			geometry,
-		)
-
-		collectTableCorrections(flow, items, width)
-
-		plans.push({
-			pos: offset,
-			nodeSize: node.nodeSize,
-			height: flow.height,
-			sheetGap: flow.sheetGap,
-			items: flow.placements.map((placement, i) => ({
-				pos: placement.pos,
-				nodeSize: sizes[i],
-				top: placement.top - items[i].marginTop,
-				left: placement.span ? 0 : placement.left,
-				right: placement.span ? 0 : width - placement.left - placement.width,
-				cuts: placement.cuts,
-				span: placement.span || undefined,
-			})),
-		})
-	})
-	regions.forEach((region, regionIndex) => {
-		const { items, sizes } = regionItems[regionIndex]
-		if (items.length === 0) return
-
-		const columns = region.span.columns
-		if (!columns) return
-		const count = Math.max(MIN_COLUMNS, columns.count)
-		const columnGap = typeof columns.gap === 'number' ? columns.gap : FALLBACK_COLUMN_GAP
-		const columnWidths = columns.widths ?? null
-		const columnGaps = columns.gaps ?? null
-		const placeholder = view.dom.querySelector(`[${REGION_SPACE_ATTRIBUTE}="${region.from}"]`)
-		const anchor =
-			placeholder instanceof HTMLElement
-				? placeholder
-				: (() => {
-						const first = view.nodeDOM(region.from)
-						return first instanceof HTMLElement ? first : null
-					})()
-		if (!anchor) return
-
-		const top = anchor.offsetTop
-		const left = anchor.offsetLeft
-		const width = anchor.offsetWidth
-		const parent = anchor.offsetParent
-		const parentWidth = parent instanceof HTMLElement ? parent.clientWidth : left + width
-		if (!(width > 0)) return
-
-		const slots = resolveColumnSlots(width, count, columnGap, columnWidths, columnGaps)
-		if (slots.length === 0) return
-
-		const flow = flowColumns(
-			items,
-			{
-				top,
-				count,
-				columnWidth: slots[0].width,
-				columnGap,
-				columns: slots,
-				sheetOrigin: top,
-			},
-			pageGeometry(region.span.setup),
-		)
-
-		collectTableCorrections(flow, items, width)
-
-		plans.push({
-			pos: region.from,
-			nodeSize: 0,
-			height: flow.height,
-			sheetGap: flow.sheetGap,
-			region: true,
-			items: flow.placements.map((placement, i) => ({
-				pos: placement.pos,
-				nodeSize: sizes[i],
-				top: top + placement.top - items[i].marginTop,
-				left: placement.span ? left : left + placement.left,
-				right: placement.span
-					? parentWidth - left - width
-					: parentWidth - (left + placement.left) - placement.width,
-				cuts: placement.cuts,
-				span: placement.span || undefined,
-			})),
-		})
-	})
-
-	return { plans, elements, corrections }
-}
-
-function samePlans(a: readonly ColumnsPlan[], b: readonly ColumnsPlan[]): boolean {
+function samePlans(a: readonly RegionPlan[], b: readonly RegionPlan[]): boolean {
 	const near = (x: number, y: number) => Math.abs(x - y) < 0.5
-	const sameCuts = (one?: readonly TableCut[], other?: readonly TableCut[]) =>
-		(one?.length ?? 0) === (other?.length ?? 0) &&
-		(one ?? []).every((cut, index) => {
-			const twin = (other ?? [])[index]
-			return (
-				cut.pos === twin.pos &&
-				near(cut.spacerHeight, twin.spacerHeight) &&
-				near(cut.headerHeight, twin.headerHeight)
-			)
-		})
-
 	return (
 		a.length === b.length &&
 		a.every((plan, index) => {
 			const other = b[index]
 			return (
 				plan.pos === other.pos &&
-				plan.nodeSize === other.nodeSize &&
+				near(plan.top, other.top) &&
 				near(plan.height, other.height) &&
 				near(plan.sheetGap, other.sheetGap) &&
+				near(plan.parentWidth, other.parentWidth) &&
+				plan.count === other.count &&
+				plan.balance === other.balance &&
 				plan.items.length === other.items.length &&
 				plan.items.every((item, i) => {
 					const twin = other.items[i]
 					return (
 						item.pos === twin.pos &&
-						near(item.top, twin.top) &&
-						near(item.left, twin.left) &&
-						near(item.right, twin.right) &&
-						sameCuts(item.cuts, twin.cuts)
+						item.nodeSize === twin.nodeSize &&
+						near(item.marginTop, twin.marginTop) &&
+						item.fragments.length === twin.fragments.length &&
+						item.fragments.every((fragment, j) => {
+							const pair = twin.fragments[j]
+							return (
+								near(fragment.top, pair.top) &&
+								near(fragment.left, pair.left) &&
+								near(fragment.width, pair.width) &&
+								near(fragment.offset, pair.offset) &&
+								near(fragment.height, pair.height) &&
+								near(fragment.header, pair.header) &&
+								fragment.from === pair.from
+							)
+						})
 					)
 				})
 			)
@@ -874,89 +342,43 @@ function samePlans(a: readonly ColumnsPlan[], b: readonly ColumnsPlan[]): boolea
 	)
 }
 
-function sheetGapElement(plan: ColumnsPlan): HTMLElement {
-	const element = document.createElement('div')
-	element.className = 'columns-sheet-gap'
-	element.style.height = `${Math.round(plan.sheetGap)}px`
-	element.setAttribute(SPACER_ATTRIBUTE, String(plan.pos))
-	element.setAttribute('aria-hidden', 'true')
-	element.contentEditable = 'false'
-	return element
+/** Sidik ringkas rencana untuk penjaga osilasi. */
+function signature(plans: readonly RegionPlan[]): string {
+	return plans
+		.map((plan) =>
+			[
+				plan.pos,
+				Math.round(plan.height),
+				...plan.items.flatMap((item) =>
+					item.fragments.map(
+						(fragment) =>
+							`${Math.round(fragment.top)}:${Math.round(fragment.left)}:${Math.round(fragment.height)}`,
+					),
+				),
+			].join(','),
+		)
+		.join('|')
 }
 
-function regionSpaceElement(plan: ColumnsPlan): HTMLElement {
-	const element = document.createElement('div')
-	element.className = 'columns-region-space'
-	element.style.height = `${Math.round(plan.height)}px`
-	element.setAttribute(REGION_SPACE_ATTRIBUTE, String(plan.pos))
-	element.setAttribute(REGION_SHEET_GAP_ATTRIBUTE, String(Math.round(plan.sheetGap)))
-	element.setAttribute('aria-hidden', 'true')
-	element.contentEditable = 'false'
-	return element
+/** Lebar tabel berkolom eksplisit yang lebih lebar dari petaknya. */
+interface TableWidthCorrection {
+	pos: number
+	available: number
 }
 
-function buildDecorations(doc: PMNode, plans: readonly ColumnsPlan[]): DecorationSet {
-	const decorations: Decoration[] = []
-
+function tableCorrections(view: EditorView, plans: readonly RegionPlan[]): TableWidthCorrection[] {
+	const corrections: TableWidthCorrection[] = []
 	for (const plan of plans) {
-		if (plan.region) {
-			decorations.push(
-				Decoration.widget(plan.pos, () => regionSpaceElement(plan), {
-					side: -1,
-					key: `columns-region-${plan.pos}-${Math.round(plan.height)}`,
-				}),
-			)
-		} else {
-			decorations.push(
-				Decoration.node(plan.pos, plan.pos + plan.nodeSize, {
-					class: 'columns-flowed',
-					style: `height:${Math.round(plan.height)}px`,
-				}),
-			)
-		}
-
 		for (const item of plan.items) {
-			decorations.push(
-				Decoration.node(item.pos, item.pos + item.nodeSize, {
-					class: item.span ? 'columns-item columns-span' : 'columns-item',
-					style: `position:absolute;top:${Math.round(item.top)}px;left:${Math.round(
-						item.left,
-					)}px;right:${Math.round(item.right)}px`,
-				}),
-			)
-			for (const cut of item.cuts ?? []) {
-				const spacer: Spacer = { pos: cut.pos, height: cut.spacerHeight, kind: 'row', columns: cut.columns }
-				decorations.push(
-					Decoration.widget(cut.pos, () => rowSpacer(spacer), {
-						side: -2,
-						key: `columns-cut-${cut.pos}-${Math.round(cut.spacerHeight)}`,
-					}),
-				)
-
-				if (cut.headerPos !== undefined && cut.headerHeight > 0) {
-					const header = doc.nodeAt(cut.headerPos)
-					if (header) {
-						decorations.push(
-							Decoration.widget(cut.pos, () => repeatedHeader(header, spacer), {
-								side: -1,
-								key: `columns-cut-header-${cut.pos}-${Math.round(cut.spacerHeight)}`,
-							}),
-						)
-					}
-				}
-			}
-		}
-		if (!plan.region && plan.sheetGap > 0.5) {
-			decorations.push(
-				Decoration.widget(plan.pos + plan.nodeSize - 1, () => sheetGapElement(plan), {
-					side: 1,
-					key: `columns-gap-${plan.pos}-${Math.round(plan.sheetGap)}`,
-				}),
-			)
+			const table = view.state.doc.nodeAt(item.pos)
+			if (table?.type.name !== 'table' || item.fragments.length === 0) continue
+			const indent = Number(table.attrs.indentLeft) || 0
+			const available = Math.max(0, Math.min(...item.fragments.map((fragment) => fragment.width)) - indent)
+			if (clampColumnWidths(explicitColumnWidths(table), available))
+				corrections.push({ pos: item.pos, available })
 		}
 	}
-
-	return DecorationSet.create(doc, decorations)
+	return corrections
 }
 
 function columnLayoutPlugin(): Plugin<ColumnLayoutState> {
@@ -964,17 +386,24 @@ function columnLayoutPlugin(): Plugin<ColumnLayoutState> {
 		key: columnLayoutKey,
 
 		state: {
-			init: () => ({ plans: [], decorations: DecorationSet.empty }),
+			init: () => ({ plans: [], active: new Map(), pin: null, decorations: DecorationSet.empty }),
 
 			apply(tr, current, _old, newState) {
-				const incoming = tr.getMeta(columnLayoutKey) as ColumnsPlan[] | undefined
-				if (incoming) {
-					return { plans: incoming, decorations: buildDecorations(newState.doc, incoming) }
+				const incoming = tr.getMeta(columnLayoutKey) as RegionPlan[] | undefined
+				const plans = incoming ?? (tr.docChanged ? mapPlans(current.plans, tr) : current.plans)
+				/* Patokan hanya berlaku selama kepala seleksinya diam dan naskahnya tetap. */
+				const pinned = tr.getMeta(PIN_META) as FragmentPin | undefined
+				const kept =
+					current.pin && !tr.docChanged && newState.selection.head === current.pin.head ? current.pin : null
+				const pin = pinned ?? kept
+				const active = activeFragments(plans, newState.selection, pin)
+				if (incoming || !sameActive(active, current.active)) {
+					return { plans, active, pin, decorations: buildDecorations(newState.doc, plans, active) }
 				}
 				if (tr.docChanged) {
-					return { ...current, decorations: current.decorations.map(tr.mapping, tr.doc) }
+					return { plans, active, pin, decorations: current.decorations.map(tr.mapping, tr.doc) }
 				}
-				return current
+				return pin === current.pin ? current : { ...current, pin }
 			},
 		},
 
@@ -984,6 +413,21 @@ function columnLayoutPlugin(): Plugin<ColumnLayoutState> {
 
 		view(view) {
 			let frame = 0
+			/* Dua rencana terakhir yang dikirim. Rencana yang kembali ke sidik dua
+			 * langkah lalu TANPA naskah berubah berarti tata letaknya berayun (blok
+			 * pindah ke kolom yang lebarnya lain, terukur ulang, lalu pindah balik) -
+			 * ayunan itu dihentikan di rencana yang sedang tampil. */
+			let recent: { mark: string; doc: PMNode }[] = []
+
+			const positionOf = (key: number): number | undefined => {
+				const state = columnLayoutKey.getState(view.state)
+				for (const plan of state?.plans ?? []) {
+					for (const item of plan.items) if (item.key === key) return item.pos
+				}
+				return undefined
+			}
+			const clones = new ColumnClones(view, positionOf)
+			const detachPrint = attachColumnPrint(view, () => columnLayoutKey.getState(view.state)?.plans ?? [])
 
 			const schedule = () => {
 				if (frame) return
@@ -1006,21 +450,22 @@ function columnLayoutPlugin(): Plugin<ColumnLayoutState> {
 
 			const recalculate = () => {
 				frame = 0
+				if (view.isDestroyed) return
 				const state = columnLayoutKey.getState(view.state)
 				if (!state) return
 				const pagination = paginationKey.getState(view.state)
 				const measured =
-					pagination && !pagination.pageless
-						? measureColumns(view, pagination.geometry)
-						: { plans: [], elements: [], corrections: [] }
-
+					pagination && !pagination.pageless ? measureRegions(view) : { regions: [], elements: [] }
 				watch(measured.elements)
-				if (measured.corrections.length > 0) {
+				const plans = measured.regions.map((region) => planRegion(view, region))
+
+				const corrections = tableCorrections(view, plans)
+				if (corrections.length > 0) {
 					const tr = view.state.tr
 					let changed = false
-					for (const { pos, available } of measured.corrections) {
+					for (const { pos, available } of corrections) {
 						const table = tr.doc.nodeAt(pos)
-						if (!table || table.type.name !== 'table') continue
+						if (table?.type.name !== 'table') continue
 						const next = clampColumnWidths(explicitColumnWidths(table), available)
 						if (next) changed = writeColumnWidths(tr, tr.doc, pos, next) || changed
 					}
@@ -1030,20 +475,87 @@ function columnLayoutPlugin(): Plugin<ColumnLayoutState> {
 						return
 					}
 				}
-				if (samePlans(measured.plans, state.plans)) return
 
-				const transaction = view.state.tr.setMeta(columnLayoutKey, measured.plans)
+				if (samePlans(plans, state.plans)) return
+				const mark = signature(plans)
+				const doc = view.state.doc
+				const [older, newer] = recent
+				if (
+					older &&
+					newer &&
+					older.doc === doc &&
+					newer.doc === doc &&
+					older.mark === mark &&
+					newer.mark !== mark
+				) {
+					return
+				}
+				recent = [...recent, { mark, doc }].slice(-2)
+
+				const transaction = view.state.tr.setMeta(columnLayoutKey, plans)
 				transaction.setMeta('addToHistory', false)
 				view.dispatch(transaction)
 			}
 
 			schedule()
+			clones.sync()
+
+			/*
+			 * Kursor yang berpindah kolom bersama blok aslinya.
+			 *
+			 * Peramban mengingat posisi x tujuan untuk panah atas/bawah dalam
+			 * koordinat halaman. Begitu blok asli pindah ke kolom lain, x itu
+			 * tidak lagi menunjuk ke dalam blok, dan panah berikutnya melompat ke
+			 * ujung baris. Menaruh ulang seleksi DOM (sekali ke tempat lain, lalu
+			 * kembali) membuat peramban mengukur ulang x dari kursor yang baru.
+			 */
+			const resetGoalColumn = () => {
+				const selection = view.dom.ownerDocument.getSelection()
+				if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) return
+				const { focusNode, focusOffset } = selection
+				if (!focusNode || !view.dom.contains(focusNode)) return
+				selection.collapse(view.dom, 0)
+				selection.collapse(focusNode, focusOffset)
+			}
+			const shownLeft = (state: ColumnLayoutState | undefined, head: number): number | null => {
+				for (const plan of state?.plans ?? []) {
+					for (const item of plan.items) {
+						if (item.fragments.length < 2 || head <= item.pos || head >= item.pos + item.nodeSize) continue
+						return item.fragments[state?.active.get(item.pos) ?? 0]?.left ?? null
+					}
+				}
+				return null
+			}
 
 			return {
-				update: schedule,
+				update: (_view, previous) => {
+					const before = paginationKey.getState(previous)
+					const after = paginationKey.getState(view.state)
+					const was = columnLayoutKey.getState(previous)
+					const now = columnLayoutKey.getState(view.state)
+					if (!previous.doc.eq(view.state.doc) || before !== after || was !== now) schedule()
+					clones.sync()
+
+					if (!now || view.composing) return
+					const head = view.state.selection.head
+					const from = shownLeft(was, previous.selection.head)
+					const to = shownLeft(now, head)
+					if (view.state.selection.empty && from !== null && to !== null && Math.abs(from - to) > 0.5) {
+						resetGoalColumn()
+					}
+					const pin = caretFragment(view, now.plans, now.active)
+					if (pin) {
+						queueMicrotask(() => {
+							if (view.isDestroyed || view.state.selection.head !== pin.head) return
+							view.dispatch(view.state.tr.setMeta(PIN_META, pin).setMeta('addToHistory', false))
+						})
+					}
+				},
 				destroy: () => {
 					if (frame) cancelAnimationFrame(frame)
 					observer.disconnect()
+					clones.destroy()
+					detachPrint()
 				},
 			}
 		},
@@ -1058,6 +570,9 @@ export const ColumnExtension = Extension.create({
 	},
 
 	addProseMirrorPlugins() {
-		return [columnLayoutPlugin()]
+		return [
+			columnLayoutPlugin(),
+			columnPointerPlugin((state) => columnLayoutKey.getState(state)?.plans ?? []),
+		]
 	},
 })

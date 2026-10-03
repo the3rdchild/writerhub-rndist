@@ -27,11 +27,11 @@ export interface ChatFailure {
 }
 
 const MESSAGE: Record<ProviderErrorCode, string> = {
-	timeout: 'Provider AI tidak menjawab dalam batas waktu. Percakapanmu masih utuh.',
-	provider_unreachable: 'Provider AI tidak bisa dihubungi - periksa koneksi jaringan.',
-	quota_exceeded: 'Kuota atau saldo provider AI habis. Coba lagi nanti atau ganti model.',
-	provider_rejected: 'Provider AI menolak permintaan ini.',
-	unknown: 'Percakapan terhenti karena sebab yang tidak dikenali.',
+	timeout: "The AI provider didn't answer in time. Your conversation is intact.",
+	provider_unreachable: "Couldn't reach the AI provider - check your network connection.",
+	quota_exceeded: "The AI provider's quota or balance has run out. Try again later or switch models.",
+	provider_rejected: 'The AI provider rejected this request.',
+	unknown: 'The conversation stopped for an unknown reason.',
 }
 
 function failure(code: ProviderErrorCode, message?: string): ChatFailure {
@@ -47,12 +47,12 @@ export function chatProviderFailure(status: number, detail: string): ChatFailure
 	const code = providerCodeFromStatus(status)
 
 	if (status === 401 || status === 403) {
-		return failure(code, 'Kunci API provider AI ditolak - periksa AI_API_KEY.')
+		return failure(code, 'The AI provider rejected the API key - check AI_API_KEY.')
 	}
 	if (code === 'quota_exceeded') return failure(code)
 
 	const trimmed = detail.trim().slice(0, 200)
-	return failure(code, `Provider AI membalas ${status}.${trimmed ? ` ${trimmed}` : ''}`)
+	return failure(code, `The AI provider responded with ${status}.${trimmed ? ` ${trimmed}` : ''}`)
 }
 
 /**

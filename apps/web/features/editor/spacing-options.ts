@@ -13,10 +13,10 @@ import type { BlockKeepValues } from './block-keep'
  * naskah hasil impor tidak pernah cocok dengan satu prasetel pun.
  */
 export const LINE_SPACING_OPTIONS = [
-	{ spacing: 1, value: String(cssLineHeight(1)), label: 'Tunggal' },
+	{ spacing: 1, value: String(cssLineHeight(1)), label: 'Single' },
 	{ spacing: 1.15, value: String(cssLineHeight(1.15)), label: '1.15' },
 	{ spacing: 1.5, value: String(cssLineHeight(1.5)), label: '1.5' },
-	{ spacing: 2, value: String(cssLineHeight(2)), label: 'Ganda' },
+	{ spacing: 2, value: String(cssLineHeight(2)), label: 'Double' },
 ] as const
 
 /**

@@ -665,3 +665,160 @@ describe('uji cetak watermark - lapisan yang berulang per halaman', () => {
 		}
 	})
 })
+
+/*
+ * Wilayah berkolom di kertas (KOL-1).
+ *
+ * Bentuk DOM-nya persis sesudah `beforeprint` (column-print.ts): blok asli
+ * wilayah masih ada (`.columns-item`, berposisi mutlak di layar), salinan
+ * layar potongan paragraf (`.columns-clone`), dan salinan cetak ber-
+ * `column-count` di dalam penjaga ruang wilayah. Yang dijaga: salinan cetak
+ * benar-benar mengalir dalam dua kolom, dan blok asli serta salinan layar
+ * tidak ikut tercetak - isi wilayah tercetak tepat sekali.
+ */
+describe('uji cetak kolom - wilayah section berkolom', () => {
+	/*
+	 * `footnotes`: naskah bercatatan kaki (TKS-1) dicetak mengikuti pemenggalan
+	 * kanvas - tiap spacer jadi pemenggal paksa, dan area catatan lembar duduk
+	 * di spacer penutupnya. Wilayah berkolom dibuka spacer (lembar baru) dan
+	 * ditutup spacer bercatatan, seperti keluaran `computeSpacers`.
+	 */
+	function columnsFixture(paragraphs: number, withPrintCopy: boolean, footnotes = false): string {
+		const text = (index: number) =>
+			`K${String(index).padStart(2, '0')} Penelitian ini membahas pengaruh tata letak halaman terhadap keterbacaan naskah ilmiah yang disusun mahasiswa tingkat akhir.`
+		const originals = Array.from(
+			{ length: paragraphs },
+			(_, index) =>
+				`<p class="columns-item" style="position:absolute;top:${index * 40}px;left:0;right:0">${text(index + 1)}</p>`,
+		).join('')
+		const copy = withPrintCopy
+			? `<div class="columns-print" style="column-count:2;column-gap:24px;column-fill:balance">${Array.from(
+					{ length: paragraphs },
+					(_, index) => `<p>${text(index + 1)}</p>`,
+				).join('')}</div>`
+			: ''
+		const html = fixture(
+			'<p>Judul satu kolom</p>' +
+				'<div class="section-break section-break-continuous" data-section-break=""></div>' +
+				(footnotes ? '<div class="page-break-spacer" style="height:600px"></div>' : '') +
+				`<div class="columns-region-space" data-columns-region="1" style="height:400px">${copy}</div>` +
+				originals +
+				'<div class="columns-clone" style="position:absolute;top:0;left:300px;width:280px;height:60px"><p>SALINAN LAYAR</p></div>' +
+				(footnotes
+					? '<div class="page-break-spacer page-break-spacer--notes" style="height:500px">' +
+						'<div class="footnote-filler" style="height:120px"></div>' +
+						'<div class="footnote-area"><div class="footnote-separator"></div>' +
+						'<div class="footnote-item">CATATAN-WILAYAH Rujukan dari dalam wilayah berkolom.</div></div></div>'
+					: '') +
+				'<p>Penutup satu kolom</p>',
+			DEFAULT_PAGE_SETUP,
+		)
+		return footnotes ? html.replace('class="document-body"', 'class="document-body has-footnotes"') : html
+	}
+
+	test('salinan cetak mengalir dua kolom; blok asli dan salinan layar tidak tercetak', async () => {
+		if (!browser) return
+		const page = await browser.newPage()
+		try {
+			await page.setContent(columnsFixture(12, true), { waitUntil: 'load' })
+			await page.emulateMedia({ media: 'print' })
+			const layout = await page.evaluate(() => {
+				const lefts = [...document.querySelectorAll<HTMLElement>('.columns-print > p')].map((el) =>
+					Math.round(el.getBoundingClientRect().left),
+				)
+				const hidden = (selector: string) =>
+					[...document.querySelectorAll<HTMLElement>(selector)].every(
+						(el) => getComputedStyle(el).display === 'none',
+					)
+				return {
+					columns: new Set(lefts).size,
+					originalsHidden: hidden('.columns-item'),
+					cloneHidden: hidden('.columns-clone'),
+				}
+			})
+			expect(layout.columns).toBe(2)
+			expect(layout.originalsHidden).toBe(true)
+			expect(layout.cloneHidden).toBe(true)
+			expect(await printedPagesOf(page, columnsFixture(12, true))).toBe(1)
+		} finally {
+			await page.close()
+		}
+	})
+
+	test('tanpa salinan cetak blok asli tetap tercetak (satu kolom) - tidak ada isi yang hilang', async () => {
+		if (!browser) return
+		const page = await browser.newPage()
+		try {
+			await page.setContent(columnsFixture(6, false), { waitUntil: 'load' })
+			await page.emulateMedia({ media: 'print' })
+			const visible = await page.evaluate(
+				() =>
+					[...document.querySelectorAll<HTMLElement>('.columns-item')].filter(
+						(el) => getComputedStyle(el).display !== 'none' && getComputedStyle(el).position === 'static',
+					).length,
+			)
+			expect(visible).toBe(6)
+		} finally {
+			await page.close()
+		}
+	})
+
+	test('naskah bercatatan kaki: salinan cetak tetap dua kolom, pemenggal kanvas dipatuhi, catatan tercetak sekali', async () => {
+		if (!browser) return
+		const page = await browser.newPage()
+		try {
+			const html = columnsFixture(12, true, true)
+			await page.setContent(html, { waitUntil: 'load' })
+			await page.emulateMedia({ media: 'print' })
+			const layout = await page.evaluate(() => {
+				const lefts = [...document.querySelectorAll<HTMLElement>('.columns-print > p')].map((el) =>
+					Math.round(el.getBoundingClientRect().left),
+				)
+				const shown = (selector: string) =>
+					[...document.querySelectorAll<HTMLElement>(selector)].filter(
+						(el) => getComputedStyle(el).display !== 'none',
+					).length
+				return {
+					columns: new Set(lefts).size,
+					originals: shown('.columns-item'),
+					clones: shown('.columns-clone'),
+					notes: shown('.footnote-item'),
+				}
+			})
+			expect(layout.columns).toBe(2)
+			expect(layout.originals).toBe(0)
+			expect(layout.clones).toBe(0)
+			expect(layout.notes).toBe(1)
+			// Judul | wilayah berkolom + catatannya | penutup - tanpa lembar kosong.
+			expect(await printedPagesOf(page, html)).toBe(3)
+		} finally {
+			await page.close()
+		}
+	})
+
+	test('kepala tabel berulang (TBL-8): baris asli di tbody disembunyikan, salinan thead tercetak', async () => {
+		if (!browser) return
+		const page = await browser.newPage()
+		try {
+			const rows = Array.from(
+				{ length: 60 },
+				(_, index) => `<tr><td>${index + 1}</td><td>Baris</td></tr>`,
+			).join('')
+			await page.setContent(
+				fixture(
+					'<div class="tableWrapper"><table><thead><tr><th>No</th><th>Nama</th></tr></thead><tbody>' +
+						`<tr class="table-header-print-source"><th>No</th><th>Nama</th></tr>${rows}</tbody></table></div>`,
+					DEFAULT_PAGE_SETUP,
+				),
+				{ waitUntil: 'load' },
+			)
+			await page.emulateMedia({ media: 'print' })
+			const display = await page.evaluate(
+				() => getComputedStyle(document.querySelector('tr.table-header-print-source') as HTMLElement).display,
+			)
+			expect(display).toBe('none')
+		} finally {
+			await page.close()
+		}
+	})
+})

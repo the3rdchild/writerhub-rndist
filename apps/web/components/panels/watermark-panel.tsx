@@ -416,7 +416,7 @@ export function WatermarkPanelBody() {
 				onCommit={(value) => patch({ opacity: value / 100 })}
 			/>
 			<Slider
-				label="Rotasi"
+				label="Rotation"
 				value={Math.round(active?.rotation ?? DEFAULT_WATERMARK.rotation)}
 				min={-90}
 				max={90}
@@ -426,7 +426,7 @@ export function WatermarkPanelBody() {
 			/>
 
 			<p className="truncate text-[11px] text-subtle" title={scopeLabel}>
-				Tab ini: {scopeLabel}
+				This tab: {scopeLabel}
 			</p>
 
 			{active && (

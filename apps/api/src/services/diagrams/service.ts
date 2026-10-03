@@ -37,10 +37,10 @@ type DrawResult = { svg: string } | { failure: DrawFailure; detail: string }
 
 /** Status dan kalimat untuk tiap jenis kegagalan; kalimatnya sampai ke model. */
 const FAILURE: Record<DrawFailure, { status: 422 | 502 | 504; message: (detail: string) => string }> = {
-	timeout: { status: 504, message: (detail) => `Sub-agent penggambar tidak selesai (${detail}).` },
-	rejected: { status: 502, message: (detail) => `Provider menolak permintaan gambar (${detail}).` },
-	empty: { status: 502, message: () => 'Sub-agent tidak mengembalikan apa pun.' },
-	unusable: { status: 422, message: (detail) => `Gambarnya tidak lolos pemeriksaan: ${detail}.` },
+	timeout: { status: 504, message: (detail) => `The drawing sub-agent did not finish (${detail}).` },
+	rejected: { status: 502, message: (detail) => `The provider rejected the drawing request (${detail}).` },
+	empty: { status: 502, message: () => 'The sub-agent returned nothing.' },
+	unusable: { status: 422, message: (detail) => `The drawing failed validation: ${detail}.` },
 }
 
 /**
@@ -63,12 +63,12 @@ export default class DiagramsService extends JobSubmissionService {
 			const provider = await this.authorizeAndResolveProvider()
 			const config = providerConfig(provider, parsed.data.model)
 			if (!config) {
-				return this.error({ errors: ['Provider AI belum dikonfigurasi.'], status: 503 })
+				return this.error({ errors: ['No AI provider is configured.'], status: 503 })
 			}
 
 			const sources = await this.grammarFor(parsed.data.type)
 			if (!sources) {
-				return this.error({ errors: [`Tipe diagram "${parsed.data.type}" tidak dikenal.`], status: 404 })
+				return this.error({ errors: [`Unknown diagram type "${parsed.data.type}".`], status: 404 })
 			}
 
 			const drawn = await this.drawWithRepair(config, parsed.data, sources)

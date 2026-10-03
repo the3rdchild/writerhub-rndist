@@ -15,7 +15,7 @@ export type CreateShareBody = z.infer<typeof createShareBodySchema>
 export const updateShareBodySchema = z
 	.object({ access: shareAccessSchema.optional(), role: shareRoleSchema.optional() })
 	.refine((body) => body.access !== undefined || body.role !== undefined, {
-		message: 'Isi access atau role',
+		message: 'Provide access or role',
 	})
 
 export interface SharedTab {

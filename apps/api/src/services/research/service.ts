@@ -102,7 +102,7 @@ export default class ResearchService extends BaseService {
 
 		const allowed = input.urls.filter((url) => !isDenied(url, denied))
 		if (allowed.length === 0) {
-			throw AppError.badRequest('Semua URL yang diminta ada di daftar tolak.')
+			throw AppError.badRequest('Every requested URL is on the block list.')
 		}
 
 		const cachedPages: TavilyPage[] = []
@@ -158,7 +158,7 @@ export default class ResearchService extends BaseService {
 
 	private assertEnabled(): void {
 		if (!env.RESEARCH_ENABLED) {
-			throw new AppError(503, 'Riset web sedang dimatikan administrator.')
+			throw new AppError(503, 'Web research has been turned off by the administrator.')
 		}
 	}
 
@@ -172,7 +172,7 @@ export default class ResearchService extends BaseService {
 		if (isLocalAuth) return
 
 		const userId = this.context.get('userId')
-		if (!userId) throw AppError.unauthorized('Butuh autentikasi untuk memakai riset web.')
+		if (!userId) throw AppError.unauthorized('Authentication is required to use web research.')
 		await ensureToolQuota(userId, USAGE_SERVICE_SLUG, toolName)
 	}
 

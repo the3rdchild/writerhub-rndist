@@ -63,7 +63,7 @@ export function repairDesignHtml(html: string, canvas: DesignCanvas): DesignRepa
 
 	if (FULL_VIEWPORT.test(next)) {
 		next = next.replace(FULL_VIEWPORT, '100%')
-		repaired.push('satuan viewport (100vh/100vw) menjadi 100%')
+		repaired.push('viewport units (100vh/100vw) to 100%')
 	}
 	// `test` pada regex ber-flag /g memindahkan lastIndex; tanpa reset ini
 	// pemanggilan berikutnya melewatkan awal berkas.
@@ -77,7 +77,7 @@ export function repairDesignHtml(html: string, canvas: DesignCanvas): DesignRepa
 		if (!pattern.test(next)) continue
 		pattern.lastIndex = 0
 		next = next.replace(pattern, '$1100%')
-		repaired.push(`${property} tetap ${escapeNumber(pixels)}px menjadi 100%`)
+		repaired.push(`fixed ${property} ${escapeNumber(pixels)}px to 100%`)
 	}
 
 	return { html: next, repaired }

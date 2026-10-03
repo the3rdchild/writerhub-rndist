@@ -59,13 +59,13 @@ export function EditorToolbar({
 		<div className="flex flex-wrap items-center gap-0.5 rounded-full border border-line bg-surface px-3 py-1.5">
 			<IconButton
 				icon={Undo2}
-				label="Urungkan"
+				label="Undo"
 				disabled={isOff || !active?.canUndo}
 				onClick={() => editor?.chain().focus().undo().run()}
 			/>
 			<IconButton
 				icon={Redo2}
-				label="Ulangi"
+				label="Redo"
 				disabled={isOff || !active?.canRedo}
 				onClick={() => editor?.chain().focus().redo().run()}
 			/>
@@ -99,7 +99,7 @@ export function EditorToolbar({
 			/>
 			<IconButton
 				icon={Strikethrough}
-				label="Coret"
+				label="Strikethrough"
 				active={active?.strike}
 				disabled={isOff}
 				onClick={() => editor?.chain().focus().toggleStrike().run()}
@@ -142,7 +142,8 @@ export function EditorToolbar({
 				onClick={() => editor?.chain().focus().toggleCallout('info').run()}
 			/>
 			{/* Butuh seleksi, sama seperti butir Kolom di menu Format - kecuali saat
-			    sudah berada di dalam kolom, di mana tombolnya bertugas keluar lagi. */}
+			    sudah berada di dalam kolom: di sana tombolnya tampil aktif dan
+			    menekannya mengembalikan wilayah itu ke satu kolom (KOL-10). */}
 			<IconButton
 				icon={Columns2}
 				label="Two columns"

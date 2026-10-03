@@ -76,7 +76,7 @@ export function openChatStream(
 				if (wantsTools && !upstream.ok) {
 					detail = await upstream.text().catch(() => '')
 					if (rejectsTools(upstream.status, detail)) {
-						send({ type: 'status', phase: 'retrying', detail: 'Provider menolak tool calling' })
+						send({ type: 'status', phase: 'retrying', detail: 'The provider rejected tool calling' })
 						send({ type: 'tools_unsupported' })
 						upstream = await call(false)
 						detail = null

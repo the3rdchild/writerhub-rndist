@@ -16,7 +16,7 @@ const CATEGORIES: Array<{ id: TemplateCategory | 'all'; label: string }> = [
 	{ id: 'all', label: 'All' },
 	{ id: 'academic_id', label: 'Academic' },
 	{ id: 'paper', label: 'Paper' },
-	{ id: 'business', label: 'Bisnis' },
+	{ id: 'business', label: 'Business' },
 	{ id: 'marketing', label: 'Marketing' },
 ]
 

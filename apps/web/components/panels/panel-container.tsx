@@ -27,7 +27,7 @@ const PANEL_TITLES: Record<PanelId, string> = {
 	humanizer: 'Humanizer',
 	plagiarism: 'Plagiarism Checker',
 	translator: 'Translator',
-	glossary: 'Glosarium',
+	glossary: 'Glossary',
 	assets: 'Assets',
 	search: 'Find and replace',
 	watermark: 'Watermark',

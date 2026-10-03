@@ -170,7 +170,7 @@ export async function extract(urls: string[], query?: string): Promise<TavilyExt
 
 	const failed = (payload.failed_results ?? []).map((row) => ({
 		url: row.url ?? '',
-		error: row.error ?? 'Tidak diketahui',
+		error: row.error ?? 'Unknown',
 	}))
 
 	return {
@@ -182,7 +182,7 @@ export async function extract(urls: string[], query?: string): Promise<TavilyExt
 
 async function post<T>(url: string, body: Record<string, unknown>, timeoutMs: number): Promise<T> {
 	if (!env.TAVILY_API_KEY) {
-		throw new AppError(503, 'Riset web belum dikonfigurasi - TAVILY_API_KEY kosong.')
+		throw new AppError(503, 'Web research is not configured - TAVILY_API_KEY is empty.')
 	}
 
 	let response: Response
@@ -198,7 +198,7 @@ async function post<T>(url: string, body: Record<string, unknown>, timeoutMs: nu
 		})
 	} catch (err) {
 		log.error({ err, url }, '[tavily] request gagal')
-		throw new AppError(504, 'Penyedia riset web tidak merespons.')
+		throw new AppError(504, 'The web research provider did not respond.')
 	}
 
 	if (!response.ok) throw toAppError(response.status, await response.text().catch(() => ''))
@@ -208,14 +208,14 @@ async function post<T>(url: string, body: Record<string, unknown>, timeoutMs: nu
 function toAppError(status: number, detail: string): AppError {
 	if (status === 401 || status === 403) {
 		log.error({ status, detail }, '[tavily] kredensial ditolak')
-		return new AppError(503, 'Kunci API riset web ditolak penyedia.')
+		return new AppError(503, 'The web research provider rejected the API key.')
 	}
-	if (status === 429) return AppError.tooManyRequests('Kuota riset web penyedia habis.')
+	if (status === 429) return AppError.tooManyRequests("The web research provider's quota has run out.")
 	if (status === 432 || status === 433) {
-		return AppError.tooManyRequests('Kredit Tavily habis.')
+		return AppError.tooManyRequests('Tavily credits have run out.')
 	}
-	if (status >= 500) return new AppError(503, 'Penyedia riset web sedang bermasalah.')
+	if (status >= 500) return new AppError(503, 'The web research provider is having problems.')
 
 	log.warn({ status, detail }, '[tavily] permintaan ditolak')
-	return AppError.badRequest(`Permintaan riset web ditolak penyedia (${status}).`)
+	return AppError.badRequest(`The web research provider rejected the request (${status}).`)
 }

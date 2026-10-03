@@ -33,12 +33,12 @@ export function providerFailure(status: number, detail: string): DraftFailure {
 	const code = providerCodeFromStatus(status)
 
 	if (code === 'quota_exceeded') {
-		return new DraftFailure(code, `Kuota atau saldo provider AI habis (${status}).${suffix}`)
+		return new DraftFailure(code, `The AI provider's quota or balance has run out (${status}).${suffix}`)
 	}
 	if (status === 401 || status === 403) {
-		return new DraftFailure(code, `Kredensial provider AI ditolak (${status}).${suffix}`.trimEnd())
+		return new DraftFailure(code, `The AI provider rejected the credentials (${status}).${suffix}`.trimEnd())
 	}
-	return new DraftFailure(code, `Provider AI membalas ${status}.${suffix}`.trimEnd())
+	return new DraftFailure(code, `The AI provider responded with ${status}.${suffix}`.trimEnd())
 }
 
 /**
@@ -53,13 +53,13 @@ export function toDraftFailure(error: unknown): DraftFailure {
 		const code = classifyProviderError(error)
 
 		if (code === 'timeout') {
-			return new DraftFailure(code, 'Provider AI tidak selesai menulis dalam batas waktu.')
+			return new DraftFailure(code, "The AI provider didn't finish writing in time.")
 		}
 		if (code === 'provider_unreachable') {
-			return new DraftFailure(code, `Provider AI tidak bisa dihubungi: ${error.message}`)
+			return new DraftFailure(code, `Couldn't reach the AI provider: ${error.message}`)
 		}
 		return new DraftFailure(code, error.message)
 	}
 
-	return new DraftFailure('unknown', 'Draf gagal ditulis karena sebab yang tidak dikenali.')
+	return new DraftFailure('unknown', 'The draft could not be written for an unknown reason.')
 }

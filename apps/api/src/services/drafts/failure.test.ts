@@ -8,7 +8,7 @@ describe('providerFailure', () => {
 
 	test('401 dan 403 menunjuk ke kredensial', () => {
 		expect(providerFailure(401, '').code).toBe('provider_rejected')
-		expect(providerFailure(403, '').message).toContain('ditolak')
+		expect(providerFailure(403, '').message).toContain('rejected')
 	})
 
 	test('galat lain menyebut kode HTTP-nya supaya bisa ditelusuri', () => {

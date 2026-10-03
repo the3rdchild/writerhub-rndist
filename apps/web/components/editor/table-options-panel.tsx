@@ -334,7 +334,7 @@ export function TableOptionsPanel({ editor, onClose }: { editor: Editor; onClose
 									type="number"
 									min={1}
 									defaultValue={snap.borderWidth ?? ''}
-									aria-label="Ketebalan bingkai (px)"
+									aria-label="Border width (px)"
 									placeholder="px"
 									onKeyDown={(e) => {
 										if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
@@ -364,7 +364,7 @@ export function TableOptionsPanel({ editor, onClose }: { editor: Editor; onClose
 									className={FIELD_CLASS}
 								>
 									<option value="solid">Solid</option>
-									<option value="dashed">Putus-putus</option>
+									<option value="dashed">Dashed</option>
 									<option value="dotted">Dotted</option>
 									<option value="double">Double</option>
 								</select>

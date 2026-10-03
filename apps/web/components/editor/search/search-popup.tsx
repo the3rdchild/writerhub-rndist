@@ -87,7 +87,7 @@ export function SearchPopup({
 
 			<button
 				type="button"
-				title="Sebelumnya (Shift+Enter)"
+				title="Previous (Shift+Enter)"
 				aria-label="Previous result"
 				disabled={total === 0}
 				onClick={goPrevious}

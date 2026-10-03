@@ -524,7 +524,7 @@ export function moveDocument(doc: Y.Doc, movedId: string, destId: string): void 
 
 export function createTab(doc: Y.Doc, docId: string, title = 'Untitled document', atIndex?: number): string {
 	const entry = docsRoot(doc).meta.get(docId)
-	if (!entry) throw new Error(`createTab: dokumen "${docId}" tidak ada`)
+	if (!entry) throw new Error(`createTab: document "${docId}" does not exist`)
 
 	const id = createTabId()
 

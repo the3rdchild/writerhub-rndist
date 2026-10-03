@@ -19,13 +19,13 @@ export const analysisBodySchema = z
 		targetLang: z.string().trim().min(2).max(12).optional(),
 	})
 	.refine((data) => !data.tone || data.feature === 'ai_rewriter', {
-		message: 'tone hanya berlaku untuk fitur ai_rewriter',
+		message: 'tone only applies to the ai_rewriter feature',
 	})
 	.refine((data) => data.feature !== 'translator' || Boolean(data.targetLang), {
-		message: 'targetLang wajib diisi untuk fitur translator',
+		message: 'targetLang is required for the translator feature',
 	})
 	.refine((data) => !data.targetLang || data.feature === 'translator', {
-		message: 'targetLang hanya berlaku untuk fitur translator',
+		message: 'targetLang only applies to the translator feature',
 	})
 
 export type AnalysisBody = z.infer<typeof analysisBodySchema>

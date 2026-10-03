@@ -168,11 +168,11 @@ describe('tavily extract', () => {
 describe('galat penyedia', () => {
 	test('kredensial ditolak jadi 503, bukan 401 yang menyesatkan pengguna', async () => {
 		stubFetch([{ detail: 'unauthorized' }], 401)
-		expect(search({ query: 'apa saja' })).rejects.toThrow(/ditolak penyedia/)
+		expect(search({ query: 'apa saja' })).rejects.toThrow(/rejected the API key/)
 	})
 
 	test('kuota penyedia habis diteruskan sebagai 429', async () => {
 		stubFetch([{ detail: 'rate limited' }], 429)
-		expect(extract(['https://contoh.id/x'])).rejects.toThrow(/[Kk]uota/)
+		expect(extract(['https://contoh.id/x'])).rejects.toThrow(/quota/)
 	})
 })

@@ -546,7 +546,7 @@ describe('gambar naskah di DOCX (EX-7)', () => {
 		])
 
 		expect(xml).not.toContain('<w:drawing>')
-		expect(xml).toContain('[Gambar tidak ikut diekspor: Peta lokasi]')
+		expect(xml).toContain('[Image not exported: Peta lokasi]')
 		expect(xml).toContain('sesudah')
 	})
 })

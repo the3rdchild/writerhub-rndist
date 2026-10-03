@@ -90,7 +90,7 @@ export async function streamChat(
 		}
 		if (response.status === 400 || response.status === 413 || response.status === 422) {
 			throw new ChatTurnError(
-				`Permintaan ditolak sebelum sampai ke model${detail ? `: ${detail}` : ''}.`,
+				`The request was rejected before it reached the model${detail ? `: ${detail}` : ''}.`,
 				'unknown',
 				false,
 			)

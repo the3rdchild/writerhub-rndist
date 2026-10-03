@@ -75,7 +75,7 @@ export function sanitizeSvg(source: string): SvgSanitizeResult | null {
 	// Penangan sebaris. Dicocokkan pada batas atribut (spasi lalu `on…=`) supaya
 	// atribut sah yang kebetulan berakhiran "on" tidak ikut terpangkas.
 	svg = svg.replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, () => {
-		removed.push('atribut on*')
+		removed.push('on* attributes')
 		return ''
 	})
 
@@ -84,13 +84,13 @@ export function sanitizeSvg(source: string): SvgSanitizeResult | null {
 	svg = svg.replace(/\s(?:xlink:)?href\s*=\s*("([^"]*)"|'([^']*)')/gi, (match, _quoted, double, single) => {
 		const value = (double ?? single ?? '').trim()
 		if (SAFE_URI.test(value)) return match
-		removed.push('rujukan luar')
+		removed.push('external references')
 		return ''
 	})
 
 	// `url(...)` di dalam gaya yang menunjuk keluar berkas.
 	svg = svg.replace(/url\(\s*['"]?(?!#)([^)'"]*)['"]?\s*\)/gi, () => {
-		removed.push('url() luar')
+		removed.push('external url()')
 		return 'none'
 	})
 

@@ -254,12 +254,12 @@ export function imageLabel(attrs: { src?: unknown; alt?: unknown; title?: unknow
 	if (title) return title
 
 	const src = String(attrs.src ?? '')
-	if (src.startsWith('data:')) return 'gambar tempelan'
+	if (src.startsWith('data:')) return 'pasted image'
 	try {
 		const name = decodeURIComponent(new URL(src, 'https://x.invalid').pathname.split('/').pop() ?? '')
 		if (name) return name.length > 60 ? `${name.slice(0, 57)}...` : name
 	} catch {
 		/* URL rusak: jatuh ke sebutan umum di bawah. */
 	}
-	return 'gambar'
+	return 'image'
 }

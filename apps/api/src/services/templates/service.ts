@@ -19,10 +19,10 @@ export default class TemplatesService extends BaseService {
 	async getBySlug(): Promise<Response> {
 		try {
 			const slug = this.context.req.param('slug')
-			if (!slug) throw AppError.badRequest('Slug template tidak ada')
+			if (!slug) throw AppError.badRequest('Template slug is missing')
 
 			const row = await findTemplateBySlug(slug)
-			if (!row) throw AppError.notFound('Template tidak ditemukan')
+			if (!row) throw AppError.notFound('Template not found')
 
 			return this.success({ data: toTemplate(row) })
 		} catch (error) {

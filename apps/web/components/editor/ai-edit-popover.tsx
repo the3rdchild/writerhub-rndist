@@ -119,7 +119,7 @@ export function AiEditPopover({
 					type="button"
 					onClick={() => void run(instruction)}
 					disabled={!instruction.trim() || isRunning}
-					aria-label="Jalankan"
+					aria-label="Run"
 					className={cn(
 						'flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors',
 						instruction.trim() && !isRunning

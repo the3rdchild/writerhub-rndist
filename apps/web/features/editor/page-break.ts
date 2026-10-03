@@ -1,5 +1,6 @@
 import { mergeAttributes, Node } from '@tiptap/core'
 import { shortcutKeys } from '@/features/shortcuts/registry'
+import { insertBreak } from './break-insert'
 export const PAGE_BREAK_NODE = 'pageBreak'
 
 declare module '@tiptap/core' {
@@ -36,12 +37,8 @@ export const PageBreak = Node.create({
 		return {
 			setPageBreak:
 				() =>
-				({ chain, state }) => {
-					const atEnd = state.selection.to >= state.doc.content.size - 1
-					const content = atEnd ? [{ type: this.name }, { type: 'paragraph' }] : [{ type: this.name }]
-
-					return chain().insertContent(content).run()
-				},
+				({ state, tr, dispatch }) =>
+					insertBreak(state, tr, dispatch, state.schema.nodes[this.name]),
 		}
 	},
 

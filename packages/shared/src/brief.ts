@@ -95,7 +95,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'judul',
 		tab: 'research',
-		label: 'Judul',
+		label: 'Title',
 		prompt: 'Title',
 		nature: 'decision',
 		input: 'multiline',
@@ -104,7 +104,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'jenisKarya',
 		tab: 'research',
-		label: 'Jenis karya',
+		label: 'Type of work',
 		prompt: 'Type of work',
 		nature: 'decision',
 		input: 'choice',
@@ -113,7 +113,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'pendekatan',
 		tab: 'research',
-		label: 'Pendekatan',
+		label: 'Approach',
 		prompt: 'Research approach',
 		nature: 'decision',
 		input: 'choice',
@@ -122,7 +122,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'bidang',
 		tab: 'research',
-		label: 'Bidang & tema',
+		label: 'Field & theme',
 		prompt: 'Field and theme',
 		nature: 'decision',
 		input: 'text',
@@ -131,7 +131,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'rumusanMasalah',
 		tab: 'research',
-		label: 'Rumusan masalah',
+		label: 'Research questions',
 		prompt: 'Research questions',
 		nature: 'decision',
 		input: 'multiline',
@@ -139,7 +139,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'tujuan',
 		tab: 'research',
-		label: 'Tujuan penelitian',
+		label: 'Research objectives',
 		prompt: 'Research objectives',
 		nature: 'decision',
 		input: 'multiline',
@@ -147,7 +147,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'variabel',
 		tab: 'research',
-		label: 'Variabel',
+		label: 'Variables',
 		prompt: 'Variables',
 		nature: 'decision',
 		input: 'text',
@@ -157,7 +157,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'hipotesis',
 		tab: 'research',
-		label: 'Hipotesis',
+		label: 'Hypotheses',
 		prompt: 'Hypotheses',
 		nature: 'decision',
 		input: 'multiline',
@@ -166,7 +166,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'fokus',
 		tab: 'research',
-		label: 'Fokus penelitian',
+		label: 'Research focus',
 		prompt: 'Research focus',
 		nature: 'decision',
 		input: 'multiline',
@@ -175,7 +175,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'informan',
 		tab: 'research',
-		label: 'Informan / partisipan',
+		label: 'Informants / participants',
 		prompt: 'Informants / participants',
 		nature: 'decision',
 		input: 'text',
@@ -184,7 +184,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'produk',
 		tab: 'research',
-		label: 'Produk yang dikembangkan',
+		label: 'Product being developed',
 		prompt: 'Product being developed',
 		nature: 'decision',
 		input: 'text',
@@ -193,7 +193,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'modelPengembangan',
 		tab: 'research',
-		label: 'Model pengembangan',
+		label: 'Development model',
 		prompt: 'Development model',
 		nature: 'decision',
 		input: 'choice',
@@ -203,7 +203,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'subjek',
 		tab: 'research',
-		label: 'Subjek, populasi & lokasi',
+		label: 'Subjects, population & setting',
 		prompt: 'Subjects, population and setting',
 		nature: 'decision',
 		input: 'text',
@@ -211,7 +211,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'metode',
 		tab: 'research',
-		label: 'Metode & teknik analisis',
+		label: 'Method & analysis technique',
 		prompt: 'Method and analysis technique',
 		nature: 'decision',
 		input: 'text',
@@ -220,7 +220,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'teori',
 		tab: 'research',
-		label: 'Teori utama',
+		label: 'Main theory',
 		prompt: 'Main theory',
 		nature: 'decision',
 		input: 'text',
@@ -228,7 +228,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'kataKunci',
 		tab: 'research',
-		label: 'Kata kunci',
+		label: 'Keywords',
 		prompt: 'Keywords',
 		nature: 'derived',
 		input: 'text',
@@ -236,18 +236,18 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'catatan',
 		tab: 'research',
-		label: 'Catatan tambahan',
+		label: 'Additional notes',
 		prompt: "Writer's notes",
 		nature: 'decision',
 		input: 'multiline',
 		userOnly: true,
-		hint: 'Hanya Anda yang mengisi ini. AI membacanya, tapi tidak pernah menulis ke sini.',
+		hint: 'Only you fill this in. The AI reads it but never writes here.',
 	},
 
 	{
 		key: 'pedoman',
 		tab: 'format',
-		label: 'Pedoman / kampus',
+		label: 'Style guide / institution',
 		prompt: 'Style guide / institution',
 		nature: 'decision',
 		input: 'text',
@@ -256,7 +256,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'sitasi',
 		tab: 'format',
-		label: 'Gaya sitasi',
+		label: 'Citation style',
 		prompt: 'Citation style',
 		nature: 'decision',
 		input: 'choice',
@@ -265,7 +265,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'kertas',
 		tab: 'format',
-		label: 'Kertas',
+		label: 'Paper size',
 		prompt: 'Paper size',
 		nature: 'decision',
 		input: 'choice',
@@ -274,7 +274,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'marginKiri',
 		tab: 'format',
-		label: 'Kiri',
+		label: 'Left',
 		prompt: 'Left margin (cm)',
 		nature: 'decision',
 		input: 'number',
@@ -283,7 +283,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'marginAtas',
 		tab: 'format',
-		label: 'Atas',
+		label: 'Top',
 		prompt: 'Top margin (cm)',
 		nature: 'decision',
 		input: 'number',
@@ -292,7 +292,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'marginKanan',
 		tab: 'format',
-		label: 'Kanan',
+		label: 'Right',
 		prompt: 'Right margin (cm)',
 		nature: 'decision',
 		input: 'number',
@@ -301,7 +301,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'marginBawah',
 		tab: 'format',
-		label: 'Bawah',
+		label: 'Bottom',
 		prompt: 'Bottom margin (cm)',
 		nature: 'decision',
 		input: 'number',
@@ -310,7 +310,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'font',
 		tab: 'format',
-		label: 'Huruf',
+		label: 'Font',
 		prompt: 'Body typeface',
 		nature: 'decision',
 		input: 'choice',
@@ -319,7 +319,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'ukuranFont',
 		tab: 'format',
-		label: 'Ukuran huruf',
+		label: 'Font size',
 		prompt: 'Body font size (pt)',
 		nature: 'decision',
 		input: 'number',
@@ -328,7 +328,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'spasi',
 		tab: 'format',
-		label: 'Spasi baris',
+		label: 'Line spacing',
 		prompt: 'Line spacing',
 		nature: 'decision',
 		input: 'choice',
@@ -337,7 +337,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'penomoranBab',
 		tab: 'format',
-		label: 'Penomoran bab',
+		label: 'Heading numbering',
 		prompt: 'Heading numbering',
 		nature: 'decision',
 		input: 'choice',
@@ -346,7 +346,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'bahasa',
 		tab: 'format',
-		label: 'Bahasa naskah',
+		label: 'Manuscript language',
 		prompt: 'Manuscript language',
 		nature: 'decision',
 		input: 'choice',
@@ -355,7 +355,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'panjangAbstrak',
 		tab: 'format',
-		label: 'Panjang abstrak',
+		label: 'Abstract length',
 		prompt: 'Abstract length',
 		nature: 'decision',
 		input: 'text',
@@ -364,7 +364,7 @@ export const BRIEF_FIELDS: readonly BriefFieldDef[] = [
 	{
 		key: 'catatanFormat',
 		tab: 'format',
-		label: 'Aturan lain',
+		label: 'Other format rules',
 		prompt: 'Other format rules',
 		nature: 'decision',
 		input: 'multiline',

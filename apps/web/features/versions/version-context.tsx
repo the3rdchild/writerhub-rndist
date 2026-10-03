@@ -119,6 +119,6 @@ export function VersionProvider({ children }: { children: ReactNode }) {
 
 export function useVersionMode(): VersionContextValue {
 	const context = useContext(VersionContext)
-	if (!context) throw new Error('useVersionMode harus dipakai di dalam <VersionProvider>')
+	if (!context) throw new Error('useVersionMode must be used inside <VersionProvider>')
 	return context
 }

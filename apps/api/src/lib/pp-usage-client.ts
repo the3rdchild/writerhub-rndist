@@ -146,7 +146,7 @@ export async function recordToolUsage(params: RecordToolUsageParams): Promise<To
 	)
 
 	if (result.status === 429) {
-		let message = 'Kuota pemakaian Anda sudah habis.'
+		let message = 'Your usage quota has run out.'
 		try {
 			const parsed = JSON.parse(result.body) as { message?: string; errors?: string[] }
 			message = parsed.errors?.[0] ?? parsed.message ?? message

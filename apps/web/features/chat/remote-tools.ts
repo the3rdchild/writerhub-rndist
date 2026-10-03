@@ -19,9 +19,9 @@ const ENDPOINT: Record<string, string> = {
 
 /** Nama layanan untuk pesan kegagalan, supaya penulis tahu apa yang gagal. */
 const SERVICE_LABEL: Record<string, string> = {
-	web_search: 'Riset web',
-	fetch_url: 'Riset web',
-	read_skill: 'Pemuatan skill',
+	web_search: 'Web research',
+	fetch_url: 'Web research',
+	read_skill: 'Skill loading',
 }
 
 export function isRemoteReadTool(name: string): boolean {
@@ -32,12 +32,12 @@ export function remoteToolLabel(call: ToolCall): string {
 	if (call.name === 'read_skill') {
 		const skill = String(call.arguments.name ?? '').trim()
 		const file = String(call.arguments.file ?? '').trim()
-		return file ? `Membaca skill ${skill}/${file}` : `Membaca skill ${skill}`
+		return file ? `Reading skill ${skill}/${file}` : `Reading skill ${skill}`
 	}
 
 	if (call.name === 'web_search') {
 		const query = String(call.arguments.query ?? '').trim()
-		return query ? `Mencari web: ${query}` : 'Mencari web'
+		return query ? `Searching the web: ${query}` : 'Searching the web'
 	}
 
 	const count = Array.isArray(call.arguments.urls) ? call.arguments.urls.length : 0
@@ -85,7 +85,7 @@ export async function runRemoteReadTool(
 	tabId: string | null = null,
 ): Promise<RemoteToolResult> {
 	const path = ENDPOINT[call.name]
-	if (!path) return { text: `Alat ${call.name} tidak dikenal.`, sources: [] }
+	if (!path) return { text: `Unknown tool ${call.name}.`, sources: [] }
 	const service = SERVICE_LABEL[call.name] ?? call.name
 
 	try {
@@ -99,14 +99,14 @@ export async function runRemoteReadTool(
 		const payload = await response.json().catch(() => null)
 		if (!response.ok) {
 			const detail = payload?.errors?.join(', ') || payload?.message || `HTTP ${response.status}`
-			return { text: `${service} gagal: ${detail}`, sources: [] }
+			return { text: `${service} failed: ${detail}`, sources: [] }
 		}
 
 		const data = payload?.data as RemoteToolResult | undefined
-		if (!data?.text) return { text: `${service} tidak mengembalikan apa pun.`, sources: [] }
+		if (!data?.text) return { text: `${service} returned nothing.`, sources: [] }
 		return { text: data.text, sources: data.sources ?? [] }
 	} catch (cause) {
 		if (signal?.aborted) throw cause
-		return { text: `${service} gagal: tidak bisa menghubungi layanan.`, sources: [] }
+		return { text: `${service} failed: couldn't reach the service.`, sources: [] }
 	}
 }

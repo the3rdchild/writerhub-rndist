@@ -14,7 +14,7 @@ describe('kegagalan giliran chat', () => {
 
 		expect(failure.code).toBe('timeout')
 		expect(failure.message).not.toContain('operation timed out')
-		expect(failure.message).toContain('batas waktu')
+		expect(failure.message).toContain("didn't answer in time")
 		expect(failure.retryable).toBe(true)
 	})
 

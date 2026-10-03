@@ -19,7 +19,7 @@ export function useVersions(source: VersionSource | null) {
 	return useQuery({
 		queryKey: source ? sourceKey(source) : VERSIONS_QUERY_KEY,
 		queryFn: () => {
-			if (!source) throw new Error('useVersions dipanggil tanpa sumber')
+			if (!source) throw new Error('useVersions was called without a source')
 			return source.serverTabId ? listVersions(source.serverTabId) : listLocalVersions(source.tabId)
 		},
 		enabled: source !== null,
@@ -31,7 +31,7 @@ export function useVersion(source: VersionSource | null, versionId: string | nul
 	return useQuery({
 		queryKey: source ? [...sourceKey(source), versionId] : VERSIONS_QUERY_KEY,
 		queryFn: async () => {
-			if (!source || !versionId) throw new Error('useVersion dipanggil tanpa sumber/versi')
+			if (!source || !versionId) throw new Error('useVersion was called without a source/version')
 			return source.serverTabId
 				? getVersion(source.serverTabId, versionId)
 				: getLocalVersion(source.tabId, versionId)

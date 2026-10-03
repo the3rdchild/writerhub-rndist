@@ -2,6 +2,7 @@
 
 import type { Editor } from '@tiptap/react'
 import { useEditorState } from '@tiptap/react'
+import { selectionInColumns } from '@/features/editor/columns'
 import { DEFAULT_FONT_FAMILY } from '@/features/editor/font-catalog'
 import { ALL_PARAGRAPH_STYLES } from '@/features/editor/text-styles'
 
@@ -100,7 +101,10 @@ export function useToolbarState(editor: Editor | null): ToolbarState | null {
 				canUndo: safeCan(() => instance.can().undo()),
 				canRedo: safeCan(() => instance.can().redo()),
 				hasSelection: !instance.state.selection.empty,
-				columns: instance.isActive('columns'),
+				/* Wilayah berkolom section, bukan hanya node `columns` lama yang kini
+				 * selalu dimigrasi saat dibuka - dulu tombolnya tidak pernah aktif
+				 * dan tidak bisa mengembalikan satu kolom (KOL-10). */
+				columns: selectionInColumns(instance.state),
 			}
 		},
 	})

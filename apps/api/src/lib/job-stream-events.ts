@@ -12,7 +12,8 @@ import type { JobEvent } from './job-events'
 export const FLATTENED_RESULT_FEATURE = 'grammar'
 
 export const JOB_FAILED_FALLBACK_MESSAGE = 'Job failed'
-export const RESULT_NOT_STORED_MESSAGE = 'Hasil job tidak tersimpan karena job tidak tertaut ke tab dokumen'
+export const RESULT_NOT_STORED_MESSAGE =
+	'The job result was not stored because the job is not linked to a document tab'
 
 export function errorEvent(message: string): JobEvent {
 	return { type: 'error', message }

@@ -14,8 +14,8 @@ export async function createXmlParser(): Promise<XmlParser> {
 
 function documentElementOf(document: Document): Element {
 	const root = document.documentElement
-	if (!root) throw new Error('XML tanpa elemen akar')
-	if (localNameOf(root) === 'parsererror') throw new Error(`XML rusak: ${root.textContent ?? ''}`)
+	if (!root) throw new Error('The XML has no root element')
+	if (localNameOf(root) === 'parsererror') throw new Error(`The XML is malformed: ${root.textContent ?? ''}`)
 	return root
 }
 

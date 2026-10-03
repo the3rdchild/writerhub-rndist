@@ -2,13 +2,13 @@
 
 import { useRef, useState } from 'react'
 import {
-	INCH,
 	MIN_CONTENT_HEIGHT,
 	type PageGeometry,
 	type PageMargins,
 	type SheetGeometry,
 } from '@/features/editor/page-geometry'
 import { clamp, rulerNudge, useRulerDrag } from '@/features/editor/ruler-drag'
+import { rulerTicks } from '@/features/editor/ruler-ticks'
 import type { MeasurementUnit } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
 export const LEFT_RULER_WIDTH = 28
@@ -142,13 +142,13 @@ export function DocumentLeftRuler({
 				<Ticks height={height} zoom={zoom} unit={unit} />
 
 				<MarginHandle
-					label="Margin atas"
+					label="Top margin"
 					y={margins.top * zoom}
 					onPointerDown={startDrag({ kind: 'marginTop' })}
 					onKeyDown={nudgeTop}
 				/>
 				<MarginHandle
-					label="Margin bawah"
+					label="Bottom margin"
 					y={(height - margins.bottom) * zoom}
 					onPointerDown={startDrag({ kind: 'marginBottom' })}
 					onKeyDown={nudgeBottom}
@@ -158,35 +158,27 @@ export function DocumentLeftRuler({
 	)
 }
 
+/* Garis dihitung dari indeks bulat (`rulerTicks`): sisa bagi posisi pecahan
+ * dulu melompati angka 5, 9, 10, 11, 15… (KOL-13). */
 function Ticks({ height, zoom, unit }: { height: number; zoom: number; unit: MeasurementUnit }) {
-	const unitPx = unit === 'cm' ? INCH / 2.54 : INCH
-	const step = zoom < 0.75 ? unitPx / 2 : unitPx / 4
-	const count = Math.floor(height / step)
-
 	return (
 		<>
-			{Array.from({ length: count + 1 }, (_, index) => {
-				const y = index * step
-				const isUnit = Math.abs(y % unitPx) < 0.01
-				const isHalf = Math.abs(y % (unitPx / 2)) < 0.01
-
-				if (isUnit) {
-					if (y === 0) return null
-					return (
-						<span key={y} className="document-left-ruler__label" style={{ top: y * zoom }}>
-							{Math.round(y / unitPx)}
-						</span>
-					)
-				}
-
-				return (
+			{rulerTicks(height, unit, zoom).map((tick) =>
+				tick.kind === 'label' ? (
+					<span key={tick.at} className="document-left-ruler__label" style={{ top: tick.at * zoom }}>
+						{tick.value}
+					</span>
+				) : (
 					<span
-						key={y}
-						className={cn('document-left-ruler__tick', isHalf && 'document-left-ruler__tick--major')}
-						style={{ top: y * zoom }}
+						key={tick.at}
+						className={cn(
+							'document-left-ruler__tick',
+							tick.kind === 'major' && 'document-left-ruler__tick--major',
+						)}
+						style={{ top: tick.at * zoom }}
 					/>
-				)
-			})}
+				),
+			)}
 		</>
 	)
 }

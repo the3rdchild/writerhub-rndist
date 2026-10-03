@@ -26,6 +26,7 @@ import {
 	sameSheetGeometry,
 } from './page-geometry'
 import { columnRegions, SECTION_BREAK_NODE, sectionSpans } from './section-break'
+import { attachTablePrintHeaders } from './table-print-header'
 
 export const paginationKey = new PluginKey<PaginationState>('pagination')
 export type SpacerKind = 'block' | 'row'
@@ -68,6 +69,9 @@ export interface Measurement {
 	trailingPageFit?: boolean
 	/** Posisi rujukan catatan kaki di dalam blok ini. */
 	footnotes?: number[]
+	/** Akhir rentang naskah yang diwakili ukuran ini, bila lebih dari satu
+	 * blok teratas - wilayah berkolom diukur sebagai satu ukuran. */
+	end?: number
 }
 
 /*
@@ -188,6 +192,7 @@ function measureBlocks(view: EditorView): Measurement[] {
 					kind: 'block',
 					selfPaginate: true,
 					internal,
+					end: region.to,
 				})
 				prevWasPageFit = false
 				return
@@ -392,6 +397,26 @@ function insertedHeights(view: EditorView): Map<number, number> {
 	return heights
 }
 
+/**
+ * Section mana yang mengalir terus di lembar berjalan (tidak membuka lembar
+ * baru): yang menerus dengan geometri lembar yang sama - dan pembatas di
+ * posisi 0, karena sebelum dia belum ada isi apa pun. Tanpa pengecualian itu
+ * pembatas "next page" di awal naskah (sisa perintah kolom "This page" lama)
+ * mengosongkan halaman 1 (KOL-4). Indeks sejajar `spans`; span pertama selalu
+ * false.
+ */
+export function sectionContinuity(
+	doc: PMNode,
+	spans: readonly { pos: number; setup: PageSetup }[],
+): boolean[] {
+	return spans.map((span, index) => {
+		if (index === 0) return false
+		const node = doc.nodeAt(span.pos)
+		const flowing = node?.attrs.continuous === true || span.pos === 0
+		return flowing && sameSheetGeometry(span.setup, spans[index - 1].setup)
+	})
+}
+
 export interface SectionGeometry {
 	pos: number
 	geometry: PageGeometry
@@ -429,7 +454,9 @@ export function pageBlockRange(
 
 /** Catatan kaki lembar terakhir: digambar sesudah blok isi terakhir, bukan di spacer. */
 export interface TrailingNotes extends PageNotes {
-	/** Posisi blok terukur terakhir yang berisi - area catatan menyusul blok teratasnya. */
+	/** Posisi di dalam blok isi terakhir - area catatan menyusul blok teratasnya.
+	 * Untuk wilayah berkolom: posisi di blok TERAKHIR wilayahnya, bukan awal
+	 * wilayah, supaya urutan bacanya tetap isi lalu catatan. */
 	afterPos: number
 }
 
@@ -721,7 +748,10 @@ export function computeSpacers(
 			refs: pageNotes,
 			height,
 			before: Math.max(0, bottom - height - flow - TRAILING_NOTES_SAFETY),
-			afterPos: lastContent.pos,
+			afterPos:
+				lastContent.end !== undefined && lastContent.end > lastContent.pos
+					? lastContent.end - 1
+					: lastContent.pos,
 		}
 	}
 	if (blocks[blocks.length - 1]?.isBreak) pushSheet()
@@ -1291,11 +1321,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 						if (footnoteSizes) assignFootnotes(blocks, footnoteRefPositions(view.state.doc))
 						const spans = state.setup ? sectionSpans(view.state.doc, state.setup) : []
 
-						const continuous = spans.map((span, index) => {
-							if (index === 0) return false
-							const node = view.state.doc.nodeAt(span.pos)
-							return node?.attrs.continuous === true && sameSheetGeometry(span.setup, spans[index - 1].setup)
-						})
+						const continuous = sectionContinuity(view.state.doc, spans)
 						const sections = spans.slice(1).map((span, index) => ({
 							pos: span.pos,
 							geometry: pageGeometry(span.setup),
@@ -1415,6 +1441,9 @@ export const Pagination = Extension.create<PaginationOptions>({
 					schedule()
 					const observer = new ResizeObserver(schedule)
 					observer.observe(view.dom)
+					/* Di kertas peramban yang memenggal tabel; kepala tabel diulang lewat
+					 * `<thead>` cetak (TBL-8), padanan `table-header-repeat` di kanvas. */
+					const detachPrintHeaders = attachTablePrintHeaders(view)
 
 					return {
 						update: (_updatedView, previous) => {
@@ -1427,6 +1456,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 						destroy: () => {
 							if (frame) cancelAnimationFrame(frame)
 							observer.disconnect()
+							detachPrintHeaders()
 						},
 					}
 				},

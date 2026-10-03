@@ -68,7 +68,7 @@ export function BriefPanel() {
 					Metadata
 				</h2>
 				<div className="flex items-center gap-0.5">
-					<HeaderButton label="Minimalkan" onClick={minimizePanel}>
+					<HeaderButton label="Minimize" onClick={minimizePanel}>
 						<Minus className="h-4 w-4" />
 					</HeaderButton>
 					<HeaderButton label="Close metadata" onClick={closePanel}>
@@ -123,7 +123,7 @@ function RequestBanner() {
 		<div className="mx-4 mb-2 flex flex-col gap-1.5 rounded-xl border border-accent/25 bg-accent/5 px-3 py-2 text-[11px]">
 			<p className="flex items-center gap-1.5 text-xs font-medium text-accent">
 				<Sparkles className="h-3.5 w-3.5" />
-				AI meminta Anda melengkapi
+				The AI asks you to fill in
 			</p>
 			{panel.message && <p className="text-xs leading-snug text-foreground">{panel.message}</p>}
 			<p className="text-[11px] text-subtle">

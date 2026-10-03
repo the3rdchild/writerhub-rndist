@@ -2,20 +2,33 @@
 
 import type { Editor } from '@tiptap/react'
 import { useCallback, useRef, useState } from 'react'
+import { type ColumnDrag, dragColumns, layoutPatch } from '@/features/editor/column-geometry'
 import { type BlockIndent, clampBlockIndent, useBlockIndent } from '@/features/editor/indent'
-import { INCH, MIN_CONTENT_WIDTH, type PageGeometry, type PageMargins } from '@/features/editor/page-geometry'
-import { clamp, rulerNudge, useRulerDrag } from '@/features/editor/ruler-drag'
+import { MIN_CONTENT_WIDTH, type PageGeometry, type PageMargins } from '@/features/editor/page-geometry'
+import { clamp, rulerNudge, rulerSnapOrigin, snapFrom, useRulerDrag } from '@/features/editor/ruler-drag'
+import {
+	addTabStop,
+	cycleTabStop,
+	moveTabStop,
+	PX_PER_PT,
+	removeTabStop,
+	updateTabStops,
+} from '@/features/editor/ruler-tabs'
 import {
 	type ColumnsRulerTarget,
 	type TableRulerTarget,
 	useRulerTarget,
+	useTabStops,
 } from '@/features/editor/ruler-targets'
+import { type RulerUnit, rulerTicks } from '@/features/editor/ruler-ticks'
+import type { TabStop, TabStopType } from '@/features/editor/tab-stops'
 import {
 	MIN_COLUMN_WIDTH,
 	scaleColumnWidths,
 	setColumnWidths,
 	setTableIndent,
 } from '@/features/editor/table-ops'
+import { useSettings } from '@/features/settings/settings-context'
 import { cn } from '@/lib/utils'
 
 type Handle =
@@ -30,6 +43,9 @@ type Handle =
 	| { kind: 'imageX' }
 	| { kind: 'columnsGap'; index: number; side: 'left' | 'right' }
 	| { kind: 'columnsGapBand'; index: number }
+	/* Tab stop paragraf (TKS-18): `at` posisinya kini dalam pt, null = tab stop
+	 * baru yang sedang ditaruh; `start` posisi awal seret di penggaris. */
+	| { kind: 'tab'; at: number | null; start: number }
 
 /*
  * Gagang yang naskahnya baru mengalir saat jari diangkat.
@@ -48,6 +64,7 @@ const DEFERRED: ReadonlySet<Handle['kind']> = new Set([
 	'imageX',
 	'columnsGap',
 	'columnsGapBand',
+	'tab',
 ])
 
 /**
@@ -73,8 +90,6 @@ export function rulerMarginPatch(
 	return null
 }
 
-const MIN_COLUMN_GAP = 8
-
 const RULER_HEIGHT = 24
 
 export function DocumentRuler({
@@ -91,11 +106,15 @@ export function DocumentRuler({
 	className?: string
 }) {
 	const { width, margins, contentWidth } = geometry
+	const { settings } = useSettings()
 	const indent = useBlockIndent(editor)
 	const target = useRulerTarget(editor)
+	const tabStops = useTabStops(editor)
 	const trackRef = useRef<HTMLDivElement>(null)
 	const [preview, setPreview] = useState<number | null>(null)
 	const previewRef = useRef<number | null>(null)
+	/* Tab stop yang sedang diseret menjauhi penggaris - dibuang saat dilepas. */
+	const [detached, setDetached] = useState(false)
 	const activeColumn = target?.kind === 'columns' ? target.active : undefined
 	const indentBase = margins.left + (activeColumn?.left ?? 0)
 	const indentWidth = activeColumn?.width ?? contentWidth
@@ -111,6 +130,13 @@ export function DocumentRuler({
 	const marginPatch = useCallback(
 		(handle: Handle, x: number) => rulerMarginPatch(handle.kind, x, width, margins),
 		[width, margins],
+	)
+	/* Tab stop diterapkan ke tiap paragraf yang disentuh seleksi, seperti Word. */
+	const changeTabStops = useCallback(
+		(change: (stops: TabStop[]) => TabStop[]) => {
+			if (editor) updateTabStops(editor.state, editor.view.dispatch, change)
+		},
+		[editor],
 	)
 	const applyHandle = useCallback(
 		(handle: Handle, x: number) => {
@@ -133,6 +159,13 @@ export function DocumentRuler({
 				case 'columnsGapBand': {
 					if (!editor || target?.kind !== 'columns') return
 					applyColumnsHandle(editor, handle, x, target, margins.left)
+					return
+				}
+				case 'tab': {
+					/* Dalam pt dari tepi kiri area teks - margin kiri, atau tepi kolom. */
+					const posPt = clamp(x - indentBase, 0, indentWidth) / PX_PER_PT
+					const { at } = handle
+					changeTabStops((stops) => (at === null ? addTabStop(stops, posPt) : moveTabStop(stops, at, posPt)))
 					return
 				}
 				case 'imageX': {
@@ -166,24 +199,40 @@ export function DocumentRuler({
 			onMarginsChange,
 			setIndent,
 			marginPatch,
+			changeTabStops,
 		],
 	)
 	const { dragging, startDrag } = useRulerDrag<Handle>({
 		axis: 'x',
 		zoom,
 		trackRef,
-		onMove: (handle, x) => {
+		snapOrigin: (handle) => rulerSnapOrigin(handle.kind, indentBase, indentWidth),
+		onMove: (handle, x, outside) => {
 			if (DEFERRED.has(handle.kind)) {
 				previewRef.current = x
 				setPreview(x)
+				if (handle.kind === 'tab') setDetached(outside)
 			} else {
 				applyHandle(handle, x)
 			}
 		},
-		onUp: (handle, x) => {
-			if (DEFERRED.has(handle.kind) && x !== null) applyHandle(handle, x)
+		onUp: (handle, x, outside) => {
+			if (handle.kind === 'tab') {
+				/* Diseret keluar penggaris: dibuang (yang baru tidak jadi ditaruh).
+				 * Tab stop baru yang dilepas tanpa bergeser tetap di titik klik. */
+				const { at } = handle
+				if (outside) {
+					if (at !== null) changeTabStops((stops) => removeTabStop(stops, at))
+				} else {
+					const final = x ?? (at === null ? handle.start : null)
+					if (final !== null) applyHandle(handle, final)
+				}
+			} else if (DEFERRED.has(handle.kind) && x !== null) {
+				applyHandle(handle, x)
+			}
 			previewRef.current = null
 			setPreview(null)
+			setDetached(false)
 		},
 	})
 
@@ -197,6 +246,35 @@ export function DocumentRuler({
 	const hasIndentControls = editor !== null && target?.kind !== 'table'
 	const live = (x: number, match: (handle: Handle) => boolean) =>
 		preview !== null && dragging !== null && match(dragging) ? preview : x
+
+	/*
+	 * Menekan bagian kosong penggaris di dalam area teks menaruh tab stop kiri
+	 * (TKS-18), seperti Word. Ia langsung bisa diseret sebelum dilepas, dan
+	 * baru tertulis saat dilepas - satu langkah urung per gerakan.
+	 */
+	const placeTab = (event: React.PointerEvent<HTMLDivElement>) => {
+		if (!hasIndentControls || event.button !== 0) return
+		if (event.target instanceof Element && event.target.closest('button')) return
+		const rect = trackRef.current?.getBoundingClientRect()
+		if (!rect) return
+		const x = snapFrom(indentBase, (event.clientX - rect.left) / zoom, event.shiftKey)
+		if (x < indentBase || x > indentBase + indentWidth) return
+		previewRef.current = x
+		setPreview(x)
+		startDrag({ kind: 'tab', at: null, start: x })(event)
+	}
+	const tabKeys = (stop: TabStop, x: number) => (event: React.KeyboardEvent) => {
+		if (event.key === 'Delete' || event.key === 'Backspace') {
+			event.preventDefault()
+			changeTabStops((stops) => removeTabStop(stops, stop.posPt))
+			return
+		}
+		nudge({ kind: 'tab', at: stop.posPt, start: x }, x)(event)
+	}
+	const tabMarkers = hasIndentControls
+		? tabStops.map((stop) => ({ stop, x: indentBase + stop.posPt * PX_PER_PT })).filter(({ x }) => x <= width)
+		: []
+	const placing = dragging?.kind === 'tab' && dragging.at === null && preview !== null ? preview : null
 
 	/*
 	 * Margin yang SEDANG ditampilkan. Selama seret ia ikut jari, sementara naskah
@@ -225,8 +303,9 @@ export function DocumentRuler({
 					let left = margins.left
 					for (let index = 0; index < target.widths.length - 1; index++) {
 						const gapLeft = left + target.widths[index]
-						gaps.push({ left: gapLeft, right: gapLeft + target.gap, index })
-						left = gapLeft + target.gap
+						const size = target.gaps[index] ?? 0
+						gaps.push({ left: gapLeft, right: gapLeft + size, index })
+						left = gapLeft + size
 					}
 					return { gaps }
 				})()
@@ -250,9 +329,9 @@ export function DocumentRuler({
 		<div
 			className={cn('document-ruler', dragging && 'document-ruler--dragging', className)}
 			style={{ width: toScreen(width), height: RULER_HEIGHT }}
-			aria-label="Penggaris halaman"
+			aria-label="Page ruler"
 		>
-			<div ref={trackRef} className="relative h-full">
+			<div ref={trackRef} className="relative h-full" onPointerDown={placeTab}>
 				{/* Arsiran margin: area di luar batas tulis. */}
 				<div className="document-ruler__margin" style={{ left: 0, width: toScreen(shownMargins.left) }} />
 				<div
@@ -263,16 +342,16 @@ export function DocumentRuler({
 					}}
 				/>
 
-				<Ticks width={width} zoom={zoom} />
+				<Ticks width={width} zoom={zoom} unit={settings.measurementUnit} />
 
 				<MarginHandle
-					label="Margin kiri"
+					label="Left margin"
 					x={toScreen(shownMargins.left)}
 					onPointerDown={startDrag({ kind: 'marginLeft' })}
 					onKeyDown={nudge({ kind: 'marginLeft' }, margins.left)}
 				/>
 				<MarginHandle
-					label="Margin kanan"
+					label="Right margin"
 					x={toScreen(width - shownMargins.right)}
 					onPointerDown={startDrag({ kind: 'marginRight' })}
 					onKeyDown={nudge({ kind: 'marginRight' }, width - margins.right)}
@@ -282,21 +361,21 @@ export function DocumentRuler({
 					<>
 						<IndentHandle
 							variant="first-line"
-							label="Indentasi baris pertama"
+							label="First line indent"
 							x={toScreen(firstLineX)}
 							onPointerDown={startDrag({ kind: 'firstLine' })}
 							onKeyDown={nudge({ kind: 'firstLine' }, firstLineX)}
 						/>
 						<IndentHandle
 							variant="left"
-							label="Indentasi kiri"
+							label="Left indent"
 							x={toScreen(indentLeftX)}
 							onPointerDown={startDrag({ kind: 'indentLeft' })}
 							onKeyDown={nudge({ kind: 'indentLeft' }, indentLeftX)}
 						/>
 						<IndentHandle
 							variant="right"
-							label="Indentasi kanan"
+							label="Right indent"
 							x={toScreen(indentRightX)}
 							onPointerDown={startDrag({ kind: 'indentRight' })}
 							onKeyDown={nudge({ kind: 'indentRight' }, indentRightX)}
@@ -304,18 +383,44 @@ export function DocumentRuler({
 					</>
 				)}
 
+				{tabMarkers.map(({ stop, x }, index) => {
+					const moving = dragging?.kind === 'tab' && dragging.at === stop.posPt
+					return (
+						<TabMarker
+							// biome-ignore lint/suspicious/noArrayIndexKey: identitas tab stop = urutannya; posisinya berubah saat digeser papan tik, dan fokus harus tetap di penandanya
+							key={`tab-${index}`}
+							type={stop.type}
+							x={toScreen(moving && preview !== null ? preview : x)}
+							detached={moving && detached}
+							onPointerDown={startDrag({ kind: 'tab', at: stop.posPt, start: x })}
+							onKeyDown={tabKeys(stop, x)}
+							onDoubleClick={() => changeTabStops((stops) => cycleTabStop(stops, stop.posPt))}
+						/>
+					)
+				})}
+				{placing !== null && (
+					<span
+						aria-hidden="true"
+						className={cn(
+							'document-ruler__tab document-ruler__tab--left',
+							detached && 'document-ruler__tab--detached',
+						)}
+						style={{ left: toScreen(placing) }}
+					/>
+				)}
+
 				{table && (
 					<>
 						<ObjectHandle
 							variant="table-edge"
-							label="Tepi kiri tabel"
+							label="Table left edge"
 							x={toScreen(live(table.left, (handle) => handle.kind === 'tableLeft'))}
 							onPointerDown={startDrag({ kind: 'tableLeft' })}
 							onKeyDown={nudge({ kind: 'tableLeft' }, table.left)}
 						/>
 						<ObjectHandle
 							variant="table-edge"
-							label="Tepi kanan tabel"
+							label="Table right edge"
 							x={toScreen(live(table.right, (handle) => handle.kind === 'tableRight'))}
 							onPointerDown={startDrag({ kind: 'tableRight' })}
 							onKeyDown={nudge({ kind: 'tableRight' }, table.right)}
@@ -325,7 +430,7 @@ export function DocumentRuler({
 							<ObjectHandle
 								key={`col-${index}-${table.edges.length}`}
 								variant="table-column"
-								label={`Batas kolom ${index + 1} dan ${index + 2}`}
+								label={`Border between columns ${index + 1} and ${index + 2}`}
 								x={toScreen(live(edge, (handle) => handle.kind === 'tableCol' && handle.index === index))}
 								onPointerDown={startDrag({ kind: 'tableCol', index })}
 								onKeyDown={nudge({ kind: 'tableCol', index }, edge)}
@@ -339,7 +444,7 @@ export function DocumentRuler({
 						{columns.gaps.map((gap) => (
 							<GapMarker
 								key={`gap-${gap.index}-${columns.gaps.length}`}
-								label={`Celah antara kolom ${gap.index + 1} dan ${gap.index + 2}`}
+								label={`Gap between columns ${gap.index + 1} and ${gap.index + 2}`}
 								left={toScreen(
 									live(gap.left, (handle) => handle.kind === 'columnsGapBand' && handle.index === gap.index),
 								)}
@@ -348,7 +453,7 @@ export function DocumentRuler({
 								onKeyDown={nudge({ kind: 'columnsGapBand', index: gap.index }, gap.left)}
 								onDoubleClick={() => {
 									if (target?.kind === 'columns') {
-										editor?.commands.setColumnsLayout(target.pos, { widths: null })
+										editor?.commands.setColumnsLayout(target.pos, { widths: null, gaps: null })
 									}
 								}}
 							/>
@@ -357,7 +462,7 @@ export function DocumentRuler({
 							<ObjectHandle
 								key={`gap-left-${gap.index}`}
 								variant="columns-gap"
-								label={`Lebar kolom ${gap.index + 1} dan celah`}
+								label={`Column ${gap.index + 1} width and gap`}
 								x={toScreen(
 									live(
 										gap.left,
@@ -373,7 +478,7 @@ export function DocumentRuler({
 							<ObjectHandle
 								key={`gap-right-${gap.index}`}
 								variant="columns-gap"
-								label={`Celah dan lebar kolom ${gap.index + 2}`}
+								label={`Gap and column ${gap.index + 2} width`}
 								x={toScreen(
 									live(
 										gap.right,
@@ -392,7 +497,7 @@ export function DocumentRuler({
 					<>
 						<ObjectHandle
 							variant="image"
-							label="Posisi gambar"
+							label="Image position"
 							x={toScreen(live(image.x, (handle) => handle.kind === 'imageX'))}
 							onPointerDown={startDrag({ kind: 'imageX' })}
 							onKeyDown={nudge({ kind: 'imageX' }, image.x)}
@@ -422,9 +527,9 @@ export function DocumentRuler({
 }
 
 const ALIGNMENTS = [
-	{ value: 'left' as const, label: 'Gambar rata kiri' },
-	{ value: 'center' as const, label: 'Gambar rata tengah' },
-	{ value: 'right' as const, label: 'Gambar rata kanan' },
+	{ value: 'left' as const, label: 'Align image left' },
+	{ value: 'center' as const, label: 'Align image center' },
+	{ value: 'right' as const, label: 'Align image right' },
 ]
 
 function applyTableHandle(
@@ -470,71 +575,31 @@ function applyColumnsHandle(
 	target: ColumnsRulerTarget,
 	contentLeft: number,
 ): void {
-	const { widths, gap, pos } = target
-	const lefts: number[] = []
-	let left = contentLeft
-	for (const columnWidth of widths) {
-		lefts.push(left)
-		left += columnWidth + gap
-	}
-
-	const index = handle.index
-	if (index < 0 || index >= widths.length - 1) return
-	const next = [...widths]
-
-	if (handle.kind === 'columnsGapBand') {
-		const pair = widths[index] + widths[index + 1]
-		const first = clamp(x - lefts[index], MIN_COLUMN_WIDTH, pair - MIN_COLUMN_WIDTH)
-		next[index] = Math.round(first)
-		next[index + 1] = pair - next[index]
-		editor.commands.setColumnsLayout(pos, { widths: next })
-		return
-	}
-
-	if (handle.side === 'left') {
-		const first = clamp(x - lefts[index], MIN_COLUMN_WIDTH, widths[index] + gap - MIN_COLUMN_GAP)
-		next[index] = Math.round(first)
-		editor.commands.setColumnsLayout(pos, { widths: next, gap: Math.round(widths[index] + gap - first) })
-		return
-	}
-
-	const last = clamp(
-		lefts[index + 1] + widths[index + 1] - x,
-		MIN_COLUMN_WIDTH,
-		widths[index + 1] + gap - MIN_COLUMN_GAP,
-	)
-	next[index + 1] = Math.round(last)
-	editor.commands.setColumnsLayout(pos, { widths: next, gap: Math.round(widths[index + 1] + gap - last) })
+	const drag: ColumnDrag =
+		handle.kind === 'columnsGapBand'
+			? { kind: 'band', index: handle.index }
+			: { kind: 'edge', index: handle.index, side: handle.side }
+	const next = dragColumns({ widths: target.widths, gaps: target.gaps }, drag, x - contentLeft)
+	editor.commands.setColumnsLayout(target.pos, layoutPatch(next))
 }
 
-function Ticks({ width, zoom }: { width: number; zoom: number }) {
-	const step = zoom < 0.75 ? INCH / 4 : INCH / 8
-	const count = Math.floor(width / step)
-
+/* Satuan mengikuti pengaturan pengguna, sama dengan penggaris kiri (KOL-13). */
+function Ticks({ width, zoom, unit }: { width: number; zoom: number; unit: RulerUnit }) {
 	return (
 		<>
-			{Array.from({ length: count + 1 }, (_, index) => {
-				const x = index * step
-				const isInch = Math.abs(x % INCH) < 0.01
-				const isHalf = Math.abs(x % (INCH / 2)) < 0.01
-
-				if (isInch) {
-					if (x === 0) return null
-					return (
-						<span key={x} className="document-ruler__label" style={{ left: x * zoom }}>
-							{Math.round(x / INCH)}
-						</span>
-					)
-				}
-
-				return (
+			{rulerTicks(width, unit, zoom).map((tick) =>
+				tick.kind === 'label' ? (
+					<span key={tick.at} className="document-ruler__label" style={{ left: tick.at * zoom }}>
+						{tick.value}
+					</span>
+				) : (
 					<span
-						key={x}
-						className={cn('document-ruler__tick', isHalf && 'document-ruler__tick--major')}
-						style={{ left: x * zoom }}
+						key={tick.at}
+						className={cn('document-ruler__tick', tick.kind === 'major' && 'document-ruler__tick--major')}
+						style={{ left: tick.at * zoom }}
 					/>
-				)
-			})}
+				),
+			)}
 		</>
 	)
 }
@@ -608,7 +673,7 @@ function GapMarker({
 		<button
 			type="button"
 			aria-label={label}
-			title={`${label} - klik dua kali untuk kembali ke lebar rata`}
+			title={`${label} - double-click to make the columns equal`}
 			className="document-ruler__gap-band"
 			style={{ left, width }}
 			onPointerDown={onPointerDown}
@@ -639,6 +704,47 @@ function AlignPip({
 			style={{ left: x }}
 			onPointerDown={(event) => event.preventDefault()}
 			onClick={onSelect}
+		/>
+	)
+}
+
+const TAB_LABELS: Record<TabStopType, string> = {
+	left: 'Left tab stop',
+	center: 'Center tab stop',
+	right: 'Right tab stop',
+}
+
+/* Siku kecil seperti Word: L kiri, ⊥ tengah, ⅃ kanan. */
+function TabMarker({
+	type,
+	x,
+	detached,
+	onPointerDown,
+	onKeyDown,
+	onDoubleClick,
+}: {
+	type: TabStopType
+	x: number
+	detached: boolean
+	onPointerDown: (event: React.PointerEvent) => void
+	onKeyDown: (event: React.KeyboardEvent) => void
+	onDoubleClick: () => void
+}) {
+	const label = TAB_LABELS[type]
+	return (
+		<button
+			type="button"
+			aria-label={label}
+			title={`${label} - drag to move, drag off the ruler to remove, double-click to change type`}
+			className={cn(
+				'document-ruler__tab',
+				`document-ruler__tab--${type}`,
+				detached && 'document-ruler__tab--detached',
+			)}
+			style={{ left: x }}
+			onPointerDown={onPointerDown}
+			onKeyDown={onKeyDown}
+			onDoubleClick={onDoubleClick}
 		/>
 	)
 }

@@ -19,7 +19,7 @@ import { AppError } from '@/lib/error'
 
 function secret(): string {
 	if (!env.ASSET_URL_SECRET) {
-		throw AppError.internalServerError('ASSET_URL_SECRET belum diatur; URL aset tidak bisa ditandatangani')
+		throw AppError.internalServerError('ASSET_URL_SECRET is not set; asset URLs cannot be signed')
 	}
 	return env.ASSET_URL_SECRET
 }
@@ -35,7 +35,7 @@ function secret(): string {
  */
 export type SignedScope = 'asset' | 'render'
 
-const LABEL: Record<SignedScope, string> = { asset: 'Tautan aset', render: 'Tautan render' }
+const LABEL: Record<SignedScope, string> = { asset: 'Asset link', render: 'Render link' }
 
 export interface Signature {
 	exp: number
@@ -72,7 +72,7 @@ export function createSigner(key: string): Signer {
 		 */
 		verify(scope, id, exp, sig) {
 			if (!Number.isFinite(exp) || exp * 1000 < Date.now()) {
-				throw AppError.unauthorized(`${LABEL[scope]} sudah kedaluwarsa`)
+				throw AppError.unauthorized(`${LABEL[scope]} has expired`)
 			}
 
 			const expected = Buffer.from(digest(scope, id, exp))
@@ -80,7 +80,7 @@ export function createSigner(key: string): Signer {
 			// timingSafeEqual menuntut panjang yang sama, jadi bedanya diperiksa
 			// dulu - dan panjang tanda tangan bukan rahasia.
 			if (expected.length !== given.length || !timingSafeEqual(expected, given)) {
-				throw AppError.unauthorized(`${LABEL[scope]} tidak sah`)
+				throw AppError.unauthorized(`${LABEL[scope]} is invalid`)
 			}
 		},
 	}

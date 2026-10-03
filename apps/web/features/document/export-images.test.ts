@@ -195,7 +195,7 @@ describe('sebutan gambar yang tidak ikut', () => {
 	})
 
 	test('gambar tempelan dan URL tanpa nama berkas', () => {
-		expect(imageLabel({ src: PNG_1PX })).toBe('gambar tempelan')
-		expect(imageLabel({ src: 'https://a.id/' })).toBe('gambar')
+		expect(imageLabel({ src: PNG_1PX })).toBe('pasted image')
+		expect(imageLabel({ src: 'https://a.id/' })).toBe('image')
 	})
 })

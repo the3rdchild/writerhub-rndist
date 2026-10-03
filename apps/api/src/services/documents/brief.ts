@@ -17,5 +17,5 @@ const MAX_BRIEF_JSON = 120_000
  */
 export const researchBriefSchema = z
 	.unknown()
-	.refine((value) => JSON.stringify(value ?? null).length <= MAX_BRIEF_JSON, 'Brief terlalu besar')
+	.refine((value) => JSON.stringify(value ?? null).length <= MAX_BRIEF_JSON, 'Brief too large')
 	.transform(normalizeBrief)

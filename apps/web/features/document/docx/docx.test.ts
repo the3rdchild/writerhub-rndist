@@ -1260,7 +1260,7 @@ describe('paragraf numPr jadi list asli', () => {
 
 describe('berkas yang tidak wajar', () => {
 	test('berkas yang bukan zip ditolak dengan alasan yang jelas', async () => {
-		expect(readDocx(strToU8('ini bukan docx'))).rejects.toThrow(/bukan DOCX/i)
+		expect(readDocx(strToU8('ini bukan docx'))).rejects.toThrow(/isn't a valid DOCX/i)
 	})
 
 	test('dokumen tanpa isi tetap menghasilkan satu paragraf', async () => {

@@ -52,8 +52,8 @@ export const ALL_PARAGRAPH_STYLES: ParagraphStyle[] = [
 export const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 24, 30, 36, 48, 60, 72] as const
 
 export const LINE_HEIGHTS = [
-	{ value: '1', label: 'Rapat (1,0)' },
-	{ value: '1.15', label: 'Normal (1,15)' },
-	{ value: '1.5', label: 'Longgar (1,5)' },
-	{ value: '2', label: 'Ganda (2,0)' },
+	{ value: '1', label: 'Tight (1.0)' },
+	{ value: '1.15', label: 'Normal (1.15)' },
+	{ value: '1.5', label: 'Relaxed (1.5)' },
+	{ value: '2', label: 'Double (2.0)' },
 ] as const

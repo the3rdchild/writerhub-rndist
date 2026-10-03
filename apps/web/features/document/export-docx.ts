@@ -1473,7 +1473,7 @@ export async function exportDocx(
 							...placement,
 							children: [
 								new TextRun({
-									text: `[Gambar tidak ikut diekspor: ${imageLabel(node.attrs)}]`,
+									text: `[Image not exported: ${imageLabel(node.attrs)}]`,
 									italics: true,
 									color: '808080',
 								}),

@@ -20,7 +20,7 @@ export default class MemoryService extends BaseService {
 			}
 
 			const row = await upsertMemory(await this.identityId(), body.data)
-			if (!row) throw AppError.internalServerError('Gagal menyimpan AI Memory')
+			if (!row) throw AppError.internalServerError("Couldn't save AI Memory")
 
 			return this.success({ data: row.preferences })
 		} catch (error) {
