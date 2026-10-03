@@ -1507,6 +1507,14 @@ a {
   border: 1px solid var(--border-subtle);
 }
 
+/* Tampilan cetak beberapa tab dirender di luar layar (SHL-19). */
+.print-tabs-root {
+  position: fixed;
+  top: 0;
+  left: -100000px;
+  pointer-events: none;
+}
+
 /* ── catatan kaki ──────────────────────────────────────────────────────── */
 
 .document-body sup[data-type='footnote-ref'] {
@@ -2102,6 +2110,11 @@ html.dark .document-body .comment-mark--resolved:not(.comment-mark--active):hove
   .document-body .comment-mark {
     background: none;
     border-bottom: none;
+  }
+
+  /* Cetak beberapa tab (SHL-19): hanya tampilan tab-tab pilihan yang dicetak. */
+  body.printing-tabs .document-print-root:not(.print-tabs-root .document-print-root) {
+    display: none !important;
   }
 
   /*

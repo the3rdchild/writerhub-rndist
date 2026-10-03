@@ -7,6 +7,7 @@ import { useDocument } from '@/features/document/document-context'
 import { download, safeFilename } from '@/features/document/download'
 import { exportDocx } from '@/features/document/export-docx'
 import { useDocumentImport } from '@/features/document/import-context'
+import { plainTextOfTabs } from '@/features/document/plain-text-export'
 import { prepareForExport } from '@/features/document/prepare-export'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { readFurnitureContentJson } from '@/features/editor/page-furniture/page-furniture-ydoc'
@@ -14,9 +15,10 @@ import { usePageFurniture } from '@/features/editor/page-furniture/use-page-furn
 import { pageGeometry } from '@/features/editor/page-geometry'
 import { usePageSetup } from '@/features/editor/use-page-setup'
 import { useTypography } from '@/features/editor/use-typography'
-import { useSessions } from '@/features/sessions/session-context'
+import { sessionLabel, useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { useShortcutLabel } from '@/features/shortcuts/use-shortcuts'
+import { buildSchema, fragmentToJSON } from '@/features/sync/serialize'
 import { Item, Menu, run } from './menu-shell'
 
 export function FileMenu() {
@@ -32,8 +34,18 @@ export function FileMenu() {
 	const keys = useShortcutLabel()
 	const [exporting, setExporting] = useState(false)
 
-	const downloadText = () => {
-		download(new Blob([state.text], { type: 'text/plain;charset=utf-8' }), safeFilename(state.title, 'txt'))
+	/* Teks polos tab ini atau semua tab; dulu hanya tab aktif, tanpa pilihan (SHL-19). */
+	const downloadText = (allTabs: boolean) => {
+		const chosen = allTabs ? sessions : sessions.filter((tab) => tab.id === activeId)
+		const schema = buildSchema()
+		const text = plainTextOfTabs(
+			chosen.map((tab) => ({
+				title: sessionLabel(tab),
+				doc:
+					tab.id === activeId && editor ? editor.state.doc : schema.nodeFromJSON(fragmentToJSON(doc, tab.id)),
+			})),
+		)
+		download(new Blob([text], { type: 'text/plain;charset=utf-8' }), safeFilename(state.title, 'txt'))
 	}
 
 	const downloadDocx = async () => {
@@ -111,9 +123,20 @@ export function FileMenu() {
 								>
 									Word (.docx)
 								</Item>
-								<Item icon={<FileText className="h-4 w-4" />} onSelect={() => run(close, downloadText)}>
+								<Item
+									icon={<FileText className="h-4 w-4" />}
+									onSelect={() => run(close, () => downloadText(false))}
+								>
 									Teks polos (.txt)
 								</Item>
+								{sessions.length > 1 && (
+									<Item
+										icon={<FileText className="h-4 w-4" />}
+										onSelect={() => run(close, () => downloadText(true))}
+									>
+										Plain text, all tabs (.txt)
+									</Item>
+								)}
 							</>
 						)}
 					</Submenu>

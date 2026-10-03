@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePanels } from '@/features/analysis/panel-context'
+import { prepareForExport } from '@/features/document/prepare-export'
+import { useEditorInstance } from '@/features/editor/editor-context'
 import { ZOOM_LEVELS } from '@/features/editor/page-geometry'
 import { useSearch } from '@/features/editor/search-context'
 import { useSessions } from '@/features/sessions/session-context'
@@ -34,6 +36,7 @@ export function useAppShortcuts(): void {
 	const { settings, update, toggleFocusMode, setShortcutsOpen, setPendingTabDelete } = useSettings()
 	const { sessions, activeId, newSession, selectSession } = useSessions()
 	const { openSearch, openPanelSearch } = useSearch()
+	const { editor } = useEditorInstance()
 
 	const handlers = useMemo<Partial<Record<ShortcutId, () => void>>>(() => {
 		const stepTab = (direction: 1 | -1) => () => {
@@ -59,6 +62,12 @@ export function useAppShortcuts(): void {
 			'view.zoomReset': () => update({ zoom: 1 }),
 			'view.shortcuts': () => setShortcutsOpen(true),
 
+			/* Ctrl+P lewat jalur yang sama dengan File › Cetak: diagram dan blok
+			 * turunan disiapkan dulu. Dulu tidak ada penangannya, jadi cetak
+			 * bawaan peramban yang berjalan tanpa persiapan itu. */
+			'doc.print': () => {
+				void prepareForExport(editor).then(() => window.print())
+			},
 			'doc.find': openSearch,
 			'doc.findReplace': openPanelSearch,
 
@@ -84,6 +93,7 @@ export function useAppShortcuts(): void {
 		newSession,
 		selectSession,
 		setPendingTabDelete,
+		editor,
 	])
 
 	useEffect(

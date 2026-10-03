@@ -155,7 +155,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
 		category: 'Dokumen',
 		owner: 'editor',
 	},
-	{ id: 'doc.print', keys: 'Mod-p', label: 'Cetak', category: 'Dokumen', owner: 'tiptap' },
+	{ id: 'doc.print', keys: 'Mod-p', label: 'Cetak', category: 'Dokumen', owner: 'app' },
 	{ id: 'doc.find', keys: 'Mod-f', label: 'Cari di dokumen', category: 'Dokumen', owner: 'app' },
 	{
 		id: 'doc.findReplace',
