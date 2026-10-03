@@ -49,11 +49,23 @@ const ENV: Record<string, string> = {
  * Salinan lokal di memori dengan perilaku yang sama dengan versi IndexedDB.
  * `discardDelayMs` meniru IndexedDB yang lambat membuang salinan basi.
  */
-function memoryStore(discardDelayMs = 0): CollabLocalStore & { epochs: Map<string, string> } {
+function memoryStore(discardDelayMs = 0): CollabLocalStore & {
+	epochs: Map<string, string>
+	/** Pembaruan yang ditulis halaman lain ke salinan yang sama (dan belum sampai ke room). */
+	inject(tabId: string, epoch: string, update: Uint8Array): void
+} {
 	const epochs = new Map<string, string>()
 	const data = new Map<string, Uint8Array[]>()
 	return {
 		epochs,
+		inject(tabId, epoch, update) {
+			const key = `${tabId}:${epoch}`
+			data.set(key, [...(data.get(key) ?? []), update])
+		},
+		async read(tabId, epoch) {
+			const updates = data.get(`${tabId}:${epoch}`)
+			return updates && updates.length > 0 ? Y.mergeUpdates(updates) : null
+		},
 		storedEpoch: (tabId) => epochs.get(tabId) ?? null,
 		async attach(tabId, epoch, doc) {
 			const key = `${tabId}:${epoch}`
@@ -189,6 +201,29 @@ describe.skipIf(!enabled)('CollabSession melawan API sungguhan', () => {
 		expect(textOf(a.doc)).not.toContain('akan-hilang')
 		expect(a.epoch).not.toBe(firstEpoch)
 		expect(store.epochs.get(tabId)).toBe(a.epoch ?? 'x')
+	}, 30_000)
+
+	test('cadangan sebelum salinan dibuang memuat juga suntingan luring halaman lain di salinan yang sama', async () => {
+		const tabId = await createTab('BERSAMA')
+		const versions = await apiJson<Array<{ id: string }>>(api.url, `/api/v1/tabs/${tabId}/versions`)
+		const store = memoryStore()
+		const a = session(tabId, store)
+		await a.start()
+		await synced(a)
+		const epoch = a.epoch ?? 'x'
+		// Tab peramban lain menulis saat luring ke salinan IndexedDB yang sama; belum sampai ke room.
+		const otherPage = new Y.Doc()
+		Y.applyUpdate(otherPage, Y.encodeStateAsUpdate(a.doc))
+		const before = Y.encodeStateVector(otherPage)
+		append(otherPage, 'LURING-HALAMAN-LAIN')
+		store.inject(tabId, epoch, Y.encodeStateAsUpdate(otherPage, before))
+
+		const discarded: string[] = []
+		a.on('discard', (doc) => discarded.push(textOf(doc)))
+		await apiJson(api.url, `/api/v1/tabs/${tabId}/versions/${versions[0].id}/restore`, { method: 'POST' })
+		await waitFor(() => discarded.length === 1 && a.phase === 'synced', 'salinan dibuang dan tersinkron lagi')
+		expect(discarded[0]).toContain('BERSAMA')
+		expect(discarded[0]).toContain('LURING-HALAMAN-LAIN')
 	}, 30_000)
 
 	test('salinan lokal dari generasi lama dibuang sebelum menyambung', async () => {

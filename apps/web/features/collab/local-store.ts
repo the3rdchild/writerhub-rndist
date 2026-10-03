@@ -15,6 +15,12 @@ export interface CollabLocalStore {
 	storedEpoch(tabId: string): string | null
 	/** Muat salinan generasi `epoch` ke `doc`, lalu simpan setiap perubahannya. Nilai baliknya melepas. */
 	attach(tabId: string, epoch: string, doc: Y.Doc): Promise<() => void>
+	/**
+	 * Isi salinan generasi `epoch` yang tersimpan, sebagai satu pembaruan Yjs;
+	 * null bila kosong atau tidak terbaca. Memuat juga tulisan halaman lain
+	 * (tab peramban lain) ke salinan yang sama.
+	 */
+	read(tabId: string, epoch: string): Promise<Uint8Array | null>
 	/** Buang salinan generasi `epoch` (pemanggil sudah mencadangkannya bila perlu). */
 	discard(tabId: string, epoch: string): Promise<void>
 }
@@ -59,6 +65,21 @@ export const indexeddbCollabStore: CollabLocalStore = {
 		writeEpochs({ ...readEpochs(), [tabId]: epoch })
 		return () => {
 			void Promise.resolve(persistence.destroy()).catch(() => {})
+		}
+	},
+
+	async read(tabId, epoch) {
+		const scratch = new Y.Doc()
+		const persistence = new IndexeddbPersistence(databaseName(tabId, epoch), scratch)
+		try {
+			const available = await new Promise<boolean>((resolve) => {
+				watchPersistence(persistence, { onReady: () => resolve(true), onUnavailable: () => resolve(false) })
+			})
+			if (!available || scratch.store.clients.size === 0) return null
+			return Y.encodeStateAsUpdate(scratch)
+		} finally {
+			await Promise.resolve(persistence.destroy()).catch(() => {})
+			scratch.destroy()
 		}
 	},
 

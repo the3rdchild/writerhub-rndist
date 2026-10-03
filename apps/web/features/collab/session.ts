@@ -403,6 +403,21 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 	 * disambungkan lagi: isinya dicadangkan lewat `discard`, lalu sesi mulai
 	 * dengan Y.Doc kosong dan pemilik sesi mengikat ulang editornya (`doc`).
 	 */
+	/** `doc` beserta isi salinan tersimpan generasi `epoch` (termasuk tulisan halaman lain). */
+	private async withStoredCopy(doc: Y.Doc, epoch: string): Promise<Y.Doc> {
+		let stored: Uint8Array | null = null
+		try {
+			stored = (await this.options.localStore?.read(this.tabId, epoch)) ?? null
+		} catch {
+			stored = null
+		}
+		if (!stored) return doc
+		const merged = new Y.Doc()
+		Y.applyUpdate(merged, Y.encodeStateAsUpdate(doc))
+		Y.applyUpdate(merged, stored)
+		return merged
+	}
+
 	private async restartWithFreshDoc(): Promise<void> {
 		const previous = this.doc
 		const provider = this.provider
@@ -412,9 +427,14 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 		this.detachStore = null
 		const previousEpoch = this.attachedEpoch ?? (this.docEpoch || null)
 		this.attachedEpoch = null
+		// Y.Doc lama tidak menerima suntingan lagi: editor menunggu Y.Doc baru (hanya-baca).
+		this.setReady(false)
 
 		if (previousEpoch && this.options.localStore) {
-			if (hasContent(previous)) this.emit('discard', [previous, previousEpoch])
+			// Salinan tersimpan dibagi semua tab peramban; yang dicadangkan juga
+			// tulisan luring halaman lain di sana, bukan hanya Y.Doc di memori ini.
+			const backup = await this.withStoredCopy(previous, previousEpoch)
+			if (hasContent(backup)) this.emit('discard', [backup, previousEpoch])
 			await this.options.localStore.discard(this.tabId, previousEpoch)
 		} else if (hasContent(previous)) {
 			this.emit('discard', [previous, previousEpoch ?? ''])

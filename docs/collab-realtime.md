@@ -296,6 +296,10 @@ karena pembaruan baru diterbitkan ke Redis setelah tercatat. Pada 100 klien seba
   dari naskah server yang diambil saat diminta (`share-seed.ts`), tidak pernah dari muatan halaman: muatan itu
   basi setelah pemilik memulihkan versi, dan semaian darinya menimpa versi yang baru dipulihkan. Bila naskah
   server tidak terambil, tamu tidak menyemai.
+- **Yang dicadangkan saat salinan dibuang** adalah Y.Doc di memori DIGABUNG dengan salinan tersimpan generasi itu
+  (`CollabLocalStore.read`): salinan IndexedDB dibagi semua tab peramban, jadi tulisan luring halaman lain yang
+  belum sampai ke room ikut tercadangkan sebelum basis datanya dihapus. Sejak reset diterima, editor menunggu
+  Y.Doc baru (hanya-baca) supaya tidak ada suntingan yang masuk ke salinan yang akan dibuang.
 - **Cadangan WAJIB** saat salinan dibuang (`backup.ts`): versi lokal + versi di riwayat tab server berlabel
   "Unsynced copy kept before reset" (`POST /tabs/:id/versions` kini menerima `content`), lalu pemberitahuan. Bila
   riwayat server tidak terjangkau (atau tamu tautan), teksnya bisa disalin dari pemberitahuan. Versi bernama dan
