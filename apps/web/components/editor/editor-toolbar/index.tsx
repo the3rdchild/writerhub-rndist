@@ -142,7 +142,8 @@ export function EditorToolbar({
 				onClick={() => editor?.chain().focus().toggleCallout('info').run()}
 			/>
 			{/* Butuh seleksi, sama seperti butir Kolom di menu Format - kecuali saat
-			    sudah berada di dalam kolom, di mana tombolnya bertugas keluar lagi. */}
+			    sudah berada di dalam kolom: di sana tombolnya tampil aktif dan
+			    menekannya mengembalikan wilayah itu ke satu kolom (KOL-10). */}
 			<IconButton
 				icon={Columns2}
 				label="Two columns"

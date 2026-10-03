@@ -2,6 +2,8 @@
 
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
+import { PRINT_CLASS } from './column-print'
+import { CLONE_CLASS } from './column-render'
 import { DEFAULT_TAB_PT } from './tab-node'
 import type { TabStop } from './tab-stops'
 
@@ -65,19 +67,20 @@ function followingWidth(tab: HTMLElement, paragraph: HTMLElement): number {
  * menggeser posisi tab berikutnya, jadi tiap tab diukur sesudah yang
  * sebelumnya ditetapkan.
  *
- * Posisi diukur dari tepi kiri area teks induknya (halaman atau sel tabel),
- * seperti tab stop Word yang dihitung dari margin kiri. Zoom kanvas memakai
- * transform, jadi ukuran layar dibagi skalanya.
+ * Posisi diukur dari tepi kiri area teks tempat paragraf berdiri - halaman,
+ * sel tabel, atau KOLOM di wilayah berkolom - seperti tab stop Word yang
+ * dihitung dari margin kiri kolomnya. Tepi itu adalah tepi kiri paragraf
+ * dikurangi margin kirinya (indentasi kiri = margin kiri paragraf): blok di
+ * wilayah berkolom diposisikan mutlak per kolom, jadi induknya tidak lagi
+ * menunjukkan tepi kolom. Zoom kanvas memakai transform, jadi ukuran layar
+ * dibagi skalanya.
  */
 function layoutParagraph(paragraph: HTMLElement): void {
 	const tabs = Array.from(paragraph.querySelectorAll<HTMLElement>('[data-tab]'))
 	if (tabs.length === 0) return
-	const container = paragraph.parentElement ?? paragraph
-	const box = container.getBoundingClientRect()
-	const scale = container.offsetWidth > 0 ? box.width / container.offsetWidth : 1
-	const style = getComputedStyle(container)
-	const origin =
-		box.left + (Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.borderLeftWidth)) * scale
+	const box = paragraph.getBoundingClientRect()
+	const scale = paragraph.offsetWidth > 0 ? box.width / paragraph.offsetWidth || 1 : 1
+	const origin = box.left - (Number.parseFloat(getComputedStyle(paragraph).marginLeft) || 0) * scale
 	const stops = readStops(paragraph)
 
 	for (const tab of tabs) tab.style.width = '0px'
@@ -88,11 +91,18 @@ function layoutParagraph(paragraph: HTMLElement): void {
 	}
 }
 
+/*
+ * Salinan potongan kolom (layar) dan salinan cetak wilayah berkolom membawa
+ * lebar tab dari blok aslinya; mengukurnya sendiri salah - salinan cetak
+ * tidak tampil di layar saat `beforeprint`, jadi kotaknya nol.
+ */
+const COPY_SELECTOR = `.${CLONE_CLASS}, .${PRINT_CLASS}`
+
 export function layoutTabs(root: HTMLElement): void {
 	const paragraphs = new Set<HTMLElement>()
 	for (const tab of Array.from(root.querySelectorAll<HTMLElement>('[data-tab]'))) {
 		const paragraph = tab.closest('p')
-		if (paragraph) paragraphs.add(paragraph)
+		if (paragraph && !paragraph.closest(COPY_SELECTOR)) paragraphs.add(paragraph)
 	}
 	for (const paragraph of paragraphs) layoutParagraph(paragraph)
 }

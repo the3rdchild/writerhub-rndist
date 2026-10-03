@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
+import { Schema } from '@tiptap/pm/model'
 import type { PageNumbering } from '@writer-hub/shared'
+import { assignFootnotes, type FootnoteSizes } from './footnote-layout'
 import { formatSheetNumbers } from './page-furniture/numbering'
 import { DEFAULT_PAGE_SETUP, pageGeometry, sameSheetGeometry } from './page-geometry'
 import {
@@ -9,10 +11,13 @@ import {
 	type Measurement,
 	pageBlockRange,
 	pageOfPos,
+	type SectionGeometry,
 	type SheetGeometry,
 	sameSheets,
+	sectionContinuity,
 	withPrintVariants,
 } from './pagination'
+import { sectionSpans } from './section-break'
 
 const geometry = pageGeometry() // A4, margin 1 inci
 const { contentHeight, pageStride } = geometry
@@ -935,5 +940,168 @@ describe('pemisah bagian di kertas cetak', () => {
 			{ pos: 10, section: 0 },
 			{ pos: 12, section: 1, variant: 'o' },
 		])
+	})
+})
+
+describe('sectionContinuity - pembatas di awal naskah tidak membuka lembar baru (KOL-4)', () => {
+	const schema = new Schema({
+		nodes: {
+			doc: { content: 'block+' },
+			paragraph: { group: 'block', content: 'text*' },
+			text: {},
+			sectionBreak: {
+				group: 'block',
+				attrs: { pageSetup: { default: null }, columns: { default: null }, continuous: { default: false } },
+			},
+		},
+	})
+	const para = () => schema.node('paragraph', null, [schema.text('isi')])
+	const brk = (attrs: object) => schema.node('sectionBreak', attrs)
+
+	test('pembatas "next page" di posisi 0 dianggap menerus - halaman 1 tidak dikosongkan', () => {
+		const doc = schema.node('doc', null, [brk({ columns: { count: 2 }, continuous: false }), para()])
+		expect(sectionContinuity(doc, sectionSpans(doc))).toEqual([false, true])
+	})
+
+	test('pembatas "next page" sesudah isi tetap membuka lembar baru', () => {
+		const doc = schema.node('doc', null, [para(), brk({ columns: { count: 2 }, continuous: false }), para()])
+		expect(sectionContinuity(doc, sectionSpans(doc))).toEqual([false, false])
+	})
+
+	test('di awal naskah pun, geometri lembar yang berganti tetap butuh lembar sendiri', () => {
+		const doc = schema.node('doc', null, [
+			brk({ pageSetup: { orientation: 'landscape' }, continuous: false }),
+			para(),
+		])
+		expect(sectionContinuity(doc, sectionSpans(doc))).toEqual([false, false])
+	})
+})
+
+/*
+ * Catatan kaki × wilayah berkolom. Wilayah diukur sebagai SATU ukuran
+ * swa-paginasi (penjaga ruangnya, `measureBlocks`): tingginya sudah memuat
+ * celah antarlembar di dalamnya (`internal`), dan blok sesudahnya diukur
+ * tanpa celah itu. Catatan dari rujukan di dalam wilayah dipesan di lembar
+ * tempat wilayahnya berakhir.
+ */
+describe('catatan kaki di wilayah berkolom (TKS-1 × KOL)', () => {
+	const sizes = (heights: Record<number, number>, separator = 12): FootnoteSizes => ({
+		heights: new Map(Object.entries(heights).map(([pos, height]) => [Number(pos), height])),
+		separator,
+	})
+	const gap = pageStride - contentHeight
+	const continuous = (pos: number, index: number): SectionGeometry => ({
+		pos,
+		geometry,
+		continuous: true,
+		index,
+	})
+	const sectionBreak = (pos: number, top: number): Measurement => ({
+		pos,
+		top,
+		bottom: top,
+		isBreak: false,
+		isSectionBreak: true,
+		kind: 'block',
+	})
+	const block = (pos: number, top: number, height: number): Measurement => ({
+		pos,
+		top,
+		bottom: top + height,
+		isBreak: false,
+		kind: 'block',
+	})
+	/** Wilayah dari `top` sepanjang `flow` piksel naskah, melintasi `sheetsCrossed` celah lembar. */
+	const region = (
+		pos: number,
+		end: number,
+		top: number,
+		flow: number,
+		sheetsCrossed: number,
+	): Measurement => ({
+		pos,
+		top,
+		bottom: top + flow + sheetsCrossed * gap,
+		isBreak: false,
+		kind: 'block',
+		selfPaginate: true,
+		internal: sheetsCrossed * gap,
+		end,
+	})
+	const sections = [continuous(10, 1), continuous(80, 2)]
+
+	test('rujukan di dalam wilayah menempel ke ukuran wilayahnya', () => {
+		const blocks = [
+			block(0, 0, 100),
+			sectionBreak(10, 100),
+			region(11, 80, 100, 300, 0),
+			sectionBreak(80, 400),
+			block(81, 400, 50),
+		]
+		assignFootnotes(blocks, [5, 20, 60, 85])
+		expect(blocks.map((entry) => entry.footnotes ?? [])).toEqual([[5], [], [20, 60], [], [85]])
+	})
+
+	test('wilayah dua lembar: catatannya dipesan sekali, di dasar lembar tempat wilayahnya berakhir', () => {
+		const flow = contentHeight - 100 + 300
+		const after = 100 + flow
+		const blocks = [
+			block(0, 0, 100),
+			sectionBreak(10, 100),
+			{ ...region(11, 80, 100, flow, 1), footnotes: [20, 60] },
+			sectionBreak(80, after),
+			// Muat sendirian di lembar 2 (sisa 50px), tapi tidak bersama catatan wilayah (72px).
+			block(81, after, contentHeight - 350),
+		]
+		const footnotes = sizes({ 20: 30, 60: 30 })
+
+		expect(computeSpacers(blocks, geometry, sections).spacers).toEqual([])
+
+		const { spacers, pageCount, trailingNotes } = computeSpacers(blocks, geometry, sections, null, footnotes)
+		expect(pageCount).toBe(3)
+		// Lembar di dalam wilayah tidak menutup catatan apa pun: satu-satunya spacer
+		// ada di blok sesudah wilayah, dan ia membawa SEMUA catatan wilayah, sekali.
+		expect(spacers.map((spacer) => spacer.pos)).toEqual([81])
+		const notes = spacers[0].notes
+		expect(notes?.refs).toEqual([20, 60])
+		expect(notes?.height).toBe(12 + 30 + 30)
+		// Area catatan berakhir tepat di dasar isi lembar 2.
+		const flowTop = after + gap
+		expect(flowTop + (notes?.before ?? 0) + (notes?.height ?? 0)).toBeCloseTo(pageStride + contentHeight)
+		expect(trailingNotes).toBeUndefined()
+	})
+
+	test('wilayah tiga lembar tidak menggandakan catatan', () => {
+		const flow = 2 * contentHeight
+		const blocks = [
+			sectionBreak(10, 0),
+			{ ...region(11, 80, 0, flow, 2), footnotes: [20, 40, 60] },
+			sectionBreak(80, flow),
+			{ ...block(81, flow, 100), footnotes: [85] },
+		]
+		const footnotes = sizes({ 20: 20, 40: 20, 60: 20, 85: 20 })
+		const { spacers, trailingNotes } = computeSpacers(
+			blocks,
+			geometry,
+			[continuous(10, 1), continuous(80, 2)],
+			null,
+			footnotes,
+		)
+		const shown = [...spacers.flatMap((spacer) => spacer.notes?.refs ?? []), ...(trailingNotes?.refs ?? [])]
+		expect(shown.sort((a, b) => a - b)).toEqual([20, 40, 60, 85])
+	})
+
+	test('wilayah sebagai isi terakhir: area penutup menyusul blok TERAKHIR wilayahnya', () => {
+		const blocks = [
+			block(0, 0, 100),
+			sectionBreak(10, 100),
+			{ ...region(11, 80, 100, 300, 0), footnotes: [20] },
+			sectionBreak(80, 400),
+		]
+		const { spacers, trailingNotes } = computeSpacers(blocks, geometry, sections, null, sizes({ 20: 30 }))
+		expect(spacers).toEqual([])
+		expect(trailingNotes?.refs).toEqual([20])
+		// Bukan 11 (awal wilayah): urutan bacanya isi wilayah dulu, baru catatannya.
+		expect(trailingNotes?.afterPos).toBe(79)
 	})
 })

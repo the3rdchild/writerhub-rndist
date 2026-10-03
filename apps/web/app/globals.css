@@ -213,6 +213,22 @@ a {
   pointer-events: none;
 }
 
+/*
+ * Titik nol paginasi (KOL-14).
+ *
+ * Paginasi dan tata letak kolom mengukur dengan `offsetTop` terhadap badan
+ * naskah, dan menganggap y = 0 di situ adalah puncak area teks lembar pertama.
+ * Tanpa konteks format sendiri, margin atas blok pertama (judul 24pt, spasi
+ * sebelum paragraf) MERAMBAT keluar dan menggeser seluruh badan naskah ke
+ * bawah - tiap lembar lalu terisi 10-30 px melewati margin bawahnya. Di kertas
+ * peramban memaginasi sendiri, jadi aturan ini cukup untuk layar.
+ */
+@media screen {
+  .document-body {
+    display: flow-root;
+  }
+}
+
 /* ── perabot halaman (header/footer) ───────────────────────────────────── */
 
 /* Area klik-ganda untuk masuk mode sunting; menempati pita margin atas/bawah
@@ -475,6 +491,63 @@ a {
 .document-ruler__indent--left::before,
 .document-ruler__indent--right::before {
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+/* Tab stop paragraf (TKS-18): siku kecil di bawah angka seperti Word -
+   L kiri, ⊥ tengah, ⅃ kanan. Batang tegaknya tepat di posisi tab stop. */
+.document-ruler__tab {
+  position: absolute;
+  bottom: 2px;
+  width: 11px;
+  height: 9px;
+  margin-left: -5.5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+.document-ruler__tab::before,
+.document-ruler__tab::after {
+  content: '';
+  position: absolute;
+  background: var(--foreground);
+  transition: background-color 0.15s ease;
+}
+.document-ruler__tab::before {
+  left: 50%;
+  top: 1px;
+  bottom: 1px;
+  width: 2px;
+  margin-left: -1px;
+}
+.document-ruler__tab::after {
+  bottom: 1px;
+  height: 2px;
+}
+.document-ruler__tab--left::after {
+  left: 50%;
+  width: 5px;
+  margin-left: -1px;
+}
+.document-ruler__tab--right::after {
+  right: 50%;
+  width: 5px;
+  margin-right: -1px;
+}
+.document-ruler__tab--center::after {
+  left: 1px;
+  right: 1px;
+}
+.document-ruler__tab:hover::before,
+.document-ruler__tab:hover::after,
+.document-ruler__tab:focus-visible::before,
+.document-ruler__tab:focus-visible::after {
+  background: var(--accent);
+}
+/* Diseret menjauhi penggaris: akan dibuang saat dilepas. */
+.document-ruler__tab--detached {
+  opacity: 0.3;
 }
 
 /* ── penggaris kiri (vertikal, §A3) ────────────────────────────────────────
@@ -1633,27 +1706,29 @@ a {
 }
 
 /*
- * Tata letak kolom di layar dihitung plugin (columns.ts): tiap blok diposisikan
- * mutlak ke petak (lembar, kolom)-nya, jadi tidak ada isi yang menyeberangi
- * batas lembar. Posisi dan tinggi datang sebagai style inline dari dekorasi -
+ * Tata letak kolom di layar dihitung plugin (columns.ts + column-flow.ts): tiap
+ * blok wilayah diposisikan mutlak ke petak (lembar, kolom)-nya, dan blok yang
+ * menyeberangi dasar kolom dipotong per baris - blok aslinya dipangkas
+ * (`clip-path`) dan potongan lainnya digambar salinan (`.columns-clone`).
+ * Posisi, tinggi, dan pangkasnya datang sebagai style inline dari dekorasi -
  * di sini hanya sifat yang tidak bergantung angka.
  */
-.document-body .columns-flowed {
-  position: relative;
-  /* Multi-kolom CSS pada pembungkus yang sama akan memecah anak-anak yang sudah
-     diposisikan mutlak, jadi ia dimatikan selama tata letak sendiri berlaku.
-     `!important` karena `column-count` node ditulis inline. */
-  column-count: initial !important;
-}
 .document-body .columns-item {
   /* Kolom sempit: kata panjang tidak boleh menonjol keluar petaknya. */
   overflow-wrap: break-word;
 }
-.document-body .columns-sheet-gap {
-  position: absolute;
-  left: 0;
-  width: 0;
+/* Salinan visual potongan: bukan naskah (aria-hidden, tidak disunting), tapi
+   kliknya dipetakan ke blok asli (column-pointer.ts), jadi rupanya tetap teks. */
+.document-body .columns-clone {
+  overflow-wrap: break-word;
   user-select: none;
+  cursor: text;
+}
+/* Sorotan seleksi yang jatuh di salinan - warnanya sama dengan ::selection. */
+.document-body .columns-clone-selection {
+  position: absolute;
+  z-index: 1;
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
   pointer-events: none;
 }
 /* Pengganjal ruang rentang section berkolom (§P8): tak terlihat, tak bisa
@@ -1662,6 +1737,11 @@ a {
 .document-body .columns-region-space {
   user-select: none;
   pointer-events: none;
+}
+/* Salinan cetak wilayah (column-print.ts) hanya hidup di antara beforeprint
+   dan afterprint, dan hanya untuk kertas. */
+.document-body .columns-print {
+  display: none;
 }
 /* Sisa struktur kolom lama - dibiarkan mengalir sebagai blok biasa. */
 .document-body div[data-type='col'] { min-width: 0; }
@@ -1817,11 +1897,16 @@ a {
   border-top: 1px dashed var(--border-strong);
 }
 
+/*
+ * Label di BAWAH garis (KOL-18). Dulu ia menjulur ke atas garis dan menutupi
+ * baris terakhir paragraf sebelumnya; sesudah pemenggal, sisa lembar (atau
+ * kolom) memang kosong, jadi di bawah garislah tempat yang tidak menimpa teks.
+ */
 .document-body .page-break::after {
-  content: 'Halaman baru';
+  content: 'Page break';
   position: absolute;
   right: 0;
-  top: -0.7em;
+  top: 2px;
   padding-left: 0.6em;
   background: var(--surface-raised);
   font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
@@ -1854,10 +1939,10 @@ a {
   border-top: 1px dotted var(--border-strong);
 }
 .document-body .column-break::after {
-  content: 'Kolom baru';
+  content: 'Column break';
   position: absolute;
   right: 0;
-  top: -0.7em;
+  top: 2px;
   padding-left: 0.6em;
   background: var(--surface-raised);
   font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
@@ -1889,17 +1974,24 @@ a {
   top: 0;
   border-top: 3px double var(--border-strong);
 }
+/*
+ * Label pembatas section duduk di MARGIN KANAN lembar, sejajar garisnya
+ * (KOL-8, KOL-18). Di atas garis ia menimpa baris terakhir paragraf
+ * sebelumnya, di bawahnya menimpa baris pertama wilayah berkolom yang dibuka
+ * pembatas menerus - margin satu-satunya tempat yang selalu kosong, dan dari
+ * sana pembatasnya tetap kelihatan.
+ */
 .document-body .section-break::after {
   content: 'Section break';
   position: absolute;
-  right: 0;
-  top: -0.7em;
-  padding-left: 0.6em;
-  background: var(--surface-raised);
+  left: calc(100% + 10px);
+  top: -6px;
+  width: 68px;
   font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
-  font-size: 10px;
-  line-height: 1.4;
+  font-size: 9px;
+  line-height: 1.25;
   color: var(--foreground-faint);
+  pointer-events: none;
 }
 .document-body .section-break.ProseMirror-selectednode::before {
   border-top-color: var(--accent);
@@ -2594,6 +2686,11 @@ html.light .range-highlight {
     margin: 0;
     border: 0;
   }
+  /* Pembatas di awal naskah tidak memenggal apa pun - belum ada isi sebelum
+     dia (KOL-4; padanan `sectionContinuity` di paginasi). */
+  .document-body > .section-break:first-child {
+    break-after: auto;
+  }
   .document-body .section-break::before,
   .document-body .section-break::after {
     display: none;
@@ -2627,6 +2724,12 @@ html.light .range-highlight {
      mengganggu: baris kosongnya menyisakan lubang dan headernya jadi ganda. */
   .document-body .page-break-row,
   .document-body .table-header-repeat {
+    display: none !important;
+  }
+  /* Kepala tabel yang diulang di kertas (TBL-8): salinannya di `<thead>`
+     (table-print-header.ts) yang diulang peramban tiap halaman, jadi baris
+     aslinya di `<tbody>` disembunyikan supaya tidak tercetak dua kali. */
+  .document-body tr.table-header-print-source {
     display: none !important;
   }
 
@@ -2667,8 +2770,15 @@ html.light .range-highlight {
    * Kolom: di layar petaknya dihitung sendiri karena lembar di sana cuma
    * gambar latar pada satu aliran menerus. Di kertas halamannya sungguhan,
    * dan multi-kolom CSS memang mengalir dari lembar ke lembar dengan benar -
-   * termasuk memecah paragraf di batas kolom, yang tidak bisa dilakukan tata
-   * letak layar. Jadi di sini perhitungan itu dilepas seluruhnya.
+   * termasuk memecah paragraf di batas kolom. Jadi di sini perhitungan layar
+   * dilepas seluruhnya (KOL-1).
+   *
+   * Wilayah section tidak punya pembungkus, jadi `column-count` dipasang pada
+   * salinan cetaknya (`.columns-print`, dibuat column-print.ts saat
+   * beforeprint) di dalam penjaga ruang wilayah. Selama salinan itu ada, blok
+   * asli dan salinan layar disembunyikan - isinya tercetak tepat sekali.
+   * Tanpa salinan (cetak yang tidak memicu beforeprint) blok asli kembali ke
+   * aliran biasa: satu kolom, tapi tidak ada isi yang hilang.
    */
   .document-body div[data-type='columns'] {
     position: static !important;
@@ -2680,17 +2790,28 @@ html.light .range-highlight {
     top: auto !important;
     left: auto !important;
     right: auto !important;
+    clip-path: none !important;
   }
-  /* Petak selebar pembungkus (§P4 lapis 3) ikut melintang penuh di kertas. */
-  .document-body .columns-span {
-    column-span: all;
-  }
-  .document-body .columns-sheet-gap {
+  .document-body:has(.columns-print) .columns-item,
+  .document-body .columns-clone {
     display: none !important;
   }
-  /* Pengganjal rentang section juga hanya penjaga ruang layar. */
+  /* Penjaga ruang hanya berarti di layar - kecuali ia sedang membawa salinan cetak. */
   .document-body .columns-region-space {
     display: none !important;
+  }
+  .document-body .columns-region-space:has(> .columns-print) {
+    display: block !important;
+    height: auto !important;
+  }
+  .document-body .columns-print {
+    display: block !important;
+    orphans: 2;
+    widows: 2;
+  }
+  /* Pindah kolom di dalam salinan: peramban yang memindah isi ke kolom berikutnya. */
+  .document-body .columns-print .column-break {
+    break-after: column;
   }
 
   /*
