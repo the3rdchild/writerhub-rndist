@@ -23,7 +23,7 @@ import {
 	encodeSyncUpdate,
 } from './protocol'
 import { CollabRoom, type RoomBus, type RoomHost, type RoomSettings, type RoomStore } from './room'
-import { snapshotOf, stateVectorCovers, stateVectorsEqual } from './state-vector'
+import { contentMarkCovers, contentMarkOf, contentMarksEqual, snapshotOf } from './state-vector'
 import type { DeriveResult, StoredCollabState } from './store'
 import type { CollabClaims } from './ticket'
 
@@ -38,7 +38,7 @@ const TAB = '0b5b9c1e-3f43-4c4e-9a43-6f0c2d0a7e11'
 
 class MemoryStore implements RoomStore {
 	readonly tabs = new Set<string>([TAB])
-	readonly heads = new Map<string, { epoch: string; contentSv: Uint8Array | null }>()
+	readonly heads = new Map<string, { epoch: string; contentMark: Uint8Array | null }>()
 	readonly logs = new Map<string, Array<{ id: number; epoch: string; update: Uint8Array }>>()
 	private nextId = 1
 	readonly content = new Map<string, Record<string, unknown>>()
@@ -53,7 +53,7 @@ class MemoryStore implements RoomStore {
 		const rows = (this.logs.get(tabId) ?? []).filter((row) => row.epoch === head.epoch)
 		return {
 			epoch: head.epoch,
-			contentSv: head.contentSv,
+			contentMark: head.contentMark,
 			updates: rows.map((row) => row.update),
 			rowCount: rows.length,
 		}
@@ -71,7 +71,7 @@ class MemoryStore implements RoomStore {
 		this.seedCalls += 1
 		if (!this.tabs.has(tabId)) return 'gone' as const
 		if (this.heads.has(tabId)) return 'conflict' as const
-		this.heads.set(tabId, { epoch, contentSv: null })
+		this.heads.set(tabId, { epoch, contentMark: null })
 		this.logs.set(tabId, [{ id: this.nextId++, epoch, update }])
 		return 'seeded' as const
 	}
@@ -79,13 +79,13 @@ class MemoryStore implements RoomStore {
 		tabId: string,
 		epoch: string,
 		content: Record<string, unknown>,
-		stateVector: Uint8Array,
+		mark: Uint8Array,
 	): Promise<DeriveResult> {
 		const head = this.heads.get(tabId)
 		if (!head || head.epoch !== epoch) return { result: 'stale' }
-		if (stateVectorsEqual(head.contentSv, stateVector)) return { result: 'unchanged' }
-		if (!stateVectorCovers(stateVector, head.contentSv)) return { result: 'behind' }
-		head.contentSv = stateVector
+		if (contentMarksEqual(head.contentMark, mark)) return { result: 'unchanged' }
+		if (!contentMarkCovers(mark, head.contentMark)) return { result: 'behind' }
+		head.contentMark = mark
 		this.content.set(tabId, content)
 		return { result: 'written', documentId: 'doc' }
 	}
@@ -249,6 +249,15 @@ class FakeClient {
 		fragment.insert(fragment.length, [paragraph])
 	}
 
+	/** Hapus paragraf yang memuat `text` - tanpa menyisipkan apa pun. */
+	erase(text: string): void {
+		const fragment = this.doc.getXmlFragment(COLLAB_FRAGMENT)
+		const index = fragment
+			.toArray()
+			.findIndex((node) => node instanceof Y.XmlElement && node.toArray().join('').includes(text))
+		if (index >= 0) fragment.delete(index, 1)
+	}
+
 	toServer(data: Uint8Array): void {
 		setTimeout(() => this.room.receive(this.conn, data), 0)
 	}
@@ -285,7 +294,7 @@ async function openRoom(bus: RoomBus, store: RoomStore, settings: Partial<RoomSe
 
 function seedStore(store: MemoryStore, text: string): string {
 	const epoch = randomUUID()
-	store.heads.set(TAB, { epoch, contentSv: null })
+	store.heads.set(TAB, { epoch, contentMark: null })
 	store.logs.set(TAB, [{ id: 0, epoch, update: paragraphUpdate(text) }])
 	return epoch
 }
@@ -470,12 +479,12 @@ describe('room kolaborasi', () => {
 		// menerima 'kalimat baru', lalu menulis suntingannya sendiri.
 		const isolated = await openRoom(new MemoryBus(new Hub()), store)
 		Y.applyUpdate(isolated.doc, paragraphUpdate('cabang lama'))
-		const before = store.heads.get(TAB)?.contentSv
+		const before = store.heads.get(TAB)?.contentMark
 		await isolated.derive()
 		// Ditolak sebagai 'behind', lalu room itu mengejar dari log dan
 		// menurunkan ulang dari state yang mencakup keduanya.
 		await sleep(80)
-		expect(stateVectorCovers(store.heads.get(TAB)?.contentSv ?? new Uint8Array(), before)).toBe(true)
+		expect(contentMarkCovers(store.heads.get(TAB)?.contentMark ?? new Uint8Array(), before)).toBe(true)
 		expect(JSON.stringify(store.content.get(TAB))).toContain('kalimat baru')
 	})
 
@@ -498,7 +507,7 @@ describe('room kolaborasi', () => {
 		const room = await openRoom(new MemoryBus(new Hub()), store)
 		const a = new FakeClient(room, 'editor').connect()
 		await sleep(20)
-		store.heads.set(TAB, { epoch: randomUUID(), contentSv: null })
+		store.heads.set(TAB, { epoch: randomUUID(), contentMark: null })
 		a.type('ke generasi lama')
 		await sleep(30)
 		expect(a.closed?.code).toBe(COLLAB_CLOSE.epoch)
@@ -586,5 +595,85 @@ describe('room kolaborasi', () => {
 		good.type('masih jalan')
 		await sleep(30)
 		expect(store.text()).toContain('masih jalan')
+	})
+})
+
+/*
+ * Hapusan Yjs tidak menaikkan state vector. Turunan yang hanya membandingkan
+ * state vector melewatkan "pemilik menghapus paragraf rahasia lalu berhenti
+ * mengetik": halaman berbagi, ekspor, dan obrolan AI tetap melihatnya.
+ */
+describe('turunan isi tab: hapusan', () => {
+	test('hapusan saja (tanpa sisipan apa pun) tetap sampai ke isi turunan', async () => {
+		const store = new MemoryStore()
+		seedStore(store, 'awal')
+		const room = await openRoom(new MemoryBus(new Hub()), store)
+		const owner = new FakeClient(room, 'editor').connect()
+		await sleep(20)
+		owner.type('RAHASIA')
+		await sleep(80)
+		expect(JSON.stringify(store.content.get(TAB))).toContain('RAHASIA')
+
+		owner.erase('RAHASIA')
+		await sleep(80)
+		expect(fragmentText(room.doc)).not.toContain('RAHASIA')
+		expect(JSON.stringify(store.content.get(TAB))).not.toContain('RAHASIA')
+	})
+
+	test('room yang dimuat menurunkan ulang bila log memuat hapusan yang belum diturunkan', async () => {
+		const store = new MemoryStore()
+		const epoch = randomUUID()
+		const source = new Y.Doc()
+		const fragment = source.getXmlFragment(COLLAB_FRAGMENT)
+		const first = new Y.XmlElement('paragraph')
+		first.insert(0, [new Y.XmlText('awal')])
+		const secret = new Y.XmlElement('paragraph')
+		secret.insert(0, [new Y.XmlText('RAHASIA')])
+		fragment.insert(0, [first, secret])
+		const seeded = Y.encodeStateAsUpdate(source)
+		// Turunan terakhir dibuat sebelum paragraf itu dihapus; proses yang
+		// mencatat hapusannya mati sebelum sempat menurunkan.
+		store.heads.set(TAB, { epoch, contentMark: contentMarkOf(source) })
+		store.content.set(TAB, { text: 'awal RAHASIA' })
+		const before = Y.encodeStateVector(source)
+		fragment.delete(1, 1)
+		const deletion = Y.encodeStateAsUpdate(source, before)
+		store.logs.set(TAB, [
+			{ id: 0, epoch, update: seeded },
+			{ id: 1, epoch, update: deletion },
+		])
+
+		await openRoom(new MemoryBus(new Hub()), store)
+		await sleep(80)
+		expect(JSON.stringify(store.content.get(TAB))).not.toContain('RAHASIA')
+	})
+
+	test('instance yang belum menerima hapusan tidak menulis turunan tanpa hapusan itu', async () => {
+		const store = new MemoryStore()
+		seedStore(store, 'awal')
+		// Dua instance yang saling terputus (bus berbeda) di atas log yang sama.
+		const roomA = await openRoom(new MemoryBus(new Hub()), store)
+		const roomB = await openRoom(new MemoryBus(new Hub()), store)
+		const a = new FakeClient(roomA, 'editor').connect()
+		const b = new FakeClient(roomB, 'editor').connect()
+		await sleep(20)
+		a.type('RAHASIA')
+		await sleep(80)
+		// B sempat mengejar sisipan itu dari log, tetapi tidak hapusannya.
+		await roomB.catchUp()
+		await sleep(20)
+		expect(fragmentText(b.doc)).toContain('RAHASIA')
+
+		a.erase('RAHASIA')
+		await sleep(80)
+		expect(JSON.stringify(store.content.get(TAB))).not.toContain('RAHASIA')
+
+		// State vector B mencakup yang tersimpan (ia punya sisipan yang lebih baru),
+		// tapi hapusan A tidak ada padanya.
+		b.type('baru dari B')
+		await sleep(150)
+		const content = JSON.stringify(store.content.get(TAB))
+		expect(content).toContain('baru dari B')
+		expect(content).not.toContain('RAHASIA')
 	})
 })

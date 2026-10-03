@@ -83,7 +83,8 @@ disambung ulang otomatis oleh y-websocket; `CollabSession` yang memutuskan.
 
 ## Persistensi
 
-- `collab_documents` (satu baris per tab yang sudah kolaboratif): `epoch`, `content_sv`, `seeded_by`.
+- `collab_documents` (satu baris per tab yang sudah kolaboratif): `epoch`, `content_sv` (tanda isi turunan
+  terakhir: `Y.encodeSnapshot`, yaitu state vector **dan** delete set), `seeded_by`.
 - `collab_updates`: log pembaruan Yjs, hanya ditambah. Pembaruan dari klien dikumpulkan ±100 ms lalu ditulis sebagai
   satu baris (gabungan `Y.mergeUpdates`).
 - **Tidak ada baca-ubah-tulis state per ketikan.** Naskah 20 MB yang ditulis ulang setiap 100 ms akan menenggelamkan
@@ -143,9 +144,14 @@ bahasa, tata letak tetap tersimpan).
   y-prosemirror + skema sungguhan untuk naskah kaya (tabel, daftar bersarang, mark bertumpuk berhash, simpul khusus).
 - Diturunkan 2 dtk setelah tenang, paling lambat 10 dtk (`COLLAB_DERIVE_*`), setelah antrean tulis habis. Juga
   menyentuh `documents.updated_at` dan snapshot versi berkala (setiap 10 menit, seperti PUT dulu).
-- **Penjaga state vector:** turunan hanya menimpa bila state vector-nya mencakup turunan tersimpan
-  (`collab_documents.content_sv`, dikunci `FOR UPDATE`). Proses yang tertinggal satu pesan pub/sub tidak bisa
-  menimpa isi yang lebih baru; ia justru tahu dirinya tertinggal, mengejar dari log, lalu menurunkan ulang.
+- **Penjaga tanda isi:** turunan hanya menimpa bila tandanya mencakup turunan tersimpan - setiap sisipan (state
+  vector) dan setiap hapusan (delete set) - (`collab_documents.content_sv`, dikunci `FOR UPDATE`). State vector
+  saja tidak cukup: hapusan Yjs tidak menaikkannya, sehingga "hapus paragraf lalu berhenti mengetik" tidak pernah
+  diturunkan, dan proses yang punya sisipan lebih baru tetapi belum menerima hapusan itu menulis isi tanpa
+  hapusannya. Proses yang tertinggal tahu dirinya tertinggal, mengejar dari log, lalu menurunkan ulang. Setiap
+  perubahan yang diterapkan room (dari klien, bus, atau log) menjadwalkan turunan, dan room yang dimuat
+  menurunkan ulang bila tanda log berbeda dari yang tersimpan; turunan ganda dari beberapa proses berakhir
+  `unchanged`. Tanda versi lama (state vector polos) dianggap tidak diketahui dan ditimpa turunan berikutnya.
 - Jalur server yang menulis isi sendiri - pulihkan versi, draf - menulis isi DAN membuang state Yjs dalam satu
   transaksi (`writeTabContentFromServer`), lalu room yang hidup memutus kliennya (4409). Satu transaksi itu penting:
   turunan room yang menyelip di antaranya akan menimpa isi baru, dan penyemai berikutnya mengisi room dari isi yang

@@ -20,7 +20,7 @@ import {
 	encodeSyncUpdate,
 	rewriteAwarenessUpdate,
 } from './protocol'
-import { stateVectorsEqual } from './state-vector'
+import { contentMarkOf, contentMarksEqual } from './state-vector'
 import type { DeriveResult, StoredCollabState } from './store'
 
 /*
@@ -62,11 +62,12 @@ export interface RoomStore {
 		update: Uint8Array,
 		seededBy: string | null,
 	): Promise<'seeded' | 'conflict' | 'gone'>
+	/** `mark`: tanda isi (`contentMarkOf`) state yang diturunkan. */
 	writeDerived(
 		tabId: string,
 		epoch: string,
 		content: Record<string, unknown>,
-		stateVector: Uint8Array,
+		mark: Uint8Array,
 	): Promise<DeriveResult>
 	compact(tabId: string, epoch: string): Promise<number>
 }
@@ -139,8 +140,8 @@ export class CollabRoom {
 
 	private loaded = false
 	private readonly busBacklog: BusMessage[] = []
-	/** State vector dasar `document_tabs.content` yang terakhir diketahui. */
-	private contentSv: Uint8Array | null = null
+	/** Tanda isi (state vector + delete set) dasar `document_tabs.content` yang terakhir diketahui. */
+	private contentMark: Uint8Array | null = null
 
 	private pending: Uint8Array[] = []
 	private flushTimer: ReturnType<typeof setTimeout> | null = null
@@ -188,11 +189,12 @@ export class CollabRoom {
 		const state = await this.host.store.load(this.tabId)
 		if (state) {
 			this.epoch = state.epoch
-			this.contentSv = state.contentSv
+			this.contentMark = state.contentMark
 			this.rowsSinceCompact = state.rowCount
 			this.applyAll(state.updates, LOAD_ORIGIN)
-			// Penurun sebelumnya mati sebelum sempat menulis isi terbaru.
-			if (!stateVectorsEqual(Y.encodeStateVector(this.doc), this.contentSv)) this.scheduleDerive()
+			// Penurun sebelumnya mati sebelum sempat menulis isi terbaru - termasuk
+			// bila yang belum diturunkan hanya hapusan.
+			if (!contentMarksEqual(contentMarkOf(this.doc), this.contentMark)) this.scheduleDerive()
 		}
 		this.loaded = true
 		for (const message of this.busBacklog.splice(0)) this.handleBus(message)
@@ -411,8 +413,11 @@ export class CollabRoom {
 			this.pending.push(update)
 			this.scheduleFlush(this.host.settings.flushMs)
 			if (origin.claims.uid) this.lastEditor = origin.claims.uid
-			this.scheduleDerive()
 		}
+		// Setiap perubahan, dari mana pun asalnya, menandai isi turunan basi:
+		// instance yang menerima suntingan bisa mati sebelum menurunkannya.
+		// Penurunan berganda dari beberapa instance berakhir `unchanged`.
+		this.scheduleDerive()
 	}
 
 	private readonly onAwarenessUpdate = (
@@ -683,24 +688,24 @@ export class CollabRoom {
 		}
 		if (this.dead || !this.epoch) return
 		const epoch = this.epoch
-		const stateVector = Y.encodeStateVector(this.doc)
-		if (stateVectorsEqual(stateVector, this.contentSv)) return
+		const mark = contentMarkOf(this.doc)
+		if (contentMarksEqual(mark, this.contentMark)) return
 		const content = yFragmentToProseMirrorJSON(this.doc.getXmlFragment(COLLAB_FRAGMENT))
 
 		const outcome = await this.host.store.writeDerived(
 			this.tabId,
 			epoch,
 			content as unknown as Record<string, unknown>,
-			stateVector,
+			mark,
 		)
 		switch (outcome.result) {
 			case 'written':
-				this.contentSv = stateVector
+				this.contentMark = mark
 				this.behindStreak = 0
 				this.host.contentDerived(this.tabId, content, this.lastEditor)
 				return
 			case 'unchanged':
-				this.contentSv = stateVector
+				this.contentMark = mark
 				this.behindStreak = 0
 				return
 			case 'behind':

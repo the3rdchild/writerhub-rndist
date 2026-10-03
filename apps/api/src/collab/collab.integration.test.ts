@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { COLLAB_CLOSE, type CollabTicket } from '@writer-hub/shared'
+import { COLLAB_CLOSE, COLLAB_FRAGMENT, type CollabTicket } from '@writer-hub/shared'
 import postgres from 'postgres'
 import {
 	type ApiProcess,
@@ -504,6 +504,27 @@ describe.skipIf(!enabled)('kolaborasi ujung-ke-ujung (proses API sungguhan)', ()
 		expect(tab.title).toBe('Judul baru')
 		expect(JSON.stringify(tab.content)).not.toContain('BASI')
 		expect(JSON.stringify(tab.content)).toContain('suntingan-kolaborator')
+	}, 30_000)
+
+	test('hapusan saja (tanpa sisipan) tetap sampai ke isi server', async () => {
+		const { tabId } = await createDocument(main, 'AWAL-HAPUS')
+		const writer = peer(main, tabId, (await ticketFor(main, tabId)).ticket, { seed: seedFrom('AWAL-HAPUS') })
+		await writer.ready()
+		writer.type('PARAGRAF-RAHASIA')
+		await waitFor(
+			async () => (await serverContent(main, tabId)).includes('PARAGRAF-RAHASIA'),
+			'turunan sisipan',
+		)
+
+		// Pemilik menghapus paragraf itu dan berhenti mengetik: halaman berbagi,
+		// ekspor, dan obrolan AI membaca isi turunan ini.
+		const fragment = writer.doc.getXmlFragment(COLLAB_FRAGMENT)
+		fragment.delete(fragment.length - 1, 1)
+		await waitFor(
+			async () => !(await serverContent(main, tabId)).includes('PARAGRAF-RAHASIA'),
+			'turunan hapusan',
+		)
+		expect(await serverContent(main, tabId)).toContain('AWAL-HAPUS')
 	}, 30_000)
 
 	test('pulihkan versi me-reset state: klien diputus 4409 dan room disemai ulang dari isi yang dipulihkan', async () => {

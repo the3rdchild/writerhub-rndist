@@ -12,7 +12,7 @@ import {
 	documentTabs,
 	type NewDocumentTab,
 } from '@/db/schemas'
-import { snapshotOf, stateVectorCovers, stateVectorsEqual } from './state-vector'
+import { contentMarkCovers, contentMarksEqual, snapshotOf } from './state-vector'
 
 /**
  * Persistensi state Yjs per tab di Postgres.
@@ -26,7 +26,8 @@ import { snapshotOf, stateVectorCovers, stateVectorsEqual } from './state-vector
 
 export interface StoredCollabState {
 	epoch: string
-	contentSv: Uint8Array | null
+	/** Tanda isi turunan terakhir (kolom `content_sv`; lihat `contentMarkOf`). */
+	contentMark: Uint8Array | null
 	updates: Uint8Array[]
 	rowCount: number
 }
@@ -38,7 +39,7 @@ export async function loadCollabState(tabId: string): Promise<StoredCollabState 
 	return db.transaction(
 		async (tx) => {
 			const [head] = await tx
-				.select({ epoch: collabDocuments.epoch, contentSv: collabDocuments.content_sv })
+				.select({ epoch: collabDocuments.epoch, contentMark: collabDocuments.content_sv })
 				.from(collabDocuments)
 				.where(eq(collabDocuments.tab_id, tabId))
 				.limit(1)
@@ -51,7 +52,7 @@ export async function loadCollabState(tabId: string): Promise<StoredCollabState 
 				.orderBy(asc(collabUpdates.id))
 			return {
 				epoch: head.epoch,
-				contentSv: head.contentSv ?? null,
+				contentMark: head.contentMark ?? null,
 				updates: rows.map((row) => row.update),
 				rowCount: rows.length,
 			}
@@ -174,25 +175,26 @@ export type DeriveResult =
  * Menulis `document_tabs.content` hasil turunan state Yjs.
  *
  * Beberapa proses bisa menurunkan tab yang sama; yang boleh menulis hanya
- * turunan yang state vector-nya mencakup turunan tersimpan. Tanpa penjaga
- * ini, proses yang tertinggal satu pesan pub/sub bisa menimpa isi yang lebih
- * baru - persis jenis kehilangan yang SHL-5 tutup.
+ * turunan yang tanda isinya mencakup turunan tersimpan - setiap sisipan DAN
+ * setiap hapusan. Tanpa penjaga ini, proses yang tertinggal satu pesan
+ * pub/sub bisa menimpa isi yang lebih baru (atau menghidupkan lagi paragraf
+ * yang sudah dihapus) - persis jenis kehilangan yang SHL-5 tutup.
  */
 export async function writeDerivedContent(
 	tabId: string,
 	epoch: string,
 	content: Record<string, unknown>,
-	stateVector: Uint8Array,
+	mark: Uint8Array,
 ): Promise<DeriveResult> {
 	return db.transaction(async (tx) => {
 		const [head] = await tx
-			.select({ epoch: collabDocuments.epoch, contentSv: collabDocuments.content_sv })
+			.select({ epoch: collabDocuments.epoch, contentMark: collabDocuments.content_sv })
 			.from(collabDocuments)
 			.where(eq(collabDocuments.tab_id, tabId))
 			.for('update')
 		if (!head || head.epoch !== epoch) return { result: 'stale' }
-		if (stateVectorsEqual(head.contentSv, stateVector)) return { result: 'unchanged' }
-		if (!stateVectorCovers(stateVector, head.contentSv)) return { result: 'behind' }
+		if (contentMarksEqual(head.contentMark, mark)) return { result: 'unchanged' }
+		if (!contentMarkCovers(mark, head.contentMark)) return { result: 'behind' }
 
 		const [tab] = await tx
 			.update(documentTabs)
@@ -201,7 +203,7 @@ export async function writeDerivedContent(
 			.returning({ documentId: documentTabs.document_id })
 		if (!tab) return { result: 'stale' }
 
-		await tx.update(collabDocuments).set({ content_sv: stateVector }).where(eq(collabDocuments.tab_id, tabId))
+		await tx.update(collabDocuments).set({ content_sv: mark }).where(eq(collabDocuments.tab_id, tabId))
 		await tx.update(documents).set({ updated_at: new Date() }).where(eq(documents.id, tab.documentId))
 		return { result: 'written', documentId: tab.documentId }
 	})

@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import * as Y from 'yjs'
-import { snapshotOf, stateVectorCovers, stateVectorsEqual } from './state-vector'
+import {
+	contentMarkCovers,
+	contentMarkOf,
+	contentMarksEqual,
+	snapshotOf,
+	stateVectorCovers,
+	stateVectorsEqual,
+} from './state-vector'
 
 function editedBy(clientID: number, text: string, base?: Y.Doc): Y.Doc {
 	const doc = new Y.Doc()
@@ -36,6 +43,61 @@ describe('state vector', () => {
 		expect(stateVectorsEqual(Y.encodeStateVector(doc), Y.encodeStateVector(copy))).toBe(true)
 		expect(stateVectorsEqual(Y.encodeStateVector(doc), null)).toBe(false)
 		expect(stateVectorsEqual(null, null)).toBe(true)
+	})
+})
+
+describe('tanda isi turunan (state vector + hapusan)', () => {
+	test('hapusan saja mengubah tanda, walau state vector-nya sama', () => {
+		const doc = editedBy(1, 'halo dunia')
+		const before = contentMarkOf(doc)
+		const svBefore = Y.encodeStateVector(doc)
+		doc.getText('t').delete(0, 5)
+		expect(stateVectorsEqual(Y.encodeStateVector(doc), svBefore)).toBe(true)
+		const after = contentMarkOf(doc)
+		expect(contentMarksEqual(after, before)).toBe(false)
+		expect(contentMarkCovers(after, before)).toBe(true)
+		expect(contentMarkCovers(before, after)).toBe(false)
+	})
+
+	test('sisipan lebih baru tanpa hapusan yang tersimpan tidak mencakup', () => {
+		const base = editedBy(1, 'halo dunia')
+		const deleter = new Y.Doc()
+		Y.applyUpdate(deleter, Y.encodeStateAsUpdate(base))
+		deleter.getText('t').delete(0, 5)
+		const inserter = editedBy(2, 'baru ', base)
+		// State vector "inserter" mencakup "deleter", tapi hapusannya tidak.
+		expect(stateVectorCovers(Y.encodeStateVector(inserter), Y.encodeStateVector(deleter))).toBe(true)
+		expect(contentMarkCovers(contentMarkOf(inserter), contentMarkOf(deleter))).toBe(false)
+
+		Y.applyUpdate(inserter, Y.encodeStateAsUpdate(deleter))
+		expect(contentMarkCovers(contentMarkOf(inserter), contentMarkOf(deleter))).toBe(true)
+	})
+
+	test('hapusan di beberapa tempat terpisah dicek per rentang', () => {
+		const doc = editedBy(1, 'abcdefghij')
+		doc.getText('t').delete(1, 2)
+		const twoGaps = new Y.Doc()
+		Y.applyUpdate(twoGaps, Y.encodeStateAsUpdate(doc))
+		twoGaps.getText('t').delete(4, 2)
+		expect(contentMarkCovers(contentMarkOf(twoGaps), contentMarkOf(doc))).toBe(true)
+		expect(contentMarkCovers(contentMarkOf(doc), contentMarkOf(twoGaps))).toBe(false)
+	})
+
+	test('isi sama di dua salinan: tanda sama', () => {
+		const doc = editedBy(1, 'halo dunia')
+		doc.getText('t').delete(0, 5)
+		const copy = new Y.Doc()
+		Y.applyUpdate(copy, Y.encodeStateAsUpdate(doc))
+		expect(contentMarksEqual(contentMarkOf(doc), contentMarkOf(copy))).toBe(true)
+	})
+
+	test('tanda versi lama (state vector polos) dianggap tidak diketahui: tercakup, tidak pernah sama', () => {
+		const doc = editedBy(1, 'halo')
+		const legacy = Y.encodeStateVector(doc)
+		expect(contentMarkCovers(contentMarkOf(doc), legacy)).toBe(true)
+		expect(contentMarksEqual(contentMarkOf(doc), legacy)).toBe(false)
+		expect(contentMarkCovers(contentMarkOf(doc), null)).toBe(true)
+		expect(contentMarksEqual(null, null)).toBe(false)
 	})
 })
 
