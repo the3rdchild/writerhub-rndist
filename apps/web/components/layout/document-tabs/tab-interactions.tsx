@@ -50,7 +50,7 @@ const TabInteractionsContext = createContext<TabInteractions | null>(null)
 
 export function useTabInteractions(): TabInteractions {
 	const value = useContext(TabInteractionsContext)
-	if (!value) throw new Error('useTabInteractions dipakai di luar TabInteractionsProvider')
+	if (!value) throw new Error('useTabInteractions must be used inside <TabInteractionsProvider>')
 	return value
 }
 

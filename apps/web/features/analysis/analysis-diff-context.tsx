@@ -50,6 +50,6 @@ export function AnalysisDiffProvider({ children }: { children: ReactNode }) {
 
 export function useAnalysisDiffContext(): AnalysisDiffContextValue {
 	const context = useContext(AnalysisDiffContext)
-	if (!context) throw new Error('useAnalysisDiffContext harus dipakai di dalam <AnalysisDiffProvider>')
+	if (!context) throw new Error('useAnalysisDiffContext must be used inside <AnalysisDiffProvider>')
 	return context
 }

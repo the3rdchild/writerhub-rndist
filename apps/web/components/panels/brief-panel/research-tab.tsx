@@ -392,7 +392,7 @@ function ChapterCard({
 			</fieldset>
 
 			<textarea
-				aria-label={`Ringkasan ${chapter.title}`}
+				aria-label={`Summary of ${chapter.title}`}
 				value={summary.draft}
 				onChange={(event) => summary.setDraft(event.target.value)}
 				onFocus={summary.onFocus}

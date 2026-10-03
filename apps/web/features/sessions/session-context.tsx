@@ -601,6 +601,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
 export function useSessions(): SessionContextValue {
 	const context = useContext(SessionContext)
-	if (!context) throw new Error('useSessions harus dipakai di dalam <SessionProvider>')
+	if (!context) throw new Error('useSessions must be used inside <SessionProvider>')
 	return context
 }

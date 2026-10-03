@@ -26,7 +26,7 @@ export interface Citation {
 function toCitation(item: CrossrefItem): Citation {
 	return {
 		doi: item.DOI ?? null,
-		title: item.title?.[0]?.trim() || 'Tanpa judul',
+		title: item.title?.[0]?.trim() || 'Untitled',
 		authors: (item.author ?? [])
 			.map((author) => [author.given, author.family].filter(Boolean).join(' ').trim())
 			.filter(Boolean)
@@ -41,7 +41,7 @@ export async function GET(request: Request): Promise<Response> {
 	const query = new URL(request.url).searchParams.get('q')?.trim().slice(0, MAX_QUERY_LENGTH)
 
 	if (!query) {
-		return Response.json({ message: 'Bad Request', errors: ['Parameter q wajib diisi'] }, { status: 400 })
+		return Response.json({ message: 'Bad Request', errors: ['The q parameter is required'] }, { status: 400 })
 	}
 
 	const url = new URL(CROSSREF_URL)
@@ -70,7 +70,7 @@ export async function GET(request: Request): Promise<Response> {
 
 		return Response.json({ message: 'sukses', data: items.map(toCitation) })
 	} catch (error) {
-		const reason = error instanceof Error ? error.message : 'Gagal menghubungi Crossref'
+		const reason = error instanceof Error ? error.message : "Couldn't reach Crossref"
 		return Response.json({ message: 'Search failed', errors: [reason] }, { status: 502 })
 	}
 }

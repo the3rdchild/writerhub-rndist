@@ -278,6 +278,6 @@ export function CommentsProvider({ children }: { children: ReactNode }) {
 
 export function useComments(): CommentsContextValue {
 	const context = useContext(CommentsContext)
-	if (!context) throw new Error('useComments harus dipakai di dalam <CommentsProvider>')
+	if (!context) throw new Error('useComments must be used inside <CommentsProvider>')
 	return context
 }

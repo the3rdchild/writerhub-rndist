@@ -43,7 +43,7 @@ describe('membaca argumen ask_user', () => {
 		const questions = parseAskQuestions({
 			questions: [{ options: ['A'] }, { question: 'Apa?', options: [] }, 'x'],
 		})
-		expect(questions).toEqual([{ question: 'Apa?', header: 'Pertanyaan 1', options: [], multiSelect: false }])
+		expect(questions).toEqual([{ question: 'Apa?', header: 'Question 1', options: [], multiSelect: false }])
 	})
 
 	test('sasaran brief hanya isian yang boleh ditulis AI', () => {

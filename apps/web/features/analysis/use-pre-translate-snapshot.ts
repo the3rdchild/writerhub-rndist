@@ -19,7 +19,7 @@ export function usePreTranslateSnapshot() {
 		if (!tabId || taken.current === tabId) return
 
 		taken.current = tabId
-		void createVersion(tabId, 'Sebelum terjemahan', 'pre_translate').catch(() => {
+		void createVersion(tabId, 'Before translation', 'pre_translate').catch(() => {
 			taken.current = null
 		})
 	}, [activeId, linkage])

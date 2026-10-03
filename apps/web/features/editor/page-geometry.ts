@@ -105,10 +105,10 @@ export function resolvePageSize(setup: PageSetup): { width: number; height: numb
 export function validateCustomSize(width: number, height: number): string | null {
 	if (!Number.isFinite(width) || !Number.isFinite(height)) return 'The size must be a number.'
 	if (width < MIN_CUSTOM_SIDE || height < MIN_CUSTOM_SIDE) {
-		return `Sisi terkecil ${MIN_CUSTOM_SIDE / INCH} inci.`
+		return `Each side must be at least ${MIN_CUSTOM_SIDE / INCH} in.`
 	}
 	if (width > MAX_CUSTOM_SIDE || height > MAX_CUSTOM_SIDE) {
-		return `Sisi terbesar ${MAX_CUSTOM_SIDE / INCH} inci.`
+		return `Each side can be at most ${MAX_CUSTOM_SIDE / INCH} in.`
 	}
 	return null
 }

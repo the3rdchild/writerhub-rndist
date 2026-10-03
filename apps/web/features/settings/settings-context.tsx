@@ -193,6 +193,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
 export function useSettings(): SettingsContextValue {
 	const context = useContext(SettingsContext)
-	if (!context) throw new Error('useSettings harus dipakai di dalam <SettingsProvider>')
+	if (!context) throw new Error('useSettings must be used inside <SettingsProvider>')
 	return context
 }

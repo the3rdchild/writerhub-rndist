@@ -426,7 +426,7 @@ export function WatermarkPanelBody() {
 			/>
 
 			<p className="truncate text-[11px] text-subtle" title={scopeLabel}>
-				Tab ini: {scopeLabel}
+				This tab: {scopeLabel}
 			</p>
 
 			{active && (

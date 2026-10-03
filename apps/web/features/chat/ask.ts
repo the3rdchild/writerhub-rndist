@@ -126,7 +126,7 @@ export function parseAskQuestions(args: Record<string, unknown>): AskQuestion[] 
 		const target = isBriefKey(key) && !briefField(key)?.userOnly ? key : inferBriefField(options)
 		questions.push({
 			question,
-			header: text(fields.header, 16) || `Pertanyaan ${questions.length + 1}`,
+			header: text(fields.header, 16) || `Question ${questions.length + 1}`,
 			options,
 			multiSelect: fields.multi_select === true,
 			...(target ? { briefField: target } : {}),

@@ -153,7 +153,7 @@ export function TemplateDetailPanel({
 						className="flex items-center justify-center gap-1.5 rounded-xl border border-line px-5 py-2 text-sm text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 					>
 						<PencilLine className="h-4 w-4" />
-						{filledMetadata > 0 ? `Metadata terisi (${filledMetadata})` : 'Fill in metadata (optional)'}
+						{filledMetadata > 0 ? `Metadata filled in (${filledMetadata})` : 'Fill in metadata (optional)'}
 					</button>
 				) : null}
 

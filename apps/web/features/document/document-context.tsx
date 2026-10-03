@@ -45,6 +45,6 @@ export function DocumentProvider({
 
 export function useDocument(): DocumentContextValue {
 	const context = useContext(DocumentContext)
-	if (!context) throw new Error('useDocument harus dipakai di dalam <DocumentProvider>')
+	if (!context) throw new Error('useDocument must be used inside <DocumentProvider>')
 	return context
 }

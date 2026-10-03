@@ -134,7 +134,7 @@ export function formatDifferences(
 	if (target.size && target.size !== setup.size) {
 		differences.push({
 			key: 'size',
-			label: 'Kertas',
+			label: 'Paper size',
 			current: PAGE_SIZES[setup.size].label,
 			wanted: PAGE_SIZES[target.size].label,
 		})

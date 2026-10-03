@@ -41,8 +41,8 @@ export interface SkillDefinition {
 export const SKILLS: readonly SkillDefinition[] = [
 	{
 		name: 'scientific-writing',
-		label: 'Tulisan ilmiah',
-		hint: 'Aturan argumen, bukti, dan ketidakpastian',
+		label: 'Scientific writing',
+		hint: 'Rules for argument, evidence and uncertainty',
 		description:
 			'Building an evidence-bound argument: what may be claimed, how a claim is tied to a source, and how uncertainty survives the rewrite.',
 		overlay: 'scientific-writing',
@@ -56,8 +56,8 @@ export const SKILLS: readonly SkillDefinition[] = [
 	},
 	{
 		name: 'peer-review',
-		label: 'Tinjauan sejawat',
-		hint: 'Periksa naskah sebelum disetor',
+		label: 'Peer review',
+		hint: 'Check a manuscript before submitting it',
 		description:
 			"Assessing a manuscript, the writer's own or someone else's: what to examine in which order, and how a usable comment is built.",
 		overlay: 'peer-review',
@@ -71,8 +71,8 @@ export const SKILLS: readonly SkillDefinition[] = [
 	},
 	{
 		name: 'venue-templates',
-		label: 'Aturan penerbit',
-		hint: 'Format sesuai tujuan terbit',
+		label: 'Venue rules',
+		hint: 'Format for the target journal or conference',
 		description:
 			'Preparing for a journal, conference or funder that rejects on formatting alone. Venue rules change between calls, so never state one from memory.',
 		overlay: 'venue-templates',
@@ -80,8 +80,8 @@ export const SKILLS: readonly SkillDefinition[] = [
 	},
 	{
 		name: 'research-grants',
-		label: 'Proposal penelitian',
-		hint: 'Susun usulan dana penelitian',
+		label: 'Research proposal',
+		hint: 'Write a research funding proposal',
 		description:
 			'The argument a funded proposal must make - why it matters, why it is new, why it will work, why this team - and how reviewers actually read.',
 		overlay: 'research-grants',
@@ -89,8 +89,8 @@ export const SKILLS: readonly SkillDefinition[] = [
 	},
 	{
 		name: 'diagram-design',
-		label: 'Diagram editorial',
-		hint: 'Gambar bagan yang serasi dengan dokumen',
+		label: 'Editorial diagram',
+		hint: 'Draw diagrams that match the document',
 		description:
 			'Drawing a diagram as inline SVG when a reader would learn more from a picture than from prose: which layout fits which relationship, the style tokens, and the constraints the editor enforces. Load it before calling insert_diagram.',
 		overlay: 'diagram-design',
@@ -167,8 +167,8 @@ export const SKILLS: readonly SkillDefinition[] = [
 	},
 	{
 		name: 'scientific-brainstorming',
-		label: 'Curah gagasan',
-		hint: 'Tahap awal, sebelum ada tulisan',
+		label: 'Brainstorming',
+		hint: 'Early stage, before any writing',
 		description:
 			'Before there is anything to write: separating idea from assumption from evidence, and refusing to assert a research gap nobody searched for.',
 		overlay: 'scientific-brainstorming',

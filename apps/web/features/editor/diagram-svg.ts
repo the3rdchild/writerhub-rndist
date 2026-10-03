@@ -24,7 +24,7 @@ export type DiagramSanitizeResult = { svg: string; error?: undefined } | { svg?:
  * dari DOCX** - kegagalan yang baru ketahuan setelah berkasnya dikirim.
  */
 const MISSING_VIEWBOX =
-	'SVG ini tidak punya viewBox. Tambahkan viewBox="0 0 lebar tinggi" supaya diagramnya bisa diukur saat diekspor.'
+	'This SVG has no viewBox. Add viewBox="0 0 width height" so the diagram can be measured on export.'
 
 /**
  * Kesalahan yang paling sering terjadi, jadi pesannya menyebut jalan keluarnya.
@@ -37,7 +37,7 @@ const MISSING_VIEWBOX =
  * karyanya rusak.
  */
 const NOT_SVG =
-	'Isi blok ini bukan satu gambar <svg>, melainkan markup HTML. Kalau ini rancangan, ubah jadi blok rancangan (minta AI "render blok ini"). Kalau ini memang diagram, elemen terluarnya harus <svg>.'
+	'This block holds HTML markup, not a single <svg> image. If it is a design, turn it into a design block (ask the AI to "render this block"). If it really is a diagram, its outermost element must be <svg>.'
 
 function stripDisallowed(element: Element): void {
 	for (const attribute of [...element.attributes]) {

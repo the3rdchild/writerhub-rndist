@@ -21,7 +21,7 @@ export function AskSummary({ call, expired }: { call: ToolCall; expired?: boolea
 		<div className="flex flex-col gap-1.5 rounded-xl border border-line bg-surface-raised px-3 py-2">
 			<p className="flex items-center gap-1.5 text-[11px] font-medium text-muted">
 				<CircleHelp className="h-3.5 w-3.5 text-accent" />
-				{call.name === 'request_brief' ? 'AI meminta metadata' : 'The AI asked'}
+				{call.name === 'request_brief' ? 'The AI asked for metadata' : 'The AI asked'}
 			</p>
 			{children}
 		</div>

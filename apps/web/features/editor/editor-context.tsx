@@ -19,6 +19,6 @@ export function EditorInstanceProvider({ children }: { children: ReactNode }) {
 
 export function useEditorInstance(): EditorInstanceContextValue {
 	const context = useContext(EditorInstanceContext)
-	if (!context) throw new Error('useEditorInstance harus dipakai di dalam <EditorInstanceProvider>')
+	if (!context) throw new Error('useEditorInstance must be used inside <EditorInstanceProvider>')
 	return context
 }
