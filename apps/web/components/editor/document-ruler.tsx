@@ -5,7 +5,7 @@ import { useCallback, useRef, useState } from 'react'
 import { type ColumnDrag, dragColumns, layoutPatch } from '@/features/editor/column-geometry'
 import { type BlockIndent, clampBlockIndent, useBlockIndent } from '@/features/editor/indent'
 import { MIN_CONTENT_WIDTH, type PageGeometry, type PageMargins } from '@/features/editor/page-geometry'
-import { clamp, rulerNudge, snapRulerPosition, useRulerDrag } from '@/features/editor/ruler-drag'
+import { clamp, rulerNudge, snapFrom, useRulerDrag } from '@/features/editor/ruler-drag'
 import {
 	addTabStop,
 	cycleTabStop,
@@ -206,6 +206,7 @@ export function DocumentRuler({
 		axis: 'x',
 		zoom,
 		trackRef,
+		snapOrigin: (handle) => (handle.kind === 'tab' ? indentBase : 0),
 		onMove: (handle, x, outside) => {
 			if (DEFERRED.has(handle.kind)) {
 				previewRef.current = x
@@ -256,7 +257,7 @@ export function DocumentRuler({
 		if (event.target instanceof Element && event.target.closest('button')) return
 		const rect = trackRef.current?.getBoundingClientRect()
 		if (!rect) return
-		const x = snapRulerPosition((event.clientX - rect.left) / zoom, event.shiftKey)
+		const x = snapFrom(indentBase, (event.clientX - rect.left) / zoom, event.shiftKey)
 		if (x < indentBase || x > indentBase + indentWidth) return
 		previewRef.current = x
 		setPreview(x)

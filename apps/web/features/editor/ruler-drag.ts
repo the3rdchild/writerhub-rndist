@@ -23,9 +23,20 @@ export interface RulerDragOptions<H> {
 	/** `outside`: penunjuk sedang jauh dari penggaris, tegak lurus arahnya. */
 	onMove: (handle: H, pos: number, outside: boolean) => void
 	onUp: (handle: H, pos: number | null, outside: boolean) => void
+	/**
+	 * Titik nol kisi jepret untuk gagang ini (bawaan 0 = tepi kertas). Tab stop
+	 * diukur dari tepi area teksnya - di kolom 2 tepi itu tidak jatuh di kisi
+	 * kertas - jadi kisinya ikut tepi itu, supaya 1 in tetap 72 pt.
+	 */
+	snapOrigin?: (handle: H) => number
 }
 
-export function useRulerDrag<H>({ axis, zoom, trackRef, onMove, onUp }: RulerDragOptions<H>) {
+/** Jepret `raw` ke kisi yang titik nolnya `origin`. */
+export function snapFrom(origin: number, raw: number, fine: boolean): number {
+	return origin + snapRulerPosition(raw - origin, fine)
+}
+
+export function useRulerDrag<H>({ axis, zoom, trackRef, onMove, onUp, snapOrigin }: RulerDragOptions<H>) {
 	const [dragging, setDragging] = useState<H | null>(null)
 	const lastRef = useRef<number | null>(null)
 	const outsideRef = useRef(false)
@@ -33,6 +44,8 @@ export function useRulerDrag<H>({ axis, zoom, trackRef, onMove, onUp }: RulerDra
 	onMoveRef.current = onMove
 	const onUpRef = useRef(onUp)
 	onUpRef.current = onUp
+	const snapOriginRef = useRef(snapOrigin)
+	snapOriginRef.current = snapOrigin
 
 	useEffect(
 		function trackRulerDrag() {
@@ -42,7 +55,7 @@ export function useRulerDrag<H>({ axis, zoom, trackRef, onMove, onUp }: RulerDra
 				const rect = trackRef.current?.getBoundingClientRect()
 				if (!rect) return null
 				const raw = (axis === 'x' ? event.clientX - rect.left : event.clientY - rect.top) / zoom
-				return snapRulerPosition(raw, event.shiftKey)
+				return snapFrom(snapOriginRef.current?.(dragging) ?? 0, raw, event.shiftKey)
 			}
 
 			const outsideOf = (event: PointerEvent) => {

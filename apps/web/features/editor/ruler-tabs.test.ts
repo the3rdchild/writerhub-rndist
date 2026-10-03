@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
 import { EditorState, TextSelection } from '@tiptap/pm/state'
 import { buildSchema } from '@/features/sync/serialize'
+import { snapFrom } from './ruler-drag'
 import {
 	addTabStop,
 	cycleTabStop,
@@ -12,6 +13,19 @@ import {
 	updateTabStops,
 } from './ruler-tabs'
 import { insertsTabCharacter, type TabStop } from './tab-stops'
+
+describe('kisi jepret tab stop mengikuti tepi area teks', () => {
+	// Kolom 2 di A4 bermargin 1 in: tepinya 96 + 313 = 409 px, bukan kelipatan 1/16 in.
+	test('klik 1 in dari tepi kolom 2 tetap 1 in (72 pt), bukan 95 px', () => {
+		expect(snapFrom(409, 505, false) - 409).toBe(96)
+		// Kisi kertas (titik nol 0) akan memberi 504 → 95 px dari tepi kolom.
+		expect(snapFrom(0, 505, false)).toBe(504)
+	})
+
+	test('mode halus (Shift) menjepret per piksel dari tepi yang sama', () => {
+		expect(snapFrom(409, 505.4, true) - 409).toBe(96)
+	})
+})
 
 describe('tab stop dari penggaris (TKS-18)', () => {
 	const stops: TabStop[] = [
