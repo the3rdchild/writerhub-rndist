@@ -2,6 +2,7 @@ import { mergeAttributes, Node } from '@tiptap/core'
 import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/react'
 import katex from 'katex'
+import { applyMathFit } from './math-fit'
 export const MATH_INLINE = 'mathInline'
 export const MATH_BLOCK = 'mathBlock'
 
@@ -82,8 +83,41 @@ export const MathBlock = Node.create({
 		return ['div', mergeAttributes(HTMLAttributes, { class: 'math-block' })]
 	},
 
+	/*
+	 * Rumus blok dibuat muat di lebar bloknya (kolom, halaman) dan dihitung
+	 * ulang setiap lebar itu berubah - lihat `math-fit.ts`. Perubahan DOM di
+	 * dalamnya diabaikan ProseMirror karena node view ini tidak punya contentDOM.
+	 */
 	addNodeView() {
-		return ({ node }) => ({ dom: buildDom(node.attrs.latex, true) })
+		return ({ node }) => {
+			const latex: string = node.attrs.latex
+			const dom = buildDom(latex, true)
+			let fittedWidth = -1
+			const fit = () => {
+				const width = dom.clientWidth
+				if (width <= 0 || width === fittedWidth) return
+				fittedWidth = width
+				applyMathFit(dom, latex, renderMath)
+			}
+			const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit)
+			observer?.observe(dom)
+			/* Fon KaTeX dimuat belakangan: ukuran pertama memakai fon cadangan yang
+			 * lebih sempit, dan lebar bloknya tidak berubah saat fon tiba. */
+			const refit = () => {
+				fittedWidth = -1
+				fit()
+			}
+			const fonts = typeof document === 'undefined' ? undefined : document.fonts
+			fonts?.addEventListener('loadingdone', refit)
+			void fonts?.ready.then(refit)
+			return {
+				dom,
+				destroy: () => {
+					observer?.disconnect()
+					fonts?.removeEventListener('loadingdone', refit)
+				},
+			}
+		}
 	},
 
 	addCommands() {
