@@ -69,6 +69,9 @@ export interface Measurement {
 	trailingPageFit?: boolean
 	/** Posisi rujukan catatan kaki di dalam blok ini. */
 	footnotes?: number[]
+	/** Akhir rentang naskah yang diwakili ukuran ini, bila lebih dari satu
+	 * blok teratas - wilayah berkolom diukur sebagai satu ukuran. */
+	end?: number
 }
 
 /*
@@ -189,6 +192,7 @@ function measureBlocks(view: EditorView): Measurement[] {
 					kind: 'block',
 					selfPaginate: true,
 					internal,
+					end: region.to,
 				})
 				prevWasPageFit = false
 				return
@@ -450,7 +454,9 @@ export function pageBlockRange(
 
 /** Catatan kaki lembar terakhir: digambar sesudah blok isi terakhir, bukan di spacer. */
 export interface TrailingNotes extends PageNotes {
-	/** Posisi blok terukur terakhir yang berisi - area catatan menyusul blok teratasnya. */
+	/** Posisi di dalam blok isi terakhir - area catatan menyusul blok teratasnya.
+	 * Untuk wilayah berkolom: posisi di blok TERAKHIR wilayahnya, bukan awal
+	 * wilayah, supaya urutan bacanya tetap isi lalu catatan. */
 	afterPos: number
 }
 
@@ -742,7 +748,10 @@ export function computeSpacers(
 			refs: pageNotes,
 			height,
 			before: Math.max(0, bottom - height - flow - TRAILING_NOTES_SAFETY),
-			afterPos: lastContent.pos,
+			afterPos:
+				lastContent.end !== undefined && lastContent.end > lastContent.pos
+					? lastContent.end - 1
+					: lastContent.pos,
 		}
 	}
 	if (blocks[blocks.length - 1]?.isBreak) pushSheet()

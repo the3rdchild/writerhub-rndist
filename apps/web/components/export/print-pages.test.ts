@@ -677,7 +677,13 @@ describe('uji cetak watermark - lapisan yang berulang per halaman', () => {
  * tidak ikut tercetak - isi wilayah tercetak tepat sekali.
  */
 describe('uji cetak kolom - wilayah section berkolom', () => {
-	function columnsFixture(paragraphs: number, withPrintCopy: boolean): string {
+	/*
+	 * `footnotes`: naskah bercatatan kaki (TKS-1) dicetak mengikuti pemenggalan
+	 * kanvas - tiap spacer jadi pemenggal paksa, dan area catatan lembar duduk
+	 * di spacer penutupnya. Wilayah berkolom dibuka spacer (lembar baru) dan
+	 * ditutup spacer bercatatan, seperti keluaran `computeSpacers`.
+	 */
+	function columnsFixture(paragraphs: number, withPrintCopy: boolean, footnotes = false): string {
 		const text = (index: number) =>
 			`K${String(index).padStart(2, '0')} Penelitian ini membahas pengaruh tata letak halaman terhadap keterbacaan naskah ilmiah yang disusun mahasiswa tingkat akhir.`
 		const originals = Array.from(
@@ -691,15 +697,23 @@ describe('uji cetak kolom - wilayah section berkolom', () => {
 					(_, index) => `<p>${text(index + 1)}</p>`,
 				).join('')}</div>`
 			: ''
-		return fixture(
+		const html = fixture(
 			'<p>Judul satu kolom</p>' +
 				'<div class="section-break section-break-continuous" data-section-break=""></div>' +
+				(footnotes ? '<div class="page-break-spacer" style="height:600px"></div>' : '') +
 				`<div class="columns-region-space" data-columns-region="1" style="height:400px">${copy}</div>` +
 				originals +
 				'<div class="columns-clone" style="position:absolute;top:0;left:300px;width:280px;height:60px"><p>SALINAN LAYAR</p></div>' +
+				(footnotes
+					? '<div class="page-break-spacer page-break-spacer--notes" style="height:500px">' +
+						'<div class="footnote-filler" style="height:120px"></div>' +
+						'<div class="footnote-area"><div class="footnote-separator"></div>' +
+						'<div class="footnote-item">CATATAN-WILAYAH Rujukan dari dalam wilayah berkolom.</div></div></div>'
+					: '') +
 				'<p>Penutup satu kolom</p>',
 			DEFAULT_PAGE_SETUP,
 		)
+		return footnotes ? html.replace('class="document-body"', 'class="document-body has-footnotes"') : html
 	}
 
 	test('salinan cetak mengalir dua kolom; blok asli dan salinan layar tidak tercetak', async () => {
@@ -744,6 +758,39 @@ describe('uji cetak kolom - wilayah section berkolom', () => {
 					).length,
 			)
 			expect(visible).toBe(6)
+		} finally {
+			await page.close()
+		}
+	})
+
+	test('naskah bercatatan kaki: salinan cetak tetap dua kolom, pemenggal kanvas dipatuhi, catatan tercetak sekali', async () => {
+		if (!browser) return
+		const page = await browser.newPage()
+		try {
+			const html = columnsFixture(12, true, true)
+			await page.setContent(html, { waitUntil: 'load' })
+			await page.emulateMedia({ media: 'print' })
+			const layout = await page.evaluate(() => {
+				const lefts = [...document.querySelectorAll<HTMLElement>('.columns-print > p')].map((el) =>
+					Math.round(el.getBoundingClientRect().left),
+				)
+				const shown = (selector: string) =>
+					[...document.querySelectorAll<HTMLElement>(selector)].filter(
+						(el) => getComputedStyle(el).display !== 'none',
+					).length
+				return {
+					columns: new Set(lefts).size,
+					originals: shown('.columns-item'),
+					clones: shown('.columns-clone'),
+					notes: shown('.footnote-item'),
+				}
+			})
+			expect(layout.columns).toBe(2)
+			expect(layout.originals).toBe(0)
+			expect(layout.clones).toBe(0)
+			expect(layout.notes).toBe(1)
+			// Judul | wilayah berkolom + catatannya | penutup - tanpa lembar kosong.
+			expect(await printedPagesOf(page, html)).toBe(3)
 		} finally {
 			await page.close()
 		}
