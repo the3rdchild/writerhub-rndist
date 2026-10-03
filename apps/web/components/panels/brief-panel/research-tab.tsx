@@ -297,7 +297,7 @@ function OutlinePlan({ outline }: { outline: OutlineProgress | null }) {
 		<div className="flex flex-col gap-1 rounded-xl border border-line bg-surface-raised px-3 py-2 text-[11px] text-muted">
 			{pages && (
 				<p>
-					Target {pages[0] === pages[1] ? pages[0] : `${pages[0]}-${pages[1]}`} halaman
+					Target {pages[0] === pages[1] ? pages[0] : `${pages[0]}-${pages[1]}`} pages
 					{current !== undefined && (
 						<span className={off ? 'text-yellow-400' : 'text-subtle'}> · sekarang {current}</span>
 					)}

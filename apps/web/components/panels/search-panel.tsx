@@ -251,8 +251,8 @@ export function SearchPanelBody() {
 
 				{total > MAX_ROWS && (
 					<p className="px-1 pt-1 text-[11px] text-subtle">
-						{total - MAX_ROWS} hasil lain tidak ditampilkan - persempit kata kuncinya, atau pakai Ganti semua
-						kalau memang semuanya hendak diganti.
+						{total - MAX_ROWS} more results aren't shown - narrow the search, or use Replace all if you
+						really want to replace every one.
 					</p>
 				)}
 			</PanelScroll>

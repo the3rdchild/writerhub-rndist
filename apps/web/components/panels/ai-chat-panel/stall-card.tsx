@@ -32,7 +32,7 @@ export function StallCard({
 					{stall.outline.slice(0, 4).map((line) => (
 						<li key={line}>{line}</li>
 					))}
-					{stall.outline.length > 4 && <li className="text-subtle">+{stall.outline.length - 4} lagi</li>}
+					{stall.outline.length > 4 && <li className="text-subtle">+{stall.outline.length - 4} more</li>}
 				</ul>
 			) : (
 				stall.total > 0 && (

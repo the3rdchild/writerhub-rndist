@@ -61,7 +61,7 @@ export function CommentsPanel() {
 					onClick={() => setShowResolved(!showResolved)}
 					className="self-start px-1 text-[11px] text-subtle transition-colors hover:text-foreground"
 				>
-					{showResolved ? 'Hide' : 'Show'} {resolvedCount} yang selesai
+					{showResolved ? 'Hide' : 'Show'} {resolvedCount} resolved
 				</button>
 			)}
 
