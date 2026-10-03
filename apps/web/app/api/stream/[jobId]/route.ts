@@ -18,7 +18,7 @@ export async function GET(
 
 		if (!upstream.ok || !upstream.body) {
 			return Response.json(
-				{ message: 'Gagal membuka stream', errors: [`Upstream membalas ${upstream.status}`] },
+				{ message: 'Could not open the stream', errors: [`Upstream membalas ${upstream.status}`] },
 				{ status: upstream.status || 502 },
 			)
 		}

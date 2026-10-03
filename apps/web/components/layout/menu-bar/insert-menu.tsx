@@ -40,14 +40,14 @@ export function InsertMenu() {
 	const keys = useShortcutLabel()
 
 	return (
-		<Menu label="Sisip" icon={<SquarePlus className="h-4 w-4" />}>
+		<Menu label="Insert" icon={<SquarePlus className="h-4 w-4" />}>
 			{({ close }) => (
 				<>
 					<Item
 						icon={<ImageIcon className="h-4 w-4" />}
 						onSelect={() => run(close, () => editor && promptForImage(editor))}
 					>
-						Gambar…
+						Image…
 					</Item>
 					{/* Watermark bukan isi naskah melainkan perabot halaman - ia dibuka
 					    sebagai panel, bukan disisipkan ke posisi kursor. Tempatnya tetap
@@ -64,10 +64,10 @@ export function InsertMenu() {
 						shortcut={keys('text.link')}
 						onSelect={() => run(close, () => editor && promptForLink(editor))}
 					>
-						Tautan…
+						Link…
 					</Item>
 					<DropdownSeparator />
-					<DropdownLabel>Blok</DropdownLabel>
+					<DropdownLabel>Blocks</DropdownLabel>
 					{/* Jenis dipilih saat menyisip (TKS-14); dulu selalu info. */}
 					<Submenu label="Callout" icon={<Highlighter className="h-4 w-4" />}>
 						{() => (
@@ -88,54 +88,54 @@ export function InsertMenu() {
 						icon={<Quote className="h-4 w-4" />}
 						onSelect={() => run(close, () => editor?.chain().focus().toggleBlockquote().run())}
 					>
-						Kutipan
+						Quote
 					</Item>
 					<Item
 						icon={<Code className="h-4 w-4" />}
 						onSelect={() => run(close, () => editor && insertCodeBlock(editor, 'plaintext'))}
 					>
-						Teks polos
+						Plain text block
 					</Item>
 					<Item
 						icon={<Code2 className="h-4 w-4" />}
 						onSelect={() => run(close, () => editor && insertCodeBlock(editor, 'javascript'))}
 					>
-						Blok kode
+						Code block
 					</Item>
 					<Item
 						icon={<Sigma className="h-4 w-4" />}
 						onSelect={() => run(close, () => editor && insertCodeBlock(editor, 'mermaid'))}
 					>
-						Diagram Mermaid…
+						Mermaid diagram…
 					</Item>
 					<DropdownSeparator />
-					<DropdownLabel>Daftar</DropdownLabel>
+					<DropdownLabel>More</DropdownLabel>
 					<Item
 						icon={<List className="h-4 w-4" />}
 						disabled={!activeId}
 						onSelect={() => run(close, () => editor?.chain().focus().insertToc({ listKind: 'isi' }).run())}
 					>
-						Daftar isi
+						Table of contents
 					</Item>
 					<Item
 						icon={<ImageIcon className="h-4 w-4" />}
 						disabled={!activeId}
 						onSelect={() => run(close, () => editor?.chain().focus().insertToc({ listKind: 'gambar' }).run())}
 					>
-						Daftar gambar
+						List of figures
 					</Item>
 					<Item
 						icon={<TableIcon className="h-4 w-4" />}
 						disabled={!activeId}
 						onSelect={() => run(close, () => editor?.chain().focus().insertToc({ listKind: 'tabel' }).run())}
 					>
-						Daftar tabel
+						List of tables
 					</Item>
 					<Item
 						icon={<Code className="h-4 w-4" />}
 						onSelect={() => run(close, () => editor?.chain().focus().toggleCode().run())}
 					>
-						Kode (dalam baris)
+						Inline code
 					</Item>
 					<Item
 						icon={<Sigma className="h-4 w-4" />}
@@ -150,7 +150,7 @@ export function InsertMenu() {
 						Block formula…
 					</Item>
 					<DropdownSeparator />
-					<Submenu label="Tabel" icon={<TableIcon className="h-4 w-4" />}>
+					<Submenu label="Table" icon={<TableIcon className="h-4 w-4" />}>
 						{() => (
 							<TableSizeGrid
 								onPick={(rows, cols) => run(close, () => editor && insertTableOfSize(editor, rows, cols))}
@@ -161,28 +161,28 @@ export function InsertMenu() {
 						icon={<Minus className="h-4 w-4" />}
 						onSelect={() => run(close, () => editor?.chain().focus().setHorizontalRule().run())}
 					>
-						Garis horizontal
+						Horizontal line
 					</Item>
 					<Item
 						icon={<CheckSquare className="h-4 w-4" />}
 						shortcut={keys('para.taskList')}
 						onSelect={() => run(close, () => editor?.chain().focus().toggleTaskList().run())}
 					>
-						Daftar centang
+						Checklist
 					</Item>
 					<Item
 						icon={<Footprints className="h-4 w-4" />}
 						shortcut={keys('doc.footnote')}
 						onSelect={() => run(close, () => editor && insertFootnoteAndEdit(editor))}
 					>
-						Catatan kaki
+						Footnote
 					</Item>
 					<Item
 						icon={<FileText className="h-4 w-4" />}
 						shortcut={keys('doc.pageBreak')}
 						onSelect={() => run(close, () => editor?.chain().focus().setPageBreak().run())}
 					>
-						Halaman baru
+						Page break
 					</Item>
 					{/* Pindah kolom: di dalam wilayah berkolom ia menutup kolom, di luar
 					    itu Word memperlakukannya sebagai pemenggal halaman. */}
@@ -190,7 +190,7 @@ export function InsertMenu() {
 						icon={<Columns2 className="h-4 w-4" />}
 						onSelect={() => run(close, () => editor?.chain().focus().setColumnBreak().run())}
 					>
-						Kolom baru
+						Column break
 					</Item>
 					<Item
 						icon={<TableIcon className="h-4 w-4" />}
@@ -198,7 +198,7 @@ export function InsertMenu() {
 						active={tableRepeatsHeader(editor)}
 						onSelect={() => run(close, () => editor?.chain().focus().toggleTableHeaderRepeat().run())}
 					>
-						Ulang header tabel
+						Repeat table header
 					</Item>
 				</>
 			)}

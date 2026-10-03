@@ -28,8 +28,8 @@ const PANEL_TITLES: Record<PanelId, string> = {
 	plagiarism: 'Plagiarism Checker',
 	translator: 'Translator',
 	glossary: 'Glosarium',
-	assets: 'Aset',
-	search: 'Cari dan ganti',
+	assets: 'Assets',
+	search: 'Find and replace',
 	watermark: 'Watermark',
 }
 

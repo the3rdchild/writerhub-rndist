@@ -5,7 +5,7 @@ export function safeFilename(title: string, extension: string): string {
 		title
 			.trim()
 			.replace(/[\\/:*?"<>|]+/g, '-')
-			.slice(0, 80) || 'dokumen'
+			.slice(0, 80) || 'document'
 	return `${base}.${extension}`
 }
 

@@ -44,8 +44,8 @@ export function CommentsPanel() {
 			<div className="flex min-h-0 flex-1 flex-col bg-surface-inset p-4">
 				<PanelEmptyState
 					icon={MessageSquare}
-					title="Belum ada komentar"
-					description="Sorot satu bagian naskah lalu pilih Comment untuk memulai utas"
+					title="No comments yet"
+					description="Select a passage and choose Comment to start a thread"
 				/>
 			</div>
 		)
@@ -61,7 +61,7 @@ export function CommentsPanel() {
 					onClick={() => setShowResolved(!showResolved)}
 					className="self-start px-1 text-[11px] text-subtle transition-colors hover:text-foreground"
 				>
-					{showResolved ? 'Sembunyikan' : 'Tampilkan'} {resolvedCount} yang selesai
+					{showResolved ? 'Hide' : 'Show'} {resolvedCount} yang selesai
 				</button>
 			)}
 

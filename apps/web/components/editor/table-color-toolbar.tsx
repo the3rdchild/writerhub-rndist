@@ -130,14 +130,14 @@ export function TableColorToolbar({ editor }: { editor: Editor | null }) {
 				<ToolbarBtn
 					active={palette === 'background'}
 					onClick={() => setPalette(palette === 'background' ? null : 'background')}
-					label="Warna latar sel"
+					label="Cell background"
 				>
 					<PaintRoller className="h-4 w-4" />
 				</ToolbarBtn>
 				<ToolbarBtn
 					active={palette === 'border'}
 					onClick={() => setPalette(palette === 'border' ? null : 'border')}
-					label="Warna bingkai sel"
+					label="Cell border color"
 				>
 					<PencilLine className="h-4 w-4" />
 				</ToolbarBtn>
@@ -201,7 +201,7 @@ function Palette({
 			onMouseDown={(e) => e.preventDefault()}
 		>
 			<div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-faint">
-				{mode === 'background' ? 'Warna latar' : 'Warna bingkai'}
+				{mode === 'background' ? 'Background color' : 'Border color'}
 			</div>
 			<div className="grid grid-cols-8 gap-1">
 				{PALETTE.flat().map((color) => (

@@ -90,13 +90,13 @@ export function useOpenDraft(documentId: string): OpenDraftState {
 			const tabId = await openFromLibrary(detail)
 			if (!tabId) {
 				openedRef.current = false
-				fail('Jumlah dokumen atau tab yang terbuka sudah mencapai batas. Tutup salah satu dulu.', null)
+				fail('Too many documents or tabs are open. Close one first.', null)
 				return
 			}
 			router.replace('/')
 		} catch (cause) {
 			openedRef.current = false
-			fail(cause instanceof Error ? cause.message : 'Gagal membuka dokumen', null)
+			fail(cause instanceof Error ? cause.message : "Couldn't open the document", null)
 		}
 	}, [documentId, fail, openFromLibrary, router])
 
@@ -118,7 +118,7 @@ export function useOpenDraft(documentId: string): OpenDraftState {
 
 				if (handoff.status === 'failed') {
 					fail(
-						handoff.error || 'Draf gagal ditulis. Dokumennya sudah dibuat, tapi masih kosong.',
+						handoff.error || "The draft couldn't be written. The document was created but is still empty.",
 						handoff.errorCode ?? 'unknown',
 					)
 					return
@@ -128,14 +128,14 @@ export function useOpenDraft(documentId: string): OpenDraftState {
 					return
 				}
 				if (Date.now() > deadline) {
-					fail('Draf belum selesai ditulis setelah menunggu cukup lama.', 'timeout')
+					fail("The draft still isn't finished after waiting a long time.", 'timeout')
 					return
 				}
 
 				timerRef.current = setTimeout(() => void waitUntilDraftIsWritten(deadline), POLL_INTERVAL_MS)
 			} catch (cause) {
 				if (stoppedRef.current) return
-				fail(cause instanceof Error ? cause.message : 'Gagal membaca status draf', null)
+				fail(cause instanceof Error ? cause.message : "Couldn't read the draft status", null)
 			}
 		},
 		[documentId, fail],
@@ -163,7 +163,9 @@ export function useOpenDraft(documentId: string): OpenDraftState {
 				setErrorCode(null)
 				void poll(Date.now() + MAX_WAIT_MS)
 			})
-			.catch((cause) => fail(cause instanceof Error ? cause.message : 'Gagal mencoba menulis ulang', null))
+			.catch((cause) =>
+				fail(cause instanceof Error ? cause.message : "Couldn't retry writing the draft", null),
+			)
 			.finally(() => setRetrying(false))
 	}, [documentId, fail, poll])
 

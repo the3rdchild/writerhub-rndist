@@ -178,7 +178,7 @@ export function CodeBlockNodeView({ node, updateAttributes, selected, editor, de
 					value={language}
 					onChange={onLanguageChange}
 					className="code-block-lang"
-					aria-label="Bahasa kode"
+					aria-label="Code language"
 				>
 					{CODE_LANGUAGES.map((lang) => (
 						<option key={lang.value} value={lang.value}>
@@ -194,29 +194,29 @@ export function CodeBlockNodeView({ node, updateAttributes, selected, editor, de
 							type="button"
 							onClick={toggleMermaidView}
 							className="code-block-action"
-							title={mermaidView === 'source' ? 'Pratinjau diagram' : 'Sunting sumber'}
-							aria-label={mermaidView === 'source' ? 'Pratinjau diagram' : 'Sunting sumber'}
+							title={mermaidView === 'source' ? 'Preview diagram' : 'Edit source'}
+							aria-label={mermaidView === 'source' ? 'Preview diagram' : 'Edit source'}
 						>
 							{mermaidView === 'source' ? <Eye className="h-3.5 w-3.5" /> : <Code2 className="h-3.5 w-3.5" />}
-							{mermaidView === 'source' ? 'Pratinjau' : 'Sunting'}
+							{mermaidView === 'source' ? 'Preview' : 'Edit'}
 						</button>
 					)}
 					<button
 						type="button"
 						onClick={copyCode}
 						className="code-block-action"
-						title="Salin kode"
-						aria-label="Salin kode"
+						title="Copy code"
+						aria-label="Copy code"
 					>
 						{copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-						{copied ? 'Tersalin' : 'Salin'}
+						{copied ? 'Copied' : 'Copy'}
 					</button>
 					<button
 						type="button"
 						onClick={() => deleteNode()}
 						className="code-block-action code-block-delete"
-						title="Hapus blok"
-						aria-label="Hapus blok"
+						title="Delete block"
+						aria-label="Delete block"
 					>
 						×
 					</button>
@@ -236,14 +236,14 @@ export function CodeBlockNodeView({ node, updateAttributes, selected, editor, de
 						<div dangerouslySetInnerHTML={{ __html: visualSvg }} />
 					) : (
 						<p className="code-block-visual-empty">
-							{isMermaid ? 'Merender diagram…' : 'Belum ada gambar di blok ini.'}
+							{isMermaid ? 'Rendering diagram…' : 'Nothing to show in this block yet.'}
 						</p>
 					)}
 					<button
 						type="button"
 						onClick={toggleMermaidView}
 						className="code-block-visual-back"
-						title="Kembali ke sumber"
+						title="Back to source"
 					>
 						<Code2 className="h-3.5 w-3.5" /> Sunting sumber
 					</button>
@@ -256,7 +256,7 @@ export function CodeBlockNodeView({ node, updateAttributes, selected, editor, de
 
 			{/*
 			 * Diagram untuk kertas, hadir bahkan saat penulis sedang melihat
-			 * sumbernya. "Pratinjau" adalah pilihan tampilan di layar, bukan
+			 * sumbernya. "Preview" adalah pilihan tampilan di layar, bukan
 			 * pernyataan bahwa blok ini kode - di kertas tidak ada yang bisa
 			 * di-toggle, jadi yang dicetak selalu diagramnya. Disembunyikan di
 			 * layar lewat CSS, bukan lewat kondisi di sini: kalau ia tidak ikut

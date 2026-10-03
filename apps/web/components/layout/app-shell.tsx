@@ -36,10 +36,10 @@ function PersistenceNotice() {
 			role="status"
 			className="flex shrink-0 items-center gap-2 border-line-strong border-b bg-surface-raised px-3 py-1.5 text-[12px]"
 		>
-			<span className="font-medium text-yellow-500">Tidak tersimpan di peramban ini</span>
+			<span className="font-medium text-yellow-500">Not saved in this browser</span>
 			<span className="text-muted">
-				Penyimpanan lokal (IndexedDB) tidak bisa dipakai, jadi suntingan hanya hidup selama tab ini terbuka.
-				Izinkan data situs untuk alamat ini, atau keluar dari mode penjelajahan pribadi, lalu muat ulang.
+				Local storage (IndexedDB) is unavailable, so your edits only last while this tab is open. Allow site
+				data for this address or leave private browsing, then reload.
 			</span>
 		</div>
 	)

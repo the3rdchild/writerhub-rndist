@@ -59,7 +59,7 @@ export function AiEditPopover({
 			)
 		} catch (cause) {
 			if (!controller.signal.aborted) {
-				setError(cause instanceof Error ? cause.message : 'AI Edit gagal')
+				setError(cause instanceof Error ? cause.message : 'AI Edit failed')
 				setResult(null)
 			}
 		} finally {
@@ -83,7 +83,7 @@ export function AiEditPopover({
 			setApplied(true)
 			onClose()
 		} else {
-			setError('Teks aslinya sudah berubah - pilih ulang bagiannya')
+			setError('The original text has changed - select the passage again')
 		}
 	}
 
@@ -94,7 +94,7 @@ export function AiEditPopover({
 				<button
 					type="button"
 					onClick={onClose}
-					aria-label="Tutup"
+					aria-label="Close"
 					className="text-subtle transition-colors hover:text-foreground"
 				>
 					<X className="h-3.5 w-3.5" />
@@ -112,7 +112,7 @@ export function AiEditPopover({
 						}
 					}}
 					placeholder="How should this change?"
-					aria-label="Instruksi"
+					aria-label="Instruction"
 					className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-faint"
 				/>
 				<button

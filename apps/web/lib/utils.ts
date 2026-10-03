@@ -31,3 +31,10 @@ export function countWords(text: string): number {
 export function countCharacters(text: string): number {
 	return text.replace(/\n/g, '').length
 }
+
+/** "1 word · 5 characters" - dulu selalu bentuk jamak, "1 words". */
+export function formatTextCounts(text: string): string {
+	const words = countWords(text)
+	const characters = countCharacters(text)
+	return `${words} ${words === 1 ? 'word' : 'words'} · ${characters} ${characters === 1 ? 'character' : 'characters'}`
+}

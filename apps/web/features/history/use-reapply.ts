@@ -44,9 +44,9 @@ export function useReapply(detail: HistoryDetail | null): ReapplyController {
 			const tab = await getTab(detail.tabId)
 			const document = await getDocument(tab.documentId)
 			const tabId = await openFromLibrary(document)
-			if (!tabId) setOpenError('Batas tab tercapai - tutup satu tab dulu.')
+			if (!tabId) setOpenError('The tab limit was reached - close a tab first.')
 		} catch {
-			setOpenError('Gagal membuka dokumen.')
+			setOpenError("Couldn't open the document.")
 		} finally {
 			setOpening(false)
 		}

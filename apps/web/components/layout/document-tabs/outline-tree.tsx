@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 
 const INDENT_BASE_PX = 10
 const INDENT_PER_LEVEL_PX = 12
-const UNTITLED = 'Tanpa judul'
+const UNTITLED = 'Untitled'
 
 export function OutlineTree({
 	items,
@@ -17,7 +17,7 @@ export function OutlineTree({
 	if (items.length === 0) {
 		return (
 			<p className="mb-1 ml-4 mt-0.5 border-l border-line py-1 pl-2.5 pr-2 text-[13px] text-subtle">
-				Belum ada heading
+				No headings yet
 			</p>
 		)
 	}

@@ -7,11 +7,11 @@ import { contentToPreviewHtml } from '@/features/templates/preview-html'
 import { TemplatePreview } from './template-preview'
 
 const CITATION_LABEL: Record<CitationStyle, string> = {
-	apa7: 'APA edisi 7',
+	apa7: 'APA 7th edition',
 	ieee: 'IEEE [1]',
 	acm: 'ACM Reference Format',
 	vancouver: 'Vancouver',
-	none: 'Tanpa sitasi',
+	none: 'No citations',
 }
 
 interface TemplateDetailPanelProps {
@@ -28,7 +28,7 @@ interface TemplateDetailPanelProps {
 /**
  * Panel samping galeri: pratinjau besar, struktur bab, gaya sitasi, dan
  * caveats - catatan jujur tentang bagian format yang belum otomatis - sebelum
- * pengguna menekan "Pakai template ini".
+ * pengguna menekan "Use this template".
  *
  * Gulirannya berdiri sendiri, terpisah dari galeri di sebelahnya, dan tombol
  * pakainya berlabuh di dasar panel. Dulu keduanya satu guliran: untuk menekan
@@ -74,8 +74,8 @@ export function TemplateDetailPanel({
 			<button
 				type="button"
 				onClick={onClose}
-				aria-label="Tutup detail template"
-				title="Tutup (Esc)"
+				aria-label="Close template details"
+				title="Close (Esc)"
 				className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 			>
 				<X className="h-4 w-4" />
@@ -102,7 +102,7 @@ export function TemplateDetailPanel({
 					</div>
 
 					<section>
-						<h3 className="text-xs font-semibold uppercase tracking-wide text-faint">Struktur</h3>
+						<h3 className="text-xs font-semibold uppercase tracking-wide text-faint">Structure</h3>
 						<ul className="mt-2 space-y-1">
 							{spec.structure.map((item) => (
 								<li
@@ -112,7 +112,7 @@ export function TemplateDetailPanel({
 								>
 									<FileText className="h-3 w-3 shrink-0 self-center text-faint" />
 									<span>{item.heading}</span>
-									{!item.required && <span className="text-xs text-faint">(opsional)</span>}
+									{!item.required && <span className="text-xs text-faint">(optional)</span>}
 								</li>
 							))}
 						</ul>
@@ -122,13 +122,13 @@ export function TemplateDetailPanel({
 						<h3 className="text-xs font-semibold uppercase tracking-wide text-faint">Format</h3>
 						<p className="mt-2 text-sm text-foreground">{CITATION_LABEL[spec.format.citationStyle]}</p>
 						{spec.layout.columns && (
-							<p className="text-sm text-foreground">{spec.layout.columns.count} kolom</p>
+							<p className="text-sm text-foreground">{spec.layout.columns.count} columns</p>
 						)}
 					</section>
 
 					{spec.caveats && spec.caveats.length > 0 && (
 						<section>
-							<h3 className="text-xs font-semibold uppercase tracking-wide text-faint">Belum otomatis</h3>
+							<h3 className="text-xs font-semibold uppercase tracking-wide text-faint">Not automatic yet</h3>
 							<ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-muted">
 								{spec.caveats.map((caveat) => (
 									<li key={caveat}>{caveat}</li>
@@ -153,7 +153,7 @@ export function TemplateDetailPanel({
 						className="flex items-center justify-center gap-1.5 rounded-xl border border-line px-5 py-2 text-sm text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 					>
 						<PencilLine className="h-4 w-4" />
-						{filledMetadata > 0 ? `Metadata terisi (${filledMetadata})` : 'Isi metadata (opsional)'}
+						{filledMetadata > 0 ? `Metadata terisi (${filledMetadata})` : 'Fill in metadata (optional)'}
 					</button>
 				) : null}
 
@@ -163,7 +163,7 @@ export function TemplateDetailPanel({
 					disabled={pending}
 					className="w-full rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-60"
 				>
-					{pending ? 'Membuat dokumen…' : 'Pakai template ini'}
+					{pending ? 'Creating document…' : 'Use this template'}
 				</button>
 			</div>
 		</aside>

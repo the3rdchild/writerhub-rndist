@@ -36,7 +36,7 @@ export function ProjectSidebar({ active }: { active: string }) {
 				void invalidateProjects()
 				go(project.id)
 			})
-			.catch((cause) => failMessage(cause, 'Gagal membuat proyek'))
+			.catch((cause) => failMessage(cause, 'Could not create the project'))
 	}
 
 	const rename = (project: ProjectSummary, name: string) => {
@@ -45,7 +45,7 @@ export function ProjectSidebar({ active }: { active: string }) {
 		setActionError(null)
 		updateProject(project.id, { name })
 			.then(() => void invalidateProjects())
-			.catch((cause) => failMessage(cause, 'Gagal mengganti nama proyek'))
+			.catch((cause) => failMessage(cause, 'Could not rename the project'))
 	}
 
 	const confirmDelete = () => {
@@ -59,7 +59,7 @@ export function ProjectSidebar({ active }: { active: string }) {
 				if (active === pendingDelete.id) go('all')
 				setPendingDelete(null)
 			})
-			.catch((cause) => failMessage(cause, 'Gagal menghapus proyek'))
+			.catch((cause) => failMessage(cause, 'Could not delete the project'))
 			.finally(() => setDeleting(false))
 	}
 
@@ -68,14 +68,14 @@ export function ProjectSidebar({ active }: { active: string }) {
 			<nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-4">
 				<SidebarItem
 					icon={<LibraryBig className="h-4 w-4" />}
-					label="Semua dokumen"
+					label="All documents"
 					active={active === 'all'}
 					onSelect={() => go('all')}
 				/>
 
 				{projects && projects.length > 0 && (
 					<p className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-faint">
-						Proyek
+						Projects
 					</p>
 				)}
 
@@ -104,7 +104,7 @@ export function ProjectSidebar({ active }: { active: string }) {
 									<button
 										type="button"
 										onClick={toggle}
-										aria-label={`Opsi proyek ${project.name}`}
+										aria-label={`Project options for ${project.name}`}
 										aria-controls={id}
 										className="mr-1 rounded p-1 text-subtle opacity-0 transition-opacity hover:bg-[var(--overlay-active)] hover:text-foreground group-hover/row:opacity-100"
 									>
@@ -121,7 +121,7 @@ export function ProjectSidebar({ active }: { active: string }) {
 												setRenamingId(project.id)
 											}}
 										>
-											Ganti nama
+											Rename
 										</DropdownItem>
 										<DropdownItem
 											icon={<Trash2 className="h-4 w-4" />}
@@ -130,7 +130,7 @@ export function ProjectSidebar({ active }: { active: string }) {
 												setPendingDelete(project)
 											}}
 										>
-											Hapus
+											Delete
 										</DropdownItem>
 									</>
 								)}
@@ -146,7 +146,7 @@ export function ProjectSidebar({ active }: { active: string }) {
 				{creating ? (
 					<ProjectNameInput
 						initialValue=""
-						placeholder="Nama proyek"
+						placeholder="Project name"
 						autoFocus
 						onCommit={create}
 						onCancel={() => setCreating(false)}
@@ -158,7 +158,7 @@ export function ProjectSidebar({ active }: { active: string }) {
 						className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 					>
 						<Plus className="h-4 w-4" />
-						Proyek baru
+						New project
 					</button>
 				)}
 			</div>
@@ -166,16 +166,16 @@ export function ProjectSidebar({ active }: { active: string }) {
 			<ConfirmDialog
 				open={pendingDelete !== null}
 				danger
-				title="Hapus proyek ini?"
+				title="Delete this project?"
 				description={
 					<>
-						Proyek <strong className="text-foreground">{pendingDelete?.name}</strong> dihapus. Proyek yang
-						masih berisi dokumen <strong className="text-foreground">tidak bisa dihapus</strong> - pindahkan
-						atau hapus dokumennya dulu.
+						The project <strong className="text-foreground">{pendingDelete?.name}</strong> will be deleted. A
+						project that still has documents <strong className="text-foreground">can't be deleted</strong> -
+						move or delete its documents first.
 						{actionError && <span className="mt-2 block text-red-500">{actionError}</span>}
 					</>
 				}
-				confirmLabel={deleting ? 'Menghapus…' : 'Hapus'}
+				confirmLabel={deleting ? 'Deleting…' : 'Delete'}
 				onConfirm={confirmDelete}
 				onCancel={() => setPendingDelete(null)}
 			/>
@@ -255,7 +255,7 @@ function ProjectNameInput({
 				if (event.key === 'Enter') commit()
 				else if (event.key === 'Escape') onCancel()
 			}}
-			aria-label={placeholder ?? 'Nama proyek'}
+			aria-label={placeholder ?? 'Project name'}
 			className="w-full rounded-lg border border-accent bg-surface-raised px-2 py-1 text-sm text-foreground outline-none"
 		/>
 	)

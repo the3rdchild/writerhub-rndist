@@ -83,14 +83,14 @@ function MeasureInput({
 				className={cn(FIELD_CLASS, 'w-20')}
 			/>
 			<select
-				aria-label="Satuan"
+				aria-label="Units"
 				value={unit}
 				disabled={disabled}
 				onChange={(e) => setUnit(e.target.value as Unit)}
 				className={cn(FIELD_CLASS, 'w-16 shrink-0')}
 			>
 				<option value="px">px</option>
-				<option value="in">inci</option>
+				<option value="in">inches</option>
 			</select>
 		</div>
 	)
@@ -217,11 +217,11 @@ export function TableOptionsPanel({ editor, onClose }: { editor: Editor; onClose
 	return (
 		<div className="absolute right-3 top-3 z-30 flex max-h-[calc(100%-1.5rem)] w-64 flex-col overflow-hidden rounded-xl border border-line-strong bg-surface-raised shadow-[var(--menu-shadow)]">
 			<div className="flex items-center gap-2 border-b border-line px-3 py-2.5">
-				<h2 className="text-sm font-semibold">Opsi tabel</h2>
+				<h2 className="text-sm font-semibold">Table options</h2>
 				<button
 					type="button"
 					onClick={close}
-					aria-label="Tutup opsi tabel"
+					aria-label="Close table options"
 					className="ml-auto text-muted transition-colors hover:text-foreground"
 				>
 					<X className="h-4 w-4" />
@@ -230,20 +230,20 @@ export function TableOptionsPanel({ editor, onClose }: { editor: Editor; onClose
 
 			{!snap ? (
 				<p className="px-3 py-6 text-center text-xs text-muted">
-					Letakkan kursor di dalam tabel untuk mengatur opsinya.
+					Put the cursor in a table to change its options.
 				</p>
 			) : (
 				<div className="min-h-0 flex-1 overflow-y-auto">
-					<Section title="Tabel">
+					<Section title="Table">
 						<CheckRow
-							label="Lebar tabel"
+							label="Table width"
 							checked={snap.tableWidth !== null}
 							onChange={(checked) =>
 								applyTableWidth(editor, snap.tablePos, checked ? (snap.tableWidth ?? 480) : null)
 							}
 						>
 							<MeasureInput
-								ariaLabel="Lebar tabel"
+								ariaLabel="Table width"
 								valuePx={snap.tableWidth}
 								disabled={snap.tableWidth === null}
 								onCommit={(px) => applyTableWidth(editor, snap.tablePos, px)}
@@ -251,16 +251,16 @@ export function TableOptionsPanel({ editor, onClose }: { editor: Editor; onClose
 						</CheckRow>
 					</Section>
 
-					<Section title="Kolom">
+					<Section title="Column">
 						<div className="flex flex-col gap-1.5">
 							<span className="text-xs text-foreground">Lebar kolom {snap.colIndex + 1}</span>
-							<MeasureInput ariaLabel="Lebar kolom" valuePx={snap.columnWidth} onCommit={setColumnWidth} />
+							<MeasureInput ariaLabel="Column width" valuePx={snap.columnWidth} onCommit={setColumnWidth} />
 						</div>
 					</Section>
 
-					<Section title="Baris">
+					<Section title="Row">
 						<CheckRow
-							label="Tinggi baris minimum"
+							label="Minimum row height"
 							checked={snap.rowHeight !== null}
 							onChange={(checked) =>
 								chain()
@@ -269,29 +269,29 @@ export function TableOptionsPanel({ editor, onClose }: { editor: Editor; onClose
 							}
 						>
 							<MeasureInput
-								ariaLabel="Tinggi baris minimum"
+								ariaLabel="Minimum row height"
 								valuePx={snap.rowHeight}
 								disabled={snap.rowHeight === null}
 								onCommit={(px) => chain().setRowHeight(px).run()}
 							/>
 						</CheckRow>
 						<CheckRow
-							label="Ulangi baris header di tiap halaman"
+							label="Repeat header row on each page"
 							checked={snap.repeatHeader}
 							onChange={() => chain().toggleTableHeaderRepeat().run()}
 						/>
 						<CheckRow
-							label="Biarkan baris melintasi halaman"
+							label="Allow rows to break across pages"
 							checked={!snap.cantSplit}
 							onChange={(checked) => chain().setRowCantSplit(!checked).run()}
 						/>
 					</Section>
 
-					<Section title="Sel">
+					<Section title="Cell">
 						<div className="flex flex-col gap-1.5">
-							<span className="text-xs text-foreground">Perataan vertikal sel</span>
+							<span className="text-xs text-foreground">Vertical alignment</span>
 							<select
-								aria-label="Perataan vertikal sel"
+								aria-label="Vertical alignment"
 								value={snap.verticalAlign ?? ''}
 								onChange={(e) => {
 									const value = e.target.value
@@ -301,32 +301,32 @@ export function TableOptionsPanel({ editor, onClose }: { editor: Editor; onClose
 								}}
 								className={FIELD_CLASS}
 							>
-								<option value="">Bawaan</option>
-								<option value="top">Atas</option>
-								<option value="middle">Tengah</option>
-								<option value="bottom">Bawah</option>
+								<option value="">Default</option>
+								<option value="top">Top</option>
+								<option value="middle">Middle</option>
+								<option value="bottom">Bottom</option>
 							</select>
 						</div>
 						<div className="flex flex-col gap-1.5">
-							<span className="text-xs text-foreground">Padding sel</span>
+							<span className="text-xs text-foreground">Cell padding</span>
 							<MeasureInput
-								ariaLabel="Padding sel"
+								ariaLabel="Cell padding"
 								valuePx={parsePadding(snap.cellPadding)}
 								onCommit={(px) => chain().setCellPadding(`${px}px`).run()}
 							/>
 						</div>
 					</Section>
 
-					<Section title="Warna">
+					<Section title="Color">
 						<div className="flex flex-col gap-1.5">
-							<span className="text-xs text-foreground">Bingkai tabel</span>
+							<span className="text-xs text-foreground">Table border</span>
 							<Swatches
 								value={snap.borderColor}
 								onPick={(color) =>
 									setBorder({ color, width: snap.borderWidth ?? 1, style: snap.borderStyle ?? 'solid' })
 								}
 								onClear={() => setBorder({ color: null, width: null, style: null })}
-								clearLabel="Tanpa bingkai"
+								clearLabel="No border"
 							/>
 							<div className="flex items-center gap-1.5">
 								<input
@@ -352,7 +352,7 @@ export function TableOptionsPanel({ editor, onClose }: { editor: Editor; onClose
 									className={cn(FIELD_CLASS, 'w-20')}
 								/>
 								<select
-									aria-label="Gaya bingkai"
+									aria-label="Border style"
 									value={snap.borderStyle ?? 'solid'}
 									onChange={(e) =>
 										setBorder({
@@ -363,20 +363,20 @@ export function TableOptionsPanel({ editor, onClose }: { editor: Editor; onClose
 									}
 									className={FIELD_CLASS}
 								>
-									<option value="solid">Penuh</option>
+									<option value="solid">Solid</option>
 									<option value="dashed">Putus-putus</option>
-									<option value="dotted">Titik-titik</option>
-									<option value="double">Ganda</option>
+									<option value="dotted">Dotted</option>
+									<option value="double">Double</option>
 								</select>
 							</div>
 						</div>
 						<div className="flex flex-col gap-1.5">
-							<span className="text-xs text-foreground">Warna latar sel</span>
+							<span className="text-xs text-foreground">Cell background</span>
 							<Swatches
 								value={snap.cellBackground}
 								onPick={(color) => chain().setCellAttribute('backgroundColor', color).run()}
 								onClear={() => chain().setCellAttribute('backgroundColor', null).run()}
-								clearLabel="Tanpa warna"
+								clearLabel="No color"
 							/>
 						</div>
 					</Section>

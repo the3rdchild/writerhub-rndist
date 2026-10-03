@@ -50,8 +50,8 @@ export function PageIndicator({
 						inputRef.current?.blur()
 					}
 				}}
-				aria-label="Nomor halaman tujuan"
-				title="Ketik nomor halaman lalu Enter untuk melompat"
+				aria-label="Go to page number"
+				title="Type a page number and press Enter to jump"
 				className="h-5 w-8 rounded border border-transparent bg-transparent px-0.5 text-center text-xs leading-none text-subtle tabular-nums outline-none transition-colors hover:border-line focus:border-accent focus:text-foreground"
 			/>
 			of {pageCount}

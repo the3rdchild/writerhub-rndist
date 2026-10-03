@@ -29,14 +29,14 @@ export function DeleteTabDialog() {
 		<ConfirmDialog
 			open={tab !== null}
 			danger
-			title="Hapus tab ini?"
+			title="Delete this tab?"
 			description={
 				<>
-					Naskah <strong className="text-foreground">{tab && sessionLabel(tab)}</strong> ikut terhapus,
-					termasuk komentar di dalamnya. Tidak ada jalan kembali.
+					<strong className="text-foreground">{tab && sessionLabel(tab)}</strong> and its comments will be
+					deleted. This can't be undone.
 				</>
 			}
-			confirmLabel="Hapus"
+			confirmLabel="Delete"
 			onConfirm={confirm}
 			onCancel={cancel}
 		/>

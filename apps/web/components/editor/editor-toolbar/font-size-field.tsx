@@ -59,7 +59,7 @@ export function FontSizeField({
 			<input
 				type="text"
 				inputMode="decimal"
-				aria-label="Ukuran huruf"
+				aria-label="Font size"
 				disabled={disabled}
 				value={draft}
 				{...NO_FORM_RESTORE}

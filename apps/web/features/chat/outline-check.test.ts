@@ -204,7 +204,7 @@ describe('batas bawah halaman dari pemecah wajib (TP-2)', () => {
 	test('ringkasan penulis tidak menampilkan kekurangan di bawah batas', () => {
 		// 7 halaman, target 5-8, batas wajib 9: 7 di bawah 9 tapi bukan kekurangan.
 		const writer = outlineForWriter(floor(7) as never)
-		expect(writer.short).not.toContain('hlm')
+		expect(writer.short).not.toContain('pages')
 	})
 })
 
@@ -237,12 +237,12 @@ describe('laporan untuk model dan penulis', () => {
 
 	test('penulis mendapat satu baris pendek dan rinciannya', () => {
 		const writer = progress && outlineForWriter(progress)
-		expect(writer?.short).toBe('2 bagian kosong · Tabel 1, Gambar 2 belum ada · 18 dari 8-12 hlm')
+		expect(writer?.short).toBe('2 empty sections · Tabel 1, Gambar 2 missing · 18 of 8-12 pages')
 		expect(writer?.detail).toEqual([
-			'Belum berisi: Metode, Simpulan',
-			'Tabel 1: baru keterangannya',
-			'Gambar 2: belum ada',
-			'Panjang 18 halaman, target 8-12',
+			'Still empty: Metode, Simpulan',
+			'Tabel 1: caption only',
+			'Gambar 2: missing',
+			'Length 18 pages, target 8-12',
 		])
 	})
 
@@ -296,7 +296,7 @@ describe('batas bawah halaman dari pemecah wajib (TP-2)', () => {
 	test('ringkasan penulis tidak menampilkan kekurangan di bawah batas', () => {
 		// 7 halaman, target 5-8, batas wajib 9: 7 di bawah 9 tapi bukan kekurangan.
 		const writer = outlineForWriter(floor(7) as never)
-		expect(writer.short).not.toContain('hlm')
+		expect(writer.short).not.toContain('pages')
 	})
 
 	test('batas wajib tidak menurunkan batas bawah penulis', () => {

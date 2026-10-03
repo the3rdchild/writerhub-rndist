@@ -36,22 +36,22 @@ export function TocPanel({ editor, onClose }: { editor: Editor; onClose?: () => 
 		<div className="flex h-full flex-col">
 			<div className="flex items-center gap-2 border-b border-line px-4 py-3">
 				<List className="h-4 w-4 text-muted" />
-				<h2 className="text-sm font-semibold">Daftar Isi</h2>
+				<h2 className="text-sm font-semibold">Table of contents</h2>
 				{onClose && (
 					<button
 						type="button"
 						onClick={onClose}
-						aria-label="Tutup daftar isi"
+						aria-label="Close table of contents"
 						className="ml-auto text-sm text-muted transition-colors hover:text-foreground"
 					>
-						Tutup
+						Close
 					</button>
 				)}
 			</div>
 			<div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
 				{items.length === 0 ? (
 					<p className="px-3 py-6 text-center text-xs text-muted">
-						Tambahkan judul (Heading) untuk membuat daftar isi.
+						Add headings to build a table of contents.
 					</p>
 				) : (
 					<ul className="flex flex-col gap-0.5">
@@ -68,7 +68,7 @@ export function TocPanel({ editor, onClose }: { editor: Editor; onClose?: () => 
 									)}
 									style={{ paddingLeft: `${0.75 + Math.min(item.level - 1, 6) * 1}rem` }}
 								>
-									{item.textContent || 'Tanpa judul'}
+									{item.textContent || 'Untitled'}
 								</button>
 							</li>
 						))}

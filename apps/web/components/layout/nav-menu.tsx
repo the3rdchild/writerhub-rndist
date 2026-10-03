@@ -48,7 +48,7 @@ export function NavMenu() {
 				<button
 					type="button"
 					onClick={toggle}
-					aria-label="Menu utama"
+					aria-label="Main menu"
 					aria-haspopup="menu"
 					aria-expanded={open}
 					aria-controls={id}
@@ -85,7 +85,7 @@ export function NavMenu() {
 							close()
 						}}
 					>
-						Dokumen baru
+						New document
 					</DropdownItem>
 					<DropdownItem
 						icon={<Home className="h-4 w-4" />}
@@ -106,7 +106,7 @@ export function NavMenu() {
 						Library
 					</DropdownItem>
 					{/* Aktivitas AI (fitur F): catatan pemakaian modul AI. Sengaja bukan
-					    "Riwayat" - nama itu sudah dipakai dua fitur lain. */}
+					    "Recent" - nama itu sudah dipakai dua fitur lain. */}
 					<DropdownItem
 						icon={<Activity className="h-4 w-4" />}
 						onSelect={() => {
@@ -145,12 +145,12 @@ export function NavMenu() {
 					<DropdownLabel>
 						<span className="inline-flex items-center gap-1.5">
 							<Clock className="h-3 w-3" />
-							Riwayat
+							Recent
 						</span>
 					</DropdownLabel>
 
 					{hydrated && recent.length === 0 && (
-						<p className="px-3 py-2 text-sm text-faint">Belum ada riwayat</p>
+						<p className="px-3 py-2 text-sm text-faint">Nothing here yet</p>
 					)}
 
 					{recent.map((dok) => (
@@ -187,7 +187,7 @@ export function NavMenu() {
 								{dok.origin === 'local-only' && (
 									<CloudOff
 										className="h-3.5 w-3.5 shrink-0 text-faint"
-										aria-label="Belum tersimpan di cloud"
+										aria-label="Not saved to the cloud yet"
 									/>
 								)}
 							</button>
@@ -208,7 +208,7 @@ export function NavMenu() {
 							className="flex w-full items-center gap-3 px-3 py-1.5 text-left text-sm text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 						>
 							<span className="h-4 w-4 shrink-0" />
-							<span className="truncate">Lihat semua dokumen…</span>
+							<span className="truncate">See all documents…</span>
 						</button>
 					)}
 
@@ -221,7 +221,7 @@ export function NavMenu() {
 							close()
 						}}
 					>
-						Pengaturan
+						Settings
 					</DropdownItem>
 				</>
 			)}
@@ -256,15 +256,15 @@ function ProjectsSection({
 				void invalidateDocuments()
 				void invalidateProjects()
 			})
-			.catch((cause) => setMoveError(cause instanceof Error ? cause.message : 'Gagal memindahkan dokumen'))
+			.catch((cause) => setMoveError(cause instanceof Error ? cause.message : 'Could not move the document'))
 			.finally(() => setMoving(false))
 	}
 
 	return (
 		<div className="border-l-2 border-line pl-1">
-			{projects.isPending && <p className="px-3 py-1.5 text-xs text-faint">Memuat proyek…</p>}
-			{projects.isError && <p className="px-3 py-1.5 text-xs text-red-400">Gagal memuat proyek.</p>}
-			{projects.data?.length === 0 && <p className="px-3 py-1.5 text-xs text-faint">Belum ada proyek.</p>}
+			{projects.isPending && <p className="px-3 py-1.5 text-xs text-faint">Loading projects…</p>}
+			{projects.isError && <p className="px-3 py-1.5 text-xs text-red-400">Could not load projects.</p>}
+			{projects.data?.length === 0 && <p className="px-3 py-1.5 text-xs text-faint">No projects yet.</p>}
 
 			{projects.data?.map((project) => (
 				<DropdownItem
@@ -281,15 +281,15 @@ function ProjectsSection({
 				icon={<LibraryBig className="h-4 w-4" />}
 				onSelect={() => onNavigate('/library?project=all')}
 			>
-				Kelola di Library
+				Manage in Library
 			</DropdownItem>
 
 			<DropdownSeparator />
-			<DropdownLabel>Dokumen ini masuk ke</DropdownLabel>
+			<DropdownLabel>Move this document to</DropdownLabel>
 
 			{docServerId === null ? (
 				<p className="px-3 pb-1 text-xs text-faint">
-					Simpan dokumen ke cloud dulu untuk menempatkannya di proyek.
+					Save the document to the cloud first to put it in a project.
 				</p>
 			) : (
 				<>

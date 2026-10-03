@@ -118,8 +118,8 @@ export function ActionCard({ call, expired }: { call: ToolCall; expired?: boolea
 						<Check className="h-3.5 w-3.5" />
 						{running
 							? drawing
-								? 'Menggambar…'
-								: 'Menerapkan…'
+								? 'Drawing…'
+								: 'Applying…'
 							: expired
 								? confirming
 									? 'Confirm?'

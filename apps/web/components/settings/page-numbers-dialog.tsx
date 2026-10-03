@@ -230,7 +230,7 @@ export function PageNumbersDialog() {
 			},
 		})
 		if (!outcome.ok) {
-			setError('Belum ada judul tingkat 1 "BAB I" atau "PENDAHULUAN" - tempat angka 1 dimulai.')
+			setError('There is no level-1 heading such as "BAB I" or "PENDAHULUAN" yet - that is where 1 starts.')
 			return
 		}
 		setNumberingPreset(doc, activeTabId, outcome.front ? 'academic' : 'academic-body')
@@ -316,7 +316,7 @@ export function PageNumbersDialog() {
 					</select>
 					{scope === 'section' && (
 						<span className="text-[11px] leading-relaxed text-subtle">
-							Mengubah aturan bagian tempat kursor berada, tanpa pemisah bagian baru.
+							Changes the rule of the section the cursor is in, without adding a section break.
 						</span>
 					)}
 					{isSectionScope(scope) && (
@@ -365,8 +365,8 @@ export function PageNumbersDialog() {
 						Show on first page
 					</label>
 					<span className="text-[11px] leading-relaxed text-subtle">
-						Mematikannya memberi halaman pertama header/footer sendiri yang kosong — dipakai untuk sampul
-						tanpa nomor. Menyalakannya kembali membuang isi khusus halaman pertama itu.
+						Turning it off gives the first page its own empty header/footer - used for a cover without a
+						number. Turning it back on discards that first-page content.
 					</span>
 				</div>
 
@@ -414,8 +414,9 @@ export function PageNumbersDialog() {
 						}
 					/>
 					<span className="text-[11px] leading-relaxed text-subtle">
-						Letak yang dipilih digambar aturan ini sendiri - di layar, DOCX, dan cetak - tanpa token{' '}
-						{'{page}'} di header/footer. Halaman pembuka bab: halaman yang dimulai judul tingkat 1 (BAB).
+						The chosen position is drawn by this rule itself - on screen, in DOCX, and in print - without a{' '}
+						{'{page}'} token in the header/footer. A chapter opening page is a page that starts with a level-1
+						heading (BAB).
 					</span>
 				</div>
 
@@ -456,8 +457,8 @@ export function PageNumbersDialog() {
 
 				<div className="flex flex-col gap-1.5 rounded-xl border border-line bg-surface px-3 py-2.5 text-[11px] leading-relaxed">
 					<span className="text-subtle">
-						Karya ilmiah: sampul tanpa nomor, bagian depan <em>i, ii, iii</em> di tengah bawah, lalu mulai BAB
-						I angka dari 1 - tengah bawah di halaman pembuka bab, kanan atas di halaman lain.
+						Academic: no number on the cover, front matter <em>i, ii, iii</em> at the bottom center, then from
+						BAB I numbers from 1 - bottom center on chapter opening pages, top right elsewhere.
 					</span>
 					<button
 						type="button"
@@ -465,13 +466,13 @@ export function PageNumbersDialog() {
 						disabled={!sectionScopesAvailable}
 						className="self-start rounded-lg border border-line bg-surface-raised px-2.5 py-1 font-medium text-foreground transition-colors hover:border-accent/60 disabled:opacity-50"
 					>
-						Terapkan pola karya ilmiah
+						Apply the academic pattern
 					</button>
 				</div>
 
 				<span className="text-[11px] leading-relaxed text-subtle">
-					Untuk membuang nomor dari sederet halaman, matikan <em>Show page numbers</em> dengan cakupan yang
-					sesuai; halamannya tetap terhitung, hanya angkanya tidak digambar.
+					To hide numbers on a run of pages, turn off <em>Show page numbers</em> with the matching scope; the
+					pages are still counted, only the number isn't drawn.
 				</span>
 
 				{error && <span className="text-[11px] text-yellow-500">{error}</span>}

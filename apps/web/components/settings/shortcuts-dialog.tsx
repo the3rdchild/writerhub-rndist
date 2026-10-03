@@ -54,7 +54,7 @@ export function ShortcutsDialog() {
 			ref={overlayRef}
 			role="dialog"
 			aria-modal="true"
-			aria-label="Pintasan papan tik"
+			aria-label="Keyboard shortcuts"
 			className="fixed inset-0 z-[70] flex animate-in items-center justify-center bg-black/60 backdrop-blur-sm fade-in duration-200"
 			onClick={(event) => {
 				if (event.target === overlayRef.current) setShortcutsOpen(false)
@@ -62,11 +62,11 @@ export function ShortcutsDialog() {
 		>
 			<div className="flex max-h-[85vh] w-full max-w-2xl animate-in flex-col overflow-hidden rounded-2xl border border-line-strong bg-surface-raised shadow-2xl zoom-in-95 duration-200">
 				<div className="flex shrink-0 items-center justify-between border-b border-line px-5 py-4">
-					<h2 className="text-base font-semibold text-foreground">Pintasan papan tik</h2>
+					<h2 className="text-base font-semibold text-foreground">Keyboard shortcuts</h2>
 					<button
 						type="button"
 						onClick={() => setShortcutsOpen(false)}
-						aria-label="Tutup"
+						aria-label="Close"
 						className="rounded-md p-1 text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 					>
 						×

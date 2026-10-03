@@ -51,5 +51,5 @@ export function sumWordDeltas(deltas: WordDelta[]): WordDelta {
  */
 export function formatWordDelta(delta: WordDelta): string | null {
 	if (delta.added === 0 && delta.removed === 0) return null
-	return `+${delta.added} −${delta.removed} kata`
+	return `+${delta.added} −${delta.removed} words`
 }

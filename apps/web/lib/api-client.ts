@@ -13,7 +13,7 @@ export class ApiError extends Error {
 }
 
 function messageFromBody(body: Partial<ErrorResponse>, status: number): string {
-	return body.errors?.join(', ') || body.message || `Request gagal (${status})`
+	return body.errors?.join(', ') || body.message || `Request failed (${status})`
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -24,7 +24,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 		throw new ApiError(messageFromBody(body, response.status), response.status)
 	}
 	if (body.data === undefined) {
-		throw new ApiError('Respons tanpa data', response.status)
+		throw new ApiError('Empty response', response.status)
 	}
 	return body.data
 }

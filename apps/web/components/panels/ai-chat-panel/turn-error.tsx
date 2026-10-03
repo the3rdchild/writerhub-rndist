@@ -32,11 +32,11 @@ export function TurnError({
 					className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-accent/60 disabled:opacity-50"
 				>
 					<RotateCw className="h-3.5 w-3.5" />
-					Lanjutkan
+					Continue
 				</button>
 
 				{error.autoRetried && (
-					<span className="text-[11px] text-faint">Sudah dicoba ulang sekali otomatis.</span>
+					<span className="text-[11px] text-faint">Already retried once automatically.</span>
 				)}
 			</div>
 		</div>

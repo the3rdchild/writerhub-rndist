@@ -37,7 +37,7 @@ export function TextStyleControls({
 	return (
 		<>
 			<ToolbarSelect
-				label="Perbesaran"
+				label="Zoom"
 				width={78}
 				value={settings.zoom}
 				disabled={isOff}
@@ -48,7 +48,7 @@ export function TextStyleControls({
 			<Divider />
 
 			<ToolbarSelect
-				label="Gaya paragraf"
+				label="Paragraph style"
 				width={128}
 				value={active?.style ?? 'paragraph'}
 				disabled={isOff}
@@ -67,7 +67,7 @@ export function TextStyleControls({
 			<Divider />
 
 			<ToolbarSelect
-				label="Jenis huruf"
+				label="Font"
 				width={146}
 				value={active?.fontFamily ?? DEFAULT_FONT_FAMILY}
 				disabled={isOff}
@@ -86,14 +86,14 @@ export function TextStyleControls({
 			{/* Ukuran huruf: tombol −/+ untuk penyesuaian cepat, daftar untuk lompat jauh. */}
 			<IconButton
 				icon={Minus}
-				label="Perkecil huruf"
+				label="Decrease font size"
 				disabled={isOff}
 				onClick={() => setFontSize(Math.max(6, (active?.fontSize ?? DEFAULT_FONT_SIZE) - 1))}
 			/>
 			<FontSizeField value={active?.fontSize ?? DEFAULT_FONT_SIZE} disabled={isOff} onChange={setFontSize} />
 			<IconButton
 				icon={Plus}
-				label="Perbesar huruf"
+				label="Increase font size"
 				disabled={isOff}
 				onClick={() => setFontSize(Math.min(96, (active?.fontSize ?? DEFAULT_FONT_SIZE) + 1))}
 			/>

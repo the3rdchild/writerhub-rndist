@@ -83,7 +83,7 @@ export async function streamChat(
 		if (response.status === 429) {
 			const limited = response.headers.has('retry-after')
 			throw new ChatTurnError(
-				detail || 'Terlalu banyak permintaan. Coba lagi sebentar lagi.',
+				detail || 'Too many requests. Try again in a moment.',
 				limited ? 'unknown' : 'quota_exceeded',
 				false,
 			)
@@ -96,7 +96,7 @@ export async function streamChat(
 			)
 		}
 		throw new ChatTurnError(
-			detail || `Percakapan gagal (${response.status})`,
+			detail || `The conversation failed (${response.status})`,
 			retryable ? 'provider_unreachable' : 'provider_rejected',
 			retryable,
 		)

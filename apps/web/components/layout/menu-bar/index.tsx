@@ -10,7 +10,7 @@ import { ViewMenu } from './view-menu'
 
 export function MenuBar() {
 	return (
-		<nav className="flex items-center gap-0.5" aria-label="Menu dokumen">
+		<nav className="flex items-center gap-0.5" aria-label="Document menu">
 			<FileMenu />
 			<EditMenu />
 			<ViewMenu />

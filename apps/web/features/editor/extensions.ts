@@ -181,7 +181,7 @@ export function buildEditorExtensions({
 		FootnoteRef,
 		ColumnExtension,
 		TableOfContentsConfigured,
-		Placeholder.configure({ placeholder: 'Mulai menulis, atau tempel draf Anda di sini…' }),
+		Placeholder.configure({ placeholder: 'Start writing, or paste your draft here…' }),
 		SuggestionHighlight,
 		CandidatePreviewHighlight,
 		AnalysisHighlight,

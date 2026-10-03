@@ -9,7 +9,7 @@ import { useSessions } from '@/features/sessions/session-context'
 import { useSync } from '@/features/sync/sync-context'
 import { CardNameInput } from './document-card'
 
-const dateFormat = new Intl.DateTimeFormat('id-ID', {
+const dateFormat = new Intl.DateTimeFormat('en-GB', {
 	day: 'numeric',
 	month: 'short',
 	year: 'numeric',
@@ -47,7 +47,7 @@ export function LocalDocumentCard({
 		setActionError(null)
 		saveDocumentToCloud(localId)
 			.then((ok) => {
-				if (!ok) setActionError('Gagal menyimpan ke cloud. Coba lagi.')
+				if (!ok) setActionError('Could not save to the cloud. Try again.')
 			})
 			.finally(() => setSaving(false))
 	}
@@ -76,7 +76,8 @@ export function LocalDocumentCard({
 					)}
 					<p className="mt-0.5 flex items-center gap-1.5 text-xs text-subtle">
 						<span>
-							{document.tabCount} tab · {dateFormat.format(new Date(document.updatedAt))}
+							{document.tabCount} {document.tabCount === 1 ? 'tab' : 'tabs'} ·{' '}
+							{dateFormat.format(new Date(document.updatedAt))}
 						</span>
 					</p>
 				</div>
@@ -87,7 +88,7 @@ export function LocalDocumentCard({
 						<button
 							type="button"
 							onClick={toggle}
-							aria-label={`Opsi ${document.title}`}
+							aria-label={`Options for ${document.title}`}
 							aria-expanded={menuOpen}
 							aria-controls={id}
 							className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-subtle transition-colors hover:bg-[var(--overlay-active)] hover:text-foreground"
@@ -105,7 +106,7 @@ export function LocalDocumentCard({
 									setRenaming(true)
 								}}
 							>
-								Ganti nama
+								Rename
 							</DropdownItem>
 							<DropdownItem
 								icon={<Copy className="h-4 w-4" />}
@@ -124,7 +125,7 @@ export function LocalDocumentCard({
 									onDelete()
 								}}
 							>
-								Hapus
+								Delete
 							</DropdownItem>
 						</>
 					)}
@@ -133,7 +134,7 @@ export function LocalDocumentCard({
 
 			<p className="flex items-center gap-1.5 text-xs text-faint">
 				<CloudOff className="h-3.5 w-3.5 shrink-0" />
-				Belum tersimpan di cloud
+				Not saved to the cloud yet
 			</p>
 
 			{actionError && <p className="text-xs text-red-500">{actionError}</p>}
@@ -144,17 +145,17 @@ export function LocalDocumentCard({
 					onClick={open}
 					className="flex-1 rounded-xl border border-line px-3 py-2 text-sm text-foreground transition-colors hover:bg-[var(--overlay-hover)]"
 				>
-					Buka di editor
+					Open in editor
 				</button>
 				<button
 					type="button"
 					onClick={saveToCloud}
 					disabled={saving}
-					title="Simpan dokumen ini beserta seluruh tabnya ke cloud"
+					title="Save this document and all its tabs to the cloud"
 					className="flex items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-60"
 				>
 					{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
-					Simpan
+					Save
 				</button>
 			</div>
 		</div>

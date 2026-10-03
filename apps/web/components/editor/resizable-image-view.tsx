@@ -210,7 +210,7 @@ export function ResizableImageView({
 							<button
 								key={h}
 								type="button"
-								aria-label="Ubah ukuran (pojok, jaga rasio)"
+								aria-label="Resize (corner, keeps ratio)"
 								onPointerDown={(e) => startDrag(e, h)}
 								className={`resizable-image-handle resizable-image-handle--corner resizable-image-handle--${h}`}
 							/>
@@ -220,14 +220,14 @@ export function ResizableImageView({
 							<button
 								key={h}
 								type="button"
-								aria-label="Ubah ukuran (sisi, ubah rasio)"
+								aria-label="Resize (side, changes ratio)"
 								onPointerDown={(e) => startDrag(e, h)}
 								className={`resizable-image-handle resizable-image-handle--edge resizable-image-handle--${h}`}
 							/>
 						))}
 						<button
 							type="button"
-							aria-label="Hapus gambar"
+							aria-label="Delete image"
 							onClick={(e) => {
 								e.stopPropagation()
 								deleteNode()

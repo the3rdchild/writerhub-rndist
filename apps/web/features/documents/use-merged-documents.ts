@@ -48,12 +48,12 @@ export function useOpenDocument() {
 				const detail = await getDocument(dok.serverId)
 				const tabId = await openFromLibrary(detail)
 				if (!tabId) {
-					setOpenError('Batas jumlah dokumen tercapai - tutup salah satu dulu.')
+					setOpenError('Too many documents are open - close one first.')
 					return false
 				}
 				return true
 			} catch (cause) {
-				setOpenError(cause instanceof Error ? cause.message : 'Gagal membuka dokumen')
+				setOpenError(cause instanceof Error ? cause.message : "Couldn't open the document")
 				return false
 			} finally {
 				setOpeningKey(null)

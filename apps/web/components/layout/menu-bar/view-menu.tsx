@@ -11,23 +11,23 @@ export function ViewMenu() {
 	const { setup: activeSetup, setPageSetup } = usePageSetup()
 
 	return (
-		<Menu label="Tampilan" icon={<Eye className="h-4 w-4" />}>
+		<Menu label="View" icon={<Eye className="h-4 w-4" />}>
 			{({ close }) => (
 				<>
 					<Item active={settings.focusMode} onSelect={() => run(close, toggleFocusMode)}>
-						Mode fokus
+						Focus mode
 					</Item>
 					<Item
 						active={settings.showRuler}
 						onSelect={() => run(close, () => update({ showRuler: !settings.showRuler }))}
 					>
-						Penggaris
+						Ruler
 					</Item>
 					<Item
 						active={settings.showDocumentTabs}
 						onSelect={() => run(close, () => update({ showDocumentTabs: !settings.showDocumentTabs }))}
 					>
-						Tab dokumen
+						Document tabs
 					</Item>
 					{/*
 					 * Namanya menyebut "otomatis" dengan sengaja: sejak nomor halaman
@@ -40,13 +40,13 @@ export function ViewMenu() {
 						active={settings.showPageNumbers}
 						onSelect={() => run(close, () => update({ showPageNumbers: !settings.showPageNumbers }))}
 					>
-						Nomor halaman otomatis
+						Automatic page numbers
 					</Item>
 					<Item
 						active={settings.showWordCount}
 						onSelect={() => run(close, () => update({ showWordCount: !settings.showWordCount }))}
 					>
-						Jumlah kata
+						Word count
 					</Item>
 					<Item
 						active={activeSetup.pageless}
@@ -59,7 +59,7 @@ export function ViewMenu() {
 					<DropdownSeparator />
 					{/* Perbesaran jadi submenu supaya daftar tingkat zoom tidak
 			    memanjangkan menu utama. */}
-					<Submenu label="Perbesaran" icon={<Search className="h-4 w-4" />}>
+					<Submenu label="Zoom" icon={<Search className="h-4 w-4" />}>
 						{() => (
 							<>
 								{ZOOM_LEVELS.map((level) => (

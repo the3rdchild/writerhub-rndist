@@ -72,16 +72,16 @@ function partByType(
 }
 
 const SKIPPED_LABELS: Record<string, string> = {
-	drawing: 'gambar',
-	pict: 'gambar',
-	object: 'objek tertanam',
-	'pratinjau-emf': 'pratinjau objek tertanam (format EMF/WMF)',
-	AlternateContent: 'kotak teks atau bentuk',
-	'tautan-internal': 'tautan internal (bookmark)',
-	'jarak-huruf': 'perenggangan huruf',
-	'posisi-teks': 'posisi teks vertikal',
-	'garis-paragraf': 'garis batas paragraf',
-	'teks-tersembunyi': 'teks tersembunyi (hidden text)',
+	drawing: 'image',
+	pict: 'image',
+	object: 'embedded object',
+	'pratinjau-emf': 'embedded object preview (EMF/WMF)',
+	AlternateContent: 'text box or shape',
+	'tautan-internal': 'internal link (bookmark)',
+	'jarak-huruf': 'letter spacing',
+	'posisi-teks': 'vertical text position',
+	'garis-paragraf': 'paragraph border',
+	'teks-tersembunyi': 'hidden text',
 }
 
 /**
@@ -109,7 +109,7 @@ function warningsFor(
 	}
 
 	for (const [label, count] of counted) {
-		warnings.push({ message: `${count} ${label} belum ikut terbawa dan akan menyusul.` })
+		warnings.push({ message: `${count} × ${label} couldn't be imported yet.` })
 	}
 
 	// Revisi terlacak: isinya diterima (perilaku benar), tapi pengguna perlu
@@ -117,7 +117,7 @@ function warningsFor(
 	const revisions = skipped.get('revisi') ?? 0
 	if (revisions > 0) {
 		warnings.push({
-			message: `${revisions} revisi terlacak diterima otomatis (insertion disimpan, deletion dibuang).`,
+			message: `${revisions} tracked ${revisions === 1 ? 'change was' : 'changes were'} accepted automatically (insertions kept, deletions dropped).`,
 		})
 	}
 
@@ -129,7 +129,7 @@ function warningsFor(
 	const decorations = skipped.get('hiasan-gambar') ?? 0
 	if (decorations > 0) {
 		warnings.push({
-			message: `${decorations} garis hiasan yang digambar Word sebagai gambar tidak ikut terbawa; gambar isi tidak terpengaruh.`,
+			message: `${decorations} decorative ${decorations === 1 ? 'line' : 'lines'} drawn by Word as ${decorations === 1 ? 'an image' : 'images'} ${decorations === 1 ? "wasn't" : "weren't"} imported; content images aren't affected.`,
 		})
 	}
 
@@ -138,12 +138,12 @@ function warningsFor(
 	if ((skipped.get('daftar-isi-tanpa-penutup') ?? 0) > 0) {
 		warnings.push({
 			message:
-				'Ada daftar isi yang tidak punya penutup di berkasnya; isi tepat di bawahnya ikut tertelan dan tidak terbawa.',
+				'A table of contents in the file has no end marker; the content right below it was swallowed and not imported.',
 		})
 	}
 
 	if (unknown.length > 0) {
-		warnings.push({ message: `Bagian yang tidak dikenali dilewati: ${unknown.sort().join(', ')}.` })
+		warnings.push({ message: `Unrecognized parts were skipped: ${unknown.sort().join(', ')}.` })
 	}
 
 	/*
@@ -168,11 +168,11 @@ function warningsFor(
 	if (hasHeaderFooter && !furniture && !hasContent) {
 		warnings.push({
 			message:
-				'Header, footer, dan nomor halaman tidak punya padanan di editor ini, jadi tidak ikut terbawa.',
+				"Headers, footers, and page numbers have no equivalent in this editor, so they weren't imported.",
 		})
 	} else if (hasHeaderFooter && !hasContent) {
 		warnings.push({
-			message: 'Header/footer masuk sebagai satu baris teks saja; isi lengkapnya tidak terbaca.',
+			message: "Headers/footers came in as a single line of text; their full content couldn't be read.",
 		})
 	}
 
@@ -254,10 +254,10 @@ export async function readDocx(data: Uint8Array): Promise<DocxImport> {
 
 	const mainPart = mainPartOf(archive, parse)
 	const source = archive.text(mainPart)
-	if (!source) throw new Error('DOCX ini tidak berisi bagian dokumen utama')
+	if (!source) throw new Error('This DOCX has no main document part')
 
 	const body = bodyOf(parse(source))
-	if (!body) throw new Error('Bagian utama DOCX ini tidak punya badan dokumen')
+	if (!body) throw new Error("This DOCX's main part has no document body")
 
 	const relationshipsSource = archive.text(relsPathOf(mainPart))
 	const numberingRoot = partByType(archive, parse, mainPart, 'numbering')

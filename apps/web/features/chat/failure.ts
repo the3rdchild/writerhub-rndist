@@ -21,10 +21,10 @@ export class ChatTurnError extends Error {
 
 /** Apa yang bisa dilakukan penulis - ditampilkan di bawah kalimat galatnya. */
 const HINT: Partial<Record<ProviderErrorCode, string>> = {
-	timeout: 'Riset dan langkah yang sudah selesai tetap tersimpan.',
+	timeout: 'Research and finished steps are kept.',
 	provider_unreachable: 'Periksa koneksi, lalu lanjutkan.',
-	quota_exceeded: 'Ganti model di pemilih model, atau tunggu kuotanya pulih.',
-	provider_rejected: 'Periksa kunci API dan model yang dipilih.',
+	quota_exceeded: 'Switch models in the model picker, or wait for the quota to renew.',
+	provider_rejected: 'Check the API key and the selected model.',
 }
 
 export function chatFailureHint(code: ProviderErrorCode): string | null {
@@ -42,13 +42,11 @@ export function toChatTurnError(cause: unknown): ChatTurnError {
 	if (cause instanceof Error) {
 		const code: ProviderErrorCode = cause.name === 'TimeoutError' ? 'timeout' : 'provider_unreachable'
 		return new ChatTurnError(
-			code === 'timeout'
-				? 'Permintaan tidak selesai dalam batas waktu.'
-				: 'Tidak bisa menghubungi layanan percakapan.',
+			code === 'timeout' ? "The request didn't finish in time." : "Couldn't reach the chat service.",
 			code,
 			isTransientProviderError(code),
 		)
 	}
 
-	return new ChatTurnError('Percakapan gagal.', 'unknown', false)
+	return new ChatTurnError('The conversation failed.', 'unknown', false)
 }

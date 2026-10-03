@@ -20,7 +20,7 @@ import { useSessions } from '@/features/sessions/session-context'
 import { cn } from '@/lib/utils'
 import { FEATURE_META, STATUS_LABELS } from './feature-meta'
 
-const dateFormat = new Intl.DateTimeFormat('id-ID', {
+const dateFormat = new Intl.DateTimeFormat('en-GB', {
 	day: 'numeric',
 	month: 'long',
 	year: 'numeric',
@@ -41,7 +41,7 @@ function ChangeRow({
 		<div className={cn('rounded-xl border border-line bg-surface-raised p-3', stale && 'opacity-60')}>
 			<p className="text-xs leading-relaxed text-muted line-through">{original}</p>
 			<p className="mt-1 text-xs leading-relaxed text-foreground">{replacement}</p>
-			{stale && <p className="mt-2 text-[11px] font-medium text-yellow-400">teks sudah berubah</p>}
+			{stale && <p className="mt-2 text-[11px] font-medium text-yellow-400">text has changed</p>}
 		</div>
 	)
 }
@@ -64,7 +64,7 @@ function SourceRow({ source }: { source: ResearchResultPayload['sources'][number
 		>
 			<p className="text-xs font-medium leading-relaxed text-foreground">{source.title}</p>
 			<p className="mt-1 text-[11px] text-subtle">
-				{[hostOf(source.url), source.publishedAt, source.extracted ? 'dibaca penuh' : null]
+				{[hostOf(source.url), source.publishedAt, source.extracted ? 'read in full' : null]
 					.filter(Boolean)
 					.join(' · ')}
 			</p>
@@ -201,8 +201,8 @@ export function ActivityDetail({ jobId, onClose }: { jobId: string; onClose: () 
 				<button
 					type="button"
 					onClick={onClose}
-					aria-label="Tutup detail"
-					title="Tutup detail"
+					aria-label="Close details"
+					title="Close details"
 					className="rounded-md p-1 text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 				>
 					<X className="h-4 w-4" />
@@ -210,9 +210,9 @@ export function ActivityDetail({ jobId, onClose }: { jobId: string; onClose: () 
 			</div>
 
 			<div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3">
-				{detailQuery.isPending && <p className="py-6 text-center text-xs text-muted">Memuat hasil…</p>}
+				{detailQuery.isPending && <p className="py-6 text-center text-xs text-muted">Loading results…</p>}
 				{detailQuery.isError && (
-					<p className="py-6 text-center text-xs text-red-400">Gagal memuat detail aktivitas.</p>
+					<p className="py-6 text-center text-xs text-red-400">Could not load the activity details.</p>
 				)}
 
 				{detail && (
@@ -233,13 +233,13 @@ export function ActivityDetail({ jobId, onClose }: { jobId: string; onClose: () 
 							</span>
 						</div>
 
-						<p className="truncate text-xs text-muted">{detail.documentTitle ?? 'Tanpa tautan dokumen'}</p>
+						<p className="truncate text-xs text-muted">{detail.documentTitle ?? 'No linked document'}</p>
 
 						{detail.summary && <p className="text-sm text-foreground">{detail.summary}</p>}
 
 						{detail.status === 'failed' && (
 							<p className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs leading-relaxed text-red-400">
-								{detail.error ?? 'Job gagal diproses.'}
+								{detail.error ?? 'The job failed.'}
 							</p>
 						)}
 
@@ -259,7 +259,7 @@ export function ActivityDetail({ jobId, onClose }: { jobId: string; onClose: () 
 								className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-50"
 							>
 								<ArrowRight className="h-4 w-4" />
-								{opening ? 'Membuka…' : 'Buka dokumen untuk menerapkan'}
+								{opening ? 'Opening…' : 'Open the document to apply'}
 							</button>
 							{openError && <p className="text-xs text-red-400">{openError}</p>}
 						</>
@@ -271,7 +271,7 @@ export function ActivityDetail({ jobId, onClose }: { jobId: string; onClose: () 
 							onClick={reapply}
 							className="w-full rounded-xl bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
 						>
-							{canReapply(detail.feature) ? 'Terapkan ulang' : 'Buka di panel'}
+							{canReapply(detail.feature) ? 'Apply again' : 'Open in panel'}
 						</button>
 					)}
 
@@ -281,16 +281,16 @@ export function ActivityDetail({ jobId, onClose }: { jobId: string; onClose: () 
 						className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-red-400"
 					>
 						<Trash2 className="h-4 w-4" />
-						Hapus entri ini
+						Delete this entry
 					</button>
 				</div>
 			)}
 
 			<ConfirmDialog
 				open={confirmOpen}
-				title="Hapus entri ini?"
-				description="Catatan aktivitas dan hasilnya akan dihapus permanen."
-				confirmLabel="Hapus"
+				title="Delete this entry?"
+				description="The activity record and its results will be deleted permanently."
+				confirmLabel="Delete"
 				danger
 				onConfirm={() => void handleDelete()}
 				onCancel={() => setConfirmOpen(false)}

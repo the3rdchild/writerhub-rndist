@@ -1612,7 +1612,7 @@ describe('celah impor — S4/S11/S12 format run', () => {
 		expect(textOf(blocks(result.content)[0])).toBe('tampul')
 		// Membuang teks tanpa memberi tahu adalah kelas kehilangan yang sama
 		// dengan yang hendak dihapus impor ini.
-		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain('teks tersembunyi')
+		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain('hidden text')
 	})
 
 	test('sorotan warna hex kustom terbawa', async () => {
@@ -1775,7 +1775,7 @@ describe('celah impor — revisi & peringatan (D7/S7)', () => {
 		const result = await readDocx(docx({ body }))
 
 		const messages = result.warnings.map((warning) => warning.message)
-		expect(messages.join('\n')).toContain('2 revisi terlacak')
+		expect(messages.join('\n')).toContain('2 tracked changes')
 		// Sebab ini punya kalimatnya sendiri; ia tidak boleh muncul lagi
 		// sebagai nama tag mentah di daftar "tidak dikenali".
 		expect(messages.join('\n')).not.toContain('revisi.')
@@ -1786,7 +1786,7 @@ describe('celah impor — revisi & peringatan (D7/S7)', () => {
 			docx({ body: p(`<w:hyperlink w:anchor="_Toc1">${r('Bab I')}</w:hyperlink>`) }),
 		)
 		expect(textOf(blocks(result.content)[0])).toBe('Bab I')
-		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain('tautan internal')
+		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain('internal link')
 	})
 })
 
@@ -1887,7 +1887,7 @@ describe('celah impor — daftar isi (S3/S5)', () => {
 		const result = await readDocx(docx({ body }))
 
 		expect(blocks(result.content).filter((block) => block.type === 'tocBlock')).toHaveLength(1)
-		expect(result.warnings.some((warning) => warning.message.includes('tidak punya penutup'))).toBe(true)
+		expect(result.warnings.some((warning) => warning.message.includes('no end marker'))).toBe(true)
 		// Sebab yang punya kalimat sendiri tidak boleh muncul lagi sebagai tag mentah.
 		expect(result.warnings.some((warning) => warning.message.includes('daftar-isi-tanpa-penutup'))).toBe(
 			false,
@@ -2027,7 +2027,7 @@ describe('model section Word (W1/W3/W4/W8)', () => {
 		const images = blocks(result.content).filter((block) => block.type === 'image')
 		expect(images).toHaveLength(1)
 		expect(images[0]?.attrs).toMatchObject({ width: 50, height: 50 })
-		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain('garis hiasan')
+		expect(result.warnings.map((warning) => warning.message).join('\n')).toContain('decorative line')
 	})
 })
 

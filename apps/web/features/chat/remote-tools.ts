@@ -41,7 +41,7 @@ export function remoteToolLabel(call: ToolCall): string {
 	}
 
 	const count = Array.isArray(call.arguments.urls) ? call.arguments.urls.length : 0
-	return count === 1 ? 'Membaca 1 halaman' : `Membaca ${count} halaman`
+	return count === 1 ? 'Reading 1 page' : `Reading ${count} pages`
 }
 
 export interface RemoteToolResult {

@@ -25,7 +25,7 @@ function LibraryContent() {
 				<Link
 					href="/"
 					className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
-					aria-label="Kembali ke editor"
+					aria-label="Back to editor"
 				>
 					<ArrowLeft className="h-5 w-5" />
 				</Link>

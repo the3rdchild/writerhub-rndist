@@ -7,7 +7,7 @@ import { DraftOpenView } from '@/components/drafts/draft-open-view'
  * `/share/<token>`.
  */
 export const metadata: Metadata = {
-	title: 'Membuka draf',
+	title: 'Opening draft',
 	robots: { index: false, follow: false },
 }
 

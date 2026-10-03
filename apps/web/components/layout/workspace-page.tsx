@@ -30,8 +30,8 @@ export function WorkspacePage() {
 				<div className="flex shrink-0 flex-col pl-2 pt-1">
 					<button
 						type="button"
-						aria-label="Tampilkan tab dokumen"
-						title="Tampilkan tab dokumen"
+						aria-label="Show document tabs"
+						title="Show document tabs"
 						onClick={() => update({ showDocumentTabs: true })}
 						className="flex h-8 w-8 items-center justify-center rounded-lg text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 					>

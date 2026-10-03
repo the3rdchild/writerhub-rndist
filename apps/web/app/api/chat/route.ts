@@ -20,7 +20,7 @@ export async function POST(request: Request): Promise<Response> {
 			const retryAfter = upstream.headers.get('retry-after')
 			return Response.json(
 				{
-					message: 'Gagal memulai percakapan',
+					message: 'Could not start the conversation',
 					errors: upstreamErrors(detail, upstream.status),
 				},
 				{ status: upstream.status || 502, headers: retryAfter ? { 'retry-after': retryAfter } : undefined },

@@ -35,9 +35,9 @@ export async function runAnalysis<F extends AnalysisFeature>(
 			e.type === 'done' || e.type === 'error' || e.type === 'timeout' || e.type === 'cancelled',
 	})
 
-	if (event.type === 'error') throw new Error(event.message || 'Analisis gagal')
+	if (event.type === 'error') throw new Error(event.message || 'Analysis failed')
 	if (event.type === 'cancelled') throw new DOMException('Dibatalkan', 'AbortError')
-	if (event.type !== 'done') throw new Error('Timeout menunggu hasil, coba lagi')
+	if (event.type !== 'done') throw new Error('Timed out waiting for the result, try again')
 
 	return event.result
 }

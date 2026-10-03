@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 
 export function TabNameInput({
 	initialValue,
-	ariaLabel = 'Nama tab',
+	ariaLabel = 'Tab name',
 	onCommit,
 	onCancel,
 }: {

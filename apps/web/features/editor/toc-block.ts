@@ -94,7 +94,7 @@ declare module '@tiptap/core' {
 }
 
 export const TOC_KIND_LABEL: Record<TocListKind, string> = {
-	isi: 'Daftar isi',
-	gambar: 'Daftar gambar',
-	tabel: 'Daftar tabel',
+	isi: 'Table of contents',
+	gambar: 'List of figures',
+	tabel: 'List of tables',
 }

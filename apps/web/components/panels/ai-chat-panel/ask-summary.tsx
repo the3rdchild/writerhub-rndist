@@ -21,7 +21,7 @@ export function AskSummary({ call, expired }: { call: ToolCall; expired?: boolea
 		<div className="flex flex-col gap-1.5 rounded-xl border border-line bg-surface-raised px-3 py-2">
 			<p className="flex items-center gap-1.5 text-[11px] font-medium text-muted">
 				<CircleHelp className="h-3.5 w-3.5 text-accent" />
-				{call.name === 'request_brief' ? 'AI meminta metadata' : 'AI bertanya'}
+				{call.name === 'request_brief' ? 'AI meminta metadata' : 'The AI asked'}
 			</p>
 			{children}
 		</div>
@@ -33,19 +33,19 @@ export function AskSummary({ call, expired }: { call: ToolCall; expired?: boolea
 			<p className="flex items-center gap-1 text-xs text-subtle">
 				{waiting ? (
 					<>
-						Menunggu jawaban Anda di bawah
+						Waiting for your answer below
 						<ArrowDown className="h-3 w-3" />
 					</>
 				) : expired ? (
-					'Tidak dijawab.'
+					'Not answered.'
 				) : (
-					'Menunggu jawaban.'
+					'Waiting for an answer.'
 				)}
 			</p>,
 		)
 	}
 
-	if (answer.skipped) return shell(<p className="text-xs text-subtle">Anda melewati pertanyaan ini.</p>)
+	if (answer.skipped) return shell(<p className="text-xs text-subtle">You skipped this question.</p>)
 
 	if (call.name === 'request_brief') {
 		const filled = answer.filled ?? []
@@ -53,7 +53,7 @@ export function AskSummary({ call, expired }: { call: ToolCall; expired?: boolea
 			<p className="text-xs leading-snug text-foreground">
 				{filled.length > 0
 					? `Anda melengkapi ${filled.map((entry) => entry.label).join(', ')}.`
-					: `Belum ada yang diisi dari ${requested.length} isian yang diminta.`}
+					: `None of the ${requested.length} requested fields are filled yet.`}
 			</p>,
 		)
 	}
@@ -67,7 +67,7 @@ export function AskSummary({ call, expired }: { call: ToolCall; expired?: boolea
 						{questions[index]?.question ?? response.question}
 					</dt>
 					<dd className="text-xs leading-snug text-foreground">
-						{responseValue(response) || <span className="italic text-faint">tidak dijawab</span>}
+						{responseValue(response) || <span className="italic text-faint">not answered</span>}
 					</dd>
 				</div>
 			))}

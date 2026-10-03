@@ -43,9 +43,9 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 		return (
 			<div className="flex h-64 flex-col items-center justify-center text-center">
 				<CloudOff className="h-12 w-12 text-faint" />
-				<h2 className="mt-4 text-lg font-medium text-foreground">Gagal memuat library</h2>
+				<h2 className="mt-4 text-lg font-medium text-foreground">Could not load the library</h2>
 				<p className="mt-1 max-w-md text-sm text-muted">
-					{error instanceof Error ? error.message : 'Terjadi kesalahan saat membaca daftar dokumen.'}
+					{error instanceof Error ? error.message : 'Something went wrong while reading the document list.'}
 				</p>
 			</div>
 		)
@@ -117,9 +117,10 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 			return (
 				<div className="flex h-64 flex-col items-center justify-center text-center">
 					<FileText className="h-12 w-12 text-faint" />
-					<h2 className="mt-4 text-lg font-medium text-foreground">Tidak ada dokumen di sini</h2>
+					<h2 className="mt-4 text-lg font-medium text-foreground">No documents here</h2>
 					<p className="mt-1 max-w-md text-sm text-muted">
-						Pindahkan dokumen ke proyek ini lewat menu &ldquo;Pindahkan ke proyek&rdquo; di kartu dokumen.
+						Move documents into this project with &ldquo;Move to project&rdquo; in a document card&rsquo;s
+						menu.
 					</p>
 				</div>
 			)
@@ -127,16 +128,16 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 		return (
 			<div className="flex h-64 flex-col items-center justify-center text-center">
 				<FileText className="h-12 w-12 text-faint" />
-				<h2 className="mt-4 text-lg font-medium text-foreground">Belum ada dokumen</h2>
+				<h2 className="mt-4 text-lg font-medium text-foreground">No documents yet</h2>
 				<p className="mt-1 max-w-md text-sm text-muted">
-					Buat dokumen di editor - ia langsung muncul di sini, dan bisa disimpan ke cloud kapan saja lewat
-					tombol di kartunya.
+					Create a document in the editor - it shows up here right away, and you can save it to the cloud any
+					time from its card.
 				</p>
 				<Link
 					href="/"
 					className="mt-6 rounded-xl bg-accent px-5 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
 				>
-					Kembali ke editor
+					Back to editor
 				</Link>
 			</div>
 		)
@@ -154,7 +155,9 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 				setPendingDelete(null)
 				void invalidate()
 			})
-			.catch((cause) => setDeleteError(cause instanceof Error ? cause.message : 'Gagal menghapus dokumen'))
+			.catch((cause) =>
+				setDeleteError(cause instanceof Error ? cause.message : 'Could not delete the document'),
+			)
 			.finally(() => setDeleting(false))
 	}
 
@@ -195,27 +198,27 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 			<ConfirmDialog
 				open={pendingDelete !== null}
 				danger
-				title="Hapus dokumen ini?"
+				title="Delete this document?"
 				description={
 					<>
 						{pendingDelete?.serverId ? (
 							<>
-								Dokumen <strong className="text-foreground">{pendingDelete.title}</strong> beserta seluruh{' '}
-								{pendingDelete.tabCount} tab-nya (termasuk riwayat versi dan link berbagi di dalamnya) dihapus
-								dari cloud. Tidak ada jalan kembali.
+								<strong className="text-foreground">{pendingDelete.title}</strong> and all{' '}
+								{pendingDelete.tabCount} of its tabs (including version history and share links) will be
+								deleted from the cloud. This can't be undone.
 							</>
 						) : (
 							<>
-								Dokumen <strong className="text-foreground">{pendingDelete?.title}</strong> beserta seluruh{' '}
-								{pendingDelete?.tabCount} tab-nya dihapus dari perangkat ini. Dokumen ini{' '}
-								<strong className="text-foreground">belum pernah tersimpan di cloud</strong>, jadi tidak ada
-								salinan yang bisa dipulihkan.
+								<strong className="text-foreground">{pendingDelete?.title}</strong> and all{' '}
+								{pendingDelete?.tabCount} of its tabs will be deleted from this device. This document{' '}
+								<strong className="text-foreground">was never saved to the cloud</strong>, so there is no copy
+								to restore.
 							</>
 						)}
 						{deleteError && <span className="mt-2 block text-red-500">{deleteError}</span>}
 					</>
 				}
-				confirmLabel={deleting ? 'Menghapus…' : 'Hapus'}
+				confirmLabel={deleting ? 'Deleting…' : 'Delete'}
 				onConfirm={confirmDelete}
 				onCancel={() => {
 					setPendingDelete(null)

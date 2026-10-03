@@ -229,16 +229,16 @@ export function HtmlBlockView({ node, updateAttributes, selected, editor, delete
 			data-drag-handle
 		>
 			<div className="html-block-bar" contentEditable={false}>
-				<span className="html-block-label">{isPage ? 'Satu halaman' : 'Sisipan'}</span>
+				<span className="html-block-label">{isPage ? 'One page' : 'Inline'}</span>
 				<button type="button" onClick={toggleFit}>
 					{isPage ? <StretchHorizontal className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-					{isPage ? 'Jadikan sisipan' : 'Jadikan satu halaman'}
+					{isPage ? 'Make it inline' : 'Make it one page'}
 				</button>
 				<button type="button" onClick={() => setShowSource((current) => !current)}>
 					{showSource ? <Eye className="h-3.5 w-3.5" /> : <Code2 className="h-3.5 w-3.5" />}
-					{showSource ? 'Hasil' : 'Sumber'}
+					{showSource ? 'Result' : 'Source'}
 				</button>
-				<button type="button" onClick={() => deleteNode()} aria-label="Hapus blok">
+				<button type="button" onClick={() => deleteNode()} aria-label="Delete block">
 					<Trash2 className="h-3.5 w-3.5" />
 				</button>
 			</div>
@@ -252,7 +252,7 @@ export function HtmlBlockView({ node, updateAttributes, selected, editor, delete
 					<iframe
 						ref={frameRef}
 						className="html-block-frame"
-						title="Rancangan HTML"
+						title="HTML design"
 						sandbox={HTML_SANDBOX}
 						srcDoc={document_.srcdoc}
 						style={isPage ? undefined : { height: attrs.height }}
@@ -278,7 +278,7 @@ export function HtmlBlockView({ node, updateAttributes, selected, editor, delete
 				<button
 					type="button"
 					className="html-block-resize"
-					aria-label="Ubah tinggi blok"
+					aria-label="Resize block height"
 					onPointerDown={startResize}
 				/>
 			)}
