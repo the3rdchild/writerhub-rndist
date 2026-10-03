@@ -146,13 +146,31 @@ function factory(docx: DocxModule): ElementFactory {
  * Pembangun paragraf watermark untuk header. Setiap panggilan menghasilkan
  * paragraf baru dengan id bentuk yang unik di seluruh dokumen.
  */
+/**
+ * Angka watermark yang aman ditulis. Nilai tersimpan yang rusak (NaN dari
+ * dokumen lama atau tempelan) jatuh ke bawaan, bukan sampai ke `docx` - yang
+ * melempar galat pada ukuran NaN - atau ke atribut VML sebagai "NaN".
+ */
+function safeWatermark(watermark: Watermark): Watermark {
+	const finite = (value: unknown, fallback: number) => (Number.isFinite(value) ? (value as number) : fallback)
+	return {
+		...watermark,
+		opacity: Math.max(0, Math.min(1, finite(watermark.opacity, 0.15))),
+		rotation: finite(watermark.rotation, 0),
+		scale: Math.max(0.01, Math.min(4, finite(watermark.scale, 0.6))),
+		offsetX: finite(watermark.offsetX, 0),
+		offsetY: finite(watermark.offsetY, 0),
+	}
+}
+
 export function watermarkParagraphFactory(
 	docx: DocxModule,
-	watermark: Watermark | undefined,
+	stored: Watermark | undefined,
 	image: ExportImage | null,
 ): ((geometry: PageGeometry) => InstanceType<DocxModule['Paragraph']>) | null {
-	if (!watermark || watermarkIsEmpty(watermark)) return null
-	if (watermark.kind === 'image' && !image) return null
+	if (!stored || watermarkIsEmpty(stored)) return null
+	if (stored.kind === 'image' && !image) return null
+	const watermark = safeWatermark(stored)
 
 	const element = factory(docx)
 	const rotation = normalizedRotation(watermark.rotation)
@@ -246,5 +264,5 @@ export function watermarkParagraphFactory(
 /** Opasitas watermark gambar dalam satuan `a:alphaModFix` (1/1000 persen). */
 export function watermarkAlpha(watermark: Watermark | undefined): number | null {
 	if (watermark?.kind !== 'image') return null
-	return Math.round(Math.max(0, Math.min(1, watermark.opacity)) * 100000)
+	return Math.round(safeWatermark(watermark).opacity * 100000)
 }
