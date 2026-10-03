@@ -11,6 +11,7 @@ export function roomSettingsFromEnv(): RoomSettings {
 		deriveMaxMs: Math.max(env.COLLAB_DERIVE_MAX_MS, env.COLLAB_DERIVE_DEBOUNCE_MS),
 		seedLockMs: 20_000,
 		electionRetryMs: 1_000,
+		shareSeedGraceMs: 1_500,
 		compactEvery: 500,
 		compactOnUnload: 20,
 		maxAwarenessBytes: 64 * 1024,

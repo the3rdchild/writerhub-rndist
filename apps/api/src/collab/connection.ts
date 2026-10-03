@@ -33,6 +33,7 @@ export class CollabConnection {
 	/** Berapa kali sambungan ini sudah diminta menyemai; pemilihan berikutnya mendahulukan yang belum. */
 	seedRequests = 0
 	reauthTimer: ReturnType<typeof setTimeout> | null = null
+	readonly openedAt = Date.now()
 
 	constructor(
 		private readonly socket: CollabSocket,
@@ -43,6 +44,11 @@ export class CollabConnection {
 
 	get canWrite(): boolean {
 		return collabCanWrite(this.claims.role)
+	}
+
+	/** Tamu lewat tautan berbagi (tiket `share:<id>`), bukan pemilik dokumen. */
+	get viaShareLink(): boolean {
+		return this.claims.sub.startsWith('share:')
 	}
 
 	send(data: Uint8Array): void {

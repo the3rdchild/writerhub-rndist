@@ -117,8 +117,11 @@ menggandakan naskah. Server tidak punya skema editor, jadi yang menyemai adalah 
 
 1. Room yang belum disemai menahan semua klien di status `waiting`; pembaruan mereka dibuang dan sync step 1 mereka
    ditahan.
-2. Server memilih SATU sambungan penulis (yang paling jarang diminta lebih dulu) dan mengambil kunci Redis
-   `<prefix>seed:<tab>` (20 dtk). Klien itu menerima `status: seed`.
+2. Server memilih SATU sambungan penulis - pemilik lebih dulu daripada tamu tautan berbagi, lalu yang paling jarang
+   diminta - dan mengambil kunci Redis `<prefix>seed:<tab>` (20 dtk). Klien itu menerima `status: seed`. Tamu
+   tautan baru dipilih bila 1,5 dtk tidak ada pemilik yang menunggu (`shareSeedGraceMs`): setelah pulihkan versi
+   semua klien kembali ke room kosong, dan pemilik - yang lebih dulu membuang salinan IndexedDB-nya - biasanya
+   tiba belakangan.
 3. Klien membangun isi di Y.Doc sementara dan mengirimnya sebagai pesan `seed` - tidak pernah langsung ke Y.Doc yang
    tersinkron, supaya semaian yang ditolak tidak tertinggal di salinan lokal.
 4. Server menulis kepala + semaian dalam satu transaksi dengan `INSERT … ON CONFLICT DO NOTHING` pada kunci primer.
@@ -254,8 +257,10 @@ karena pembaruan baru diterbitkan ke Redis setelah tercatat. Pada 100 klien seba
 - **Kehadiran**: `@tiptap/extension-collaboration-caret` 3.29.2; kursor dan label nama berwarna (gaya di
   `globals.css`, bagian kolaborasi; tidak ikut tercetak). Avatar kolaborator di indikator bilah atas.
 - **Cermin**: Y.Doc sesi → fragmen tab di Y.Doc besar, lewat diff, 0,8-4 dtk. Y.Doc yang dibuang tidak disalin lagi.
-- **Semaian**: `initial` → salinan persis tab lokal; `reset` → naskah server. Halaman tautan berbagi menyemai dari
-  naskah di muatan halaman.
+- **Semaian**: `initial` → salinan persis tab lokal; `reset` → naskah server. Halaman tautan berbagi SELALU menyemai
+  dari naskah server yang diambil saat diminta (`share-seed.ts`), tidak pernah dari muatan halaman: muatan itu
+  basi setelah pemilik memulihkan versi, dan semaian darinya menimpa versi yang baru dipulihkan. Bila naskah
+  server tidak terambil, tamu tidak menyemai.
 - **Cadangan WAJIB** saat salinan dibuang (`backup.ts`): versi lokal + versi di riwayat tab server berlabel
   "Unsynced copy kept before reset" (`POST /tabs/:id/versions` kini menerima `content`), lalu pemberitahuan. Bila
   riwayat server tidak terjangkau (atau tamu tautan), teksnya bisa disalin dari pemberitahuan. Versi bernama dan

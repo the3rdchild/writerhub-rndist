@@ -76,7 +76,6 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 	const live = useLiveTab({
 		serverTabId: selectedTab?.id ?? null,
 		shareToken: token,
-		serverContent: selectedTab?.content,
 		schema,
 	})
 	const liveBinding = live.binding.kind === 'live' ? live.binding : null

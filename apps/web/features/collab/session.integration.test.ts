@@ -3,12 +3,14 @@ import { randomUUID } from 'node:crypto'
 import type { JSONContent } from '@tiptap/core'
 import { COLLAB_FRAGMENT, type CollabTicket } from '@writer-hub/shared'
 import * as Y from 'yjs'
+import type { SharePayload } from '@/features/share/types'
 import { buildSchema } from '@/features/sync/serialize'
 // Alat uji API (proses API sungguhan) dipakai ulang; berkas uji tidak ikut tsc web.
 import { type ApiProcess, apiJson, freePort, startApi, waitFor } from '../../../api/src/collab/test-harness'
 import type { CollabLocalStore } from './local-store'
 import { seedUpdateFromJSON } from './seed'
 import { type CollabPhase, CollabSession } from './session'
+import { seedFromShare } from './share-seed'
 
 /*
  * CollabSession (klien sungguhan, tanpa React) melawan proses API sungguhan.
@@ -42,8 +44,11 @@ const ENV: Record<string, string> = {
 	RESEARCH_ENABLED: 'false',
 }
 
-/** Salinan lokal di memori dengan perilaku yang sama dengan versi IndexedDB. */
-function memoryStore(): CollabLocalStore & { epochs: Map<string, string> } {
+/**
+ * Salinan lokal di memori dengan perilaku yang sama dengan versi IndexedDB.
+ * `discardDelayMs` meniru IndexedDB yang lambat membuang salinan basi.
+ */
+function memoryStore(discardDelayMs = 0): CollabLocalStore & { epochs: Map<string, string> } {
 	const epochs = new Map<string, string>()
 	const data = new Map<string, Uint8Array[]>()
 	return {
@@ -59,6 +64,7 @@ function memoryStore(): CollabLocalStore & { epochs: Map<string, string> } {
 			return () => doc.off('update', save)
 		},
 		async discard(tabId, epoch) {
+			if (discardDelayMs > 0) await Bun.sleep(discardDelayMs)
 			data.delete(`${tabId}:${epoch}`)
 			if (epochs.get(tabId) === epoch) epochs.delete(tabId)
 		},
@@ -339,6 +345,66 @@ describe.skipIf(!enabled)('CollabSession melawan API sungguhan', () => {
 		network.dispatchEvent(new Event('offline'))
 		expect(a.phase).toBe('destroyed')
 	}, 30_000)
+
+	test('tamu tautan berbagi tidak menimpa versi yang dipulihkan pemilik dengan naskah basi', async () => {
+		const tabId = await createTab('VERSI-AWAL')
+		const { documentId } = await apiJson<{ documentId: string }>(api.url, `/api/v1/tabs/${tabId}`)
+		const versions = await apiJson<Array<{ id: string }>>(api.url, `/api/v1/tabs/${tabId}/versions`)
+		const share = await apiJson<{ token: string }>(api.url, '/api/v1/shares', {
+			method: 'POST',
+			body: JSON.stringify({ documentId, access: 'anyone', role: 'editor' }),
+		})
+		const serverText = async () =>
+			JSON.stringify((await apiJson<{ content: unknown }>(api.url, `/api/v1/tabs/${tabId}`)).content)
+
+		// Pemilik: salinan IndexedDB-nya lambat dibuang, jadi ia kembali ke room belakangan.
+		const owner = session(tabId, memoryStore(600))
+		await owner.start()
+		await synced(owner)
+		append(owner.doc, 'TAMBAHAN-PEMILIK')
+		await waitFor(async () => (await serverText()).includes('TAMBAHAN-PEMILIK'), 'turunan suntingan pemilik')
+
+		// Penyemai halaman tautan berbagi (tamu tanpa salinan lokal, biasanya tiba lebih dulu).
+		const guest = new CollabSession({
+			tabId,
+			shareToken: share.token,
+			fetchTicket: (id, token) =>
+				apiJson<CollabTicket>(api.url, `/api/v1/collab/shared/${token}/tickets`, {
+					method: 'POST',
+					body: JSON.stringify({ tabId: id }),
+				}),
+			seed: () =>
+				seedFromShare({
+					shareToken: share.token,
+					serverTabId: tabId,
+					schema,
+					fetchPayload: (token) => apiJson<SharePayload>(api.url, `/api/v1/shares/${token}`),
+				}),
+			maxBackoffMs: 50,
+		})
+		sessions.push(guest)
+		await guest.start()
+		await synced(guest)
+
+		await apiJson(api.url, `/api/v1/tabs/${tabId}/versions/${versions[0].id}/restore`, { method: 'POST' })
+		await waitFor(
+			() =>
+				owner.phase === 'synced' &&
+				guest.phase === 'synced' &&
+				owner.epoch !== null &&
+				owner.epoch === guest.epoch,
+			'pemilik dan tamu kembali ke generasi baru',
+			15_000,
+		)
+		await Bun.sleep(400)
+		expect(textOf(owner.doc)).toContain('VERSI-AWAL')
+		expect(textOf(owner.doc)).not.toContain('TAMBAHAN-PEMILIK')
+		expect(textOf(guest.doc)).not.toContain('TAMBAHAN-PEMILIK')
+		await waitFor(
+			async () => !(await serverText()).includes('TAMBAHAN-PEMILIK'),
+			'isi server tetap versi yang dipulihkan',
+		)
+	}, 40_000)
 
 	test('sambungan yang diputus untuk otorisasi ulang (4401) mengambil tiket baru dan lanjut', async () => {
 		const reauth = await startApi(freePort(), { ...ENV, COLLAB_REAUTH_S: '1' })

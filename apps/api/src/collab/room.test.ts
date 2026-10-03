@@ -152,6 +152,7 @@ const SETTINGS: RoomSettings = {
 	deriveMaxMs: 40,
 	seedLockMs: 150,
 	electionRetryMs: 20,
+	shareSeedGraceMs: 0,
 	compactEvery: 1000,
 	compactOnUnload: 1000,
 	maxAwarenessBytes: 64 * 1024,
@@ -399,6 +400,41 @@ describe('room kolaborasi', () => {
 		expect(helpful.statuses.some((s) => s.state === 'seed')).toBe(true)
 		expect(fragmentText(silent.doc)).toBe('SEMAI-PENGGANTI')
 		expect(store.logs.get(TAB)).toHaveLength(1)
+	})
+
+	test('penyemai: pemilik didahulukan dari tamu tautan berbagi yang tiba lebih dulu', async () => {
+		const store = new MemoryStore()
+		const room = await openRoom(new MemoryBus(new Hub()), store, { shareSeedGraceMs: 120 })
+		// Setelah pulihkan versi, tamu tanpa salinan lokal biasanya kembali lebih dulu.
+		const guest = new FakeClient(room, 'editor', {
+			seedText: 'SEMAI-TAMU',
+			claims: { sub: 'share:abc', uid: null, name: 'Guest' },
+		}).connect()
+		await sleep(40)
+		const owner = new FakeClient(room, 'editor', {
+			seedText: 'SEMAI-PEMILIK',
+			claims: { sub: 'pemilik' },
+		}).connect()
+		await sleep(200)
+
+		expect(guest.statuses.some((s) => s.state === 'seed')).toBe(false)
+		expect(owner.statuses.some((s) => s.state === 'seed')).toBe(true)
+		expect(fragmentText(guest.doc)).toBe('SEMAI-PEMILIK')
+		expect(store.text()).toBe('SEMAI-PEMILIK')
+	})
+
+	test('penyemai: tamu tautan berbagi tetap diminta menyemai bila tidak ada pemilik', async () => {
+		const store = new MemoryStore()
+		const room = await openRoom(new MemoryBus(new Hub()), store, { shareSeedGraceMs: 60 })
+		const guest = new FakeClient(room, 'editor', {
+			seedText: 'SEMAI-TAMU',
+			claims: { sub: 'share:abc', uid: null, name: 'Guest' },
+		}).connect()
+		await sleep(30)
+		expect(guest.statuses.some((s) => s.state === 'seed')).toBe(false)
+		await sleep(150)
+		expect(guest.statuses.some((s) => s.state === 'seed')).toBe(true)
+		expect(fragmentText(guest.doc)).toBe('SEMAI-TAMU')
 	})
 
 	test('salinan lokal dari generasi lain ditolak 4409 beserta epoch yang berlaku', async () => {

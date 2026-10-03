@@ -80,6 +80,13 @@ export interface RoomSettings {
 	/** Umur kunci penyemaian; penyemai yang diam selama ini digantikan. */
 	seedLockMs: number
 	electionRetryMs: number
+	/**
+	 * Tamu tautan berbagi baru diminta menyemai bila sekian lama tidak ada
+	 * pemilik yang menunggu: setelah pulihkan versi semua klien kembali ke room
+	 * kosong, dan pemilik - yang lebih dulu membuang salinan IndexedDB-nya -
+	 * biasanya tiba belakangan.
+	 */
+	shareSeedGraceMs: number
 	/** Padatkan log selagi aktif setelah sekian baris baru. */
 	compactEvery: number
 	/** Padatkan saat room dilepas bila sudah ada sekian baris baru. */
@@ -110,6 +117,12 @@ export class CollabTabGoneError extends Error {
 
 /** Klien awareness yang boleh dikendalikan satu sambungan (satu Y.Doc = satu klien; sisanya kelonggaran). */
 const MAX_AWARENESS_CLIENTS = 4
+
+/** Urutan calon penyemai: pemilik sebelum tamu tautan berbagi, lalu yang paling jarang diminta. */
+function seedsBefore(a: CollabConnection, b: CollabConnection): boolean {
+	if (a.viaShareLink !== b.viaShareLink) return !a.viaShareLink
+	return a.seedRequests < b.seedRequests
+}
 
 /** Pembaruan awal harus bisa diterapkan berdiri sendiri, tanpa struktur yang menggantung. */
 function isSelfContainedUpdate(update: Uint8Array): boolean {
@@ -735,14 +748,23 @@ export class CollabRoom {
 	 */
 	private elect(): void {
 		if (this.dead || this.epoch || this.seeder || this.electing) return
-		// Yang paling jarang diminta lebih dulu: klien yang gagal menyemai (sumber
-		// isinya tidak terjangkau, atau ia rusak) tidak boleh memblokir yang lain.
+		// Pemilik lebih dulu daripada tamu tautan berbagi, lalu yang paling jarang
+		// diminta: klien yang gagal menyemai (sumber isinya tidak terjangkau, atau
+		// ia rusak) tidak boleh memblokir yang lain.
 		let candidate: CollabConnection | null = null
 		for (const conn of this.conns) {
 			if (conn.phase !== 'waiting' || !conn.canWrite) continue
-			if (!candidate || conn.seedRequests < candidate.seedRequests) candidate = conn
+			if (!candidate || seedsBefore(conn, candidate)) candidate = conn
 		}
 		if (!candidate) return
+		if (candidate.viaShareLink) {
+			// Tamu hanya menyemai bila pemilik tidak kunjung datang.
+			const wait = candidate.openedAt + this.host.settings.shareSeedGraceMs - Date.now()
+			if (wait > 0) {
+				this.retryElection(wait)
+				return
+			}
+		}
 
 		this.electing = true
 		const holder = `${this.host.bus.instanceId}:${candidate.id}`
@@ -772,12 +794,12 @@ export class CollabRoom {
 		)
 	}
 
-	private retryElection(): void {
+	private retryElection(delayMs = this.host.settings.electionRetryMs): void {
 		if (this.electionTimer || this.dead || this.epoch) return
 		this.electionTimer = setTimeout(() => {
 			this.electionTimer = null
 			this.elect()
-		}, this.host.settings.electionRetryMs)
+		}, delayMs)
 	}
 
 	private onSeedTimeout(conn: CollabConnection): void {

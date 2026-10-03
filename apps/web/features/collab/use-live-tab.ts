@@ -1,9 +1,8 @@
 'use client'
 
-import type { JSONContent } from '@tiptap/core'
 import type { Schema } from '@tiptap/pm/model'
 import type { CollabRole } from '@writer-hub/shared'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { backupDiscardedCopy, discardedContent } from './backup'
 import {
 	bindingOf,
@@ -14,8 +13,8 @@ import {
 	randomId,
 	useCollaborators,
 } from './binding'
-import { seedUpdateFromJSON } from './seed'
 import { type CollabPhase, CollabSession } from './session'
+import { seedFromShare } from './share-seed'
 
 export interface LiveTab {
 	binding: CollabBinding
@@ -34,20 +33,15 @@ export interface LiveTab {
 export function useLiveTab({
 	serverTabId,
 	shareToken,
-	serverContent,
 	schema,
 }: {
 	serverTabId: string | null
 	shareToken: string
-	/** Naskah server dari muatan halaman: isi semaian bila tautan ini yang diminta menyemai. */
-	serverContent: JSONContent | null | undefined
 	schema: Schema
 }): LiveTab {
 	const [session, setSession] = useState<CollabSession | null>(null)
 	const [, setRevision] = useState(0)
 	const [notices, setNotices] = useState<CollabNotice[]>([])
-	const contentRef = useRef(serverContent)
-	contentRef.current = serverContent
 
 	useEffect(
 		function openSession() {
@@ -58,7 +52,8 @@ export function useLiveTab({
 			const next = new CollabSession({
 				tabId: serverTabId,
 				shareToken,
-				seed: async () => (contentRef.current ? seedUpdateFromJSON(contentRef.current, schema) : null),
+				// Bila diminta menyemai: naskah server saat ini, tidak pernah muatan halaman yang bisa basi.
+				seed: () => seedFromShare({ shareToken, serverTabId, schema }),
 			})
 			next.on('change', () => setRevision((value) => value + 1))
 			next.on('discard', (discarded) => {
