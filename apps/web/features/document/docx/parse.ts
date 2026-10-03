@@ -1,6 +1,6 @@
 import type { JSONContent } from '@tiptap/core'
 import { COLUMN_BREAK_NODE } from '@/features/editor/column-break'
-import { MATH_BLOCK, MATH_INLINE } from '@/features/editor/math'
+import { MATH_INLINE } from '@/features/editor/math'
 import { PAGE_BREAK_NODE } from '@/features/editor/page-break'
 import { DEFAULT_PAGE_SETUP, sameSheetSize } from '@/features/editor/page-geometry'
 import { SECTION_BREAK_NODE } from '@/features/editor/section-break'
@@ -282,13 +282,16 @@ function walkInline(
 			}
 
 			case 'oMathPara': {
-				// Persamaan tampil sendiri sebagai blok: tutup paragraf berjalan,
-				// lalu terbitkan node math blok.
+				// Persamaan display menjadi rumus mengalir bergaya display di
+				// paragraf yang diratakan seperti persamaannya (bawaan Word: tengah),
+				// supaya teks dan rumus lain bisa duduk di barisnya seperti di
+				// LibreOffice. Teks sebelumnya di paragraf yang sama tetap paragrafnya
+				// sendiri.
 				if (builder.inline.length > 0) flushParagraph(builder)
 				const latex = ommlToLatex(node)
 				if (latex) {
-					builder.blocks.push({ type: MATH_BLOCK, attrs: { latex, ...mathSizeOf(node) } })
-					builder.flushed = true
+					builder.attrs = { ...builder.attrs, textAlign: mathParaAlign(node) }
+					builder.inline.push({ type: MATH_INLINE, attrs: { latex, display: true, ...mathSizeOf(node) } })
 				}
 				break
 			}
@@ -427,7 +430,8 @@ export function paragraphBlocks(paragraph: Element, context: ParseContext, heuri
 	// Paragraf yang isinya sudah terdorong oleh math blok tidak perlu paragraf kosong tambahan.
 	const trailingEmpty = builder.flushed === true && builder.inline.length === 0 && builder.blocks.length > 0
 	if ((!mediaOnly || level !== undefined) && !trailingEmpty) {
-		const blockAttrs = level ? { ...attrs, level } : attrs
+		// `builder.attrs`: rumus display (oMathPara) bisa mengganti perataannya.
+		const blockAttrs = level ? { ...builder.attrs, level } : builder.attrs
 		const paragraphAttrs = listTag ? { ...withoutListIndents(blockAttrs), _list: listTag } : blockAttrs
 
 		// Kandidat heading bernomor ditandai; dipromosikan bila dokumen ini
@@ -579,6 +583,12 @@ export function bodyBlocks(
 	}
 
 	return blocks
+}
+
+/** Perataan persamaan display (`m:oMathParaPr/m:jc`); bawaan Word "centerGroup" = tengah. */
+function mathParaAlign(node: Element): 'left' | 'center' | 'right' {
+	const jc = val(descend(node, 'oMathParaPr', 'jc'))
+	return jc === 'left' || jc === 'right' ? jc : 'center'
 }
 
 /**

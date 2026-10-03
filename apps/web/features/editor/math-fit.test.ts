@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import katex from 'katex'
-import { fitMath, MATH_FLOOR_SCALE, needsWrapAttempt, wrappableLatex } from './math-fit'
+import { fitInlineMath, fitMath, MATH_FLOOR_SCALE, needsWrapAttempt, wrappableLatex } from './math-fit'
 
 describe('rumus blok muat di lebar bloknya', () => {
 	test('yang sudah muat tidak disentuh', () => {
@@ -55,5 +55,42 @@ describe('LaTeX yang bisa dipenggal', () => {
 				katex.renderToString(wrappableLatex(latex), { throwOnError: true, strict: false }),
 			).not.toThrow()
 		}
+	})
+})
+
+describe('rumus mengalir bergaya display muat di paragrafnya', () => {
+	const never = () => {
+		throw new Error('versi mudah-dipenggal tidak perlu diukur')
+	}
+
+	test('yang muat tidak disentuh', () => {
+		expect(fitInlineMath(302, 290, 200, never)).toEqual({ latex: 'plain', scale: 1 })
+	})
+
+	test('sedikit kelebaran ("U =" + matriks 21 + 284 px di kolom 302) → kecil, tetap satu baris', () => {
+		const fit = fitInlineMath(302, 305, 284, never)
+		expect(fit.latex).toBe('plain')
+		expect(fit.scale).toBeCloseTo((302 / 305) * 0.98)
+	})
+
+	test('jauh kelebaran tapi bisa dipenggal di relasi → dipenggal, ukuran tetap', () => {
+		expect(fitInlineMath(302, 900, 280, never)).toEqual({ latex: 'plain', scale: 1 })
+	})
+
+	test('daftar panjang dalam \\left\\{…\\right\\} → versi mudah-dipenggal', () => {
+		expect(fitInlineMath(302, 900, 860, () => 80)).toEqual({ latex: 'wrappable', scale: 1 })
+	})
+
+	test('matriks lebar yang tidak bisa dipenggal → dikecilkan seluruhnya', () => {
+		const fit = fitInlineMath(302, 640, 620, () => 620)
+		expect(fit.latex).toBe('plain')
+		expect(fit.scale).toBeCloseTo((302 / 640) * 0.98)
+	})
+
+	test('terlalu lebar untuk batas bawah → potongan terlebar dikecilkan sampai batas bawah', () => {
+		expect(fitInlineMath(302, 3000, 2000, () => 2000)).toEqual({
+			latex: 'wrappable',
+			scale: MATH_FLOOR_SCALE,
+		})
 	})
 })

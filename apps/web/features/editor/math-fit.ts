@@ -112,3 +112,70 @@ export function applyMathFit(
 	if (fit.scale < 1) block.style.setProperty('--math-scale', fit.scale.toFixed(3))
 	return fit
 }
+
+/** Lebar seluruh potongan rumus sebaris bila diletakkan satu baris. */
+function totalWidth(span: HTMLElement): number {
+	const html = span.querySelector<HTMLElement>('.katex-html')
+	if (!html) return span.scrollWidth
+	const zoom = span.offsetWidth > 0 ? span.getBoundingClientRect().width / span.offsetWidth : 1
+	let total = 0
+	for (const piece of html.children) total += piece.getBoundingClientRect().width
+	return total / (zoom || 1)
+}
+
+/** Gaya display di dalam baris teks: pecahan dan operator besar tetap besar. */
+export function displayStyle(latex: string): string {
+	return `\\displaystyle ${latex}`
+}
+
+export type InlineMathFit = { latex: 'plain' | 'wrappable'; scale: number }
+
+/**
+ * Cara muat rumus mengalir bergaya display di lebar paragrafnya, berurutan:
+ * muat apa adanya → sedikit kelebaran: kecilkan, tetap satu baris (sama dengan
+ * rumus blok) → dipenggal KaTeX di relasi/operator → versi yang lebih mudah
+ * dipenggal (`wrappableLatex`) → tidak bisa dipenggal (matriks): kecilkan
+ * seluruhnya, atau potongan terlebarnya bila itu di bawah batas bawah.
+ *
+ * `whole`: lebar seluruh potongan satu baris; `widest`: potongan terlebar;
+ * `widestWrappable`: potongan terlebar versi mudah-dipenggal (diukur hanya bila perlu).
+ */
+export function fitInlineMath(
+	available: number,
+	whole: number,
+	widest: number,
+	widestWrappable: () => number,
+): InlineMathFit {
+	if (available <= 0 || whole <= available) return { latex: 'plain', scale: 1 }
+	// 0,98: celah antarpotongan tidak ikut terhitung di `whole`.
+	const oneLine = (available / whole) * 0.98
+	if (oneLine >= MATH_MIN_SCALE) return { latex: 'plain', scale: oneLine }
+	if (widest <= available) return { latex: 'plain', scale: 1 }
+	const wrapped = widestWrappable()
+	if (wrapped <= available) return { latex: 'wrappable', scale: 1 }
+	if (oneLine >= MATH_FLOOR_SCALE) return { latex: 'plain', scale: oneLine }
+	return { latex: 'wrappable', scale: Math.max(available / wrapped, MATH_FLOOR_SCALE) }
+}
+
+/**
+ * Rumus mengalir bergaya display - di dalam paragraf, seperti objek "sebagai
+ * karakter" di LibreOffice - dibuat muat di lebar paragrafnya (`fitInlineMath`).
+ */
+export function applyInlineMathFit(
+	span: HTMLElement,
+	latex: string,
+	available: number,
+	render: (latex: string, display: boolean) => string,
+): void {
+	span.style.removeProperty('--math-scale')
+	const plain = render(displayStyle(latex), false)
+	span.innerHTML = plain
+	let wrappableHtml: string | null = null
+	const fit = fitInlineMath(available, totalWidth(span), contentWidth(span), () => {
+		wrappableHtml = render(wrappableLatex(latex), false)
+		span.innerHTML = wrappableHtml
+		return contentWidth(span)
+	})
+	span.innerHTML = fit.latex === 'wrappable' ? (wrappableHtml ?? render(wrappableLatex(latex), false)) : plain
+	if (fit.scale < 1) span.style.setProperty('--math-scale', fit.scale.toFixed(3))
+}

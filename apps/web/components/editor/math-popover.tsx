@@ -52,7 +52,7 @@ export function MathPopover({
 				setLatex(node.attrs.latex ?? '')
 				setTarget({
 					pos,
-					display: node.type.name === MATH_BLOCK,
+					display: node.type.name === MATH_BLOCK || node.attrs.display === true,
 					isNew: false,
 					top: rect.bottom - bounds.top + 8,
 					left: Math.max(8, Math.min(rect.left - bounds.left, bounds.width - POPOVER_WIDTH)),

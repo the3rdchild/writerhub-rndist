@@ -2024,6 +2024,25 @@ a {
   transition: background-color 0.15s ease;
 }
 
+/* Rumus mengalir bergaya display (pengganti rumus blok): duduk di baris teks
+   seperti karakter, memenggal di relasi/operator bila kelebaran, dan dikecilkan
+   lewat --math-scale bila tetap tidak muat (math-fit.ts). */
+.document-body .math-inline--display {
+  max-width: 100%;
+  padding: 0.15em 1px;
+}
+
+/* Persamaan display Word mengabaikan lekukan baris pertama paragrafnya; tanpa
+   ini rumus selebar kolom terdorong keluar sejauh lekukannya. */
+.document-body p:has(> .math-inline--display) {
+  text-indent: 0 !important;
+}
+
+.document-body .math-inline--display .katex {
+  font-size: calc(1.05em * var(--math-scale, 1));
+  white-space: normal;
+}
+
 .document-body .math-inline:hover {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
