@@ -84,7 +84,11 @@ export interface CollabSessionOptions {
 	 * `editor`; bawaannya `viewer`.
 	 */
 	assumeRole?: CollabRole
+	/** Sumber peristiwa `online`/`offline`. Bawaannya `window`; null = tidak ada (uji tanpa DOM). */
+	network?: NetworkEvents | null
 }
+
+export type NetworkEvents = Pick<EventTarget, 'addEventListener' | 'removeEventListener'>
 
 type SessionEvents = {
 	phase: (phase: CollabPhase) => void
@@ -130,12 +134,30 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 	private refreshing = false
 	private badMessages = 0
 	private destroyed = false
+	private readonly network: NetworkEvents | null
 
 	constructor(private readonly options: CollabSessionOptions) {
 		super()
 		this.tabId = options.tabId
 		this.role = options.assumeRole ?? 'viewer'
 		this.readOnly = !collabCanWrite(this.role)
+		this.network =
+			options.network !== undefined ? options.network : typeof window !== 'undefined' ? window : null
+	}
+
+	/*
+	 * Peramban tahu jaringannya putus lebih dulu daripada websocket: soket yang
+	 * masih "terbuka" di jaringan yang sudah mati baru ketahuan y-websocket
+	 * setelah 30 detik tanpa pesan, dan selama itu indikatornya tetap "Live"
+	 * (uji kolab-01). Putus lalu sambung lagi: soketnya ditutup sekarang - fase
+	 * 'offline', kehadiran orang lain dihapus - dan provider mencoba ulang
+	 * dengan backoff sampai jaringan kembali.
+	 */
+	private readonly onBrowserOffline = (): void => {
+		const provider = this.provider
+		if (!provider?.wsconnected) return
+		provider.disconnect()
+		provider.connect()
 	}
 
 	/**
@@ -170,6 +192,7 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 	async start(): Promise<void> {
 		if (this.phase !== 'idle') return
 		this.setPhase('connecting')
+		this.network?.addEventListener('offline', this.onBrowserOffline)
 		// Salinan lokal dimuat DULU, tanpa menunggu jaringan: setelah muat ulang
 		// saat luring, tab kolaboratif tetap bisa disunting.
 		await this.loadLocalCopy()
@@ -188,6 +211,7 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 	override destroy(): void {
 		if (this.destroyed) return
 		this.destroyed = true
+		this.network?.removeEventListener('offline', this.onBrowserOffline)
 		const provider = this.provider
 		this.provider = null
 		provider?.destroy()
@@ -230,11 +254,11 @@ export class CollabSession extends ObservableV2<SessionEvents> {
 		return new Promise((resolve) => {
 			const done = () => {
 				clearTimeout(timer)
-				if (typeof window !== 'undefined') window.removeEventListener('online', done)
+				this.network?.removeEventListener('online', done)
 				resolve()
 			}
 			const timer = setTimeout(done, ms)
-			if (typeof window !== 'undefined') window.addEventListener('online', done)
+			this.network?.addEventListener('online', done)
 		})
 	}
 

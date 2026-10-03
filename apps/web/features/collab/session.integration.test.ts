@@ -311,6 +311,35 @@ describe.skipIf(!enabled)('CollabSession melawan API sungguhan', () => {
 		await own.stop('SIGTERM')
 	}, 60_000)
 
+	test('peristiwa offline dari peramban: fase langsung offline, lalu tersambung lagi sendiri', async () => {
+		const tabId = await createTab('PERISTIWA-LURING')
+		const network = new EventTarget()
+		const a = new CollabSession({ tabId, fetchTicket, seed: seedFromServer, maxBackoffMs: 300, network })
+		sessions.push(a)
+		await a.start()
+		await synced(a)
+
+		network.dispatchEvent(new Event('offline'))
+		// Seketika - tidak menunggu 30 detik tanpa pesan seperti y-websocket sendiri.
+		expect(a.phase).toBe('offline')
+		await synced(a)
+
+		append(a.doc, 'setelah-sambung-ulang')
+		const b = session(tabId)
+		await b.start()
+		await synced(b)
+		await waitFor(
+			() => textOf(b.doc).includes('setelah-sambung-ulang'),
+			'suntingan sesudah sambung ulang tiba',
+		)
+		expect(textOf(b.doc).split('PERISTIWA-LURING').length - 1).toBe(1)
+
+		a.destroy()
+		// Sesi yang sudah ditutup tidak lagi bereaksi.
+		network.dispatchEvent(new Event('offline'))
+		expect(a.phase).toBe('destroyed')
+	}, 30_000)
+
 	test('sambungan yang diputus untuk otorisasi ulang (4401) mengambil tiket baru dan lanjut', async () => {
 		const reauth = await startApi(freePort(), { ...ENV, COLLAB_REAUTH_S: '1' })
 		const created = await apiJson<{ tabs: Array<{ id: string }> }>(reauth.url, '/api/v1/documents', {
