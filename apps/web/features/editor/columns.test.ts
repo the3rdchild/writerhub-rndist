@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
-import { EditorState } from '@tiptap/pm/state'
+import { EditorState, TextSelection } from '@tiptap/pm/state'
 import { buildSchema } from '@/features/sync/serialize'
 import { collapsedMargin } from './column-measure'
-import { migrateLegacyColumns } from './columns'
+import { migrateLegacyColumns, selectionInColumns } from './columns'
 
 describe('penggabungan margin (§P4 catatan pengukuran, A-2)', () => {
 	test('DOM terluar yang punya margin sendiri memakai miliknya', () => {
@@ -71,5 +71,34 @@ describe('migrasi blok kolom lama saat dibuka (E5 langkah 4)', () => {
 
 	test('naskah yang sudah bersih tidak disentuh sama sekali', () => {
 		expect(migrateLegacyColumns(stateOf([para('biasa')]))).toBeNull()
+	})
+})
+
+describe('tombol "Two columns" di toolbar mengenali wilayah berkolom (KOL-10)', () => {
+	const schema = buildSchema()
+	const para = (text: string): JSONContent => ({ type: 'paragraph', content: [{ type: 'text', text }] })
+	const doc = schema.nodeFromJSON({
+		type: 'doc',
+		content: [
+			para('sebelum'),
+			{ type: 'sectionBreak', attrs: { pageSetup: null, columns: { count: 2 }, continuous: true } },
+			para('di dalam'),
+			{ type: 'sectionBreak', attrs: { pageSetup: null, columns: null, continuous: true } },
+			para('sesudah'),
+		],
+	})
+	const at = (pos: number) => {
+		const state = EditorState.create({ schema, doc })
+		return state.apply(state.tr.setSelection(TextSelection.create(state.doc, pos)))
+	}
+	const inside = 'sebelum'.length + 2 + 1 + 3
+
+	test('kursor di wilayah section berkolom: aktif', () => {
+		expect(selectionInColumns(at(inside))).toBe(true)
+	})
+
+	test('kursor di luar wilayah: tidak aktif', () => {
+		expect(selectionInColumns(at(2))).toBe(false)
+		expect(selectionInColumns(at(doc.content.size - 2))).toBe(false)
 	})
 })

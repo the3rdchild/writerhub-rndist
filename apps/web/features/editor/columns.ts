@@ -17,8 +17,10 @@ import {
 	type RegionPlan,
 	sameActive,
 } from './column-render'
+import { DEFAULT_PAGE_SETUP } from './page-geometry'
 import { paginationKey, SELF_PAGINATE_ATTRIBUTE } from './pagination'
 import {
+	columnRegionAt,
 	SECTION_BREAK_NODE,
 	type SectionBreakAttrs,
 	type SectionColumns,
@@ -199,6 +201,20 @@ const LegacyColumn = Node.create({
 		return [{ tag: 'div[data-type="col"]' }]
 	},
 })
+
+/**
+ * Kursor di dalam tata letak berkolom - wilayah section, atau node kolom lama
+ * yang belum dimigrasi. Dipakai tombol "Two columns" di toolbar: di sana ia
+ * tampil aktif dan menekannya mengembalikan wilayah itu ke satu kolom (KOL-10).
+ */
+export function selectionInColumns(state: EditorState): boolean {
+	const { $from, from } = state.selection
+	for (let depth = $from.depth; depth > 0; depth -= 1) {
+		if ($from.node(depth).type.name === COLUMNS_NODE) return true
+	}
+	const setup = paginationKey.getState(state)?.setup ?? DEFAULT_PAGE_SETUP
+	return columnRegionAt(state.doc, from, setup) !== null
+}
 
 export function migrateLegacyColumns(state: EditorState): Transaction | null {
 	const breakType = state.schema.nodes[SECTION_BREAK_NODE]
