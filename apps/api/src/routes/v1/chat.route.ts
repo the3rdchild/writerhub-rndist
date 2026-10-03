@@ -8,7 +8,7 @@ const chat = createRouter().basePath('/chat')
 
 chat.use('*', authMiddleware)
 
-chat.post('/', rateLimit('chat', 'permintaan chat', env.RATE_LIMIT_CHAT_PER_MIN), (c) =>
+chat.post('/', rateLimit('chat', 'chat requests', env.RATE_LIMIT_CHAT_PER_MIN), (c) =>
 	new ChatService(c).stream(),
 )
 

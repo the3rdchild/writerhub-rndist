@@ -51,7 +51,7 @@ export async function findOrCreateDefaultProject(ownerId: string) {
 		.insert(projects)
 		.values({ owner_id: ownerId, name: DEFAULT_PROJECT_NAME })
 		.returning()
-	if (!created) throw new Error('Gagal membuat proyek default')
+	if (!created) throw new Error("Couldn't create the default project")
 	return created
 }
 
@@ -73,7 +73,7 @@ export async function deleteProject(id: string, ownerId: string) {
 		return row ?? null
 	} catch (error) {
 		if (isPgError(error, PG_ERROR.FOREIGN_KEY_VIOLATION)) {
-			throw AppError.conflict('Proyek masih berisi dokumen - pindahkan atau hapus dokumennya dulu')
+			throw AppError.conflict('The project still contains documents - move or delete them first')
 		}
 		throw error
 	}

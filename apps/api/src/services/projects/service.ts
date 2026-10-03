@@ -28,7 +28,7 @@ export default class ProjectsService extends BaseService {
 			}
 
 			const project = await insertProject({ ...body.data, owner_id: await this.identityId() })
-			if (!project) throw AppError.internalServerError('Gagal menyimpan proyek')
+			if (!project) throw AppError.internalServerError("Couldn't save the project")
 
 			return this.success({ data: this.toSummary(project), status: 201 })
 		} catch (error) {
@@ -43,7 +43,7 @@ export default class ProjectsService extends BaseService {
 			}
 
 			const project = await updateProject(this.projectId(), await this.identityId(), body.data)
-			if (!project) throw AppError.notFound('Proyek tidak ditemukan')
+			if (!project) throw AppError.notFound('Project not found')
 
 			return this.success({ data: this.toSummary(project) })
 		} catch (error) {
@@ -53,7 +53,7 @@ export default class ProjectsService extends BaseService {
 	async remove(): Promise<Response> {
 		try {
 			const project = await deleteProject(this.projectId(), await this.identityId())
-			if (!project) throw AppError.notFound('Proyek tidak ditemukan')
+			if (!project) throw AppError.notFound('Project not found')
 			return this.success({ data: { id: project.id } })
 		} catch (error) {
 			return this.failFromError(error)
@@ -61,7 +61,7 @@ export default class ProjectsService extends BaseService {
 	}
 
 	private projectId(): string {
-		return this.uuidParam('id', 'ID proyek')
+		return this.uuidParam('id', 'Project ID')
 	}
 
 	private toSummary(project: Project, documentCount = 0): ProjectSummary {

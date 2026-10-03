@@ -115,6 +115,6 @@ function abandoned(): DraftState {
 	return {
 		status: 'failed',
 		errorCode: 'timeout',
-		error: 'Penulisan draf berhenti di tengah jalan dan tidak dilanjutkan.',
+		error: 'Writing the draft stopped partway and was not resumed.',
 	}
 }

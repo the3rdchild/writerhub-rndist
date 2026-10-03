@@ -8,7 +8,7 @@ const grammar = createRouter().basePath('/grammar')
 
 grammar.use('*', authMiddleware)
 
-grammar.post('/', rateLimit('grammar', 'pemeriksaan grammar', env.RATE_LIMIT_GRAMMAR_PER_MIN), (c) =>
+grammar.post('/', rateLimit('grammar', 'grammar checks', env.RATE_LIMIT_GRAMMAR_PER_MIN), (c) =>
 	new GrammarService(c).create(),
 )
 

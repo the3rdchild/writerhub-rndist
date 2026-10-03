@@ -246,7 +246,7 @@ const BROKEN_ARGS_RESULT =
 	'Not carried out: the arguments of this call were cut off or were not valid JSON (a reply that hits the output length limit ends mid-call). Send it again in smaller pieces: one section per call.'
 
 const PHASE_LABEL: Record<ChatStreamPhase, string> = {
-	connecting: 'Menghubungi provider…',
+	connecting: 'Connecting to the provider…',
 	thinking: THINKING_LABEL,
 	reading: 'Preparing to read the document…',
 	writing: 'Writing the answer…',
@@ -2031,7 +2031,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 		const label = redraw
 			? `Redrawing "${target?.title || 'diagram'}"`
-			: `Menggambar diagram ${String(call.arguments.type ?? '')}`.trim()
+			: `Drawing diagram ${String(call.arguments.type ?? '')}`.trim()
 		const stepId = startBackgroundStep(label)
 
 		const drawn = await drawDiagram({

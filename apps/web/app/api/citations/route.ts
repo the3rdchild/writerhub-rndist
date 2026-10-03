@@ -60,7 +60,7 @@ export async function GET(request: Request): Promise<Response> {
 
 		if (!response.ok) {
 			return Response.json(
-				{ message: 'Search failed', errors: [`Crossref membalas ${response.status}`] },
+				{ message: 'Search failed', errors: [`Crossref responded with ${response.status}`] },
 				{ status: 502 },
 			)
 		}

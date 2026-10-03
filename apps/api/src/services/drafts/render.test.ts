@@ -40,7 +40,7 @@ describe('renderErrorsOf', () => {
 
 		const errors = renderErrorsOf(record, ['pdf', 'png'])
 		expect(errors.map((error) => error.output)).toEqual(['png'])
-		expect(errors[0].reason).toContain('belum tersedia')
+		expect(errors[0].reason).toContain('not available yet')
 	})
 })
 
@@ -53,8 +53,8 @@ describe('downloadFileName', () => {
 	})
 
 	test('judul kosong atau yang habis tersaring tetap punya nama', () => {
-		expect(downloadFileName('   ', 'pdf')).toBe('dokumen.pdf')
-		expect(downloadFileName('???', 'pdf')).toBe('dokumen.pdf')
+		expect(downloadFileName('   ', 'pdf')).toBe('document.pdf')
+		expect(downloadFileName('???', 'pdf')).toBe('document.pdf')
 	})
 
 	test('judul panjang dipotong tanpa spasi menggantung', () => {
@@ -68,10 +68,10 @@ describe('downloadFileName', () => {
 describe('unrenderedReason', () => {
 	test('format yang perendernya belum ditulis menyebut formatnya', () => {
 		expect(unrenderedReason('docx')).toContain('DOCX')
-		expect(unrenderedReason('docx')).toContain('belum tersedia')
+		expect(unrenderedReason('docx')).toContain('not available yet')
 	})
 
 	test('format yang perendernya ada tapi hasilnya tak terlacak, diajak mencoba ulang', () => {
-		expect(unrenderedReason('pdf')).toContain('minta ulang')
+		expect(unrenderedReason('pdf')).toContain('requesting the document again')
 	})
 })

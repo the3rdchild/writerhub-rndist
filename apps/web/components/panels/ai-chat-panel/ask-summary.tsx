@@ -52,7 +52,7 @@ export function AskSummary({ call, expired }: { call: ToolCall; expired?: boolea
 		return shell(
 			<p className="text-xs leading-snug text-foreground">
 				{filled.length > 0
-					? `Anda melengkapi ${filled.map((entry) => entry.label).join(', ')}.`
+					? `You filled in ${filled.map((entry) => entry.label).join(', ')}.`
 					: `None of the ${requested.length} requested fields are filled yet.`}
 			</p>,
 		)

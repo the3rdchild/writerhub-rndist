@@ -63,9 +63,9 @@ export default class ExportsService extends BaseService {
 	/** Tautan bertanda tangan untuk satu dokumen milik pemanggil. */
 	async link(): Promise<Response> {
 		try {
-			const documentId = this.uuidParam('documentId', 'ID dokumen')
+			const documentId = this.uuidParam('documentId', 'Document ID')
 			const document = await findDocumentById(documentId, await this.identityId())
-			if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
+			if (!document) throw AppError.notFound('Document not found')
 
 			const { exp, sig } = signRender(documentId)
 			const url = `${env.WEB_URL}/export/${documentId}?exp=${exp}&sig=${encodeURIComponent(sig)}`
@@ -80,11 +80,11 @@ export default class ExportsService extends BaseService {
 	/** Isi dokumen di balik tautan itu. Tanda tangannya yang menjadi izinnya. */
 	async read(): Promise<Response> {
 		try {
-			const documentId = this.uuidParam('documentId', 'ID dokumen')
+			const documentId = this.uuidParam('documentId', 'Document ID')
 			verifyRender(documentId, Number(this.context.req.query('exp')), this.context.req.query('sig') ?? '')
 
 			const document = await findDocumentUnscoped(documentId)
-			if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
+			if (!document) throw AppError.notFound('Document not found')
 
 			const tabs = await findTabsByDocument(documentId)
 			const response: ExportDocumentResponse = {

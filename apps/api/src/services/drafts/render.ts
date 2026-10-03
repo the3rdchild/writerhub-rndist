@@ -42,7 +42,7 @@ function jobLifetimeSeconds(): number {
  * tengah render, atau tidak pernah mengambilnya sama sekali.
  */
 const STALLED =
-	'Render berkasnya tidak selesai dan sudah lewat batas waktunya. Dokumennya tetap utuh - buka di WritingHub dan cetak dari sana, atau minta ulang dokumennya.'
+	"The file render didn't finish and is past its time limit. The document is intact - open it in WritingHub and print from there, or request the document again."
 
 /**
  * Menitipkan satu dokumen ke antrean render, beserta token halaman ekspornya

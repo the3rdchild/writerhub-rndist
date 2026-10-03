@@ -36,7 +36,7 @@ import { type DraftState, readDraftState } from './status'
 const EMPTY_CONTENT: ProseMirrorDoc = { type: 'doc', content: [{ type: 'paragraph' }] }
 
 const TITLE_FROM_PROMPT_CHARS = 80
-const FALLBACK_TITLE = 'Draf tanpa judul'
+const FALLBACK_TITLE = 'Untitled draft'
 
 /**
  * Apakah jawaban model boleh berakhir sebagai blok rancangan.
@@ -102,13 +102,15 @@ export default class DraftsService extends JobSubmissionService {
 
 			const current = await readDraftState(document.id)
 			if (current.status === 'generating') {
-				throw AppError.conflict('Draf ini masih ditulis - tunggu sampai selesai sebelum mencoba lagi.')
+				throw AppError.conflict(
+					'This draft is still being written - wait until it finishes before trying again.',
+				)
 			}
 
 			const request = await recallDraftRequest(document.id)
 			if (!request?.prompt) {
 				throw AppError.cantProcess(
-					'Permintaan aslinya sudah tidak tersimpan. Kirim ulang permintaannya lewat POST /api/v1/drafts.',
+					'The original request is no longer stored. Send the request again via POST /api/v1/drafts.',
 				)
 			}
 
@@ -241,7 +243,7 @@ export default class DraftsService extends JobSubmissionService {
 	/** Template wajib ada saat permintaan dibuat - slug asing membalas 400. */
 	private async requireTemplate(slug: string): Promise<Template> {
 		const template = await findTemplateBySlug(slug)
-		if (!template) throw AppError.badRequest(`Template "${slug}" tidak dikenal`)
+		if (!template) throw AppError.badRequest(`Unknown template "${slug}"`)
 		return template
 	}
 
@@ -263,17 +265,17 @@ export default class DraftsService extends JobSubmissionService {
 	}
 
 	private providerUnavailable(): Response {
-		return this.error({ errors: ['Provider AI belum dikonfigurasi untuk penulisan draf.'], status: 503 })
+		return this.error({ errors: ['No AI provider is configured for draft writing.'], status: 503 })
 	}
 
 	/** Dokumen milik pemanggil beserta tab pertamanya - bentuk yang dipakai status dan retry. */
 	private async ownedDraft(): Promise<{ document: Document; tab: DocumentTab }> {
-		const documentId = this.uuidParam('documentId', 'ID dokumen')
+		const documentId = this.uuidParam('documentId', 'Document ID')
 		const document = await findDocumentById(documentId, await this.identityId())
-		if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
+		if (!document) throw AppError.notFound('Document not found')
 
 		const [tab] = await findTabsByDocument(documentId)
-		if (!tab) throw AppError.notFound('Dokumen ini tidak punya tab')
+		if (!tab) throw AppError.notFound('This document has no tabs')
 
 		return { document, tab }
 	}
@@ -292,7 +294,7 @@ export default class DraftsService extends JobSubmissionService {
 			template_slug: template?.slug ?? null,
 			layout: layout ?? (template ? templateDocumentLayout(template.spec) : null),
 		})
-		if (!document) throw AppError.internalServerError('Gagal menyimpan dokumen')
+		if (!document) throw AppError.internalServerError("Couldn't save the document")
 
 		const tab = await insertTab({
 			document_id: document.id,
@@ -301,7 +303,7 @@ export default class DraftsService extends JobSubmissionService {
 			layout: template ? templateTabLayout(template.spec) : null,
 			position: 0,
 		})
-		if (!tab) throw AppError.internalServerError('Gagal menyimpan tab pertama')
+		if (!tab) throw AppError.internalServerError("Couldn't save the first tab")
 
 		return { document, tab }
 	}
@@ -310,13 +312,13 @@ export default class DraftsService extends JobSubmissionService {
 		if (!projectId) return (await findOrCreateDefaultProject(identityId)).id
 
 		const project = await findProjectById(projectId, identityId)
-		if (!project) throw AppError.badRequest('Proyek tidak ditemukan')
+		if (!project) throw AppError.badRequest('Project not found')
 		return project.id
 	}
 
 	private ownerId(): string {
 		const userId = this.context.get('userId')
-		if (!userId) throw AppError.unauthorized('User tidak dikenal')
+		if (!userId) throw AppError.unauthorized('Unknown user')
 		return userId
 	}
 

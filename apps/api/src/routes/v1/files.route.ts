@@ -7,11 +7,11 @@ const files = createRouter().basePath('/files')
 
 files.get('/*', async (c) => {
 	if (env.STORAGE_DRIVER !== 'local') {
-		throw AppError.notFound('Penyimpanan lokal tidak aktif')
+		throw AppError.notFound('Local storage is not enabled')
 	}
 
 	const key = decodeURIComponent(c.req.path.split('/api/v1/files/')[1] ?? '')
-	if (!key) throw AppError.badRequest('Key berkas kosong')
+	if (!key) throw AppError.badRequest('The file key is empty')
 
 	const { file, size } = await readLocalFile(key)
 

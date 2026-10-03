@@ -71,8 +71,8 @@ export default abstract class BaseService {
 	 */
 	protected uuidParam(name: string, label: string): string {
 		const value = this.context.req.param(name)
-		if (!value) throw AppError.badRequest(`${label} tidak ada`)
-		if (!isUuid(value)) throw AppError.badRequest(`${label} bukan UUID yang sah`)
+		if (!value) throw AppError.badRequest(`${label} is missing`)
+		if (!isUuid(value)) throw AppError.badRequest(`${label} is not a valid UUID`)
 		return value
 	}
 
@@ -80,7 +80,7 @@ export default abstract class BaseService {
 	protected optionalUuidQuery(name: string, label: string): string | undefined {
 		const value = this.context.req.query(name)
 		if (value === undefined || value === '') return undefined
-		if (!isUuid(value)) throw AppError.badRequest(`${label} bukan UUID yang sah`)
+		if (!isUuid(value)) throw AppError.badRequest(`${label} is not a valid UUID`)
 		return value
 	}
 
@@ -93,7 +93,7 @@ export default abstract class BaseService {
 	protected async identityId(): Promise<string> {
 		const userId = this.context.get('userId')
 		const origin = this.context.get('identityOrigin')
-		if (!userId || !origin) throw AppError.unauthorized('User tidak dikenal')
+		if (!userId || !origin) throw AppError.unauthorized('Unknown user')
 		return resolveIdentityId(userId, origin)
 	}
 

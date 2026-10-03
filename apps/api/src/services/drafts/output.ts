@@ -70,7 +70,7 @@ export function resolveOutputs(request: DraftRequest): DraftOutput[] {
  * dititipkan setelah naskahnya tersimpan, jadi satu-satunya jawaban jujur di
  * sini adalah "belum, tanyakan lagi".
  */
-const NOT_WRITTEN_YET = 'Berkasnya baru dibuat setelah naskahnya selesai - tanyakan lagi lewat statusUrl.'
+const NOT_WRITTEN_YET = 'The file is made once the manuscript is finished - ask again via statusUrl.'
 
 export function pendingRenderErrors(outputs: readonly DraftOutput[]): DraftRenderError[] {
 	return outputs.map((output) => ({ output, reason: NOT_WRITTEN_YET }))
@@ -91,9 +91,9 @@ export const RENDERABLE_OUTPUTS: readonly DraftOutput[] = ['pdf']
  */
 export function unrenderedReason(output: DraftOutput): string {
 	if (!RENDERABLE_OUTPUTS.includes(output)) {
-		return `Perender ${output.toUpperCase()} belum tersedia. Dokumennya sudah bisa dibuka dan dicetak dari WritingHub.`
+		return `The ${output.toUpperCase()} renderer is not available yet. The document can already be opened and printed from WritingHub.`
 	}
-	return `Render ${output.toUpperCase()} berakhir tanpa hasil yang tercatat. Coba minta ulang dokumennya.`
+	return `The ${output.toUpperCase()} render ended without a recorded result. Try requesting the document again.`
 }
 
 /** Panjang nama berkas yang masih enak dibaca di bilah unduhan. */
@@ -119,5 +119,5 @@ export function downloadFileName(title: string, output: DraftOutput): string {
 		.slice(0, MAX_FILENAME_CHARS)
 		.trimEnd()
 
-	return `${base || 'dokumen'}.${output}`
+	return `${base || 'document'}.${output}`
 }

@@ -9,7 +9,7 @@ const drafts = createRouter().basePath('/drafts')
 drafts.use('*', authMiddleware)
 
 // Buat dan coba-ulang berbagi satu ember: keduanya memulai penulisan AI.
-const draftLimit = rateLimit('drafts', 'permintaan draf', env.RATE_LIMIT_DRAFTS_PER_MIN)
+const draftLimit = rateLimit('drafts', 'draft requests', env.RATE_LIMIT_DRAFTS_PER_MIN)
 
 drafts.post('/', draftLimit, (c) => new DraftsService(c).create())
 drafts.get('/:documentId', (c) => new DraftsService(c).status())

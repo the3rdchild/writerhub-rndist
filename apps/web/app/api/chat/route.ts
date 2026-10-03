@@ -57,5 +57,5 @@ function upstreamErrors(detail: string, status: number): string[] {
 		}
 		if (typeof body.message === 'string' && body.message) return [body.message]
 	} catch {}
-	return [detail || `Upstream membalas ${status}`]
+	return [detail || `Upstream responded with ${status}`]
 }

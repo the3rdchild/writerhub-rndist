@@ -42,7 +42,7 @@ export default class ChatService extends JobSubmissionService {
 			const config = this.resolveProviderConfig(provider, parsed.data.model)
 			if (!config) {
 				return this.error({
-					errors: ['Provider AI belum dikonfigurasi untuk percakapan.'],
+					errors: ['No AI provider is configured for chat.'],
 					status: 503,
 				})
 			}
