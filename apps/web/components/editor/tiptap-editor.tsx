@@ -34,17 +34,7 @@ import { TableColorToolbar } from './table-color-toolbar'
 
 const POPOVER_HIDE_DELAY_MS = 180
 
-export function TiptapEditor({
-	containerRef,
-	onReady,
-	geometry = pageGeometry(),
-	setup,
-	pageless = false,
-	onPageCountChange,
-	onSheetsChange,
-	onSectionsChange,
-	breakBeforeLevels,
-}: {
+interface TiptapEditorProps {
 	containerRef: React.RefObject<HTMLDivElement | null>
 	onReady?: (editor: Editor | null) => void
 	geometry?: PageGeometry
@@ -55,7 +45,36 @@ export function TiptapEditor({
 	onSectionsChange?: (setups: PageSetup[]) => void
 	/** Tingkat judul yang membuka lembar baru; dari tipografi dokumen. */
 	breakBeforeLevels?: number[]
-}) {
+}
+
+/*
+ * Editor dibuat ulang setiap kali tab aktif atau ikatan kolaborasinya berganti
+ * (ekstensi Collaboration tidak bisa dipindah ke Y.Doc lain). Pergantiannya
+ * lewat `key`, bukan lewat `deps` useEditor: dengan `deps`, editor lama
+ * dihancurkan di efek milik useEditor sendiri, lalu efek-efek sesudahnya pada
+ * commit yang sama masih memegang editor yang baru saja dihancurkan -
+ * `editor.view.dom` melempar dan seluruh halaman jatuh. Itu terjadi bila
+ * ikatan berganti dua kali beruntun, misalnya membuka dokumen kolaboratif dari
+ * Library (uji kolab-01). Dengan `key`, komponen lama dilepas utuh dan yang
+ * baru tidak pernah melihat editor milik ikatan lain.
+ */
+export function TiptapEditor(props: TiptapEditorProps) {
+	const { activeId } = useSessions()
+	const { binding } = useCollab()
+	return <BoundTiptapEditor key={`${activeId ?? ''}|${bindingKey(binding)}`} {...props} />
+}
+
+function BoundTiptapEditor({
+	containerRef,
+	onReady,
+	geometry = pageGeometry(),
+	setup,
+	pageless = false,
+	onPageCountChange,
+	onSheetsChange,
+	onSectionsChange,
+	breakBeforeLevels,
+}: TiptapEditorProps) {
 	const { state, dispatch } = useDocument()
 	const { doc, activeId } = useSessions()
 	/*
@@ -67,8 +86,8 @@ export function TiptapEditor({
 	const { binding } = useCollab()
 	const live = binding.kind === 'live' ? binding : null
 	const editable = binding.kind === 'local' || (live !== null && !live.readOnly)
-	// Editor dibuat ulang hanya saat ikatannya berganti: ekstensi Collaboration
-	// tidak bisa dipindah ke Y.Doc lain setelah editor dibuat.
+	// Tetap selama komponen ini hidup - `key` di TiptapEditor memasang komponen
+	// baru begitu tab atau ikatannya berganti.
 	const boundTo = bindingKey(binding)
 	const [popover, setPopover] = useState<PopoverPosition | null>(null)
 	const [slashState, setSlashState] = useState<SlashCommandState | null>(null)
