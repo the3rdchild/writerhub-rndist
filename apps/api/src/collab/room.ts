@@ -117,6 +117,8 @@ export class CollabTabGoneError extends Error {
 
 /** Klien awareness yang boleh dikendalikan satu sambungan (satu Y.Doc = satu klien; sisanya kelonggaran). */
 const MAX_AWARENESS_CLIENTS = 4
+/** Kunci penanda pemilik di keadaan awareness (`CollabConnection.ownerTag`). */
+const OWNER_KEY = '_owner'
 
 /** Urutan calon penyemai: pemilik sebelum tamu tautan berbagi, lalu yang paling jarang diminta. */
 function seedsBefore(a: CollabConnection, b: CollabConnection): boolean {
@@ -364,10 +366,12 @@ export class CollabRoom {
 			case 'awareness': {
 				if (message.update.byteLength > this.host.settings.maxAwarenessBytes) return
 				let update: Uint8Array | null
+				// Klien baru dihitung sambil disaring: satu pesan tidak bisa melewati batasnya.
+				const acceptedNew = new Set<number>()
 				try {
 					update = rewriteAwarenessUpdate(
 						message.update,
-						(clientId) => this.mayControlAwareness(conn, clientId),
+						(clientId) => this.mayControlAwareness(conn, clientId, acceptedNew),
 						(state) => this.stampIdentity(conn, state),
 					)
 					if (update) applyAwarenessUpdate(this.awareness, update, conn)
@@ -388,26 +392,34 @@ export class CollabRoom {
 	}
 
 	/**
-	 * Keadaan awareness milik sambungan lain di instance ini tidak boleh ditulis
-	 * - kecuali oleh pemegang tiket yang sama: itu klien yang sama menyambung
-	 * ulang sebelum sambungan lamanya dinyatakan mati.
+	 * Keadaan awareness yang sudah ada - milik sambungan di instance mana pun -
+	 * hanya boleh ditulis atau dihapus oleh pemegang tiket yang sama (penanda
+	 * pemilik dicap server, ikut menyeberang lewat bus): itu klien yang sama
+	 * menyambung ulang, juga ke instance lain. Klien baru dihitung terhadap
+	 * batas per sambungan bersama yang sudah diterima di pesan yang sama.
 	 */
-	private mayControlAwareness(conn: CollabConnection, clientId: number): boolean {
-		if (conn.awarenessClients.has(clientId)) return true
-		for (const other of this.conns) {
-			if (other === conn || !other.awarenessClients.has(clientId)) continue
-			if (other.claims.sub !== conn.claims.sub) return false
-			other.awarenessClients.delete(clientId)
-			break
+	private mayControlAwareness(conn: CollabConnection, clientId: number, acceptedNew: Set<number>): boolean {
+		const state = this.awareness.getStates().get(clientId)
+		if (state !== undefined) {
+			if (state[OWNER_KEY] !== conn.ownerTag) return false
+			for (const other of this.conns) if (other !== conn) other.awarenessClients.delete(clientId)
+			return true
 		}
-		return conn.awarenessClients.size < MAX_AWARENESS_CLIENTS
+		if (conn.awarenessClients.has(clientId) || acceptedNew.has(clientId)) return true
+		if (conn.awarenessClients.size + acceptedNew.size >= MAX_AWARENESS_CLIENTS) return false
+		acceptedNew.add(clientId)
+		return true
 	}
 
-	/** Nama di kehadiran selalu nama dari tiket: tamu tautan tidak bisa tampil sebagai pemilik. */
+	/**
+	 * Nama di kehadiran selalu nama dari tiket - tamu tautan tidak bisa tampil
+	 * sebagai pemilik - dan setiap keadaan membawa penanda pemiliknya.
+	 */
 	private stampIdentity(conn: CollabConnection, state: Record<string, unknown>): Record<string, unknown> {
+		const stamped = { ...state, [OWNER_KEY]: conn.ownerTag }
 		const user = state.user
-		if (!user || typeof user !== 'object' || Array.isArray(user)) return state
-		return { ...state, user: { ...(user as Record<string, unknown>), name: conn.claims.name } }
+		if (!user || typeof user !== 'object' || Array.isArray(user)) return stamped
+		return { ...stamped, user: { ...(user as Record<string, unknown>), name: conn.claims.name } }
 	}
 
 	// ── Aliran pembaruan ────────────────────────────────────────────────────

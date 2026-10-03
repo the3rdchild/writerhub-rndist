@@ -601,6 +601,63 @@ describe('room kolaborasi', () => {
 		hijack.destroy()
 	})
 
+	test('kehadiran: keadaan milik klien di instance lain tidak bisa ditimpa atau dihapus', async () => {
+		const store = new MemoryStore()
+		seedStore(store, 'awal')
+		const hub = new Hub()
+		const roomA = await openRoom(new MemoryBus(hub), store)
+		const roomB = await openRoom(new MemoryBus(hub), store)
+		const owner = new FakeClient(roomA, 'editor', {
+			claims: { sub: 'pemilik', name: 'Pemilik Asli' },
+		}).connect()
+		const guest = new FakeClient(roomB, 'editor', { claims: { sub: 'share:1', name: 'Guest' } }).connect()
+		await sleep(20)
+		const ownerPresence = new Awareness(new Y.Doc())
+		ownerPresence.setLocalStateField('user', { name: 'apa saja', color: '#00f' })
+		owner.toServer(encodeAwareness(encodeAwarenessUpdate(ownerPresence, [ownerPresence.clientID])))
+		await sleep(30)
+		expect(roomB.awareness.getStates().get(ownerPresence.clientID)?.user).toEqual({
+			name: 'Pemilik Asli',
+			color: '#00f',
+		})
+
+		// Tamu di instance B mencoba menimpa, lalu menghapus, keadaan pemilik yang tersambung ke A.
+		const hijack = new Awareness(new Y.Doc())
+		hijack.clientID = ownerPresence.clientID
+		for (let i = 0; i < 5; i += 1) hijack.setLocalState({ user: { name: 'x', color: `#00${i}` } })
+		guest.toServer(encodeAwareness(encodeAwarenessUpdate(hijack, [hijack.clientID])))
+		hijack.setLocalState(null)
+		guest.toServer(encodeAwareness(encodeAwarenessUpdate(hijack, [hijack.clientID])))
+		await sleep(40)
+		for (const room of [roomA, roomB]) {
+			expect(room.awareness.getStates().get(ownerPresence.clientID)?.user).toEqual({
+				name: 'Pemilik Asli',
+				color: '#00f',
+			})
+		}
+		ownerPresence.destroy()
+		hijack.destroy()
+	})
+
+	test('kehadiran: satu pesan tidak bisa membawa lebih banyak klien daripada batas per sambungan', async () => {
+		const store = new MemoryStore()
+		seedStore(store, 'awal')
+		const room = await openRoom(new MemoryBus(new Hub()), store)
+		const guest = new FakeClient(room, 'editor', { claims: { sub: 'share:1', name: 'Guest' } }).connect()
+		await sleep(20)
+		const flood = new Awareness(new Y.Doc())
+		const ids = Array.from({ length: 10 }, (_, index) => 900_000 + index)
+		for (const id of ids) {
+			flood.states.set(id, { user: { name: `palsu-${id}`, color: '#f00' } })
+			flood.meta.set(id, { clock: 1, lastUpdated: Date.now() })
+		}
+		guest.toServer(encodeAwareness(encodeAwarenessUpdate(flood, ids)))
+		await sleep(30)
+		const accepted = ids.filter((id) => room.awareness.getStates().has(id))
+		expect(accepted.length).toBeLessThanOrEqual(4)
+		flood.destroy()
+	})
+
 	test('tautan berbagi yang diubah memutus sambungan lewat tautan itu saja (4401)', async () => {
 		const store = new MemoryStore()
 		seedStore(store, 'awal')

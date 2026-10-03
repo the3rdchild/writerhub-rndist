@@ -79,8 +79,11 @@ Keputusan terkait:
 - **Batas laju tiket tautan** per tautan (`RATE_LIMIT_SHARE_TICKETS_PER_MIN`, bawaan 120/menit): rute itu tanpa sesi,
   jadi yang dihitung adalah tautannya.
 - **Identitas di kehadiran dipaksakan server.** y-protocols mempercayai klien sepenuhnya; server menimpa `user.name`
-  setiap keadaan awareness dengan nama dari tiket (tamu tautan selalu "Guest") dan membuang entri untuk clientID milik
-  sambungan lain - kecuali pemegang tiket yang sama, yaitu klien yang menyambung ulang. Warna tetap pilihan klien.
+  setiap keadaan awareness dengan nama dari tiket (tamu tautan selalu "Guest") dan mencap penanda pemilik (`_owner`,
+  hash subjek tiket). Entri untuk clientID yang keadaannya sudah ada - milik sambungan di instance MANA PUN, karena
+  penandanya ikut menyeberang lewat bus - dibuang kecuali dari pemegang tiket yang sama (klien yang menyambung
+  ulang, juga ke instance lain). Klien baru dihitung terhadap batas 4 per sambungan sambil disaring, jadi satu pesan
+  tidak bisa melewatinya. Warna tetap pilihan klien.
 - Kunci tiket `COLLAB_TICKET_SECRET` terpisah dari rahasia lain (bisa dirotasi sendiri). Kosong = kolaborasi mati:
   tiket dijawab 503 dan klien tetap memakai simpanan lama.
 

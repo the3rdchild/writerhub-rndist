@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { collabCanWrite } from '@writer-hub/shared'
 import type { CollabRoom } from './room'
 import type { CollabClaims } from './ticket'
@@ -34,13 +34,24 @@ export class CollabConnection {
 	seedRequests = 0
 	reauthTimer: ReturnType<typeof setTimeout> | null = null
 	readonly openedAt = Date.now()
+	/**
+	 * Penanda pemilik keadaan kehadiran: hash subjek tiket, dicap server ke
+	 * setiap keadaan yang dikirim sambungan ini. Ikut menyeberang ke instance
+	 * lain, jadi kepemilikan bisa diperiksa di mana pun tanpa membuka subjeknya.
+	 */
+	readonly ownerTag: string
 
 	constructor(
 		private readonly socket: CollabSocket,
 		readonly claims: CollabClaims,
 		/** Epoch salinan lokal yang diakui klien saat menyambung; '' = tanpa salinan. */
 		readonly clientEpoch: string,
-	) {}
+	) {
+		this.ownerTag = createHash('sha256')
+			.update(`collab-presence.${claims.sub}`)
+			.digest('base64url')
+			.slice(0, 16)
+	}
 
 	get canWrite(): boolean {
 		return collabCanWrite(this.claims.role)
