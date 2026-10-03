@@ -74,7 +74,7 @@ export function FormatMenu() {
 						<FormatTextSubmenu close={close} />
 
 						{/* ── Gaya paragraf ── */}
-						<Submenu label="Gaya paragraf" icon={<TextCursor className="h-4 w-4" />}>
+						<Submenu label="Paragraph style" icon={<TextCursor className="h-4 w-4" />}>
 							{() => {
 								const activeStyle = editor ? ALL_PARAGRAPH_STYLES.find((s) => s.isActive(editor)) : undefined
 								const highLevel =
@@ -85,7 +85,7 @@ export function FormatMenu() {
 									<>
 										{highLevel && (
 											<Item key={highLevel.id} active disabled>
-												{highLevel.label} (papan tik)
+												{highLevel.label} (keyboard shortcut)
 											</Item>
 										)}
 										{PARAGRAPH_STYLES.map((style) => (
@@ -103,39 +103,39 @@ export function FormatMenu() {
 						</Submenu>
 
 						{/* ── Perataan ── */}
-						<Submenu label="Perataan" icon={<AlignLeft className="h-4 w-4" />}>
+						<Submenu label="Alignment" icon={<AlignLeft className="h-4 w-4" />}>
 							{() => (
 								<>
 									<Item
 										icon={<AlignLeft className="h-4 w-4" />}
 										onSelect={() => run(close, () => editor?.chain().focus().setTextAlign('left').run())}
 									>
-										Rata kiri
+										Align left
 									</Item>
 									<Item
 										icon={<AlignCenter className="h-4 w-4" />}
 										onSelect={() => run(close, () => editor?.chain().focus().setTextAlign('center').run())}
 									>
-										Rata tengah
+										Align center
 									</Item>
 									<Item
 										icon={<AlignRight className="h-4 w-4" />}
 										onSelect={() => run(close, () => editor?.chain().focus().setTextAlign('right').run())}
 									>
-										Rata kanan
+										Align right
 									</Item>
 									<Item
 										icon={<AlignJustify className="h-4 w-4" />}
 										onSelect={() => run(close, () => editor?.chain().focus().setTextAlign('justify').run())}
 									>
-										Rata kanan-kiri
+										Justify
 									</Item>
 								</>
 							)}
 						</Submenu>
 
 						{/* ── Spasi baris & paragraf (ala Google Docs) ── */}
-						<Submenu label="Spasi baris & paragraf" icon={<AlignJustify className="h-4 w-4" />}>
+						<Submenu label="Line & paragraph spacing" icon={<AlignJustify className="h-4 w-4" />}>
 							{() => (
 								<SpacingMenuItems
 									editor={editor}
@@ -149,26 +149,26 @@ export function FormatMenu() {
 						</Submenu>
 
 						{/* ── Daftar & penomoran ── */}
-						<Submenu label="Daftar & penomoran" icon={<List className="h-4 w-4" />}>
+						<Submenu label="Lists & numbering" icon={<List className="h-4 w-4" />}>
 							{() => (
 								<>
 									<Item
 										icon={<List className="h-4 w-4" />}
 										onSelect={() => run(close, () => editor?.chain().focus().toggleBulletList().run())}
 									>
-										Daftar butir
+										Bulleted list
 									</Item>
 									<Item
 										icon={<ListOrdered className="h-4 w-4" />}
 										onSelect={() => run(close, () => editor?.chain().focus().toggleOrderedList().run())}
 									>
-										Daftar nomor
+										Numbered list
 									</Item>
 									<Item
 										icon={<CheckSquare className="h-4 w-4" />}
 										onSelect={() => run(close, () => editor?.chain().focus().toggleTaskList().run())}
 									>
-										Daftar centang
+										Checklist
 									</Item>
 									<DropdownSeparator />
 									{/* Gaya, mulai ulang, dan lanjutkan nomor (TKS-10). */}
@@ -209,13 +209,13 @@ export function FormatMenu() {
 										icon={<Indent className="h-4 w-4" />}
 										onSelect={() => run(close, () => indentSelection(editor))}
 									>
-										Tambah indentasi
+										Increase indent
 									</Item>
 									<Item
 										icon={<Outdent className="h-4 w-4" />}
 										onSelect={() => run(close, () => outdentSelection(editor))}
 									>
-										Kurangi indentasi
+										Decrease indent
 									</Item>
 								</>
 							)}

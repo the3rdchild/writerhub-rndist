@@ -328,7 +328,7 @@ export function DocumentRuler({
 		<div
 			className={cn('document-ruler', dragging && 'document-ruler--dragging', className)}
 			style={{ width: toScreen(width), height: RULER_HEIGHT }}
-			aria-label="Penggaris halaman"
+			aria-label="Page ruler"
 		>
 			<div ref={trackRef} className="relative h-full" onPointerDown={placeTab}>
 				{/* Arsiran margin: area di luar batas tulis. */}
@@ -344,13 +344,13 @@ export function DocumentRuler({
 				<Ticks width={width} zoom={zoom} unit={settings.measurementUnit} />
 
 				<MarginHandle
-					label="Margin kiri"
+					label="Left margin"
 					x={toScreen(shownMargins.left)}
 					onPointerDown={startDrag({ kind: 'marginLeft' })}
 					onKeyDown={nudge({ kind: 'marginLeft' }, margins.left)}
 				/>
 				<MarginHandle
-					label="Margin kanan"
+					label="Right margin"
 					x={toScreen(width - shownMargins.right)}
 					onPointerDown={startDrag({ kind: 'marginRight' })}
 					onKeyDown={nudge({ kind: 'marginRight' }, width - margins.right)}
@@ -360,21 +360,21 @@ export function DocumentRuler({
 					<>
 						<IndentHandle
 							variant="first-line"
-							label="Indentasi baris pertama"
+							label="First line indent"
 							x={toScreen(firstLineX)}
 							onPointerDown={startDrag({ kind: 'firstLine' })}
 							onKeyDown={nudge({ kind: 'firstLine' }, firstLineX)}
 						/>
 						<IndentHandle
 							variant="left"
-							label="Indentasi kiri"
+							label="Left indent"
 							x={toScreen(indentLeftX)}
 							onPointerDown={startDrag({ kind: 'indentLeft' })}
 							onKeyDown={nudge({ kind: 'indentLeft' }, indentLeftX)}
 						/>
 						<IndentHandle
 							variant="right"
-							label="Indentasi kanan"
+							label="Right indent"
 							x={toScreen(indentRightX)}
 							onPointerDown={startDrag({ kind: 'indentRight' })}
 							onKeyDown={nudge({ kind: 'indentRight' }, indentRightX)}
@@ -412,14 +412,14 @@ export function DocumentRuler({
 					<>
 						<ObjectHandle
 							variant="table-edge"
-							label="Tepi kiri tabel"
+							label="Table left edge"
 							x={toScreen(live(table.left, (handle) => handle.kind === 'tableLeft'))}
 							onPointerDown={startDrag({ kind: 'tableLeft' })}
 							onKeyDown={nudge({ kind: 'tableLeft' }, table.left)}
 						/>
 						<ObjectHandle
 							variant="table-edge"
-							label="Tepi kanan tabel"
+							label="Table right edge"
 							x={toScreen(live(table.right, (handle) => handle.kind === 'tableRight'))}
 							onPointerDown={startDrag({ kind: 'tableRight' })}
 							onKeyDown={nudge({ kind: 'tableRight' }, table.right)}
@@ -429,7 +429,7 @@ export function DocumentRuler({
 							<ObjectHandle
 								key={`col-${index}-${table.edges.length}`}
 								variant="table-column"
-								label={`Batas kolom ${index + 1} dan ${index + 2}`}
+								label={`Border between columns ${index + 1} and ${index + 2}`}
 								x={toScreen(live(edge, (handle) => handle.kind === 'tableCol' && handle.index === index))}
 								onPointerDown={startDrag({ kind: 'tableCol', index })}
 								onKeyDown={nudge({ kind: 'tableCol', index }, edge)}
@@ -443,7 +443,7 @@ export function DocumentRuler({
 						{columns.gaps.map((gap) => (
 							<GapMarker
 								key={`gap-${gap.index}-${columns.gaps.length}`}
-								label={`Celah antara kolom ${gap.index + 1} dan ${gap.index + 2}`}
+								label={`Gap between columns ${gap.index + 1} and ${gap.index + 2}`}
 								left={toScreen(
 									live(gap.left, (handle) => handle.kind === 'columnsGapBand' && handle.index === gap.index),
 								)}
@@ -461,7 +461,7 @@ export function DocumentRuler({
 							<ObjectHandle
 								key={`gap-left-${gap.index}`}
 								variant="columns-gap"
-								label={`Lebar kolom ${gap.index + 1} dan celah`}
+								label={`Column ${gap.index + 1} width and gap`}
 								x={toScreen(
 									live(
 										gap.left,
@@ -477,7 +477,7 @@ export function DocumentRuler({
 							<ObjectHandle
 								key={`gap-right-${gap.index}`}
 								variant="columns-gap"
-								label={`Celah dan lebar kolom ${gap.index + 2}`}
+								label={`Gap and column ${gap.index + 2} width`}
 								x={toScreen(
 									live(
 										gap.right,
@@ -496,7 +496,7 @@ export function DocumentRuler({
 					<>
 						<ObjectHandle
 							variant="image"
-							label="Posisi gambar"
+							label="Image position"
 							x={toScreen(live(image.x, (handle) => handle.kind === 'imageX'))}
 							onPointerDown={startDrag({ kind: 'imageX' })}
 							onKeyDown={nudge({ kind: 'imageX' }, image.x)}
@@ -526,9 +526,9 @@ export function DocumentRuler({
 }
 
 const ALIGNMENTS = [
-	{ value: 'left' as const, label: 'Gambar rata kiri' },
-	{ value: 'center' as const, label: 'Gambar rata tengah' },
-	{ value: 'right' as const, label: 'Gambar rata kanan' },
+	{ value: 'left' as const, label: 'Align image left' },
+	{ value: 'center' as const, label: 'Align image center' },
+	{ value: 'right' as const, label: 'Align image right' },
 ]
 
 function applyTableHandle(
@@ -672,7 +672,7 @@ function GapMarker({
 		<button
 			type="button"
 			aria-label={label}
-			title={`${label} - klik dua kali untuk kembali ke lebar rata`}
+			title={`${label} - double-click to make the columns equal`}
 			className="document-ruler__gap-band"
 			style={{ left, width }}
 			onPointerDown={onPointerDown}

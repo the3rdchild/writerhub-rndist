@@ -1903,7 +1903,7 @@ a {
  * kolom) memang kosong, jadi di bawah garislah tempat yang tidak menimpa teks.
  */
 .document-body .page-break::after {
-  content: 'Halaman baru';
+  content: 'Page break';
   position: absolute;
   right: 0;
   top: 2px;
@@ -1939,7 +1939,7 @@ a {
   border-top: 1px dotted var(--border-strong);
 }
 .document-body .column-break::after {
-  content: 'Kolom baru';
+  content: 'Column break';
   position: absolute;
   right: 0;
   top: 2px;

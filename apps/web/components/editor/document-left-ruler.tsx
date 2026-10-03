@@ -142,13 +142,13 @@ export function DocumentLeftRuler({
 				<Ticks height={height} zoom={zoom} unit={unit} />
 
 				<MarginHandle
-					label="Margin atas"
+					label="Top margin"
 					y={margins.top * zoom}
 					onPointerDown={startDrag({ kind: 'marginTop' })}
 					onKeyDown={nudgeTop}
 				/>
 				<MarginHandle
-					label="Margin bawah"
+					label="Bottom margin"
 					y={(height - margins.bottom) * zoom}
 					onPointerDown={startDrag({ kind: 'marginBottom' })}
 					onKeyDown={nudgeBottom}

@@ -217,7 +217,7 @@ export const SectionBreak = Node.create({
 			mergeAttributes(HTMLAttributes, {
 				'data-section-break': '',
 				class: node.attrs.continuous ? 'section-break section-break-continuous' : 'section-break',
-				'aria-label': node.attrs.continuous ? 'Pembatas section menerus' : 'Pembatas section',
+				'aria-label': node.attrs.continuous ? 'Continuous section break' : 'Section break',
 			}),
 		]
 	},
