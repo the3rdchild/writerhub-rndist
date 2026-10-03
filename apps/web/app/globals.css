@@ -1501,9 +1501,69 @@ a {
 .document-body sup[data-type='footnote-ref'] {
   font-size: 0.72em;
   vertical-align: super;
+  line-height: 0;
   color: var(--accent);
   cursor: pointer;
   padding: 0 0.1em;
+}
+/* Nomor rujukan = urutannya di naskah, dari dekorasi `data-number` (TKS-1). */
+.document-body sup[data-type='footnote-ref']::after {
+  content: attr(data-number);
+}
+
+/*
+ * Area catatan kaki di dasar lembar. Ia hidup di dalam spacer pemenggal
+ * halaman (yang tidak menerima klik), jadi klik diaktifkan lagi di sini -
+ * mengklik catatan membuka editornya.
+ */
+.document-body .footnote-area {
+  display: flow-root;
+  pointer-events: auto;
+  user-select: none;
+  cursor: text;
+  font-size: 0.8em;
+  line-height: 1.35;
+  text-align: left;
+  text-indent: 0;
+  white-space: normal;
+  color: var(--foreground);
+}
+.document-body .footnote-separator {
+  width: 33%;
+  height: 0;
+  margin: 0 0 0.45em;
+  border-top: 1px solid currentColor;
+  opacity: 0.45;
+}
+.document-body .footnote-item {
+  display: flex;
+  gap: 0.35em;
+  padding: 0 0.15em 0.2em;
+  border-radius: 4px;
+}
+.document-body .footnote-item:hover {
+  background: var(--overlay-hover);
+}
+.document-body .footnote-number {
+  flex: none;
+  font-size: 0.75em;
+  line-height: 1.6;
+}
+.document-body .footnote-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.document-body .footnote-text--empty {
+  color: var(--foreground-muted);
+  font-style: italic;
+}
+.footnote-editor-content {
+  min-height: 1.5em;
+  outline: none;
+}
+.footnote-editor-content p {
+  margin: 0;
 }
 .document-body sup[data-type='footnote-ref'].footnote-ref--active {
   background: var(--overlay-active);
@@ -2031,6 +2091,55 @@ html.dark .document-body .comment-mark--resolved:not(.comment-mark--active):hove
   .document-body .comment-mark {
     background: none;
     border-bottom: none;
+  }
+
+  /*
+   * Catatan kaki (TKS-1): kertas peramban tidak mengenal catatan kaki, jadi
+   * naskah yang memilikinya dicetak mengikuti pemenggalan kanvas - setiap
+   * spacer menjadi pemenggal paksa, dan area catatan lembar itu duduk tepat
+   * sebelum pemenggalnya. Naskah tanpa catatan kaki tetap dipenggal peramban
+   * seperti sebelumnya.
+   */
+  .document-body.has-footnotes .page-break-spacer {
+    display: block !important;
+    height: 0 !important;
+    margin: 0 !important;
+    break-after: page;
+  }
+  .document-body.has-footnotes .page-break-spacer + * {
+    margin-top: 0 !important;
+  }
+  .document-body.has-footnotes .page-break-spacer--notes {
+    height: auto !important;
+  }
+  /* Spacer catatan sebelum pemenggal, dan area lembar terakhir: pemenggalnya
+     milik node pemenggal itu sendiri, atau memang tidak ada. */
+  .document-body.has-footnotes .page-break-spacer--notes-only,
+  .document-body.has-footnotes .footnote-trailing {
+    break-after: auto;
+  }
+  .document-body.has-footnotes
+    :is(.page-break, .section-break:not(.section-break-continuous))
+    + .page-break-spacer:not(.page-break-spacer--notes) {
+    display: none !important;
+  }
+  .document-body.has-footnotes .page-break-row--notes {
+    display: table-row !important;
+    height: auto !important;
+    break-after: page;
+  }
+  .document-body .footnote-area {
+    break-inside: avoid;
+    color: #000;
+  }
+  .document-body .footnote-item:hover {
+    background: none;
+  }
+  .document-body .footnote-text--empty {
+    visibility: hidden;
+  }
+  .document-body sup[data-type='footnote-ref'] {
+    color: inherit;
   }
 }
 

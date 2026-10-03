@@ -1791,7 +1791,7 @@ describe('celah impor — revisi & peringatan (D7/S7)', () => {
 })
 
 describe('celah impor — catatan kaki (D4)', () => {
-	test('footnoteReference menjadi footnoteRef dan isi catatannya di akhir', async () => {
+	test('footnoteReference menjadi footnoteRef yang membawa isi catatannya', async () => {
 		const body = p(`${r('naskah')}<w:r><w:footnoteReference w:id="2"/></w:r>`)
 		const footnotes = `<?xml version="1.0"?><w:footnotes ${W}>
 			<w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>
@@ -1806,9 +1806,10 @@ describe('celah impor — catatan kaki (D4)', () => {
 
 		const paragraf = blocks(result.content)[0]
 		expect(paragraf?.content?.map((node) => node.type)).toEqual(['text', 'footnoteRef'])
-		const note = blocks(result.content).at(-1)
-		expect(note?.type).toBe('footnote')
-		expect(textOf(note)).toBe('catatan pinggir')
+		const ref = paragraf?.content?.[1]
+		expect(ref?.attrs?.id).toBe('fn-2')
+		expect(textOf({ type: 'paragraph', content: ref?.attrs?.content })).toBe('catatan pinggir')
+		expect(blocks(result.content).some((block) => block.type === 'footnote')).toBe(false)
 	})
 })
 

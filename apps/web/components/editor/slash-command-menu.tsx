@@ -22,6 +22,7 @@ import { type JSX, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CALLOUT_TYPES } from '@/features/editor/callout'
 import { CODE_LANGUAGES } from '@/features/editor/code-block'
+import { insertFootnoteAndEdit } from '@/features/editor/footnote'
 import { promptForImage } from '@/features/editor/image-insert'
 import { insertOrConvertMath } from '@/features/editor/math'
 import type { SlashCommandState } from '@/features/editor/slash-command'
@@ -148,7 +149,7 @@ function buildItems(editor: Editor): SlashItem[] {
 			label: 'Catatan kaki',
 			icon: <Footprints className="h-4 w-4" />,
 			keywords: ['footnote', 'catatan kaki'],
-			run: (e) => e.chain().focus().insertFootnote(`fn-${Date.now()}`).run(),
+			run: (e) => insertFootnoteAndEdit(e),
 		},
 		{
 			id: 'columns',

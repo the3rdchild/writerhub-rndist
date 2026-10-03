@@ -245,8 +245,11 @@ function walkInline(
 				const { text, pageBreak, columnBreak, footnote } = runText(node, context)
 
 				if (footnote !== undefined && context.footnotes.has(footnote)) {
-					builder.inline.push({ type: 'footnoteRef', attrs: { id: `fn-${footnote}` } })
-					context.state.footnoteQueue.push(footnote)
+					/* Isi catatan ikut di rujukannya (TKS-1), bukan blok terpisah di akhir. */
+					builder.inline.push({
+						type: 'footnoteRef',
+						attrs: { id: `fn-${footnote}`, content: context.footnotes.get(footnote) ?? [] },
+					})
 				}
 
 				const stack = context.state.commentStack
@@ -592,7 +595,7 @@ export function readBody(
 	if (!last || (endings.length === 1 && last.at >= promoted.length)) {
 		const blocks = replaceManualToc(promoted)
 		if (endings[0]?.props.columns) blocks.unshift(leadingColumnsBreak(endings[0].props.columns))
-		return { blocks: appendFootnotes(wrapListBlocks(blocks), context), pageSetup: last?.props.pageSetup }
+		return { blocks: wrapListBlocks(blocks), pageSetup: last?.props.pageSetup }
 	}
 
 	const blocks: JSONContent[] = []
@@ -620,19 +623,7 @@ export function readBody(
 	const final = replaceManualToc(blocks)
 	if (endings[0]?.props.columns) final.unshift(leadingColumnsBreak(endings[0].props.columns))
 
-	return { blocks: appendFootnotes(wrapListBlocks(final), context), pageSetup: endings[0]?.props.pageSetup }
-}
-
-/** Isi catatan kaki dirujuk di badan naskah diterbitkan sebagai blok di akhir. */
-function appendFootnotes(blocks: JSONContent[], context: ParseContext): JSONContent[] {
-	const queue = context.state.footnoteQueue
-	if (queue.length === 0) return blocks
-
-	for (const id of queue) {
-		const content = context.footnotes.get(id)
-		if (content) blocks.push({ type: 'footnote', content })
-	}
-	return blocks
+	return { blocks: wrapListBlocks(final), pageSetup: endings[0]?.props.pageSetup }
 }
 
 export function bodyOf(documentRoot: Element): Element | null {

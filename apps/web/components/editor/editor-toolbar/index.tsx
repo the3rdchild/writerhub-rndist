@@ -25,6 +25,7 @@ import {
 	Undo2,
 } from 'lucide-react'
 import { TableSizeButton } from '@/components/editor/table-size-picker'
+import { insertFootnoteAndEdit } from '@/features/editor/footnote'
 import { promptForImage } from '@/features/editor/image-insert'
 import { indentSelection, outdentSelection } from '@/features/editor/indent'
 import { promptForLink } from '@/features/editor/link'
@@ -157,7 +158,7 @@ export function EditorToolbar({
 				icon={Footprints}
 				label="Catatan kaki"
 				disabled={isOff}
-				onClick={() => editor?.chain().focus().insertFootnote(`fn-${Date.now()}`).run()}
+				onClick={() => editor && insertFootnoteAndEdit(editor)}
 			/>
 
 			<Divider />

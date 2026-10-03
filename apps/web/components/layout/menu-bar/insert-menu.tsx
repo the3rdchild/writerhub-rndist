@@ -6,6 +6,7 @@ import {
 	Code2,
 	Columns2,
 	FileText,
+	Footprints,
 	Highlighter,
 	Image as ImageIcon,
 	Link2,
@@ -23,6 +24,7 @@ import { usePanels } from '@/features/analysis/panel-context'
 import { CALLOUT_TYPES } from '@/features/editor/callout'
 import { insertCodeBlock } from '@/features/editor/code-block'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import { insertFootnoteAndEdit } from '@/features/editor/footnote'
 import { promptForImage } from '@/features/editor/image-insert'
 import { promptForLink } from '@/features/editor/link'
 import { insertOrConvertMath } from '@/features/editor/math'
@@ -167,6 +169,13 @@ export function InsertMenu() {
 						onSelect={() => run(close, () => editor?.chain().focus().toggleTaskList().run())}
 					>
 						Daftar centang
+					</Item>
+					<Item
+						icon={<Footprints className="h-4 w-4" />}
+						shortcut={keys('doc.footnote')}
+						onSelect={() => run(close, () => editor && insertFootnoteAndEdit(editor))}
+					>
+						Catatan kaki
 					</Item>
 					<Item
 						icon={<FileText className="h-4 w-4" />}

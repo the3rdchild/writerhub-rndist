@@ -39,6 +39,7 @@ export type ShortcutId =
 	| 'para.indent'
 	| 'para.outdent'
 	| 'doc.pageBreak'
+	| 'doc.footnote'
 	| 'doc.undo'
 	| 'doc.redo'
 	| 'doc.selectAll'
@@ -140,6 +141,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
 	},
 
 	{ id: 'doc.pageBreak', keys: 'Mod-Enter', label: 'Halaman baru', category: 'Dokumen', owner: 'editor' },
+	{ id: 'doc.footnote', keys: 'Mod-Alt-f', label: 'Catatan kaki', category: 'Dokumen', owner: 'editor' },
 	{ id: 'doc.undo', keys: 'Mod-z', label: 'Urungkan', category: 'Dokumen', owner: 'tiptap' },
 	{ id: 'doc.redo', keys: 'Mod-Shift-z', label: 'Ulangi', category: 'Dokumen', owner: 'tiptap' },
 	{ id: 'doc.selectAll', keys: 'Mod-a', label: 'Pilih semua', category: 'Dokumen', owner: 'tiptap' },

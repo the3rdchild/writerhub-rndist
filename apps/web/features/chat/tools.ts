@@ -1878,18 +1878,11 @@ function runWriteTool(context: WriteToolContext, call: ToolCall): ToolOutcome {
 			const range = findExactRange(editor, quote)
 			if (!range) return { ok: false, message: PASSAGE_GONE }
 
-			const footnoteType = editor.state.schema.nodes.footnote
-			if (!footnoteType) return { ok: false, message: 'This editor has no footnotes.' }
 			const ok = editor
 				.chain()
 				.focus()
 				.setTextSelection(range.to)
-				.insertFootnote(`fn-${Date.now()}`)
-				.command(({ tr, dispatch }) => {
-					if (dispatch)
-						tr.insert(tr.doc.content.size, footnoteType.create(null, editor.state.schema.text(body)))
-					return true
-				})
+				.insertFootnote({ content: [{ type: 'text', text: body.trim() }] })
 				.run()
 
 			return ok
