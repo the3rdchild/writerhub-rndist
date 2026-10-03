@@ -29,8 +29,8 @@ export function FormatTab() {
 	return (
 		<div className="flex flex-col gap-4">
 			<p className="text-[11px] leading-relaxed text-subtle">
-				Aturan dari pedoman kampus Anda. AI mengikutinya saat menulis, dan bila berbeda dengan template,
-				aturan di sini yang menang.
+				Rules from your university's guidelines. The AI follows them when writing, and where they differ from
+				the template, these rules win.
 			</p>
 			<Compliance />
 			{FORMAT_FIELDS.map((field) => {
@@ -140,14 +140,14 @@ function Compliance() {
 			className="flex items-center gap-1 self-start rounded-full px-2 py-1 text-[11px] text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 		>
 			<Undo2 className="h-3 w-3" />
-			Batalkan penerapan
+			Undo applying
 		</button>
 	)
 
 	if (formatTargetIsEmpty(target)) {
 		return (
 			<p className="rounded-xl border border-dashed border-line px-3 py-2.5 text-[11px] leading-relaxed text-subtle">
-				Isi kertas, margin, huruf, atau spasi untuk memeriksa apakah naskah sudah mengikutinya.
+				Fill in the paper, margins, font, or spacing to check whether the document follows them.
 			</p>
 		)
 	}
@@ -159,9 +159,9 @@ function Compliance() {
 				<p className="flex items-start gap-2 text-xs text-green-400">
 					<CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
 					<span>
-						Naskah sudah mengikuti aturan ini.
+						The document follows these rules.
 						<span className="block text-[11px] text-green-400/70">
-							Gaya sitasi, penomoran bab, dan bahasa diikuti AI saat menulis.
+							The AI follows the citation style, chapter numbering, and language when writing.
 						</span>
 					</span>
 				</p>
@@ -181,7 +181,7 @@ function Compliance() {
 		<div className="flex flex-col gap-2 rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-3 py-2.5 text-xs">
 			<p className="flex items-center gap-1.5 text-xs font-medium text-yellow-400">
 				<AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-				Naskah belum mengikuti aturan ini
+				The document doesn't follow these rules yet
 			</p>
 			<ul className="flex flex-col gap-0.5">
 				{differences.map((difference) => (
@@ -201,9 +201,9 @@ function Compliance() {
 				className="flex items-center justify-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
 			>
 				<Wand2 className="h-3.5 w-3.5" />
-				Terapkan ke naskah
+				Apply to the document
 			</button>
-			<p className="text-[10px] leading-snug text-subtle">Berlaku untuk semua tab dokumen ini.</p>
+			<p className="text-[10px] leading-snug text-subtle">Applies to all tabs of this document.</p>
 			{undo}
 		</div>
 	)

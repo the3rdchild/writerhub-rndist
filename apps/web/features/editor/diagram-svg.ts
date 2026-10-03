@@ -69,7 +69,7 @@ export function sanitizeDiagramSvg(source: string): DiagramSanitizeResult {
 	const parsed = new DOMParser().parseFromString(trimmed, 'image/svg+xml')
 	const failure = parsed.getElementsByTagName('parsererror')[0]
 	if (failure) {
-		return { error: failure.textContent?.trim() || 'SVG ini tidak bisa diurai.' }
+		return { error: failure.textContent?.trim() || "This SVG couldn't be parsed." }
 	}
 
 	const root = parsed.documentElement

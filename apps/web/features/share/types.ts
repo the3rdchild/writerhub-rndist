@@ -39,16 +39,24 @@ export interface CreateShareResult {
 	createdAt: number
 }
 
+/*
+ * "Restricted" berarti pengguna yang sedang masuk (`getByToken` hanya menuntut
+ * sesi), BUKAN orang yang diundang - daftar undangan belum ada. Label lama
+ * menjanjikan yang tidak ditepati (SHL-10).
+ */
 export const SHARE_ACCESS_LABELS: Record<ShareAccess, { label: string; description: string }> = {
 	anyone: {
-		label: 'Siapa saja dengan link',
-		description: 'Siapa pun di internet yang memiliki link dapat melihat',
+		label: 'Anyone with the link',
+		description: 'Anyone on the internet who has the link can open it',
 	},
-	restricted: { label: 'Dibatasi', description: 'Hanya orang yang diundang yang dapat mengakses' },
+	restricted: {
+		label: 'Signed-in users with the link',
+		description: 'Only people signed in to WritingHub can open the link',
+	},
 }
 
 export const SHARE_ROLE_LABELS: Record<ShareRole, string> = {
-	viewer: 'Penonton',
-	commenter: 'Komentator',
-	editor: 'Penyunting',
+	viewer: 'View',
+	commenter: 'Comment',
+	editor: 'Edit',
 }

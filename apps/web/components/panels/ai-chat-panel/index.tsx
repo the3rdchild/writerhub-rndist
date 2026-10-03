@@ -322,7 +322,7 @@ export function AiChatPanel() {
 							}}
 							onKeyDown={onDraftKeyDown}
 							rows={2}
-							placeholder="Ask anything about this draft… atau ketik / untuk perintah"
+							placeholder="Ask anything about this draft… or type / for commands"
 							aria-label="Message"
 							className="min-h-0 flex-1 resize-none bg-transparent px-2 py-1 text-sm text-foreground outline-none placeholder:text-faint"
 						/>

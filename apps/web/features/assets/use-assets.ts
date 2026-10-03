@@ -60,7 +60,7 @@ export function useUploadAsset(projectId: string | null) {
 	const queryClient = useQueryClient()
 	return useMutation({
 		mutationFn: async (file: File) => {
-			if (!projectId) throw new Error('Belum ada proyek yang aktif')
+			if (!projectId) throw new Error('No active project')
 			return uploadAsset(projectId, file, await readImageSize(file))
 		},
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: [ASSETS_QUERY_KEY, projectId] }),

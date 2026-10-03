@@ -236,31 +236,31 @@ export function continueNudge(reason: ContinueReason, empty: readonly string[], 
 /** Kalimat kartu untuk penulis. */
 export const STALL_TEXT: Record<StallReason, { title: string; hint: string }> = {
 	wave_limit: {
-		title: 'AI berhenti sejenak setelah rangkaian suntingan yang panjang.',
-		hint: 'Jeda ini menjaga pemakaian token tetap terkendali.',
+		title: 'The AI paused after a long run of edits.',
+		hint: 'The pause keeps token use under control.',
 	},
 	promised: {
-		title: 'AI berhenti sebelum mengerjakan langkah yang ia sebutkan.',
+		title: 'The AI stopped before doing the step it mentioned.',
 		hint: '',
 	},
 	truncated: {
-		title: 'Jawaban AI terpotong karena melewati batas panjang keluaran.',
-		hint: 'Saat dilanjutkan, AI diminta menulis per bagian yang lebih kecil.',
+		title: "The AI's answer was cut off because it hit the output length limit.",
+		hint: 'When you continue, the AI is asked to write in smaller parts.',
 	},
 	empty: {
-		title: 'AI tidak mengirim jawaban apa pun.',
-		hint: 'Biasanya gangguan sesaat di sisi provider.',
+		title: "The AI didn't send any answer.",
+		hint: "This is usually a brief hiccup on the provider's side.",
 	},
 	unfinished: {
-		title: 'AI berhenti sebelum kerangka yang disetujui selesai.',
-		hint: 'Yang masih kurang dihitung dari kerangka di panel Metadata.',
+		title: 'The AI stopped before the approved outline was finished.',
+		hint: "What's missing is counted from the outline in the Metadata panel.",
 	},
 	read_budget: {
-		title: 'AI sudah membaca sebanyak batas satu permintaan dan masih ingin membaca lagi.',
-		hint: 'Lanjutkan memberi jatah baca baru untuk tugas yang sama.',
+		title: 'The AI reached the reading limit for one request and still wants to read more.',
+		hint: 'Continue gives it a new reading budget for the same task.',
 	},
 	todos_open: {
-		title: 'AI menutup tugas dengan daftar tugas yang belum tuntas.',
+		title: 'The AI ended the task with its to-do list still open.',
 		hint: '',
 	},
 }

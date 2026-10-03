@@ -1,7 +1,9 @@
 'use client'
 
-import { Images, Trash2, Upload } from 'lucide-react'
+import { ImagePlus, Images, Trash2, Upload } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
+import { fetchAssetDataUrl } from '@/features/assets/api'
+import type { AssetSummary } from '@/features/assets/types'
 import { IMAGE_ACCEPT } from '@/features/assets/types'
 import {
 	useActiveProjectId,
@@ -10,6 +12,7 @@ import {
 	useDeleteAsset,
 	useUploadAsset,
 } from '@/features/assets/use-assets'
+import { useEditorInstance } from '@/features/editor/editor-context'
 import { PanelEmptyState, PanelError, PanelFooter, PanelLoading, PanelScroll } from './panel-parts'
 
 function humanSize(bytes: number): string {
@@ -34,6 +37,23 @@ export function AssetsPanel() {
 	const remove = useDeleteAsset(projectId)
 	const fileInput = useRef<HTMLInputElement>(null)
 	const [notice, setNotice] = useState<string | null>(null)
+	const { editor } = useEditorInstance()
+	const [inserting, setInserting] = useState<string | null>(null)
+
+	/* Dulu panel ini tidak punya jalan apa pun dari pustaka ke naskah (OBJ-3). */
+	const insert = async (asset: AssetSummary) => {
+		if (!editor || editor.isDestroyed) return
+		setInserting(asset.id)
+		setNotice(null)
+		try {
+			const src = await fetchAssetDataUrl(asset.id)
+			editor.chain().focus().setImage({ src, alt: asset.name }).run()
+		} catch (cause) {
+			setNotice(cause instanceof Error ? cause.message : 'Could not insert the asset.')
+		} finally {
+			setInserting(null)
+		}
+	}
 
 	const ids = useMemo(() => (assets.data ?? []).map((asset) => asset.id), [assets.data])
 	const urls = useAssetUrls(ids)
@@ -53,9 +73,9 @@ export function AssetsPanel() {
 			 * tersimpan tidak sama dengan yang dipilih pengguna - dan diam soal itu
 			 * membuat orang mengira unggahannya gagal.
 			 */
-			if (result.deduplicated) setNotice(`${result.name} sudah ada di pustaka ini.`)
+			if (result.deduplicated) setNotice(`${result.name} is already in this library.`)
 			else if (result.sanitized?.length) {
-				setNotice(`${result.name}: ${result.sanitized.join(', ')} dibuang demi keamanan.`)
+				setNotice(`${result.name}: ${result.sanitized.join(', ')} removed for safety.`)
 			}
 		}
 	}
@@ -65,8 +85,8 @@ export function AssetsPanel() {
 			<PanelScroll>
 				<PanelEmptyState
 					icon={Images}
-					title="Belum ada proyek aktif"
-					description="Buka dokumen yang sudah tersimpan di server untuk melihat pustaka asetnya."
+					title="No active project"
+					description="Open a document saved to the cloud to see its asset library."
 				/>
 			</PanelScroll>
 		)
@@ -75,7 +95,7 @@ export function AssetsPanel() {
 	return (
 		<>
 			<PanelScroll>
-				{assets.isPending && <PanelLoading label="Memuat pustaka…" />}
+				{assets.isPending && <PanelLoading label="Loading library…" />}
 				{assets.isError && <PanelError message={(assets.error as Error).message} />}
 				{upload.isError && <PanelError message={(upload.error as Error).message} />}
 				{notice && (
@@ -85,8 +105,8 @@ export function AssetsPanel() {
 				{!assets.isPending && !assets.isError && (assets.data?.length ?? 0) === 0 && (
 					<PanelEmptyState
 						icon={Images}
-						title="Pustaka masih kosong"
-						description="Unggah logo, foto, atau ikon yang dipakai berulang di proyek ini."
+						title="The library is empty"
+						description="Upload logos, photos, or icons you use repeatedly in this project."
 					/>
 				)}
 
@@ -123,9 +143,19 @@ export function AssetsPanel() {
 									</div>
 									<button
 										type="button"
+										onClick={() => void insert(asset)}
+										disabled={!editor || inserting !== null}
+										aria-label={`Insert ${asset.name}`}
+										title={inserting === asset.id ? 'Inserting…' : `Insert ${asset.name} into the document`}
+										className="absolute left-1 top-1 rounded-md bg-surface/90 p-1 text-subtle opacity-0 transition-opacity hover:text-accent group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-40"
+									>
+										<ImagePlus className="h-3.5 w-3.5" />
+									</button>
+									<button
+										type="button"
 										onClick={() => remove.mutate(asset.id)}
-										aria-label={`Hapus ${asset.name}`}
-										title={`Hapus ${asset.name}`}
+										aria-label={`Delete ${asset.name}`}
+										title={`Delete ${asset.name}`}
 										className="absolute right-1 top-1 rounded-md bg-surface/90 p-1 text-subtle opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
 									>
 										<Trash2 className="h-3.5 w-3.5" />
@@ -153,7 +183,7 @@ export function AssetsPanel() {
 					className="flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-60"
 				>
 					<Upload className="h-4 w-4" />
-					{upload.isPending ? 'Mengunggah…' : 'Unggah gambar'}
+					{upload.isPending ? 'Mengunggah…' : 'Upload image'}
 				</button>
 			</PanelFooter>
 		</>

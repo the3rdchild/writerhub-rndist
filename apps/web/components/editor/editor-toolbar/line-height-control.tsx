@@ -16,8 +16,8 @@ export function LineHeightControl({ editor, disabled }: { editor: Editor | null;
 					onClick={toggle}
 					disabled={disabled}
 					{...NO_FORM_RESTORE}
-					aria-label="Spasi baris"
-					title="Spasi baris"
+					aria-label="Line spacing"
+					title="Line spacing"
 					aria-haspopup="menu"
 					aria-expanded={open}
 					aria-controls={id}

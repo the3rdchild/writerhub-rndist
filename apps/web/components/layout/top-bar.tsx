@@ -25,7 +25,7 @@ export function TopBar() {
 	const { openSearch } = useSearch()
 	const { isRunning } = useGrammarCheck()
 	const { linkage } = useSync()
-	const { activeId, sessions } = useSessions()
+	const { activeId, activeDocId, sessions, renameDocument } = useSessions()
 	const { versionMode, openVersionMode } = useVersionMode()
 
 	const [tocOpen, setTocOpen] = useState(false)
@@ -49,7 +49,11 @@ export function TopBar() {
 					<div className="min-w-0 flex-1">
 						<input
 							value={state.title}
-							onChange={(event) => dispatch({ type: 'setTitle', title: event.target.value })}
+							onChange={(event) => {
+								const title = event.target.value
+								if (activeDocId) renameDocument(activeDocId, title)
+								else dispatch({ type: 'setTitle', title })
+							}}
 							placeholder="Dokumen tanpa judul"
 							aria-label="Judul dokumen"
 							readOnly={inVersionMode}

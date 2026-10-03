@@ -28,7 +28,7 @@ export const PageBreak = Node.create({
 			mergeAttributes(HTMLAttributes, {
 				'data-page-break': '',
 				class: 'page-break',
-				'aria-label': 'Pemenggalan halaman',
+				'aria-label': 'Page break',
 			}),
 		]
 	},

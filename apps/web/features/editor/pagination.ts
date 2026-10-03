@@ -5,6 +5,16 @@ import { TableMap } from '@tiptap/pm/tables'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import type { PageNumbering } from '@writer-hub/shared'
 import { COLUMN_BREAK_NODE } from './column-break'
+import {
+	assignFootnotes,
+	type FootnoteSizes,
+	footnoteRefPositions,
+	measureFootnotes,
+	notesHeight,
+	notesSignature,
+	type PageNotes,
+	renderFootnoteArea,
+} from './footnote-layout'
 import { HTML_BLOCK } from './html-block'
 import { PAGE_BREAK_NODE } from './page-break'
 import {
@@ -27,6 +37,10 @@ export interface Spacer {
 	kind: SpacerKind
 	columns?: number
 	headerPos?: number
+	/** Catatan kaki lembar yang ditutup spacer ini, digambar di dasarnya (TKS-1). */
+	notes?: PageNotes
+	/** Spacer khusus catatan sebelum pemenggal: tidak memenggal sendiri saat dicetak. */
+	notesOnly?: boolean
 }
 
 export interface Measurement {
@@ -53,6 +67,8 @@ export interface Measurement {
 	/** Paragraf kosong yang langsung mengikuti blok `fit: 'page'`; tidak boleh
 	 * melahirkan lembar baru di kanvas (EX-2). */
 	trailingPageFit?: boolean
+	/** Posisi rujukan catatan kaki di dalam blok ini. */
+	footnotes?: number[]
 }
 
 /*
@@ -75,6 +91,13 @@ interface PaginationState {
 	blockSections: BlockSection[]
 	pageless: boolean
 	breakBeforeLevels: number[]
+	trailing?: PlacedNotes
+}
+
+/** Area catatan lembar terakhir, ditempatkan sesudah blok teratas yang memuat isi terakhir. */
+interface PlacedNotes {
+	pos: number
+	notes: PageNotes
 }
 
 export interface PaginationOptions {
@@ -99,6 +122,7 @@ export interface PaginationMeta {
 	setup?: PageSetup
 	pageless?: boolean
 	breakBeforeLevels?: number[]
+	trailing?: PlacedNotes | null
 }
 
 function measureBlocks(view: EditorView): Measurement[] {
@@ -424,12 +448,32 @@ export function pageBlockRange(
 	return { from: first.pos, to: next?.pos ?? docSize }
 }
 
+/** Catatan kaki lembar terakhir: digambar sesudah blok isi terakhir, bukan di spacer. */
+export interface TrailingNotes extends PageNotes {
+	/** Posisi blok terukur terakhir yang berisi - area catatan menyusul blok teratasnya. */
+	afterPos: number
+}
+
+/*
+ * Ruang aman di bawah area catatan lembar terakhir: jarak bawah blok terakhir
+ * tidak terukur, dan area yang melewati dasar lembar terdorong ke lembar
+ * berikutnya saat dicetak.
+ */
+const TRAILING_NOTES_SAFETY = 16
+
 export function computeSpacers(
 	blocks: readonly Measurement[],
 	geometry: PageGeometry,
 	sections: readonly SectionGeometry[] = [],
 	baseNumbering?: PageNumbering | null,
-): { spacers: Spacer[]; pageCount: number; sheets: SheetGeometry[]; blockPages: BlockPage[] } {
+	footnoteSizes?: FootnoteSizes,
+): {
+	spacers: Spacer[]
+	pageCount: number
+	sheets: SheetGeometry[]
+	blockPages: BlockPage[]
+	trailingNotes?: TrailingNotes
+} {
 	const spacers: Spacer[] = []
 	const blockPages: BlockPage[] = []
 	let cumulative = 0
@@ -452,10 +496,35 @@ export function computeSpacers(
 	 * pedoman karya ilmiah menaruh nomor di tengah bawah.
 	 */
 	let filledSheet = -1
+	/*
+	 * Catatan kaki lembar yang sedang diisi (TKS-1). Ruangnya dipesan dari
+	 * dasar lembar: blok yang - bersama catatannya sendiri - tidak muat lagi
+	 * turun ke lembar berikutnya membawa catatannya.
+	 */
+	let pageNotes: number[] = []
+	const reserveWith = (more: readonly number[] | undefined) =>
+		notesHeight(more && more.length > 0 ? [...pageNotes, ...more] : pageNotes, footnoteSizes)
+	const takeNotes = (sheet: SheetGeometry, flow: number): PageNotes | undefined => {
+		if (pageNotes.length === 0) return undefined
+		const height = notesHeight(pageNotes, footnoteSizes)
+		const bottom = contentTop(sheet) + sheet.contentHeight
+		const notes: PageNotes = { refs: pageNotes, height, before: Math.max(0, bottom - height - flow) }
+		pageNotes = []
+		return notes
+	}
+	/* Pemenggal paksa menutup lembarnya sendiri - catatannya digambar sebelum pemenggal. */
+	const emitNotesBefore = (block: Measurement) => {
+		const notes = takeNotes(sheets[sheets.length - 1], block.top + cumulative)
+		if (!notes) return
+		const height = notes.before + notes.height
+		spacers.push({ pos: block.pos, height, kind: 'block', notes, notesOnly: true })
+		cumulative += height
+	}
 	const place = (block: Measurement) => {
 		const page = sheets.length - 1
 		if (block.opensChapter && filledSheet !== page) sheets[page].opensChapter = true
 		filledSheet = page
+		if (block.footnotes) pageNotes.push(...block.footnotes)
 	}
 	const pushSheet = (): SheetGeometry => {
 		const last = sheets[sheets.length - 1]
@@ -513,6 +582,7 @@ export function computeSpacers(
 				}
 			}
 			if (!section?.continuous) {
+				emitNotesBefore(block)
 				forceNext = true
 				pendingGeometry = section?.geometry ?? null
 			}
@@ -533,6 +603,7 @@ export function computeSpacers(
 			 * lembar kosong liar setelah blok daftar isi yang meluber).
 			 */
 			blockPages.push({ pos: block.pos, page: sheets.length - 1 })
+			emitNotesBefore(block)
 			if (forceNext) pushSheet()
 			forceNext = true
 			continue
@@ -553,7 +624,8 @@ export function computeSpacers(
 		 * berurutan kehilangan lembar kosong di antaranya.
 		 */
 		const isFirstOnPage = block.top <= pageStart + 0.5
-		const overflows = block.bottom > pageStart + sheet.contentHeight
+		const noteReserve = reserveWith(block.footnotes)
+		const overflows = block.bottom + noteReserve > pageStart + sheet.contentHeight
 
 		/*
 		 * Blok yang minta membuka lembar baru, tapi kebetulan sudah berada di
@@ -576,14 +648,22 @@ export function computeSpacers(
 			while (last + 1 < blocks.length && blocks[last].keepWithNext) last += 1
 			const groupBottom = blocks[last].bottom
 			keepOverflows =
-				groupBottom > pageStart + sheet.contentHeight && groupBottom - block.top <= sheet.contentHeight + 0.5
+				groupBottom + noteReserve > pageStart + sheet.contentHeight &&
+				groupBottom - block.top <= sheet.contentHeight + 0.5
 		}
 
 		if (block.selfPaginate) {
 			if (forceNext) {
+				const previous = sheets[sheets.length - 1]
+				const flow = block.top + cumulative
 				const target = contentTop(pushSheet())
-				const spacerHeight = Math.max(0, target - (block.top + cumulative))
-				spacers.push({ pos: block.pos, height: spacerHeight, kind: block.kind })
+				const spacerHeight = Math.max(0, target - flow)
+				spacers.push({
+					pos: block.pos,
+					height: spacerHeight,
+					kind: block.kind,
+					notes: takeNotes(previous, flow),
+				})
 				cumulative += spacerHeight
 			}
 
@@ -616,8 +696,10 @@ export function computeSpacers(
 		}
 
 		if (forceNext || ((overflows || keepOverflows) && !isFirstOnPage)) {
+			const previous = sheets[sheets.length - 1]
+			const flow = block.top + cumulative
 			const target = contentTop(pushSheet())
-			const spacerHeight = Math.max(0, target - (block.top + cumulative))
+			const spacerHeight = Math.max(0, target - flow)
 			const headerHeight = block.headerHeight ?? 0
 
 			spacers.push({
@@ -626,6 +708,7 @@ export function computeSpacers(
 				kind: block.kind,
 				columns: block.columns,
 				headerPos: headerHeight > 0 ? block.headerPos : undefined,
+				notes: takeNotes(previous, flow),
 			})
 			cumulative += spacerHeight + headerHeight
 			pageStart = block.top - headerHeight
@@ -648,13 +731,43 @@ export function computeSpacers(
 			forceNext = true
 		}
 	}
+	let trailingNotes: TrailingNotes | undefined
+	const lastContent = blocks.findLast((block) => !block.isBreak && !block.isSectionBreak)
+	if (pageNotes.length > 0 && lastContent) {
+		const sheet = sheets[sheets.length - 1]
+		const height = notesHeight(pageNotes, footnoteSizes)
+		const bottom = contentTop(sheet) + sheet.contentHeight
+		const flow = lastContent.bottom + cumulative
+		trailingNotes = {
+			refs: pageNotes,
+			height,
+			before: Math.max(0, bottom - height - flow - TRAILING_NOTES_SAFETY),
+			afterPos: lastContent.pos,
+		}
+	}
 	if (blocks[blocks.length - 1]?.isBreak) pushSheet()
 
-	return { spacers, pageCount: sheets.length, sheets, blockPages }
+	return { spacers, pageCount: sheets.length, sheets, blockPages, trailingNotes }
 	function nextContentTop(): number {
 		const last = sheets[sheets.length - 1]
 		return last.top + last.height + PAGE_GAP + (pendingGeometry ?? last).margins.top
 	}
+}
+
+function sameNotes(a: PageNotes | undefined, b: PageNotes | undefined): boolean {
+	if (!a || !b) return a === b
+	return (
+		a.signature === b.signature &&
+		a.refs.length === b.refs.length &&
+		a.refs.every((ref, index) => ref === b.refs[index]) &&
+		Math.abs(a.height - b.height) < 1 &&
+		Math.abs(a.before - b.before) < 1
+	)
+}
+
+function samePlacedNotes(a: PlacedNotes | undefined, b: PlacedNotes | undefined): boolean {
+	if (!a || !b) return a === b
+	return a.pos === b.pos && sameNotes(a.notes, b.notes)
 }
 
 function sameBlockPages(a: readonly BlockPage[], b: readonly BlockPage[]): boolean {
@@ -673,6 +786,7 @@ function sameSpacers(a: readonly Spacer[], b: readonly Spacer[]): boolean {
 				spacer.pos === other.pos &&
 				spacer.kind === other.kind &&
 				spacer.headerPos === other.headerPos &&
+				sameNotes(spacer.notes, other.notes) &&
 				Math.abs(spacer.height - other.height) < 1
 			)
 		})
@@ -895,6 +1009,7 @@ function buildDecorations(
 	spacers: readonly Spacer[],
 	adjustments: readonly MarginAdjustment[] = [],
 	sections: readonly BlockSection[] = [],
+	trailing?: PlacedNotes,
 ): DecorationSet {
 	const decorations: Decoration[] = []
 	for (const entry of sections) {
@@ -917,21 +1032,23 @@ function buildDecorations(
 	}
 
 	for (const spacer of spacers) {
-		const key = `${spacer.pos}-${Math.round(spacer.height)}`
+		const key = `${spacer.pos}-${Math.round(spacer.height)}${notesKey(spacer.notes)}`
 
 		if (spacer.kind === 'block') {
 			decorations.push(
-				Decoration.widget(spacer.pos, () => blockSpacer(spacer), {
-					side: -1,
+				Decoration.widget(spacer.pos, () => blockSpacer(spacer, doc), {
+					side: spacer.notesOnly ? -2 : -1,
 					key: `page-break-${key}`,
+					...NOTES_WIDGET_SPEC,
 				}),
 			)
 			continue
 		}
 		decorations.push(
-			Decoration.widget(spacer.pos, () => rowSpacer(spacer), {
+			Decoration.widget(spacer.pos, () => rowSpacer(spacer, doc), {
 				side: -2,
 				key: `page-break-row-${key}`,
+				...NOTES_WIDGET_SPEC,
 			}),
 		)
 
@@ -948,24 +1065,63 @@ function buildDecorations(
 		}
 	}
 
+	if (trailing) {
+		decorations.push(
+			Decoration.widget(trailing.pos, () => trailingNotesElement(trailing, doc), {
+				side: 1,
+				key: `footnotes-end-${trailing.pos}${notesKey(trailing.notes)}`,
+				...NOTES_WIDGET_SPEC,
+			}),
+		)
+	}
+
 	return DecorationSet.create(doc, decorations)
+}
+
+/*
+ * Area catatan kaki hidup di dalam spacer, tapi bisa diklik (membuka editor
+ * catatan) - ProseMirror tidak boleh menafsirkan klik itu sebagai klik naskah.
+ */
+const NOTES_WIDGET_SPEC = {
+	stopEvent: (event: Event) => !!(event.target as HTMLElement | null)?.closest?.('.footnote-area'),
+	ignoreSelection: true,
+}
+
+function notesKey(notes: PageNotes | undefined): string {
+	if (!notes) return ''
+	return `-n${notes.refs.join('.')}-${Math.round(notes.before)}-${Math.round(notes.height)}-${notes.signature ?? ''}`
 }
 
 function markSpacer(element: HTMLElement, spacer: Spacer): HTMLElement {
 	element.setAttribute(SPACER_ATTRIBUTE, String(spacer.pos))
-	element.setAttribute('aria-hidden', 'true')
 	element.contentEditable = 'false'
+	// Spacer berisi catatan kaki tetap terbaca pembaca layar; pengisinya saja yang disembunyikan.
+	if (!spacer.notes) element.setAttribute('aria-hidden', 'true')
 	return element
 }
 
-function blockSpacer(spacer: Spacer): HTMLElement {
+/** Pengisi lalu area catatan: area duduk di dasar lembar yang ditutup spacer ini. */
+function appendNotes(container: HTMLElement, notes: PageNotes, doc: PMNode): void {
+	const filler = document.createElement('div')
+	filler.className = 'footnote-filler'
+	filler.setAttribute('aria-hidden', 'true')
+	filler.style.height = `${notes.before}px`
+	container.append(filler, renderFootnoteArea(doc, notes.refs))
+}
+
+function blockSpacer(spacer: Spacer, doc?: PMNode): HTMLElement {
 	const element = document.createElement('div')
 	element.className = 'page-break-spacer'
 	element.style.height = `${spacer.height}px`
+	if (spacer.notes && doc) {
+		element.classList.add('page-break-spacer--notes')
+		if (spacer.notesOnly) element.classList.add('page-break-spacer--notes-only')
+		appendNotes(element, spacer.notes, doc)
+	}
 	return markSpacer(element, spacer)
 }
 
-export function rowSpacer(spacer: Spacer): HTMLElement {
+export function rowSpacer(spacer: Spacer, doc?: PMNode): HTMLElement {
 	const row = document.createElement('tr')
 	row.className = 'page-break-row'
 	row.style.height = `${spacer.height}px`
@@ -973,8 +1129,28 @@ export function rowSpacer(spacer: Spacer): HTMLElement {
 	const cell = document.createElement('td')
 	cell.colSpan = spacer.columns ?? 1
 	row.appendChild(cell)
+	if (spacer.notes && doc) {
+		row.classList.add('page-break-row--notes')
+		appendNotes(cell, spacer.notes, doc)
+	}
 
 	return markSpacer(row, spacer)
+}
+
+function trailingNotesElement(trailing: PlacedNotes, doc: PMNode): HTMLElement {
+	const element = document.createElement('div')
+	element.className = 'page-break-spacer page-break-spacer--notes footnote-trailing'
+	element.setAttribute(SPACER_ATTRIBUTE, String(trailing.pos))
+	element.contentEditable = 'false'
+	appendNotes(element, trailing.notes, doc)
+	return element
+}
+
+/** Batas blok teratas sesudah posisi `pos` - tempat area catatan lembar terakhir. */
+function topLevelEnd(doc: PMNode, pos: number): number {
+	const $pos = doc.resolve(pos)
+	if ($pos.depth > 0) return $pos.after(1)
+	return pos + (doc.nodeAt(pos)?.nodeSize ?? 0)
 }
 
 /*
@@ -1030,6 +1206,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 						blockSections: [],
 						pageless: this.options.pageless ?? false,
 						breakBeforeLevels: this.options.breakBeforeLevels ?? [],
+						trailing: undefined,
 					}),
 
 					apply(tr, current, _old, newState) {
@@ -1044,6 +1221,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 									setup: incoming.setup ?? current.setup,
 									breakBeforeLevels: incoming.breakBeforeLevels ?? current.breakBeforeLevels,
 									spacers: incoming.pageless ? [] : current.spacers,
+									trailing: incoming.pageless ? undefined : current.trailing,
 									decorations: incoming.pageless ? DecorationSet.empty : current.decorations,
 								}
 							}
@@ -1067,11 +1245,14 @@ export const Pagination = Extension.create<PaginationOptions>({
 								marginAdjustments: incoming.marginAdjustments ?? current.marginAdjustments,
 								blockPages: incoming.blockPages ?? current.blockPages,
 								blockSections: incoming.blockSections ?? current.blockSections,
+								trailing:
+									incoming.trailing === undefined ? current.trailing : (incoming.trailing ?? undefined),
 								decorations: buildDecorations(
 									newState.doc,
 									incoming.spacers,
 									incoming.marginAdjustments ?? current.marginAdjustments,
 									incoming.blockSections ?? current.blockSections,
+									incoming.trailing === undefined ? current.trailing : (incoming.trailing ?? undefined),
 								),
 							}
 						}
@@ -1096,8 +1277,26 @@ export const Pagination = Extension.create<PaginationOptions>({
 						const state = paginationKey.getState(view.state)
 						if (!state) return
 						if (state.pageless) {
-							if (state.spacers.length > 0 || state.pageCount !== 1) {
-								const transaction = view.state.tr.setMeta(paginationKey, { spacers: [], pageCount: 1 })
+							/* Tanpa lembar, catatan kaki dikumpulkan di akhir naskah (seperti Google
+							 * Docs tanpa halaman). */
+							const refs = footnoteRefPositions(view.state.doc)
+							const trailing: PlacedNotes | undefined =
+								refs.length > 0
+									? {
+											pos: view.state.doc.content.size,
+											notes: { refs, height: 0, before: 0, signature: notesSignature(view.state.doc, refs) },
+										}
+									: undefined
+							if (
+								state.spacers.length > 0 ||
+								state.pageCount !== 1 ||
+								!samePlacedNotes(trailing, state.trailing)
+							) {
+								const transaction = view.state.tr.setMeta(paginationKey, {
+									spacers: [],
+									pageCount: 1,
+									trailing: trailing ?? null,
+								})
 								transaction.setMeta('addToHistory', false)
 								view.dispatch(transaction)
 							}
@@ -1109,6 +1308,8 @@ export const Pagination = Extension.create<PaginationOptions>({
 						}
 
 						const blocks = measureBlocks(view)
+						const footnoteSizes = measureFootnotes(view)
+						if (footnoteSizes) assignFootnotes(blocks, footnoteRefPositions(view.state.doc))
 						const spans = state.setup ? sectionSpans(view.state.doc, state.setup) : []
 
 						const continuous = sectionContinuity(view.state.doc, spans)
@@ -1119,12 +1320,29 @@ export const Pagination = Extension.create<PaginationOptions>({
 							index: index + 1,
 							pageNumbering: span.setup.pageNumbering ?? null,
 						}))
-						const { spacers, pageCount, sheets, blockPages } = computeSpacers(
+						const { spacers, pageCount, sheets, blockPages, trailingNotes } = computeSpacers(
 							blocks,
 							state.geometry,
 							sections,
 							state.setup?.pageNumbering ?? null,
+							footnoteSizes,
 						)
+						/* Tanda tangan isi catatan: area digambar ulang saat isinya berubah
+						 * walau tata letaknya tetap. */
+						for (const spacer of spacers) {
+							if (spacer.notes) spacer.notes.signature = notesSignature(view.state.doc, spacer.notes.refs)
+						}
+						const trailing: PlacedNotes | undefined = trailingNotes
+							? {
+									pos: topLevelEnd(view.state.doc, trailingNotes.afterPos),
+									notes: {
+										refs: trailingNotes.refs,
+										height: trailingNotes.height,
+										before: trailingNotes.before,
+										signature: notesSignature(view.state.doc, trailingNotes.refs),
+									},
+								}
+							: undefined
 						/*
 						 * Dekorasi lebar section dan label section ditempelkan ke blok
 						 * terluar. Anak kontainer yang diukur terpisah (SPLIT_CONTAINERS)
@@ -1174,6 +1392,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 							!sameAdjustments(adjustments, state.marginAdjustments) ||
 							!sameBlockPages(blockPages, state.blockPages) ||
 							!sameBlockSections(sectionsOfBlocks, state.blockSections) ||
+							!samePlacedNotes(trailing, state.trailing) ||
 							/* Penomoran yang berganti tanpa menggeser apa pun (desimal → romawi)
 							 * tetap harus sampai ke state: daftar isi membaca nomornya dari sini. */
 							!sameSheets(sheets, state.sheets)
@@ -1185,6 +1404,7 @@ export const Pagination = Extension.create<PaginationOptions>({
 								marginAdjustments: adjustments,
 								blockPages,
 								blockSections: sectionsOfBlocks,
+								trailing: trailing ?? null,
 							})
 							transaction.setMeta('addToHistory', false)
 							view.dispatch(transaction)

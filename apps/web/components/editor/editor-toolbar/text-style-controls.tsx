@@ -10,8 +10,9 @@ import {
 	fontFamilyLabel,
 } from '@/features/editor/font-catalog'
 import { ZOOM_LEVELS } from '@/features/editor/page-geometry'
-import { ALL_PARAGRAPH_STYLES, FONT_SIZES, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
+import { ALL_PARAGRAPH_STYLES, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
 import { useSettings } from '@/features/settings/settings-context'
+import { FontSizeField } from './font-size-field'
 import { Divider, IconButton } from './toolbar-parts'
 import { DEFAULT_FONT_SIZE, type ToolbarState } from './toolbar-state'
 
@@ -36,7 +37,7 @@ export function TextStyleControls({
 	return (
 		<>
 			<ToolbarSelect
-				label="Perbesaran"
+				label="Zoom"
 				width={78}
 				value={settings.zoom}
 				disabled={isOff}
@@ -47,7 +48,7 @@ export function TextStyleControls({
 			<Divider />
 
 			<ToolbarSelect
-				label="Gaya paragraf"
+				label="Paragraph style"
 				width={128}
 				value={active?.style ?? 'paragraph'}
 				disabled={isOff}
@@ -66,7 +67,7 @@ export function TextStyleControls({
 			<Divider />
 
 			<ToolbarSelect
-				label="Jenis huruf"
+				label="Font"
 				width={146}
 				value={active?.fontFamily ?? DEFAULT_FONT_FAMILY}
 				disabled={isOff}
@@ -85,21 +86,14 @@ export function TextStyleControls({
 			{/* Ukuran huruf: tombol −/+ untuk penyesuaian cepat, daftar untuk lompat jauh. */}
 			<IconButton
 				icon={Minus}
-				label="Perkecil huruf"
+				label="Decrease font size"
 				disabled={isOff}
 				onClick={() => setFontSize(Math.max(6, (active?.fontSize ?? DEFAULT_FONT_SIZE) - 1))}
 			/>
-			<ToolbarSelect
-				label="Ukuran huruf"
-				width={58}
-				value={active?.fontSize ?? DEFAULT_FONT_SIZE}
-				disabled={isOff}
-				options={FONT_SIZES.map((size) => ({ value: size, label: String(size) }))}
-				onChange={setFontSize}
-			/>
+			<FontSizeField value={active?.fontSize ?? DEFAULT_FONT_SIZE} disabled={isOff} onChange={setFontSize} />
 			<IconButton
 				icon={Plus}
-				label="Perbesar huruf"
+				label="Increase font size"
 				disabled={isOff}
 				onClick={() => setFontSize(Math.min(96, (active?.fontSize ?? DEFAULT_FONT_SIZE) + 1))}
 			/>

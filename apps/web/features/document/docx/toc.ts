@@ -6,6 +6,7 @@
  * basi - dibuang, karena nomor halamannya tidak mungkin masih benar.
  */
 import type { JSONContent } from '@tiptap/core'
+import { FIGURE_CAPTION, TABLE_CAPTION } from '@/features/editor/caption-kind'
 import { TOC_BLOCK, type TocListKind } from '@/features/editor/toc-block'
 import { textOfNode } from './content'
 import type { DocxStyles } from './properties'
@@ -19,10 +20,6 @@ export interface TocField {
 	kind: TocListKind
 	maxLevel?: number
 }
-
-/** Awalan teks judul yang menandai caption - sinyal jenis daftar (V5). */
-const FIGURE_CAPTION = /^\s*(?:gambar|figure|fig\.|gbr\.?)/i
-const TABLE_CAPTION = /^\s*(?:tabel|table|tbl\.)/i
 
 /*
  * Kalimat penanda field TOC yang belum pernah di-update (§6.3): hasil

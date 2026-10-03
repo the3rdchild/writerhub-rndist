@@ -3,6 +3,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { usePanels } from '@/features/analysis/panel-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
+import type { SearchAndReplaceStorage } from '@/features/editor/search-replace'
 import { type SearchControls, useSearchControls } from '@/features/editor/use-search-controls'
 import { useVersionMode } from '@/features/versions/version-context'
 
@@ -64,10 +65,20 @@ export function SearchProvider({ children }: { children: ReactNode }) {
 		setFocusTick((tick) => tick + 1)
 	}, [setActivePanel])
 
+	/*
+	 * Menutup pencarian mengembalikan fokus ke naskah dengan hasil yang sedang
+	 * disorot terpilih, seperti Docs/Word. Dulu fokus jatuh ke BODY: ketikan
+	 * sesudah Esc hilang ke mana-mana (uji editor 2 Okt, TKS-19).
+	 */
 	const closeSearch = useCallback(() => {
 		setBarOpen(false)
 		if (panelOpen) setActivePanel(null)
-	}, [panelOpen, setActivePanel])
+		if (!editor || editor.isDestroyed) return
+		const storage = (editor.storage as { searchAndReplace?: SearchAndReplaceStorage }).searchAndReplace
+		const current = storage?.results[storage.resultIndex]
+		if (current) editor.chain().focus().setTextSelection({ from: current.from, to: current.to }).run()
+		else editor.commands.focus()
+	}, [panelOpen, setActivePanel, editor])
 
 	useEffect(
 		function keepOneFaceAtATime() {

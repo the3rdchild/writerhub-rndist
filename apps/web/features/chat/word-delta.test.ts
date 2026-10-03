@@ -27,7 +27,7 @@ describe('formatWordDelta', () => {
 	})
 
 	test('satu arah tetap menyebut keduanya, supaya bentuknya tidak berubah-ubah', () => {
-		expect(formatWordDelta({ added: 12, removed: 0 })).toBe('+12 −0 kata')
+		expect(formatWordDelta({ added: 12, removed: 0 })).toBe('+12 −0 words')
 	})
 })
 

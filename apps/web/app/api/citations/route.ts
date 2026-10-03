@@ -60,7 +60,7 @@ export async function GET(request: Request): Promise<Response> {
 
 		if (!response.ok) {
 			return Response.json(
-				{ message: 'Pencarian gagal', errors: [`Crossref membalas ${response.status}`] },
+				{ message: 'Search failed', errors: [`Crossref membalas ${response.status}`] },
 				{ status: 502 },
 			)
 		}
@@ -71,6 +71,6 @@ export async function GET(request: Request): Promise<Response> {
 		return Response.json({ message: 'sukses', data: items.map(toCitation) })
 	} catch (error) {
 		const reason = error instanceof Error ? error.message : 'Gagal menghubungi Crossref'
-		return Response.json({ message: 'Pencarian gagal', errors: [reason] }, { status: 502 })
+		return Response.json({ message: 'Search failed', errors: [reason] }, { status: 502 })
 	}
 }

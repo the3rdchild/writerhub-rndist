@@ -60,7 +60,7 @@ function loadImage(source: string): Promise<HTMLImageElement> {
 	return new Promise((resolve, reject) => {
 		const image = new Image()
 		image.onload = () => resolve(image)
-		image.onerror = () => reject(new Error('HTML blok ini tidak bisa dipotret'))
+		image.onerror = () => reject(new Error("This block's HTML couldn't be captured"))
 		image.src = source
 	})
 }

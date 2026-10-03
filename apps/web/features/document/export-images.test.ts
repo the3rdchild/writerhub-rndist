@@ -170,6 +170,19 @@ describe('ukuran gambar di halaman', () => {
 	test('lebih lebar dari tempatnya: diperkecil bersama tingginya', () => {
 		expect(imageBox({ width: 1200, height: 300 }, natural, 600)).toEqual({ width: 600, height: 150 })
 	})
+
+	// OBJ-14: 600×2400 di A4 (tinggi isi ±931 px) dulu keluar 600×2400 dan
+	// terpotong di tepi bawah lembar.
+	test('lebih tinggi dari halaman: diperkecil proporsional sampai muat', () => {
+		expect(imageBox({ width: 600, height: 2400 }, { width: 600, height: 2400 }, 602, 931)).toEqual({
+			width: 233,
+			height: 931,
+		})
+	})
+
+	test('batas tinggi tidak menyentuh gambar yang sudah muat', () => {
+		expect(imageBox({ width: 300 }, natural, 600, 931)).toEqual({ width: 300, height: 150 })
+	})
 })
 
 describe('sebutan gambar yang tidak ikut', () => {

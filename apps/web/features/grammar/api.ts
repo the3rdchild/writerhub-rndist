@@ -57,9 +57,9 @@ export async function streamGrammarCheck(
 		},
 	})
 
-	if (event.type === 'error') throw new Error(event.message || 'Pengecekan gagal')
+	if (event.type === 'error') throw new Error(event.message || 'The check failed')
 	if (event.type === 'cancelled') throw new DOMException('Dibatalkan', 'AbortError')
-	if (event.type !== 'done') throw new Error('Timeout menunggu hasil, coba lagi')
+	if (event.type !== 'done') throw new Error('Timed out waiting for the result, try again')
 
 	const { type: _type, ...result } = event
 	return result

@@ -94,8 +94,8 @@ export function ResearchTab() {
 			{!filled && (
 				<div className="flex flex-col gap-2 rounded-xl border border-line bg-surface-raised px-3 py-2.5 text-xs">
 					<p className="text-xs leading-relaxed text-muted">
-						Isi sendiri, atau biarkan AI mengisinya. AI hanya mencatat keputusan yang tertulis di naskah atau
-						Anda katakan - selebihnya ia bertanya.
+						Fill it in yourself, or let the AI do it. The AI only records decisions written in the document or
+						that you tell it - for anything else it asks.
 					</p>
 					<button
 						type="button"
@@ -104,7 +104,7 @@ export function ResearchTab() {
 						className="flex items-center justify-center gap-1.5 self-start rounded-full bg-accent/15 px-3 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/25 disabled:cursor-not-allowed disabled:opacity-40"
 					>
 						<Sparkles className="h-3.5 w-3.5" />
-						Isi dari naskah
+						Fill from the document
 					</button>
 				</div>
 			)}
@@ -158,7 +158,7 @@ function useChapterPrints(): Map<string, string> {
 	return prints
 }
 
-const STATUS_LABEL: Record<ChapterStatus, string> = { belum: 'Belum', draf: 'Draf', selesai: 'Selesai' }
+const STATUS_LABEL: Record<ChapterStatus, string> = { belum: 'Not started', draf: 'Draft', selesai: 'Done' }
 
 function ChapterList({ chatBusy, onRefresh }: { chatBusy: boolean; onRefresh: () => void }) {
 	const { brief, docId, setChapters, acceptProposal, rejectProposal } = useBrief()
@@ -205,18 +205,22 @@ function ChapterList({ chatBusy, onRefresh }: { chatBusy: boolean; onRefresh: ()
 	return (
 		<section className="flex flex-col gap-2">
 			<div className="flex items-center justify-between gap-2">
-				<h3 className="text-xs font-medium text-muted">Isi per bab</h3>
+				<h3 className="text-xs font-medium text-muted">Chapters</h3>
 				<div className="flex items-center gap-0.5">
-					<IconButton icon={ListPlus} label="Ambil judul bab dari naskah" onClick={takeFromManuscript} />
+					<IconButton
+						icon={ListPlus}
+						label="Take chapter titles from the document"
+						onClick={takeFromManuscript}
+					/>
 					<IconButton
 						icon={RefreshCw}
-						label="Minta AI memperbarui ringkasan dan status tiap bab"
+						label="Ask the AI to update each chapter summary and status"
 						onClick={onRefresh}
 						disabled={chatBusy}
 					/>
 					<IconButton
 						icon={Plus}
-						label="Tambah bab"
+						label="Add chapter"
 						onClick={() =>
 							setChapters([
 								...chapters,
@@ -237,8 +241,8 @@ function ChapterList({ chatBusy, onRefresh }: { chatBusy: boolean; onRefresh: ()
 
 			{chapters.length === 0 && (
 				<p className="rounded-xl border border-dashed border-line px-3 py-2.5 text-[11px] leading-relaxed text-subtle">
-					Belum ada bab. Ambil judulnya dari naskah, atau minta AI meringkas tiap bab - ringkasan inilah yang
-					menjaga AI tetap tahu isi bab lain saat menulis satu bab.
+					No chapters yet. Take the titles from the document, or ask the AI to summarize each chapter - these
+					summaries keep the AI aware of the other chapters while it writes one.
 				</p>
 			)}
 
@@ -293,9 +297,9 @@ function OutlinePlan({ outline }: { outline: OutlineProgress | null }) {
 		<div className="flex flex-col gap-1 rounded-xl border border-line bg-surface-raised px-3 py-2 text-[11px] text-muted">
 			{pages && (
 				<p>
-					Target {pages[0] === pages[1] ? pages[0] : `${pages[0]}-${pages[1]}`} halaman
+					Target {pages[0] === pages[1] ? pages[0] : `${pages[0]}-${pages[1]}`} pages
 					{current !== undefined && (
-						<span className={off ? 'text-yellow-400' : 'text-subtle'}> · sekarang {current}</span>
+						<span className={off ? 'text-yellow-400' : 'text-subtle'}> · now {current}</span>
 					)}
 				</p>
 			)}
@@ -314,9 +318,9 @@ function OutlinePlan({ outline }: { outline: OutlineProgress | null }) {
 }
 
 const ITEM_NOTE: Record<ItemState['state'], string> = {
-	present: 'sudah ada',
-	'caption-only': 'baru keterangannya',
-	missing: 'belum ada',
+	present: 'present',
+	'caption-only': 'caption only',
+	missing: 'missing',
 }
 
 function ChapterCard({
@@ -344,7 +348,7 @@ function ChapterCard({
 		<div className="flex flex-col gap-1.5 rounded-xl border border-line bg-surface-raised p-2.5 text-xs">
 			<div className="flex items-center gap-1.5">
 				<input
-					aria-label="Judul bab"
+					aria-label="Chapter title"
 					value={title.draft}
 					onChange={(event) => title.setDraft(event.target.value)}
 					onFocus={title.onFocus}
@@ -358,8 +362,8 @@ function ChapterCard({
 				<button
 					type="button"
 					onClick={onRemove}
-					aria-label={`Hapus ${chapter.title}`}
-					title="Hapus dari daftar bab (naskah tidak tersentuh)"
+					aria-label={`Remove ${chapter.title}`}
+					title="Remove from the chapter list (the document is not touched)"
 					className="rounded-md p-1 text-faint transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 				>
 					<Trash2 className="h-3 w-3" />
@@ -393,7 +397,7 @@ function ChapterCard({
 				onChange={(event) => summary.setDraft(event.target.value)}
 				onFocus={summary.onFocus}
 				onBlur={summary.onBlur}
-				placeholder="Isi bab ini, singkat"
+				placeholder="What this chapter covers, briefly"
 				rows={2}
 				className={cn(FIELD_INPUT, 'resize-y text-xs leading-snug')}
 			/>
@@ -401,7 +405,7 @@ function ChapterCard({
 			{items && items.length > 0 && (
 				<ul
 					className="flex flex-col gap-0.5 text-[11px] leading-snug"
-					aria-label={`Tabel dan gambar ${chapter.title}`}
+					aria-label={`Tables and figures in ${chapter.title}`}
 				>
 					{items.map((item) => (
 						<li key={item.text} className="flex items-start gap-1.5" title={item.text}>
@@ -419,10 +423,12 @@ function ChapterCard({
 				</ul>
 			)}
 			{state === 'stale' && (
-				<p className="text-[11px] leading-snug text-yellow-400">Naskah bab ini berubah sejak diringkas.</p>
+				<p className="text-[11px] leading-snug text-yellow-400">
+					This chapter changed since it was summarized.
+				</p>
 			)}
 			{state === 'missing' && (
-				<p className="text-[11px] leading-snug text-faint">Judul ini belum ada di naskah.</p>
+				<p className="text-[11px] leading-snug text-faint">This title isn't in the document yet.</p>
 			)}
 			{footer}
 		</div>
@@ -499,7 +505,7 @@ function IdentitySection({
 				className="flex items-center justify-between gap-2 text-left"
 			>
 				<span className="flex flex-col">
-					<span className="text-xs font-medium text-muted">Identitas sampul</span>
+					<span className="text-xs font-medium text-muted">Cover identity</span>
 					<span className="text-[10px] text-faint">{templateName}</span>
 				</span>
 				<ChevronDown className={cn('h-3.5 w-3.5 text-subtle transition-transform', open && 'rotate-180')} />
@@ -517,7 +523,7 @@ function IdentitySection({
 						onClick={() => void onSave(draft)}
 						className="self-end rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-accent/30 disabled:text-white/50"
 					>
-						{saving ? 'Menyimpan…' : 'Simpan identitas'}
+						{saving ? 'Saving…' : 'Save identity'}
 					</button>
 				</>
 			)}

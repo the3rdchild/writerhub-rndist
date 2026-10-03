@@ -13,15 +13,15 @@ import { TemplateDetailPanel } from './template-detail-panel'
 import { TemplateMetadataDialog } from './template-metadata-dialog'
 
 const CATEGORIES: Array<{ id: TemplateCategory | 'all'; label: string }> = [
-	{ id: 'all', label: 'Semua' },
-	{ id: 'academic_id', label: 'Akademik' },
+	{ id: 'all', label: 'All' },
+	{ id: 'academic_id', label: 'Academic' },
 	{ id: 'paper', label: 'Paper' },
 	{ id: 'business', label: 'Bisnis' },
 	{ id: 'marketing', label: 'Marketing' },
 ]
 
 /**
- * Halaman "Mulai dokumen baru" ala galeri Google Docs: kartu pertama selalu
+ * Halaman "Start a new document" ala galeri Google Docs: kartu pertama selalu
  * Dokumen kosong, selebihnya template dari katalog. Memilih kartu membuka
  * panel detail; "Pakai template ini" membuat dokumen di server lalu membukanya lewat
  * halaman serah-terima `/d/<id>` yang sama dengan draf.
@@ -78,7 +78,7 @@ export function TemplateGallery() {
 			})
 			router.push(`/d/${created.id}`)
 		} catch (cause) {
-			setUseError(cause instanceof Error ? cause.message : 'Gagal membuat dokumen dari template')
+			setUseError(cause instanceof Error ? cause.message : "Couldn't create a document from the template")
 			setPending(false)
 		}
 	}
@@ -101,18 +101,18 @@ export function TemplateGallery() {
 				<Link
 					href="/"
 					className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
-					aria-label="Kembali ke editor"
+					aria-label="Back to editor"
 				>
 					<ArrowLeft className="h-5 w-5" />
 				</Link>
-				<h1 className="text-base font-semibold text-foreground">Mulai dokumen baru</h1>
+				<h1 className="text-base font-semibold text-foreground">Start a new document</h1>
 				<div className="relative ml-auto w-full max-w-xs">
 					<Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
 					<input
 						type="search"
 						value={query}
 						onChange={(event) => setQuery(event.target.value)}
-						placeholder="Cari template…"
+						placeholder="Search templates…"
 						className="w-full rounded-lg border border-line bg-background py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-faint focus:border-accent focus:outline-none"
 					/>
 				</div>
@@ -155,11 +155,11 @@ export function TemplateGallery() {
 						</div>
 					) : templates.isError ? (
 						<div className="flex h-64 flex-col items-center justify-center text-center">
-							<h2 className="text-lg font-medium text-foreground">Gagal memuat template</h2>
+							<h2 className="text-lg font-medium text-foreground">Could not load templates</h2>
 							<p className="mt-1 max-w-md text-sm text-muted">
 								{templates.error instanceof Error
 									? templates.error.message
-									: 'Terjadi kesalahan saat membaca katalog template.'}
+									: 'Something went wrong while reading the template catalog.'}
 							</p>
 						</div>
 					) : (
@@ -173,8 +173,8 @@ export function TemplateGallery() {
 									<FilePlus2 className="h-10 w-10 text-accent" />
 								</div>
 								<div className="px-4 py-3">
-									<p className="text-sm font-medium text-foreground">Dokumen kosong</p>
-									<p className="mt-0.5 text-xs text-muted">Mulai dari halaman kosong.</p>
+									<p className="text-sm font-medium text-foreground">Blank document</p>
+									<p className="mt-0.5 text-xs text-muted">Start from a blank page.</p>
 								</div>
 							</button>
 
@@ -196,7 +196,7 @@ export function TemplateGallery() {
 							<p className="text-sm text-muted">
 								{selectedTemplate.error instanceof Error
 									? selectedTemplate.error.message
-									: 'Gagal memuat detail template.'}
+									: "Couldn't load the template details."}
 							</p>
 						) : (
 							<div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
@@ -210,7 +210,7 @@ export function TemplateGallery() {
 						    panel berbagi ruang, bukan menutupi. */}
 						<button
 							type="button"
-							aria-label="Tutup detail template"
+							aria-label="Close template details"
 							onClick={() => setSelectedSlug(null)}
 							className="absolute inset-0 z-20 bg-black/40 lg:hidden"
 						/>

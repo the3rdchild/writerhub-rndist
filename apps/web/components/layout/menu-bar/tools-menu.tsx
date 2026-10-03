@@ -5,7 +5,7 @@ import { DropdownSeparator } from '@/components/ui/dropdown'
 import { usePanels } from '@/features/analysis/panel-context'
 import { useDocument } from '@/features/document/document-context'
 import { useSettings } from '@/features/settings/settings-context'
-import { countWords } from '@/lib/utils'
+import { formatTextCounts } from '@/lib/utils'
 import { Item, Menu, run } from './menu-shell'
 
 export function ToolsMenu() {
@@ -31,9 +31,7 @@ export function ToolsMenu() {
 						</Item>
 					))}
 					<DropdownSeparator />
-					<Item disabled>
-						{countWords(state.text)} words · {state.text.length} characters
-					</Item>
+					<Item disabled>{formatTextCounts(state.text)}</Item>
 					<DropdownSeparator />
 					<Item
 						icon={<SettingsIcon className="h-4 w-4" />}

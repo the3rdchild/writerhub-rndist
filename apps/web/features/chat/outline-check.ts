@@ -260,23 +260,19 @@ export function outlineForWriter(progress: OutlineProgress): { short: string; de
 		.filter((section) => section.state !== 'written')
 		.map((section) => section.title)
 	const items = progress.items.filter((item) => item.state !== 'present')
-	const noun = empty.every((title) => /^bab\b/i.test(title)) ? 'bab' : 'bagian'
+	const noun = empty.every((title) => /^bab\b/i.test(title)) ? 'chapter' : 'section'
 
 	const short: string[] = []
 	const detail: string[] = []
 	if (empty.length > 0) {
-		short.push(`${empty.length} ${noun} kosong`)
-		detail.push(`Belum berisi: ${empty.join(', ')}`)
+		short.push(`${empty.length} empty ${noun}${empty.length === 1 ? '' : 's'}`)
+		detail.push(`Still empty: ${empty.join(', ')}`)
 	}
 	if (items.length > 0) {
 		const labels = items.map((item) => item.label)
-		short.push(
-			`${labels.slice(0, 2).join(', ')}${labels.length > 2 ? ` +${labels.length - 2}` : ''} belum ada`,
-		)
+		short.push(`${labels.slice(0, 2).join(', ')}${labels.length > 2 ? ` +${labels.length - 2}` : ''} missing`)
 		detail.push(
-			...items.map(
-				(item) => `${item.label}: ${item.state === 'caption-only' ? 'baru keterangannya' : 'belum ada'}`,
-			),
+			...items.map((item) => `${item.label}: ${item.state === 'caption-only' ? 'caption only' : 'missing'}`),
 		)
 	}
 	const pages = progress.pages
@@ -287,8 +283,8 @@ export function outlineForWriter(progress: OutlineProgress): { short: string; de
 			? progress.forcedPageFloor
 			: pages?.max
 	if (pages && (pages.current > (effectiveMax ?? Infinity) || pages.current < pages.min)) {
-		short.push(`${pages.current} dari ${range(pages)} hlm`)
-		detail.push(`Panjang ${pages.current} halaman, target ${range(pages)}`)
+		short.push(`${pages.current} of ${range(pages)} pages`)
+		detail.push(`Length ${pages.current} pages, target ${range(pages)}`)
 	}
 	return { short: short.join(' · '), detail }
 }

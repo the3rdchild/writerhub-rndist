@@ -1,9 +1,19 @@
 'use client'
 
 import type { Editor } from '@tiptap/react'
-import { ClipboardPaste, ClipboardType, Copy, Eraser, Scissors, Trash2 } from 'lucide-react'
+import {
+	ClipboardPaste,
+	ClipboardType,
+	Copy,
+	Eraser,
+	ListPlus,
+	RotateCcw,
+	Scissors,
+	Trash2,
+} from 'lucide-react'
 import { type JSX, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { CALLOUT_TYPES } from '@/features/editor/callout'
 import {
 	clearFormatting,
 	copySelection,
@@ -11,6 +21,12 @@ import {
 	pasteFromClipboard,
 	pastePlainTextFromClipboard,
 } from '@/features/editor/clipboard'
+import {
+	continueNumbering,
+	orderedListAt,
+	previousOrderedList,
+	restartNumbering,
+} from '@/features/editor/list-numbering'
 import { useShortcutLabel } from '@/features/shortcuts/use-shortcuts'
 import { cn } from '@/lib/utils'
 
@@ -38,6 +54,11 @@ interface MenuRow {
 }
 
 const EDGE = 8
+
+function canContinue(editor: Editor): boolean {
+	const list = orderedListAt(editor.state.selection.$from)
+	return Boolean(list && previousOrderedList(editor.state.doc, list))
+}
 
 export function EditorContextMenu({ editor }: { editor: Editor | null }) {
 	const [menu, setMenu] = useState<MenuState | null>(null)
@@ -129,6 +150,33 @@ function ContextMenuPanel({
 				disabled: !menu.hasSelection,
 				onClick: () => clearFormatting(editor),
 			},
+			/* Di dalam daftar bernomor: mulai ulang atau lanjutkan nomor (TKS-10). */
+			...(editor.isActive('orderedList')
+				? [
+						{
+							label: 'Restart numbering',
+							icon: <RotateCcw className="h-4 w-4" />,
+							separatorBefore: true,
+							onClick: () => restartNumbering(editor),
+						},
+						{
+							label: 'Continue numbering',
+							icon: <ListPlus className="h-4 w-4" />,
+							disabled: !canContinue(editor),
+							onClick: () => continueNumbering(editor),
+						},
+					]
+				: []),
+			/* Di dalam callout: ganti jenisnya - dulu tidak ada jalan sama sekali (TKS-14). */
+			...(editor.isActive('callout')
+				? CALLOUT_TYPES.map((type, index) => ({
+						label: `Callout: ${type.label}`,
+						icon: <span className="w-4 text-center">{type.emoji}</span>,
+						separatorBefore: index === 0,
+						disabled: editor.isActive('callout', { calloutType: type.id }),
+						onClick: () => editor.chain().focus().setCalloutType(type.id).run(),
+					}))
+				: []),
 		],
 		[editor, menu.hasSelection, keys],
 	)

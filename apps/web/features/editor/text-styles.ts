@@ -25,8 +25,9 @@ function headingStyle(level: number): ParagraphStyle {
 	const typedLevel = level as 1
 	return {
 		id: `h${level}`,
-		label: `Judul ${level}`,
-		apply: (editor) => editor.chain().focus().toggleHeading({ level: typedLevel }).run(),
+		label: `Heading ${level}`,
+		/* Memilih gaya yang sedang aktif tidak boleh mematikannya (TKS-17). */
+		apply: (editor) => editor.chain().focus().setHeading({ level: typedLevel }).run(),
 		isActive: (editor) => editor.isActive('heading', { level: typedLevel }),
 		previewStyle: { fontSize: HEADING_FONT_SIZE[level] ?? '0.8rem', fontWeight: 600 },
 	}
@@ -35,7 +36,7 @@ function headingStyle(level: number): ParagraphStyle {
 export const PARAGRAPH_STYLES: ParagraphStyle[] = [
 	{
 		id: 'paragraph',
-		label: 'Teks biasa',
+		label: 'Normal text',
 		apply: (editor) => editor.chain().focus().setParagraph().run(),
 		isActive: (editor) => editor.isActive('paragraph'),
 		previewStyle: { fontSize: '0.875rem' },

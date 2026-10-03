@@ -79,7 +79,7 @@ export function VersionProvider({ children }: { children: ReactNode }) {
 			if (!versionMode || !activeId) return
 			if (versionMode.serverTabId === null) {
 				const target = await getLocalVersion(versionMode.tabId, versionId)
-				if (!target) throw new Error('Versi tidak ditemukan')
+				if (!target) throw new Error('Version not found')
 
 				await snapshotLocalVersion(doc, versionMode.tabId, 'pre_restore')
 				doc.transact(() => jsonToFragment(doc, versionMode.tabId, target.content), SYNC_ORIGIN)
@@ -93,7 +93,7 @@ export function VersionProvider({ children }: { children: ReactNode }) {
 			}
 			const flushed = await saveToCloud(activeId)
 			if (!flushed) {
-				throw new Error('Draf terkini gagal disimpan ke cloud, pemulihan dibatalkan.')
+				throw new Error("The latest draft couldn't be saved to the cloud, so the restore was cancelled.")
 			}
 
 			await restoreVersion(versionMode.serverTabId, versionId)

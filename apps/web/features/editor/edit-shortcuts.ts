@@ -22,3 +22,21 @@ export const EditShortcuts = Extension.create({
 		}
 	},
 })
+
+/**
+ * Jaring terakhir untuk Tab dan Shift+Tab: penangan lain (daftar, tabel, blok
+ * kode, indentasi, tab stop) diperiksa lebih dulu; yang tidak tertangani tidak
+ * boleh jatuh ke navigasi fokus peramban. Fokus yang meloncat ke kontrol lain
+ * membuat ketikan berikutnya hilang atau mengubah kontrol itu (OBJ-4).
+ */
+export const KeepTabInEditor = Extension.create({
+	name: 'keepTabInEditor',
+	priority: 1,
+
+	addKeyboardShortcuts() {
+		return {
+			Tab: () => true,
+			'Shift-Tab': () => true,
+		}
+	},
+})

@@ -1,7 +1,10 @@
 import type { NextConfig } from 'next'
+import packageJson from './package.json'
 
 const nextConfig: NextConfig = {
 	reactStrictMode: true,
+	/** Versi untuk dialog Bantuan › Tentang WritingHub. */
+	env: { NEXT_PUBLIC_APP_VERSION: packageJson.version },
 	/**
 	 * Host yang boleh mengambil sumber daya dev (`/_next/*`) selain localhost.
 	 *

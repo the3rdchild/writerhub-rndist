@@ -56,11 +56,11 @@ export async function drawDiagram(
 		}
 
 		const data = payload?.data as DiagramDrawn | undefined
-		if (!data?.svg) return { error: 'Sub-agent tidak mengembalikan gambar.' }
+		if (!data?.svg) return { error: "The sub-agent didn't return an image." }
 		return data
 	} catch (cause) {
 		if (signal?.aborted) throw cause
-		return { error: 'Tidak bisa menghubungi layanan penggambar.' }
+		return { error: "Couldn't reach the drawing service." }
 	}
 }
 

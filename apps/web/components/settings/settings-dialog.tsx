@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 
 const TABS = [
 	{ key: 'profile', label: 'Profil', icon: User },
-	{ key: 'appearance', label: 'Tampilan', icon: Palette },
+	{ key: 'appearance', label: 'Appearance', icon: Palette },
 	{ key: 'editor', label: 'Editor', icon: Type },
 	{ key: 'memory', label: 'AI Memory', icon: Brain },
 ] as const
@@ -54,7 +54,7 @@ export function SettingsDialog() {
 			ref={overlayRef}
 			role="dialog"
 			aria-modal="true"
-			aria-label="Pengaturan"
+			aria-label="Settings"
 			className="fixed inset-0 z-[70] flex animate-in items-center justify-center bg-black/60 backdrop-blur-sm fade-in duration-200"
 			onClick={(event) => {
 				if (event.target === overlayRef.current) setSettingsOpen(false)
@@ -62,11 +62,11 @@ export function SettingsDialog() {
 		>
 			<div className="flex max-h-[85vh] w-full max-w-lg animate-in flex-col overflow-hidden rounded-2xl border border-line-strong bg-surface-raised shadow-2xl zoom-in-95 duration-200">
 				<div className="flex shrink-0 items-center justify-between border-b border-line px-5 py-4">
-					<h2 className="text-base font-semibold text-foreground">Pengaturan</h2>
+					<h2 className="text-base font-semibold text-foreground">Settings</h2>
 					<button
 						type="button"
 						onClick={() => setSettingsOpen(false)}
-						aria-label="Tutup"
+						aria-label="Close"
 						className="rounded-md p-1 text-subtle transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
 					>
 						×
@@ -108,12 +108,12 @@ export function SettingsDialog() {
 								</div>
 							</div>
 
-							<Field label="Nama tampilan">
+							<Field label="Display name">
 								<input
 									type="text"
 									value={settings.profile.name}
 									onChange={(event) => updateProfile({ name: event.target.value })}
-									placeholder="Nama Anda"
+									placeholder="Your name"
 									className="w-full rounded-lg border border-line-strong bg-surface-inset px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-faint focus:border-accent/50"
 								/>
 							</Field>
@@ -141,7 +141,7 @@ export function SettingsDialog() {
 					)}
 
 					{tab === 'appearance' && (
-						<Field label="Tema">
+						<Field label="Theme">
 							<div className="grid grid-cols-3 gap-2">
 								{THEMES.map(({ value, label, icon: Icon }) => (
 									<button
@@ -161,14 +161,14 @@ export function SettingsDialog() {
 								))}
 							</div>
 							<p className="mt-3 text-xs leading-relaxed text-subtle">
-								Perubahan tema langsung diterapkan. Pilihan System mengikuti preferensi perangkat.
+								Theme changes apply right away. System follows your device preference.
 							</p>
 						</Field>
 					)}
 
 					{tab === 'editor' && (
 						<div className="flex flex-col gap-5">
-							<Field label="Ukuran font bawaan">
+							<Field label="Default font size">
 								<div className="flex gap-2">
 									{FONT_SIZES.map((size) => (
 										<button
@@ -192,14 +192,8 @@ export function SettingsDialog() {
 							</Field>
 
 							<ToggleRow
-								label="Simpan sesi otomatis"
-								description="Simpan pekerjaan Anda ke riwayat sesi secara otomatis"
-								checked={settings.autoSave}
-								onChange={(autoSave) => update({ autoSave })}
-							/>
-							<ToggleRow
-								label="Tampilkan jumlah kata"
-								description="Tampilkan jumlah kata dan karakter di bawah editor"
+								label="Show word count"
+								description="Show the word and character count below the editor"
 								checked={settings.showWordCount}
 								onChange={(showWordCount) => update({ showWordCount })}
 							/>

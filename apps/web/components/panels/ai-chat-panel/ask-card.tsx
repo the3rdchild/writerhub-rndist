@@ -91,11 +91,11 @@ function QuestionCard({ call }: { call: ToolCall }) {
 	// Argumen yang tidak bisa dibaca tidak boleh meninggalkan penulis tanpa kotak chat.
 	if (questions.length === 0) {
 		return (
-			<CardShell title="Pertanyaan AI">
-				<p className="text-xs text-muted">AI mengirim pertanyaan yang tidak bisa dibaca.</p>
+			<CardShell title="AI question">
+				<p className="text-xs text-muted">The AI sent a question that couldn't be read.</p>
 				<div className="flex justify-end">
 					<FooterButton onClick={skip} primary>
-						Lanjutkan tanpa menjawab
+						Continue without answering
 					</FooterButton>
 				</div>
 			</CardShell>
@@ -160,10 +160,10 @@ function QuestionCard({ call }: { call: ToolCall }) {
 		// biome-ignore lint/a11y/noStaticElementInteractions: wadah pintasan angka untuk pilihan di dalamnya; tiap pilihan tetap tombol sungguhan.
 		<div ref={cardRef} tabIndex={-1} onKeyDown={onKeyDown} className="outline-none">
 			<CardShell
-				title={questions.length > 1 ? `Pertanyaan AI · ${index + 1}/${questions.length}` : 'Pertanyaan AI'}
+				title={questions.length > 1 ? `Pertanyaan AI · ${index + 1}/${questions.length}` : 'AI question'}
 			>
 				{questions.length > 1 && (
-					<div className="flex flex-wrap gap-1 text-[11px]" role="tablist" aria-label="Daftar pertanyaan">
+					<div className="flex flex-wrap gap-1 text-[11px]" role="tablist" aria-label="Questions">
 						{questions.map((item, at) => (
 							<button
 								// biome-ignore lint/suspicious/noArrayIndexKey: daftar pertanyaan tidak pernah berubah urutan selama kartunya hidup, dan judulnya boleh kembar.
@@ -196,17 +196,17 @@ function QuestionCard({ call }: { call: ToolCall }) {
 				/>
 
 				<div className="flex items-center justify-between gap-2">
-					<FooterButton onClick={skip}>Lewati</FooterButton>
+					<FooterButton onClick={skip}>Skip</FooterButton>
 					<div className="flex items-center gap-1">
-						{index > 0 && <FooterButton onClick={() => setIndex(index - 1)}>Kembali</FooterButton>}
+						{index > 0 && <FooterButton onClick={() => setIndex(index - 1)}>Back</FooterButton>}
 						{last ? (
 							<FooterButton onClick={submit} disabled={!anyAnswered} primary>
-								Kirim
+								Send
 								<CornerDownLeft className="h-3 w-3" />
 							</FooterButton>
 						) : (
 							<FooterButton onClick={next} primary>
-								Berikutnya
+								Next
 							</FooterButton>
 						)}
 					</div>
@@ -234,7 +234,7 @@ function QuestionBody({
 	return (
 		<div className="flex flex-col gap-1.5">
 			<p className="text-sm font-medium leading-snug text-foreground">{question.question}</p>
-			{question.multiSelect && <p className="text-[11px] text-subtle">Boleh pilih lebih dari satu.</p>}
+			{question.multiSelect && <p className="text-[11px] text-subtle">You can pick more than one.</p>}
 			<fieldset className="flex min-w-0 flex-col gap-1" aria-label={question.question}>
 				{question.options.map((option, at) => {
 					const active = draft.choices.includes(option.label)
@@ -280,7 +280,7 @@ function QuestionBody({
 						{question.options.length + 1}
 					</span>
 					<span className="text-xs text-muted">
-						{question.options.length === 0 ? 'Tulis jawaban Anda' : 'Lainnya - tulis sendiri'}
+						{question.options.length === 0 ? 'Write your answer' : 'Other - write your own'}
 					</span>
 				</button>
 				{(draft.otherOn || question.options.length === 0) && (
@@ -297,8 +297,8 @@ function QuestionBody({
 									onSubmitOther()
 								}
 							}}
-							placeholder="Jawaban Anda"
-							aria-label="Jawaban Anda sendiri"
+							placeholder="Your answer"
+							aria-label="Your own answer"
 							className="w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-foreground outline-none placeholder:text-faint focus:border-accent"
 						/>
 					</div>
@@ -337,16 +337,16 @@ function BriefRequestCard({ call }: { call: ToolCall }) {
 				))}
 			</ul>
 			<div className="flex items-center justify-between gap-2">
-				<FooterButton onClick={() => answerAsk(call, { skipped: true })}>Lewati</FooterButton>
+				<FooterButton onClick={() => answerAsk(call, { skipped: true })}>Skip</FooterButton>
 				<div className="flex items-center gap-1">
 					{!visible && (
 						<FooterButton onClick={() => openPanel({ highlight: keys, ...(message ? { message } : {}) })}>
 							<ClipboardList className="h-3 w-3" />
-							Buka panel
+							Open panel
 						</FooterButton>
 					)}
 					<FooterButton onClick={() => answerAsk(call, {})} primary>
-						Selesai, lanjutkan
+						Done, continue
 					</FooterButton>
 				</div>
 			</div>

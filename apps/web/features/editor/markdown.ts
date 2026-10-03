@@ -75,6 +75,7 @@ function inline(text: string): string {
 		// Isi tebal boleh memuat miring utuh: "**a. Rentang (*attention span*)**".
 		.replace(/\*\*((?:[^*]|\*[^*]+\*)+?)\*\*/g, '<strong>$1</strong>')
 		.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
+		.replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
 		.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2">$1</a>')
 
 	return restoreEscapes(rendered, escapeHtml).replace(
@@ -101,7 +102,7 @@ export function looksLikeMarkdown(text: string): boolean {
 	return (
 		/^\s*(#{1,6}\s|[-*]\s|\d+\.\s|>\s|\|.*\|)/m.test(text) ||
 		/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/m.test(text) ||
-		/\*\*[^*\n]+\*\*|`[^`\n]+`/.test(text) ||
+		/\*\*[^*\n]+\*\*|`[^`\n]+`|~~[^~\n]+~~/.test(text) ||
 		/```/.test(text) ||
 		/\$\$?[^\s$][^$\n]*[^\s$]\$\$?|\$[^\s$]\$/.test(text) ||
 		/\\\[[\s\S]*?\\\]|\\\([^)\n]*?\\\)|\\begin\{(?:equation|align|gather|multline)\*?\}/.test(text) ||
@@ -109,6 +110,65 @@ export function looksLikeMarkdown(text: string): boolean {
 		/\\[_*#`~|<>+.!{}&$-]/.test(text) ||
 		/&(?:#\d{1,7}|#x[0-9a-f]{1,6}|[a-z][a-z0-9]{1,31});/i.test(text)
 	)
+}
+
+/** Butir daftar: indentasi, penanda (-, *, +, 1. atau 1)), kotak centang opsional, isi. */
+const LIST_LINE = /^(\s*)([-*+]|\d+[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/
+
+interface OpenList {
+	indent: number
+	tag: 'ul' | 'ol'
+	task: boolean
+}
+
+function openList(list: OpenList): string {
+	if (list.task) return '<ul data-type="taskList">'
+	return `<${list.tag}>`
+}
+
+function closeList(list: OpenList): string {
+	return list.task ? '</ul>' : `</${list.tag}>`
+}
+
+/**
+ * Rangkaian butir daftar menjadi HTML, bersarang menurut indentasi baris
+ * aslinya. Dulu setiap baris di-`trim()` lebih dulu: butir bersarang rata
+ * dengan induknya, dan `- [ ] tugas` menjadi butir biasa bertulisan "[ ]"
+ * (uji editor 2 Okt, TKS-12).
+ */
+function listToHtml(lines: string[], start: number): { html: string; next: number } {
+	const stack: OpenList[] = []
+	let html = ''
+	let index = start
+	while (index < lines.length) {
+		const match = lines[index].match(LIST_LINE)
+		if (!match) break
+		const indent = match[1].replace(/\t/g, '    ').length
+		const tag = /\d/.test(match[2]) ? 'ol' : 'ul'
+		const task = match[3] !== undefined
+		const current: OpenList = { indent, tag, task }
+
+		while (stack.length > 0 && indent < stack[stack.length - 1].indent) {
+			html += `</li>${closeList(stack.pop() as OpenList)}`
+		}
+		const top = stack[stack.length - 1]
+		if (!top || indent > top.indent) {
+			html += openList(current)
+			stack.push(current)
+		} else {
+			html += '</li>'
+			if (top.tag !== tag || top.task !== task) {
+				html += closeList(stack.pop() as OpenList) + openList(current)
+				stack.push(current)
+			}
+		}
+		html += task
+			? `<li data-type="taskItem" data-checked="${match[3] !== ' '}"><p>${inline(match[4])}</p>`
+			: `<li><p>${inline(match[4])}</p>`
+		index += 1
+	}
+	while (stack.length > 0) html += `</li>${closeList(stack.pop() as OpenList)}`
+	return { html, next: index }
 }
 
 export function markdownToHtml(markdown: string): string {
@@ -183,21 +243,10 @@ export function markdownToHtml(markdown: string): string {
 			index += 1
 			continue
 		}
-		const bullet = trimmed.match(/^[-*]\s+(.*)$/)
-		const ordered = trimmed.match(/^\d+\.\s+(.*)$/)
-		if (bullet || ordered) {
-			const tag = bullet ? 'ul' : 'ol'
-			const pattern = bullet ? /^[-*]\s+(.*)$/ : /^\d+\.\s+(.*)$/
-			const items: string[] = []
-
-			while (index < lines.length) {
-				const match = lines[index].trim().match(pattern)
-				if (!match) break
-				items.push(`<li><p>${inline(match[1])}</p></li>`)
-				index += 1
-			}
-
-			out.push(`<${tag}>${items.join('')}</${tag}>`)
+		if (LIST_LINE.test(line)) {
+			const list = listToHtml(lines, index)
+			out.push(list.html)
+			index = list.next
 			continue
 		}
 		if (trimmed.startsWith('>')) {

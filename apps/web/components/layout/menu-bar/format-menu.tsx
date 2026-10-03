@@ -11,8 +11,10 @@ import {
 	Indent,
 	List,
 	ListOrdered,
+	ListPlus,
 	Outdent,
 	PanelTop,
+	RotateCcw,
 	Sigma,
 	TextCursor,
 	Type,
@@ -20,12 +22,21 @@ import {
 import { useState } from 'react'
 import { ColumnOptionsDialog } from '@/components/editor/column-options-dialog'
 import { CustomSpacingDialog } from '@/components/editor/custom-spacing-dialog'
+import { ListStartField } from '@/components/editor/list-start-field'
 import { SpacingMenuItems } from '@/components/editor/spacing-menu-items'
 import { DropdownLabel, DropdownSeparator, Submenu } from '@/components/ui/dropdown'
 import { useDocument } from '@/features/document/document-context'
 import { useEditorInstance } from '@/features/editor/editor-context'
 import { indentSelection, outdentSelection } from '@/features/editor/indent'
-import { convertMathInDocument, convertSelectionToMath } from '@/features/editor/math'
+import {
+	continueNumbering,
+	NUMBERING_STYLES,
+	orderedListAt,
+	previousOrderedList,
+	restartNumbering,
+	setNumberingType,
+} from '@/features/editor/list-numbering'
+import { convertMathInDocument, insertOrConvertMath } from '@/features/editor/math'
 import { columnRegionAt } from '@/features/editor/section-break'
 import { sectionRange } from '@/features/editor/section-scope'
 import { ALL_PARAGRAPH_STYLES, PARAGRAPH_STYLES } from '@/features/editor/text-styles'
@@ -44,6 +55,10 @@ export function FormatMenu() {
 	 * kolom wilayah itu, jadi butirnya tidak perlu seleksi. */
 	const inColumns = () =>
 		Boolean(editor && columnRegionAt(editor.state.doc, editor.state.selection.from, activeSetup))
+	const canContinueNumbering = () => {
+		const list = editor ? orderedListAt(editor.state.selection.$from) : null
+		return Boolean(editor && list && previousOrderedList(editor.state.doc, list))
+	}
 	const [spacingDialogOpen, setSpacingDialogOpen] = useState(false)
 	const [columnsDialogOpen, setColumnsDialogOpen] = useState(false)
 
@@ -156,6 +171,40 @@ export function FormatMenu() {
 										Daftar centang
 									</Item>
 									<DropdownSeparator />
+									{/* Gaya, mulai ulang, dan lanjutkan nomor (TKS-10). */}
+									<Submenu label="Numbering style" icon={<ListOrdered className="h-4 w-4" />}>
+										{() => (
+											<>
+												{NUMBERING_STYLES.map((style) => (
+													<Item
+														key={style.type}
+														active={editor?.isActive('orderedList', { type: style.type }) ?? false}
+														onSelect={() => run(close, () => editor && setNumberingType(editor, style.type))}
+													>
+														{style.label}
+													</Item>
+												))}
+											</>
+										)}
+									</Submenu>
+									<Item
+										icon={<RotateCcw className="h-4 w-4" />}
+										disabled={!editor?.isActive('orderedList')}
+										onSelect={() => run(close, () => editor && restartNumbering(editor))}
+									>
+										Restart numbering
+									</Item>
+									<Item
+										icon={<ListPlus className="h-4 w-4" />}
+										disabled={!canContinueNumbering()}
+										onSelect={() => run(close, () => editor && continueNumbering(editor))}
+									>
+										Continue numbering
+									</Item>
+									<Submenu label="Set numbering value" icon={<Hash className="h-4 w-4" />}>
+										{() => <ListStartField editor={editor} onDone={close} />}
+									</Submenu>
+									<DropdownSeparator />
 									<Item
 										icon={<Indent className="h-4 w-4" />}
 										onSelect={() => run(close, () => indentSelection(editor))}
@@ -253,17 +302,17 @@ export function FormatMenu() {
 								<>
 									<Item
 										icon={<Sigma className="h-4 w-4" />}
-										disabled={!editor || editor.state.selection.empty}
-										onSelect={() => run(close, () => editor && convertSelectionToMath(editor, false))}
+										disabled={!editor}
+										onSelect={() => run(close, () => editor && insertOrConvertMath(editor, false))}
 									>
-										Make formula
+										{editor?.state.selection.empty === false ? 'Make formula' : 'Insert formula…'}
 									</Item>
 									<Item
 										icon={<Sigma className="h-4 w-4" />}
-										disabled={!editor || editor.state.selection.empty}
-										onSelect={() => run(close, () => editor && convertSelectionToMath(editor, true))}
+										disabled={!editor}
+										onSelect={() => run(close, () => editor && insertOrConvertMath(editor, true))}
 									>
-										Make block formula
+										{editor?.state.selection.empty === false ? 'Make block formula' : 'Insert block formula…'}
 									</Item>
 									<DropdownSeparator />
 									<Item onSelect={() => run(close, () => editor && convertMathInDocument(editor))}>

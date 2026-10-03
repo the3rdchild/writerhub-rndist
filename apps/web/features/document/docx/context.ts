@@ -44,7 +44,6 @@ export interface ParseState {
 	/** Sebab → berapa kali dilewati; menjadi peringatan impor di `index.ts`. */
 	skipped: Map<string, number>
 	/** Id catatan kaki yang dirujuk badan naskah, berurutan kemunculan. */
-	footnoteQueue: number[]
 	/** Id komentar yang rentangnya sedang terbuka (lintas paragraf). */
 	commentStack: string[]
 	/** Kutipan teks per id komentar, diakumulasi dari run yang termarka. */
@@ -52,7 +51,7 @@ export interface ParseState {
 }
 
 export function createParseState(): ParseState {
-	return { skipped: new Map(), footnoteQueue: [], commentStack: [], commentQuotes: new Map() }
+	return { skipped: new Map(), commentStack: [], commentQuotes: new Map() }
 }
 
 /** Bahan pembacaan: sudah lengkap sebelum paragraf pertama dibaca. */

@@ -52,11 +52,11 @@ export function ComposerToolbar() {
 
 			<ToggleIcon
 				icon={Globe}
-				label="Riset web"
+				label="Web research"
 				hint={
 					research
-						? 'AI boleh mencari dan membaca halaman web - hasilnya tercatat di Aktivitas'
-						: 'Nyalakan agar AI bisa mencari di web, bukan cuma membaca dokumen'
+						? 'The AI may search and read web pages - results are recorded in Activity'
+						: 'Turn on to let the AI search the web, not just read the document'
 				}
 				active={research}
 				onClick={() => setResearch(!research)}

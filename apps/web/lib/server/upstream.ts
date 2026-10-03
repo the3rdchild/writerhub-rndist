@@ -13,7 +13,7 @@ export class UpstreamConfigError extends Error {}
 
 function requireEnv(name: string): string {
 	const value = process.env[name]
-	if (!value) throw new UpstreamConfigError(`${name} belum dikonfigurasi di apps/web`)
+	if (!value) throw new UpstreamConfigError(`${name} is not configured in apps/web`)
 	return value
 }
 
@@ -49,7 +49,7 @@ async function buildAuthHeaders(): Promise<Headers> {
 
 export interface UpstreamRequest {
 	path: string
-	method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
+	method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 	body?: BodyInit | null
 	contentType?: string | null
 	stream?: boolean
@@ -111,6 +111,9 @@ async function bufferResponse(response: Response): Promise<Response> {
 }
 
 export function configErrorResponse(error: unknown): Response {
-	const message = error instanceof UpstreamConfigError ? error.message : 'Gagal menghubungi layanan API'
-	return Response.json({ message: 'Konfigurasi server tidak lengkap', errors: [message] }, { status: 500 })
+	const message = error instanceof UpstreamConfigError ? error.message : "Couldn't reach the API service"
+	return Response.json(
+		{ message: 'The server configuration is incomplete', errors: [message] },
+		{ status: 500 },
+	)
 }

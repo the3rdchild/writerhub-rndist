@@ -1,4 +1,5 @@
 import { mergeAttributes, Node } from '@tiptap/core'
+import { continueAfterSelectedBlock } from './insert-point'
 export const TOC_BLOCK = 'tocBlock'
 
 export type TocListKind = 'isi' | 'gambar' | 'tabel'
@@ -68,11 +69,18 @@ export const TocBlock = Node.create({
 		return {
 			insertToc:
 				(attrs?: Partial<TocBlockAttrs>) =>
-				({ chain }) =>
-					chain()
+				({ chain }) => {
+					/* Daftar gambar/tabel berisi caption, yang hidup di tingkat 7-9. */
+					const captionRange = attrs?.listKind && attrs.listKind !== 'isi' ? { minLevel: 7, maxLevel: 9 } : {}
+					return chain()
 						.focus()
-						.insertContent({ type: TOC_BLOCK, attrs: clampedAttrs(attrs ?? {}) })
-						.run(),
+						.insertContent({ type: TOC_BLOCK, attrs: clampedAttrs({ ...captionRange, ...attrs }) })
+						.command(({ tr }) => {
+							continueAfterSelectedBlock(tr)
+							return true
+						})
+						.run()
+				},
 		}
 	},
 })
@@ -86,7 +94,7 @@ declare module '@tiptap/core' {
 }
 
 export const TOC_KIND_LABEL: Record<TocListKind, string> = {
-	isi: 'Daftar isi',
-	gambar: 'Daftar gambar',
-	tabel: 'Daftar tabel',
+	isi: 'Table of contents',
+	gambar: 'List of figures',
+	tabel: 'List of tables',
 }

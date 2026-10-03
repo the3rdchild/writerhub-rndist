@@ -7,11 +7,11 @@ import { useShortcutLabel } from '@/features/shortcuts/use-shortcuts'
 import { Item, Menu, run } from './menu-shell'
 
 export function HelpMenu() {
-	const { setSettingsOpen, setShortcutsOpen } = useSettings()
+	const { setAboutOpen, setShortcutsOpen } = useSettings()
 	const keys = useShortcutLabel()
 
 	return (
-		<Menu label="Bantuan" icon={<CircleQuestionMark className="h-4 w-4" />}>
+		<Menu label="Help" icon={<CircleQuestionMark className="h-4 w-4" />}>
 			{({ close }) => (
 				<>
 					<Item
@@ -19,11 +19,11 @@ export function HelpMenu() {
 						shortcut={keys('view.shortcuts')}
 						onSelect={() => run(close, () => setShortcutsOpen(true))}
 					>
-						Pintasan papan tik…
+						Keyboard shortcuts…
 					</Item>
 					<DropdownSeparator />
-					<Item icon={<Info className="h-4 w-4" />} onSelect={() => run(close, () => setSettingsOpen(true))}>
-						Tentang WritingHub
+					<Item icon={<Info className="h-4 w-4" />} onSelect={() => run(close, () => setAboutOpen(true))}>
+						About WritingHub
 					</Item>
 				</>
 			)}

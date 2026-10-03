@@ -1,6 +1,6 @@
 'use client'
 
-import { NodeSelection, Selection, type Transaction } from '@tiptap/pm/state'
+import { NodeSelection, Selection, TextSelection, type Transaction } from '@tiptap/pm/state'
 
 /**
  * Memindahkan kursor keluar dari blok atom yang sedang terpilih, ke posisi teks
@@ -31,6 +31,47 @@ export function escapeNodeSelection(tr: Transaction): Transaction {
 		tr.setSelection(Selection.near(tr.doc.resolve(tr.selection.to), 1))
 	}
 	return tr
+}
+
+/**
+ * Taruh kursor teks di sisi sebuah blok atom (gambar, daftar isi) - di awal
+ * paragraf sesudahnya atau di akhir paragraf sebelumnya, dan buat paragraf
+ * kosong bila sisi itu bukan teks. Dipakai sesudah menyisip dari UI, supaya
+ * ketikan atau sisipan berikutnya tidak menimpa blok yang baru disisipkan
+ * (uji editor 2 Okt, OBJ-5), dan saat mengklik ruang kosong di samping gambar
+ * (OBJ-6). Garis horizontal bawaan Tiptap sudah berperilaku begini.
+ */
+export function placeCursorBeside(tr: Transaction, nodePos: number, side: 'before' | 'after'): Transaction {
+	const node = tr.doc.nodeAt(nodePos)
+	if (!node) return tr
+	const paragraph = tr.doc.type.schema.nodes.paragraph
+	try {
+		if (side === 'after') {
+			const after = nodePos + node.nodeSize
+			const next = tr.doc.resolve(after).nodeAfter
+			if (next?.isTextblock) return tr.setSelection(TextSelection.create(tr.doc, after + 1))
+			tr.insert(after, paragraph.create())
+			return tr.setSelection(TextSelection.create(tr.doc, after + 1))
+		}
+		const previous = tr.doc.resolve(nodePos).nodeBefore
+		if (previous?.isTextblock) return tr.setSelection(TextSelection.create(tr.doc, nodePos - 1))
+		tr.insert(nodePos, paragraph.create())
+		return tr.setSelection(TextSelection.create(tr.doc, nodePos + 1))
+	} catch {
+		return tr.setSelection(
+			Selection.near(
+				tr.doc.resolve(side === 'after' ? nodePos + node.nodeSize : nodePos),
+				side === 'after' ? 1 : -1,
+			),
+		)
+	}
+}
+
+/** Bila yang terpilih blok atom yang baru disisipkan, pindahkan kursor ke sesudahnya. */
+export function continueAfterSelectedBlock(tr: Transaction): Transaction {
+	const { selection } = tr
+	if (!(selection instanceof NodeSelection) || !selection.node.isBlock) return tr
+	return placeCursorBeside(tr, selection.from, 'after')
 }
 
 /**

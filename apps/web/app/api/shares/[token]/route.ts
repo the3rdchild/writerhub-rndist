@@ -17,3 +17,32 @@ export async function GET(
 		return configErrorResponse(error)
 	}
 }
+
+export async function PATCH(
+	request: Request,
+	{ params }: { params: Promise<{ token: string }> },
+): Promise<Response> {
+	try {
+		const { token } = await params
+		return await callUpstream({
+			path: `/api/v1/shares/${encodeURIComponent(token)}`,
+			method: 'PATCH',
+			body: await request.text(),
+			contentType: 'application/json',
+		})
+	} catch (error) {
+		return configErrorResponse(error)
+	}
+}
+
+export async function DELETE(
+	_request: Request,
+	{ params }: { params: Promise<{ token: string }> },
+): Promise<Response> {
+	try {
+		const { token } = await params
+		return await callUpstream({ path: `/api/v1/shares/${encodeURIComponent(token)}`, method: 'DELETE' })
+	} catch (error) {
+		return configErrorResponse(error)
+	}
+}

@@ -103,7 +103,7 @@ export function resolvePageSize(setup: PageSetup): { width: number; height: numb
 }
 
 export function validateCustomSize(width: number, height: number): string | null {
-	if (!Number.isFinite(width) || !Number.isFinite(height)) return 'Ukuran harus berupa angka.'
+	if (!Number.isFinite(width) || !Number.isFinite(height)) return 'The size must be a number.'
 	if (width < MIN_CUSTOM_SIDE || height < MIN_CUSTOM_SIDE) {
 		return `Sisi terkecil ${MIN_CUSTOM_SIDE / INCH} inci.`
 	}

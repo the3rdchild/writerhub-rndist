@@ -9,7 +9,7 @@ export function ConfirmDialog({
 	title,
 	description,
 	confirmLabel,
-	cancelLabel = 'Batal',
+	cancelLabel = 'Cancel',
 	danger,
 	onConfirm,
 	onCancel,

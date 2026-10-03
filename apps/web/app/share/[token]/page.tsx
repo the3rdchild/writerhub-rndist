@@ -25,11 +25,11 @@ export async function generateMetadata({ params }: SharePageProps): Promise<Meta
 	const robots = { index: false, follow: false }
 
 	if (!payload) {
-		return { title: 'Dokumen tidak ditemukan', robots }
+		return { title: 'Document not found', robots }
 	}
 
 	const body = jsonPlainText(payload.tabs[0]?.content, EXCERPT_SCAN_CHARS)
-	const description = excerpt(body, DESCRIPTION_CHARS) || 'Dokumen yang dibagikan lewat WritingHub.'
+	const description = excerpt(body, DESCRIPTION_CHARS) || 'A document shared with WritingHub.'
 	const title = payload.documentTitle
 
 	return {

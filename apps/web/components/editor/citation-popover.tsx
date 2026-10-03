@@ -27,12 +27,12 @@ export function CitationPopover({
 			})
 				.then(async (response) => {
 					const body = await response.json().catch(() => null)
-					if (!response.ok) throw new Error(body?.errors?.join(', ') || 'Pencarian gagal')
+					if (!response.ok) throw new Error(body?.errors?.join(', ') || 'Search failed')
 					setResults(body.data as Citation[])
 				})
 				.catch((cause: unknown) => {
 					if (controller.signal.aborted) return
-					setError(cause instanceof Error ? cause.message : 'Pencarian gagal')
+					setError(cause instanceof Error ? cause.message : 'Search failed')
 				})
 
 			return () => controller.abort()
@@ -53,7 +53,7 @@ export function CitationPopover({
 				<button
 					type="button"
 					onClick={onClose}
-					aria-label="Tutup"
+					aria-label="Close"
 					className="text-subtle transition-colors hover:text-foreground"
 				>
 					<X className="h-3.5 w-3.5" />
@@ -63,14 +63,14 @@ export function CitationPopover({
 			{results === null && !error && (
 				<div className="flex items-center gap-2 py-4 text-xs text-subtle">
 					<Loader2 className="h-3.5 w-3.5 animate-spin" />
-					Mencari di Crossref…
+					Searching Crossref…
 				</div>
 			)}
 
 			{error && <p className="rounded-lg bg-red-400/10 px-2 py-1.5 text-[11px] text-red-400">{error}</p>}
 
 			{results?.length === 0 && (
-				<p className="py-3 text-center text-xs text-subtle">Tidak ada referensi yang cocok</p>
+				<p className="py-3 text-center text-xs text-subtle">No matching references</p>
 			)}
 
 			<div className="flex max-h-64 flex-col gap-1.5 overflow-y-auto">
@@ -94,7 +94,7 @@ export function CitationPopover({
 								className="flex items-center gap-1 rounded-md bg-accent/15 px-2 py-1 text-[11px] text-accent transition-colors hover:bg-accent/25"
 							>
 								<Plus className="h-3 w-3" />
-								Sisipkan
+								Insert
 							</button>
 							{citation.url && (
 								<a
@@ -104,7 +104,7 @@ export function CitationPopover({
 									className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-subtle transition-colors hover:text-foreground"
 								>
 									<ExternalLink className="h-3 w-3" />
-									Buka
+									Open
 								</a>
 							)}
 						</div>
