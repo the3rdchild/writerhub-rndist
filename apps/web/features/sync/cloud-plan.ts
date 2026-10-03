@@ -8,6 +8,8 @@
  * cloud - tab lain (lama, baru, duplikat) masuk ke dokumen server yang sama.
  */
 
+import { type LockRequest, withWebLock } from '@/lib/web-lock'
+
 export interface TabLink {
 	documentId: string
 }
@@ -69,4 +71,34 @@ export function tabsAwaitingCloud(
 		}
 	}
 	return result
+}
+
+/**
+ * Membuat tab server untuk satu tab lokal paling banyak SEKALI di semua
+ * halaman. Setiap halaman (tab peramban) memegang tautan cloud-nya sendiri di
+ * memori; tanpa kunci, dua halaman yang sama-sama melihat tab baru di dokumen
+ * cloud masing-masing membuat tab server. Di dalam kunci, tautan yang sudah
+ * disimpan halaman lain (`readStored`) dipakai; `create` wajib menyimpan
+ * tautannya sebelum selesai, supaya halaman berikutnya melihatnya.
+ */
+export async function linkTabOnce<L>({
+	tabId,
+	request,
+	readStored,
+	create,
+}: {
+	tabId: string
+	request: LockRequest | null
+	readStored: () => L | null
+	create: () => Promise<L>
+}): Promise<{ linkage: L; created: boolean }> {
+	return withWebLock(
+		`writer-hub-link:${tabId}`,
+		async () => {
+			const stored = readStored()
+			if (stored) return { linkage: stored, created: false }
+			return { linkage: await create(), created: true }
+		},
+		request,
+	)
 }

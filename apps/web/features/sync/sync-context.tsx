@@ -40,7 +40,8 @@ import {
 import { deleteLocalVersionsExcept } from '@/features/versions/local-store'
 import { ApiError } from '@/lib/api-client'
 import { usePersistentState } from '@/lib/use-persistent-state'
-import { planCloudSave, tabsAwaitingCloud } from './cloud-plan'
+import { browserLockRequest } from '@/lib/web-lock'
+import { linkTabOnce, planCloudSave, tabsAwaitingCloud } from './cloud-plan'
 import {
 	applyDocLayout,
 	applyTabLayout,
@@ -69,6 +70,38 @@ export const SYNC_ORIGIN = 'sync'
 /** Potret kosong untuk render server (`useSyncExternalStore`). */
 const EMPTY_LOCAL_EDITS: ReadonlySet<string> = new Set()
 const noLocalEdits = () => EMPTY_LOCAL_EDITS
+
+/*
+ * Tautan satu tab langsung dari localStorage, bukan dari keadaan halaman ini:
+ * tab peramban lain menyimpan tautannya di sana, dan keadaan di memori setiap
+ * halaman tidak saling melihat.
+ */
+function readStoredLinkage(tabId: string): SyncLinkage | null {
+	try {
+		const stored = JSON.parse(window.localStorage.getItem(SYNC_STORAGE_KEY) ?? 'null') as {
+			linkage?: Record<string, SyncLinkage>
+		} | null
+		const linkage = stored?.linkage?.[tabId]
+		return linkage?.serverId ? linkage : null
+	} catch {
+		return null
+	}
+}
+
+/** Disimpan seketika - sebelum kunci penautan dilepas - supaya halaman berikutnya melihatnya. */
+function writeStoredLinkage(tabId: string, linkage: SyncLinkage): void {
+	try {
+		const stored = (JSON.parse(window.localStorage.getItem(SYNC_STORAGE_KEY) ?? 'null') as {
+			linkage?: Record<string, SyncLinkage>
+		} | null) ?? { linkage: {} }
+		window.localStorage.setItem(
+			SYNC_STORAGE_KEY,
+			JSON.stringify({ ...stored, linkage: { ...(stored.linkage ?? {}), [tabId]: linkage } }),
+		)
+	} catch {
+		// Penyimpanan penuh atau diblokir: tautannya tetap tersimpan lewat keadaan halaman ini.
+	}
+}
 
 /**
  * `too-large`: server menolak naskahnya karena melewati batas ukuran (413).
@@ -614,15 +647,26 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 				if (!meta) return false
 				setStatus(tabId, 'saving')
 				try {
-					const tab = await createTabApi(documentId, {
-						title: meta.title,
-						content: serializeTab(tabId),
-						emoji: meta.emoji,
-						language: meta.language,
-						layout: readTabLayoutOverride(doc, tabId),
+					// Tab peramban lain bisa sedang menautkan tab yang sama: satu pembuatan
+					// di semua halaman, dan tautan halaman lain dipakai bila sudah ada.
+					const { linkage: linked, created } = await linkTabOnce({
+						tabId,
+						request: browserLockRequest(),
+						readStored: () => readStoredLinkage(tabId),
+						create: async () => {
+							const tab = await createTabApi(documentId, {
+								title: meta.title,
+								content: serializeTab(tabId),
+								emoji: meta.emoji,
+								language: meta.language,
+								layout: readTabLayoutOverride(doc, tabId),
+							})
+							const fresh: SyncLinkage = { serverId: tab.id, documentId, lastSyncedAt: Date.now() }
+							writeStoredLinkage(tabId, fresh)
+							return fresh
+						},
 					})
-					const linked: SyncLinkage = { serverId: tab.id, documentId, lastSyncedAt: Date.now() }
-					freshTabs.current.set(tabId, tab.id)
+					if (created) freshTabs.current.set(tabId, linked.serverId)
 					// Langsung terlihat oleh jalur lain sebelum render berikutnya.
 					linkageRef.current = { ...linkageRef.current, [tabId]: linked }
 					setStore((current) => ({ ...current, linkage: { ...current.linkage, [tabId]: linked } }))

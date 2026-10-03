@@ -219,6 +219,10 @@ dan tata letak tetap tersimpan.
 - Dokumen lokal yang satu tabnya sudah di cloud adalah dokumen cloud (`cloud-plan.ts`): "Simpan ke cloud" pada tab
   lain membuat tab server di dokumen server yang sama, dan tab baru/duplikat/yang tertinggal ditautkan otomatis,
   satu per satu (posisi tab server dihitung `max + 1`; pembuatan bersamaan bisa bentrok).
+- Penautan otomatis dikunci per tab lokal di semua halaman (Web Locks, `linkTabOnce`): setiap tab peramban memegang
+  tautan cloud-nya sendiri di memori, jadi tanpa kunci dua halaman yang sama-sama melihat tab baru masing-masing
+  membuat tab server. Di dalam kunci, tautan yang sudah disimpan halaman lain di localStorage dipakai, dan tautan
+  baru disimpan ke sana seketika sebelum kuncinya dilepas.
 - Simpanan dan penautan yang gagal karena jaringan dicoba ulang 2, 4, 8 … 60 dtk, dan semuanya dicoba saat itu juga
   ketika peramban kembali online (`retry.ts`). Naskah kebesaran (413) tidak dicoba ulang otomatis.
 

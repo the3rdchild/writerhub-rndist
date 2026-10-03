@@ -10,16 +10,9 @@
  * sudah ditulis halaman lain ke IndexedDB sebelum mencermin.
  */
 
-export type LockRequest = (
-	name: string,
-	options: { signal: AbortSignal },
-	callback: () => Promise<void>,
-) => Promise<unknown>
+import { browserLockRequest, type LockRequest } from '@/lib/web-lock'
 
-export function browserLockRequest(): LockRequest | null {
-	if (typeof navigator === 'undefined' || !navigator.locks) return null
-	return (name, options, callback) => navigator.locks.request(name, options, callback)
-}
+export type { LockRequest }
 
 /**
  * Minta giliran mencermin tab ini. `onLead` dipanggil saat giliran didapat;
