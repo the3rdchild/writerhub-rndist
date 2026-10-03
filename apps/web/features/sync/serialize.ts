@@ -1,4 +1,4 @@
-import { getSchema, type JSONContent } from '@tiptap/core'
+import { type Editor, getSchema, type JSONContent } from '@tiptap/core'
 import { prosemirrorToYXmlFragment, yXmlFragmentToProseMirrorRootNode } from 'y-prosemirror'
 import type * as Y from 'yjs'
 import { buildEditorExtensions } from '@/features/editor/extensions'
@@ -6,6 +6,20 @@ import { LOCAL_ORIGIN, tabFragment } from '@/features/sessions/ydoc'
 
 export function buildSchema() {
 	return getSchema(buildEditorExtensions())
+}
+
+/**
+ * Editor ini menampilkan fragmen `tabId` di Y.Doc besar? Sesaat setelah tab
+ * berganti, editor di konteks bisa masih milik tab sebelumnya - editor lama
+ * dilepas dulu, dihancurkan belakangan - dan editor tab kolaboratif terikat ke
+ * Y.Doc sesinya. Isi keduanya bukan isi tab ini.
+ */
+export function editorShowsTab(editor: Editor, doc: Y.Doc, tabId: string): boolean {
+	// Editor yang sudah dihancurkan tidak lagi punya extensionManager.
+	const manager = editor.extensionManager as Editor['extensionManager'] | null
+	const collaboration = manager?.extensions.find((extension) => extension.name === 'collaboration')
+	const options = collaboration?.options as { document?: unknown; field?: unknown } | undefined
+	return options?.document === doc && options?.field === tabId
 }
 
 export function fragmentToJSON(doc: Y.Doc, tabId: string): JSONContent {

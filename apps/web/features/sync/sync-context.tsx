@@ -48,7 +48,7 @@ import {
 	readTabLayoutOverride,
 } from './layout-sync'
 import { RetryScheduler } from './retry'
-import { fragmentToJSON, jsonToFragment } from './serialize'
+import { editorShowsTab, fragmentToJSON, jsonToFragment } from './serialize'
 import { resolveTitle } from './title-sync'
 
 const SYNC_STORAGE_KEY = 'writer-hub-sync'
@@ -255,7 +255,15 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 	const serializeTab = useCallback(
 		(tabId: string) => {
 			const current = editorRef.current
-			if (tabId === activeIdRef.current && current && !current.isDestroyed) {
+			// Hanya editor yang memang menampilkan fragmen tab ini. Sesaat setelah
+			// tab berganti, editor di konteks masih milik tab sebelumnya - tab
+			// server baru pernah dibuat berisi naskah tab lain (uji kolab-02).
+			if (
+				tabId === activeIdRef.current &&
+				current &&
+				!current.isDestroyed &&
+				editorShowsTab(current, doc, tabId)
+			) {
 				return current.getJSON()
 			}
 			return fragmentToJSON(doc, tabId)

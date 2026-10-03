@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import type { JSONContent } from '@tiptap/core'
+import { Editor, type JSONContent } from '@tiptap/core'
 import * as Y from 'yjs'
+import { buildEditorExtensions } from '@/features/editor/extensions'
 import { createDocument, createTab, tabFragment, tabPreview } from '@/features/sessions/ydoc'
-import { fragmentToJSON, jsonToFragment } from './serialize'
+import { editorShowsTab, fragmentToJSON, jsonToFragment } from './serialize'
 
 function newTab(doc: Y.Doc): string {
 	return createTab(doc, createDocument(doc))
@@ -80,5 +81,35 @@ describe('serialisasi naskah ke JSON', () => {
 			type: 'doc',
 			content: [{ type: 'paragraph' }],
 		})
+	})
+})
+
+describe('editor milik tab mana', () => {
+	test('hanya editor yang terikat ke fragmen tab itu di Y.Doc besar', () => {
+		const doc = new Y.Doc()
+		const tabA = newTab(doc)
+		const tabB = newTab(doc)
+		// Isi JSON: isi bawaan berupa HTML butuh `window`, yang tidak ada di uji.
+		const content: JSONContent = { type: 'doc', content: [{ type: 'paragraph' }] }
+		const local = new Editor({
+			content,
+			extensions: buildEditorExtensions({ collaboration: { document: doc, field: tabA } }),
+		})
+		// Editor tab kolaboratif: terikat ke Y.Doc sesi, bukan ke Y.Doc besar.
+		const live = new Editor({
+			content,
+			extensions: buildEditorExtensions({ collaboration: { document: new Y.Doc(), field: 'content' } }),
+		})
+		const plain = new Editor({ content, extensions: buildEditorExtensions() })
+
+		expect(editorShowsTab(local, doc, tabA)).toBe(true)
+		expect(editorShowsTab(local, doc, tabB)).toBe(false)
+		expect(editorShowsTab(live, doc, tabA)).toBe(false)
+		expect(editorShowsTab(plain, doc, tabA)).toBe(false)
+
+		local.destroy()
+		expect(editorShowsTab(local, doc, tabA)).toBe(false)
+		live.destroy()
+		plain.destroy()
 	})
 })
