@@ -62,3 +62,32 @@ export function filterByProject(documents: readonly MergedDocument[], filter: st
 	if (filter === 'none') return documents.filter((dok) => dok.projectId === null)
 	return documents.filter((dok) => dok.projectId === filter)
 }
+
+export type DocumentSort = 'modified' | 'name'
+
+/** Judul tanpa beda huruf besar-kecil dan tanda diakritik ("Résumé" ≈ "resume"). */
+function fold(text: string): string {
+	return text
+		.normalize('NFD')
+		.replace(/\p{Diacritic}/gu, '')
+		.toLowerCase()
+}
+
+/** Cari menurut judul: setiap kata di kueri harus muncul (SHL-11). */
+export function searchDocuments(documents: readonly MergedDocument[], query: string): MergedDocument[] {
+	const words = fold(query).split(/\s+/).filter(Boolean)
+	if (words.length === 0) return [...documents]
+	return documents.filter((dok) => {
+		const title = fold(dok.title)
+		return words.every((word) => title.includes(word))
+	})
+}
+
+const byName = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
+
+export function sortDocuments(documents: readonly MergedDocument[], sort: DocumentSort): MergedDocument[] {
+	const sorted = [...documents]
+	if (sort === 'name') sorted.sort((a, b) => byName.compare(a.title, b.title) || b.updatedAt - a.updatedAt)
+	else sorted.sort((a, b) => b.updatedAt - a.updatedAt)
+	return sorted
+}

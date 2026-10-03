@@ -1,6 +1,6 @@
 'use client'
 
-import { CloudOff, CloudUpload, FileText, Loader2, MoreVertical, Pencil, Trash2 } from 'lucide-react'
+import { CloudOff, CloudUpload, Copy, FileText, Loader2, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown'
@@ -20,9 +20,11 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 export function LocalDocumentCard({
 	document,
 	onDelete,
+	onDuplicate,
 }: {
 	document: MergedDocument
 	onDelete: () => void
+	onDuplicate: () => void
 }) {
 	const router = useRouter()
 	const { selectDocument, renameDocument } = useSessions()
@@ -104,6 +106,15 @@ export function LocalDocumentCard({
 								}}
 							>
 								Ganti nama
+							</DropdownItem>
+							<DropdownItem
+								icon={<Copy className="h-4 w-4" />}
+								onSelect={() => {
+									close()
+									onDuplicate()
+								}}
+							>
+								Duplicate
 							</DropdownItem>
 							<DropdownSeparator />
 							<DropdownItem

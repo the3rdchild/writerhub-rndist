@@ -34,7 +34,15 @@ const dateFormat = new Intl.DateTimeFormat('id-ID', {
 	minute: '2-digit',
 })
 
-export function DocumentCard({ document, onDelete }: { document: DocumentSummary; onDelete: () => void }) {
+export function DocumentCard({
+	document,
+	onDelete,
+	onDuplicate,
+}: {
+	document: DocumentSummary
+	onDelete: () => void
+	onDuplicate: () => void
+}) {
 	const router = useRouter()
 	const { openFromLibrary } = useSync()
 	const invalidate = useInvalidateDocuments()
@@ -141,6 +149,15 @@ export function DocumentCard({ document, onDelete }: { document: DocumentSummary
 								}}
 							>
 								Ganti nama
+							</DropdownItem>
+							<DropdownItem
+								icon={<Copy className="h-4 w-4" />}
+								onSelect={() => {
+									close()
+									onDuplicate()
+								}}
+							>
+								Duplicate
 							</DropdownItem>
 							<DropdownItem
 								icon={<Share2 className="h-4 w-4" />}

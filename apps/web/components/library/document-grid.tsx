@@ -1,21 +1,32 @@
 'use client'
 
-import { CloudOff, FileText } from 'lucide-react'
+import { CloudOff, FileText, Search } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { deleteDocument } from '@/features/documents/api'
-import { filterByProject, type MergedDocument } from '@/features/documents/merged'
+import { deleteDocument, getDocument } from '@/features/documents/api'
+import {
+	type DocumentSort,
+	filterByProject,
+	type MergedDocument,
+	searchDocuments,
+	sortDocuments,
+} from '@/features/documents/merged'
 import { useInvalidateDocuments } from '@/features/documents/use-documents'
 import { useMergedDocuments } from '@/features/documents/use-merged-documents'
 import { useSessions } from '@/features/sessions/session-context'
+import { useSync } from '@/features/sync/sync-context'
 import { DocumentCard } from './document-card'
 import { LocalDocumentCard } from './local-document-card'
 
 export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 	const { documents, isPending, isError, error } = useMergedDocuments()
 	const invalidate = useInvalidateDocuments()
-	const { deleteDocument: deleteLocalDocument } = useSessions()
+	const { deleteDocument: deleteLocalDocument, duplicateDocument } = useSessions()
+	const { openFromLibrary } = useSync()
+	const [query, setQuery] = useState('')
+	const [sort, setSort] = useState<DocumentSort>('modified')
+	const [actionError, setActionError] = useState<string | null>(null)
 	const [pendingDelete, setPendingDelete] = useState<MergedDocument | null>(null)
 	const [deleteError, setDeleteError] = useState<string | null>(null)
 	const [deleting, setDeleting] = useState(false)
@@ -40,7 +51,66 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 		)
 	}
 
-	const visible = filterByProject(documents, projectFilter)
+	const inProject = filterByProject(documents, projectFilter)
+	const visible = sortDocuments(searchDocuments(inProject, query), sort)
+
+	/* Salinan selalu dokumen lokal; dokumen yang baru ada di server diunduh dulu. */
+	const duplicate = async (dok: MergedDocument) => {
+		setActionError(null)
+		try {
+			let source = dok.localId
+			if (!source && dok.serverId) {
+				source = await openFromLibrary(await getDocument(dok.serverId))
+				if (!source) {
+					setActionError('Too many documents or tabs are open. Close one first.')
+					return
+				}
+			}
+			if (!source || !duplicateDocument(source)) setActionError('Could not duplicate the document.')
+		} catch (cause) {
+			setActionError(cause instanceof Error ? cause.message : 'Could not duplicate the document.')
+		}
+	}
+
+	const toolbar = (
+		<div className="mx-auto mb-4 flex w-full max-w-5xl flex-wrap items-center gap-3">
+			<label className="relative min-w-[220px] flex-1">
+				<span className="sr-only">Search documents</span>
+				<Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-faint" />
+				<input
+					type="search"
+					value={query}
+					onChange={(event) => setQuery(event.target.value)}
+					placeholder="Search documents"
+					className="w-full rounded-xl border border-line-strong bg-surface-inset py-2 pr-3 pl-9 text-sm text-foreground outline-none transition-colors placeholder:text-faint focus:border-accent/50"
+				/>
+			</label>
+			<label className="flex items-center gap-2 text-sm text-muted">
+				Sort by
+				<select
+					value={sort}
+					onChange={(event) => setSort(event.target.value as DocumentSort)}
+					className="rounded-xl border border-line-strong bg-surface-inset px-3 py-2 text-sm text-foreground outline-none focus:border-accent/50"
+				>
+					<option value="modified">Last modified</option>
+					<option value="name">Name</option>
+				</select>
+			</label>
+			{actionError && <p className="w-full text-xs text-red-500">{actionError}</p>}
+		</div>
+	)
+
+	if (inProject.length > 0 && visible.length === 0) {
+		return (
+			<>
+				{toolbar}
+				<div className="flex h-48 flex-col items-center justify-center text-center">
+					<Search className="h-10 w-10 text-faint" />
+					<h2 className="mt-4 text-base font-medium text-foreground">No documents match “{query.trim()}”</h2>
+				</div>
+			</>
+		)
+	}
 
 	if (visible.length === 0) {
 		if (documents.length > 0) {
@@ -90,6 +160,7 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 
 	return (
 		<>
+			{toolbar}
 			<div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 				{visible.map((document) =>
 					document.serverId ? (
@@ -108,12 +179,14 @@ export function DocumentGrid({ projectFilter }: { projectFilter: string }) {
 								createdAt: 0,
 							}}
 							onDelete={() => setPendingDelete(document)}
+							onDuplicate={() => void duplicate(document)}
 						/>
 					) : (
 						<LocalDocumentCard
 							key={document.key}
 							document={document}
 							onDelete={() => setPendingDelete(document)}
+							onDuplicate={() => void duplicate(document)}
 						/>
 					),
 				)}
