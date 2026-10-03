@@ -68,7 +68,7 @@ export function BriefPanel() {
 					Metadata
 				</h2>
 				<div className="flex items-center gap-0.5">
-					<HeaderButton label="Minimalkan" onClick={minimizePanel}>
+					<HeaderButton label="Minimize" onClick={minimizePanel}>
 						<Minus className="h-4 w-4" />
 					</HeaderButton>
 					<HeaderButton label="Close metadata" onClick={closePanel}>

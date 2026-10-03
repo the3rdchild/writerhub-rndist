@@ -364,7 +364,7 @@ export function TableOptionsPanel({ editor, onClose }: { editor: Editor; onClose
 									className={FIELD_CLASS}
 								>
 									<option value="solid">Solid</option>
-									<option value="dashed">Putus-putus</option>
+									<option value="dashed">Dashed</option>
 									<option value="dotted">Dotted</option>
 									<option value="double">Double</option>
 								</select>

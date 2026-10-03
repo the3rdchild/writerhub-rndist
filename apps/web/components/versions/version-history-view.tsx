@@ -349,7 +349,7 @@ export function VersionHistoryView() {
 				open={confirmOpen}
 				title="Restore this version?"
 				description="The document goes back to the selected version. The current draft is saved automatically as the version 'Before restore'."
-				confirmLabel="Pulihkan"
+				confirmLabel="Restore"
 				onConfirm={() => void handleRestore()}
 				onCancel={() => setConfirmOpen(false)}
 			/>
