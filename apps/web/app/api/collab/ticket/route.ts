@@ -20,7 +20,7 @@ export async function POST(request: Request): Promise<Response> {
 		const tabId = typeof body?.tabId === 'string' ? body.tabId : ''
 		const shareToken = typeof body?.shareToken === 'string' ? body.shareToken : ''
 		if (!tabId) {
-			return Response.json({ message: 'Bad Request', errors: ['tabId wajib diisi'] }, { status: 400 })
+			return Response.json({ message: 'Bad Request', errors: ['tabId is required'] }, { status: 400 })
 		}
 
 		return await callUpstream({

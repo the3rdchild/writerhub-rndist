@@ -342,6 +342,6 @@ export function CollabProvider({
 
 export function useCollab(): CollabContextValue {
 	const context = useContext(CollabContext)
-	if (!context) throw new Error('useCollab harus dipakai di dalam <CollabProvider>')
+	if (!context) throw new Error('useCollab must be used inside <CollabProvider>')
 	return context
 }

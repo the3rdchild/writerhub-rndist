@@ -939,6 +939,6 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
 export function useSync(): SyncContextValue {
 	const context = useContext(SyncContext)
-	if (!context) throw new Error('useSync harus dipakai di dalam <SyncProvider>')
+	if (!context) throw new Error('useSync must be used inside <SyncProvider>')
 	return context
 }
