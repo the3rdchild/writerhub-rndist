@@ -36,6 +36,7 @@ import { HtmlBlock } from '@/features/editor/html-block'
 import { ImageFileDrop } from '@/features/editor/image-insert'
 import { BlockIndentExtension } from '@/features/editor/indent'
 import { openHref, promptForLink } from '@/features/editor/link'
+import { NumberedList } from '@/features/editor/list-numbering'
 import { Bold, Code, Italic, Strike } from '@/features/editor/marks'
 import { MathBlock, MathInline } from '@/features/editor/math'
 import { PageBreak } from '@/features/editor/page-break'
@@ -105,6 +106,8 @@ export function buildEditorExtensions({
 			link: false,
 			codeBlock: false,
 			heading: false,
+			/* Diganti NumberedList - gaya nomor yang terbaca CSS (`list-numbering.ts`). */
+			orderedList: false,
 			/* Diganti versi tanpa aturan tempel - lihat `marks.ts`. */
 			bold: false,
 			italic: false,
@@ -116,6 +119,7 @@ export function buildEditorExtensions({
 		Italic,
 		Strike,
 		Code,
+		NumberedList,
 		HeadingLevels,
 		Link.extend({
 			addKeyboardShortcuts() {

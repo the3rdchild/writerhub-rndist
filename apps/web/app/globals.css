@@ -954,11 +954,22 @@ a {
 }
 .document-body ul { list-style: disc; }
 .document-body ol { list-style: decimal; }
-/* Atribut type dari list hasil impor DOCX (huruf/romawi) menimpa penanda decimal. */
-.document-body ol[type='a'] { list-style-type: lower-alpha; }
-.document-body ol[type='A'] { list-style-type: upper-alpha; }
-.document-body ol[type='i'] { list-style-type: lower-roman; }
-.document-body ol[type='I'] { list-style-type: upper-roman; }
+/* Tingkat bersarang tanpa gaya sendiri berganti penanda seperti Word:
+   1. → a. → i. dan ● → ○ → ■ (TKS-10; `list-numbering.ts`, sama dengan DOCX). */
+.document-body :is(ol, ul) ol { list-style-type: lower-alpha; }
+.document-body :is(ol, ul) :is(ol, ul) ol { list-style-type: lower-roman; }
+.document-body :is(ol, ul) :is(ol, ul) :is(ol, ul) ol { list-style-type: decimal; }
+.document-body :is(ol, ul) ul { list-style-type: circle; }
+.document-body :is(ol, ul) :is(ol, ul) ul { list-style-type: square; }
+.document-body :is(ol, ul) :is(ol, ul) :is(ol, ul) ul { list-style-type: disc; }
+/* Gaya nomor yang dipilih (atau dari impor DOCX) menimpa penanda bawaan
+   tingkatnya. Lewat `data-list-type`, bukan `type`: selektor atribut `type`
+   tidak membedakan huruf besar-kecil, jadi a dan A saling menimpa. */
+.document-body ol[data-list-type='decimal'] { list-style-type: decimal; }
+.document-body ol[data-list-type='lower-alpha'] { list-style-type: lower-alpha; }
+.document-body ol[data-list-type='upper-alpha'] { list-style-type: upper-alpha; }
+.document-body ol[data-list-type='lower-roman'] { list-style-type: lower-roman; }
+.document-body ol[data-list-type='upper-roman'] { list-style-type: upper-roman; }
 .document-body li { margin: 0.2em 0; }
 
 .document-body blockquote {
