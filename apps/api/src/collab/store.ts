@@ -2,6 +2,7 @@ import { COLLAB_FRAGMENT } from '@writer-hub/shared'
 import { yFragmentToProseMirrorJSON } from '@writer-hub/shared/collab-json'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import * as Y from 'yjs'
+import { isUuid } from '@/constants/patterns'
 import { isPgError, PG_ERROR } from '@/constants/postgres-error'
 import db from '@/db'
 import {
@@ -11,8 +12,10 @@ import {
 	documents,
 	documentTabs,
 	type NewDocumentTab,
+	shares,
 } from '@/db/schemas'
 import { contentMarkCovers, contentMarksEqual, snapshotOf } from './state-vector'
+import type { CollabClaims } from './ticket'
 
 /**
  * Persistensi state Yjs per tab di Postgres.
@@ -81,6 +84,29 @@ export async function contentFromLog(tabId: string): Promise<Record<string, unkn
 	} finally {
 		doc.destroy()
 	}
+}
+
+/**
+ * Tautan berbagi di balik tiket `share:<id>` masih memberi akses yang sama?
+ * Tiket berlaku ±60 dtk dan sambungan ulang memakai tiket terakhir, jadi tanpa
+ * pemeriksaan ini tautan yang dicabut atau diturunkan perannya tetap bisa
+ * dipakai sampai otorisasi ulang berikutnya.
+ *
+ * - `revoked`: tautannya tidak ada lagi, atau bukan untuk dokumen ini.
+ * - `changed`: peran atau aksesnya berubah sejak tiket dibuat - ambil tiket baru.
+ */
+export async function checkShareGrant(claims: CollabClaims): Promise<'ok' | 'revoked' | 'changed'> {
+	const shareId = claims.sub.startsWith('share:') ? claims.sub.slice('share:'.length) : ''
+	if (!isUuid(shareId)) return 'revoked'
+	const [share] = await db
+		.select({ documentId: shares.document_id, access: shares.access, role: shares.role })
+		.from(shares)
+		.where(eq(shares.id, shareId))
+		.limit(1)
+	if (!share || share.documentId !== claims.doc) return 'revoked'
+	if (share.role !== claims.role) return 'changed'
+	if (claims.acc !== undefined && share.access !== claims.acc) return 'changed'
+	return 'ok'
 }
 
 export async function tabExists(tabId: string): Promise<boolean> {

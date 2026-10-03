@@ -267,6 +267,48 @@ describe.skipIf(!enabled)('kolaborasi ujung-ke-ujung (proses API sungguhan)', ()
 		await expect(shareTicket()).rejects.toThrow(/404/)
 	}, 30_000)
 
+	test('tiket tautan berbagi yang masih berlaku ditolak setelah perannya diturunkan atau tautannya dicabut', async () => {
+		const { documentId, tabId } = await createDocument(main, 'AWAL-CABUT')
+		const owner = peer(main, tabId, (await ticketFor(main, tabId)).ticket, { seed: seedFrom('AWAL-CABUT') })
+		await owner.ready()
+		const share = await apiJson<{ token: string }>(main.url, '/api/v1/shares', {
+			method: 'POST',
+			body: JSON.stringify({ documentId, access: 'anyone', role: 'editor' }),
+		})
+		const shareTicket = () =>
+			apiJson<CollabTicket>(main.url, `/api/v1/collab/shared/${share.token}/tickets`, {
+				method: 'POST',
+				body: JSON.stringify({ tabId }),
+			})
+		// Tiket editor diambil sebelum perubahan, masih berlaku ±60 dtk sesudahnya.
+		const oldEditorTicket = (await shareTicket()).ticket
+
+		await apiJson(main.url, `/api/v1/shares/${share.token}`, {
+			method: 'PATCH',
+			body: JSON.stringify({ role: 'viewer' }),
+		})
+		const downgraded = peer(main, tabId, oldEditorTicket, { reconnect: false })
+		await waitFor(
+			() => downgraded.closes.length > 0 || downgraded.lastStatus?.state === 'ready',
+			'sambungan dengan tiket lama diputuskan',
+		)
+		expect(downgraded.lastStatus?.role).not.toBe('editor')
+		expect(downgraded.closes[0]?.code).toBe(COLLAB_CLOSE.ticket)
+		downgraded.type('TULISAN-SETELAH-DITURUNKAN')
+		await Bun.sleep(700)
+		expect(owner.text).not.toContain('TULISAN-SETELAH-DITURUNKAN')
+
+		const viewerTicket = (await shareTicket()).ticket
+		await apiJson(main.url, `/api/v1/shares/${share.token}`, { method: 'DELETE' })
+		const revoked = peer(main, tabId, viewerTicket, { reconnect: false })
+		await waitFor(
+			() => revoked.closes.length > 0 || revoked.lastStatus?.state === 'ready',
+			'sambungan dengan tiket tautan yang dicabut diputuskan',
+		)
+		expect(revoked.closes[0]?.code).toBe(COLLAB_CLOSE.forbidden)
+		expect(revoked.text).toBe('')
+	}, 30_000)
+
 	test('versi: cadangan membawa isi dari klien; sebelum-pulihkan memotret isi terkini dari log', async () => {
 		const { tabId } = await createDocument(main, 'AWAL-VERSI')
 		const versions = await apiJson<Array<{ id: string }>>(main.url, `/api/v1/tabs/${tabId}/versions`)

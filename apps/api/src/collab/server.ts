@@ -12,6 +12,7 @@ import { CollabRoom, CollabTabGoneError, type RoomHost, type RoomSettings, type 
 import { collabTicketSigner, roomSettingsFromEnv } from './settings'
 import {
 	appendCollabUpdate,
+	checkShareGrant,
 	compactCollabUpdates,
 	loadCollabState,
 	loadCollabUpdate,
@@ -20,6 +21,11 @@ import {
 	writeDerivedContent,
 } from './store'
 import type { CollabClaims } from './ticket'
+
+/** Penyimpanan room plus pemeriksaan yang dibutuhkan manajer saat sambungan masuk. */
+export interface ManagerStore extends RoomStore {
+	checkShareGrant(claims: CollabClaims): Promise<'ok' | 'revoked' | 'changed'>
+}
 
 const log = LoggerClient.getInstance()
 
@@ -35,7 +41,7 @@ export interface CollabSocketData {
 
 type CollabServerWebSocket = Bun.ServerWebSocket<CollabSocketData>
 
-const postgresStore: RoomStore = {
+const postgresStore: ManagerStore = {
 	tabExists,
 	load: loadCollabState,
 	append: appendCollabUpdate,
@@ -43,6 +49,7 @@ const postgresStore: RoomStore = {
 	seed: seedCollabState,
 	writeDerived: writeDerivedContent,
 	compact: compactCollabUpdates,
+	checkShareGrant,
 }
 
 /**
@@ -59,7 +66,7 @@ export class CollabManager implements RoomHost {
 
 	constructor(
 		readonly bus: CollabBus,
-		readonly store: RoomStore,
+		readonly store: ManagerStore,
 		readonly settings: RoomSettings,
 		private readonly idleMs: number,
 	) {
@@ -170,8 +177,37 @@ export class CollabManager implements RoomHost {
 				env.COLLAB_REAUTH_S * 1000,
 			)
 		}
+		void this.admit(conn, data.tabId)
+	}
 
-		this.roomFor(data.tabId).then(
+	/**
+	 * Tiket tautan berbagi diperiksa ulang terhadap tautan yang berlaku: tiket
+	 * yang masih sah (±60 dtk), dipakai menyambung ulang setelah tautannya
+	 * dicabut atau diturunkan, tidak boleh membawa peran lama. Pesan yang tiba
+	 * selama pemeriksaan ditampung di `inbox` seperti saat room dimuat.
+	 */
+	private async admit(conn: CollabConnection, tabId: string): Promise<void> {
+		if (conn.viaShareLink) {
+			let grant: 'ok' | 'revoked' | 'changed'
+			try {
+				grant = await this.store.checkShareGrant(conn.claims)
+			} catch (error) {
+				log.error({ err: error, tabId }, '[collab] gagal memeriksa tautan berbagi')
+				conn.close(COLLAB_CLOSE.unavailable, 'share check failed')
+				return
+			}
+			if (grant === 'revoked') {
+				conn.close(COLLAB_CLOSE.forbidden, 'share revoked')
+				return
+			}
+			if (grant === 'changed') {
+				conn.close(COLLAB_CLOSE.ticket, 'share changed')
+				return
+			}
+		}
+		if (conn.phase === 'closed') return
+
+		this.roomFor(tabId).then(
 			(room) => {
 				if (conn.phase === 'closed') {
 					if (room.conns.size === 0) this.roomEmpty(room)
@@ -187,7 +223,7 @@ export class CollabManager implements RoomHost {
 					conn.close(COLLAB_CLOSE.gone, 'tab deleted')
 					return
 				}
-				log.error({ err: error, tabId: data.tabId }, '[collab] room gagal dimuat')
+				log.error({ err: error, tabId }, '[collab] room gagal dimuat')
 				conn.close(COLLAB_CLOSE.unavailable, 'room unavailable')
 			},
 		)

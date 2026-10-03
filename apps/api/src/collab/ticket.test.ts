@@ -60,6 +60,16 @@ describe('tiket kolaborasi', () => {
 		expect(signer.verify(badRole)).toEqual({ ok: false, reason: 'malformed ticket' })
 		const { ticket: badTab } = signer.sign({ ...base, tab: 'bukan-uuid' }, 60)
 		expect(signer.verify(badTab)).toEqual({ ok: false, reason: 'malformed ticket' })
+		const { ticket: badAccess } = signer.sign({ ...base, acc: 'publik' as never }, 60)
+		expect(signer.verify(badAccess)).toEqual({ ok: false, reason: 'malformed ticket' })
+	})
+
+	test('tiket tautan berbagi membawa akses tautannya', () => {
+		const signer = createTicketSigner('rahasia')
+		const share = { ...base, sub: 'share:abc', uid: null, name: 'Guest', role: 'viewer' as const }
+		const { ticket, exp } = signer.sign({ ...share, acc: 'anyone' }, 60)
+		const verdict = signer.verify(ticket)
+		expect(verdict.ok && verdict.claims).toEqual({ v: 1, ...share, acc: 'anyone', exp })
 	})
 
 	test('kunci kosong ditolak saat membuat penanda tangan', () => {

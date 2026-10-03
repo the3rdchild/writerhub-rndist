@@ -29,6 +29,12 @@ export interface CollabClaims {
 	uid: string | null
 	name: string
 	role: CollabRole
+	/**
+	 * Akses tautan berbagi saat tiket dibuat (hanya tiket `share:`). Saat
+	 * menyambung, peran dan akses ini dibandingkan dengan tautan yang berlaku:
+	 * tiket dari sebelum tautan diturunkan atau dibatasi ditolak.
+	 */
+	acc?: 'anyone' | 'restricted'
 	/** Detik epoch. */
 	exp: number
 }
@@ -50,6 +56,7 @@ function isClaims(value: unknown): value is CollabClaims {
 		typeof claims.name === 'string' &&
 		typeof claims.role === 'string' &&
 		(COLLAB_ROLES as readonly string[]).includes(claims.role) &&
+		(claims.acc === undefined || claims.acc === 'anyone' || claims.acc === 'restricted') &&
 		typeof claims.exp === 'number' &&
 		Number.isFinite(claims.exp)
 	)

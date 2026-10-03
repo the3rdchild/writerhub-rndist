@@ -84,6 +84,7 @@ export default class CollabService extends BaseService {
 				uid: null,
 				name: 'Guest',
 				role: share.role,
+				acc: share.access,
 			})
 			return this.success({ data: ticket })
 		} catch (error) {

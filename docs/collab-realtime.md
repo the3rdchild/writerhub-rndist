@@ -69,6 +69,10 @@ Keputusan terkait:
   tanpa bisa menyunting, tautan `editor` bisa menyunting.
 - **Mengubah atau mencabut tautan berbagi** memutus sambungan yang masuk lewat tautan itu (4401, pesan bus
   `share-changed`), jadi peran baru atau penolakan berlaku seketika, bukan setelah otorisasi ulang sejam kemudian.
+  Setiap sambungan lewat tautan juga diperiksa ulang saat dibuka (`checkShareGrant`): tiket tamu membawa peran dan
+  akses (`acc`) tautan saat dibuat, dan tiket yang masih sah (±60 dtk) tetapi berasal dari sebelum perubahan
+  ditolak 4401 (ambil tiket baru) atau 4403 bila tautannya sudah dicabut. Tanpa itu, sambungan ulang dengan tiket
+  terakhir membawa peran lama sampai otorisasi ulang berikutnya.
 - **Batas laju tiket tautan** per tautan (`RATE_LIMIT_SHARE_TICKETS_PER_MIN`, bawaan 120/menit): rute itu tanpa sesi,
   jadi yang dihitung adalah tautannya.
 - **Identitas di kehadiran dipaksakan server.** y-protocols mempercayai klien sepenuhnya; server menimpa `user.name`
