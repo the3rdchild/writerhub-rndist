@@ -17,7 +17,7 @@ const collab = createRouter().basePath('/collab')
 // bisa dipakai membanjiri penerbitan tiket.
 const shareTicketLimit = rateLimit(
 	'collab-share-ticket',
-	'tiket kolaborasi',
+	'collab tickets',
 	env.RATE_LIMIT_SHARE_TICKETS_PER_MIN,
 	(c) => {
 		const token = c.req.param('token')
@@ -26,7 +26,7 @@ const shareTicketLimit = rateLimit(
 )
 
 // Per pengguna: klien yang tiketnya terus ditolak tidak membanjiri penerbitan tiket.
-const ticketLimit = rateLimit('collab-ticket', 'tiket kolaborasi', env.RATE_LIMIT_COLLAB_TICKETS_PER_MIN)
+const ticketLimit = rateLimit('collab-ticket', 'collab tickets', env.RATE_LIMIT_COLLAB_TICKETS_PER_MIN)
 
 collab.post('/tickets', authMiddleware, ticketLimit, (c) => new CollabService(c).issue())
 collab.post('/shared/:token/tickets', shareTicketLimit, (c) => new CollabService(c).issueShared())

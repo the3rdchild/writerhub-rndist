@@ -54,9 +54,9 @@ export function rateLimit(
 			c.header('Retry-After', String(retryAfter))
 			return c.json(
 				{
-					message: 'Terlalu banyak permintaan',
+					message: 'Too many requests',
 					errors: [
-						`Batas ${limitPerMinute} ${label} per menit tercapai. Coba lagi dalam ${retryAfter} detik.`,
+						`Limit of ${limitPerMinute} ${label} per minute reached. Try again in ${retryAfter} seconds.`,
 					],
 				},
 				429,

@@ -69,7 +69,7 @@ export interface TicketSigner {
 
 /** Penanda tangan atas satu kunci; terpisah dari `env` supaya logikanya bisa diuji sungguhan. */
 export function createTicketSigner(key: string): TicketSigner {
-	if (!key) throw new Error('Kunci tiket kolaborasi kosong')
+	if (!key) throw new Error('The collab ticket key is empty')
 	const mac = (payload: string): string =>
 		createHmac('sha256', key).update(`${SCOPE}.${payload}`).digest('base64url')
 

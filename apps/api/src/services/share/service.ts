@@ -20,7 +20,7 @@ export default class ShareService extends BaseService {
 
 			const identityId = await this.identityId()
 			const document = await findDocumentById(documentId, identityId)
-			if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
+			if (!document) throw AppError.notFound('Document not found')
 
 			/*
 			 * Satu tautan per dokumen, seperti Docs. Dulu setiap pembukaan dialog
@@ -42,7 +42,7 @@ export default class ShareService extends BaseService {
 							created_by: this.context.get('userId') ?? null,
 						})
 						.returning()
-			if (!share) throw AppError.internalServerError('Gagal membuat share link')
+			if (!share) throw AppError.internalServerError("Couldn't create the share link")
 			if (existing) await this.dropCollabConnections(documentId, [existing.id])
 
 			return this.success({
@@ -60,9 +60,9 @@ export default class ShareService extends BaseService {
 	async current(): Promise<Response> {
 		try {
 			const documentId = this.context.req.query('documentId')
-			if (!documentId) throw AppError.badRequest('documentId wajib diisi')
+			if (!documentId) throw AppError.badRequest('documentId is required')
 			const document = await findDocumentById(documentId, await this.identityId())
-			if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
+			if (!document) throw AppError.notFound('Document not found')
 			const share = await this.currentShare(documentId)
 			return this.success({ data: { share: share ? this.shareResponse(share, document.title) : null } })
 		} catch (error) {
@@ -86,7 +86,7 @@ export default class ShareService extends BaseService {
 				})
 				.where(eq(shares.id, share.id))
 				.returning()
-			if (!updated) throw AppError.internalServerError('Gagal memperbarui share link')
+			if (!updated) throw AppError.internalServerError("Couldn't update the share link")
 			await this.dropCollabConnections(document.id, [share.id])
 			return this.success({ data: this.shareResponse(updated, document.title) })
 		} catch (error) {
@@ -117,7 +117,7 @@ export default class ShareService extends BaseService {
 	async getByToken(): Promise<Response> {
 		try {
 			const token = this.context.req.param('token')
-			if (!token) throw AppError.badRequest('Token share tidak ada')
+			if (!token) throw AppError.badRequest('Share token is missing')
 
 			const [row] = await this.db
 				.select({
@@ -133,10 +133,10 @@ export default class ShareService extends BaseService {
 				.where(eq(shares.token, token))
 				.limit(1)
 
-			if (!row || !row.documentId) throw AppError.notFound('Share link tidak ditemukan')
+			if (!row || !row.documentId) throw AppError.notFound('Share link not found')
 
 			if (row.access === 'restricted' && !this.context.get('userId')) {
-				throw AppError.forbidden('Dokumen ini dibatasi, silakan masuk terlebih dahulu')
+				throw AppError.forbidden('This document is restricted - please sign in first')
 			}
 
 			const tabs = await findTabsByDocument(row.documentId)
@@ -195,11 +195,11 @@ export default class ShareService extends BaseService {
 	/** Tautan dari parameter `:token`, hanya bila dokumennya milik pengguna ini. */
 	private async ownedShare() {
 		const token = this.context.req.param('token')
-		if (!token) throw AppError.badRequest('Token share tidak ada')
+		if (!token) throw AppError.badRequest('Share token is missing')
 		const [share] = await this.db.select().from(shares).where(eq(shares.token, token)).limit(1)
-		if (!share?.document_id) throw AppError.notFound('Share link tidak ditemukan')
+		if (!share?.document_id) throw AppError.notFound('Share link not found')
 		const document = await findDocumentById(share.document_id, await this.identityId())
-		if (!document) throw AppError.notFound('Share link tidak ditemukan')
+		if (!document) throw AppError.notFound('Share link not found')
 		return { share, document }
 	}
 

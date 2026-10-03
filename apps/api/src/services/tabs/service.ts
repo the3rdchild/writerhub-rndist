@@ -81,7 +81,7 @@ export default class TabsService extends BaseService {
 				layout: body.data.layout ?? null,
 				position: await nextTabPosition(document.id),
 			})
-			if (!tab) throw AppError.internalServerError('Gagal menyimpan tab')
+			if (!tab) throw AppError.internalServerError("Couldn't save the tab")
 			await snapshotIntervalTab(tab.id, tab.content, this.ownerId())
 			await touchDocument(document.id)
 
@@ -109,7 +109,7 @@ export default class TabsService extends BaseService {
 			const values: Partial<NewDocumentTab> = { ...body.data }
 			if (Object.keys(values).length === 0) {
 				return this.error({
-					errors: ['Tidak ada field yang bisa diubah (title/content/emoji/language/layout)'],
+					errors: ['No changeable fields (title/content/emoji/language/layout)'],
 				})
 			}
 			let tab: Awaited<ReturnType<typeof updateTab>> | null
@@ -125,7 +125,7 @@ export default class TabsService extends BaseService {
 					 * websocket.
 					 */
 					throw AppError.conflict(
-						'Isi tab ini disunting bersama secara real-time; kirim ulang tanpa content',
+						"This tab's content is edited live; send it again without content",
 						'collab_active',
 					)
 				}
@@ -136,7 +136,7 @@ export default class TabsService extends BaseService {
 			} else {
 				tab = await updateTab(existing.id, values)
 			}
-			if (!tab) throw AppError.internalServerError('Gagal menyimpan tab')
+			if (!tab) throw AppError.internalServerError("Couldn't save the tab")
 
 			if (body.data.content !== undefined)
 				await snapshotIntervalTab(tab.id, body.data.content, this.ownerId())
@@ -157,7 +157,7 @@ export default class TabsService extends BaseService {
 			const siblingCount = await countTabs(tab.document_id)
 
 			const deleted = await deleteTab(tab.id)
-			if (!deleted) throw AppError.internalServerError('Gagal menghapus tab')
+			if (!deleted) throw AppError.internalServerError("Couldn't delete the tab")
 			notifyCollabTabsGone([tab.id])
 
 			let documentDeleted = false
@@ -188,7 +188,7 @@ export default class TabsService extends BaseService {
 			const requested = body.data.tabIds
 
 			if (requested.length !== existingIds.size || !requested.every((id) => existingIds.has(id))) {
-				throw AppError.badRequest('tabIds harus memuat seluruh tab dokumen ini tepat sekali')
+				throw AppError.badRequest('tabIds must list every tab of this document exactly once')
 			}
 
 			await reorderTabs(requested)
@@ -201,26 +201,26 @@ export default class TabsService extends BaseService {
 
 	private ownerId(): string {
 		const userId = this.context.get('userId')
-		if (!userId) throw AppError.unauthorized('User tidak dikenal')
+		if (!userId) throw AppError.unauthorized('Unknown user')
 		return userId
 	}
 	private async ownedDocument() {
 		const document = await findDocumentById(this.documentId(), await this.identityId())
-		if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
+		if (!document) throw AppError.notFound('Document not found')
 		return document
 	}
 	private async ownedTab() {
 		const tab = await findTabById(this.tabId(), await this.identityId())
-		if (!tab) throw AppError.notFound('Tab tidak ditemukan')
+		if (!tab) throw AppError.notFound('Tab not found')
 		return tab
 	}
 
 	private documentId(): string {
-		return this.uuidParam('id', 'ID dokumen')
+		return this.uuidParam('id', 'Document ID')
 	}
 
 	private tabId(): string {
-		return this.uuidParam('tabId', 'ID tab')
+		return this.uuidParam('tabId', 'Tab ID')
 	}
 
 	private toSummary(tab: {

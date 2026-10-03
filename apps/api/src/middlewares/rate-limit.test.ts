@@ -50,7 +50,7 @@ function app(limit: number, userId: string | null = 'penulis-1') {
 		}
 		await next()
 	})
-	server.post('/', rateLimit('uji', 'permintaan uji', limit), (c) => c.text('ok'))
+	server.post('/', rateLimit('uji', 'test requests', limit), (c) => c.text('ok'))
 	return server
 }
 
@@ -70,7 +70,7 @@ describe('rateLimit', () => {
 		expect(retryAfter).toBeGreaterThanOrEqual(1)
 		expect(retryAfter).toBeLessThanOrEqual(60)
 		const body = (await limited.json()) as { errors: string[] }
-		expect(body.errors[0]).toContain('Batas 2 permintaan uji per menit')
+		expect(body.errors[0]).toContain('Limit of 2 test requests per minute')
 	})
 
 	test('setiap pengguna punya embernya sendiri', async () => {

@@ -173,7 +173,7 @@ async function writeDraft(
 		const warnings: string[] = []
 		if (allowHtmlBlock && !design && /```\s*html/i.test(markdown)) {
 			warnings.push(
-				'Jawaban modelnya memuat pagar ```html tapi tidak terbaca sebagai rancangan; disimpan sebagai dokumen biasa.',
+				"The model's answer has an ```html fence but could not be read as a design; it was saved as a regular document.",
 			)
 			log.warn(
 				{ documentId, characters: markdown.length },
@@ -181,7 +181,7 @@ async function writeDraft(
 			)
 		}
 		if (design && designPages && generated.content.length !== designPages) {
-			warnings.push(`Diminta ${designPages} halaman rancangan, yang jadi ${generated.content.length}.`)
+			warnings.push(`Asked for ${designPages} design pages, got ${generated.content.length}.`)
 		}
 		/*
 		 * Rancangan tidak punya badan naskah untuk dikolomkan - tiap halamannya
@@ -223,7 +223,7 @@ async function writeDraft(
 		log.error({ err: error, documentId, tabId }, 'Naskah draf gagal disimpan')
 		await markFailed(documentId, {
 			code: 'save_failed',
-			message: 'Naskahnya selesai ditulis tapi gagal disimpan ke dokumen.',
+			message: 'The manuscript was written but could not be saved to the document.',
 		})
 	}
 }

@@ -43,7 +43,7 @@ export default class VersionsService extends BaseService {
 		try {
 			await this.ownedTab()
 			const version = await findVersionById(this.versionId(), this.tabId())
-			if (!version) throw AppError.notFound('Versi tidak ditemukan')
+			if (!version) throw AppError.notFound('Version not found')
 			return this.success({ data: this.toDetail(version) })
 		} catch (error) {
 			return this.failFromError(error)
@@ -66,7 +66,7 @@ export default class VersionsService extends BaseService {
 				word_count: countWords(content),
 				created_by: this.ownerId(),
 			})
-			if (!version) throw AppError.internalServerError('Gagal menyimpan versi')
+			if (!version) throw AppError.internalServerError("Couldn't save the version")
 
 			return this.success({ data: this.toSummary(version), status: 201 })
 		} catch (error) {
@@ -77,7 +77,7 @@ export default class VersionsService extends BaseService {
 		try {
 			const tab = await this.ownedTab()
 			const version = await findVersionById(this.versionId(), tab.id)
-			if (!version) throw AppError.notFound('Versi tidak ditemukan')
+			if (!version) throw AppError.notFound('Version not found')
 
 			// Isi terkini dari log Yjs bila tab kolaboratif: suntingan beberapa detik
 			// terakhir belum tentu sudah diturunkan ke `document_tabs.content`, dan
@@ -90,12 +90,12 @@ export default class VersionsService extends BaseService {
 				word_count: countWords(current),
 				created_by: this.ownerId(),
 			})
-			if (!preRestore) throw AppError.internalServerError('Gagal menyimpan versi pre-restore')
+			if (!preRestore) throw AppError.internalServerError("Couldn't save the pre-restore version")
 
 			// Tab kolaboratif ikut di-reset: klien yang terbuka diputus (4409) lalu
 			// room disemai ulang dari isi yang dipulihkan ini.
 			const { tab: updated } = await writeTabContentFromServer(tab.id, { content: version.content })
-			if (!updated) throw AppError.internalServerError('Gagal memulihkan tab')
+			if (!updated) throw AppError.internalServerError("Couldn't restore the tab")
 
 			return this.success({
 				data: { restored: this.toSummary(version), preRestoreVersionId: preRestore.id },
@@ -110,22 +110,22 @@ export default class VersionsService extends BaseService {
 
 	private async ownedTab() {
 		const tab = await findTabById(this.tabId(), await this.identityId())
-		if (!tab) throw AppError.notFound('Tab tidak ditemukan')
+		if (!tab) throw AppError.notFound('Tab not found')
 		return tab
 	}
 
 	private ownerId(): string {
 		const userId = this.context.get('userId')
-		if (!userId) throw AppError.unauthorized('User tidak dikenal')
+		if (!userId) throw AppError.unauthorized('Unknown user')
 		return userId
 	}
 
 	private tabId(): string {
-		return this.uuidParam('tabId', 'ID tab')
+		return this.uuidParam('tabId', 'Tab ID')
 	}
 
 	private versionId(): string {
-		return this.uuidParam('versionId', 'ID versi')
+		return this.uuidParam('versionId', 'Version ID')
 	}
 
 	private toSummary(version: {

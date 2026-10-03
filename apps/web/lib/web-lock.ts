@@ -28,6 +28,6 @@ export async function withWebLock<T>(
 	await request(name, {}, async () => {
 		result = { value: await work() }
 	})
-	if (!result) throw new Error(`Kunci ${name} dilepas tanpa hasil`)
+	if (!result) throw new Error(`Lock ${name} was released without a result`)
 	return (result as { value: T }).value
 }

@@ -362,5 +362,5 @@ export function upgradeCollabSocket(c: Context): Response {
 		// Bun mengabaikan jawaban ini setelah upgrade berhasil.
 		return new Response(null)
 	}
-	return c.json({ message: 'Upgrade Required', errors: ['Endpoint ini hanya menerima websocket'] }, 426)
+	return c.json({ message: 'Upgrade Required', errors: ['This endpoint only accepts websockets'] }, 426)
 }

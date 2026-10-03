@@ -782,7 +782,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 					...(docBrief ? { brief: docBrief } : {}),
 				})
 				const serverTabId = created.tabs[0]?.id
-				if (!serverTabId) throw new Error('Respons dokumen tanpa tab')
+				if (!serverTabId) throw new Error('The document response has no tab')
 				const linked: SyncLinkage = {
 					serverId: serverTabId,
 					documentId: created.id,
@@ -942,7 +942,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 						...(docBrief ? { brief: docBrief } : {}),
 					})
 					const serverTabId = created.tabs[0]?.id
-					if (!serverTabId) throw new Error('Respons dokumen tanpa tab')
+					if (!serverTabId) throw new Error('The document response has no tab')
 					parentId = created.id
 					const linked: SyncLinkage = {
 						serverId: serverTabId,

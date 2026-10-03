@@ -42,7 +42,7 @@ export default class DocumentsService extends BaseService {
 			const page = this.pageQuery()
 			const rows = await findDocumentsByOwner(
 				await this.identityId(),
-				this.optionalUuidQuery('projectId', 'ID proyek'),
+				this.optionalUuidQuery('projectId', 'Project ID'),
 				page ?? undefined,
 			)
 			const visible = page ? rows.slice(0, page.limit) : rows
@@ -75,18 +75,18 @@ export default class DocumentsService extends BaseService {
 
 		const limit = rawLimit ? Number(rawLimit) : DEFAULT_DOCUMENT_PAGE
 		if (!Number.isInteger(limit) || limit < 1 || limit > MAX_DOCUMENT_PAGE) {
-			throw AppError.badRequest(`limit harus bilangan bulat 1-${MAX_DOCUMENT_PAGE}`)
+			throw AppError.badRequest(`limit must be an integer from 1 to ${MAX_DOCUMENT_PAGE}`)
 		}
 		if (!rawCursor) return { limit }
 
 		const after = decodeDocumentCursor(rawCursor)
-		if (!after) throw AppError.badRequest('cursor tidak sah')
+		if (!after) throw AppError.badRequest('Invalid cursor')
 		return { limit, after }
 	}
 	async getById(): Promise<Response> {
 		try {
 			const document = await findDocumentById(this.documentId(), await this.identityId())
-			if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
+			if (!document) throw AppError.notFound('Document not found')
 
 			const tabs = await findTabsByDocument(document.id)
 			return this.success({ data: this.toDetail(document, tabs) })
@@ -110,11 +110,11 @@ export default class DocumentsService extends BaseService {
 			let template: Template | null = null
 			if (templateSlug) {
 				template = await findTemplateBySlug(templateSlug)
-				if (!template) throw AppError.badRequest(`Template "${templateSlug}" tidak dikenal`)
+				if (!template) throw AppError.badRequest(`Unknown template "${templateSlug}"`)
 			}
 
 			const resolvedTitle = title ?? template?.name
-			if (!resolvedTitle) throw AppError.badRequest('Judul wajib diisi')
+			if (!resolvedTitle) throw AppError.badRequest('Title is required')
 
 			let targetProjectId: string
 			if (projectId) {
@@ -132,7 +132,7 @@ export default class DocumentsService extends BaseService {
 				metadata: metadata ?? null,
 				brief: brief ?? null,
 			})
-			if (!document) throw AppError.internalServerError('Gagal menyimpan dokumen')
+			if (!document) throw AppError.internalServerError("Couldn't save the document")
 
 			const tab = await insertTab({
 				document_id: document.id,
@@ -152,7 +152,7 @@ export default class DocumentsService extends BaseService {
 				layout: tabLayout ?? (template && templateTabLayout(template.spec)) ?? null,
 				position: 0,
 			})
-			if (!tab) throw AppError.internalServerError('Gagal menyimpan tab pertama')
+			if (!tab) throw AppError.internalServerError("Couldn't save the first tab")
 			await snapshotIntervalTab(tab.id, tab.content, this.ownerId())
 
 			return this.success({ data: this.toDetail(document, [tab]), status: 201 })
@@ -174,11 +174,11 @@ export default class DocumentsService extends BaseService {
 				values.project_id = projectId
 			}
 			if (Object.keys(values).length === 0) {
-				return this.error({ errors: ['Tidak ada field yang bisa diubah (title/projectId/layout)'] })
+				return this.error({ errors: ['No changeable fields (title/projectId/layout)'] })
 			}
 
 			const document = await updateDocument(this.documentId(), await this.identityId(), values)
-			if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
+			if (!document) throw AppError.notFound('Document not found')
 
 			const tabs = await findTabsByDocument(document.id)
 			return this.success({ data: this.toDetail(document, tabs) })
@@ -192,7 +192,7 @@ export default class DocumentsService extends BaseService {
 			// tabnya), room kolaborasi yang masih terbuka perlu diberi tahu.
 			const tabIds = (await findTabsByDocument(this.documentId())).map((tab) => tab.id)
 			const document = await deleteDocument(this.documentId(), await this.identityId())
-			if (!document) throw AppError.notFound('Dokumen tidak ditemukan')
+			if (!document) throw AppError.notFound('Document not found')
 			notifyCollabTabsGone(tabIds)
 			return this.success({ data: { id: document.id } })
 		} catch (error) {
@@ -202,16 +202,16 @@ export default class DocumentsService extends BaseService {
 
 	private ownerId(): string {
 		const userId = this.context.get('userId')
-		if (!userId) throw AppError.unauthorized('User tidak dikenal')
+		if (!userId) throw AppError.unauthorized('Unknown user')
 		return userId
 	}
 	private async ownedProject(projectId: string): Promise<void> {
 		const project = await findProjectById(projectId, await this.identityId())
-		if (!project) throw AppError.badRequest('Proyek tidak ditemukan')
+		if (!project) throw AppError.badRequest('Project not found')
 	}
 
 	private documentId(): string {
-		return this.uuidParam('id', 'ID dokumen')
+		return this.uuidParam('id', 'Document ID')
 	}
 
 	private toDetail(document: Document, tabs: TabRow[]): DocumentDetail {

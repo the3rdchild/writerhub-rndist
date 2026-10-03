@@ -31,7 +31,7 @@ export default class CollabService extends BaseService {
 
 			const identityId = await this.identityId()
 			const tab = await findTabById(body.data.tabId, identityId)
-			if (!tab) throw AppError.notFound('Tab tidak ditemukan')
+			if (!tab) throw AppError.notFound('Tab not found')
 
 			const userId = this.context.get('userId') ?? null
 			const ticket = await this.ticket(signer, {
@@ -52,7 +52,7 @@ export default class CollabService extends BaseService {
 		try {
 			const signer = this.signer()
 			const token = this.context.req.param('token')
-			if (!token) throw AppError.badRequest('Token share tidak ada')
+			if (!token) throw AppError.badRequest('Share token is missing')
 			const body = issueTicketBodySchema.safeParse(await this.context.req.json().catch(() => null))
 			if (!body.success) {
 				return this.error({ errors: body.error.issues.map((issue) => issue.message) })
@@ -63,11 +63,11 @@ export default class CollabService extends BaseService {
 				.from(shares)
 				.where(eq(shares.token, token))
 				.limit(1)
-			if (!share?.documentId) throw AppError.notFound('Share link tidak ditemukan')
+			if (!share?.documentId) throw AppError.notFound('Share link not found')
 			// Sama dengan `GET /shares/:token`: rute ini tanpa sesi, jadi tautan
 			// terbatas tidak pernah bisa dibuka lewat sini.
 			if (share.access === 'restricted' && !this.context.get('userId')) {
-				throw AppError.forbidden('Dokumen ini dibatasi, silakan masuk terlebih dahulu')
+				throw AppError.forbidden('This document is restricted - please sign in first')
 			}
 
 			const [tab] = await this.db
@@ -75,7 +75,7 @@ export default class CollabService extends BaseService {
 				.from(documentTabs)
 				.where(and(eq(documentTabs.id, body.data.tabId), eq(documentTabs.document_id, share.documentId)))
 				.limit(1)
-			if (!tab) throw AppError.notFound('Tab tidak ditemukan')
+			if (!tab) throw AppError.notFound('Tab not found')
 
 			const ticket = await this.ticket(signer, {
 				tab: tab.id,
@@ -94,7 +94,7 @@ export default class CollabService extends BaseService {
 
 	private signer() {
 		const signer = collabTicketSigner()
-		if (!signer) throw new AppError(503, 'Kolaborasi real-time belum dikonfigurasi (COLLAB_TICKET_SECRET)')
+		if (!signer) throw new AppError(503, 'Real-time collaboration is not configured (COLLAB_TICKET_SECRET)')
 		return signer
 	}
 

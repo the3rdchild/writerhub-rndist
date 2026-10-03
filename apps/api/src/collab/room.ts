@@ -111,7 +111,7 @@ export interface RoomHost {
 
 export class CollabTabGoneError extends Error {
 	constructor(tabId: string) {
-		super(`Tab ${tabId} tidak ada`)
+		super(`Tab ${tabId} does not exist`)
 	}
 }
 
