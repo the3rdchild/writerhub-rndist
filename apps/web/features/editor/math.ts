@@ -1,8 +1,9 @@
 import { mergeAttributes, Node } from '@tiptap/core'
-import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model'
+import type { Node as PMNode, ResolvedPos, Schema } from '@tiptap/pm/model'
+import { type EditorState, Plugin, PluginKey, type Transaction } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
 import katex from 'katex'
-import { applyMathFit } from './math-fit'
+import { applyInlineMathFit, applyMathFit, displayStyle } from './math-fit'
 export const MATH_INLINE = 'mathInline'
 export const MATH_BLOCK = 'mathBlock'
 
@@ -28,15 +29,95 @@ export function renderMath(latex: string, display: boolean): string {
 	}
 }
 
-function buildDom(latex: string, display: boolean, fontSize: unknown = null): HTMLElement {
+function buildDom(latex: string, display: boolean, fontSize: unknown = null, flowing = false): HTMLElement {
 	const element = document.createElement(display ? 'div' : 'span')
-	element.className = display ? 'math-block' : 'math-inline'
+	element.className = display ? 'math-block' : flowing ? 'math-inline math-inline--display' : 'math-inline'
 	element.setAttribute('data-latex', latex)
 	const size = fontSizeStyle(fontSize)
 	if (size) element.style.fontSize = size
 	element.contentEditable = 'false'
-	element.innerHTML = renderMath(latex, display)
+	element.innerHTML = flowing ? renderMath(displayStyle(latex), false) : renderMath(latex, display)
 	return element
+}
+
+/** Lebar isi (tanpa padding) blok tempat rumus mengalir duduk. */
+function textWidthOf(host: HTMLElement): number {
+	const style = getComputedStyle(host)
+	return (
+		host.clientWidth -
+		(Number.parseFloat(style.paddingLeft) || 0) -
+		(Number.parseFloat(style.paddingRight) || 0)
+	)
+}
+
+/**
+ * Node view rumus mengalir bergaya display: muat di lebar paragrafnya, dihitung
+ * ulang saat lebar itu berubah dan saat fon KaTeX selesai dimuat.
+ */
+function flowingMathView(node: PMNode) {
+	const latex: string = node.attrs.latex
+	const dom = buildDom(latex, false, node.attrs.fontSize, true)
+	if (typeof ResizeObserver === 'undefined') return { dom }
+	let fitted = -1
+	let watched: HTMLElement | null = null
+	const fit = (force: boolean) => {
+		const host = dom.parentElement
+		if (!host) return
+		const available = textWidthOf(host)
+		if (available <= 0 || (!force && available === fitted)) return
+		fitted = available
+		applyInlineMathFit(dom, latex, available, renderMath)
+	}
+	const observer = new ResizeObserver(() => {
+		const host = dom.parentElement
+		if (host && host !== watched) {
+			if (watched) observer.unobserve(watched)
+			observer.observe(host)
+			watched = host
+		}
+		fit(false)
+	})
+	observer.observe(dom)
+	const refit = () => fit(true)
+	const fonts = typeof document === 'undefined' ? undefined : document.fonts
+	fonts?.addEventListener('loadingdone', refit)
+	void fonts?.ready.then(refit)
+	return {
+		dom,
+		destroy: () => {
+			observer.disconnect()
+			fonts?.removeEventListener('loadingdone', refit)
+		},
+	}
+}
+
+/**
+ * Rumus display sebagai paragraf rata tengah berisi satu rumus mengalir.
+ * Tampilannya sama dengan rumus blok, tapi teks dan rumus lain bisa duduk di
+ * barisnya - seperti objek "sebagai karakter" di LibreOffice.
+ */
+export function displayMathParagraph(schema: Schema, latex: string, fontSize: unknown = null): PMNode {
+	const math = schema.nodes[MATH_INLINE].create({ latex, fontSize: fontSize ?? null, display: true })
+	return schema.nodes.paragraph.create({ textAlign: 'center' }, math)
+}
+
+/** Ganti setiap rumus blok lama dengan paragraf rumus mengalir. Null bila tidak ada. */
+export function flowMathBlocks(state: EditorState): Transaction | null {
+	const found: Array<{ pos: number; node: PMNode }> = []
+	state.doc.descendants((node, pos) => {
+		if (node.type.name === MATH_BLOCK) found.push({ pos, node })
+		return !node.isTextblock
+	})
+	if (found.length === 0) return null
+	const tr = state.tr
+	for (const { pos, node } of found.reverse()) {
+		tr.replaceWith(
+			pos,
+			pos + node.nodeSize,
+			displayMathParagraph(state.schema, node.attrs.latex, node.attrs.fontSize),
+		)
+	}
+	return tr.setMeta('addToHistory', false)
 }
 
 /** `fontSize` (pt) → nilai CSS; null bila rumus ikut ukuran teks sekitarnya. */
@@ -74,7 +155,16 @@ export const MathInline = Node.create({
 	atom: true,
 	selectable: true,
 
-	addAttributes: () => latexAttribute,
+	addAttributes: () => ({
+		...latexAttribute,
+		/* Bergaya display (pecahan besar) walau duduk di baris teks - pengganti rumus blok. */
+		display: {
+			default: false,
+			parseHTML: (element: HTMLElement) => element.getAttribute('data-display') === 'true',
+			renderHTML: (attributes: Record<string, unknown>) =>
+				attributes.display ? { 'data-display': 'true' } : {},
+		},
+	}),
 
 	parseHTML() {
 		return [{ tag: 'span[data-latex]' }]
@@ -85,7 +175,10 @@ export const MathInline = Node.create({
 	},
 
 	addNodeView() {
-		return ({ node }) => ({ dom: buildDom(node.attrs.latex, false, node.attrs.fontSize) })
+		return ({ node }) =>
+			node.attrs.display === true
+				? flowingMathView(node)
+				: { dom: buildDom(node.attrs.latex, false, node.attrs.fontSize) }
 	},
 })
 
@@ -103,6 +196,29 @@ export const MathBlock = Node.create({
 
 	renderHTML({ HTMLAttributes }) {
 		return ['div', mergeAttributes(HTMLAttributes, { class: 'math-block' })]
+	},
+
+	/*
+	 * Rumus blok kini hanya bentuk lama: naskah lama, isi dari AI, atau tempelan
+	 * yang masih membawanya diubah menjadi paragraf rumus mengalir begitu masuk
+	 * editor - di luar riwayat urung, karena ini penyesuaian bentuk, bukan suntingan.
+	 */
+	addProseMirrorPlugins() {
+		return [
+			new Plugin({
+				key: new PluginKey('flowMathBlocks'),
+				appendTransaction: (transactions, _previous, state) =>
+					transactions.some((transaction) => transaction.docChanged) ? flowMathBlocks(state) : null,
+				view: (view) => {
+					queueMicrotask(() => {
+						if (view.isDestroyed) return
+						const tr = flowMathBlocks(view.state)
+						if (tr) view.dispatch(tr)
+					})
+					return {}
+				},
+			}),
+		]
 	},
 
 	/*
@@ -149,10 +265,15 @@ export const MathBlock = Node.create({
 				({ chain }) =>
 					chain()
 						.focus()
-						.insertContent({
-							type: display ? MATH_BLOCK : MATH_INLINE,
-							attrs: { latex: latex.trim() },
-						})
+						.insertContent(
+							display
+								? {
+										type: 'paragraph',
+										attrs: { textAlign: 'center' },
+										content: [{ type: MATH_INLINE, attrs: { latex: latex.trim(), display: true } }],
+									}
+								: { type: MATH_INLINE, attrs: { latex: latex.trim() } },
+						)
 						.run(),
 
 			unsetMath:
@@ -283,8 +404,7 @@ export function convertSelectionToMath(editor: Editor, display: boolean): boolea
 export function convertMathInDocument(editor: Editor): number {
 	const { state } = editor
 	const inlineType = state.schema.nodes[MATH_INLINE]
-	const blockType = state.schema.nodes[MATH_BLOCK]
-	if (!inlineType || !blockType) return 0
+	if (!inlineType) return 0
 
 	const edits: Array<{ from: number; to: number; node: PMNode }> = []
 
@@ -296,7 +416,11 @@ export function convertMathInDocument(editor: Editor): number {
 			edits.push({
 				from: pos,
 				to: pos + node.nodeSize,
-				node: blockType.create({ latex: whole }),
+				// Paragraf rumus mengalir: rata tengah, bergaya display.
+				node: node.type.create(
+					{ ...node.attrs, textAlign: 'center' },
+					inlineType.create({ latex: whole, display: true }),
+				),
 			})
 			return false
 		}
@@ -332,7 +456,8 @@ export function mathAtSelection(editor: Editor): { latex: string; display: boole
 	const { $from, node } = editor.state.selection as { $from: ResolvedPos; node?: PMNode }
 	const candidate = node ?? $from.nodeAfter ?? $from.nodeBefore
 
-	if (candidate?.type.name === MATH_INLINE) return { latex: candidate.attrs.latex, display: false }
+	if (candidate?.type.name === MATH_INLINE)
+		return { latex: candidate.attrs.latex, display: candidate.attrs.display === true }
 	if (candidate?.type.name === MATH_BLOCK) return { latex: candidate.attrs.latex, display: true }
 	return null
 }

@@ -120,6 +120,21 @@ describe('rumus di berkas DOCX (OBJ-2)', () => {
 		expect(xml).toMatch(/<m:nary>[\s\S]*<m:sub>[\s\S]*<m:sup>[\s\S]*<m:e>/)
 	})
 
+	test('paragraf yang isinya hanya rumus display menjadi persamaan display Word', async () => {
+		const display = { type: 'mathInline', attrs: { latex: 'Z_2^+=0.042', display: true } }
+		const { xml } = await exported([
+			{ type: 'paragraph', attrs: { textAlign: 'center' }, content: [display] },
+		])
+		expect(xml).toContain('<m:oMathPara>')
+
+		// Berbagi baris dengan teks/rumus lain → tetap sebaris, seperti di LibreOffice.
+		const { xml: berbagi } = await exported([
+			{ type: 'paragraph', content: [display, { type: 'text', text: ' testing ' }, display] },
+		])
+		expect(berbagi).not.toContain('<m:oMathPara>')
+		expect(berbagi.match(/<m:oMath>/g)?.length).toBe(2)
+	})
+
 	test('ukuran rumus (fontSize) ditulis sebagai w:sz di setiap run', async () => {
 		const { xml } = await exported([{ type: 'mathBlock', attrs: { latex: 'D_5^+=0.069', fontSize: 8 } }])
 		const runs = xml.match(/<m:r>[\s\S]*?<\/m:r>/g) ?? []
@@ -151,7 +166,7 @@ describe('rumus di berkas DOCX (OBJ-2)', () => {
 		])
 		const round = await readDocx(bytes)
 		const json = JSON.stringify(round.content)
-		expect(json).toContain('"type":"mathBlock"')
+		expect(json).toContain('"display":true')
 		expect(json).toContain('"type":"mathInline"')
 		expect(json).toContain('\\\\frac{a}{b}')
 		expect(json).toContain('\\\\sqrt{x}')

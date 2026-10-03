@@ -34,6 +34,12 @@ const SPLITTABLE = new Set([
  * di dalamnya dihitung sebagai satu "baris" setinggi kotak wadahnya.
  */
 const BLOCK_ATOMS = 'tr, pre, .code-block, figure, .math-block, div.react-renderer'
+/*
+ * Rumus di dalam baris teks: satu kotak per rumus, tapi tetap milik paragrafnya
+ * (baris yang sama dengan teks di sampingnya). Tanpa ini baris-baris matriks
+ * KaTeX terbaca sebagai baris paragraf dan rumusnya terbelah antarkolom.
+ */
+const INLINE_ATOMS = '.math-inline'
 
 /** Wadah baris untuk aturan yatim/janda. */
 const TEXTBLOCKS = 'p, h1, h2, h3, h4, h5, h6, li'
@@ -151,6 +157,14 @@ export function lineBoxes(element: HTMLElement): LineBox[] {
 			continue
 		}
 		const group = inside(parent.closest(TEXTBLOCKS)) ?? element
+		const formula = inside(parent.closest(INLINE_ATOMS))
+		if (formula) {
+			if (!atoms.has(formula)) {
+				atoms.add(formula)
+				push(formula.getBoundingClientRect(), group)
+			}
+			continue
+		}
 		range.selectNodeContents(node)
 		for (const rect of range.getClientRects()) push(rect, group)
 	}

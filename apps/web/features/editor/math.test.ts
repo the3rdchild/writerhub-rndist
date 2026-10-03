@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import { findMath, looksLikeBareLatex, stripDelimiters, wholeParagraphLatex } from './math'
+import { EditorState } from '@tiptap/pm/state'
+import { buildSchema } from '@/features/sync/serialize'
+import { findMath, flowMathBlocks, looksLikeBareLatex, stripDelimiters, wholeParagraphLatex } from './math'
 
 describe('menemukan rumus', () => {
 	test('inline sederhana', () => {
@@ -147,5 +149,33 @@ describe('paragraf utuh rumus blok', () => {
 	test('bukan paragraf utuh', () => {
 		expect(wholeParagraphLatex('teks $$x^2$$')).toBeNull()
 		expect(wholeParagraphLatex('kalimat biasa')).toBeNull()
+	})
+})
+
+describe('rumus blok lama menjadi paragraf rumus mengalir', () => {
+	const schema = buildSchema()
+	const stateOf = (content: object[]) =>
+		EditorState.create({ schema, doc: schema.nodeFromJSON({ type: 'doc', content }) })
+
+	test('mathBlock diganti paragraf rata tengah berisi rumus display, di luar riwayat urung', () => {
+		const state = stateOf([
+			{ type: 'paragraph', content: [{ type: 'text', text: 'sebelum' }] },
+			{ type: 'mathBlock', attrs: { latex: 'D_5^+=0.069', fontSize: 8 } },
+		])
+		const tr = flowMathBlocks(state)
+		expect(tr).not.toBeNull()
+		expect(tr?.getMeta('addToHistory')).toBe(false)
+		const json = tr?.doc.toJSON()
+		expect(json.content[1]).toMatchObject({
+			type: 'paragraph',
+			attrs: { textAlign: 'center' },
+			content: [{ type: 'mathInline', attrs: { latex: 'D_5^+=0.069', fontSize: 8, display: true } }],
+		})
+	})
+
+	test('naskah tanpa rumus blok tidak disentuh', () => {
+		expect(
+			flowMathBlocks(stateOf([{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }])),
+		).toBeNull()
 	})
 })

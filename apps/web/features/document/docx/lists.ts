@@ -47,6 +47,18 @@ interface ListContext {
 
 const ATOM_BLOCKS = new Set(['mathBlock', 'image'])
 
+/**
+ * Blok yang menumpang item daftar sebelumnya: gambar, rumus blok lama, dan
+ * paragraf rumus display (satu rumus mengalir, tanpa penanda daftar sendiri).
+ */
+function isAtomBlock(block: JSONContent | undefined): boolean {
+	if (!block?.type) return false
+	if (ATOM_BLOCKS.has(block.type)) return true
+	if (block.type !== 'paragraph' || block.attrs?._list || block.content?.length !== 1) return false
+	const only = block.content[0]
+	return only?.type === 'mathInline' && only.attrs?.display === true
+}
+
 function listOf(tag: ListTag): JSONContent {
 	if (tag.format === 'bullet') return { type: 'bulletList', content: [] }
 
@@ -160,10 +172,10 @@ export function wrapListBlocks(blocks: JSONContent[]): JSONContent[] {
 		 * terpotong lalu dibentangkan penuh dua kolom - makalah tujuh halaman
 		 * membengkak jadi sembilan belas.
 		 */
-		if (block.type !== undefined && ATOM_BLOCKS.has(block.type) && stack.length > 0) {
+		if (isAtomBlock(block) && stack.length > 0) {
 			const top = stack[stack.length - 1] as ListContext
 			let ahead = index + 1
-			while (ahead < blocks.length && ATOM_BLOCKS.has(blocks[ahead]?.type ?? '')) ahead += 1
+			while (ahead < blocks.length && isAtomBlock(blocks[ahead])) ahead += 1
 
 			const next = blocks[ahead]
 			const nextAttrs = next?.type === 'paragraph' ? next.attrs : undefined

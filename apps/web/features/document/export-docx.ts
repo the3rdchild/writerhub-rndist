@@ -719,6 +719,22 @@ export async function exportDocx(
 		return Object.keys(indent).length > 0 ? indent : undefined
 	}
 
+	/*
+	 * Paragraf yang isinya hanya satu rumus mengalir bergaya display ditulis
+	 * sebagai persamaan display Word (`m:oMathPara`) - bentuk aslinya di DOCX.
+	 * Rumus yang berbagi baris dengan teks atau rumus lain tetap sebaris.
+	 */
+	const loneDisplayMath = (node: PMNode): ParagraphChild[] | null => {
+		if (node.type.name !== 'paragraph' || node.childCount !== 1) return null
+		const only = node.firstChild
+		if (only?.type.name !== 'mathInline' || only.attrs.display !== true) return null
+		const items = sizedMath(
+			LatexToOmml.convert(String(only.attrs.latex ?? ''), true, parseXml),
+			only.attrs.fontSize,
+		)
+		return items ? [omml.block(items) as ParagraphChild] : null
+	}
+
 	const paragraphOf = (
 		node: PMNode,
 		extra: Record<string, unknown> = {},
@@ -737,7 +753,7 @@ export async function exportDocx(
 		const tabStops = tabStopsOf(node)
 		const indent = indentOf(node, resetsBody)
 
-		let children = runsOf(node, lead)
+		let children = (lead.length === 0 ? loneDisplayMath(node) : null) ?? runsOf(node, lead)
 		const bookmark = headingBookmarks.get(node)
 		if (bookmark) children = [new docx.Bookmark({ id: bookmark, children }) as unknown as ParagraphChild]
 

@@ -1471,7 +1471,8 @@ describe('rumus di sekitar daftar bernomor', () => {
 
 		expect(list?.type).toBe('orderedList')
 		const first = list?.content?.[0]
-		expect(first?.content?.map((node) => node.type)).toEqual(['paragraph', 'mathBlock'])
+		expect(first?.content?.map((node) => node.type)).toEqual(['paragraph', 'paragraph'])
+		expect(first?.content?.[1]?.content?.[0]?.attrs).toMatchObject({ latex: 'E', display: true })
 	})
 
 	/*
@@ -1484,7 +1485,7 @@ describe('rumus di sekitar daftar bernomor', () => {
 		const body = item('Langkah satu') + math('A') + math('B') + p(r('Penutup'))
 		const types = blocks((await readDocx(docx({ numbering: BULLET, body }))).content).map((node) => node.type)
 
-		expect(types).toEqual(['orderedList', 'mathBlock', 'mathBlock', 'paragraph'])
+		expect(types).toEqual(['orderedList', 'paragraph', 'paragraph', 'paragraph'])
 	})
 
 	test('rumus di antara dua daftar berbeda tidak ikut daftar sebelumnya', async () => {
@@ -1493,7 +1494,7 @@ describe('rumus di sekitar daftar bernomor', () => {
 		const body = item('Langkah satu') + math('C') + other
 		const types = blocks((await readDocx(docx({ numbering, body }))).content).map((node) => node.type)
 
-		expect(types).toEqual(['orderedList', 'mathBlock', 'orderedList'])
+		expect(types).toEqual(['orderedList', 'paragraph', 'orderedList'])
 	})
 })
 
@@ -1503,8 +1504,10 @@ describe('rumus matematika (OMML)', () => {
 		`<m:sSub><m:e>${base}</m:e><m:sub>${subText}</m:sub></m:sSub>`
 	const frac = (num: string, den: string) => `<m:f><m:num>${num}</m:num><m:den>${den}</m:den></m:f>`
 
+	/** Rumus display kini paragraf berisi satu rumus mengalir; latex-nya di anak itu. */
 	function latexOf(node: JSONContent | undefined): string {
-		return String(node?.attrs?.latex ?? '')
+		const math = node?.type === 'paragraph' ? node.content?.[0] : node
+		return String(math?.attrs?.latex ?? '')
 	}
 
 	test('oMath inline menjadi node mathInline di tengah paragraf', async () => {
@@ -1518,26 +1521,30 @@ describe('rumus matematika (OMML)', () => {
 		expect(latexOf(isi[1])).toBe('\\frac{a}{b}')
 	})
 
-	test('oMathPara menjadi mathBlock tanpa paragraf kosong tambahan', async () => {
+	test('oMathPara menjadi paragraf rata tengah berisi rumus mengalir bergaya display', async () => {
 		const result = await readDocx(
 			docx({ body: p(`<m:oMathPara><m:oMath>${mr('W=')}${frac(mr('x'), mr('y'))}</m:oMath></m:oMathPara>`) }),
 		)
 
 		expect(blocks(result.content)).toHaveLength(1)
-		expect(blocks(result.content)[0]?.type).toBe('mathBlock')
-		expect(latexOf(blocks(result.content)[0])).toBe('W=\\frac{x}{y}')
+		const paragraf = blocks(result.content)[0]
+		expect(paragraf?.type).toBe('paragraph')
+		expect(paragraf?.attrs?.textAlign).toBe('center')
+		expect(paragraf?.content?.map((node) => node.type)).toEqual(['mathInline'])
+		expect(paragraf?.content?.[0]?.attrs?.display).toBe(true)
+		expect(latexOf(paragraf)).toBe('W=\\frac{x}{y}')
 	})
 
 	test('ukuran huruf rumus (w:sz run OMML) ikut terbaca sebagai fontSize', async () => {
 		// 69565-277381-1-RV.docx: rumus 8 pt di makalah berkolom; tanpa ini tampil ±11,5 pt.
 		const sized = '<m:r><w:rPr><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><m:t>D=0.069</m:t></m:r>'
 		const result = await readDocx(docx({ body: p(`<m:oMathPara><m:oMath>${sized}</m:oMath></m:oMathPara>`) }))
-		expect(blocks(result.content)[0]?.attrs).toMatchObject({ latex: 'D=0.069', fontSize: 8 })
+		expect(blocks(result.content)[0]?.content?.[0]?.attrs).toMatchObject({ latex: 'D=0.069', fontSize: 8 })
 
 		const tanpa = await readDocx(
 			docx({ body: p(`<m:oMathPara><m:oMath>${mr('x')}</m:oMath></m:oMathPara>`) }),
 		)
-		expect(blocks(tanpa.content)[0]?.attrs?.fontSize).toBeUndefined()
+		expect(blocks(tanpa.content)[0]?.content?.[0]?.attrs?.fontSize).toBeUndefined()
 	})
 
 	test('teks sebelum oMathPara tetap terbawa sebagai paragraf tersendiri', async () => {
@@ -1547,8 +1554,9 @@ describe('rumus matematika (OMML)', () => {
 			}),
 		)
 
-		expect(blocks(result.content).map((node) => node.type)).toEqual(['paragraph', 'mathBlock'])
+		expect(blocks(result.content).map((node) => node.type)).toEqual(['paragraph', 'paragraph'])
 		expect(textOf(blocks(result.content)[0])).toBe('karena ')
+		expect(blocks(result.content)[1]?.content?.[0]?.attrs?.display).toBe(true)
 	})
 
 	test('penjumlahan nary dengan batas atas bawah', async () => {
