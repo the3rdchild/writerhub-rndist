@@ -14,7 +14,18 @@ import { useTypography } from '@/features/editor/use-typography'
 import { sessionLabel, useSessions } from '@/features/sessions/session-context'
 import { useSettings } from '@/features/settings/settings-context'
 import { buildSchema, fragmentToJSON } from '@/features/sync/serialize'
+import { showNotice } from '@/lib/notice'
 import { cn } from '@/lib/utils'
+
+/**
+ * Ekspor Word yang gagal diberitahukan ke pengguna. Dulu kedua jalurnya hanya
+ * memakai try/finally: tombolnya kembali aktif dan tidak ada berkas, tanpa
+ * penjelasan apa pun.
+ */
+export function reportDocxExportError(error: unknown): void {
+	console.error('Ekspor DOCX gagal', error)
+	showNotice("Couldn't export to Word (.docx). Please try again.")
+}
 
 export function ExportDocxDialog() {
 	const { docxExportOpen, setDocxExportOpen, settings } = useSettings()
@@ -88,6 +99,8 @@ export function ExportDocxDialog() {
 			})
 			download(blob, safeFilename(title, 'docx'))
 			setDocxExportOpen(false)
+		} catch (error) {
+			reportDocxExportError(error)
 		} finally {
 			setExporting(false)
 		}

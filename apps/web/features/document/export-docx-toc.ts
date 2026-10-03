@@ -28,8 +28,47 @@ export interface TocEntry {
 
 const twips = (px: number) => Math.round(px * 15)
 
+const LIST_KINDS = new Set(['isi', 'gambar', 'tabel'])
+const STYLES = new Set(['plain', 'dotted', 'link'])
+const TAB_LEADERS = new Set(['none', 'dots', 'dashes', 'line'])
+
+/** Angka dari atribut tersimpan; `null`, kosong, dan teks bukan angka menjadi NaN. */
+function numberOf(value: unknown): number {
+	if (typeof value === 'number') return value
+	if (typeof value === 'string' && value.trim() !== '') return Number(value)
+	return Number.NaN
+}
+
+/** Tingkat judul 1-9, atau `fallback` bila bukan angka. */
+function levelOf(value: unknown, fallback: number): number {
+	const number = numberOf(value)
+	return Number.isFinite(number) ? Math.max(1, Math.min(9, Math.round(number))) : fallback
+}
+
+/**
+ * Atribut blok daftar isi yang sudah diperiksa. Atribut tersimpan bisa apa
+ * saja (dokumen lama, tempelan, alat AI): `indentPerLevel` NaN dulu membuat
+ * `docx` melempar galat dan seluruh ekspor gagal tanpa pesan.
+ */
 export function tocAttrsOf(attrs: Record<string, unknown>): TocBlockAttrs {
-	return { ...DEFAULT_TOC_ATTRS, ...(attrs as Partial<TocBlockAttrs>) }
+	const indent = numberOf(attrs.indentPerLevel)
+	return {
+		style: STYLES.has(String(attrs.style))
+			? (attrs.style as TocBlockAttrs['style'])
+			: DEFAULT_TOC_ATTRS.style,
+		showPageNumbers: attrs.showPageNumbers !== false,
+		tabLeader: TAB_LEADERS.has(String(attrs.tabLeader))
+			? (attrs.tabLeader as TocTabLeader)
+			: DEFAULT_TOC_ATTRS.tabLeader,
+		minLevel: levelOf(attrs.minLevel, DEFAULT_TOC_ATTRS.minLevel),
+		maxLevel: levelOf(attrs.maxLevel, DEFAULT_TOC_ATTRS.maxLevel),
+		indentPerLevel:
+			Number.isFinite(indent) && indent >= 0 ? Math.min(indent, 200) : DEFAULT_TOC_ATTRS.indentPerLevel,
+		listKind: LIST_KINDS.has(String(attrs.listKind))
+			? (attrs.listKind as TocBlockAttrs['listKind'])
+			: DEFAULT_TOC_ATTRS.listKind,
+		snapshot: typeof attrs.snapshot === 'string' ? attrs.snapshot : '',
+	}
 }
 
 export function tocLevelRange(attrs: TocBlockAttrs): { lo: number; hi: number } {

@@ -6,6 +6,7 @@ import { useBrief } from '@/features/brief/brief-context'
 import { useDocument } from '@/features/document/document-context'
 import { download, safeFilename } from '@/features/document/download'
 import { exportDocx } from '@/features/document/export-docx'
+import { reportDocxExportError } from '@/features/document/export-docx-dialog'
 import { useDocumentImport } from '@/features/document/import-context'
 import { prepareForExport } from '@/features/document/prepare-export'
 import { useEditorInstance } from '@/features/editor/editor-context'
@@ -38,13 +39,13 @@ export function FileMenu() {
 
 	const downloadDocx = async () => {
 		if (!editor || exporting) return
-		await prepareForExport(editor)
-		if (sessions.length > 1) {
-			setDocxExportOpen(true)
-			return
-		}
 		setExporting(true)
 		try {
+			await prepareForExport(editor)
+			if (sessions.length > 1) {
+				setDocxExportOpen(true)
+				return
+			}
 			const geometry = pageGeometry(activeSetup)
 			download(
 				await exportDocx(editor.state.doc, {
@@ -58,6 +59,9 @@ export function FileMenu() {
 				}),
 				safeFilename(state.title, 'docx'),
 			)
+		} catch (error) {
+			// Ekspor yang gagal dulu diam saja: tidak ada berkas, tidak ada pesan.
+			reportDocxExportError(error)
 		} finally {
 			setExporting(false)
 		}

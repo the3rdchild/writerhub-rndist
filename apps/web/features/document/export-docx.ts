@@ -1,7 +1,7 @@
 'use client'
 
 import type { JSONContent } from '@tiptap/core'
-import type { Node as PMNode } from '@tiptap/pm/model'
+import { Fragment, type Node as PMNode } from '@tiptap/pm/model'
 import { type DocumentTypography, resolveParagraphStyle } from '@writer-hub/shared'
 import type { ParagraphChild } from 'docx'
 import { COLUMN_BREAK_NODE } from '@/features/editor/column-break'
@@ -294,18 +294,50 @@ export function mergeTabContents(tabs: JSONContent[]): JSONContent {
 }
 
 /**
- * Pasangan rujukan catatan kaki (`footnoteRef`) dan isinya (`footnote`).
+ * Isi catatan kaki yang tersimpan di rujukannya sendiri (`footnoteRef.attrs.content`,
+ * larik node sebaris JSON) sebagai satu paragraf, atau `null` bila kosong.
+ * Node blok yang nyasar dibuang; JSON yang tidak sah jatuh ke teksnya saja.
+ */
+function footnoteContentOf(root: PMNode, content: unknown): PMNode | null {
+	if (!Array.isArray(content) || content.length === 0) return null
+	const { schema } = root.type
+	try {
+		const inline: PMNode[] = []
+		Fragment.fromJSON(schema, content).forEach((node) => {
+			if (node.isInline) inline.push(node)
+		})
+		return inline.length > 0 ? schema.nodes.paragraph.create(null, inline) : null
+	} catch {
+		const parts: string[] = []
+		const walk = (nodes: unknown[]) => {
+			for (const node of nodes) {
+				if (!node || typeof node !== 'object') continue
+				const { text, content: children } = node as { text?: unknown; content?: unknown }
+				if (typeof text === 'string') parts.push(text)
+				if (Array.isArray(children)) walk(children)
+			}
+		}
+		walk(content)
+		const text = parts.join('')
+		return text ? schema.nodes.paragraph.create(null, schema.text(text)) : null
+	}
+}
+
+/**
+ * Isi setiap catatan kaki, bernomor menurut urutan rujukannya (`footnoteRef`)
+ * di naskah - nomor yang sama dengan yang tampil di kanvas.
  *
- * - Nomor Word mengikuti urutan kemunculan rujukan di naskah.
- * - Isi dicari lewat `id` yang sama. Isi tanpa `id` - bentuk yang ditulis alat
- *   AI dan importer DOCX, yang menaruh isinya berurutan di akhir naskah -
- *   dipasangkan menurut urutan dengan rujukan yang belum berpasangan. Skema
- *   editor saat ini belum memberi node `footnote` atribut `id`, jadi jalur
- *   urutan inilah yang berlaku sampai modelnya dilengkapi.
- * - Rujukan tanpa isi tetap menjadi catatan kaki (kosong), supaya nomornya
- *   sama dengan yang tampil di layar.
- * - Isi yang tidak dirujuk siapa pun tidak masuk `paired`: ia tetap dicetak di
- *   badan naskah, bukan hilang diam-diam.
+ * Urutan sumber isinya:
+ * 1. `footnoteRef.attrs.content` - model sekarang: isi menumpang di rujukannya,
+ *    jadi menghapus rujukan ikut menghapus catatannya.
+ * 2. Node `footnote` lama dengan `id` yang sama.
+ * 3. Node `footnote` lama tanpa `id` (alat AI dan importer DOCX lama menaruhnya
+ *    berurutan di akhir naskah), dipasangkan menurut urutan dengan rujukan yang
+ *    belum berisi.
+ * 4. Selain itu catatan kosong - nomornya tetap ada, sama seperti di layar.
+ *
+ * Node `footnote` lama yang terpakai masuk `paired` dan tidak dicetak lagi di
+ * badan naskah; yang tidak dirujuk siapa pun tetap di tempatnya, bukan hilang.
  */
 export function pairFootnotes(root: PMNode): {
 	ids: Map<PMNode, number>
@@ -342,14 +374,21 @@ export function pairFootnotes(root: PMNode): {
 		ids.set(ref, wordId)
 		const id = idOf(ref)
 		const note = id ? byId.get(id) : undefined
+		const own = footnoteContentOf(root, ref.attrs.content)
+		if (own) {
+			bodies.set(wordId, own)
+			// Node lama ber-id sama milik rujukan ini juga: jangan tercetak di naskah.
+			if (note) paired.add(note)
+			return
+		}
 		if (note) {
 			bodies.set(wordId, note)
 			paired.add(note)
 		} else waiting.push(wordId)
 	})
 
-	// Hanya isi tanpa id yang dipasangkan menurut urutan; isi ber-id yang tidak
-	// dirujuk adalah yatim dan tetap di badan naskah.
+	// Hanya isi lama tanpa id yang dipasangkan menurut urutan; isi ber-id yang
+	// tidak dirujuk adalah yatim dan tetap di badan naskah.
 	const pool = notes.filter((note) => !paired.has(note) && !idOf(note))
 	waiting.forEach((wordId, index) => {
 		const note = pool[index] ?? null
@@ -358,6 +397,10 @@ export function pairFootnotes(root: PMNode): {
 	})
 	return { ids, bodies, paired }
 }
+
+/** Jarak antar-kolom section, px; nilai rusak jatuh ke bawaan. */
+const gapOf = (columns: { gap?: number }) =>
+	Number.isFinite(columns.gap) && (columns.gap ?? 0) >= 0 ? (columns.gap as number) : DEFAULT_COLUMN_GAP_PX
 
 /**
  * Lebar tak-sama → anak `w:col`, bentuk yang dipakai Word sendiri.
@@ -385,9 +428,9 @@ function columnWidthsOf(
 	const gapAfter = (index: number) =>
 		index >= columns.count - 1
 			? undefined
-			: gaps && gaps.length === columns.count - 1
+			: gaps && gaps.length === columns.count - 1 && gaps.every(Number.isFinite)
 				? gaps[index]
-				: (columns.gap ?? DEFAULT_COLUMN_GAP_PX)
+				: gapOf(columns)
 
 	const total = widths.reduce((sum, width) => sum + width, 0)
 	const gapTotal = widths.reduce((sum, _, index) => sum + (gapAfter(index) ?? 0), 0)
@@ -416,9 +459,9 @@ function columnTextWidth(span: SectionSpan | undefined, fallback: PageGeometry):
 	if (!columns || columns.count < 2) return width
 
 	const gapTotal =
-		columns.gaps && columns.gaps.length === columns.count - 1
+		columns.gaps && columns.gaps.length === columns.count - 1 && columns.gaps.every(Number.isFinite)
 			? columns.gaps.reduce((sum, gap) => sum + gap, 0)
-			: (columns.gap ?? DEFAULT_COLUMN_GAP_PX) * (columns.count - 1)
+			: gapOf(columns) * (columns.count - 1)
 	const usable = Math.max(1, width - gapTotal)
 	const widths = columns.widths
 	if (widths && widths.length === columns.count && widths.every((value) => value > 0)) {
@@ -585,14 +628,18 @@ export async function exportDocx(
 				const style = runStyleOf(child.marks, ctx.run, basePt)
 				const options = link ? { style: 'Hyperlink', ...style } : style
 
-				child.text.split('\n').forEach((piece, index) => {
-					if (index > 0) target.push(new TextRun({ break: 1 }))
-					// Karakter \t di teks (impor lama) diterjemahkan ke run tab.
-					piece.split('\t').forEach((part, i) => {
-						if (i > 0) target.push(new TextRun({ children: [new Tab()], ...options }))
-						if (part) target.push(new TextRun({ text: part, ...options }))
+				// VT (\v) adalah baris baru Word di papan klip teks polos.
+				child.text
+					.replace(/\v/g, '\n')
+					.split('\n')
+					.forEach((piece, index) => {
+						if (index > 0) target.push(new TextRun({ break: 1 }))
+						// Karakter \t di teks (impor lama) diterjemahkan ke run tab.
+						piece.split('\t').forEach((part, i) => {
+							if (i > 0) target.push(new TextRun({ children: [new Tab()], ...options }))
+							if (part) target.push(new TextRun({ text: part, ...options }))
+						})
 					})
-				})
 				return
 			}
 
@@ -631,7 +678,9 @@ export async function exportDocx(
 
 	/** Menerjemahkan `tabStops` paragraf ke opsi tab stop docx. */
 	const tabStopsOf = (node: PMNode) => {
-		const stops = node.attrs.tabStops as TabStop[] | null | undefined
+		const stops = (node.attrs.tabStops as TabStop[] | null | undefined)?.filter((stop) =>
+			Number.isFinite(stop?.posPt),
+		)
 		if (!stops || stops.length === 0) return undefined
 		return stops.map((s) => ({
 			type: TAB_TYPE[s.type] ?? TabStopType.LEFT,
@@ -755,7 +804,7 @@ export async function exportDocx(
 		return out
 	}
 
-	const cellOf = (cell: PMNode, table: PMNode, widthTwips: number, span: number) => {
+	const cellOf = (cell: PMNode, table: PMNode, widthTwips: number, span: number, rowSpan: number) => {
 		/*
 		 * Isi sel dibangun lewat `blockOf`, jalur yang sama dengan badan naskah.
 		 * Dulu hanya blok teks yang diambil, jadi daftar, tabel bersarang, dan
@@ -786,7 +835,6 @@ export async function exportDocx(
 		if (children.length === 0) children.push(new Paragraph({}))
 		const content = separateTables(children)
 
-		const rowSpan = Math.max(1, Number(cell.attrs.rowspan) || 1)
 		// Latar sel judul bawaan kanvas (`th`), kecuali tabel polos - TBL-12.
 		const fill =
 			cell.attrs.backgroundColor === 'transparent'
@@ -821,12 +869,30 @@ export async function exportDocx(
 	/** Isi berkas gambar naskah, berkunci `src`; `null` untuk yang gagal diambil. */
 	const imageFiles = new Map<string, ExportImage | null>()
 
-	const tableOf = (node: PMNode) => {
+	const tableOf = (node: PMNode): unknown[] => {
 		const indentLeft = ctx.indent + (Number(node.attrs.indentLeft) || 0)
 		const indentRight = Number(node.attrs.indentRight) || 0
 		// Indentasi tabel memakan ruang: tabel tidak boleh lewat margin kanan (TBL-6).
 		const grid = tableGrid(node, sectionContentWidth - indentLeft - indentRight)
 		const tableTwips = grid.columns.reduce((sum, value) => sum + value, 0)
+
+		/*
+		 * Baris tanpa sel tidak ditulis - Word menolak `w:tr` kosong. Baris
+		 * seperti itu sah di ProseMirror: gabung sel 2×2 di tabel dua kolom
+		 * meninggalkan baris yang seluruhnya tertutup rowspan dari atas. Rowspan
+		 * lalu dihitung ulang atas baris yang benar-benar ditulis; tanpa itu sel
+		 * lanjutan vMerge jatuh ke baris berikutnya dan menggeser sel-selnya ke
+		 * luar kisi.
+		 */
+		const written: number[] = [0]
+		node.forEach((row) => {
+			written.push((written.at(-1) ?? 0) + (row.childCount > 0 ? 1 : 0))
+		})
+		const rowSpanOf = (rowIndex: number, cell: PMNode) => {
+			const span = Math.max(1, Number(cell.attrs.rowspan) || 1)
+			const end = Math.min(node.childCount, rowIndex + span)
+			return Math.max(1, (written[end] ?? 0) - (written[rowIndex] ?? 0))
+		}
 
 		const repeatHeader = node.attrs.repeatHeader !== false
 		const rows: InstanceType<typeof TableRow>[] = []
@@ -839,7 +905,7 @@ export async function exportDocx(
 			row.forEach((cell) => {
 				if (cell.type.name === 'tableHeader') headerRow = true
 				const place = places[cellIndex] ?? { left: cellIndex, span: 1 }
-				cells.push(cellOf(cell, node, cellTwips(grid, place), place.span))
+				cells.push(cellOf(cell, node, cellTwips(grid, place), place.span, rowSpanOf(rowIndex, cell)))
 				cellIndex += 1
 			})
 			rowIndex += 1
@@ -855,6 +921,8 @@ export async function exportDocx(
 				)
 			}
 		})
+		// Tabel yang semua barisnya kosong tidak menjadi `w:tbl` tanpa `w:tr`.
+		if (rows.length === 0) return []
 
 		const tableBorder =
 			node.attrs.borderStyle === 'none'
@@ -864,7 +932,7 @@ export async function exportDocx(
 						width: node.attrs.borderWidth,
 						style: node.attrs.borderStyle,
 					})
-		return new Table({
+		const table = new Table({
 			rows,
 			// tblW, gridCol, dan tcW dari satu kisi - jumlahnya selalu sama (TBL-7).
 			width: { size: tableTwips, type: WidthType.DXA },
@@ -888,6 +956,7 @@ export async function exportDocx(
 					}
 				: {}),
 		})
+		return [table]
 	}
 
 	// Referensi penomoran orderedList: format huruf/romawi dan nilai start non-1
@@ -905,7 +974,13 @@ export async function exportDocx(
 			format,
 			text: `%${level + 1}.`,
 			alignment: 'left' as const,
-			start: level === 0 ? start : 1,
+			/*
+			 * Setiap node daftar punya instance penomoran sendiri, dan referensi
+			 * ini hanya dipakai daftar dengan `start` yang sama - jadi `start`
+			 * berlaku di tingkat mana pun daftarnya berada. Dulu hanya tingkat 0,
+			 * dan daftar bernomor bersarang `start: 3` mulai dari 1.
+			 */
+			start,
 			// Level 0 dibiarkan tanpa indent (perilaku lama); level dalam digeser ala Word.
 			...(level > 0 ? { style: { paragraph: { indent: { left: 720 * (level + 1), hanging: 360 } } } } : {}),
 		}))
@@ -947,7 +1022,13 @@ export async function exportDocx(
 			let first = true
 			within({ nested: true }, () => {
 				item.forEach((block) => {
-					if (block.isTextblock) {
+					/*
+					 * Hanya paragraf yang dibangun langsung. Blok teks lain - kode,
+					 * diagram, judul, isi catatan kaki lama - lewat `blockOf`, supaya
+					 * kode tetap berhuruf lebar-tetap, diagram tetap gambar, dan isi
+					 * catatan kaki tidak tercetak dua kali.
+					 */
+					if (block.type.name === 'paragraph') {
 						const left = px(textLeft + (Number(block.attrs.indentLeft) || 0))
 						items.push(
 							paragraphOf(
@@ -1034,7 +1115,7 @@ export async function exportDocx(
 			let first = true
 			within({ nested: true, run: checked ? { strike: true, color: DONE_TASK_COLOR } : {} }, () => {
 				item.forEach((block) => {
-					if (first && block.isTextblock) {
+					if (first && block.type.name === 'paragraph') {
 						items.push(
 							paragraphOf(
 								block,
@@ -1070,7 +1151,7 @@ export async function exportDocx(
 			within({ indent: 0, nested: true, quote: false }, () => {
 				let lead: ParagraphChild[] = emoji ? [new TextRun({ text: `${emoji} ` })] : []
 				node.forEach((child) => {
-					if (lead.length > 0 && child.isTextblock) {
+					if (lead.length > 0 && child.type.name === 'paragraph') {
 						children.push(paragraphOf(child, {}, lead))
 						lead = []
 						return
@@ -1132,7 +1213,9 @@ export async function exportDocx(
 
 	/** Isi paragraf satu gambar, dibatasi lebar DAN tinggi area isi. */
 	const fittedImage = (width: number, height: number) => {
-		const scale = Math.min(1, sectionContentWidth / width, imageHeightRoom() / height)
+		// Lekukan wadah (kutipan, butir daftar) memakan lebar yang tersedia.
+		const room = Math.max(1, sectionContentWidth - ctx.indent)
+		const scale = Math.min(1, room / width, imageHeightRoom() / height)
 		return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) }
 	}
 
@@ -1185,10 +1268,15 @@ export async function exportDocx(
 				return calloutOf(node)
 
 			case 'table':
-				return [tableOf(node)]
+				return tableOf(node)
 
+			/*
+			 * `w:br w:type="page"` di paragrafnya sendiri - bentuk Ctrl+Enter
+			 * Word. Dulu paragraf `pageBreakBefore` berisi `w:br` biasa, jadi
+			 * halaman baru selalu dibuka dua baris kosong.
+			 */
 			case PAGE_BREAK_NODE:
-				return [new Paragraph({ children: [new TextRun({ break: 1 })], pageBreakBefore: true })]
+				return [new Paragraph({ children: [new docx.PageBreak()] })]
 
 			/* `w:br w:type="column"` — pindah kolom, bukan pindah halaman.
 			 * Tanpa ini ia pulang sebagai paragraf kosong dan tata letak
@@ -1487,7 +1575,7 @@ export async function exportDocx(
 				? {
 						column: {
 							count: columns.count,
-							space: px(columns.gap ?? DEFAULT_COLUMN_GAP_PX),
+							space: px(gapOf(columns)),
 							...columnWidthsOf(docx, columns, geo.contentWidth),
 						},
 					}
