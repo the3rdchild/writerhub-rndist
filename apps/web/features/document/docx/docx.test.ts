@@ -1528,6 +1528,18 @@ describe('rumus matematika (OMML)', () => {
 		expect(latexOf(blocks(result.content)[0])).toBe('W=\\frac{x}{y}')
 	})
 
+	test('ukuran huruf rumus (w:sz run OMML) ikut terbaca sebagai fontSize', async () => {
+		// 69565-277381-1-RV.docx: rumus 8 pt di makalah berkolom; tanpa ini tampil ±11,5 pt.
+		const sized = '<m:r><w:rPr><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><m:t>D=0.069</m:t></m:r>'
+		const result = await readDocx(docx({ body: p(`<m:oMathPara><m:oMath>${sized}</m:oMath></m:oMathPara>`) }))
+		expect(blocks(result.content)[0]?.attrs).toMatchObject({ latex: 'D=0.069', fontSize: 8 })
+
+		const tanpa = await readDocx(
+			docx({ body: p(`<m:oMathPara><m:oMath>${mr('x')}</m:oMath></m:oMathPara>`) }),
+		)
+		expect(blocks(tanpa.content)[0]?.attrs?.fontSize).toBeUndefined()
+	})
+
 	test('teks sebelum oMathPara tetap terbawa sebagai paragraf tersendiri', async () => {
 		const result = await readDocx(
 			docx({

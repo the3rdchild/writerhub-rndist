@@ -2028,13 +2028,16 @@ a {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
+/* Jarak rumus blok mendekati Word: hanya sedikit di atas/bawah, bukan margin
+   bawaan KaTeX (1em) ditambah margin blok (1em) - rumus satu baris dulu
+   memakan ±95 px di makalah berkolom. */
 .document-body .math-block {
   display: block;
-  margin: 1em 0;
+  margin: 0.3em 0;
   text-align: center;
   cursor: pointer;
   border-radius: 6px;
-  padding: 0.4em 0;
+  padding: 0.1em 0;
   transition: background-color 0.15s ease;
 }
 
@@ -2042,6 +2045,7 @@ a {
    memenggal seperti teks. Yang masih lebih lebar terpotong di bloknya
    sendiri, tidak menimpa kolom sebelah atau keluar kertas. */
 .document-body .math-block .katex-display {
+  margin: 0;
   font-size: calc(var(--math-scale, 1) * 1em);
   overflow-x: auto;
   overflow-y: hidden;

@@ -277,7 +277,7 @@ function walkInline(
 
 			case 'oMath': {
 				const latex = ommlToLatex(node)
-				if (latex) builder.inline.push({ type: MATH_INLINE, attrs: { latex } })
+				if (latex) builder.inline.push({ type: MATH_INLINE, attrs: { latex, ...mathSizeOf(node) } })
 				break
 			}
 
@@ -287,7 +287,7 @@ function walkInline(
 				if (builder.inline.length > 0) flushParagraph(builder)
 				const latex = ommlToLatex(node)
 				if (latex) {
-					builder.blocks.push({ type: MATH_BLOCK, attrs: { latex } })
+					builder.blocks.push({ type: MATH_BLOCK, attrs: { latex, ...mathSizeOf(node) } })
 					builder.flushed = true
 				}
 				break
@@ -579,6 +579,19 @@ export function bodyBlocks(
 	}
 
 	return blocks
+}
+
+/**
+ * Ukuran huruf rumus (pt) dari run OMML-nya (`w:sz`, setengah poin) - run
+ * pertama yang menyebutnya. Tanpa ini rumus ikut ukuran dasar naskah, yang di
+ * makalah berkolom bisa 1,5 kali teks di sekitarnya.
+ */
+function mathSizeOf(node: Element): { fontSize?: number } {
+	for (const size of descendAll(node, 'sz')) {
+		const halfPoints = Number.parseInt(val(size) ?? '', 10)
+		if (Number.isFinite(halfPoints) && halfPoints > 0) return { fontSize: halfPoints / 2 }
+	}
+	return {}
 }
 
 export function readBody(

@@ -35,6 +35,17 @@ export interface MathRunIR {
 	aln?: boolean
 	/** Warna run (`\color`), hex tanpa `#`. */
 	color?: string
+	/** Ukuran huruf run dalam setengah poin (`w:sz`), dari ukuran rumus di naskah. */
+	sz?: number
+}
+
+/** Pasang ukuran huruf (setengah poin) ke setiap run rumus. */
+export function withMathSize(items: MathIR[], halfPoints: number): MathIR[] {
+	return items.map((item) =>
+		item.t === 'r'
+			? { ...item, sz: halfPoints }
+			: { ...item, children: withMathSize(item.children, halfPoints) },
+	)
 }
 
 export interface MathElementIR {
@@ -734,6 +745,12 @@ export function ommlBuilder(docx: DocxModule) {
 		const wordProps = [
 			...(run.nor ? [] : [element('w:rFonts', [], { 'w:ascii': 'Cambria Math', 'w:hAnsi': 'Cambria Math' })]),
 			...(run.color ? [element('w:color', [], { 'w:val': run.color })] : []),
+			...(run.sz
+				? [
+						element('w:sz', [], { 'w:val': String(run.sz) }),
+						element('w:szCs', [], { 'w:val': String(run.sz) }),
+					]
+				: []),
 		]
 		const preserve = /^\s|\s$/.test(run.text) || run.text === ''
 		return element('m:r', [

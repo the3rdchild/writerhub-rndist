@@ -24,7 +24,7 @@ import { TOC_BLOCK } from '@/features/editor/toc-block'
 import { readOutlineItems } from '@/features/editor/use-outline-plain'
 import { DOCX_ALIGNMENT, docxTypographyStyles } from './docx/typography-styles'
 import { createXmlParser } from './docx/xml'
-import { LatexToOmml, ommlBuilder } from './export-docx-math'
+import { LatexToOmml, ommlBuilder, withMathSize } from './export-docx-math'
 import { finalizeDocx } from './export-docx-post'
 import {
 	CODE_FONT,
@@ -593,8 +593,13 @@ export async function exportDocx(
 	}
 
 	/** Rumus dalam baris: persamaan Word, atau sumber LaTeX berhuruf lebar-tetap. */
-	const inlineMath = (latex: string): ParagraphChild[] => {
-		const items = LatexToOmml.convert(latex, false, parseXml)
+	/** Ukuran rumus (pt, atribut `fontSize`) menjadi `w:sz` tiap run-nya. */
+	const sizedMath = (items: ReturnType<typeof LatexToOmml.convert>, fontSize: unknown) =>
+		items && typeof fontSize === 'number' && fontSize > 0
+			? withMathSize(items, Math.round(fontSize * 2))
+			: items
+	const inlineMath = (latex: string, fontSize?: unknown): ParagraphChild[] => {
+		const items = sizedMath(LatexToOmml.convert(latex, false, parseXml), fontSize)
 		if (items) return [omml.inline(items) as ParagraphChild]
 		return latex.trim()
 			? [
@@ -653,7 +658,7 @@ export async function exportDocx(
 					out.push(new TextRun({ children: [new Tab()] }))
 					break
 				case 'mathInline':
-					out.push(...inlineMath(String(child.attrs.latex ?? '')))
+					out.push(...inlineMath(String(child.attrs.latex ?? ''), child.attrs.fontSize))
 					break
 				case 'footnoteRef': {
 					const id = footnotes.ids.get(child)
@@ -1320,7 +1325,7 @@ export async function exportDocx(
 			 */
 			case 'mathBlock': {
 				const latex = String(node.attrs.latex ?? '')
-				const items = LatexToOmml.convert(latex, true, parseXml)
+				const items = sizedMath(LatexToOmml.convert(latex, true, parseXml), node.attrs.fontSize)
 				if (items)
 					return [new Paragraph({ ...objectParagraphProps(true), children: [omml.block(items) as never] })]
 				if (!latex.trim()) return []
