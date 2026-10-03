@@ -55,8 +55,8 @@ export function TopBar() {
 								if (activeDocId) renameDocument(activeDocId, title)
 								else dispatch({ type: 'setTitle', title })
 							}}
-							placeholder="Dokumen tanpa judul"
-							aria-label="Judul dokumen"
+							placeholder="Untitled document"
+							aria-label="Document title"
 							readOnly={inVersionMode}
 							className={cn(
 								'w-full max-w-[520px] truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-lg font-medium text-foreground outline-none transition-colors placeholder:text-faint',
@@ -69,23 +69,23 @@ export function TopBar() {
 					<div className="flex shrink-0 items-center gap-1 pt-1">
 						{/* Sunting bersama: fase sesi dan kolaborator di tab ini (SHL-5). */}
 						<CollabIndicator />
-						{isRunning && <span className="mr-1 hidden text-xs text-subtle sm:inline">Memeriksa…</span>}
+						{isRunning && <span className="mr-1 hidden text-xs text-subtle sm:inline">Checking…</span>}
 						<HeaderButton
 							icon={PanelLeft}
-							label="Tab dokumen"
+							label="Document tabs"
 							active={settings.showDocumentTabs}
 							onClick={() => update({ showDocumentTabs: !settings.showDocumentTabs })}
 						/>
 						<HeaderButton
 							icon={Focus}
-							label="Mode fokus"
+							label="Focus mode"
 							active={settings.focusMode}
 							onClick={toggleFocusMode}
 						/>
-						<HeaderButton icon={SettingsIcon} label="Pengaturan" onClick={() => setSettingsOpen(true)} />
+						<HeaderButton icon={SettingsIcon} label="Settings" onClick={() => setSettingsOpen(true)} />
 						<HeaderButton
 							icon={History}
-							label={inVersionMode ? 'Riwayat versi sedang terbuka' : 'Riwayat versi'}
+							label={inVersionMode ? 'Version history is open' : 'Version history'}
 							active={inVersionMode}
 							disabled={!activeId || inVersionMode}
 							onClick={() => {
@@ -102,14 +102,14 @@ export function TopBar() {
 							type="button"
 							onClick={() => setShareOpen(true)}
 							disabled={inVersionMode}
-							title={inVersionMode ? 'Keluar dari riwayat versi untuk membagikan' : undefined}
+							title={inVersionMode ? 'Exit version history to share' : undefined}
 							className={cn(
 								'ml-1 flex items-center gap-1.5 rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-accent-foreground transition-colors',
 								inVersionMode ? 'cursor-not-allowed opacity-40' : 'hover:bg-accent-hover',
 							)}
 						>
 							<Share2 className="h-4 w-4" />
-							Bagikan
+							Share
 						</button>
 					</div>
 				</div>

@@ -138,7 +138,7 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 					<Link
 						href="/"
 						className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-[var(--overlay-hover)] hover:text-foreground"
-						aria-label="Kembali ke editor"
+						aria-label="Back to editor"
 					>
 						<ArrowLeft className="h-5 w-5" />
 					</Link>
@@ -159,7 +159,7 @@ export function SharedDocumentView({ payload }: { payload: SharePayload }) {
 						href="/"
 						className="hidden rounded-xl bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover sm:inline-block"
 					>
-						Buka di editor
+						Open in editor
 					</Link>
 				</div>
 			</header>
