@@ -36,6 +36,26 @@ export function snapFrom(origin: number, raw: number, fine: boolean): number {
 	return origin + snapRulerPosition(raw - origin, fine)
 }
 
+/**
+ * Titik nol kisi jepret gagang penggaris mendatar. Tab stop dan indentasi
+ * diukur dari tepi area teksnya (margin kiri, atau tepi kolom) - indentasi
+ * kanan dari tepi kanannya - jadi kisinya ikut tepi itu: di kolom 2 tepinya
+ * tidak jatuh di kisi kertas, dan indentasi 0,5 in harus tetap 0,5 in.
+ * Margin dan gagang lain diukur dari tepi kertas.
+ */
+export function rulerSnapOrigin(kind: string, textLeft: number, textWidth: number): number {
+	switch (kind) {
+		case 'tab':
+		case 'firstLine':
+		case 'indentLeft':
+			return textLeft
+		case 'indentRight':
+			return textLeft + textWidth
+		default:
+			return 0
+	}
+}
+
 export function useRulerDrag<H>({ axis, zoom, trackRef, onMove, onUp, snapOrigin }: RulerDragOptions<H>) {
 	const [dragging, setDragging] = useState<H | null>(null)
 	const lastRef = useRef<number | null>(null)

@@ -5,7 +5,7 @@ import { useCallback, useRef, useState } from 'react'
 import { type ColumnDrag, dragColumns, layoutPatch } from '@/features/editor/column-geometry'
 import { type BlockIndent, clampBlockIndent, useBlockIndent } from '@/features/editor/indent'
 import { MIN_CONTENT_WIDTH, type PageGeometry, type PageMargins } from '@/features/editor/page-geometry'
-import { clamp, rulerNudge, snapFrom, useRulerDrag } from '@/features/editor/ruler-drag'
+import { clamp, rulerNudge, rulerSnapOrigin, snapFrom, useRulerDrag } from '@/features/editor/ruler-drag'
 import {
 	addTabStop,
 	cycleTabStop,
@@ -206,7 +206,7 @@ export function DocumentRuler({
 		axis: 'x',
 		zoom,
 		trackRef,
-		snapOrigin: (handle) => (handle.kind === 'tab' ? indentBase : 0),
+		snapOrigin: (handle) => rulerSnapOrigin(handle.kind, indentBase, indentWidth),
 		onMove: (handle, x, outside) => {
 			if (DEFERRED.has(handle.kind)) {
 				previewRef.current = x

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { JSONContent } from '@tiptap/core'
 import { EditorState, TextSelection } from '@tiptap/pm/state'
 import { buildSchema } from '@/features/sync/serialize'
-import { snapFrom } from './ruler-drag'
+import { rulerSnapOrigin, snapFrom } from './ruler-drag'
 import {
 	addTabStop,
 	cycleTabStop,
@@ -24,6 +24,20 @@ describe('kisi jepret tab stop mengikuti tepi area teks', () => {
 
 	test('mode halus (Shift) menjepret per piksel dari tepi yang sama', () => {
 		expect(snapFrom(409, 505.4, true) - 409).toBe(96)
+	})
+
+	test('gagang indentasi di kolom 2 berkisi tepi kolom, indentasi kanan dari tepi kanannya', () => {
+		const [left, width] = [409, 313]
+		const firstLine = snapFrom(rulerSnapOrigin('firstLine', left, width), 457.4, false)
+		expect(firstLine - left).toBe(48)
+		expect(snapFrom(rulerSnapOrigin('indentLeft', left, width), 456.6, false) - left).toBe(48)
+		const right = snapFrom(rulerSnapOrigin('indentRight', left, width), 674.2, false)
+		expect(left + width - right).toBe(48)
+	})
+
+	test('margin tetap berkisi kertas', () => {
+		expect(rulerSnapOrigin('marginLeft', 409, 313)).toBe(0)
+		expect(snapFrom(rulerSnapOrigin('marginLeft', 409, 313), 97, false)).toBe(96)
 	})
 })
 
