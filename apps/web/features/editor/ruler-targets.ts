@@ -8,7 +8,9 @@ import { FALLBACK_COLUMN_GAP } from './column-measure'
 import { columnLayoutKey } from './columns'
 import { DEFAULT_PAGE_SETUP, pageGeometry } from './page-geometry'
 import { paginationKey } from './pagination'
+import { tabStopsAt } from './ruler-tabs'
 import { columnRegions } from './section-break'
+import type { TabStop } from './tab-stops'
 import { columnWidths, locateTable } from './table-ops'
 
 export interface TableRulerTarget {
@@ -168,4 +170,35 @@ export function useRulerTarget(editor: Editor | null): RulerTarget {
 	)
 
 	return target
+}
+
+/** Tab stop paragraf di kursor - penanda tab stop di penggaris (TKS-18). */
+export function useTabStops(editor: Editor | null): TabStop[] {
+	const [stops, setStops] = useState<TabStop[]>([])
+
+	useEffect(
+		function syncTabStops() {
+			if (!editor) {
+				setStops([])
+				return
+			}
+			const sync = () => {
+				const next = tabStopsAt(editor.state)
+				setStops((current) =>
+					current.length === next.length &&
+					current.every((stop, index) => stop.posPt === next[index].posPt && stop.type === next[index].type)
+						? current
+						: next,
+				)
+			}
+			sync()
+			editor.on('transaction', sync)
+			return () => {
+				editor.off('transaction', sync)
+			}
+		},
+		[editor],
+	)
+
+	return stops
 }

@@ -493,6 +493,63 @@ a {
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }
 
+/* Tab stop paragraf (TKS-18): siku kecil di bawah angka seperti Word -
+   L kiri, ⊥ tengah, ⅃ kanan. Batang tegaknya tepat di posisi tab stop. */
+.document-ruler__tab {
+  position: absolute;
+  bottom: 2px;
+  width: 11px;
+  height: 9px;
+  margin-left: -5.5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+.document-ruler__tab::before,
+.document-ruler__tab::after {
+  content: '';
+  position: absolute;
+  background: var(--foreground);
+  transition: background-color 0.15s ease;
+}
+.document-ruler__tab::before {
+  left: 50%;
+  top: 1px;
+  bottom: 1px;
+  width: 2px;
+  margin-left: -1px;
+}
+.document-ruler__tab::after {
+  bottom: 1px;
+  height: 2px;
+}
+.document-ruler__tab--left::after {
+  left: 50%;
+  width: 5px;
+  margin-left: -1px;
+}
+.document-ruler__tab--right::after {
+  right: 50%;
+  width: 5px;
+  margin-right: -1px;
+}
+.document-ruler__tab--center::after {
+  left: 1px;
+  right: 1px;
+}
+.document-ruler__tab:hover::before,
+.document-ruler__tab:hover::after,
+.document-ruler__tab:focus-visible::before,
+.document-ruler__tab:focus-visible::after {
+  background: var(--accent);
+}
+/* Diseret menjauhi penggaris: akan dibuang saat dilepas. */
+.document-ruler__tab--detached {
+  opacity: 0.3;
+}
+
 /* ── penggaris kiri (vertikal, §A3) ────────────────────────────────────────
  * Bayangan cermin dari penggaris atas: kelasnya dipisah (bukan modifier)
  * karena arah tiap propertinya berbalik - top/bottom menggantikan left/right.

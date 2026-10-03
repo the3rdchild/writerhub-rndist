@@ -1,6 +1,7 @@
 'use client'
 
 import { Extension } from '@tiptap/core'
+import type { Selection } from '@tiptap/pm/state'
 import { tabLayoutPlugin } from './tab-layout'
 
 /**
@@ -28,6 +29,29 @@ export interface TabStop {
 export interface TabStopsAttrs {
 	/** Daftar tab stop paragraf; null/kosong = baku kelipatan 1,27 cm. */
 	tabStops?: TabStop[] | null
+}
+
+/**
+ * Apakah Tab di seleksi ini menyisipkan karakter tab (bukan indentasi)?
+ *
+ * Seperti Word: di tengah baris paragraf ya, supaya blok data surat
+ * ("Nama⇥: …") bisa diketik. Di awal paragraf Tab mengindentasi
+ * (`indent.ts`) - kecuali paragrafnya punya tab stop sendiri (dipasang dari
+ * penggaris, TKS-18): di sana Tab meloncat ke tab stop pertama. Daftar,
+ * tabel, dan blok kode menangani Tab sendiri - Tab pindah sel, atau
+ * menurunkan butir.
+ */
+export function insertsTabCharacter(selection: Selection): boolean {
+	const { $from } = selection
+	if (!selection.empty || $from.parent.type.name !== 'paragraph') return false
+	if ($from.parentOffset === 0) {
+		const stops = $from.parent.attrs.tabStops as TabStop[] | null | undefined
+		if (!Array.isArray(stops) || stops.length === 0) return false
+	}
+	for (let depth = $from.depth; depth > 0; depth -= 1) {
+		if (TAB_OWNERS.includes($from.node(depth).type.name)) return false
+	}
+	return true
 }
 
 declare module '@tiptap/core' {
@@ -89,21 +113,12 @@ export const TabStops = Extension.create({
 	addKeyboardShortcuts() {
 		return {
 			/*
-			 * Seperti Word: Tab di tengah baris paragraf menyisipkan karakter tab,
-			 * supaya blok data surat ("Nama⇥: …") bisa diketik. Di awal paragraf
-			 * Tab tetap menambah indentasi (`indent.ts`), dan di daftar serta
-			 * tabel pemiliknya sendiri yang menangani - Tab pindah sel, atau
-			 * menurunkan butir. Prioritasnya di atas `blockIndent` supaya aturan
-			 * ini diperiksa lebih dulu; `false` menyerahkan tombolnya ke sana.
+			 * Aturannya di `insertsTabCharacter`. Prioritasnya di atas
+			 * `blockIndent` supaya aturan ini diperiksa lebih dulu; `false`
+			 * menyerahkan tombolnya ke sana.
 			 */
 			Tab: ({ editor }) => {
-				const { selection } = editor.state
-				const { $from } = selection
-				if (!selection.empty || $from.parent.type.name !== 'paragraph' || $from.parentOffset === 0)
-					return false
-				for (let depth = $from.depth; depth > 0; depth -= 1) {
-					if (TAB_OWNERS.includes($from.node(depth).type.name)) return false
-				}
+				if (!insertsTabCharacter(editor.state.selection)) return false
 				return editor.commands.insertContent({ type: 'tab' })
 			},
 		}

@@ -13,17 +13,22 @@ export function snapRulerPosition(raw: number, fine: boolean): number {
 	return fine ? Math.round(raw) : Math.round(raw / RULER_SNAP) * RULER_SNAP
 }
 
+/** Gagang yang diseret sejauh ini menjauhi penggaris dianggap dilepas DARI penggaris (tab stop dibuang). */
+export const RULER_DETACH = 24
+
 export interface RulerDragOptions<H> {
 	axis: 'x' | 'y'
 	zoom: number
 	trackRef: RefObject<HTMLElement | null>
-	onMove: (handle: H, pos: number) => void
-	onUp: (handle: H, pos: number | null) => void
+	/** `outside`: penunjuk sedang jauh dari penggaris, tegak lurus arahnya. */
+	onMove: (handle: H, pos: number, outside: boolean) => void
+	onUp: (handle: H, pos: number | null, outside: boolean) => void
 }
 
 export function useRulerDrag<H>({ axis, zoom, trackRef, onMove, onUp }: RulerDragOptions<H>) {
 	const [dragging, setDragging] = useState<H | null>(null)
 	const lastRef = useRef<number | null>(null)
+	const outsideRef = useRef(false)
 	const onMoveRef = useRef(onMove)
 	onMoveRef.current = onMove
 	const onUpRef = useRef(onUp)
@@ -40,15 +45,25 @@ export function useRulerDrag<H>({ axis, zoom, trackRef, onMove, onUp }: RulerDra
 				return snapRulerPosition(raw, event.shiftKey)
 			}
 
+			const outsideOf = (event: PointerEvent) => {
+				const rect = trackRef.current?.getBoundingClientRect()
+				if (!rect) return false
+				return axis === 'x'
+					? event.clientY < rect.top - RULER_DETACH || event.clientY > rect.bottom + RULER_DETACH
+					: event.clientX < rect.left - RULER_DETACH || event.clientX > rect.right + RULER_DETACH
+			}
+
 			const handleMove = (event: PointerEvent) => {
 				const pos = positionOf(event)
 				if (pos === null) return
 				lastRef.current = pos
-				onMoveRef.current(dragging, pos)
+				outsideRef.current = outsideOf(event)
+				onMoveRef.current(dragging, pos, outsideRef.current)
 			}
 			const handleUp = () => {
-				onUpRef.current(dragging, lastRef.current)
+				onUpRef.current(dragging, lastRef.current, outsideRef.current)
 				lastRef.current = null
+				outsideRef.current = false
 				setDragging(null)
 			}
 
@@ -67,6 +82,7 @@ export function useRulerDrag<H>({ axis, zoom, trackRef, onMove, onUp }: RulerDra
 	const startDrag = (handle: H) => (event: React.PointerEvent) => {
 		event.preventDefault()
 		lastRef.current = null
+		outsideRef.current = false
 		setDragging(handle)
 	}
 
